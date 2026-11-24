@@ -13,7 +13,7 @@ const mx = vi.hoisted(() => ({ getRoom: vi.fn() }));
 const none = vi.hoisted(() => []);
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('./components/styles.css', () =>
   Object.fromEntries(
@@ -35,7 +35,9 @@ vi.mock('../../lib/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../useImagePacks', () => ({ useRelevantImagePacks: () => none }));
 vi.mock('../useRecentEmoji', () => ({ useRecentEmoji: () => none }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 vi.mock('../../lib/hooks/useFilePicker', () => ({
   useFilePicker: (onSelect: (file: File) => void) => () =>
     onSelect(new File(['png'], 'parrot.png', { type: 'image/png' })),

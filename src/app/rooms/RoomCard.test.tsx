@@ -31,7 +31,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -82,7 +82,7 @@ const makeMx = (
       membership && roomId === '!private:example.org' ? room : null
     ),
     getRooms: vi.fn(() => (membership ? [room] : [])),
-    joinRoom: vi.fn(async () => ({} as never)),
+    joinRoom: vi.fn(async () => ({}) as never),
     knockRoom: vi.fn(async () => ({ room_id: '!private:example.org' })),
     on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       const eventListeners = listeners.get(event) ?? new Set();

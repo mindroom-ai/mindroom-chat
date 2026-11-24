@@ -12,13 +12,7 @@ type InlineMDRenderer = (parseInline: InlineMDParser, match: RegExpMatchArray) =
 
 /** The kinds of inline Markdown a parse can report where it found them. */
 export type InlineMDSpanKind =
-  | 'bold'
-  | 'italic'
-  | 'strikethrough'
-  | 'spoiler'
-  | 'link'
-  | 'escape'
-  | 'code';
+  'bold' | 'italic' | 'strikethrough' | 'spoiler' | 'link' | 'escape' | 'code';
 
 /**
  * Where a parse found inline Markdown, in offsets of the text it was given: `start` to `end`

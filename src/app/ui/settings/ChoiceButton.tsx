@@ -1,5 +1,5 @@
 import { MouseEvent, useState } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Box, Button, Icon, Icons, Text, config, type RectCords } from 'folds';
 import { PopOut } from '../directional';
 import { Menu, MenuItem } from '../glass/GlassPrimitives';

@@ -222,6 +222,7 @@ import {
   ExpandAllLine,
   FilterBarSlot,
   JumpToLatestAction,
+  ThreadLoadOlderLine,
   ThreadLoadingLines,
   footerProbeStyle,
   listTopSentinelStyle,
@@ -446,7 +447,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     route
   );
   const backController = useThreadBackPaginationController();
-  const prependViewport = useThreadPrependViewport({ controller: backController, scrollRef });
+  const cancelThreadScrollRef = useRef<(() => void) | undefined>(undefined);
+  const onPrependBegin = useCallback(() => cancelThreadScrollRef.current?.(), []);
+  const prependViewport = useThreadPrependViewport({
+    controller: backController,
+    scrollRef,
+    onBegin: onPrependBegin,
+  });
 
   // The room's loaded timeline and the window of it that is mounted.
   const filterOpts = useMemo<RecalibrateFilterOpts>(
@@ -500,7 +507,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = threadId
-    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
     : undefined;
   const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
@@ -1220,8 +1227,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     readAhead: !latestAtTop,
   });
 
+  const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
+  const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
+  const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
   // The virtual list and its offset ledger.
-  const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
+  const itemCount = threadId ? threadEvents.length + threadLeadingOffset : roomWindowRows.length;
   const showRoomIntro =
     !threadId &&
     liveTimelineLinked &&
@@ -1266,17 +1276,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
-  // What prices the open thread's rows besides its events: the ledger holds the reader's rows
-  // when it changes the price of an unmeasured row above them.
-  const threadRowPricing = useMemo(
-    () => [threadHiddenIds, turnFolds.view],
-    [threadHiddenIds, turnFolds.view]
-  );
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout,
     showThreadRepliesInRoom,
     threadEvents,
+    hasThreadLoadOlder: showThreadLoadOlder,
     roomWindowRows,
     windowStart: activeTimelineRange.start,
     roomRowsRef,
@@ -1299,7 +1304,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     },
     estimateSize
   );
-  const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
@@ -1330,26 +1334,21 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomFoldPriceRef,
     roomId: room.roomId,
     rowsKey: threadId ? undefined : rowsGeneration,
-    threadEventIndexMap,
-    threadEvents,
     threadId,
-    threadInitialRenderMode,
-    threadRowPricing,
-    leadingKey: threadId
-      ? [
-          threadLoadError ? 'error' : '',
-          showThreadLoadOlder ? 'older' : '',
-          threadLoading ? 'loading' : '',
-        ].join('|')
-      : roomSurfaceShown && !latestAtTop
-      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-      : '',
+    pinThreadLeadingItem: showThreadLoadOlder,
+    leadingKey:
+      !threadId && roomSurfaceShown && !latestAtTop
+        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+        : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
+  cancelThreadScrollRef.current = threadId
+    ? () => virtualizerRef.current.cancelScroll()
+    : undefined;
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
   const { virtualInnerRef, readRowFoldPx } = ledger;
   const pendingListShrinkPx = useCallback(
@@ -1390,8 +1389,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const listHeight = heldList
     ? heldListHeight(heldList, ledger.ledgerPxAtRender)
     : virtualizer.getTotalSize();
-  useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
-  useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
+  useThreadApprovalRowMeasurements(
+    virtualizer,
+    threadEvents,
+    threadHiddenIds,
+    estimateSize,
+    threadLeadingOffset
+  );
+  useTurnBreakRowMeasurements(
+    virtualizer,
+    threadEvents,
+    turnFolds.view,
+    estimateSize,
+    threadLeadingOffset
+  );
   useMembershipFoldRowSizes(
     virtualizer,
     threadId ? undefined : roomWindowRows,
@@ -1414,6 +1425,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeRangeRef,
     virtualizerRef,
     threadEventIndexMapRef,
+    threadLeadingOffsetRef,
     onJump: ledger.endSettleDiscardWatch,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
@@ -1430,7 +1442,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     scrollToBottomRef,
     readerScrolledRef,
     onFirstGesture: forceRender,
+    onThreadTakeover: onPrependBegin,
   });
+  const scrollThreadToEnd = useCallback(
+    (smooth = false) => {
+      virtualizerRef.current.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
+    },
+    [virtualizerRef]
+  );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
@@ -1500,6 +1519,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     retryPagination,
     roomId: room.roomId,
     scrollRef,
+    scrollThreadToEnd: threadId ? scrollThreadToEnd : undefined,
     scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
@@ -1536,6 +1556,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     viewKey,
     opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
     rows: threadEvents,
+    indexOffset: threadLeadingOffset,
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
@@ -1881,6 +1902,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     paginatingBack: threadPaginatingBack,
     showLoadOlder: showThreadLoadOlder,
     hasUserScrollIntent: threadUserScrolled,
+    leadingOffset: threadLeadingOffset,
     paginateBack: threadPagination.paginateBack,
   });
 
@@ -2124,10 +2146,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     handleOpenReply,
     forkPrefixEventIds,
   };
+  const threadLoadOlderNode = showThreadLoadOlder ? (
+    <ThreadLoadOlderLine
+      paginatingBack={threadPaginatingBack}
+      onLoadOlder={handleLoadOlderThread}
+    />
+  ) : undefined;
   const tiles = renderTimelineTiles({
     virtualItems,
     threadId,
     threadEvents,
+    threadLoadOlderNode,
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
@@ -2228,15 +2257,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   {threadHeader}
                 </ThreadTimelineHeader>
               )}
-              <div ref={ledger.leadingRef}>
-                <ThreadLoadingLines
-                  loadError={threadLoadError}
-                  showLoadOlder={showThreadLoadOlder}
-                  paginatingBack={threadPaginatingBack}
-                  loading={threadLoading}
-                  onLoadOlder={handleLoadOlderThread}
-                />
-              </div>
+              <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
             <div ref={ledger.leadingRef}>

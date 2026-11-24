@@ -38,7 +38,7 @@ vi.mock('../../preferences/useSetting', () => ({ useSetting: () => [state.hour24
 vi.mock('./JumpToTime.css', () => ({ Picker: 'picker', TimePicker: 'time-picker' }));
 // jsdom has no layout, so focus-trap finds nothing tabbable; the trap itself is not under test.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const CREATED_AT = new Date(2024, 2, 5, 9, 30, 15).getTime();
@@ -123,7 +123,7 @@ const relations = (newestFirst: ReturnType<typeof reply>[], pageSize = 2) =>
   );
 
 const thread = (fetchRelations: unknown) =>
-  ({ fetchRelations } as unknown as Pick<MatrixClient, 'fetchRelations'>);
+  ({ fetchRelations }) as unknown as Pick<MatrixClient, 'fetchRelations'>;
 
 describe('findThreadEventAtTime', () => {
   // Root at 100; replies at 200, 300, 400 and 500, with a deleted one and a reaction between.

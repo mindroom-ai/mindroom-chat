@@ -707,7 +707,18 @@
       "manage": "Verwalten"
     },
     "roomOrder": {
-      "sortByName": "Räume von A bis Z sortieren"
+      "sortRooms": "Räume sortieren",
+      "sortHeading": "Räume sortieren",
+      "displayHeading": "Anzeige",
+      "recentActivity": "Letzte Aktivität",
+      "aToZ": "A bis Z",
+      "customOrder": "Eigene Reihenfolge",
+      "saved": "Gespeichert",
+      "showActivityTimes": "Aktivitätszeiten anzeigen",
+      "matchSpace": "Wie Space ({{mode}})",
+      "shortRecent": "Aktiv",
+      "shortName": "A bis Z",
+      "shortManual": "Eigene"
     },
     "roomActions": {
       "noInvitePermission": "Du hast keine Berechtigung zum Einladen",
@@ -1491,7 +1502,20 @@
       "capReached": "Limit von 5:00 erreicht",
       "micInterrupted": "Mikrofon getrennt. Fortsetzen oder beenden.",
       "failedSummary_one": "{{count}} Abschnitt konnte nicht transkribiert werden.",
-      "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden."
+      "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden.",
+      "discardDictation": "Diktat verwerfen",
+      "discardConfirmTitle": "Diktat verwerfen?",
+      "discardConfirmBody": "Dieses Diktat wurde noch nicht eingefügt oder gesendet. Dauerhaft verwerfen?",
+      "errorTitle": "Diktierfehler",
+      "statusRecovered": "Wiederhergestelltes Diktat",
+      "recoveredDuration": "Wiederhergestellt · {{time}}",
+      "indicator": {
+        "recording": "Diktieren {{time}}",
+        "paused": "Diktat pausiert {{time}}",
+        "recovered": "Wiederhergestelltes Diktat {{time}}",
+        "finishing": "Diktat wird abgeschlossen...",
+        "failed": "Diktat erfordert Aufmerksamkeit"
+      }
     }
   },
   "commandPalette": {
@@ -1597,6 +1621,7 @@
       "needsYou": "Du bist gefragt",
       "working": "In Arbeit",
       "later": "Später",
+      "quiet": "Ruhig",
       "done": "Erledigt",
       "all": "Alle",
       "description": {
@@ -1958,6 +1983,7 @@
       "working": "In Arbeit",
       "later": "Später",
       "idle": "Inaktiv",
+      "quiet": "Ruhig",
       "resolved": "Gelöst"
     },
     "live": {

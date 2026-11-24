@@ -63,7 +63,10 @@ const createSchedulerHost = (
   }
 
   class HostCustomEvent {
-    constructor(readonly type: string, readonly init?: { detail?: unknown }) {}
+    constructor(
+      readonly type: string,
+      readonly init?: { detail?: unknown }
+    ) {}
   }
 
   const runTask = (task: () => void) => {

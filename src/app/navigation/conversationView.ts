@@ -73,15 +73,13 @@ export const useConversationHidden = (): boolean => {
  */
 export const useConversationOutOfSightAtom = (): Atom<boolean> => {
   const view = useContext(ConversationViewContext);
-  return useMemo(
-    () =>
-      view === undefined
-        ? conversationOutOfSightAtom
-        : atom(
-            (get) =>
-              get(phoneNavDrawerOpenAtom) ||
-              !get(shownConversationViewsAtom).some((shown) => shown.view === view)
-          ),
-    [view]
-  );
+  return useMemo(() => {
+    if (view === undefined) return conversationOutOfSightAtom;
+    if (view === HOME_ASK_VIEW) return phoneNavDrawerOpenAtom;
+    return atom(
+      (get) =>
+        get(phoneNavDrawerOpenAtom) ||
+        !get(shownConversationViewsAtom).some((shown) => shown.view === view)
+    );
+  }, [view]);
 };

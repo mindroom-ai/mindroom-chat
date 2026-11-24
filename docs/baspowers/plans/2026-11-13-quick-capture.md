@@ -39,11 +39,13 @@
 ### Task 1: Protocol, channel and the domain's layer
 
 **Files:**
+
 - Create: `src/app/quick-capture/captureProtocol.ts`, `src/app/quick-capture/captureChannel.ts`
 - Test: `src/app/quick-capture/captureProtocol.test.ts`, `src/app/quick-capture/captureChannel.test.ts`
 - Modify: `.eslintrc.cjs` (`LAYERS`: add `'quick-capture'` to the row `['account', 'activity', 'spaces', 'timeline']`), `docs/architecture.md` (the layer table row and one line in the Layout tree: `quick-capture/  the floating note widget's page and its host in the signed-in app`)
 
 **Interfaces:**
+
 - Produces, in `captureProtocol.ts`:
 
 ```ts
@@ -68,14 +70,16 @@ export type CaptureState = {
   rooms: CaptureRoom[];
   items: CaptureItem[];
 };
-export type CaptureErrorCode = 'no-room' | 'upload-failed' | 'send-failed' | 'forbidden' | 'timeout';
+export type CaptureErrorCode =
+  'no-room' | 'upload-failed' | 'send-failed' | 'forbidden' | 'timeout';
 export type CaptureAction =
   | { kind: 'send'; roomId: string; text: string; images: File[]; open: boolean }
   | { kind: 'reply'; roomId: string; threadId: string; text: string }
   | { kind: 'resolve'; roomId: string; threadId: string; resolved: boolean }
   | { kind: 'selectRoom'; roomId: string }
   | { kind: 'open'; roomId: string; threadId?: string };
-export type CaptureResult = { ok: true; threadId?: string } | { ok: false; error: CaptureErrorCode };
+export type CaptureResult =
+  { ok: true; threadId?: string } | { ok: false; error: CaptureErrorCode };
 export type CaptureMessage =
   | { v: 1; type: 'hello' }
   | { v: 1; type: 'request'; id: string; hostId: string; action: CaptureAction }
@@ -125,10 +129,12 @@ export const createCaptureClient: (channel: CaptureChannel) => CaptureClient;
 ### Task 2: The list and the picker's rooms
 
 **Files:**
+
 - Create: `src/app/quick-capture/captureItems.ts`, `src/app/quick-capture/captureRooms.ts`
 - Test: `src/app/quick-capture/captureItems.test.ts`, `src/app/quick-capture/captureRooms.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CaptureItem`, `CaptureRoom` (Task 1).
 - Produces:
 
@@ -154,7 +160,13 @@ export const buildCaptureItems: (threads: CaptureThread[], now: number) => Captu
 // captureRooms.ts
 export const MAX_CAPTURE_ROOMS = 500;
 export const MAX_PICKER_ROWS = 50;
-export type CaptureRoomSource = { id: string; name: string; direct: boolean; space: boolean; lastActiveTs: number };
+export type CaptureRoomSource = {
+  id: string;
+  name: string;
+  direct: boolean;
+  space: boolean;
+  lastActiveTs: number;
+};
 export const buildCaptureRooms: (rooms: CaptureRoomSource[]) => CaptureRoom[];
 /** The picker's rows for a query: a case-insensitive match anywhere in the name, at most 50. */
 export const filterCaptureRooms: (rooms: CaptureRoom[], query: string) => CaptureRoom[];
@@ -174,10 +186,12 @@ export const filterCaptureRooms: (rooms: CaptureRoom[], query: string) => Captur
 ### Task 3: Send, reply, resolve
 
 **Files:**
+
 - Create: `src/app/quick-capture/sendCapture.ts`
 - Test: `src/app/quick-capture/sendCapture.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CaptureErrorCode` (Task 1); `composeTextMessage` (`src/app/composer/composeTextMessage.ts`), `withInlineElements` and `createParagraphElement` (`src/app/editor/utils.ts`), `createRoomUploadItems` (`src/app/matrix/send/roomInputUploadPreparation.ts`), `getImageMsgContent` (`src/app/matrix/send/msgContent.ts`), `getMessageRelation` (`src/app/matrix/send/composeMessageRelation.ts`), `uploadLongTextSidecar` (`src/app/matrix/send/longTextSidecarUpload.ts`), `MAX_EVENT_CONTENT_BYTES` and the long-text helpers of `src/app/matrix/protocol/longText.ts`, `MINDROOM_THREAD_TAGS_EVENT`, `RESOLVED_TAG`, `buildPerTagStateKey`, `buildPerTagEventContent` (`src/app/event-store/threads/threadTags.ts`).
 - Produces:
 
@@ -228,15 +242,19 @@ export const setCaptureResolved: (
 ### Task 4: The default room
 
 **Files:**
+
 - Create: `src/app/preferences/quickCaptureRoom.ts` (not in `quick-capture`: `account` is in the same layer and must clear it at sign-out)
 - Test: `src/app/preferences/quickCaptureRoom.test.ts`
 - Modify: `src/app/account/lifecycle/sessionCleanup.ts` (`clearUserUiState` calls `clearQuickCaptureRoomStore(userId)`)
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
-export const getQuickCaptureRoomAtom: (userId: string) => WritableAtom<string | null, [string | null], void>;
+export const getQuickCaptureRoomAtom: (
+  userId: string
+) => WritableAtom<string | null, [string | null], void>;
 export const clearQuickCaptureRoomStore: (userId: string) => void;
 ```
 
@@ -249,10 +267,12 @@ export const clearQuickCaptureRoomStore: (userId: string) => void;
 ### Task 5: The native plugin's TypeScript side
 
 **Files:**
+
 - Create: `src/app/native/nativeQuickCapture.ts`
 - Test: `src/app/native/nativeQuickCapture.test.ts`
 
 **Interfaces:**
+
 - Produces (the Swift side in Task 12 implements exactly this plugin):
 
 ```ts
@@ -280,11 +300,13 @@ export const captureScreenshot: (target: ScreenshotTarget) => Promise<File>;
 ### Task 6: The host
 
 **Files:**
+
 - Create: `src/app/quick-capture/captureThreads.ts`, `src/app/quick-capture/QuickCaptureHost.tsx`
 - Test: `src/app/quick-capture/captureThreads.test.ts`, `src/app/quick-capture/QuickCaptureHost.test.tsx`
 - Modify: `src/app/shell/ClientNonUIFeatures.tsx` (render `<QuickCaptureHost />` last, and name it in the doc comment)
 
 **Interfaces:**
+
 - Consumes: Tasks 1 to 4 (`getQuickCaptureRoomAtom` from `src/app/preferences/quickCaptureRoom.ts`); nothing from `account`, `activity`, `spaces` or `timeline`, which share this domain's layer; `crossRoomThreadIndexAtom` (`src/app/threads/cross-room/crossRoomThreadIndex.ts`), `getThreadSignalsReader` (`threadSignalsReader.ts`), `threadTitleText`, `threadPreviewText`, `threadActorName`, `threadIndexReplyPreview` (`threadText.ts`), `isZeroReplyStandaloneThreadRootEvent` and `getCompactThreadRootPreviewInfo` (`src/app/event-store/threads/compactThreadRootData.ts`), `navigationRoomsAtom` (`src/app/matrix/state/archivedRooms.ts`), `mDirectAtom`, `roomToUnreadAtom`, `useRoomNavigate` (`src/app/navigation/useRoomNavigate.ts`), `useRoomViewMode`'s reader for one room, `useSetting(settingsAtom, 'isMarkdown')`, `useOptionalClientConfig`.
 - Produces:
 
@@ -325,59 +347,61 @@ export function QuickCaptureHost(props: { channel?: CaptureChannel }): null;
 ### Task 7: Strings
 
 **Files:**
+
 - Modify: `src/app/i18n/locales/additions/en.json` and the 16 other files of `src/app/i18n/locales/additions/`
 
 **Interfaces:**
+
 - Produces: the keys under `featureUi.quickCapture`, with this English text:
 
-| Key | English |
-|---|---|
-| `title` | Quick Capture |
-| `input.placeholder` | Note or question |
-| `input.label` | New entry |
-| `input.send` | Send |
-| `input.sending` | Sending |
-| `attach.window` | Screenshot of the front window |
-| `attach.screen` | Screenshot of the whole screen |
-| `attach.remove` | Remove {{name}} |
-| `room.choose` | Choose a room |
-| `room.change` | Posting to {{room}}. Change room |
-| `room.search` | Search rooms |
-| `room.none` | No rooms match |
-| `list.label` | Threads in {{room}} |
-| `list.empty` | Nothing open here |
-| `list.sent` | Sent |
-| `list.resolved` | Resolved |
-| `chip.working` | working |
-| `chip.needsYou` | needs you |
-| `chip.new` | new |
-| `peek.copy` | Copy |
-| `peek.copied` | Copied |
-| `peek.open` | Open |
-| `peek.done` | Done |
-| `peek.reopen` | Reopen |
-| `peek.reply` | Reply in this thread |
-| `hint.send` | send |
-| `hint.sendOpen` | send and open |
-| `hint.room` | room |
-| `hint.list` | list |
-| `hint.move` | move |
-| `hint.peek` | peek |
-| `hint.done` | done |
-| `hint.reply` | reply |
-| `hint.open` | open |
-| `absent.title` | MindRoom is not open |
-| `absent.open` | Open MindRoom |
-| `signedOut.title` | Sign in to MindRoom |
-| `error.noRoom` | This room is no longer available |
-| `error.uploadFailed` | The image could not be uploaded |
-| `error.sendFailed` | Not sent |
-| `error.forbidden` | You cannot resolve threads in this room |
-| `error.timeout` | MindRoom did not answer |
-| `screenshot.denied` | MindRoom needs the Screen Recording permission to take screenshots |
-| `screenshot.openSettings` | Open System Settings |
-| `screenshot.noWindow` | The app in front has no window |
-| `screenshot.failed` | The screenshot failed |
+| Key                       | English                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `title`                   | Quick Capture                                                      |
+| `input.placeholder`       | Note or question                                                   |
+| `input.label`             | New entry                                                          |
+| `input.send`              | Send                                                               |
+| `input.sending`           | Sending                                                            |
+| `attach.window`           | Screenshot of the front window                                     |
+| `attach.screen`           | Screenshot of the whole screen                                     |
+| `attach.remove`           | Remove {{name}}                                                    |
+| `room.choose`             | Choose a room                                                      |
+| `room.change`             | Posting to {{room}}. Change room                                   |
+| `room.search`             | Search rooms                                                       |
+| `room.none`               | No rooms match                                                     |
+| `list.label`              | Threads in {{room}}                                                |
+| `list.empty`              | Nothing open here                                                  |
+| `list.sent`               | Sent                                                               |
+| `list.resolved`           | Resolved                                                           |
+| `chip.working`            | working                                                            |
+| `chip.needsYou`           | needs you                                                          |
+| `chip.new`                | new                                                                |
+| `peek.copy`               | Copy                                                               |
+| `peek.copied`             | Copied                                                             |
+| `peek.open`               | Open                                                               |
+| `peek.done`               | Done                                                               |
+| `peek.reopen`             | Reopen                                                             |
+| `peek.reply`              | Reply in this thread                                               |
+| `hint.send`               | send                                                               |
+| `hint.sendOpen`           | send and open                                                      |
+| `hint.room`               | room                                                               |
+| `hint.list`               | list                                                               |
+| `hint.move`               | move                                                               |
+| `hint.peek`               | peek                                                               |
+| `hint.done`               | done                                                               |
+| `hint.reply`              | reply                                                              |
+| `hint.open`               | open                                                               |
+| `absent.title`            | MindRoom is not open                                               |
+| `absent.open`             | Open MindRoom                                                      |
+| `signedOut.title`         | Sign in to MindRoom                                                |
+| `error.noRoom`            | This room is no longer available                                   |
+| `error.uploadFailed`      | The image could not be uploaded                                    |
+| `error.sendFailed`        | Not sent                                                           |
+| `error.forbidden`         | You cannot resolve threads in this room                            |
+| `error.timeout`           | MindRoom did not answer                                            |
+| `screenshot.denied`       | MindRoom needs the Screen Recording permission to take screenshots |
+| `screenshot.openSettings` | Open System Settings                                               |
+| `screenshot.noWindow`     | The app in front has no window                                     |
+| `screenshot.failed`       | The screenshot failed                                              |
 
 - [ ] **Step 1: Add the English keys**, then translate each into the 16 other overlays (same keys, same `{{name}}` and `{{room}}` placeholders, "MindRoom", "Quick Capture" as the product's feature name translated as the file's other feature names are).
 - [ ] **Step 2: Run** `just test src/app/i18n`. Expected: PASS.
@@ -386,11 +410,13 @@ export function QuickCaptureHost(props: { channel?: CaptureChannel }): null;
 ### Task 8: The widget page
 
 **Files:**
+
 - Create: `src/app/quick-capture/captureKeys.ts`, `CaptureInput.tsx`, `CaptureList.tsx`, `CaptureRoomPicker.tsx`, `QuickCapturePage.tsx`, `QuickCapturePage.css.ts` (all in `src/app/quick-capture/`)
 - Test: `captureKeys.test.ts`, `QuickCapturePage.test.tsx` beside them; `src/app/shell/Router.quickCapture.test.tsx`
 - Modify: `src/app/routes/paths.ts` (`export const QUICK_CAPTURE_PATH = '/quick-capture/';`), `src/app/shell/Router.tsx` (a route beside `CONNECT_PATH`, outside `ProtectedRoutes` and `AuthLayout`, lazy like the other pages)
 
 **Interfaces:**
+
 - Consumes: Tasks 1, 2 (`filterCaptureRooms`), 5 and 7; `useActiveSession` (`src/app/matrix/session/useSessionStore.ts`); `isMacOS` (`src/app/lib/user-agent.ts`).
 - Produces:
 
@@ -413,7 +439,13 @@ export type CaptureKeyAction =
   | { kind: 'screenshot'; target: 'window' | 'screen' };
 export const captureKeyAction: (
   event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>,
-  context: { zone: CaptureZone; inputEmpty: boolean; caretOnLastLine: boolean; firstRow: boolean; apple: boolean }
+  context: {
+    zone: CaptureZone;
+    inputEmpty: boolean;
+    caretOnLastLine: boolean;
+    firstRow: boolean;
+    apple: boolean;
+  }
 ) => CaptureKeyAction | undefined;
 
 // QuickCapturePage.tsx
@@ -422,20 +454,20 @@ export function QuickCapturePage(props: { channel?: CaptureChannel }): JSX.Eleme
 
 - Keys (`mod` is `metaKey` when `apple`, else `ctrlKey`):
 
-| Zone | Key | Action |
-|---|---|---|
-| input | `Enter` | `send`, `open: false` |
-| input | `mod+Enter` | `send`, `open: true` |
-| input | `Shift+Enter` | none (a new line) |
-| input | `Tab` while `inputEmpty` | `picker` |
-| input | `ArrowDown` while `caretOnLastLine` | `toList` |
-| input | `mod+Shift+A`, `mod+Shift+S` | `screenshot` `window`, `screen` |
-| list | `ArrowDown`, `j` / `ArrowUp`, `k` | `move` 1 / -1; `ArrowUp` or `k` on `firstRow` is `toInput` |
-| list | `Space` `x` `r` `c` `Enter` `n` | `peek` `resolve` `reply` `copy` `open` `toInput` |
-| list | any other single character without `mod` or `alt` | `toInput` with that `text` |
-| reply | `Enter` | `send`, `open: false` |
-| picker | `ArrowDown` / `ArrowUp`, `Enter` | `move`, `pick` |
-| every zone | `Escape` | `escape` |
+| Zone       | Key                                               | Action                                                     |
+| ---------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| input      | `Enter`                                           | `send`, `open: false`                                      |
+| input      | `mod+Enter`                                       | `send`, `open: true`                                       |
+| input      | `Shift+Enter`                                     | none (a new line)                                          |
+| input      | `Tab` while `inputEmpty`                          | `picker`                                                   |
+| input      | `ArrowDown` while `caretOnLastLine`               | `toList`                                                   |
+| input      | `mod+Shift+A`, `mod+Shift+S`                      | `screenshot` `window`, `screen`                            |
+| list       | `ArrowDown`, `j` / `ArrowUp`, `k`                 | `move` 1 / -1; `ArrowUp` or `k` on `firstRow` is `toInput` |
+| list       | `Space` `x` `r` `c` `Enter` `n`                   | `peek` `resolve` `reply` `copy` `open` `toInput`           |
+| list       | any other single character without `mod` or `alt` | `toInput` with that `text`                                 |
+| reply      | `Enter`                                           | `send`, `open: false`                                      |
+| picker     | `ArrowDown` / `ArrowUp`, `Enter`                  | `move`, `pick`                                             |
+| every zone | `Escape`                                          | `escape`                                                   |
 
 - [ ] **Step 1: Write the failing tests.**
   - `captureKeys.test.ts`: every row of the table, for `apple` true and false; `Enter` with `altKey` gives none; `mod+j` in the list gives none.
@@ -462,9 +494,11 @@ export function QuickCapturePage(props: { channel?: CaptureChannel }): JSX.Eleme
 ### Task 9: End-to-end
 
 **Files:**
+
 - Create: `e2e/quick-capture/quick-capture.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `disposableHomeserverIsUp`, `registerDisposableUser` (`e2e/helpers/disposableAccounts.ts`), `createPrivateRoom` (`e2e/helpers/matrix.ts`), `loginWithPassword` (`e2e/helpers/auth.ts`); a second page from `page.context().newPage()` as in `e2e/shell/startup-frames.spec.ts`.
 
 - [ ] **Step 1: Write the spec.** One user, two rooms ("Inbox", "Other"), the app page signed in, a second page at `/quick-capture/`:
@@ -492,11 +526,13 @@ Tasks 10 to 13 run on the MacBook M2 (Xcode, a checkout of this branch). Build a
 ### Task 11: The Mac shell
 
 **Files:**
+
 - Create: `ios/App/App/QuickCaptureSceneDelegate.swift`, `ios/App/App/MacWindowing.swift`
 - Modify: `ios/App/App/AppDelegate.swift`, `ios/App/App/SceneDelegate.swift`, `ios/App/App/MindRoomBridgeViewController.swift` (`routeRoots` gains `quick-capture`, `threads` and `activity`), `ios/App/App/Info.plist`, `ios/App/App.xcodeproj/project.pbxproj` (the new files in all four places; `MINDROOM_SUPPORTS_MULTIPLE_SCENES`), `src/app/quick-capture/QuickCapturePage.tsx` and `QuickCapturePage.css.ts` (the `data-native` mark and no background under it)
 - Test: `src/app/quick-capture/QuickCapturePage.test.tsx`, `src/app/native/iosSceneLifecycle.test.ts`, `src/app/native/macCatalystShell.test.ts`, `ios/Tests/AssetRoutingTests.swift`, `ios/Tests/RoomRouteReloadTests.swift`
 
 **Interfaces:**
+
 - Produces: the scene configuration `Quick Capture` (delegate `QuickCaptureSceneDelegate`), requested with an `NSUserActivity` of type `chat.mindroom.quick-capture`; `QuickCaptureViewController`, a `MindRoomBridgeViewController` subclass that starts at `/quick-capture/`; and in `MacWindowing.swift`, inside `#if targetEnvironment(macCatalyst)`:
 
 ```swift
@@ -524,11 +560,13 @@ enum MacWindowing {
 ### Task 12: The plugin and the screenshots
 
 **Files:**
+
 - Create: `ios/App/App/MindRoomQuickCapturePlugin.swift`, `ios/App/App/MacScreenshot.swift`
 - Modify: `ios/App/App/MindRoomBridgeViewController.swift` (register the plugin), `ios/App/App.xcodeproj/project.pbxproj`
 - Test: `src/app/native/nativeQuickCaptureIOSContract.test.ts` (new, after `nativeFileSaveIOSContract.test.ts`), `ios/Tests/RoomRouteReloadTests.swift` (`checkNativePlugins`)
 
 **Interfaces:**
+
 - Consumes: the plugin contract of Task 5; `MacWindowing` (Task 11).
 - Produces: plugin `MindRoomQuickCapture` with `hide`, `showMainWindow`, `openScreenRecordingSettings`, `captureScreenshot` (`target`: `window` or `screen`; resolves `path`, `name`; rejects `PERMISSION_DENIED`, `NO_WINDOW`, `UNSUPPORTED`, `CAPTURE_FAILED`). Off the Mac every method rejects `UNSUPPORTED`.
 

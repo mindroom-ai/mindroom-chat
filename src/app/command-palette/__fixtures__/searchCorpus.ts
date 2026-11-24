@@ -3,15 +3,7 @@ import type { CorpusLanguage } from './searchCorpusSource';
 
 /** What a case is about; the corpus reports its numbers per group. */
 export type CorpusGroup =
-  | 'names'
-  | 'prefix'
-  | 'acronym'
-  | 'typo'
-  | 'accent'
-  | 'words'
-  | 'scripts'
-  | 'all'
-  | 'fields';
+  'names' | 'prefix' | 'acronym' | 'typo' | 'accent' | 'words' | 'scripts' | 'all' | 'fields';
 
 /**
  * Typed text on a tab, and the rows a person expects. A row is named by its ID; an ID that ends

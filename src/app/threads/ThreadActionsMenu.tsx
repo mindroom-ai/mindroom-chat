@@ -9,7 +9,7 @@ import React, {
   type FormEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
 import {
   Box,

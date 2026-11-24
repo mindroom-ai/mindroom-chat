@@ -206,9 +206,6 @@ const IDENTITY_STYLE = { flex: `1 1 ${toRem(256)}`, minWidth: 0 } as const;
 const ACTIONS_STYLE = { marginInlineStart: 'auto' } as const;
 const NAME_STYLE = { fontWeight: config.fontWeight.W500 } as const;
 const SENDER_STYLE = { fontWeight: config.fontWeight.W500 } as const;
-// Escaped, the inviter's `<` stays text instead of reading as a tag, such as one that adds
-// attributes to the bold name it fills.
-const ESCAPED = { interpolation: { escapeValue: true } };
 
 type InviteCardProps = InviteTimeFormat & {
   invite: InviteData;
@@ -234,11 +231,11 @@ export function InviteCard({
   // A direct chat has no picture of its own; it shows the person who started it.
   const directAvatar =
     invite.isDirect && invite.senderAvatar
-      ? mxcUrlToHttp(client, invite.senderAvatar, useAuthentication, 96, 96, 'crop') ?? undefined
+      ? (mxcUrlToHttp(client, invite.senderAvatar, useAuthentication, 96, 96, 'crop') ?? undefined)
       : undefined;
   const avatar = hideAvatar
     ? undefined
-    : directAvatar ?? getRoomAvatarUrl(client, room, 96, useAuthentication);
+    : (directAvatar ?? getRoomAvatarUrl(client, room, 96, useAuthentication));
 
   const handleAccept = async () => {
     setState('joining');
@@ -347,8 +344,6 @@ export function InviteCard({
                 i18nKey="sharedUi.invites.from"
                 values={{ sender: invite.senderName }}
                 components={{ b: <b title={invite.senderId} style={SENDER_STYLE} /> }}
-                tOptions={ESCAPED}
-                shouldUnescape
               />
             </Text>
           ) : null}

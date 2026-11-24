@@ -218,8 +218,9 @@ describe('the Compact room in sections', () => {
       '$done',
     ]);
     expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+      v: 2,
       on: false,
-      folded: ['working'],
+      folded: ['quiet', 'working'],
     });
   });
 
@@ -240,6 +241,38 @@ describe('the Compact room in sections', () => {
     expect(header('done').getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('starts Quiet folded and expands on click, including under the Needs you tab', () => {
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$active'] },
+      { id: 'quiet', rootIds: ['$old'] },
+    ];
+    const { rerender } = render(view(['$active', '$old'], true, room, 'needsYou'));
+
+    expect(rows()).toEqual(['#needsYou 1', '$active', '#quiet 1']);
+    expect(document.querySelector('[data-compact-section="needsYou"] button')).toBeNull();
+    expect(header('quiet').getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      fireEvent.click(header('quiet'));
+    });
+    expect(rows()).toEqual(['#needsYou 1', '$active', '#quiet 1', '$old']);
+    expect(header('quiet').getAttribute('aria-expanded')).toBe('true');
+
+    // When all threads on the Needs you tab are quiet, only the collapsed Quiet header shows.
+    act(() => {
+      fireEvent.click(header('quiet'));
+    });
+    state.sections = [{ id: 'quiet', rootIds: ['$old', '$older'] }];
+    rerender(view(['$old', '$older'], true, room, 'needsYou'));
+    expect(rows()).toEqual(['#quiet 2']);
+    expect(header('quiet').getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      fireEvent.click(header('quiet'));
+    });
+    expect(rows()).toEqual(['#quiet 2', '$old', '$older']);
+  });
+
   it('allows collapsing a lone section when not on a single-bucket tab and persists the fold', () => {
     state.sections = [{ id: 'working', rootIds: ['$job', '$streaming'] }];
     render(view(['$job', '$streaming']));
@@ -254,8 +287,9 @@ describe('the Compact room in sections', () => {
     expect(rows()).toEqual(['#working 2']);
     expect(header('working').getAttribute('aria-expanded')).toBe('false');
     expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+      v: 2,
       on: false,
-      folded: ['done', 'working'],
+      folded: ['quiet', 'done', 'working'],
     });
   });
 
@@ -737,6 +771,8 @@ describe('a focus request on the mounted Compact room', () => {
   beforeEach(() => {
     inset = 0;
     state.unreachable = false;
+    // jsdom 31 reports CSS.supports('overflow-anchor', 'auto') === true without scroll anchoring.
+    vi.stubGlobal('CSS', { supports: (property: string) => property !== 'overflow-anchor' });
     layout = stubCompactLayout({
       width: () => 300,
       clientHeight: VIEW_HEIGHT,

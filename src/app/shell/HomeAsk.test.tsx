@@ -92,7 +92,7 @@ vi.mock('../ui/directional', () => ({
   ),
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+  FocusTrap: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 type FakeRoom = Room & {

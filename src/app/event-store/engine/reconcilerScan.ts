@@ -393,10 +393,7 @@ export const scanThreadRelations = async ({
   let scanExit: ReconcileScanExit = 'fetch-failed';
   let fetchFailed = false;
   let recoveredInvalidToken = false;
-  let scanAnotherPhase = true;
-
-  while (scanAnotherPhase) {
-    scanAnotherPhase = false;
+  for (;;) {
     const phaseStartToken = fromToken;
     // eslint-disable-next-line no-await-in-loop
     const phase = await runScanPhase({
@@ -424,7 +421,6 @@ export const scanThreadRelations = async ({
       }
       // eslint-disable-next-line no-await-in-loop
       if (await restartFromHead()) {
-        scanAnotherPhase = true;
         continue;
       }
       fetchFailed = true;
@@ -437,7 +433,6 @@ export const scanThreadRelations = async ({
       const restarted = await restartFromHead();
       if (restarted && !recoveredInvalidToken) {
         recoveredInvalidToken = true;
-        scanAnotherPhase = true;
         continue;
       }
     }

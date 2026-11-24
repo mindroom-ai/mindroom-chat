@@ -27,18 +27,13 @@ type EmailToken = {
 /** Answers of a server that resets no passwords by email: Tuwunel without email, or no endpoint. */
 const EMAIL_RESET_UNAVAILABLE = new Set(['M_THREEPID_DENIED', 'M_UNRECOGNIZED']);
 
-// Escaped, a `<` in the server name from the address or in a provider name from the server stays
-// text instead of reading as a tag, such as one that adds attributes to the element it fills.
-const ESCAPED = { interpolation: { escapeValue: true } };
-
 /** The names of the server's single sign-on; undefined when it offers none or the flows fail. */
 async function fetchSsoProviderNames(
   mx: Pick<MatrixClient, 'loginFlows'>
 ): Promise<string | undefined> {
   const flows = await mx.loginFlows().catch(() => undefined);
   const sso = flows?.flows.find((flow) => flow.type === 'm.login.sso') as
-    | { identity_providers?: IIdentityProvider[] }
-    | undefined;
+    { identity_providers?: IIdentityProvider[] } | undefined;
   return sso ? getSsoProviderNames(sso.identity_providers) : undefined;
 }
 
@@ -113,8 +108,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
     requestState.status === AsyncStatus.Error
       ? (requestState.error as Partial<MatrixError>)
       : resetState.status === AsyncStatus.Error
-      ? (resetState.error as Partial<MatrixError>)
-      : undefined;
+        ? (resetState.error as Partial<MatrixError>)
+        : undefined;
   const busy =
     requestState.status === AsyncStatus.Loading || resetState.status === AsyncStatus.Loading;
 
@@ -149,8 +144,6 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           i18nKey="sharedUi.passwordResetForm.resetEmailDescription"
           components={{ strong: <strong /> }}
           values={{ server: serverName }}
-          tOptions={ESCAPED}
-          shouldUnescape
         />
       </Text>
       <AuthField caption={t('sharedUi.passwordResetForm.email')}>
@@ -192,8 +185,6 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
               i18nKey="sharedUi.passwordResetForm.emailResetUnavailableSso"
               values={{ provider: ssoProviderNames }}
               components={{ authLink: loginLink ? <Link to={loginLink} /> : <span /> }}
-              tOptions={ESCAPED}
-              shouldUnescape
             />
           ) : (
             t('sharedUi.passwordResetForm.emailResetUnavailable')

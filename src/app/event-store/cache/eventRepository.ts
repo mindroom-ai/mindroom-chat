@@ -404,7 +404,7 @@ const withTokenOnlyBelowAnchor = <
   Page extends {
     events: { origin_server_ts: number; event_id: string }[];
     beforeToken?: string | null;
-  }
+  },
 >(
   page: Page,
   anchor: CachedPaginationAnchor | undefined
@@ -1016,10 +1016,10 @@ export const persistThreadEventCacheSnapshot = ({
   const write = attachmentOwners.length
     ? save(...saveArgs, relationSnapshotMode ?? 'partial', writeLease, attachmentOwners)
     : writeLease
-    ? save(...saveArgs, relationSnapshotMode ?? 'partial', writeLease)
-    : relationSnapshotMode === undefined
-    ? save(...saveArgs)
-    : save(...saveArgs, relationSnapshotMode);
+      ? save(...saveArgs, relationSnapshotMode ?? 'partial', writeLease)
+      : relationSnapshotMode === undefined
+        ? save(...saveArgs)
+        : save(...saveArgs, relationSnapshotMode);
   const summaries = getThreadSummaryInfosFromEventSources(events).filter(
     (info): info is ThreadSummaryInfo => !!info?.summaryText
   );

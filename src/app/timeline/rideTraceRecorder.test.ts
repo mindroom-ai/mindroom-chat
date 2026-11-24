@@ -19,8 +19,8 @@ vi.mock('../event-store/cache/cacheProbe', () => ({
     key === 'ledgerQuiescenceSettles'
       ? mocks.ledgerQuiescenceSettles
       : key === 'ledgerBoundarySettles'
-      ? mocks.ledgerBoundarySettles
-      : 0,
+        ? mocks.ledgerBoundarySettles
+        : 0,
 }));
 
 vi.mock('./scrollQuiescence', () => ({
@@ -29,7 +29,7 @@ vi.mock('./scrollQuiescence', () => ({
 }));
 
 const clickOverlay = async (overlay: HTMLButtonElement): Promise<void> => {
-  const result = overlay.onclick?.call(overlay, new MouseEvent('click'));
+  const result = overlay.onclick?.call(overlay, new MouseEvent('click') as PointerEvent);
   await result;
 };
 

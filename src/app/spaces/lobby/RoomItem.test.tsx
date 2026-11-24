@@ -31,7 +31,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -112,7 +112,7 @@ const cachedRoom = (membership: string, joinRule: JoinRule): Room =>
     getCanonicalAlias: () => null,
     getJoinedMemberCount: () => 12,
     getType: () => undefined,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('RoomItemCard room access', () => {
   beforeEach(() => {

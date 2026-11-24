@@ -1,6 +1,9 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { Room, RoomEvent, RoomEventHandlerMap, ThreadEvent } from 'matrix-js-sdk';
-import { isThreadRouteReady, resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
+import {
+  isThreadRouteReady,
+  resolveCanonicalThreadRootId,
+} from '../event-store/threads/threadRouteUtils';
 
 /**
  * Resolve the canonical thread root event ID from a threadId.

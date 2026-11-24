@@ -39,9 +39,7 @@ describe('parseToolRefHtml', () => {
   });
 
   it('requires the full marker string to match', () => {
-    expect(
-      parseToolRefHtml('prefix 🔧 <code>search_web</code> [1] suffix')
-    ).toBeUndefined();
+    expect(parseToolRefHtml('prefix 🔧 <code>search_web</code> [1] suffix')).toBeUndefined();
   });
 });
 
@@ -107,9 +105,7 @@ describe('formatMessageTextBodyAsHtml', () => {
 
 describe('formatMarkdownTextBodyAsHtml', () => {
   it('renders bold text containing inline code before the sidecar arrives', () => {
-    const html = formatMarkdownTextBodyAsHtml(
-      '**2. Pointed `config.yaml` at it** (line 50):'
-    );
+    const html = formatMarkdownTextBodyAsHtml('**2. Pointed `config.yaml` at it** (line 50):');
 
     expect(html).toBe(
       '<strong data-md="**">2. Pointed <code data-md="`">config.yaml</code> at it</strong> (line 50):'
@@ -190,9 +186,7 @@ describe('formatMarkdownTextBodyAsHtml', () => {
   });
 
   it('uses the parser code-fence grammar when preserving dash text', () => {
-    const infoBacktick = formatMarkdownTextBodyAsHtml(
-      ['```foo`bar', '- item', '```'].join('\n')
-    );
+    const infoBacktick = formatMarkdownTextBodyAsHtml(['```foo`bar', '- item', '```'].join('\n'));
     const exactClose = formatMarkdownTextBodyAsHtml(
       ['```', '- inside one', '````', '- inside two', '```'].join('\n')
     );
@@ -237,9 +231,7 @@ describe('formatMarkdownTextBodyAsHtml', () => {
   });
 
   it('uses the parser display-math grammar when preserving dash text', () => {
-    const sameLineDelimiters = formatMarkdownTextBodyAsHtml(
-      ['$$a', '- b', 'c$$'].join('\n')
-    );
+    const sameLineDelimiters = formatMarkdownTextBodyAsHtml(['$$a', '- b', 'c$$'].join('\n'));
     const contentLineClose = formatMarkdownTextBodyAsHtml(
       ['$$', '- a', 'b$$', '- outside'].join('\n')
     );
@@ -359,12 +351,8 @@ describe('formatMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps ambiguous inline, container, and tilde-fence markers literal', () => {
-    const inlinePaste = formatMarkdownTextBodyAsHtml(
-      `Before **bold** ${PASTE_MARKER} after`
-    );
-    const multilineCode = formatMarkdownTextBodyAsHtml(
-      `\`\`before\n${PASTE_MARKER}\nafter\`\``
-    );
+    const inlinePaste = formatMarkdownTextBodyAsHtml(`Before **bold** ${PASTE_MARKER} after`);
+    const multilineCode = formatMarkdownTextBodyAsHtml(`\`\`before\n${PASTE_MARKER}\nafter\`\``);
     const listFence = formatMarkdownTextBodyAsHtml(
       ['- ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
     );
@@ -439,9 +427,7 @@ describe('formatMarkdownTextBodyAsHtml', () => {
   });
 
   it('sanitizes inline math exactly once', () => {
-    const formattedBody = formatMarkdownTextBodyAsHtml(
-      String.raw`When $a < b & c$, continue.`
-    );
+    const formattedBody = formatMarkdownTextBodyAsHtml(String.raw`When $a < b & c$, continue.`);
 
     expect(formattedBody).toContain(
       String.raw`<span data-mx-maths="a &lt; b &amp; c">a &lt; b &amp; c</span>`
@@ -461,18 +447,14 @@ describe('formatMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps root dash lists unordered with wide marker spacing', () => {
-    const formattedBody = formatMarkdownTextBodyAsHtml(
-      ['-     first', '-     second'].join('\n')
-    );
+    const formattedBody = formatMarkdownTextBodyAsHtml(['-     first', '-     second'].join('\n'));
 
     expect(formattedBody).toContain('<ul data-md="*">');
     expect(formattedBody).not.toContain('<ol');
   });
 
   it('keeps nested dash lists unordered', () => {
-    const formattedBody = formatMarkdownTextBodyAsHtml(
-      ['- parent', '    - child'].join('\n')
-    );
+    const formattedBody = formatMarkdownTextBodyAsHtml(['- parent', '    - child'].join('\n'));
 
     expect(formattedBody.match(/<ul data-md="\*">/g)).toHaveLength(2);
     expect(formattedBody).not.toContain('<ol');

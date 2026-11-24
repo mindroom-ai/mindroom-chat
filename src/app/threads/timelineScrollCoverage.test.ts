@@ -39,10 +39,7 @@ const measureCoverage = (
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 0),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
       threadId: threadId ?? undefined,
-      threadInitialRenderMode: 'live',
     });
     instance = controller.virtualizer;
     return null;
@@ -71,10 +68,13 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
   it.each([undefined, '$thread'])(
     'refreshes same-row resize coverage across room/thread navigation (initial thread: %s)',
     (initialThreadId) => {
+      let rootHeight = 600;
       const root = document.createElement('div');
       Object.defineProperties(root, {
+        clientWidth: { value: 390 },
+        clientHeight: { get: () => rootHeight },
         offsetWidth: { value: 390 },
-        offsetHeight: { value: 600 },
+        offsetHeight: { get: () => rootHeight },
       });
       const observers = new Map<Element, ResizeObserverCallback>();
       class ControlledResizeObserver {
@@ -94,6 +94,7 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
       }
       vi.stubGlobal('ResizeObserver', ControlledResizeObserver);
       const resize = (height: number) => {
+        rootHeight = height;
         act(() => {
           observers.get(root)!(
             [
@@ -122,10 +123,7 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
           pendingRoomFoldPxRef: useRef(0),
           roomFoldPriceRef: useRef(() => 0),
           roomId: '!room:example.org',
-          threadEventIndexMap: new Map(),
-          threadEvents: [],
           threadId,
-          threadInitialRenderMode: 'live',
         });
         instance = controller.virtualizer;
         renderedBefore = 6000 - instance.getVirtualItems()[0]!.start;

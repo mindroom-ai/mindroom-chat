@@ -26,7 +26,7 @@ const makeClient = (entries: Record<string, { name: string; space?: boolean }>):
         }),
       };
     },
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const makeParents = (entries: Record<string, string[]>): RoomToParents =>
   new Map(Object.entries(entries).map(([roomId, parents]) => [roomId, new Set(parents)]));
@@ -128,6 +128,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: ['!harbor'],
@@ -137,6 +138,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!leaf',
         isRoot: false,
         parentSpaceId: '!org',
+        ancestorSpaceIds: ['!org', '!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!leaf'),
         ownRoomsByName: ['!ops-chat'],
@@ -146,6 +148,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!research',
         isRoot: false,
         parentSpaceId: '!root',
+        ancestorSpaceIds: ['!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!research'),
         ownRoomsByName: ['!reading'],
@@ -206,6 +209,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: true,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
@@ -249,6 +253,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
@@ -258,6 +263,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!sub',
         isRoot: false,
         parentSpaceId: '!root',
+        ancestorSpaceIds: ['!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!sub'),
         ownRoomsByName: ['!sub-room'],
@@ -301,12 +307,13 @@ describe('getSpaceRoomSections', () => {
         section.spaceId,
         section.isRoot,
         section.parentSpaceId,
+        section.ancestorSpaceIds,
         section.isEmpty,
       ])
     ).toEqual([
-      ['!root', true, undefined, true],
-      ['!editable-empty', false, '!root', true],
-      ['!leaf', false, '!readonly-org', false],
+      ['!root', true, undefined, [], true],
+      ['!editable-empty', false, '!root', ['!root'], true],
+      ['!leaf', false, '!readonly-org', ['!readonly-org', '!root'], false],
     ]);
 
     // When root is NOT editable, the empty root Rooms section is hidden again,

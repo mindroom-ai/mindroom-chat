@@ -99,9 +99,6 @@ const useMyMembership = (roomId: string): { room: Room | null; membership?: stri
   return { room, membership: room?.getMyMembership() };
 };
 
-// Escaped, a revealed `<U+202E>` and a name's `<` stay text instead of reading as tags.
-const ESCAPED = { interpolation: { escapeValue: true } };
-
 /** Who invited this account, above the way in, when the room's invite is pending. */
 function InvitedBy({ roomId }: { roomId: string }) {
   const client = useMatrixClient();
@@ -116,8 +113,6 @@ function InvitedBy({ roomId }: { roomId: string }) {
         i18nKey="sharedUi.invites.from"
         values={{ sender: senderName }}
         components={{ b: <b title={sender} /> }}
-        tOptions={ESCAPED}
-        shouldUnescape
       />
     </Text>
   );
@@ -215,8 +210,6 @@ function RemovalLines({
             i18nKey={`sharedUi.userModeration.${by}` as const}
             values={{ name }}
             components={bold}
-            tOptions={ESCAPED}
-            shouldUnescape
           />
         </Text>
       )}
@@ -226,8 +219,6 @@ function RemovalLines({
             i18nKey="sharedUi.userModeration.reason"
             values={{ reason: shownReason }}
             components={bold}
-            tOptions={ESCAPED}
-            shouldUnescape
           />
         </Text>
       )}
@@ -372,7 +363,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   let avatarUrl: string | undefined;
   try {
     avatarUrl = summary.avatar_url
-      ? mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+      ? (mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined)
       : undefined;
   } catch {
     // A client without a homeserver URL yet shows the fallback icon.

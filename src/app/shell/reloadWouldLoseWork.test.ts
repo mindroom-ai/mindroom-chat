@@ -13,11 +13,12 @@ import {
   roomIdToUploadItemsAtomFamily,
   type TUploadItem,
 } from '../composer/roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../composer/capture/liveCapture';
+import type { DictationSession } from '../composer/dictation/dictationSession';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 
-const event = (status: EventStatus | null) => ({ status } as MatrixEvent);
+const event = (status: EventStatus | null) => ({ status }) as MatrixEvent;
 
 /** A client with one room whose timeline (and one thread) hold events of these statuses. */
 const client = ({
@@ -33,7 +34,7 @@ const client = ({
         getThreads: () => [{ liveTimeline: { getEvents: () => thread.map(event) } }],
       } as unknown as Room,
     ],
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('reloadWouldLoseWork', () => {
   const draftKey = getRoomInputDraftKey('@reader:example.org', '!room:example.org');
@@ -76,10 +77,17 @@ describe('reloadWouldLoseWork', () => {
     expect(reloadWouldLoseWork(store, undefined)).toBe(true);
   });
 
-  it('loses a voice message that is being recorded, whichever page shows', () => {
-    const store = createStore();
-    store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
-    expect(reloadWouldLoseWork(store, undefined)).toBe(true);
+  it('loses a live voice recording or live dictation, whichever page shows', () => {
+    const voiceStore = createStore();
+    voiceStore.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession });
+    expect(reloadWouldLoseWork(voiceStore, undefined)).toBe(true);
+
+    const dictationStore = createStore();
+    dictationStore.set(liveCaptureAtom, {
+      kind: 'dictation',
+      session: {} as DictationSession,
+    });
+    expect(reloadWouldLoseWork(dictationStore, undefined)).toBe(true);
   });
 
   it('loses a detached Finish & Send dictation that is finishing or waiting to retry', () => {

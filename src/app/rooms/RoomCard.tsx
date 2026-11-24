@@ -1,7 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import {
   Avatar,
   Box,
@@ -232,8 +232,8 @@ export const RoomCard = as<'div', RoomCardProps>(
                       (access.requested
                         ? t('sharedUi.roomCard.requestSent')
                         : access.kind === 'knock'
-                        ? t('sharedUi.roomCard.requestToJoin')
-                        : t('sharedUi.roomCard.join'))}
+                          ? t('sharedUi.roomCard.requestToJoin')
+                          : t('sharedUi.roomCard.join'))}
                   </Text>
                 </Button>
               )}

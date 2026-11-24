@@ -12,7 +12,7 @@ const member = (userId: string, name: string) =>
     rawDisplayName: name,
     membership: 'join',
     getMxcAvatarUrl: () => undefined,
-  } as unknown as RoomMember);
+  }) as unknown as RoomMember;
 
 // The agents and the owner have `mindroom_` user IDs; the people do not.
 const scout = member('@mindroom_scout:x', 'Scout');
@@ -48,7 +48,9 @@ vi.mock('../../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => memb
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:x' }),
 }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 vi.mock('./AutocompleteMenu', () => ({
   AutocompleteMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -107,7 +109,7 @@ const roomWithSenders = (...senders: RoomMember[]): MentionRoom =>
         })),
     }),
     getThreads: () => [],
-  } as unknown as MentionRoom);
+  }) as unknown as MentionRoom;
 
 const picker = (
   text: string,
@@ -154,7 +156,11 @@ const rowTexts = (): string[] =>
     .map((button) => button.findAll((node) => typeof node.props.children === 'string'))
     .map((nodes) => nodes.map((node) => node.props.children as string).join(' '));
 
-const renderQuery = (text: string) => render(picker(text, () => undefined), { searched: true });
+const renderQuery = (text: string) =>
+  render(
+    picker(text, () => undefined),
+    { searched: true }
+  );
 
 describe('UserMentionAutocomplete @room', () => {
   beforeEach(() => {

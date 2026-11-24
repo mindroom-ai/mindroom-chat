@@ -90,7 +90,7 @@ export const Page = style({
   ...stack,
   ...grow,
   vars: lightColors,
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'InterVariable', system-ui, sans-serif",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter Variable', system-ui, sans-serif",
   fontSize: toRem(13),
   color: ink,
   lineHeight: toRem(17),

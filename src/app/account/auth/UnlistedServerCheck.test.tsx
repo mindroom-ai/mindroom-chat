@@ -8,7 +8,7 @@ import { UnlistedServerCheck } from './UnlistedServerCheck';
 
 // jsdom has no layout, so focus-trap finds nothing tabbable; the trap itself is not under test.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const SHIPPED: ClientConfig = {

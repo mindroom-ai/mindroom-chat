@@ -69,7 +69,7 @@ export const getCommandPaletteAvatarUrl = (
   useAuthentication: boolean
 ): string | undefined =>
   mxc
-    ? mxcUrlToHttp(client, mxc, useAuthentication, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, mxc, useAuthentication, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined)
     : undefined;
 
 /**

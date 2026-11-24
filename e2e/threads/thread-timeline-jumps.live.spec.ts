@@ -36,8 +36,7 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 /**
  * Verifies that a realistic 56-turn agent thread (folded steps, code, tables, and images) keeps
  * rows anchored across warm opens and slow cold-open back-pagination (pinned at bottom or reading
- * mid-thread) in Chromium and WebKit, and across fast upward wheel scrolling in Chromium (the
- * WebKit fast-scroll test is marked `test.fixme` pending a follow-up for settle discard/replay).
+ * mid-thread), and across fast upward wheel scrolling in both Chromium and WebKit.
  */
 
 type Setup = { engine: 'chromium' | 'webkit'; viewport: 'desktop' | 'phone' };
@@ -72,7 +71,7 @@ const uploadPng = async (token: string, width: number, height: number, hue: numb
   const res = await fetch(`${DISPOSABLE_HOMESERVER}/_matrix/media/v3/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/png' },
-    body: png(width, height, hue),
+    body: new Uint8Array(png(width, height, hue)),
   });
   return ((await res.json()) as { content_uri: string }).content_uri;
 };
@@ -383,21 +382,14 @@ test.describe('thread timeline jumps reproducers', () => {
               await startProbe(page, 'open');
               await card.click();
               await expect(page.locator(THREAD_ROWS)).toBeVisible({ timeout: 30_000 });
-              // Tapping hands anchoring from the open-pin loop to the ledger + useFooterBottomPin.
+              // Tapping hands anchoring from the open-pin loop to upstream anchoring + useFooterBottomPin.
               await page.waitForTimeout(250);
               await tapProbeScroller(page);
-              // Once page 1 mounts Load Older (marginTop < 0), add a composer line inside the
-              // unsettled window so useFooterBottomPin and useListEndClamp both run.
+              // Once pagination starts bringing older pages in, add a composer line while pages are
+              // still landing so useFooterBottomPin and useListEndClamp both run mid-backfill.
               await expect
-                .poll(
-                  () =>
-                    page.evaluate((sel) => {
-                      const inner = document.querySelector<HTMLElement>(sel);
-                      return Number.parseFloat(inner?.style.marginTop || '0') < 0;
-                    }, THREAD_ROWS),
-                  { timeout: 30_000, intervals: [15] }
-                )
-                .toBe(true);
+                .poll(() => net.relationsPages, { timeout: 30_000, intervals: [15] })
+                .toBeGreaterThanOrEqual(2);
               const composer = page.locator('[contenteditable="true"]').last();
               if (await composer.isVisible().catch(() => false)) {
                 await composer.click();
@@ -459,10 +451,6 @@ test.describe('thread timeline jumps reproducers', () => {
     test(`${setup.engine} ${setup.viewport}: fast upward wheel scrolling through realistic history does not jump`, async ({
       baseURL,
     }) => {
-      test.fixme(
-        setup.engine === 'webkit',
-        'Follow-up: WebKit settle discard/replay under fast wheel scrolling'
-      );
       const fixture = requireFixture(setup);
       await openAndRun(setup, baseURL, fixture, async (page) => {
         await delayMediaAndRelations(page, 350, 650);
@@ -477,9 +465,8 @@ test.describe('thread timeline jumps reproducers', () => {
         await page.waitForTimeout(250);
 
         const center = await getProbeScrollerCenter(page);
-        // Bursts pause 220 ms or 450 ms: the ledger settles 150 ms in, and the 150 ms stall
-        // after its write reaches into the next burst of the shorter pauses.
-        await startProbe(page, 'scrollUp', 150);
+        // Bursts pause 220 ms or 450 ms: wheel-hold flushes 150 ms after each burst ends.
+        await startProbe(page, 'scrollUp');
         await page.mouse.move(center.x, center.y);
         for (let burst = 0; burst < 24; burst += 1) {
           for (let notch = 0; notch < 16; notch += 1) {

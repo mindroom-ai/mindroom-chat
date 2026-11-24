@@ -43,7 +43,7 @@ const entry = (generation = 1, isInvolved = true) =>
     threadRootId: '$root',
     generation,
     isInvolved,
-  } as CrossRoomThreadIndexEntry);
+  }) as CrossRoomThreadIndexEntry;
 
 const makeRoom = () => {
   const thread = { events: [{ getId: () => '$a' }] };
@@ -171,7 +171,7 @@ describe('createThreadSignalsReader', () => {
     mocks.read.mockReturnValue(quiet);
     const { room } = makeRoom();
     const resolved = (generation: number, resolvedTs?: number) =>
-      ({ ...entry(generation), isResolved: true, resolvedTs } as CrossRoomThreadIndexEntry);
+      ({ ...entry(generation), isResolved: true, resolvedTs }) as CrossRoomThreadIndexEntry;
     // One warm reader: resolving changes the entry's generation, which reads the thread again.
     const reader = createThreadSignalsReader();
     reader.read(room, entry(), '@me:x', NOW);
@@ -200,7 +200,7 @@ describe('getThreadSignalsReader', () => {
       threadRootId,
       generation: 1,
       isInvolved: true,
-    } as CrossRoomThreadIndexEntry);
+    }) as CrossRoomThreadIndexEntry;
   const A = threadEntry('$a');
   const B = threadEntry('$b');
 
@@ -225,7 +225,7 @@ describe('getThreadSignalsReader', () => {
       threadRootId,
       getAssociatedId: () => relatesTo,
       getRelation: () => (relatesTo ? { event_id: relatesTo } : null),
-    } as unknown as MatrixEvent);
+    }) as unknown as MatrixEvent;
   /** An event without an ID: a live reply frame, typing. */
   const frame = { getId: () => undefined, getRoomId: () => '!r:x', isState: () => false };
   const receipt = (userId: string, threadId?: string) =>
@@ -233,7 +233,7 @@ describe('getThreadSignalsReader', () => {
       getContent: () => ({
         $read: { 'm.read': { [userId]: { ts: 1, ...(threadId ? { thread_id: threadId } : {}) } } },
       }),
-    } as unknown as MatrixEvent);
+    }) as unknown as MatrixEvent;
 
   /** A client with one room of two threads, each read once, and which threads a change reads again. */
   const setup = () => {

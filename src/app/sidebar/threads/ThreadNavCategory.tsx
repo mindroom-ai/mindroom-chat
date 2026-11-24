@@ -83,7 +83,8 @@ type ThreadNavCategoryProps = {
 /**
  * The sidebar's THREADS category: threads across rooms that are neither resolved nor snoozed, by
  * latest activity, the user's pinned ones first; or, with Group on, threads in Idle (Needs you),
- * Working, Later and Resolved (Done) (`buildSidebarThreadSections`), each section folding on its own.
+ * Working, Later, Quiet and Resolved (Done) (`buildSidebarThreadSections`), each section folding on
+ * its own.
  * Direct messages and archived rooms are left out. It collapses like the ROOMS category, but
  * starts collapsed until the person opens it (`ClientInitStorageAtom`).
  */

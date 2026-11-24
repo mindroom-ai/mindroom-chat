@@ -26,7 +26,7 @@ type ReactionProps = {
 export const Reaction = as<'button', ReactionProps>(
   ({ className, mx, reaction, count, label, useAuthentication, onClick, ...props }, ref) => {
     const imageSrc = reaction.startsWith('mxc://')
-      ? mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined
+      ? (mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined)
       : undefined;
     return (
       <button
@@ -84,8 +84,8 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
     .map((event) => event.getContent().shortcode)
     .find((value): value is string => typeof value === 'string');
   const shortcode = reaction.startsWith('mxc://')
-    ? customShortcode ?? reaction
-    : emojiData?.getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction;
+    ? (customShortcode ?? reaction)
+    : (emojiData?.getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction);
 
   return (
     <Trans
@@ -95,9 +95,6 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
         reaction: revealDirectionControls(shortcode),
       }}
       components={{ names: <b />, reaction: <span /> }}
-      // Escaped, a key's `<U+202E>` and a name's `<` stay text instead of reading as tags.
-      tOptions={{ interpolation: { escapeValue: true } }}
-      shouldUnescape
     />
   );
 }

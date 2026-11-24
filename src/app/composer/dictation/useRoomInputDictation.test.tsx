@@ -1,50 +1,105 @@
 // @vitest-environment jsdom
 import React, { useRef } from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createEditor, Editor, Node, Transforms } from 'slate';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { createEditor, Editor, Node, Transforms, type Descendant } from 'slate';
 import { HistoryEditor, withHistory } from 'slate-history';
 import { ReactEditor, withReact } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSessions } from '../../computer/clientSessions';
-import { activeDictationAtom } from '../roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { createSessionId } from '../../matrix/session/sessions';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
+import { pageNoticeSlotAtom } from '../../ui/noticeSlots';
+import { LiveCaptureIndicator } from '../capture/LiveCaptureIndicator';
+import {
+  endLiveCapturesOfAccount,
+  liveCaptureAtom,
+  liveCaptureCapsulesShownAtom,
+  restoreLiveCapture,
+} from '../capture/liveCapture';
+import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
+import {
+  composersHoldUnsavedWork,
+  detachedDictationSendsAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../roomInputDrafts';
+import { voiceDraftRestoresAtom } from '../voice/savedVoiceDraft';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
-import type { DictationSession, DictationSnapshot } from './dictationSession';
+import { DICTATION_FRAME_SAMPLES, encodePcm16Wav } from './dictationSegmenter';
+import { startDetachedDictationSend } from './dictationSendHandoff';
+import {
+  createDictationSession,
+  type DictationFinishResult,
+  type DictationSession,
+  type DictationSnapshot,
+} from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
+import { dictationRestoresAtom } from './startLiveDictation';
 import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoomInputDictation';
 
 const serverMock = vi.hoisted(
   (): {
     available: boolean;
     confirmed: boolean;
+    apiUrl: string;
+    byRoom: Map<
+      string,
+      { available: boolean; confirmed: boolean; apiUrl?: string; sessions?: ClientSessions }
+    >;
     overlay: 'none' | 'help' | 'other';
     defaultSessions: ClientSessions;
     sessions: ClientSessions | undefined;
+    deleteCapture: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
+    releaseCapture: ReturnType<typeof vi.fn<(id: string) => void>>;
   } => {
     const defaultSessions = { send: vi.fn() } as unknown as ClientSessions;
     return {
       available: true,
       confirmed: true,
+      apiUrl: 'https://mr.example',
+      byRoom: new Map(),
       overlay: 'none',
       defaultSessions,
       sessions: defaultSessions,
+      deleteCapture: vi.fn(async () => undefined),
+      releaseCapture: vi.fn(() => undefined),
     };
   }
 );
+
+vi.mock('../capture/captureJournal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/captureJournal')>()),
+  deleteCapture: (id: string) => serverMock.deleteCapture(id),
+  releaseCapture: (id: string) => serverMock.releaseCapture(id),
+}));
 
 vi.mock('../../shortcuts/shortcutDom', () => ({
   openOverlay: () => serverMock.overlay,
 }));
 
 vi.mock('./useDictationServer', () => ({
-  useDictationServer: () => ({
-    available: serverMock.available,
-    confirmed: serverMock.available && serverMock.confirmed,
-    apiUrl: serverMock.available && serverMock.sessions ? 'https://mr.example' : undefined,
-    roomId: '!room:example.org',
-    sessions: serverMock.available ? serverMock.sessions : undefined,
-  }),
+  useDictationServer: (roomId?: string) => {
+    const override = roomId ? serverMock.byRoom.get(roomId) : undefined;
+    if (override) {
+      return {
+        available: override.available,
+        confirmed: override.available && override.confirmed,
+        apiUrl: override.apiUrl,
+        roomId,
+        sessions: override.sessions,
+      };
+    }
+    return {
+      available: serverMock.available,
+      confirmed: serverMock.available && serverMock.confirmed,
+      apiUrl: serverMock.available && serverMock.sessions ? serverMock.apiUrl : undefined,
+      roomId: roomId ?? '!room:example.org',
+      sessions: serverMock.available ? serverMock.sessions : undefined,
+    };
+  },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -72,8 +127,15 @@ const makeSlateEditor = (initialText = '') => {
 
 const readText = (editor: Editor): string => Editor.string(editor, []);
 
-const createMockSession = () => {
+const createMockSession = (opts?: {
+  initial?: Partial<DictationSnapshot>;
+  originApiUrl?: string;
+  journalId?: string;
+  hasClient?: boolean;
+}) => {
   const listeners = new Set<() => void>();
+  let clientAttached = opts?.hasClient ?? true;
+  let originApiUrl = opts?.originApiUrl;
   let snap: DictationSnapshot = {
     phase: 'idle',
     elapsedMs: 0,
@@ -86,17 +148,23 @@ const createMockSession = () => {
     previewText: '',
     capReached: false,
     interrupted: false,
+    recovered: false,
+    hasClient: clientAttached,
     errorMessage: undefined,
+    ...opts?.initial,
   };
   const setSnap = (patch: Partial<DictationSnapshot>) => {
     snap = { ...snap, ...patch };
     listeners.forEach((fn) => fn());
   };
 
-  let finishResult: Awaited<ReturnType<DictationSession['finish']>> = {
+  let finishResult: DictationFinishResult = {
     status: 'completed',
     text: 'dictated words',
+    ...(opts?.journalId ? { journalId: opts.journalId } : {}),
   };
+  let finishDeferred: Promise<DictationFinishResult> | undefined;
+  let discardDeferred: Promise<void> | undefined;
 
   const session: DictationSession = {
     getSnapshot: () => snap,
@@ -105,7 +173,7 @@ const createMockSession = () => {
       return () => listeners.delete(fn);
     },
     start: vi.fn(async () => {
-      setSnap({ phase: 'recording' });
+      setSnap({ phase: 'recording', elapsedMs: 1_500 });
       return true;
     }),
     pause: vi.fn(async () => {
@@ -116,21 +184,45 @@ const createMockSession = () => {
       return true;
     }),
     finish: vi.fn(async () => {
+      if (finishDeferred) {
+        setSnap({ phase: 'finishing' });
+        const result = await finishDeferred;
+        if (result.status === 'completed') setSnap({ phase: 'idle' });
+        else if (result.status === 'failed') setSnap({ phase: 'failed', failedSegments: 1 });
+        return result;
+      }
       if (finishResult.status === 'completed') setSnap({ phase: 'idle' });
       else if (finishResult.status === 'failed') setSnap({ phase: 'failed', failedSegments: 1 });
       return finishResult;
     }),
     retryFailed: vi.fn(async () => {
       setSnap({ phase: 'idle' });
-      return { status: 'completed' as const, text: 'retried words' };
+      return {
+        status: 'completed' as const,
+        text: 'retried words',
+        ...(opts?.journalId ? { journalId: opts.journalId } : {}),
+      };
     }),
     takePartialText: vi.fn(() => {
       setSnap({ phase: 'idle' });
-      return 'partial text';
+      return { text: 'partial text', ...(opts?.journalId ? { journalId: opts.journalId } : {}) };
     }),
-    discard: vi.fn(() => {
+    park: vi.fn(),
+    reset: vi.fn(() => {
       setSnap({ phase: 'idle' });
     }),
+    discard: vi.fn(async () => {
+      if (discardDeferred) await discardDeferred;
+      setSnap({ phase: 'idle' });
+    }),
+    attachClient: vi.fn((_client, _roomId, nextOrigin) => {
+      clientAttached = true;
+      if (originApiUrl === undefined && nextOrigin !== undefined) originApiUrl = nextOrigin;
+      setSnap({ hasClient: true });
+    }),
+    hasClient: vi.fn(() => clientAttached),
+    getOriginApiUrl: vi.fn(() => originApiUrl),
+    getJournalId: vi.fn(() => opts?.journalId),
     clearError: vi.fn(() => {
       setSnap({ errorMessage: undefined });
     }),
@@ -139,10 +231,28 @@ const createMockSession = () => {
   return {
     session,
     setSnap,
-    setFinishResult: (res: typeof finishResult) => {
+    setFinishResult: (res: DictationFinishResult) => {
       finishResult = res;
     },
+    setFinishPromise: (promise: Promise<DictationFinishResult>) => {
+      finishDeferred = promise;
+    },
+    setDiscardPromise: (promise: Promise<void>) => {
+      discardDeferred = promise;
+    },
   };
+};
+
+const confirmDiscardDialog = async () => {
+  const dialog = screen.getByRole('dialog');
+  await act(async () => {
+    fireEvent.click(
+      within(dialog).getByRole('button', {
+        name: 'mindroomUi.voice.voiceRecorderDialog.discard',
+      })
+    );
+    await Promise.resolve();
+  });
 };
 
 // jsdom has no PointerEvent and falls back to Event, which drops `buttons`.
@@ -158,12 +268,25 @@ class TestPointerEvent extends MouseEvent {
 beforeEach(() => {
   serverMock.available = true;
   serverMock.confirmed = true;
+  serverMock.apiUrl = 'https://mr.example';
+  serverMock.byRoom.clear();
   serverMock.sessions = serverMock.defaultSessions;
   serverMock.overlay = 'none';
+  serverMock.deleteCapture.mockClear();
+  serverMock.releaseCapture.mockClear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+    this: HTMLElement
+  ) {
+    if (!this.isConnected || this.closest('[data-hidden="true"]')) {
+      return [] as unknown as DOMRectList;
+    }
+    return [{}] as unknown as DOMRectList;
+  });
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   cleanup();
 });
@@ -309,18 +432,16 @@ describe('useRoomInputDictation', () => {
     editor: Editor,
     store: ReturnType<typeof createStore>,
     session: DictationSession,
-    extraChild?: React.ReactNode,
-    initialConversationHidden = false
+    extraChild?: React.ReactNode
   ) => {
     let latest!: RoomInputDictationFeature;
-    function Harness({ conversationHidden }: { conversationHidden: boolean }) {
+    function Harness({ tick: _tick }: { tick: number }) {
       const rootRef = useRef<HTMLDivElement | null>(null);
       latest = useRoomInputDictation({
         editor,
         roomId: '!room:example.org',
         ownerKey: 'composer-1',
         rootRef,
-        conversationHidden,
         createSession: () => session,
       });
       return (
@@ -332,19 +453,22 @@ describe('useRoomInputDictation', () => {
         </div>
       );
     }
+    let tick = 0;
     const utils = render(
       <Provider store={store}>
-        <Harness conversationHidden={initialConversationHidden} />
+        <Harness tick={tick} />
       </Provider>
     );
     return {
       ...utils,
-      setConversationHidden: (hidden: boolean) =>
+      forceRerender: () => {
+        tick += 1;
         utils.rerender(
           <Provider store={store}>
-            <Harness conversationHidden={hidden} />
+            <Harness tick={tick} />
           </Provider>
-        ),
+        );
+      },
       getFeature: () => latest,
     };
   };
@@ -369,7 +493,7 @@ describe('useRoomInputDictation', () => {
     const store = createStore();
     const { session } = createMockSession();
 
-    const { getFeature, setConversationHidden } = renderHarness(editor, store, session);
+    const { getFeature, forceRerender } = renderHarness(editor, store, session);
     const input = screen.getByTestId('editor-focus');
     input.focus();
     const btn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
@@ -391,13 +515,13 @@ describe('useRoomInputDictation', () => {
 
     // Sessions resolving while /status is still in flight still keeps Dictate disabled.
     serverMock.sessions = serverMock.defaultSessions;
-    setConversationHidden(false);
+    forceRerender();
     expect(btn.disabled).toBe(true);
     expect(getFeature().start()).toBe(false);
 
     // Once confirmed with sessions, button enables and start() works.
     serverMock.confirmed = true;
-    setConversationHidden(false);
+    forceRerender();
     expect(btn.disabled).toBe(false);
     act(() => {
       expect(getFeature().start()).toBe(true);
@@ -405,11 +529,11 @@ describe('useRoomInputDictation', () => {
     expect(session.start).toHaveBeenCalledTimes(1);
   });
 
-  it('enforces mutual exclusion with liveVoiceRecordingAtom and activeDictationAtom', async () => {
+  it('enforces mutual exclusion through shared liveCaptureAtom', async () => {
     const editor = makeSlateEditor('Start');
     Transforms.select(editor, { path: [0, 0], offset: 5 });
     const store = createStore();
-    const { session } = createMockSession();
+    const { session } = createMockSession({ journalId: 'j-mutual' });
 
     const { getFeature } = renderHarness(editor, store, session);
     const btn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
@@ -417,30 +541,31 @@ describe('useRoomInputDictation', () => {
 
     // Voice message recording running -> dictation button disabled and start blocked.
     act(() => {
-      store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
+      store.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession });
     });
     expect(btn.disabled).toBe(true);
     expect(getFeature().start()).toBe(false);
 
     act(() => {
-      store.set(liveVoiceRecordingAtom, undefined);
+      store.set(liveCaptureAtom, undefined);
     });
     expect(btn.disabled).toBe(false);
 
-    // Starting dictation claims activeDictationAtom and enables direct Finish & Send.
+    // Starting dictation claims liveCaptureAtom and enables direct Finish & Send.
     await act(async () => {
       fireEvent.click(btn);
     });
-    expect(store.get(activeDictationAtom)).toBe('composer-1');
+    expect(store.get(liveCaptureAtom)).toEqual({ kind: 'dictation', session });
     expect(getFeature().canSend).toBe(true);
     expect(getFeature().blocksSubmit).toBe(false);
 
-    // Finishing inserts text atomically and releases activeDictationAtom.
+    // Finishing inserts text atomically, deletes journal, and releases liveCaptureAtom.
     await act(async () => {
       fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
     });
     expect(readText(editor)).toBe('Start dictated words');
-    expect(store.get(activeDictationAtom)).toBeUndefined();
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-mutual');
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(getFeature().blocksSubmit).toBe(false);
   });
 
@@ -474,21 +599,38 @@ describe('useRoomInputDictation', () => {
     });
     expect(session.discard).not.toHaveBeenCalled();
 
-    // Escape cancels when focus is inside the composer and returns focus to Slate.
+    // Escape opens DiscardCaptureDialog when focus is inside the composer; cancelling keeps session.
     const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
     input.focus();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'Escape' });
     });
+    expect(session.discard).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'mindroomUi.voice.voiceRecorderDialog.cancel',
+      })
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(store.get(liveCaptureAtom)?.kind).toBe('dictation');
+
+    // Escape + confirming Discard discards session and returns focus to Slate.
+    input.focus();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    await confirmDiscardDialog();
     expect(session.discard).toHaveBeenCalledTimes(1);
-    expect(store.get(activeDictationAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(focusSpy).toHaveBeenCalledWith(editor);
     focusSpy.mockRestore();
 
     // Start again and finish via Ctrl+Shift+D.
+    input.focus();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
     });
+    await waitFor(() => expect(session.start).toHaveBeenCalledTimes(2));
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
     });
@@ -517,6 +659,40 @@ describe('useRoomInputDictation', () => {
     expect(readText(editor)).toBe('Hey Hello dictated words world');
   });
 
+  it('keeps RangeRef live during Finish so editing before the selection while finishing still replaces the right word', async () => {
+    const editor = makeSlateEditor('red blue');
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 4 },
+      focus: { path: [0, 0], offset: 8 },
+    });
+    const store = createStore();
+    let resolveFinish!: (res: DictationFinishResult) => void;
+    const mock = createMockSession({ journalId: 'j-live-range' });
+    mock.setFinishPromise(
+      new Promise<DictationFinishResult>((resolve) => {
+        resolveFinish = resolve;
+      })
+    );
+
+    renderHarness(editor, store, mock.session);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+    });
+
+    // Press Finish while "blue" is selected, then prepend "very " BEFORE transcription finishes.
+    fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    Transforms.insertText(editor, 'very ', { at: { path: [0, 0], offset: 0 } });
+    expect(readText(editor)).toBe('very red blue');
+
+    await act(async () => {
+      resolveFinish({ status: 'completed', text: 'green', journalId: 'j-live-range' });
+      await Promise.resolve();
+    });
+    // Live RangeRef tracked the prepend -> replaced "blue", NOT " red"!
+    expect(readText(editor)).toBe('very red green');
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-live-range');
+  });
+
   it('lets an inline AutocompleteMenu listbox consume Escape before dictation', async () => {
     const editor = makeSlateEditor();
     const store = createStore();
@@ -537,65 +713,141 @@ describe('useRoomInputDictation', () => {
     expect(session.discard).not.toHaveBeenCalled();
   });
 
-  it('pauses active dictation when its mounted composer collapses to 0x0', async () => {
-    const editor = makeSlateEditor();
+  it('continues across unmount and room switches, shows pill in Settings, and finishes in a room without dictation', async () => {
     const store = createStore();
-    const { session } = createMockSession();
-    let resizeCb: ResizeObserverCallback | undefined;
-    const prevResizeObserver = globalThis.ResizeObserver;
-    class FakeResizeObserver {
-      constructor(cb: ResizeObserverCallback) {
-        resizeCb = cb;
-      }
+    const slot = document.createElement('div');
+    document.body.appendChild(slot);
+    store.set(pageNoticeSlotAtom, slot);
 
-      observe = vi.fn();
+    const editorA = makeSlateEditor();
+    const editorB = makeSlateEditor('Room B');
+    const mock = createMockSession({ journalId: 'j-nav' });
 
-      disconnect = vi.fn();
-
-      unobserve = vi.fn();
-    }
-    Object.defineProperty(globalThis, 'ResizeObserver', {
-      configurable: true,
-      value: FakeResizeObserver,
+    serverMock.byRoom.set('!roomA:example.org', {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://serverA.example',
+      sessions: serverMock.defaultSessions,
+    });
+    serverMock.byRoom.set('!roomB:example.org', {
+      available: false,
+      confirmed: false,
+      apiUrl: undefined,
+      sessions: undefined,
     });
 
+    let featB!: RoomInputDictationFeature;
+    function Composer({
+      roomId,
+      editor,
+      view,
+      onFeat,
+    }: {
+      roomId: string;
+      editor: Editor;
+      view?: string;
+      onFeat?: (f: RoomInputDictationFeature) => void;
+    }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      const feat = useRoomInputDictation({
+        editor,
+        roomId,
+        ownerKey: roomId,
+        rootRef,
+        createSession: () => mock.session,
+      });
+      onFeat?.(feat);
+      const node = (
+        <div ref={rootRef}>
+          <input data-testid={`focus-${roomId}`} />
+          {feat.capsule}
+          {feat.button}
+        </div>
+      );
+      return view ? (
+        <ConversationViewContext.Provider value={view}>{node}</ConversationViewContext.Provider>
+      ) : (
+        node
+      );
+    }
+
     try {
-      renderHarness(editor, store, session);
+      const shell = render(
+        <Provider store={store}>
+          <LiveCaptureIndicator />
+          <Composer roomId="!roomA:example.org" editor={editorA} />
+        </Provider>
+      );
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText('composer.dictation.label'));
       });
-      expect(resizeCb).toBeDefined();
+      expect(store.get(liveCaptureAtom)?.kind).toBe('dictation');
+      expect(store.get(liveCaptureCapsulesShownAtom)).toBe(1);
+      expect(screen.queryByTestId('live-dictation-indicator')).toBeNull();
 
-      act(() => {
-        resizeCb?.(
-          [{ contentRect: { width: 0, height: 0 } } as ResizeObserverEntry],
-          {} as ResizeObserver
-        );
+      // Navigate to Settings (0 composers mounted): dictation stays live, pill appears!
+      shell.rerender(
+        <Provider store={store}>
+          <LiveCaptureIndicator />
+        </Provider>
+      );
+      expect(mock.session.discard).not.toHaveBeenCalled();
+      expect(store.get(liveCaptureAtom)?.kind).toBe('dictation');
+      expect(store.get(liveCaptureCapsulesShownAtom)).toBe(0);
+      expect(screen.getByTestId('live-dictation-indicator')).toBeTruthy();
+
+      // Navigate to Home ask view: capsule counts as visible so pill never duplicates!
+      shell.rerender(
+        <Provider store={store}>
+          <LiveCaptureIndicator />
+          <Composer roomId="!roomB:example.org" editor={editorB} view={HOME_ASK_VIEW} />
+        </Provider>
+      );
+      expect(store.get(liveCaptureCapsulesShownAtom)).toBe(1);
+      expect(screen.queryByTestId('live-dictation-indicator')).toBeNull();
+
+      // Navigate to Room B where dictation is unavailable: capsule still shows, Escape works, and Finish delivers!
+      shell.rerender(
+        <Provider store={store}>
+          <LiveCaptureIndicator />
+          <Composer
+            roomId="!roomB:example.org"
+            editor={editorB}
+            onFeat={(f) => {
+              featB = f;
+            }}
+          />
+        </Provider>
+      );
+      expect(screen.queryByLabelText('composer.dictation.label')).toBeNull();
+      expect(screen.getByLabelText('composer.dictation.finish')).toBeTruthy();
+      expect(featB.canSend).toBe(true);
+
+      // Escape in Room B (confirmed=false!) still opens DiscardCaptureDialog; cancel preserves dictation.
+      screen.getByTestId('focus-!roomB:example.org').focus();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'Escape' });
       });
-      expect(session.pause).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('dialog')).toBeTruthy();
+      fireEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'mindroomUi.voice.voiceRecorderDialog.cancel',
+        })
+      );
+
+      // Finish (✓) in Room B delivers into Room B's editor and deletes journal.
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(readText(editorB)).toBe('Room B dictated words');
+      expect(readText(editorA)).toBe('');
+      expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-nav');
+      expect(store.get(liveCaptureAtom)).toBeUndefined();
+      shell.unmount();
     } finally {
-      Object.defineProperty(globalThis, 'ResizeObserver', {
-        configurable: true,
-        value: prevResizeObserver,
-      });
+      slot.remove();
     }
-  });
-
-  it('pauses active dictation when conversationHidden becomes true', async () => {
-    const editor = makeSlateEditor();
-    const store = createStore();
-    const { session } = createMockSession();
-
-    const { setConversationHidden } = renderHarness(editor, store, session);
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
-    });
-    expect(session.pause).not.toHaveBeenCalled();
-
-    act(() => {
-      setConversationHidden(true);
-    });
-    expect(session.pause).toHaveBeenCalledTimes(1);
   });
 
   it('does not focus the editor on Finish or Cancel when started unfocused', async () => {
@@ -619,14 +871,13 @@ describe('useRoomInputDictation', () => {
       expect(readText(editor)).toBe('Draft dictated words');
       expect(focusSpy).not.toHaveBeenCalled();
 
-      // Cancel from unfocused start.
+      // Cancel from unfocused start (confirmed via DiscardCaptureDialog).
       await act(async () => {
         fireEvent.pointerDown(btn);
         fireEvent.click(btn);
       });
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
-      });
+      fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
+      await confirmDiscardDialog();
       expect(focusSpy).not.toHaveBeenCalled();
     } finally {
       focusSpy.mockRestore();
@@ -786,9 +1037,722 @@ describe('useRoomInputDictation', () => {
       anchor: { path: [0, 0], offset: 5 },
       focus: { path: [0, 0], offset: 5 },
     });
-    // Second synchronous detach hits the fresh idle replacement session.
+    // Second synchronous detach finds nothing because claimLiveDictation removed liveCaptureAtom.
     expect(latest.detachForSend()).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     view.unmount();
     expect(created[0]!.session.discard).not.toHaveBeenCalled();
+  });
+
+  it('resolves Mod+Shift+D to a single winner (focused -> thread -> first visible) and guards concurrent presses', async () => {
+    const store = createStore();
+    const roomEditor = makeSlateEditor('Room');
+    const threadEditor = makeSlateEditor('Thread');
+    let resolveFinish!: (res: DictationFinishResult) => void;
+    const finishPromise = new Promise<DictationFinishResult>((r) => {
+      resolveFinish = r;
+    });
+    const mock = createMockSession({
+      initial: { phase: 'recording', elapsedMs: 2_000 },
+      journalId: 'j-shortcut',
+    });
+    mock.setFinishPromise(finishPromise);
+    restoreLiveCapture(store, { kind: 'dictation', session: mock.session });
+
+    function MultiComposer({ hidden = false }: { hidden?: boolean }) {
+      const roomRef = useRef<HTMLDivElement | null>(null);
+      const threadRef = useRef<HTMLDivElement | null>(null);
+      const roomFeat = useRoomInputDictation({
+        editor: roomEditor,
+        roomId: '!room:example.org',
+        ownerKey: 'room-composer',
+        rootRef: roomRef,
+      });
+      const threadFeat = useRoomInputDictation({
+        editor: threadEditor,
+        roomId: '!room:example.org',
+        threadId: '$thread-1',
+        thread: true,
+        ownerKey: 'thread-composer',
+        rootRef: threadRef,
+      });
+      return (
+        <div data-hidden={hidden ? 'true' : undefined}>
+          <div ref={roomRef}>
+            <input data-testid="room-input" />
+            {roomFeat.capsule}
+          </div>
+          <div ref={threadRef}>
+            <input data-testid="thread-input" />
+            {threadFeat.capsule}
+          </div>
+        </div>
+      );
+    }
+
+    // 1. When 0 composers are visible (Settings/Threads/hidden), Mod+Shift+D does nothing.
+    const view = render(
+      <Provider store={store}>
+        <MultiComposer hidden />
+      </Provider>
+    );
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(mock.session.finish).not.toHaveBeenCalled();
+
+    // 2. When visible and neither focused, thread composer wins; rapid second press is a no-op.
+    view.rerender(
+      <Provider store={store}>
+        <MultiComposer hidden={false} />
+      </Provider>
+    );
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(mock.session.finish).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFinish({ status: 'completed', text: 'into thread', journalId: 'j-shortcut' });
+      await Promise.resolve();
+    });
+    expect(readText(threadEditor)).toBe('Thread into thread');
+    expect(readText(roomEditor)).toBe('Room');
+
+    // 3. When room composer IS focused, room composer beats thread composer.
+    const mock2 = createMockSession({ initial: { phase: 'paused', elapsedMs: 3_000 } });
+    mock2.setFinishResult({ status: 'completed', text: 'into room' });
+    act(() => {
+      restoreLiveCapture(store, { kind: 'dictation', session: mock2.session });
+    });
+    screen.getByTestId('room-input').focus();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(mock2.session.finish).toHaveBeenCalledTimes(1);
+    expect(readText(roomEditor)).toBe('Room into room');
+    expect(readText(threadEditor)).toBe('Thread into thread');
+    view.unmount();
+  });
+
+  it('delivers mid-Finish (✓) text into originating draftKey when navigating away and releases on account switch', async () => {
+    const store = createStore();
+    const draftKeyA = getRoomInputDraftKey('@alice:example.org', '!roomA:example.org');
+    const draftKeyB = getRoomInputDraftKey('@alice:example.org', '!roomB:example.org');
+    store.set(roomIdToMsgDraftAtomFamily(draftKeyA), [
+      { type: 'paragraph', children: [{ text: 'Hello' }] } as unknown as Descendant,
+    ]);
+
+    const editorA = makeSlateEditor('Hello');
+    Transforms.select(editorA, { path: [0, 0], offset: 5 });
+    const editorB = makeSlateEditor('Room B draft');
+
+    let resolveFinish!: (res: DictationFinishResult) => void;
+    const mock = createMockSession({
+      initial: { phase: 'recording', elapsedMs: 4_000 },
+      journalId: 'j-mid-finish',
+    });
+    mock.setFinishPromise(
+      new Promise<DictationFinishResult>((r) => {
+        resolveFinish = r;
+      })
+    );
+    restoreLiveCapture(store, { kind: 'dictation', session: mock.session });
+
+    function RoomComposer({
+      roomId,
+      draftKey,
+      editor,
+    }: {
+      roomId: string;
+      draftKey: string;
+      editor: Editor;
+    }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      const feat = useRoomInputDictation({
+        editor,
+        roomId,
+        ownerKey: draftKey,
+        sendKey: draftKey,
+        draftKey,
+        rootRef,
+      });
+      return <div ref={rootRef}>{feat.capsule}</div>;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <RoomComposer roomId="!roomA:example.org" draftKey={draftKeyA} editor={editorA} />
+      </Provider>
+    );
+
+    // Click Finish in Room A -> stays in liveCaptureAtom during finishing.
+    fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    expect(store.get(liveCaptureAtom)?.kind).toBe('dictation');
+    expect(serverMock.deleteCapture).not.toHaveBeenCalled();
+
+    // Navigate away to Room B before Finish completes!
+    view.rerender(
+      <Provider store={store}>
+        <RoomComposer roomId="!roomB:example.org" draftKey={draftKeyB} editor={editorB} />
+      </Provider>
+    );
+
+    await act(async () => {
+      resolveFinish({ status: 'completed', text: 'world', journalId: 'j-mid-finish' });
+      await Promise.resolve();
+    });
+
+    // Delivered into Room A's persisted draft (merging without duplicating), Room B untouched, journal deleted AFTER.
+    const savedDraftA = store.get(roomIdToMsgDraftAtomFamily(draftKeyA));
+    expect(savedDraftA.map((node) => Node.string(node)).join('\n')).toBe('Hello world');
+    expect(readText(editorB)).toBe('Room B draft');
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-mid-finish');
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+
+    // Account switch mid-Finish releases journal without deleting or writing to draft.
+    serverMock.deleteCapture.mockClear();
+    serverMock.releaseCapture.mockClear();
+    let resolveSwitch!: (res: DictationFinishResult) => void;
+    const mockSwitch = createMockSession({
+      initial: { phase: 'recording', elapsedMs: 2_000 },
+      journalId: 'j-acct-switch',
+    });
+    mockSwitch.setFinishPromise(
+      new Promise<DictationFinishResult>((r) => {
+        resolveSwitch = r;
+      })
+    );
+    act(() => {
+      restoreLiveCapture(store, { kind: 'dictation', session: mockSwitch.session });
+    });
+    view.rerender(
+      <Provider store={store}>
+        <RoomComposer roomId="!roomB:example.org" draftKey={draftKeyB} editor={editorB} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    act(() => {
+      endLiveCapturesOfAccount(store);
+    });
+    await act(async () => {
+      resolveSwitch({
+        status: 'completed',
+        text: 'lost on switch',
+        journalId: 'j-acct-switch',
+      });
+      await Promise.resolve();
+    });
+    expect(serverMock.releaseCapture).toHaveBeenCalledWith('j-acct-switch');
+    expect(serverMock.deleteCapture).not.toHaveBeenCalled();
+    expect(readText(editorB)).toBe('Room B draft');
+    view.unmount();
+  });
+
+  it('lazily binds client to recovered session only when originApiUrl is unset or matches composer apiUrl', () => {
+    const store = createStore();
+    const editor = makeSlateEditor();
+    serverMock.byRoom.set('!roomA:example.org', {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-a.example/',
+      sessions: serverMock.defaultSessions,
+    });
+    serverMock.byRoom.set('!roomB:example.org', {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-b.example',
+      sessions: serverMock.defaultSessions,
+    });
+
+    const recoveredFixed = createMockSession({
+      initial: { phase: 'paused', recovered: true, elapsedMs: 5_000 },
+      originApiUrl: 'https://server-a.example',
+      hasClient: false,
+    });
+    restoreLiveCapture(store, { kind: 'dictation', session: recoveredFixed.session });
+
+    function Composer({ roomId }: { roomId: string }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      useRoomInputDictation({ editor, roomId, ownerKey: roomId, rootRef });
+      return <div ref={rootRef} />;
+    }
+
+    // Room B has a different apiUrl -> MUST NOT attach client!
+    const view = render(
+      <Provider store={store}>
+        <Composer roomId="!roomB:example.org" />
+      </Provider>
+    );
+    expect(recoveredFixed.session.attachClient).not.toHaveBeenCalled();
+
+    // Room A matches (modulo trailing slash) -> attaches client!
+    view.rerender(
+      <Provider store={store}>
+        <Composer roomId="!roomA:example.org" />
+      </Provider>
+    );
+    expect(recoveredFixed.session.attachClient).toHaveBeenCalledTimes(1);
+
+    // Recovered session with unset originApiUrl attaches in any confirmed room.
+    act(() => {
+      store.set(liveCaptureAtom, undefined);
+    });
+    const recoveredUnset = createMockSession({
+      initial: { phase: 'paused', recovered: true, elapsedMs: 5_000 },
+      originApiUrl: undefined,
+      hasClient: false,
+    });
+    act(() => {
+      restoreLiveCapture(store, { kind: 'dictation', session: recoveredUnset.session });
+    });
+    view.rerender(
+      <Provider store={store}>
+        <Composer roomId="!roomB:example.org" />
+      </Provider>
+    );
+    expect(recoveredUnset.session.attachClient).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it('routes Discard through DiscardCaptureDialog while keeping busy dialog mounted until deletion settles, and cancels 0-audio requesting directly', async () => {
+    const store = createStore();
+    const editor = makeSlateEditor();
+
+    // 1. Initial requesting with 0 audio cancels directly without confirmation dialog.
+    const initialReq = createMockSession({
+      initial: { phase: 'requesting', elapsedMs: 0, hasPartialText: false, pendingUploads: 0 },
+    });
+    restoreLiveCapture(store, { kind: 'dictation', session: initialReq.session });
+    const view = renderHarness(editor, store, initialReq.session);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(initialReq.session.discard).toHaveBeenCalledTimes(1);
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+
+    // 2. Resume-requesting with elapsedMs > 0 opens DiscardCaptureDialog and keeps it busy until disk delete resolves.
+    let finishDelete!: () => void;
+    const resumeReq = createMockSession({
+      initial: { phase: 'requesting', elapsedMs: 6_000, hasPartialText: false, pendingUploads: 0 },
+    });
+    resumeReq.setDiscardPromise(
+      new Promise<void>((r) => {
+        finishDelete = r;
+      })
+    );
+    act(() => {
+      restoreLiveCapture(store, { kind: 'dictation', session: resumeReq.session });
+    });
+
+    fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
+    const dialog = screen.getByRole('dialog');
+    expect(resumeReq.session.discard).not.toHaveBeenCalled();
+
+    // Confirm Discard: liveCaptureAtom clears synchronously, but dialog stays mounted & busy until deletion settles.
+    fireEvent.click(
+      within(dialog).getByRole('button', {
+        name: 'mindroomUi.voice.voiceRecorderDialog.discard',
+      })
+    );
+    expect(resumeReq.session.discard).toHaveBeenCalledTimes(1);
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    await act(async () => undefined);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(composersHoldUnsavedWork(store)).toBe(true);
+
+    await act(async () => {
+      finishDelete();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(composersHoldUnsavedWork(store)).toBe(false);
+
+    // 3. Live inline failed bar Discard also opens DiscardCaptureDialog and Insert partial deletes journal after insert.
+    const failedLive = createMockSession({
+      initial: { phase: 'failed', failedSegments: 1, completedSegments: 1, hasPartialText: true },
+      journalId: 'j-partial-live',
+    });
+    act(() => {
+      restoreLiveCapture(store, { kind: 'dictation', session: failedLive.session });
+    });
+    fireEvent.click(screen.getByText('composer.dictation.discard'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'mindroomUi.voice.voiceRecorderDialog.cancel',
+      })
+    );
+    fireEvent.click(screen.getByText('composer.dictation.insertPartial'));
+    expect(readText(editor)).toBe('partial text');
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-partial-live');
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    view.unmount();
+  });
+
+  it('gates Mic button and start() while session-scoped dictationRestoresAtom or voiceDraftRestoresAtom is in flight', () => {
+    const store = createStore();
+    const editor = makeSlateEditor();
+    const userId = '@alice:example.org';
+    const baseUrl = 'https://hs-a.example.org';
+    const sessionId = createSessionId(baseUrl, userId);
+    const otherSessionId = createSessionId('https://hs-b.example.org', userId);
+    const mx = {
+      baseUrl,
+      getHomeserverUrl: () => baseUrl,
+      getUserId: () => userId,
+      getRoom: () => null,
+    } as unknown as MatrixClient;
+    const pendingDict = new Promise<void>(() => undefined);
+    const pendingVoice = new Promise<void>(() => undefined);
+    store.set(dictationRestoresAtom, new Map([[sessionId, pendingDict]]));
+
+    let latest!: RoomInputDictationFeature;
+    function Harness() {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      latest = useRoomInputDictation({
+        editor,
+        roomId: '!room:example.org',
+        ownerKey: 'composer-1',
+        rootRef,
+        createSession: () => createMockSession().session,
+      });
+      return <div ref={rootRef}>{latest.button}</div>;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <Harness />
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    const btn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
+    expect(btn.disabled).toBe(true);
+    expect(latest.start()).toBe(false);
+
+    // A pending dictation restore for the same MXID on another homeserver does not block this session.
+    act(() => {
+      store.set(dictationRestoresAtom, new Map([[otherSessionId, pendingDict]]));
+    });
+    expect(btn.disabled).toBe(false);
+
+    // Dictation restore settled, but voice restore is still in flight -> disabled.
+    act(() => {
+      store.set(dictationRestoresAtom, new Map([[sessionId, null]]));
+      store.set(voiceDraftRestoresAtom, new Map([[userId, pendingVoice]]));
+    });
+    expect(btn.disabled).toBe(true);
+    expect(latest.start()).toBe(false);
+
+    // Both settled -> enabled!
+    act(() => {
+      store.set(voiceDraftRestoresAtom, new Map([[userId, null]]));
+    });
+    expect(btn.disabled).toBe(false);
+    view.unmount();
+  });
+  it('binds saved Slate RangeRef to its DictationSession so side-by-side Room + Thread handoffs never reuse a stale selection', async () => {
+    const store = createStore();
+    const roomEditor = makeSlateEditor('red blue');
+    const threadEditor = makeSlateEditor('');
+
+    const mock1 = createMockSession();
+    mock1.setFinishResult({ status: 'completed', text: 'first' });
+    const mock2 = createMockSession();
+    mock2.setFinishResult({ status: 'completed', text: 'second' });
+    const sessionQueue = [mock1.session, mock2.session];
+    const createSession = vi.fn(() => {
+      const next = sessionQueue.shift();
+      if (!next) throw new Error('unexpected createSession call');
+      return next;
+    });
+
+    function SideBySideComposer({
+      testId,
+      editor,
+      ownerKey,
+      threadId,
+    }: {
+      testId: string;
+      editor: Editor;
+      ownerKey: string;
+      threadId?: string;
+    }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      const dictation = useRoomInputDictation({
+        editor,
+        roomId: '!room:example.org',
+        threadId,
+        ownerKey,
+        rootRef,
+        createSession,
+      });
+      return (
+        <div ref={rootRef} data-testid={testId}>
+          {dictation.button}
+          {dictation.capsule}
+        </div>
+      );
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <SideBySideComposer testId="room-composer" editor={roomEditor} ownerKey="room" />
+        <SideBySideComposer
+          testId="thread-composer"
+          editor={threadEditor}
+          ownerKey="thread"
+          threadId="$root"
+        />
+      </Provider>
+    );
+
+    const roomEl = screen.getByTestId('room-composer');
+    const threadEl = screen.getByTestId('thread-composer');
+
+    // 1. Select "blue" in Room ("red blue") and start dictation 1 in Room.
+    Transforms.select(roomEditor, {
+      anchor: { path: [0, 0], offset: 4 },
+      focus: { path: [0, 0], offset: 8 },
+    });
+    await act(async () => {
+      fireEvent.click(within(roomEl).getByLabelText('composer.dictation.label'));
+    });
+    expect(Editor.rangeRefs(roomEditor).size).toBe(1);
+
+    // 2. Finish dictation 1 in Thread -> Thread gets "first", Room unrefs its stale RangeRef.
+    await act(async () => {
+      fireEvent.click(within(threadEl).getByLabelText('composer.dictation.finish'));
+    });
+    expect(readText(threadEditor)).toBe('first');
+    expect(readText(roomEditor)).toBe('red blue');
+    expect(Editor.rangeRefs(roomEditor).size).toBe(0);
+
+    // 3. Place Room cursor at end ("red blue|"), start dictation 2 in Thread, finish dictation 2 in Room.
+    Transforms.select(roomEditor, Editor.end(roomEditor, []));
+    await act(async () => {
+      fireEvent.click(within(threadEl).getByLabelText('composer.dictation.label'));
+    });
+    await act(async () => {
+      fireEvent.click(within(roomEl).getByLabelText('composer.dictation.finish'));
+    });
+
+    // Room inserts at its current end selection ("red blue second") instead of overwriting "blue".
+    expect(readText(roomEditor)).toBe('red blue second');
+    expect(Editor.rangeRefs(roomEditor).size).toBe(0);
+    expect(Editor.rangeRefs(threadEditor).size).toBe(0);
+    view.unmount();
+  });
+
+  it('binds matching server client to failed detached dictation sessions when opening a matching room so Retry and send succeeds to the original destination', async () => {
+    const store = createStore();
+    const editorNoDict = makeSlateEditor();
+    const editorOther = makeSlateEditor();
+    const roomNoDictId = '!room-no-dict:example.org';
+    const roomWrongServerId = '!room-wrong:example.org';
+    const roomMatchingId = '!room-matching:example.org';
+
+    const wrongSessions = { send: vi.fn() } as unknown as ClientSessions;
+    const matchingSend = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ text: 'Recovered detached speech.', seconds: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+    );
+    const matchingSessions = { send: matchingSend } as unknown as ClientSessions;
+
+    serverMock.byRoom.set(roomNoDictId, {
+      available: false,
+      confirmed: false,
+      apiUrl: undefined,
+      sessions: undefined,
+    });
+    serverMock.byRoom.set(roomWrongServerId, {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-b.example',
+      sessions: wrongSessions,
+    });
+    serverMock.byRoom.set(roomMatchingId, {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-a.example/',
+      sessions: matchingSessions,
+    });
+
+    const speechFrame = new Float32Array(DICTATION_FRAME_SAMPLES).fill(0.25);
+    const session = createDictationSession({
+      originApiUrl: 'https://server-a.example',
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 2_000,
+        capReached: false,
+        originApiUrl: 'https://server-a.example',
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 1,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 0,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: Infinity,
+            },
+            wav: encodePcm16Wav([speechFrame, speechFrame]),
+            status: 'queued',
+            retryable: true,
+          },
+        ],
+        groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+        initialSegmentIndex: 1,
+        initialActiveFrames: 20,
+      },
+    });
+    expect(session.hasClient()).toBe(false);
+    restoreLiveCapture(store, { kind: 'dictation', session });
+
+    const mockRoomNoDict = {
+      roomId: roomNoDictId,
+      name: 'No Dictation Room',
+      hasEncryptionStateEvent: () => false,
+      getMembers: () => [],
+      currentState: { getStateEvents: () => null },
+    } as unknown as Room;
+    const mx = {
+      baseUrl: 'https://hs.example.org',
+      getHomeserverUrl: () => 'https://hs.example.org',
+      getUserId: () => '@alice:example.org',
+      getRoom: (id: string) => (id === roomNoDictId ? mockRoomNoDict : null),
+    } as unknown as MatrixClient;
+    const startSendSession = vi.fn(async () => undefined);
+    const emptyAttachments: RoomInputAttachmentAccess = {
+      snapshot: () => ({ staged: [], enrolled: [], uploads: [] }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn(),
+      clearEnrollment: vi.fn(),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+
+    let latest!: RoomInputDictationFeature;
+    function RoomComposer({ roomId, editor }: { roomId: string; editor: Editor }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      latest = useRoomInputDictation({
+        editor,
+        roomId,
+        ownerKey: roomId,
+        rootRef,
+      });
+      return (
+        <div ref={rootRef}>
+          {latest.button}
+          {latest.capsule}
+        </div>
+      );
+    }
+
+    // 1. Mount Room without dictation and trigger Finish & Send -> detaches and fails offline.
+    const view = render(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomNoDictId} editor={editorNoDict} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    let detached: ReturnType<RoomInputDictationFeature['detachForSend']>;
+    await act(async () => {
+      detached = latest.detachForSend();
+      expect(detached?.session).toBe(session);
+      startDetachedDictationSend({
+        store,
+        mx,
+        ownerKey: roomNoDictId,
+        draftKey: roomNoDictId,
+        roomName: 'No Dictation Room',
+        sendContext: {
+          roomId: roomNoDictId,
+          room: mockRoomNoDict,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        composerContext: { roomId: roomNoDictId, threadId: undefined },
+        session: detached!.session,
+        docSnapshot: structuredClone(editorNoDict.children),
+        savedSelection: detached!.savedSelection,
+        pendingMarks: null,
+        stagedSnapshot: [],
+        tracksEnrollment: false,
+        midTurnMode: 'auto',
+        explicitMidTurnMode: false,
+        isMarkdown: true,
+        ownUserId: '@alice:example.org',
+        parseCommands: false,
+        commandsSnapshot: {},
+        attachments: emptyAttachments,
+        sessions: { startSendSession, restoreText: vi.fn() },
+        restoreReplyDraft: vi.fn(),
+      });
+    });
+
+    await waitFor(() => {
+      expect(store.get(detachedDictationSendsAtom).get(roomNoDictId)?.status).toBe('failed');
+    });
+    expect(session.hasClient()).toBe(false);
+    expect(screen.getByText(/Open a room with dictation to retry./)).toBeTruthy();
+
+    // 2. Opening a room with a different server MUST NOT bind the failed detached session.
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomWrongServerId} editor={editorOther} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    expect(session.hasClient()).toBe(false);
+
+    // 3. Opening a room with the matching server binds the failed detached session!
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomMatchingId} editor={editorOther} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    expect(session.hasClient()).toBe(true);
+
+    // 4. Returning to the original no-dictation room and clicking "Retry and send" sends to roomNoDictId.
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomNoDictId} editor={editorNoDict} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+
+    await waitFor(() => {
+      expect(startSendSession).toHaveBeenCalledTimes(1);
+    });
+    expect(matchingSend).toHaveBeenCalledTimes(1);
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ roomId: roomNoDictId }),
+        textContent: expect.objectContaining({ body: 'Recovered detached speech.' }),
+      })
+    );
+    expect(store.get(detachedDictationSendsAtom).size).toBe(0);
+    view.unmount();
   });
 });

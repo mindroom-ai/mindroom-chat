@@ -37,9 +37,7 @@ describe('cacheStoreDb blocked operations', () => {
 
   it('rejects a blocked open and lets the next login retry with a fresh request', async () => {
     const realOpen = indexedDB.open.bind(indexedDB);
-    const openSpy = vi
-      .spyOn(indexedDB, 'open')
-      .mockImplementationOnce(() => makeBlockedRequest());
+    const openSpy = vi.spyOn(indexedDB, 'open').mockImplementationOnce(() => makeBlockedRequest());
 
     await expect(openCacheStore('blocked-open-session')).rejects.toBeInstanceOf(
       CacheStoreBlockedError

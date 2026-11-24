@@ -813,10 +813,10 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     const fix = edit('$fix', ROOT, 3000, { body: 'Hello', ...card });
     room.getUnfilteredTimelineSet().addLiveEvent(fix, { addToState: false });
     const entry = (summaryText?: string) =>
-      ({ threadRootId: ROOT, threadRecord: { presentation: { summaryText } } } as Pick<
+      ({ threadRootId: ROOT, threadRecord: { presentation: { summaryText } } }) as Pick<
         CrossRoomThreadIndexEntry,
         'threadRecord' | 'threadRootId'
-      >);
+      >;
 
     expect(threadRootPluginEvent(room, entry())).toMatchObject({
       eventId: ROOT,

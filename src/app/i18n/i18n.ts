@@ -1,4 +1,9 @@
-import i18n, { type BackendModule, type LanguageDetectorModule, type ReadCallback } from 'i18next';
+import i18n, {
+  type BackendModule,
+  type FormatterModule,
+  type LanguageDetectorModule,
+  type ReadCallback,
+} from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import en, { mergeLocaleTrees, type LocaleTree } from './englishResources';
 import { loadLocaleAdditions } from './localeAdditions';
@@ -81,6 +86,7 @@ const namespaceLoaders = new Map<string, NamespaceLoader>();
  */
 const httpBackend: BackendModule = {
   type: 'backend',
+  callbackApi: true,
   init: () => undefined,
   read: (language: string, namespace: string, callback: ReadCallback) => {
     const fail = (error: unknown): void =>
@@ -119,8 +125,8 @@ const applyDocumentLanguage = (language: string): void => {
   document.documentElement.setAttribute('dir', RTL_LANGUAGES.has(base) ? 'rtl' : 'ltr');
 };
 
-// The language asked for last. This i18next version applies each change of language once its loads
-// finish, so an earlier change whose loads finish later would replace it: it is asked for again.
+// The language a change in progress asked for, so a namespace registered mid-switch can load it;
+// cleared once i18next settles the change (i18next 27 already ignores superseded language changes).
 // An empty one asks the detector, as none does.
 let requestedLanguage: string | undefined;
 
@@ -129,16 +135,33 @@ i18n.on('languageChanging', (language: string | undefined) => {
 });
 
 i18n.on('languageChanged', (language) => {
+  requestedLanguage = undefined;
   const code = syncDayjsLocale(language);
   applyDocumentLanguage(code);
-  if (requestedLanguage !== undefined && language !== requestedLanguage) {
-    void i18n.changeLanguage(requestedLanguage);
-  }
 });
+
+/**
+ * Writes numbers in the language's own digits wherever a translation puts them, as Intl does for
+ * dates and times (Bengali writes ০ to ৯); `{{count, number}}` also groups thousands. Other values
+ * pass through unchanged.
+ */
+const numberFormatter: FormatterModule = {
+  type: 'formatter',
+  init: () => undefined,
+  add: () => undefined,
+  addCached: () => undefined,
+  format: (value: unknown, format?: string, language?: string): string => {
+    if (typeof value !== 'number') return value as string;
+    return format === 'number'
+      ? formatNumber(value, language)
+      : localDigits(String(value), language);
+  },
+};
 
 void i18n
   .use(httpBackend)
   .use(languageDetector)
+  .use(numberFormatter)
   .use(initReactI18next)
   .init({
     fallbackLng: DEFAULT_LANGUAGE_CODE,
@@ -151,16 +174,7 @@ void i18n
     partialBundledLanguages: true,
     interpolation: {
       escapeValue: false,
-      // A number reads in the language's own digits wherever a translation puts it, as the dates
-      // and times Intl formats do (Bengali writes ০ to ৯); `{{count, number}}` also groups
-      // thousands. Other values (names, typed as strings here) pass through unchanged.
       alwaysFormat: true,
-      format: (value: string | number, format?: string, language?: string): string => {
-        if (typeof value !== 'number') return value;
-        return format === 'number'
-          ? formatNumber(value, language)
-          : localDigits(String(value), language);
-      },
     },
     react: { useSuspense: false },
     returnNull: false,

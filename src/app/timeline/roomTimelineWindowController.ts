@@ -187,8 +187,8 @@ export const useRoomTimelineWindowController = ({
         backwardToken: canPaginateThreadBack
           ? lastThreadBackwardPaginationToken
           : threadHasMoreCachedBack
-          ? undefined
-          : null,
+            ? undefined
+            : null,
         hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
         relationSnapshotComplete: false,
         tailLoaded: threadTailLoaded,

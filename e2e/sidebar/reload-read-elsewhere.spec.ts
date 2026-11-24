@@ -140,7 +140,7 @@ const savedCount = (page: Page, roomId: string): Promise<number | undefined> =>
             const room = records.find((record) => record.roomsData?.join?.[id])?.roomsData?.join?.[
               id
             ];
-            resolve(room ? room.unread_notifications?.notification_count ?? 0 : undefined);
+            resolve(room ? (room.unread_notifications?.notification_count ?? 0) : undefined);
           };
         };
       });

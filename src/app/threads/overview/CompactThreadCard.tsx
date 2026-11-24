@@ -142,7 +142,7 @@ function CompactThreadCardBase({
     previewText,
     hasReplies ? messageCountLabel : undefined,
     isResolved
-      ? resolvedByLabel ?? t('thread.aria.resolvedThread')
+      ? (resolvedByLabel ?? t('thread.aria.resolvedThread'))
       : t('thread.aria.unresolvedThread'),
     isUnread ? t('thread.aria.unreadMessages') : undefined,
     isStreaming ? t('thread.aria.agentStreaming') : undefined,

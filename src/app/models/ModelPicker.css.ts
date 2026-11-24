@@ -42,7 +42,7 @@ const hoverAndFocus = (fill: string, ring: string) =>
   ({
     '&:hover': { backgroundColor: fill },
     '&:focus-visible': { outline: `2px solid ${ring}` },
-  } as const);
+  }) as const;
 
 const pickerWidth = toRem(272);
 const effortWidth = toRem(192);

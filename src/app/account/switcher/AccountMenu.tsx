@@ -1,6 +1,6 @@
 import { useCallback, useId, useLayoutEffect, useMemo, useState, type FocusEvent } from 'react';
 import classNames from 'classnames';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { PopOut, ownDirectionLine } from '../../ui/directional';

@@ -6,6 +6,7 @@
 ## Goal
 
 Display per-account provider usage limits (remaining % bars with T3-style pace ticks and reset countdowns) and 7-day token/cost usage across linked providers (Claude Code, Codex, OpenRouter, pay-as-you-go API keys) in MindRoom Chat:
+
 1. **Option A - Inline in Model Picker:** Compact remaining-capacity meter on each provider group header when all visible models in that provider group map to a single billing account, plus a footer button `"All usage & limits →"` that closes the picker and opens `/usage/`.
 2. **Option B - Left Rail "Usage" tab & `/usage/` page:** Dedicated rail button (progressive reveal once the backend responds with usage data, matching `CanvasesTab`; subtle amber dot only when any linked window has `<15%` remaining; toggleable in Sidebar settings via `railButtons.ts`) opening a responsive T3-style **Usage & Limits** page (`Limits` | `Tokens & Cost` tabs, pace-tick bars, reset countdowns via `Intl`, 7-day stacked daily chart, per-account token/spend table, and Refresh button).
 

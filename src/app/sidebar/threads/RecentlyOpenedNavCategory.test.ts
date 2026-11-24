@@ -1,6 +1,5 @@
 import React from 'react';
 import { createStore, Provider } from 'jotai';
-import { enableMapSet } from 'immer';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
@@ -24,8 +23,6 @@ import {
   clearRecentlyOpenedPanelHeightStore,
   getRecentlyOpenedPanelHeightStoreKey,
 } from '../../preferences/recentlyOpenedPanelHeight';
-
-enableMapSet();
 
 const { rooms, selectionHolds } = vi.hoisted(() => ({
   rooms: new Map<string, { getMyMembership: () => string; roomId: string }>(),

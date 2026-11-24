@@ -147,7 +147,7 @@ function SizedFrame({
   // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
   const scale = inlineCanvasScale(column, width);
   const limit = inlineCanvasWindowHeight(width ?? column);
-  const frameHeight = preview ? limit : reported ?? 160;
+  const frameHeight = preview ? limit : (reported ?? 160);
   const shown = preview ? Math.min(reported ?? limit, limit) : frameHeight;
   return (
     // A preview is placed, not read: it starts at the left edge in every language, so its scale's

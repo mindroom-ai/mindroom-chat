@@ -171,7 +171,7 @@ describe('useVirtualPaginator', () => {
                 offsetTop: 0,
                 clientHeight: 50,
                 getBoundingClientRect: () => makeRect(0, 50),
-              } as HTMLElement),
+              }) as HTMLElement,
             onApi: (api) => {
               paginator = api;
             },

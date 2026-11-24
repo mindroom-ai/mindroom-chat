@@ -69,7 +69,7 @@ export const deleteAfterLoginRedirectPath = (): void => {
 };
 
 export const getAfterLoginRedirectPath = (): string | undefined => {
-  let raw: string | null = null;
+  let raw: string | null;
   try {
     raw = getStorage()?.getItem(STORAGE_KEY) ?? null;
   } catch {

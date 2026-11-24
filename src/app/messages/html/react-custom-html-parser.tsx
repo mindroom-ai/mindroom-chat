@@ -232,8 +232,8 @@ function MessageLinkLabel({
   const place = room?.name
     ? `#${revealDirectionControls(room.name)}`
     : isAlias
-    ? revealDirectionControls(roomIdOrAlias)
-    : undefined;
+      ? revealDirectionControls(roomIdOrAlias)
+      : undefined;
   if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
   const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
   return (

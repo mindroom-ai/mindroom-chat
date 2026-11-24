@@ -22,14 +22,10 @@ import {
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
-import {
-  discardLiveVoiceRecording,
-  liveVoiceRecordingAtom,
-  liveVoiceRecordingErrorAtom,
-} from './liveVoiceRecording';
+import { discardLiveCapture, liveCaptureAtom, liveCaptureErrorAtom } from '../capture/liveCapture';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { VOICE_RECORDER_STOP_TIMEOUT_MS } from './voiceCaptureSession';
-import * as journal from './voiceRecordingJournal';
+import * as journal from '../capture/captureJournal';
 
 const flightRecorderMocks = vi.hoisted(() => ({
   setVoiceCaptureState: vi.fn(),
@@ -157,7 +153,7 @@ const createTestRoom = (roomId: string, name?: string): Room =>
   ({
     roomId,
     name: name ?? roomId,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const createTestSendContext = (
   roomId: string = ROOM_ID,
@@ -273,7 +269,7 @@ describe('useVoiceRecorder', () => {
   afterEach(async () => {
     // No unmount ends a recording, so each test's is ended here, and a stop left waiting runs out.
     await act(async () => {
-      stores.forEach((store) => void discardLiveVoiceRecording(store));
+      stores.forEach((store) => void discardLiveCapture(store));
       await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
       mountedRenderers.forEach((renderer) => renderer.unmount());
     });
@@ -336,7 +332,7 @@ describe('useVoiceRecorder', () => {
       expect(await recorderState.current!.send()).toBe(false);
     });
     expect(failed).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('stop failed');
+    expect(store.get(liveCaptureErrorAtom)).toEqual({ kind: 'voice', message: 'stop failed' });
     expect(recorderState.current!.phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
@@ -457,7 +453,7 @@ describe('useVoiceRecorder', () => {
     });
     act(() => renderer.unmount());
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
-    act(() => void discardLiveVoiceRecording(store));
+    act(() => void discardLiveCapture(store));
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
@@ -554,7 +550,7 @@ describe('useVoiceRecorder', () => {
     expect(firstSend).toHaveBeenCalledOnce();
     expect(secondSend).not.toHaveBeenCalled();
     expect(secondClaim).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(first.current!.phase).toBe('idle');
     expect(second.current!.phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -575,7 +571,7 @@ describe('useVoiceRecorder', () => {
       void second.current!.discard();
     });
 
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(first.current!.phase).toBe('idle');
     expect(second.current!.phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -583,7 +579,7 @@ describe('useVoiceRecorder', () => {
       expect(await first.current!.send()).toBe(false);
     });
     expect(firstSend).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
   });
 
   it('stops the microphone and forgets the recording when the account leaves', async () => {
@@ -596,11 +592,11 @@ describe('useVoiceRecorder', () => {
 
     act(() => forgetComposerStateOfSession(store));
 
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(recorder.stop).toHaveBeenCalledOnce();
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(onSendRecording).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
@@ -618,7 +614,7 @@ describe('useVoiceRecorder', () => {
     act(() => {
       sendPromise = recorderState.current!.send();
       // Before anything is awaited: the recording left the account, and the recorder was stopped.
-      expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+      expect(store.get(liveCaptureAtom)).toBeUndefined();
       expect(recorder.stop).toHaveBeenCalledOnce();
     });
 
@@ -646,7 +642,7 @@ describe('useVoiceRecorder', () => {
     // In the same call, without the recorder saying it stopped.
     expect(recorder.stop).toHaveBeenCalledOnce();
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
 
     act(() => forgetComposerStateOfSession(store));
     await act(async () => {
@@ -655,7 +651,7 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
   });
 
   it('releases the microphone at once and says nothing more when the account leaves while a claimed recording stops', async () => {
@@ -672,7 +668,7 @@ describe('useVoiceRecorder', () => {
       await Promise.resolve();
     });
     // The Send took the recording out of the account's hands; its recorder has yet to stop.
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(stream.track.stop).not.toHaveBeenCalled();
 
     act(() => forgetComposerStateOfSession(store));
@@ -689,7 +685,7 @@ describe('useVoiceRecorder', () => {
 
     expect(sent).toBe(false);
     expect(onSendRecording).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
   });
 
@@ -740,7 +736,7 @@ describe('useVoiceRecorder', () => {
       });
 
       expect(store.get(pendingVoiceSendDraftAtom)).toBe(nextAccountsDraft);
-      expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+      expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     }
   );
 
@@ -808,7 +804,7 @@ describe('useVoiceRecorder', () => {
       audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
     });
     expect(MockMediaRecorder.instances).toHaveLength(0);
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
   });
 
   it('does not fall back to unconstrained mic capture on NotAllowedError', async () => {
@@ -822,10 +818,12 @@ describe('useVoiceRecorder', () => {
     expect(getUserMedia).toHaveBeenCalledTimes(1);
     expect(recorderState.current?.phase).toBe('idle');
     // A recording that could not start leaves, with its reason for the shell's one dialog.
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBe(
-      'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
-    );
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toEqual({
+      kind: 'voice',
+      message:
+        'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.',
+    });
     expect(flightRecorderMocks.setVoiceCaptureState.mock.calls.map(([state]) => state)).toEqual([
       'requesting',
       'inactive',
@@ -1595,8 +1593,8 @@ describe('useVoiceRecorder', () => {
     expect(lateStream.track.stop).toHaveBeenCalledOnce();
     expect(MockMediaRecorder.instances).toHaveLength(0);
     expect(onSendRecording).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -1764,8 +1762,11 @@ describe('useVoiceRecorder', () => {
 
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(onSendRecording).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('constructor failed');
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toEqual({
+      kind: 'voice',
+      message: 'constructor failed',
+    });
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
 
     renderer.unmount();
   });
@@ -1805,8 +1806,8 @@ describe('useVoiceRecorder', () => {
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     const parked = store.get(pendingVoiceSendDraftAtom);
     expect(parked).toMatchObject({ duration: 5_000, recovered: true, recordingId: disk.id });
     expect(await parked?.file.text()).toBe('voice');
@@ -1838,7 +1839,7 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(store.get(pendingVoiceSendDraftAtom)).toBe(older);
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(disk.release).toHaveBeenCalledOnce();
     expect(disk.remove).not.toHaveBeenCalled();
     begin.mockRestore();
@@ -1900,7 +1901,10 @@ describe('useVoiceRecorder', () => {
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(onSendStopFailure).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('No audio data was captured.');
+    expect(store.get(liveCaptureErrorAtom)).toEqual({
+      kind: 'voice',
+      message: 'No audio data was captured.',
+    });
     expect(recorderState.current?.hasPendingSend).toBe(false);
     expect(recorderState.current?.phase).toBe('idle');
 

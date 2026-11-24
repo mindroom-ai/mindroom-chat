@@ -38,7 +38,7 @@ const envelopeLines = (
   return lines.slice(0, 3).map((line) => JSON.parse(line) as unknown) as [
     Record<string, unknown>,
     Record<string, unknown>,
-    ReportEvent
+    ReportEvent,
   ];
 };
 

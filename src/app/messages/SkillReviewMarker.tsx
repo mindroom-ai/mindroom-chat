@@ -100,8 +100,6 @@ export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
     review.changes.length === 1 && first ? (
       <Trans
         t={t}
-        shouldUnescape
-        tOptions={{ interpolation: { escapeValue: true } }}
         i18nKey={first.action === 'created' ? `${KEY}.createdOne` : `${KEY}.updatedOne`}
         values={{ skill: revealDirectionControls(first.skill) }}
         components={{ code: <code className={css.Name} /> }}

@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
+import { stitchTranscript } from './stitchTranscript';
 import {
+  decodePcm16Frames,
+  DICTATION_FRAME_MS,
   DICTATION_FRAME_SAMPLES,
   DICTATION_MAX_SEGMENT_BYTES,
   DICTATION_SAMPLE_RATE,
   DictationSegmenter,
+  encodePcm16Frames,
   encodePcm16Wav,
   type DictationSegment,
 } from './dictationSegmenter';
@@ -153,6 +157,9 @@ describe('DictationSegmenter', () => {
 
     expect(segments).toHaveLength(1);
     expect(segments[0]?.overlapped).toBe(false);
+    expect(segments[0]?.cutReason).toBe('soft');
+    expect(segments[0]?.leadingQuietFrames).toBe(0);
+    expect(segments[0]?.trailingQuietFrames).toBe(2);
     expect(segments[0]?.seconds).toBeGreaterThan(15);
     expect(segments[0]?.seconds).toBeLessThan(16);
   });
@@ -177,6 +184,8 @@ describe('DictationSegmenter', () => {
 
     expect(segments).toHaveLength(2);
     expect(segments[0]?.overlapped).toBe(false);
+    expect(segments[0]?.cutReason).toBe('hard');
+    expect(segments[0]?.trailingQuietFrames).toBe(0);
     // Cut happened at index 255 (256 frames emitted in segment 0).
     expect(segments[0]?.seconds).toBeCloseTo(
       (256 * DICTATION_FRAME_SAMPLES) / DICTATION_SAMPLE_RATE,
@@ -186,6 +195,8 @@ describe('DictationSegmenter', () => {
 
     // Segment 1 is flagged overlapped: true and carries 6 overlap frames + remaining 10 frames = 16 frames.
     expect(segments[1]?.overlapped).toBe(true);
+    expect(segments[1]?.cutReason).toBe('flush');
+    expect(segments[1]?.pauseBeforeMs).toBe(0);
     expect(segments[1]?.seconds).toBeCloseTo(
       (16 * DICTATION_FRAME_SAMPLES) / DICTATION_SAMPLE_RATE,
       3
@@ -278,5 +289,233 @@ describe('DictationSegmenter', () => {
 
     for (let i = 0; i < 10; i += 1) segmenter.pushFrame(makeFrame(0.1));
     expect(onCapReached).toHaveBeenCalledTimes(1);
+  });
+
+  it('records cutReason, leading/trailing quiet frames, and deterministic pauseBeforeMs across pauses and flush', async () => {
+    const segments: DictationSegment[] = [];
+    const segmenter = new DictationSegmenter({ onSegment: (seg) => segments.push(seg) });
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+
+    const pushMany = (count: number, amp: number) => {
+      for (let i = 0; i < count; i += 1) segmenter.pushFrame(makeFrame(amp));
+    };
+
+    // Seg 0: 6 leading quiet (4 pad kept) + 4 voiced + 8 redemption -> natural cut, pauseBeforeMs = Infinity.
+    pushMany(6, 0.001);
+    pushMany(4, 0.3);
+    pushMany(8, 0.001);
+    // 10 quiet frames between seg 0 and seg 1 (6 dropped + 4 in preSpeechPad) -> total pause = (8 + 10) * 96 ms.
+    pushMany(10, 0.001);
+    pushMany(3, 0.3);
+    pushMany(8, 0.001);
+    // 2 quiet frames (all 2 in preSpeechPad, 0 dropped) + 3 voiced -> flushed mid-speech.
+    pushMany(2, 0.001);
+    pushMany(3, 0.3);
+    await segmenter.flush();
+
+    // Post-flush segment starts a fresh pause boundary (pauseBeforeMs = Infinity).
+    pushMany(3, 0.3);
+    await segmenter.flush();
+
+    expect(segments).toHaveLength(4);
+    expect(segments[0]).toMatchObject({
+      cutReason: 'natural',
+      leadingQuietFrames: 4,
+      trailingQuietFrames: 8,
+      pauseBeforeMs: Infinity,
+    });
+    expect(segments[1]).toMatchObject({
+      cutReason: 'natural',
+      leadingQuietFrames: 4,
+      trailingQuietFrames: 8,
+      pauseBeforeMs: 18 * DICTATION_FRAME_MS,
+    });
+    expect(segments[2]).toMatchObject({
+      cutReason: 'flush',
+      leadingQuietFrames: 2,
+      trailingQuietFrames: 0,
+      pauseBeforeMs: 10 * DICTATION_FRAME_MS,
+    });
+    expect(segments[3]).toMatchObject({
+      cutReason: 'flush',
+      leadingQuietFrames: 0,
+      trailingQuietFrames: 0,
+      pauseBeforeMs: Infinity,
+    });
+  });
+
+  it('fires onLongSilence once at ~8 s idle silence and resets on next segment or flush', async () => {
+    const onLongSilence = vi.fn();
+    const scorer = {
+      score: async (frame: Float32Array) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    };
+    const segmenter = new DictationSegmenter({ onSegment: () => undefined, onLongSilence });
+    const pushAndDrain = async (count: number, amp: number) => {
+      for (let i = 0; i < count; i += 1) segmenter.pushFrame(makeFrame(amp));
+      await segmenter.attachVad(scorer);
+    };
+
+    // Silence before any segment is emitted does not trigger onLongSilence.
+    await pushAndDrain(90, 0.001);
+    expect(onLongSilence).not.toHaveBeenCalled();
+
+    // Emit one natural segment (8 redemption frames), then 74 idle frames (79 total shy of 8 s) -> not fired.
+    await pushAndDrain(3, 0.3);
+    await pushAndDrain(8 + 74, 0.001);
+    expect(onLongSilence).not.toHaveBeenCalled();
+
+    // 75th idle frame (83 total = ~8.0 s silence after speech) triggers once; further frames do not re-fire.
+    await pushAndDrain(20, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(1);
+
+    // Another emitted segment re-arms onLongSilence.
+    await pushAndDrain(3, 0.3);
+    await pushAndDrain(8 + 75, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(2);
+
+    // flush() resets the idle-silence trigger until a new post-flush segment is emitted.
+    await segmenter.flush();
+    await pushAndDrain(90, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(2);
+  });
+
+  it('continues segment indices and enforces cap from initialSegmentIndex and initialActiveFrames', async () => {
+    const segments: DictationSegment[] = [];
+    const onCapReached = vi.fn();
+    const segmenter = new DictationSegmenter({
+      onSegment: (seg) => segments.push(seg),
+      onCapReached,
+      initialSegmentIndex: 3,
+      initialActiveFrames: 20,
+      maxActiveFrames: 32,
+    });
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+
+    const positions: Array<number | null> = [];
+    // Push 4 speech + 8 quiet = 12 frames -> reaches maxActiveFrames (20 + 12 = 32) on the 12th frame.
+    for (let i = 0; i < 4; i += 1) positions.push(segmenter.pushFrame(makeFrame(0.3)));
+    for (let i = 0; i < 8; i += 1) positions.push(segmenter.pushFrame(makeFrame(0.001)));
+    // Further frames past the cap are ignored and return null.
+    positions.push(segmenter.pushFrame(makeFrame(0.3)));
+    await segmenter.flush();
+
+    expect(positions.slice(0, 12)).toEqual([20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
+    expect(positions[12]).toBeNull();
+    expect(onCapReached).toHaveBeenCalledTimes(1);
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.index).toBe(3);
+    expect(segments[0]?.wavBuffer?.byteLength).toBe(segments[0]?.wav.size);
+
+    // Already at cap on construction rejects frames immediately.
+    const capped = new DictationSegmenter({
+      onSegment: () => undefined,
+      initialActiveFrames: 10,
+      maxActiveFrames: 10,
+    });
+    expect(capped.pushFrame(makeFrame(0.3))).toBeNull();
+  });
+
+  it('tracks consumedThroughFramePos across pending frames, preSpeechPad, and hard-cut overlap', async () => {
+    const segments: DictationSegment[] = [];
+    const segmenter = new DictationSegmenter({ onSegment: (seg) => segments.push(seg) });
+
+    // Before VAD attaches, frames stay pending at position 0.
+    for (let i = 0; i < 6; i += 1) segmenter.pushFrame(makeFrame(0.001));
+    expect(segmenter.getUnconsumedStartFramePos()).toBe(0);
+
+    // After scoring 6 quiet frames, only the 4 preSpeechPad frames [2..5] remain needed.
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+    expect(segmenter.getUnconsumedStartFramePos()).toBe(2);
+
+    // Natural cut at frame 17 while unscored frames 18..20 are still queued in pendingFrames:
+    // consumedThroughFramePos must be 18 so tail frames 18..20 are NOT deleted.
+    for (let i = 0; i < 4; i += 1) segmenter.pushFrame(makeFrame(0.3)); // pos 6..9
+    for (let i = 0; i < 8; i += 1) segmenter.pushFrame(makeFrame(0.001)); // pos 10..17
+    for (let i = 0; i < 3; i += 1) segmenter.pushFrame(makeFrame(0.3)); // pos 18..20
+    await segmenter.flush();
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.cutReason).toBe('natural');
+    expect(segments[0]?.consumedThroughFramePos).toBe(18);
+    expect(segments[1]?.cutReason).toBe('flush');
+    expect(segments[1]?.consumedThroughFramePos).toBe(21);
+
+    // Hard cut at 25 s (260 frames) with best quiet frame at local index 254 (5 frames before end):
+    // 6-frame overlap starts at local index 249, preserving both overlap and post-cut frames.
+    const hardSegments: DictationSegment[] = [];
+    const probs: number[] = [];
+    const hardFrames: Float32Array[] = [];
+    for (let i = 0; i < 260; i += 1) {
+      hardFrames.push(makeFrame(i === 254 ? 0.05 : 0.25));
+      probs.push(i === 254 ? 0.36 : 0.9);
+    }
+    let idx = 0;
+    const hardSeg = new DictationSegmenter({
+      onSegment: (seg) => hardSegments.push(seg),
+      initialActiveFrames: 100,
+    });
+    await hardSeg.attachVad({ score: async () => probs[idx++] ?? 0.9 });
+    for (const frame of hardFrames) hardSeg.pushFrame(frame);
+    // Drain without flush yet so we inspect post-hard-cut unconsumed boundary.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(hardSegments).toHaveLength(1);
+    expect(hardSegments[0]?.cutReason).toBe('hard');
+    // Local index 249 corresponds to absolute frame position 100 + 249 = 349.
+    expect(hardSegments[0]?.consumedThroughFramePos).toBe(349);
+    expect(hardSeg.getUnconsumedStartFramePos()).toBe(349);
+
+    // Flushing emits the overlapped continuation segment starting from those retained frames.
+    await hardSeg.flush();
+    expect(hardSegments).toHaveLength(2);
+    expect(hardSegments[1]?.overlapped).toBe(true);
+    expect(hardSegments[1]?.consumedThroughFramePos).toBe(360);
+  });
+
+  it('round-trips float PCM frames through encodePcm16Frames and decodePcm16Frames', () => {
+    const f0 = makeFrame(0.3);
+    const f1 = makeFrame(0.05);
+    const decoded = decodePcm16Frames(encodePcm16Frames([f0, f1]));
+    expect(decoded).toHaveLength(2);
+    expect(decoded[0]?.length).toBe(DICTATION_FRAME_SAMPLES);
+    expect(decoded[1]?.length).toBe(DICTATION_FRAME_SAMPLES);
+    expect(decoded[0]?.[10]).toBeCloseTo(f0[10]!, 3);
+    expect(decoded[1]?.[10]).toBeCloseTo(f1[10]!, 3);
+  });
+
+  it('marks only the first replayed segment overlapped when initialOverlapped is true, deduplicating boundary words', async () => {
+    const segments: DictationSegment[] = [];
+    const segmenter = new DictationSegmenter({
+      onSegment: (seg) => segments.push(seg),
+      initialSegmentIndex: 1,
+      initialOverlapped: true,
+    });
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+
+    // First replayed utterance after a hard cut (followed by natural pause) -> overlapped: true.
+    for (let i = 0; i < 4; i += 1) segmenter.pushFrame(makeFrame(0.3));
+    for (let i = 0; i < 8; i += 1) segmenter.pushFrame(makeFrame(0.001));
+    // Second utterance in the same replay -> overlapped: false.
+    for (let i = 0; i < 4; i += 1) segmenter.pushFrame(makeFrame(0.3));
+    await segmenter.flush();
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toMatchObject({ index: 1, overlapped: true });
+    expect(segments[1]).toMatchObject({ index: 2, overlapped: false });
+
+    const stitched = stitchTranscript([
+      { text: 'please invite Sam', overlapped: false },
+      { text: 'Sam tomorrow', overlapped: segments[0]!.overlapped },
+      { text: 'tomorrow morning', overlapped: segments[1]!.overlapped },
+    ]);
+    expect(stitched).toBe('please invite Sam tomorrow tomorrow morning');
   });
 });

@@ -24,7 +24,7 @@ successful send, confirmed Discard, or sign-out.**
   - `chunks`: keyed `[id, seq]`, holding the bytes as an ArrayBuffer (WebKit refuses Blobs in
     private windows) and `elapsedMs`. `seq` is assigned synchronously in `dataavailable`. Writes are
     serialized per recording. On recovery, the first non-empty chunk's type wins over the start-time
-  MIME. Live sends continue to prefer the recorder's MIME.
+    MIME. Live sends continue to prefer the recorder's MIME.
 - **Ownership.** The tab holds the Web Lock `mindroom-voice-recording:<id>` from before it writes
   the meta until the record is deleted. Without `navigator.locks` there is no journal; recording
   works from memory as today.

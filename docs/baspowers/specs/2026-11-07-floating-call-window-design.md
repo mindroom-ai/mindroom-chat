@@ -33,10 +33,10 @@ Out, with reasons:
 
 `callPanelRoomAtom` keeps its meaning: the room whose call view is open (a call's room, or an agent call's origin room). A per-account mode decides where that view shows on desktop:
 
-| Mode | Desktop | Phone |
-|---|---|---|
-| `floating` (default) | the floating window, over every page, whatever the route | side panel, as today |
-| `docked` | the room's side panel, as today (only while that room is open) | side panel, as today |
+| Mode                 | Desktop                                                        | Phone                |
+| -------------------- | -------------------------------------------------------------- | -------------------- |
+| `floating` (default) | the floating window, over every page, whatever the route       | side panel, as today |
+| `docked`             | the room's side panel, as today (only while that room is open) | side panel, as today |
 
 - The header call buttons, a ring's Answer, a started call and the rail's call button set `callPanelRoomAtom` as today, so they open the window in floating mode.
 - Close (X, "Close call view") clears `callPanelRoomAtom` as today: the call goes on, the rail's call button brings the window back. The focus Close had goes to the room's call button on the page, else to the page's main content, as after End.
@@ -84,28 +84,28 @@ Main transcribes calls between people in rooms with MindRoom's router (#42, `doc
 
 New and changed files (all in `src/app/calls/` unless named):
 
-| File | Role |
-|---|---|
-| `window/callWindowGeometry.ts` (+ test) | Pure rectangle math: move with margin and edge stick, resize from an edge or corner with minimums, bar threshold, corner snap, keyboard steps, fit to a new viewport, default rectangle. |
-| `window/callWindowState.ts` (+ test) | Per-account atom of `{ mode, rect, placedIn, expandedHeight }` in `localStorage` (`atomWithLocalStorage`, as `ResizablePanel` does), with `setMode`, `expand` and `minimize` helpers. |
-| `window/FloatingCallWindow.tsx`, `.css.ts` (+ test) | The frame: fixed position, pointer drag and resize (pointer capture), the 8 handles, bar mode, keyboard, viewport fitting, persistence. Renders the call view as its child. |
-| `window/CallWindowHost.tsx` (+ test) | Mounted in `CallFeatures`: on desktop in floating mode with `callPanelRoomAtom` set and its room known, renders the window with the lazy call view inside `PowerLevelsContextProvider`. |
-| `CallPanelPart.tsx` | The lazy `CallPanel` part and its `CallPanelUnavailable` fallback, moved out of `room/Room.tsx` so the room and the window share them. |
-| `stageLayout.ts` (+ test) | `fitTiles`, the speaker-view choice, and `byPerson` (one entry per person for the voice stage, the faces row and the bar). |
-| `CallStage.tsx`, `CallStage.css.ts` (+ test) | Video stage (grid, speaker view, inset, faces row) and voice stage. |
-| `CallPanel.tsx`, `CallPanel.css.ts` | Uses `CallStage`; title bar buttons; bar content; camera and screen share in agent calls. |
-| `ActiveCallTab.tsx` | Floating mode: open and expand without navigating. |
-| `room/Room.tsx` | The call side panel opens only on phones or in docked mode; imports the part from `calls/CallPanelPart.tsx`. |
-| `window/callWindowFrame.ts` | The frame context (bar, minimize, expand, handle props) and the window size context the transcript lays itself out by. |
-| `window/transcriptLayout.ts` (+ test) | Pure: the transcript's layout by window size (stacked, side, subtitle), the split's bounds, pointer and key steps. |
-| `window/WindowTranscript.tsx`, `.css.ts` (+ test) | The stage with the live transcript in the window: the split, the divider, the subtitle, and the hidden log for screen readers in the subtitle layout. |
-| `transcription/LiveTranscriptBody.tsx` | The live transcript's content (lines, gaps, notices, kept at the end), shared by main's side panel and the window. |
-| `transcription/transcriptPanel.ts` | Where Transcript shows it (`useCallTranscript` and its `open`): inside the window for this device's floating call, else the side panel, which replaces only a docked call panel. |
-| `transcription/TranscriptionControls.tsx`, `transcription/CallRow.tsx` | The controls' Transcript is a switch in the window (and stays while unavailable); the row opens the window's transcript without navigating. |
-| `CallStage.css.ts` | `stageEndRoom`: the room the stage keeps free at its end for the subtitle. |
-| `i18n/locales/additions/*.json` | New `featureUi.calls.window.*` and stage strings in every app language. |
-| `e2e/calls/call-window.spec.ts`, `e2e/calls/calls.spec.ts` | Window behavior; the chunk-failure test finds the fallback in the window. |
-| `e2e/calls/call-transcription.spec.ts` | The live transcript in the window from the row and the controls, Pause there, the switch, and main's side panel once docked. |
+| File                                                                   | Role                                                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `window/callWindowGeometry.ts` (+ test)                                | Pure rectangle math: move with margin and edge stick, resize from an edge or corner with minimums, bar threshold, corner snap, keyboard steps, fit to a new viewport, default rectangle. |
+| `window/callWindowState.ts` (+ test)                                   | Per-account atom of `{ mode, rect, placedIn, expandedHeight }` in `localStorage` (`atomWithLocalStorage`, as `ResizablePanel` does), with `setMode`, `expand` and `minimize` helpers.    |
+| `window/FloatingCallWindow.tsx`, `.css.ts` (+ test)                    | The frame: fixed position, pointer drag and resize (pointer capture), the 8 handles, bar mode, keyboard, viewport fitting, persistence. Renders the call view as its child.              |
+| `window/CallWindowHost.tsx` (+ test)                                   | Mounted in `CallFeatures`: on desktop in floating mode with `callPanelRoomAtom` set and its room known, renders the window with the lazy call view inside `PowerLevelsContextProvider`.  |
+| `CallPanelPart.tsx`                                                    | The lazy `CallPanel` part and its `CallPanelUnavailable` fallback, moved out of `room/Room.tsx` so the room and the window share them.                                                   |
+| `stageLayout.ts` (+ test)                                              | `fitTiles`, the speaker-view choice, and `byPerson` (one entry per person for the voice stage, the faces row and the bar).                                                               |
+| `CallStage.tsx`, `CallStage.css.ts` (+ test)                           | Video stage (grid, speaker view, inset, faces row) and voice stage.                                                                                                                      |
+| `CallPanel.tsx`, `CallPanel.css.ts`                                    | Uses `CallStage`; title bar buttons; bar content; camera and screen share in agent calls.                                                                                                |
+| `ActiveCallTab.tsx`                                                    | Floating mode: open and expand without navigating.                                                                                                                                       |
+| `room/Room.tsx`                                                        | The call side panel opens only on phones or in docked mode; imports the part from `calls/CallPanelPart.tsx`.                                                                             |
+| `window/callWindowFrame.ts`                                            | The frame context (bar, minimize, expand, handle props) and the window size context the transcript lays itself out by.                                                                   |
+| `window/transcriptLayout.ts` (+ test)                                  | Pure: the transcript's layout by window size (stacked, side, subtitle), the split's bounds, pointer and key steps.                                                                       |
+| `window/WindowTranscript.tsx`, `.css.ts` (+ test)                      | The stage with the live transcript in the window: the split, the divider, the subtitle, and the hidden log for screen readers in the subtitle layout.                                    |
+| `transcription/LiveTranscriptBody.tsx`                                 | The live transcript's content (lines, gaps, notices, kept at the end), shared by main's side panel and the window.                                                                       |
+| `transcription/transcriptPanel.ts`                                     | Where Transcript shows it (`useCallTranscript` and its `open`): inside the window for this device's floating call, else the side panel, which replaces only a docked call panel.         |
+| `transcription/TranscriptionControls.tsx`, `transcription/CallRow.tsx` | The controls' Transcript is a switch in the window (and stays while unavailable); the row opens the window's transcript without navigating.                                              |
+| `CallStage.css.ts`                                                     | `stageEndRoom`: the room the stage keeps free at its end for the subtitle.                                                                                                               |
+| `i18n/locales/additions/*.json`                                        | New `featureUi.calls.window.*` and stage strings in every app language.                                                                                                                  |
+| `e2e/calls/call-window.spec.ts`, `e2e/calls/calls.spec.ts`             | Window behavior; the chunk-failure test finds the fallback in the window.                                                                                                                |
+| `e2e/calls/call-transcription.spec.ts`                                 | The live transcript in the window from the row and the controls, Pause there, the switch, and main's side panel once docked.                                                             |
 
 Data flow: `callPanelRoomAtom` (which room) and the window atom (where and how big) are independent. `CallWindowHost` reads both and the screen size; `Room.tsx` reads both for the side panel. The call state (`useCallState`) feeds `CallStage`, the bar and the controls as today.
 

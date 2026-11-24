@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { createStore, Provider } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
-import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
@@ -22,8 +21,6 @@ import {
   getThreadSidebarPreferencesStoreKey,
   makeThreadSidebarPreferencesAtom,
 } from '../../threads/cross-room/threadSidebarPreferences';
-
-enableMapSet();
 
 const { MINUTE_NOW, readSignals } = vi.hoisted(() => ({
   // Later than any real clock, so it wins over the time a snooze last renewed.
@@ -118,10 +115,10 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     isResolved: false,
     summaryText: threadRootId,
     threadRecord: { status: { isStreaming: false }, cache: {} },
-  } as unknown as CrossRoomThreadIndexEntry);
+  }) as unknown as CrossRoomThreadIndexEntry;
 
-const older = makeEntry('!room:example.org', '$older', 10);
-const newer = makeEntry('!newer-room:example.org', '$newer', 20);
+const older = makeEntry('!room:example.org', '$older', MINUTE_NOW - 20);
+const newer = makeEntry('!newer-room:example.org', '$newer', MINUTE_NOW - 10);
 
 describe('ThreadNavCategory', () => {
   let renderer: ReactTestRenderer | undefined;

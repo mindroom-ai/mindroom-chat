@@ -35,7 +35,7 @@ const member = (userId: string): IEvent =>
     state_key: userId,
     origin_server_ts: 1,
     content: { membership: 'join' },
-  } as IEvent);
+  }) as IEvent;
 
 const encryption = {
   type: 'm.room.encryption',
@@ -506,7 +506,7 @@ describe('unread counts of an encrypted room', () => {
         body: `message ${eventId}`,
         ...(relation ? { 'm.relates_to': relation } : {}),
       },
-    } as IEvent);
+    }) as IEvent;
   const streamedReply = (eventId: string, ts: number) => {
     const reply = encrypted(eventId, AGENT, ts, inThread);
     reply.content['io.mindroom.stream_status'] = 'pending';
@@ -826,7 +826,10 @@ describe('unread counts of an encrypted room', () => {
     for (const event of window.filter((e) => e.type === 'm.room.encrypted')) {
       const id = event.event_id;
       if (id === '$done') continue;
-      await f.decrypt(f.find(id), id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id));
+      await f.decrypt(
+        f.find(id),
+        id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id)
+      );
     }
     expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
   });
@@ -838,7 +841,10 @@ describe('unread counts of an encrypted room', () => {
   it('highlight a finished reply that mentions the reader while its bundled edit stays encrypted', async () => {
     const f = await fixture(true);
     const bundled = finishingEdit('$done', REPLY, 40);
-    const reply = { ...streamedReply(REPLY, 11), unsigned: { 'm.relations': { 'm.replace': bundled } } };
+    const reply = {
+      ...streamedReply(REPLY, 11),
+      unsigned: { 'm.relations': { 'm.replace': bundled } },
+    };
     const window = [
       { ...member(ME), origin_server_ts: 1 },
       encrypted(ROOT, ME, 10),
@@ -863,8 +869,8 @@ describe('unread counts of an encrypted room', () => {
     expect(f.find(REPLY).replacingEvent()?.getClearContent()).toBeNull();
 
     expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
-    expect(
-      f.room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Highlight)
-    ).toBe(1);
+    expect(f.room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Highlight)).toBe(
+      1
+    );
   });
 });

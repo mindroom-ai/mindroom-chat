@@ -99,7 +99,7 @@ describe('setUpRecovery', () => {
       createSecretStorageKey: expect.any(Function),
     });
     const [{ createSecretStorageKey }] = crypto.bootstrapSecretStorage.mock.calls[0] as [
-      { createSecretStorageKey: () => Promise<unknown> }
+      { createSecretStorageKey: () => Promise<unknown> },
     ];
     await expect(createSecretStorageKey()).resolves.toBe(GENERATED);
   });
@@ -137,7 +137,7 @@ describe('setUpRecovery', () => {
 
 describe('storeSecretsUnderNewKey', () => {
   const client = (crypto: unknown) =>
-    ({ getCrypto: () => crypto, http: {}, getSafeUserId: () => '@me:example.org' } as never);
+    ({ getCrypto: () => crypto, http: {}, getSafeUserId: () => '@me:example.org' }) as never;
 
   it('storeSecretsUnderNewKey writes the cached secrets under the new key without a new backup', async () => {
     const { crypto, calls } = makeCrypto();
@@ -148,7 +148,7 @@ describe('storeSecretsUnderNewKey', () => {
     expect(calls).toEqual(['refresh', 'keyId', 'clear', 'storage', 'storageStatus']);
     expect(crypto.bootstrapSecretStorage).toHaveBeenCalledTimes(1);
     const [options] = crypto.bootstrapSecretStorage.mock.calls[0] as [
-      { createSecretStorageKey: () => Promise<unknown> }
+      { createSecretStorageKey: () => Promise<unknown> },
     ];
     expect(Object.keys(options).sort()).toEqual([
       'createSecretStorageKey',

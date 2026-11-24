@@ -10,7 +10,7 @@ const VIEWPORT_HEIGHT = 200;
 const rowKeys = (count: number) => Array.from({ length: count }, (_, index) => `row-${index}`);
 
 const toRect = (top: number, height: number) =>
-  ({ top, bottom: top + height, height, left: 0, right: 300, width: 300, x: 0, y: top } as DOMRect);
+  ({ top, bottom: top + height, height, left: 0, right: 300, width: 300, x: 0, y: top }) as DOMRect;
 
 // jsdom has no layout, so rows stack in DOM order and the viewport clamps
 // scrollTop to the content like a browser.

@@ -40,7 +40,7 @@ const makeEvent = (
     getRelation: () => (relType ? { rel_type: relType, event_id: '$x' } : null),
     threadRootId,
     isThreadRoot,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 describe('parseThreadForkRef', () => {
   it('reads the reference from content', () => {
@@ -219,7 +219,7 @@ describe('latestForkPoint', () => {
             }
           : null,
       findEventById: (eventId: string) => (eventId === '$p' ? rootEvent : undefined),
-    } as unknown as Room);
+    }) as unknown as Room;
 
   it("is the thread's latest message the server confirmed, past edits and sends under way", () => {
     expect(latestForkPoint(roomWith(root, [a, edit, b, pending]), '$p')).toEqual({

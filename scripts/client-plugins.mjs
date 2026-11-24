@@ -340,24 +340,21 @@ export const clientPlugins = (env = process.env) => {
             ? { ...CLIENT_SDK_ALIAS, ...CLIENT_SDK_FIXTURES_ALIAS }
             : CLIENT_SDK_ALIAS,
       },
-      // The dev server pre-bundles the packages a plugin installed with esbuild, without plugin
-      // hooks: there their imports and requires of the packages the app shares resolve as the app
-      // imports them, to the module the app's own pre-bundle has.
+      // The dev server pre-bundles the packages a plugin installed with Rolldown, without the main
+      // build's plugin hooks: there their imports and requires of the packages the app shares resolve
+      // as the app imports them, to the module the app's own pre-bundle has.
       optimizeDeps: {
-        esbuildOptions: {
+        rolldownOptions: {
           plugins: [
             {
               name: 'mindroom-client-plugins',
-              setup: (build) => {
-                build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
-                  sharedPackage(source) && ownerOf(importer)
-                    ? build.resolve(source, {
-                        kind: 'import-statement',
-                        importer: ENTRIES_MODULE,
-                        resolveDir: path.dirname(ENTRIES_MODULE),
-                      })
-                    : undefined
-                );
+              resolveId(source, importer, options) {
+                if (!importer || !sharedPackage(source) || !ownerOf(importer)) return null;
+                return this.resolve(source, ENTRIES_MODULE, {
+                  ...options,
+                  kind: 'import-statement',
+                  skipSelf: true,
+                });
               },
             },
           ],
@@ -381,10 +378,11 @@ export const clientPlugins = (env = process.env) => {
       if (!name) return null;
       const owner = ownerOf(importer);
       if (!owner) return null;
-      // As an import even for a CommonJS `require` (Vite 6 and later resolve that with the
+      // As an import even for a CommonJS `require` (Vite 6+ / Rolldown resolve that with the
       // `require` condition), so that the plugin gets the build the app imports, not a second one.
       const resolved = await this.resolve(source, ENTRIES_MODULE, {
         ...options,
+        kind: 'import-statement',
         custom: {
           ...options.custom,
           'node-resolve': { ...options.custom?.['node-resolve'], isRequire: false },

@@ -6,7 +6,10 @@ import {
   resolveTimelineMinimapTopPercent,
   TimelineMinimapEvent,
 } from './timelineMinimapViewModel';
-import { hasMindroomAgentMessageMetadata, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import {
+  hasMindroomAgentMessageMetadata,
+  isMindroomAgentUserId,
+} from '../matrix/protocol/agentIdentity';
 
 const makeEvent = (input: {
   id?: string;

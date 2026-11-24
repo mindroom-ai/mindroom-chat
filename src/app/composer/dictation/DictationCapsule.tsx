@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { millisecondsToMinutesAndSeconds } from '../../lib/common';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
+import { useLiveCaptureCapsuleVisible } from '../capture/useLiveCaptureCapsuleVisible';
 import { CapsuleControlButton, RecordingCapsule } from '../voice/VoiceRecordingCapsule';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import * as css from './DictationCapsule.css';
@@ -12,6 +13,7 @@ import type { DictationSnapshot } from './dictationSession';
 export type DictationCapsuleProps = {
   snapshot: DictationSnapshot;
   sending?: boolean;
+  showingLive?: boolean;
   onCancel: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -22,9 +24,17 @@ export type DictationCapsuleProps = {
   onDismissError: () => void;
 };
 
-const getScreenReaderStatusKey = (phase: DictationSnapshot['phase'], sending: boolean) => {
+const getScreenReaderStatusKey = (
+  phase: DictationSnapshot['phase'],
+  sending: boolean,
+  recovered: boolean
+) => {
   if (phase === 'requesting') return 'composer.dictation.statusStarting' as const;
-  if (phase === 'paused') return 'composer.dictation.statusPaused' as const;
+  if (phase === 'paused') {
+    return recovered
+      ? ('composer.dictation.statusRecovered' as const)
+      : ('composer.dictation.statusPaused' as const);
+  }
   if (phase === 'finishing') {
     return sending
       ? ('composer.dictation.statusSending' as const)
@@ -36,6 +46,7 @@ const getScreenReaderStatusKey = (phase: DictationSnapshot['phase'], sending: bo
 export function DictationCapsule({
   snapshot,
   sending = false,
+  showingLive = false,
   onCancel,
   onPause,
   onResume,
@@ -52,13 +63,17 @@ export function DictationCapsule({
     elapsedMs,
     waveform,
     sampleCount,
+    pendingUploads,
     failedSegments,
     hasPartialText,
     previewText,
     capReached,
     interrupted,
+    recovered,
+    hasClient,
     errorMessage,
   } = snapshot;
+  useLiveCaptureCapsuleVisible(showingLive && phase !== 'idle');
   const previewRef = useRef<HTMLDivElement | null>(null);
   const showPreview = phase !== 'idle' && previewText.length > 0;
 
@@ -158,8 +173,10 @@ export function DictationCapsule({
   const paused = phase === 'paused';
   const finishing = phase === 'finishing';
   const requesting = phase === 'requesting';
-  const pauseDisabled = requesting || finishing || capReached || sending;
+  const pauseDisabled = requesting || finishing || capReached || sending || (paused && !hasClient);
   const finishDisabled = requesting || finishing || sending;
+  const time = millisecondsToMinutesAndSeconds(elapsedMs);
+  const timerText = recovered ? t('composer.dictation.recoveredDuration', { time }) : time;
 
   let subtleStatus: string | undefined;
   if (finishing) {
@@ -170,6 +187,10 @@ export function DictationCapsule({
     subtleStatus = t('composer.dictation.capReached');
   } else if (interrupted) {
     subtleStatus = t('composer.dictation.micInterrupted');
+  } else if (paused && !hasClient && (pendingUploads > 0 || failedSegments > 0)) {
+    subtleStatus = t('composer.dictation.statusPendingRetry', {
+      count: pendingUploads + failedSegments,
+    });
   } else if (failedSegments > 0) {
     subtleStatus = t('composer.dictation.statusPendingRetry', { count: failedSegments });
   } else if (errorMessage) {
@@ -187,7 +208,7 @@ export function DictationCapsule({
         waveform={waveform}
         liveSampleCount={recording ? sampleCount : undefined}
         waveformDimmed={paused || finishing || requesting || sending}
-        timerText={millisecondsToMinutesAndSeconds(elapsedMs)}
+        timerText={timerText}
         paused={paused}
         pauseLabel={paused ? t('composer.dictation.resume') : t('composer.dictation.pause')}
         pauseDisabled={pauseDisabled}
@@ -206,7 +227,7 @@ export function DictationCapsule({
             )}
           </CapsuleControlButton>
         }
-        statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending))}
+        statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending, recovered))}
         statusRole="status"
       />
       {subtleStatus && (

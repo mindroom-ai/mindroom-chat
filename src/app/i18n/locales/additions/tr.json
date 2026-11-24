@@ -707,7 +707,18 @@
       "manage": "Yönet"
     },
     "roomOrder": {
-      "sortByName": "Odaları A'dan Z'ye sırala"
+      "sortRooms": "Odaları sırala",
+      "sortHeading": "Odaları sırala",
+      "displayHeading": "Görünüm",
+      "recentActivity": "Son etkinlik",
+      "aToZ": "A’dan Z’ye",
+      "customOrder": "Özel sıra",
+      "saved": "Kayıtlı",
+      "showActivityTimes": "Etkinlik saatlerini göster",
+      "matchSpace": "Alanla eşleştir ({{mode}})",
+      "shortRecent": "Son",
+      "shortName": "A–Z",
+      "shortManual": "Özel"
     },
     "roomActions": {
       "noInvitePermission": "Davet etme izniniz yok",
@@ -1491,7 +1502,20 @@
       "capReached": "5:00 sınırına ulaşıldı",
       "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
       "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
-      "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi."
+      "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi.",
+      "discardDictation": "Dikteyi sil",
+      "discardConfirmTitle": "Dikte silinsin mi?",
+      "discardConfirmBody": "Bu dikte henüz eklenmedi veya gönderilmedi. Kalıcı olarak silinsin mi?",
+      "errorTitle": "Dikte Hatası",
+      "statusRecovered": "Kurtarılan dikte",
+      "recoveredDuration": "Kurtarıldı · {{time}}",
+      "indicator": {
+        "recording": "Dikte ediliyor {{time}}",
+        "paused": "Dikte duraklatıldı {{time}}",
+        "recovered": "Kurtarılan dikte {{time}}",
+        "finishing": "Dikte tamamlanıyor...",
+        "failed": "Dikte dikkat gerektiriyor"
+      }
     }
   },
   "commandPalette": {
@@ -1597,6 +1621,7 @@
       "needsYou": "Sizi bekliyor",
       "working": "Çalışıyor",
       "later": "Sonra",
+      "quiet": "Sakin",
       "done": "Tamamlandı",
       "all": "Tümü",
       "description": {
@@ -1958,6 +1983,7 @@
       "working": "Çalışıyor",
       "later": "Sonra",
       "idle": "Boşta",
+      "quiet": "Sakin",
       "resolved": "Çözülenler"
     },
     "live": {

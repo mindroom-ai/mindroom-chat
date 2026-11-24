@@ -35,8 +35,7 @@ const mocks = vi.hoisted(() => {
     powerLevels,
     latestLeaveProps: undefined as { onLeft?: () => void; requestClose?: () => void } | undefined,
     latestAddExistingProps: undefined as
-      | { kind: string; into: string; requestClose: () => void }
-      | undefined,
+      { kind: string; into: string; requestClose: () => void } | undefined,
     latestInviteProps: undefined as { room: Room; requestClose: () => void } | undefined,
   };
 });
@@ -54,7 +53,7 @@ const makeSpace = (roomId = '!space:example.org', name = 'Field Notes'): Room =>
     currentState: { getStateEvents: () => [] },
     getMembersWithMembership: () => [],
     getLiveTimeline: () => ({ getState: () => null }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),

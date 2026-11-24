@@ -314,12 +314,12 @@ describe('Room covering side panel interactive swipes on phones', () => {
 
     expect(host.hasAttribute('data-swiping')).toBe(true);
     expect(host.hasAttribute('data-swipe-shadow')).toBe(true);
-    expect(host.style.translate).toBe('80px 0');
+    expect(host.style.translate).toBe('80px');
     expect(conversation.hasAttribute('data-swipe-under-panel')).toBe(true);
     expect(conversation.hasAttribute('data-swiping')).toBe(true);
     expect(conversation.dataset.conversationBehindPanel).toBe('true');
     expect(conversation.inert).toBe(true);
-    expect(conversation.style.translate).toBe('-96px 0');
+    expect(conversation.style.translate).toBe('-96px');
     const stage = container.querySelector<HTMLElement>('[data-panel-row]')!;
     expect(container.querySelector('[data-swipe-panel-dim]')).not.toBeNull();
     expect(stage.hasAttribute('data-swipe-panel-stage')).toBe(true);
@@ -355,7 +355,7 @@ describe('Room covering side panel interactive swipes on phones', () => {
       dispatchEdgeTouch('touchmove', [{ clientX: 220, clientY: 200 }], 250);
       vi.advanceTimersToNextFrame();
     });
-    expect(host.style.translate).toBe('200px 0');
+    expect(host.style.translate).toBe('200px');
 
     act(() => {
       dispatchEdgeTouch('touchend', [], 270);
@@ -506,7 +506,7 @@ describe('Room covering side panel interactive swipes on phones', () => {
       vi.advanceTimersToNextFrame();
     });
 
-    expect(host.style.translate).toBe('-100px 0');
-    expect(conversation.style.translate).toBe('90px 0');
+    expect(host.style.translate).toBe('-100px');
+    expect(conversation.style.translate).toBe('90px');
   });
 });

@@ -17,7 +17,7 @@ const message = (id: string, ts: number, threadRootId?: string, roomId = ROOM_A)
     threadRootId,
     isThreadRoot: false,
     getOriginalContent: () => ({ body: id }),
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const root = (id: string, ts: number, fork?: Fork, roomId = ROOM_A) =>
   ({
@@ -27,7 +27,7 @@ const root = (id: string, ts: number, fork?: Fork, roomId = ROOM_A) =>
     threadRootId: undefined,
     isThreadRoot: true,
     getOriginalContent: () => ({ body: id, ...(fork ? threadForkContent(fork) : {}) }),
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const ids = (events: MatrixEvent[]) => events.map((event) => event.getId());
 

@@ -5,7 +5,10 @@ import {
   selectThreadWorkflowTab,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import { matchesThreadRecordFilterState } from '../../event-store/threads/threadRecordOverview';
-import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
+import {
+  QUIET_AFTER_MS,
+  type ThreadWorkflowBucket,
+} from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { buildCompactThreadSections } from './compactThreadSections';
@@ -22,7 +25,7 @@ const record = (
     threadRootId: rootId,
     status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: oldestTs === undefined ? {} : { oldestTs },
-  } as ThreadRecord);
+  }) as ThreadRecord;
 
 const recordsOf = (...records: ThreadRecord[]) =>
   new Map(records.map((item) => [item.threadRootId, item] as const));
@@ -47,7 +50,7 @@ const build = ({
     signalsOf: (entry) => signals.get(entry.threadRootId) as ThreadSignals | undefined,
     pinnedRootIds,
     now: NOW,
-  }).map(({ id, rootIds }) => [id, rootIds]);
+  }).sections.map(({ id, rootIds }) => [id, rootIds]);
 
 /** One thread of each kind the workflow classifier tells apart. */
 const everyKind = recordsOf(
@@ -234,5 +237,51 @@ describe('buildCompactThreadSections', () => {
     expect(
       build({ threadRootIds: ['$gone', '$here'], records: recordsOf(record('$here')) })
     ).toEqual([['needsYou', ['$here']]]);
+  });
+
+  it('splits read 5-day inactive Needs you threads into Quiet before Done and keeps pinned/unread/waiting in Needs you', () => {
+    const now = 10 * QUIET_AFTER_MS;
+    const stale = now - QUIET_AFTER_MS;
+    const records = recordsOf(
+      record('$active', { lastActivityTs: stale + 100 }),
+      record('$pinned-old', { lastActivityTs: stale - 500 }),
+      record('$unread-old', { lastActivityTs: stale - 500, isUnread: true }),
+      record('$waiting-old', { lastActivityTs: stale - 500, replyCount: 1 }),
+      record('$working', { isStreaming: true }),
+      record('$later', { snoozedUntilTs: now + 100 }),
+      record('$quiet-older', { lastActivityTs: stale - 200 }),
+      record('$quiet-newer', { lastActivityTs: stale - 50 }),
+      record('$done', { isResolved: true })
+    );
+    const entries = new Map([['$waiting-old', { threadRootId: '$waiting-old' }]]);
+    let signalReads = 0;
+    const result = buildCompactThreadSections({
+      threadRootIds: [...records.keys()],
+      recordMap: records,
+      entryOf: (rootId) => entries.get(rootId) as CrossRoomThreadIndexEntry | undefined,
+      signalsOf: (entry) => {
+        signalReads += 1;
+        return entry.threadRootId === '$waiting-old'
+          ? ({
+              pendingQuestion: {},
+              waitsUntil: now + 50,
+              newCount: 0,
+              mentionedMe: false,
+            } as ThreadSignals)
+          : undefined;
+      },
+      pinnedRootIds: ['$pinned-old'],
+      now,
+    });
+
+    expect(result.sections.map(({ id, rootIds }) => [id, rootIds])).toEqual([
+      ['needsYou', ['$pinned-old', '$active', '$unread-old', '$waiting-old']],
+      ['working', ['$working']],
+      ['later', ['$later']],
+      ['quiet', ['$quiet-newer', '$quiet-older']],
+      ['done', ['$done']],
+    ]);
+    expect(result.nextQuietWakeTs).toBe(now + 50);
+    expect(signalReads).toBe(1);
   });
 });

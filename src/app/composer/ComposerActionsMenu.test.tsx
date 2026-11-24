@@ -16,7 +16,7 @@ import { ComposerActionsMenu } from './ComposerActionsMenu';
 
 // jsdom lays nothing out, so the trap would find no control to hold.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  FocusTrap: ({ children }: { children: ReactNode }) => children,
 }));
 
 const store = getDefaultStore();

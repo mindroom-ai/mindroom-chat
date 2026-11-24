@@ -11,7 +11,7 @@ export const forkPrefixThreadId = (
   eventId: string,
   forkPrefixEventIds: ReadonlySet<string> | undefined
 ): string | undefined =>
-  forkPrefixEventIds?.has(eventId) ? ownThreadId(event) ?? eventId : undefined;
+  forkPrefixEventIds?.has(eventId) ? (ownThreadId(event) ?? eventId) : undefined;
 
 /**
  * The room an event belongs to: for a cross-room fork prefix row, its owning room from the
