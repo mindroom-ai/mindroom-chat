@@ -486,8 +486,6 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   const timeline = listInPages(room);
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
     timeline.setPaginationToken(null, Direction.Backward);
-    // Mutate the root before the final pass so `checkAll` re-serializes it and hits the error.
-    root.makeReplaced(rootEdit('$listed', 'Edited before end'));
     failNextRevision = true;
     return false;
   });
@@ -509,7 +507,7 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   );
 });
 
-it('skips re-serializing unchanged roots across pages and revisits', async () => {
+it('checks each listed root with its page and once more as the load ends, not once per page', async () => {
   const { mx, room, engine } = setUpRoom();
   const saved: string[] = [];
   recordSaves(engine, (threadId) => saved.push(threadId));
@@ -542,20 +540,15 @@ it('skips re-serializing unchanged roots across pages and revisits', async () =>
   await showOverview();
   const all = [...firstPage, ...laterPages].map((r) => r.getId());
   expect(saved).toEqual(all);
-  // Each unchanged root is serialized once as its page arrives, not again at the end of the load.
-  expect(revisedRoots).toEqual(all);
+  // One check per root as its page arrives, and one more of every root once the list is complete.
+  expect(revisedRoots.slice(0, all.length)).toEqual(all);
+  expect(revisedRoots.slice(all.length).sort()).toEqual([...all].sort());
 
-  // Revisiting with unchanged roots skips re-serialization completely.
+  // A list that arrives in one page checks each root once.
   revisedRoots.length = 0;
   await showOverview();
-  expect(revisedRoots).toEqual([]);
+  expect([...revisedRoots].sort()).toEqual([...all].sort());
   expect(saved).toEqual(all);
-
-  // A mutated root invalidates its fingerprint, re-serializes, and saves.
-  firstPage[1]!.makeReplaced(rootEdit('$first-1', 'Updated title'));
-  await showOverview();
-  expect(revisedRoots).toEqual(['$first-1']);
-  expect(saved).toEqual([...all, '$first-1']);
 });
 
 it('saves only changed listed roots when the overview is shown again', async () => {
@@ -866,91 +859,4 @@ it('does not rewrite unchanged cached roots restored on a fresh Room when listin
   // Only the 1 newly listed thread changed; rewriting all 40 unchanged cached roots back to IDB
   // fires 40 concurrent 6-store readwrite transactions in one synchronous forEach burst.
   expect(saved).toEqual(['$newly-listed-root']);
-});
-
-it('re-saves an edited root when metadata is written into its edit in place', async () => {
-  const { mx, room, engine } = setUpRoom();
-  const saved: string[] = [];
-  recordSaves(engine, (threadId) => saved.push(threadId));
-  const root = listedRoot('$edited-root', 'Initial');
-  const edit = rootEdit('$edited-root', 'Final answer');
-  root.makeReplaced(edit);
-  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
-    room.processThreadRoots([root], false);
-  });
-
-  const first = showList(mx, engine, room);
-  await vi.waitFor(async () => {
-    await act(async () => {});
-    expect(first.current?.loading).toBe(false);
-  });
-  await closeList();
-  expect(saved).toEqual(['$edited-root']);
-
-  // In-place metadata borrowing (like fillMetadataFromOlderEdits) mutates `m.new_content` directly.
-  saved.length = 0;
-  const newContent = edit.event.content?.['m.new_content'] as Record<string, unknown>;
-  newContent['io.mindroom.tool_trace'] = { version: 2, events: [] };
-
-  const second = showList(mx, engine, room);
-  await vi.waitFor(async () => {
-    await act(async () => {});
-    expect(second.current?.loading).toBe(false);
-  });
-  await closeList();
-  expect(saved).toEqual(['$edited-root']);
-});
-
-it('re-saves an unedited root when its bundled io.mindroom.title preview is redacted', async () => {
-  const { mx, room, engine } = setUpRoom();
-  const saved: string[] = [];
-  recordSaves(engine, (threadId) => saved.push(threadId));
-  const titlePreview = {
-    event_id: '$title-preview',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1500,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body: 'Thread title preview' },
-  };
-  const root = new MatrixEvent({
-    event_id: '$titled-root',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body: 'Root' },
-    unsigned: {
-      'm.relations': {
-        'm.thread': {
-          count: 1,
-          current_user_participated: true,
-          'io.mindroom.title': titlePreview,
-        },
-      },
-    },
-  });
-  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
-    room.processThreadRoots([root], false);
-  });
-
-  const first = showList(mx, engine, room);
-  await vi.waitFor(async () => {
-    await act(async () => {});
-    expect(first.current?.loading).toBe(false);
-  });
-  await closeList();
-  expect(saved).toEqual(['$titled-root']);
-
-  // Mark the preview event redacted in the room without replacing `root.event`.
-  saved.length = 0;
-  room.redactedBundledEdits.add('$title-preview');
-
-  const second = showList(mx, engine, room);
-  await vi.waitFor(async () => {
-    await act(async () => {});
-    expect(second.current?.loading).toBe(false);
-  });
-  await closeList();
-  expect(saved).toEqual(['$titled-root']);
 });
