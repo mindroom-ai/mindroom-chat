@@ -781,6 +781,29 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       durationMs: FINISHED_AFTER_MS + 60_000,
     });
     expect(signals.newsTs).toBe(2000 + FINISHED_AFTER_MS + 60_000);
+    expect(signals.otherNewsTs).toBe(2000 + FINISHED_AFTER_MS + 60_000);
+  });
+
+  it('keeps otherNewsTs at send time while a reply is streaming, then moves to the finishing edit', async () => {
+    const reply = event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } });
+    const { room, thread } = await setup(
+      ME,
+      [reply, edit('$r1', '$r', 5000, { body: 'Half', 'io.mindroom.stream_status': 'streaming' })],
+      { opened: true }
+    );
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).otherNewsTs).toBe(2000);
+
+    thread.addEvents(
+      [
+        edit('$r2', '$r', 8000, {
+          body: 'Done.',
+          'io.mindroom.stream_status': 'completed',
+        }),
+      ],
+      false
+    );
+    await vi.waitFor(() => expect(readThreadSignals(room, ROOT, ME, NOW).otherNewsTs).toBe(8000));
   });
 
   it('does not bump otherNewsTs when the reader edits their own reply', async () => {

@@ -399,15 +399,50 @@ describe('buildActivityRows', () => {
     const loaded = { rootTs, lastActivityTs: NOW };
     const ownOnly = { lastReply: reply('@alice:x', NOW), lastOtherReply: undefined };
     const { rows } = build([
-      [entry('root', loaded), { mentionedMe: true, mentionedBy: '@maya:x', ...ownOnly }],
+      [entry('root-own', loaded), { mentionedMe: true, mentionedBy: '@maya:x', ...ownOnly }],
+      [
+        entry('root-unloaded', loaded),
+        { mentionedMe: true, mentionedBy: '@maya:x', lastOtherReply: undefined },
+      ],
       [entry('hl-unloaded', loaded), { mentionedMe: true, lastOtherReply: undefined }],
       [entry('hl-own', loaded), { mentionedMe: true, ...ownOnly }],
     ]);
     expect(rows.map((row) => [row.key, row.kind, row.ts])).toEqual([
+      ['root-unloaded', 'mention', NOW],
       ['hl-unloaded', 'mention', NOW],
-      ['root', 'mention', rootTs],
+      ['root-own', 'mention', rootTs],
       ['hl-own', 'mention', 0],
     ]);
+  });
+
+  it('keeps an unfinished streamed reply at send time and moves it up when its finishing edit lands', () => {
+    const sendTs = NOW - 120_000;
+    const otherTs = NOW - 60_000;
+    const streaming = build([
+      [
+        entry('stream', { lastActivityTs: sendTs }),
+        {
+          newCount: 1,
+          lastOtherReply: reply('@mindroom_code:x', sendTs),
+          otherNewsTs: sendTs,
+        },
+      ],
+      [entry('newer', { lastActivityTs: otherTs }), { newCount: 1 }],
+    ]);
+    expect(streaming.rows.map((row) => row.key)).toEqual(['newer', 'stream']);
+
+    const finished = build([
+      [
+        entry('stream', { lastActivityTs: NOW }),
+        {
+          newCount: 1,
+          lastOtherReply: reply('@mindroom_code:x', sendTs),
+          otherNewsTs: NOW,
+        },
+      ],
+      [entry('newer', { lastActivityTs: otherTs }), { newCount: 1 }],
+    ]);
+    expect(finished.rows.map((row) => row.key)).toEqual(['stream', 'newer']);
   });
 });
 

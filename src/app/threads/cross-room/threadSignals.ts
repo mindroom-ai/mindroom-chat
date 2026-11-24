@@ -11,7 +11,12 @@ import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish'
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
-import { getAiRunInfo, readOwnStreamStatus, readStreamStatus } from '../../matrix/protocol/aiRun';
+import {
+  getAiRunInfo,
+  isAiRunStreaming,
+  readOwnStreamStatus,
+  readStreamStatus,
+} from '../../matrix/protocol/aiRun';
 import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import { hasLongTextMetadata } from '../../matrix/protocol/longText';
@@ -109,6 +114,7 @@ type Shown = {
   content: Record<string, unknown>;
   editTs?: number;
   editId?: string;
+  streaming?: boolean;
 };
 
 const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown => {
@@ -122,6 +128,7 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
     content: isRecord(newContent) ? newContent : editContent,
     editTs: edit.getTs(),
     editId: edit.getId(),
+    streaming: isAiRunStreaming(editContent),
   };
 };
 
@@ -395,7 +402,9 @@ export const readThreadSignals = (
   );
   const otherNewsTs = Math.max(
     approvalTs ?? 0,
-    ...otherCounted.map(({ event, editTs }) => editTs ?? event.getTs())
+    ...otherCounted.map(({ event, editTs, streaming }) =>
+      editTs !== undefined && !streaming ? Math.max(event.getTs(), editTs) : event.getTs()
+    )
   );
   const personNewsTs = Math.max(
     0,
