@@ -102,7 +102,7 @@ const readBundleFile = async (
   realRoot: string,
   relative: string,
   headOnly: boolean
-): Promise<{ file: string; fullPath: string; body: Buffer | null } | undefined> => {
+): Promise<{ file: string; fullPath: string; body: Buffer<ArrayBuffer> | null } | undefined> => {
   const lexical = path.resolve(realRoot, relative);
   if (!lexical.startsWith(`${realRoot}${path.sep}`)) return undefined;
   let handle: fs.promises.FileHandle | undefined;
@@ -110,7 +110,11 @@ const readBundleFile = async (
     if ((await fs.promises.realpath(lexical)) !== lexical) return undefined;
     handle = await fs.promises.open(lexical, OPEN_FLAGS);
     if (!(await handle.stat()).isFile()) return undefined;
-    return { file: relative, fullPath: lexical, body: headOnly ? null : await handle.readFile() };
+    return {
+      file: relative,
+      fullPath: lexical,
+      body: headOnly ? null : await handle.readFile(),
+    };
   } catch {
     return undefined;
   } finally {

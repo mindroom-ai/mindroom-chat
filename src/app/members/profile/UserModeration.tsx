@@ -17,8 +17,6 @@ const KEY = 'sharedUi.userModeration';
 type Action = 'kick' | 'ban' | 'unban' | 'invite';
 
 const BOLD = { b: <b /> };
-// Escaped, a revealed `<U+202E>` and a name's `<` stay text instead of reading as tags.
-const ESCAPED = { interpolation: { escapeValue: true } };
 
 type NoteKind = 'ban' | 'invite' | 'kick';
 type Note = { kind: NoteKind; senderName: string; reason?: string };
@@ -145,8 +143,6 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
               i18nKey={`${KEY}.${NOTE_BY[note.kind]}` as const}
               values={{ name: note.senderName }}
               components={BOLD}
-              tOptions={ESCAPED}
-              shouldUnescape
             />
           </Text>
           <Text size="T200">
@@ -155,8 +151,6 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
                 i18nKey={`${KEY}.reason`}
                 values={{ reason: revealDirectionControls(note.reason) }}
                 components={BOLD}
-                tOptions={ESCAPED}
-                shouldUnescape
               />
             ) : (
               t(`${KEY}.noReasonProvided`)

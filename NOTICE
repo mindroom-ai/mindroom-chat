@@ -253,9 +253,6 @@ Modified dependencies
     WebViewAssetHandler.swift, CAPNotifications.swift,
     WebViewDelegationHandler.swift.
 
-  i18next 23.12.2 (MIT), patches/i18next+23.12.2.patch modifies:
-    dist/cjs/i18next.js, dist/esm/i18next.js.
-
   scheduler 0.28.0 (MIT), patches/scheduler+0.28.0.patch modifies:
     cjs/scheduler.development.js, cjs/scheduler.production.js, and adds
     cjs/mindroom-wakeup.js.

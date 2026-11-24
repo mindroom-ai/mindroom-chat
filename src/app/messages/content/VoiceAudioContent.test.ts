@@ -83,7 +83,7 @@ vi.mock('./voice/VoiceWaveform.css', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

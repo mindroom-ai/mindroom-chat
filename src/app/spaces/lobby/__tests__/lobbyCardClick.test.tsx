@@ -15,7 +15,7 @@ import { SpaceItemCard } from '../SpaceItem';
 // does: join, accept the invite, or ask to join. Phones and wider screens alike.
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 

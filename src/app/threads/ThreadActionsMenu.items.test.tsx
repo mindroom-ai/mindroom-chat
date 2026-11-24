@@ -67,7 +67,7 @@ vi.mock('folds', async (original) => ({
   PopOut: ({ content }: { content: React.ReactNode }) => content,
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const rootEvent = new MatrixEvent({

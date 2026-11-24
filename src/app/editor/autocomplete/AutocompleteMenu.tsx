@@ -8,7 +8,7 @@ import React, {
   useState,
   type FocusEvent,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { isHotkey } from 'is-hotkey';
 import { Header, Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuRoleProvider } from '../../ui/glass/menuBehaviour';

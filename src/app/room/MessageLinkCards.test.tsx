@@ -13,7 +13,7 @@ import { HOVER_CARD_DELAY_MS, MessageLinkCards } from './MessageLinkCards';
 // Its options are kept, so a test can run the trap's deactivation: the trap would then move focus
 // to the element it saved on activation (here `returnTarget`) when `returnFocusOnDeactivate` is on.
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

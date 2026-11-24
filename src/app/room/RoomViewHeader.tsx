@@ -11,7 +11,7 @@ import {
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';

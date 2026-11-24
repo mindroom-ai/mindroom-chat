@@ -47,7 +47,7 @@ const upload = async (session: MatrixSession, bytes: Buffer, type: string): Prom
   const response = await fetch(`${DISPOSABLE_HOMESERVER}/_matrix/media/v3/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': type },
-    body: bytes,
+    body: new Uint8Array(bytes),
   });
   const body = (await response.json()) as { content_uri: string };
   return body.content_uri;

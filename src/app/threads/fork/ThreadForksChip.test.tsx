@@ -9,7 +9,7 @@ const language = vi.hoisted(() => ({ value: 'en' }));
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 // The trap wants a tabbable node, which the stand-in menu of a DOM test has too few of.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  FocusTrap: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({

@@ -20,7 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
-import { invalidateEvictionVerdict } from './cacheEviction';
+import { invalidateEvictionVerdict, noteEvictionBytesFreed } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -234,6 +234,8 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
+  let freedBytes = 0;
+  let becameOptional = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -243,14 +245,22 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     if (!remaining.length) unowned.push(mxcUri);
     if (!cached) continue;
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
-    if (!remaining.length) blobs.delete(mxcUri);
-    else if (cached.essential !== essential) blobs.put({ ...cached, essential });
+    if (!remaining.length) {
+      blobs.delete(mxcUri);
+      freedBytes += cached.byteLength;
+    } else if (cached.essential !== essential) {
+      blobs.put({ ...cached, essential });
+      if (!essential) becameOptional = true;
+    }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
-  await deleteScaledPictures(blobs, unowned);
-  if (unowned.length) {
-    // Pruning is rare, so dropping every session's verdict avoids threading sessionId here.
+  freedBytes += await deleteScaledPictures(blobs, unowned);
+  if (becameOptional) {
     transaction.addEventListener('complete', () => invalidateEvictionVerdict(), { once: true });
+  } else if (freedBytes > 0) {
+    transaction.addEventListener('complete', () => noteEvictionBytesFreed(freedBytes), {
+      once: true,
+    });
   }
 };
 

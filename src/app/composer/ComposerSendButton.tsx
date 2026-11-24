@@ -1,6 +1,6 @@
 import { type PointerEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { isHotkey } from 'is-hotkey';
 import { Icons, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';

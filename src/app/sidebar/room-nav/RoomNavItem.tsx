@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
 import { useTranslation } from 'react-i18next';
 import { RoomType, type Room } from 'matrix-js-sdk';
@@ -40,6 +40,8 @@ type RoomNavItemProps = {
   showAvatar: boolean;
   /** The space whose list shows the row, which the room's settings and search stay in. */
   spaceId: string;
+  /** The immediate space section listing this row; offers `Remove from <space>` when permitted. */
+  removeFromSpaceId: string;
   /** A finger drags the row: its menu, which the finger's long press opened, closes. */
   dragging: boolean;
   /** The row sits under the room it is a sub-room of: its hash is framed. */
@@ -158,6 +160,7 @@ function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
 type RoomNavOptionsProps = {
   room: Room;
   spaceId?: string;
+  removeFromSpaceId?: string;
   /** Shown while the row is hovered, holds focus or has its menu open; hidden, it stays mounted. */
   shown: boolean;
   anchor: RectCords | undefined;
@@ -168,6 +171,7 @@ type RoomNavOptionsProps = {
 function RoomNavOptions({
   room,
   spaceId,
+  removeFromSpaceId,
   shown,
   anchor,
   onAnchorChange,
@@ -207,6 +211,7 @@ function RoomNavOptions({
       <RoomActionsMenu
         room={room}
         spaceId={spaceId}
+        removeFromSpaceId={removeFromSpaceId}
         submenuSide="Right"
         close={closeMenu}
         showDialog={showDialog}
@@ -365,8 +370,17 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
  * long press, which phones need: they show no options button and iOS fires no contextmenu.
  */
 export function RoomNavItem(props: RoomNavItemProps) {
-  const { room, selected, linkPath, notificationMode, direct, showAvatar, spaceId, dragging } =
-    props;
+  const {
+    room,
+    selected,
+    linkPath,
+    notificationMode,
+    direct,
+    showAvatar,
+    spaceId,
+    removeFromSpaceId,
+    dragging,
+  } = props;
   const subRoom = Boolean(props.subRoom);
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
@@ -445,6 +459,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
       <RoomNavOptions
         room={room}
         spaceId={spaceId}
+        removeFromSpaceId={removeFromSpaceId}
         shown={showOptions}
         anchor={optionsAnchor}
         onAnchorChange={setOptionsAnchor}

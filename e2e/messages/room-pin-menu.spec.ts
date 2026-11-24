@@ -102,7 +102,7 @@ const uploadMedia = async (
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': contentType },
-      body,
+      body: new Uint8Array(body),
     }
   );
   expect(response.ok, `uploading ${filename}`).toBe(true);

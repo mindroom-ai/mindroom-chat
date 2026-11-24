@@ -1,7 +1,7 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { JoinRule, MatrixError } from 'matrix-js-sdk';

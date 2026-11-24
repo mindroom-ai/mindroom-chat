@@ -22,6 +22,33 @@ let longTextInflight = new WeakMap<
   object,
   Map<string, Promise<Record<string, unknown> | undefined>>
 >();
+const longTextHydrationListeners = new WeakMap<object, Set<() => void>>();
+
+const notifyLongTextHydration = (cacheOwner: object) => {
+  const listeners = longTextHydrationListeners.get(cacheOwner);
+  if (!listeners) return;
+  [...listeners].forEach((listener) => {
+    if (listeners.has(listener)) listener();
+  });
+};
+
+export const subscribeLongTextHydration = (
+  cacheOwner: object,
+  listener: () => void
+): (() => void) => {
+  let listeners = longTextHydrationListeners.get(cacheOwner);
+  if (!listeners) {
+    listeners = new Set();
+    longTextHydrationListeners.set(cacheOwner, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && longTextHydrationListeners.get(cacheOwner) === listeners) {
+      longTextHydrationListeners.delete(cacheOwner);
+    }
+  };
+};
 
 export type LongTextSource = {
   owner?: EventAttachmentOwner;
@@ -399,6 +426,9 @@ export const hydrateLongTextSource = async (
   // Shared parsing does not share publication authority between room consumers.
   const content = await download;
   if (!isCurrent() || !content) return source.previewContent;
-  getLongTextCache(cacheOwner).set(identity, content);
+  const cache = getLongTextCache(cacheOwner);
+  const alreadyCached = cache.get(identity) === content;
+  cache.set(identity, content);
+  if (!alreadyCached) notifyLongTextHydration(cacheOwner);
   return content;
 };

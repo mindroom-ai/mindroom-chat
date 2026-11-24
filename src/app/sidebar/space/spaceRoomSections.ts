@@ -9,6 +9,10 @@ export type SpaceRoomSection = {
   spaceId: string;
   /** `true` for the active space's own Rooms section, `false` for a descendant sub-space. */
   isRoot: boolean;
+  /** Immediate parent space ID from the first DFS visit (`undefined` for the root Rooms section). */
+  parentSpaceId: string | undefined;
+  /** `true` when this section's chat-room scope has no visible rooms (independent of collapse). */
+  isEmpty: boolean;
   /** Nav category ID for collapse persistence. */
   categoryId: string;
   /** Visible direct rooms of this space, sorted A to Z. */
@@ -18,6 +22,41 @@ export type SpaceRoomSection = {
    * sub-room descendants, including orphaned sub-rooms of archived direct rooms), sorted A to Z.
    */
   scopeRoomsByName: string[];
+};
+
+type DescendantSubspaceEntry = {
+  spaceId: string;
+  parentSpaceId: string;
+};
+
+/**
+ * Joined descendant sub-spaces of `rootSpaceId` in pre-order DFS along with the immediate parent
+ * space ID of each first visit, ordering sibling sub-spaces A to Z by name at each level.
+ * `visited` starts with `rootSpaceId` so cycles terminate and diamond-shared sub-spaces appear
+ * once at their first occurrence.
+ */
+const getDescendantSubspaceEntries = (
+  mx: MatrixClient,
+  rootSpaceId: string,
+  joinedRoomIds: string[],
+  roomToParents: RoomToParents
+): DescendantSubspaceEntry[] => {
+  const visited = new Set<string>([rootSpaceId]);
+  const result: DescendantSubspaceEntry[] = [];
+  const walk = (parentSpaceId: string) => {
+    const children = sortRoomIdsByName(
+      mx,
+      getJoinedSubspaces(mx, parentSpaceId, joinedRoomIds, roomToParents)
+    );
+    children.forEach((childId) => {
+      if (visited.has(childId)) return;
+      visited.add(childId);
+      result.push({ spaceId: childId, parentSpaceId });
+      walk(childId);
+    });
+  };
+  walk(rootSpaceId);
+  return result;
 };
 
 /**
@@ -30,24 +69,10 @@ export const getDescendantSubspaces = (
   rootSpaceId: string,
   joinedRoomIds: string[],
   roomToParents: RoomToParents
-): string[] => {
-  const visited = new Set<string>([rootSpaceId]);
-  const result: string[] = [];
-  const walk = (parentSpaceId: string) => {
-    const children = sortRoomIdsByName(
-      mx,
-      getJoinedSubspaces(mx, parentSpaceId, joinedRoomIds, roomToParents)
-    );
-    children.forEach((childId) => {
-      if (visited.has(childId)) return;
-      visited.add(childId);
-      result.push(childId);
-      walk(childId);
-    });
-  };
-  walk(rootSpaceId);
-  return result;
-};
+): string[] =>
+  getDescendantSubspaceEntries(mx, rootSpaceId, joinedRoomIds, roomToParents).map(
+    (entry) => entry.spaceId
+  );
 
 /**
  * Whether `roomId` belongs directly to `sectionSpaceId` or reaches it solely through chat-room
@@ -97,7 +122,11 @@ export const getSpaceRoomSections = (
   canEditSpace: (spaceId: string) => boolean = () => false
 ): SpaceRoomSection[] => {
   const spaceRoomSet = new Set(spaceRoomsByName);
-  const buildSection = (sectionSpaceId: string, isRoot: boolean): SpaceRoomSection => {
+  const buildSection = (
+    sectionSpaceId: string,
+    isRoot: boolean,
+    parentSpaceId: string | undefined
+  ): SpaceRoomSection => {
     const ownRoomsByName = sortRoomIdsByName(
       mx,
       getSpaceOwnRooms(mx, sectionSpaceId, visibleRoomIds, directs, roomToParents)
@@ -108,6 +137,8 @@ export const getSpaceRoomSections = (
     return {
       spaceId: sectionSpaceId,
       isRoot,
+      parentSpaceId,
+      isEmpty: scopeRoomsByName.length === 0,
       categoryId: isRoot
         ? makeNavCategoryId(rootSpaceId, 'room')
         : makeNavCategoryId(rootSpaceId, 'subspace', sectionSpaceId),
@@ -116,16 +147,17 @@ export const getSpaceRoomSections = (
     };
   };
 
-  const subspaceSections = getDescendantSubspaces(mx, rootSpaceId, joinedRoomIds, roomToParents)
-    .map((subspaceId) => buildSection(subspaceId, false))
-    .filter((section) => section.scopeRoomsByName.length > 0 || canEditSpace(section.spaceId));
+  const subspaceSections = getDescendantSubspaceEntries(
+    mx,
+    rootSpaceId,
+    joinedRoomIds,
+    roomToParents
+  )
+    .map(({ spaceId, parentSpaceId }) => buildSection(spaceId, false, parentSpaceId))
+    .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
 
-  const rootSection = buildSection(rootSpaceId, true);
-  if (
-    rootSection.scopeRoomsByName.length === 0 &&
-    subspaceSections.length > 0 &&
-    !canEditSpace(rootSpaceId)
-  ) {
+  const rootSection = buildSection(rootSpaceId, true, undefined);
+  if (rootSection.isEmpty && subspaceSections.length > 0 && !canEditSpace(rootSpaceId)) {
     return subspaceSections;
   }
   return [rootSection, ...subspaceSections];
