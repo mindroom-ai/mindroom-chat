@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { FocusTrap } from 'focus-trap-react';
-import { isHotkey } from 'is-hotkey';
+import { matchesHotkey } from '../shortcuts/shortcuts';
 import { Box, Icon, Icons, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
@@ -38,7 +38,8 @@ type ComposerMenuButtonProps = {
   children(controls: ComposerMenuControls): ReactNode;
 };
 
-const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) => isHotkey(name, event);
+const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) =>
+  matchesHotkey(name, event);
 
 /**
  * A composer icon button that opens a small menu above it. Arrow keys move between the entries,

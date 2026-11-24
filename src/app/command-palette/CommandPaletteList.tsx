@@ -11,7 +11,7 @@ import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
 import type { CommandPaletteMarks } from './commandPaletteSearch';
-import type { TextRange } from './fuzzyMatch';
+import type { TextRange } from '../lib/fuzzyMatch';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
