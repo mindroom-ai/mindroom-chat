@@ -275,8 +275,8 @@ export default defineConfig({
     // Pre-bundling moves the JS and breaks that lookup, so serve the package as it is.
     // `vite build` emits the .wasm as a hashed asset.
     exclude: ['@matrix-org/matrix-sdk-crypto-wasm'],
-    // @novnc/novnc uses top-level await, which the default pre-bundle target rejects.
-    esbuildOptions: { target: 'es2022' },
+    // @novnc/novnc uses top-level await, which needs es2022 or newer.
+    rolldownOptions: { transform: { target: 'es2022' } },
   },
   build: {
     outDir: 'dist',
@@ -285,13 +285,30 @@ export default defineConfig({
       ? {
           emptyOutDir: false,
           copyPublicDir: false,
-          rollupOptions: {
+          rolldownOptions: {
             input: {
               ...fixturePageInputs(),
               ...pluginPageInputs(repository),
             },
           },
         }
-      : {}),
+      : {
+          // @novnc/novnc uses top-level await in a lazy chunk, which disables Rolldown's default
+          // common-chunk merging across the build. Group all $initial modules together so cold
+          // start stays compact instead of downloading ~75 tiny preloaded chunks.
+          rolldownOptions: {
+            output: {
+              codeSplitting: {
+                groups: [
+                  {
+                    name: 'initial',
+                    tags: ['$initial'],
+                    test: (id) => !id.endsWith('/index.html') && !id.endsWith('/src/index.tsx'),
+                  },
+                ],
+              },
+            },
+          },
+        }),
   },
 });
