@@ -219,7 +219,12 @@ export function ConversationLayout({
               threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
               focusConversation={focusConversation}
             >
-              <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+              <Box
+                grow="Yes"
+                direction="Column"
+                className={css.TimelineArea}
+                style={TIMELINE_STYLE}
+              >
                 {timeline}
               </Box>
               <div ref={dockRef} style={DOCK_STYLE}>

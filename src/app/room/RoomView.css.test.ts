@@ -5,7 +5,12 @@ vi.unmock('../messages/canvas/canvasHost.css');
 
 type CssRule = {
   selector: string;
-  rule?: { position?: unknown; insetInline?: unknown; bottom?: unknown };
+  rule?: {
+    position?: unknown;
+    insetInline?: unknown;
+    bottom?: unknown;
+    '@container'?: Record<string, { vars?: Record<string, unknown> }>;
+  };
 };
 
 const withCssRules = async (run: (rules: CssRule[]) => Promise<void>) => {
@@ -48,16 +53,26 @@ describe('the dock styles', () => {
     });
   });
 
-  it('reserve one dock row for Jump to Latest and place StickyAnswer above it', async () => {
+  it('reserve one dock row for Jump to Latest, drop it in short areas, and place StickyAnswer above it', async () => {
     await withCssRules(async (rules) => {
+      const { fallbackVar } = await import('@vanilla-extract/css');
       const { config, toRem } = await import('folds');
-      const { composerInset, footerInset, jumpToLatestBottom } =
+      const { composerInset, dockRowHeight, dockRowReserve, footerInset, jumpToLatestBottom } =
         await import('../ui/styles/RoomOverlay.css');
+      const { shortRoomArea } = await import('../ui/styles/roomArea.css');
+      const { TimelineArea } = await import('./RoomView.css');
       const { StickyAnswer } = await import('../messages/canvas/canvasHost.css');
       expect(composerInset).toBe('var(--room-composer-height, 0px)');
+      expect(dockRowHeight).toBe(`calc(${toRem(32)} + ${config.space.S200})`);
       expect(jumpToLatestBottom).toBe(
-        `calc(max(${footerInset}, ${composerInset} + ${toRem(32)} + ${config.space.S200}) + ${config.space.S400})`
+        `calc(max(${footerInset}, ${composerInset} + ${fallbackVar(
+          dockRowReserve,
+          dockRowHeight
+        )}) + ${config.space.S400})`
       );
+      expect(rules.find((css) => css.selector === TimelineArea)?.rule?.['@container']).toEqual({
+        [shortRoomArea]: { vars: { [dockRowReserve]: '0px' } },
+      });
       expect(rules.find((css) => css.selector === StickyAnswer)?.rule?.bottom).toBe(
         `calc(${jumpToLatestBottom} + 44px + ${config.space.S200})`
       );

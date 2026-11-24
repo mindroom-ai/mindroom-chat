@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { createVar, globalStyle, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { config, toRem } from 'folds';
 import { Viewport } from '../InsetScrollbar.css';
 import { glassFadeDown, glassFlat, glassFloating, glassSurface } from './Glass.css';
@@ -12,7 +12,15 @@ export const footerInset = 'var(--room-footer-height, 0px)';
 // Reserves one single-row dock height (32 px bar + S200 gap) even when the dock is empty so a
 // typing strip, seen-by badge, or single-row jobs bar appearing never shifts Jump to Latest, while
 // keeping `--room-footer-height` unchanged and preserving S400 touch-target clearance.
-export const jumpToLatestBottom = `calc(max(${footerInset}, ${composerInset} + ${toRem(32)} + ${config.space.S200}) + ${config.space.S400})`;
+// `RoomView.css.ts` sets `dockRowReserve` to `0px` inside `shortRoomArea` (e.g. a sideways phone
+// with its keyboard open) so Jump to Latest stays inside the visible band when the dock is empty
+// while still clearing an occupied dock via `footerInset`.
+export const dockRowHeight = `calc(${toRem(32)} + ${config.space.S200})`;
+export const dockRowReserve = createVar();
+export const jumpToLatestBottom = `calc(max(${footerInset}, ${composerInset} + ${fallbackVar(
+  dockRowReserve,
+  dockRowHeight
+)}) + ${config.space.S400})`;
 export const overviewInset = 'var(--room-overview-height, 0px)';
 /**
  * For the container of a room's rows or cards, which reads no inset. The room's box sets the

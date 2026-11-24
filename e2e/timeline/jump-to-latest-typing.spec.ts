@@ -156,10 +156,9 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
 
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 30_000 });
   await expect
-    .poll(
-      () => scroller.evaluate((element) => element.scrollHeight - element.clientHeight),
-      { timeout: 30_000 }
-    )
+    .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight), {
+      timeout: 30_000,
+    })
     .toBeGreaterThan(400);
 
   const scrollBox = await scroller.boundingBox();
@@ -223,6 +222,15 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
 
   await jumpToLatest.click();
   await expect(jumpToLatest).toBeHidden({ timeout: 15_000 });
+  await expect
+    .poll(
+      () =>
+        scroller.evaluate(
+          (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeLessThanOrEqual(2);
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 15_000 });
 };
 

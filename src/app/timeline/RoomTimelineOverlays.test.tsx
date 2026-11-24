@@ -22,7 +22,6 @@ describe('JumpToLatestAction', () => {
       renderer = create(<JumpToLatestAction onSelect={vi.fn()} />);
     });
     const container = renderer!.root.findByProps({ className: 'TimelineFloat' });
-    expect(overlay.jumpToLatestBottom).toContain('max(');
     expect(container.props.style).toEqual({ bottom: overlay.jumpToLatestBottom });
   });
 });

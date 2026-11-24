@@ -356,9 +356,18 @@ const headerBottom = (page: Page) =>
     return header ? header.top + header.height : NaN;
   });
 
+/** How many vertical pixels of the newest message show between the header and the composer. */
+const newestRowShown = async (page: Page) => {
+  const box = await composerBox(page);
+  const header = await headerBottom(page);
+  const row = await newestRow(page).boundingBox();
+  return row ? Math.min(row.y + row.height, box.top) - Math.max(row.y, Math.max(0, header)) : 0;
+};
+
 /**
  * Sideways, the keyboard leaves a short band: the whole composer is in it, uncovered, and the
- * conversation shows above it, ending in the newest message.
+ * conversation shows above it, ending in the newest message. Scrolling back keeps Jump to Latest
+ * inside that visible band, and tapping it returns to the newest message.
  */
 const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
@@ -385,6 +394,52 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
   expect(rowShown, `${engine}: the newest message shows above the composer`).toBeGreaterThanOrEqual(
     16
   );
+
+  // Scrolling back inside the 98 px keyboard band keeps Jump to Latest inside the visible band
+  // instead of clipping it above the top edge.
+  await touch(newestRow(page), [
+    { type: 'start' },
+    { type: 'move', dx: 0, dy: 30 },
+    { type: 'scroll', by: -600 },
+    { type: 'end' },
+  ]);
+  await expect(
+    jumpToLatest(page),
+    `${engine}: Jump to Latest appears while scrolled back`
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(textBox(page), `${engine}: scrolling keeps the composer focused`).toBeFocused();
+  expect(
+    await appHeight(page),
+    `${engine}: the keyboard band stays at ${LANDSCAPE_KEYBOARD_VISIBLE}px`
+  ).toBe(`${LANDSCAPE_KEYBOARD_VISIBLE}px`);
+  const jumpBox = await jumpToLatest(page).boundingBox();
+  console.log(
+    `${engine} landscape Jump to Latest: ${JSON.stringify({ jumpBox, composerTop: box.top })}`
+  );
+  if (!jumpBox) throw new Error(`${engine}: Jump to Latest has no bounding box`);
+  expect(
+    jumpBox.y,
+    `${engine}: Jump to Latest starts inside the visible band`
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    jumpBox.y + jumpBox.height,
+    `${engine}: Jump to Latest ends above the composer`
+  ).toBeLessThanOrEqual(box.top + 1);
+
+  await jumpToLatest(page).tap();
+  await expect(jumpToLatest(page), `${engine}: Jump to Latest hides after tapping`).toBeHidden({
+    timeout: 15_000,
+  });
+  await expect(
+    newestRow(page),
+    `${engine}: tapping Jump to Latest returns to the newest message`
+  ).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => newestRowShown(page), {
+      timeout: 15_000,
+      message: `${engine}: the newest message shows above the composer after Jump to Latest`,
+    })
+    .toBeGreaterThanOrEqual(16);
 };
 
 /**
