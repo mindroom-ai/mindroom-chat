@@ -4,6 +4,7 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot, Root } from 'react-dom/client';
 import { Room } from 'matrix-js-sdk';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
@@ -13,17 +14,37 @@ import {
   ThreadModelPicker,
   TrappedModelPickerPanel,
 } from './ModelPicker';
+import contractFixture from '../usage/__fixtures__/providerUsageContract.json';
+import {
+  snapshotForRuntime,
+  type ProviderUsageRuntime,
+  type RuntimeIdentity,
+} from '../usage/providerUsageController';
+import type { ProviderUsageSnapshot } from '../usage/providerUsageProtocol';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ModelIcon } from './ModelIcon';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const mocks = vi.hoisted(() => ({
-  useModelPicker: vi.fn(),
-  mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
-  touch: false,
-  anchors: [] as unknown[],
-}));
+const mocks = vi.hoisted(() => {
+  const usage: {
+    available: boolean;
+    runtimes: ProviderUsageRuntime[];
+    snapshotsByRuntime: Record<string, ProviderUsageSnapshot>;
+  } = {
+    available: false,
+    runtimes: [],
+    snapshotsByRuntime: {},
+  };
+  return {
+    useModelPicker: vi.fn(),
+    ensureUsageLoaded: vi.fn(),
+    usage,
+    mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
+    touch: false,
+    anchors: [] as unknown[],
+  };
+});
 
 vi.mock('./ModelPicker.css', () => ({
   Check: 'Check',
@@ -46,6 +67,7 @@ vi.mock('./ModelPicker.css', () => ({
   Error: 'Error',
   ErrorActions: 'ErrorActions',
   Group: 'Group',
+  GroupHeader: 'GroupHeader',
   GroupTitle: 'GroupTitle',
   IconImage: 'IconImage',
   Mirrored: 'Mirrored',
@@ -68,6 +90,9 @@ vi.mock('./ModelPicker.css', () => ({
   TextButton: 'TextButton',
   Trigger: 'Trigger',
   TriggerDivider: 'TriggerDivider',
+  UsageFooter: 'UsageFooter',
+  UsageLink: 'UsageLink',
+  UsageUpdated: 'UsageUpdated',
   VisuallyHidden: 'VisuallyHidden',
 }));
 
@@ -173,6 +198,14 @@ vi.mock('../matrix/matrix', () => ({
   mxcUrlToHttp: mocks.mxcUrlToHttp,
 }));
 
+vi.mock('../usage/useProviderUsage', () => ({
+  useRuntimeProviderUsage: (roomId: string | undefined, target: RuntimeIdentity | undefined) => ({
+    available: mocks.usage.available,
+    snapshot: snapshotForRuntime(mocks.usage, target),
+    ensureLoaded: () => mocks.ensureUsageLoaded(roomId),
+  }),
+}));
+
 vi.mock('./useModelPicker', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useModelPicker: mocks.useModelPicker,
@@ -267,6 +300,10 @@ describe('composer model picker', () => {
 
   beforeEach(() => {
     mocks.useModelPicker.mockReset();
+    mocks.ensureUsageLoaded.mockReset();
+    mocks.usage.available = false;
+    mocks.usage.runtimes = [];
+    mocks.usage.snapshotsByRuntime = {};
     mocks.mxcUrlToHttp.mockClear();
     mocks.touch = false;
     mocks.anchors = [];
@@ -1616,5 +1653,165 @@ describe('TrappedModelPickerPanel', () => {
       act(() => panelRoot.unmount());
       host.remove();
     }
+  });
+});
+
+describe('ModelPicker inline provider usage', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let currentPathname = '';
+
+  function LocationObserver() {
+    currentPathname = useLocation().pathname;
+    return null;
+  }
+
+  beforeEach(() => {
+    currentPathname = '';
+    mocks.ensureUsageLoaded.mockReset();
+    mocks.usage.available = false;
+    mocks.usage.runtimes = [];
+    mocks.usage.snapshotsByRuntime = {};
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('triggers ensureLoaded(roomId), shows visual meter & accessible quotas strictly for state.runtime, and omits ambiguous groups', async () => {
+    const snapshot = JSON.parse(JSON.stringify(contractFixture)) as ProviderUsageSnapshot;
+    const runtimeKey = `${runtime.userId}:${runtime.deviceId}`;
+    mocks.usage.available = true;
+    mocks.usage.runtimes = [{ ...runtime, id: runtimeKey }];
+    mocks.usage.snapshotsByRuntime = { [runtimeKey]: snapshot };
+
+    const room = { roomId: '!room:example.org', getMember: () => undefined } as unknown as Room;
+    const state = createState({
+      models: [
+        { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
+        {
+          key: 'sonnet_native',
+          display_name: 'Sonnet',
+          provider: 'Claude Code',
+          id: 'claude-sonnet',
+        },
+        { key: 'neon', display_name: 'Neon', provider: 'OpenRouter', id: 'google/gemini-neon' },
+        { key: 'haiku', display_name: 'Haiku', provider: 'Mixed', id: 'claude-haiku' },
+        { key: 'astra', display_name: 'Astra', provider: 'Mixed', id: 'gpt-astra' },
+      ],
+    });
+
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <LocationObserver />
+          <ModelPicker state={state} room={room} />
+        </MemoryRouter>
+      )
+    );
+    await click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(mocks.ensureUsageLoaded).toHaveBeenCalledWith('!room:example.org');
+
+    const claudeGroup = container.querySelector('[role="group"][aria-label="Claude Code"]')!;
+    const claudeQuota = claudeGroup.querySelector('[data-inline-quota="claude_code:default"]')!;
+    expect(claudeQuota.textContent).toBe('5h 62%·7d 78%');
+    expect(claudeQuota.querySelector('[data-inline-quota-bar]')).not.toBeNull();
+    // Accessible to screen readers: NOT inside aria-hidden and wired via aria-describedby, with 0 tab stops.
+    expect(claudeQuota.closest('[aria-hidden="true"]')).toBeNull();
+    expect(claudeQuota.getAttribute('role')).toBe('img');
+    expect(claudeQuota.getAttribute('aria-label')).toContain('62% remaining');
+    expect(claudeGroup.getAttribute('aria-describedby')).toBe(claudeQuota.getAttribute('id'));
+    expect(claudeQuota.querySelectorAll('button, a, [tabindex]')).toHaveLength(0);
+
+    const openRouterGroup = container.querySelector('[role="group"][aria-label="OpenRouter"]')!;
+    expect(openRouterGroup.querySelector('[data-inline-quota="openrouter:1"]')?.textContent).toBe(
+      '63% left'
+    );
+
+    const mixedGroup = container.querySelector('[role="group"][aria-label="Mixed"]')!;
+    expect(mixedGroup.querySelector('[data-inline-quota]')).toBeNull();
+
+    const footerButton = container.querySelector('[data-usage-footer] button') as HTMLButtonElement;
+    expect(footerButton).not.toBeNull();
+    expect(footerButton.textContent).toContain('All usage & limits');
+    await click(footerButton);
+    expect(currentPathname).toBe('/usage/');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('never shows another runtime quota when state.runtime has no snapshot', async () => {
+    const snapshot = JSON.parse(JSON.stringify(contractFixture)) as ProviderUsageSnapshot;
+    const otherRuntime = {
+      id: '@other:example.org:OTHER',
+      userId: '@other:example.org',
+      deviceId: 'OTHER',
+      curveKey: 'other-curve',
+    };
+    mocks.usage.available = true;
+    mocks.usage.runtimes = [otherRuntime];
+    mocks.usage.snapshotsByRuntime = { [otherRuntime.id]: snapshot };
+
+    const state = createState({
+      runtime,
+      models: [
+        { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
+      ],
+    });
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <ModelPicker state={state} />
+        </MemoryRouter>
+      )
+    );
+    await click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(container.querySelector('[data-inline-quota]')).toBeNull();
+    // Footer remains available so the user can still jump to /usage/ and switch runtimes.
+    expect(container.querySelector('[data-usage-footer]')).not.toBeNull();
+  });
+
+  it('hides inline quotas and the footer link when provider usage is unavailable', async () => {
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <ModelPicker state={createState()} />
+        </MemoryRouter>
+      )
+    );
+    await click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(container.querySelector('[data-inline-quota]')).toBeNull();
+    expect(container.querySelector('[data-usage-footer]')).toBeNull();
+  });
+
+  it('renders without throwing outside a Router and omits the usage footer link', async () => {
+    const snapshot = JSON.parse(JSON.stringify(contractFixture)) as ProviderUsageSnapshot;
+    const runtimeKey = `${runtime.userId}:${runtime.deviceId}`;
+    mocks.usage.available = true;
+    mocks.usage.runtimes = [{ ...runtime, id: runtimeKey }];
+    mocks.usage.snapshotsByRuntime = { [runtimeKey]: snapshot };
+
+    const state = createState({
+      models: [
+        { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
+      ],
+    });
+
+    act(() => root.render(<ModelPicker state={state} />));
+    const triggerButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Choose model"]'
+    );
+    expect(triggerButton).not.toBeNull();
+
+    await click(triggerButton!);
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(container.querySelector('[data-inline-quota="claude_code:default"]')).not.toBeNull();
+    expect(container.querySelector('[data-usage-footer]')).toBeNull();
   });
 });

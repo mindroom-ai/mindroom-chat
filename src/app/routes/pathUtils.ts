@@ -27,6 +27,7 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
+  USAGE_PATH,
 } from './paths';
 
 /** Hash router settings from the client config; `true` means enabled without a basename. */
@@ -180,6 +181,7 @@ export const getActivityInvitesPath = fixedPath(ACTIVITY_INVITES_PATH);
 export const getActivityRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
   roomInSectionPath(ACTIVITY_ROOM_PATH, roomIdOrAlias, eventId);
 export const getCanvasesPath = (): string => CANVASES_PATH;
+export const getUsagePath = (): string => USAGE_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_PATH, { spaceIdOrAlias });

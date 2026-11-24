@@ -418,7 +418,9 @@
         "search": "在侧边栏显示搜索",
         "searchDescription": "用于打开命令面板的按钮。隐藏后，可从“查找任何内容”输入框打开，或按 {{shortcut}}。",
         "localMindroom": "在侧边栏显示 Local MindRoom",
-        "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
+        "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。",
+        "usage": "在侧边栏显示用量",
+        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。"
       },
       "plugins": {
         "title": "插件",
@@ -1331,6 +1333,46 @@
         "kept": "您的草稿保持原样。复制请求后自行添加。",
         "copied": "请求已复制。请粘贴到您的草稿中。"
       }
+    },
+    "usage": {
+      "title": "用量与限制",
+      "navLowQuota": "用量（配额偏低）",
+      "tabsLimits": "限制",
+      "tabsTokens": "令牌与费用",
+      "refresh": "刷新",
+      "updatedAgo": "更新于 {{time}}",
+      "runtimeLabel": "运行时",
+      "loading": "正在检查提供商用量…",
+      "unavailableTitle": "用量数据不可用",
+      "unavailableBody": "没有已连接的运行时为此账号上报提供商配额限制。",
+      "retry": "重试",
+      "partialData": "部分数据 — 某些提供商或用量记录未能加载。",
+      "stale": "已过期",
+      "percentLeft": "剩余 {{percent}}%",
+      "resetsIn": "{{duration}}后重置",
+      "resetsAt": "{{time}}重置",
+      "resetsSoon": "即将重置",
+      "quotaAria": "{{label}}：剩余 {{percent}}%",
+      "quotaAriaWithReset": "{{label}}：剩余 {{percent}}%，{{reset}}",
+      "noSubscriptionLimit": "无订阅限额",
+      "payAsYouGo": "按量付费",
+      "limitsUnavailable": "配额限制不可用",
+      "notSignedIn": "未登录",
+      "tokens7d": "{{tokens}} 令牌（7天）",
+      "estimatedCost": "约 {{cost}}",
+      "totalTokens7d": "7 天令牌总量",
+      "totalCost7d": "7 天估算费用",
+      "dailyChartTitle": "每日令牌用量（近 7 天）",
+      "dailyBarAria": "{{day}}：{{tokens}} 令牌",
+      "breakdownTitle": "各账号明细",
+      "colAccount": "账号",
+      "colTokens": "7天令牌",
+      "colShare": "占比",
+      "colSpend": "7天费用",
+      "unattributed": "未归类",
+      "allUsageAndLimits": "查看全部用量与限制 →",
+      "noAccounts": "尚未上报提供商账号。",
+      "noDailyData": "过去 7 天没有每日用量记录。"
     }
   },
   "composer": {
@@ -1920,5 +1962,8 @@
       "action": "验证此设备",
       "text": "在此之前，它无法读取你的加密聊天。"
     }
+  },
+  "nav": {
+    "usage": "用量"
   }
 }

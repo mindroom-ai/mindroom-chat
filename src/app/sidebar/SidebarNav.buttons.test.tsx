@@ -43,6 +43,9 @@ vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: tab('canvases'),
 }));
+vi.mock('./rail/UsageTab', () => ({
+  UsageTab: tab('usage'),
+}));
 vi.mock('./rail/DirectTab', () => ({
   DirectTab: tab('direct'),
 }));
@@ -105,6 +108,7 @@ const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.D
 const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['threads', 'showThreadsInSidebar'],
   ['canvases', 'showCanvasesInSidebar'],
+  ['usage', 'showUsageInSidebar'],
   ['explore', 'showExploreInSidebar'],
   ['createSpace', 'showCreateSpaceInSidebar'],
   ['search', 'showSearchInSidebar'],
@@ -142,6 +146,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'activity',
       'threads',
       'canvases',
+      'usage',
       'spaces',
       'explore',
       'createSpace',
@@ -156,7 +161,7 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_ON, [setting]: false };
     const { tabs } = renderedTabs();
     expect(tabs).not.toContain(button);
-    expect(tabs).toHaveLength(11);
+    expect(tabs).toHaveLength(12);
   });
 
   it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {

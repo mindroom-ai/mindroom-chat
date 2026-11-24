@@ -418,7 +418,9 @@
         "search": "サイドバーに検索を表示する",
         "searchDescription": "コマンドパレットを開くボタンです。非表示にした場合は、「何でも検索」欄または {{shortcut}} で開けます。",
         "localMindroom": "サイドバーに Local MindRoom を表示する",
-        "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。"
+        "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。",
+        "usage": "サイドバーに使用量を表示する",
+        "usageDescription": "ランタイムが報告すると、プロバイダーの使用上限と7日間のトークン消費量を表示します。非表示のときはホームの ⋮ メニューまたはモデル選択から開けます。"
       },
       "plugins": {
         "title": "プラグイン",
@@ -1331,6 +1333,46 @@
         "kept": "下書きはそのまま残しました。依頼文をコピーして自分で追加してください。",
         "copied": "依頼文をコピーしました。下書きに貼り付けてください。"
       }
+    },
+    "usage": {
+      "title": "使用量と上限",
+      "navLowQuota": "使用量（残量低下）",
+      "tabsLimits": "上限",
+      "tabsTokens": "トークンとコスト",
+      "refresh": "更新",
+      "updatedAgo": "{{time}}前に更新",
+      "runtimeLabel": "ランタイム",
+      "loading": "プロバイダーの使用量を確認中…",
+      "unavailableTitle": "使用量データを利用できません",
+      "unavailableBody": "このアカウントのプロバイダー使用上限を報告した接続中のランタイムはありません。",
+      "retry": "再試行",
+      "partialData": "一部のデータのみ — 一部のプロバイダーまたは使用記録を読み込めませんでした。",
+      "stale": "古いデータ",
+      "percentLeft": "残り {{percent}}%",
+      "resetsIn": "{{duration}}後にリセット",
+      "resetsAt": "{{time}}にリセット",
+      "resetsSoon": "まもなくリセット",
+      "quotaAria": "{{label}}: 残り {{percent}}%",
+      "quotaAriaWithReset": "{{label}}: 残り {{percent}}%、{{reset}}",
+      "noSubscriptionLimit": "サブスクリプション上限なし",
+      "payAsYouGo": "従量課金",
+      "limitsUnavailable": "使用上限を利用できません",
+      "notSignedIn": "未サインイン",
+      "tokens7d": "{{tokens}} トークン（7日間）",
+      "estimatedCost": "約 {{cost}}",
+      "totalTokens7d": "7日間の合計トークン",
+      "totalCost7d": "7日間の推定コスト",
+      "dailyChartTitle": "日別トークン（過去7日間）",
+      "dailyBarAria": "{{day}}: {{tokens}} トークン",
+      "breakdownTitle": "アカウント別の内訳",
+      "colAccount": "アカウント",
+      "colTokens": "7日トークン",
+      "colShare": "割合",
+      "colSpend": "7日コスト",
+      "unattributed": "未分類",
+      "allUsageAndLimits": "すべての使用量と上限 →",
+      "noAccounts": "報告されたプロバイダーアカウントはまだありません。",
+      "noDailyData": "過去7日間の日別使用記録はありません。"
     }
   },
   "composer": {
@@ -1920,5 +1962,8 @@
       "action": "このデバイスを確認",
       "text": "それまでは暗号化されたチャットを読めません。"
     }
+  },
+  "nav": {
+    "usage": "使用量"
   }
 }

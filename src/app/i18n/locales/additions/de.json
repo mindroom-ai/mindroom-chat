@@ -431,7 +431,9 @@
         "search": "Suche in der Seitenleiste anzeigen",
         "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnest du sie über das Feld „Alles finden“ oder mit {{shortcut}}.",
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
-        "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
+        "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“.",
+        "usage": "Nutzung in der Seitenleiste anzeigen",
+        "usageDescription": "Anbieter-Nutzungslimits und 7-Tage-Tokenverbrauch, sobald eine Laufzeit sie meldet. Wenn ausgeblendet, öffne Nutzung über das ⋮-Menü in Start oder die Modellauswahl."
       },
       "plugins": {
         "title": "Plugins",
@@ -1376,6 +1378,46 @@
         "kept": "Dein Entwurf bleibt unverändert. Kopiere die Anfrage, um sie selbst einzufügen.",
         "copied": "Anfrage kopiert. Füge sie in deinen Entwurf ein."
       }
+    },
+    "usage": {
+      "title": "Nutzung & Limits",
+      "navLowQuota": "Nutzung (niedriges Kontingent)",
+      "tabsLimits": "Limits",
+      "tabsTokens": "Tokens & Kosten",
+      "refresh": "Aktualisieren",
+      "updatedAgo": "Aktualisiert {{time}}",
+      "runtimeLabel": "Laufzeit",
+      "loading": "Anbieternutzung wird geprüft…",
+      "unavailableTitle": "Nutzungsdaten nicht verfügbar",
+      "unavailableBody": "Keine verbundene Laufzeit hat Nutzungslimits für dieses Konto gemeldet.",
+      "retry": "Erneut versuchen",
+      "partialData": "Unvollständige Daten — einige Anbieter oder Nutzungsdaten konnten nicht geladen werden.",
+      "stale": "Veraltet",
+      "percentLeft": "{{percent}}% übrig",
+      "resetsIn": "Wird in {{duration}} zurückgesetzt",
+      "resetsAt": "Wird zurückgesetzt: {{time}}",
+      "resetsSoon": "Wird bald zurückgesetzt",
+      "quotaAria": "{{label}}: {{percent}}% verbleibend",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% verbleibend, {{reset}}",
+      "noSubscriptionLimit": "Kein Abonnementlimit",
+      "payAsYouGo": "Nutzungsabhängig",
+      "limitsUnavailable": "Nutzungslimits nicht verfügbar",
+      "notSignedIn": "Nicht angemeldet",
+      "tokens7d": "{{tokens}} Tokens (7 T.)",
+      "estimatedCost": "~{{cost}} gesch.",
+      "totalTokens7d": "Tokens gesamt (7 Tage)",
+      "totalCost7d": "Geschätzte Ausgaben (7 Tage)",
+      "dailyChartTitle": "Tägliche Tokens (letzte 7 Tage)",
+      "dailyBarAria": "{{day}}: {{tokens}} Tokens",
+      "breakdownTitle": "Aufschlüsselung nach Konto",
+      "colAccount": "Konto",
+      "colTokens": "7-T.-Tokens",
+      "colShare": "Anteil",
+      "colSpend": "7-T.-Ausgaben",
+      "unattributed": "Nicht zugeordnet",
+      "allUsageAndLimits": "Alle Nutzung & Limits →",
+      "noAccounts": "Noch keine Anbieterkonten gemeldet.",
+      "noDailyData": "In den letzten 7 Tagen wurde keine tägliche Nutzung aufgezeichnet."
     }
   },
   "composer": {
@@ -1981,5 +2023,8 @@
       "action": "Dieses Gerät verifizieren",
       "text": "Bis dahin kann es deine verschlüsselten Chats nicht lesen."
     }
+  },
+  "nav": {
+    "usage": "Nutzung"
   }
 }

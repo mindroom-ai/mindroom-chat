@@ -173,8 +173,8 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 1 | `config`, `i18n`, `preferences`, `routes`, `shortcuts`, `src/sw` |
 | 2 | `diagnostics`, `native`, `ui` |
 | 3 | `matrix`, `theme` |
-| 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `server-admin`, `ui-actions` |
-| 5 | `computer`, `emoji`, `event-store` |
+| 4 | `avatars`, `navigation`, `plugins`, `rich-text`, `server-admin`, `ui-actions`, `usage` |
+| 5 | `computer`, `emoji`, `event-store`, `models` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
 | 7 | `members`, `messages` |
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |

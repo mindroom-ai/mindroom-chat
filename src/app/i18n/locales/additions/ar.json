@@ -483,7 +483,9 @@
         "search": "إظهار البحث في الشريط الجانبي",
         "searchDescription": "الزر الذي يفتح لوحة الأوامر. عند إخفائه، افتحها من حقل «ابحث عن أي شيء» أو باستخدام ⁨{{shortcut}}⁩.",
         "localMindroom": "إظهار Local MindRoom في الشريط الجانبي",
-        "localMindroomDescription": "يقرن MindRoom الذي يعمل على حاسوبك. عند إخفائه، يبقى هنا في الإعدادات ضمن Local MindRoom."
+        "localMindroomDescription": "يقرن MindRoom الذي يعمل على حاسوبك. عند إخفائه، يبقى هنا في الإعدادات ضمن Local MindRoom.",
+        "usage": "إظهار الاستخدام في الشريط الجانبي",
+        "usageDescription": "حدود استخدام المزودين واستهلاك الرموز خلال 7 أيام بمجرد إبلاغ بيئة التشغيل عنها. عند إخفائه، افتح الاستخدام من قائمة ⋮ في الرئيسية أو منتقي النماذج."
       },
       "plugins": {
         "title": "الإضافات",
@@ -1556,6 +1558,46 @@
         "kept": "بقيت مسودتك كما هي. انسخ الطلب لتضيفه بنفسك.",
         "copied": "نُسخ الطلب. الصقه في مسودتك."
       }
+    },
+    "usage": {
+      "title": "الاستخدام والحدود",
+      "navLowQuota": "الاستخدام (الحصة منخفضة)",
+      "tabsLimits": "الحدود",
+      "tabsTokens": "الرموز والتكلفة",
+      "refresh": "تحديث",
+      "updatedAgo": "تم التحديث ⁨{{time}}⁩",
+      "runtimeLabel": "بيئة التشغيل",
+      "loading": "جارٍ التحقق من استخدام المزودين…",
+      "unavailableTitle": "بيانات الاستخدام غير متاحة",
+      "unavailableBody": "لم تبلغ أي بيئة تشغيل متصلة عن حدود استخدام المزودين لهذا الحساب.",
+      "retry": "إعادة المحاولة",
+      "partialData": "بيانات جزئية — تعذر تحميل بعض المزودين أو سجلات الاستخدام.",
+      "stale": "قديم",
+      "percentLeft": "متبقٍ ⁨{{percent}}⁩%",
+      "resetsIn": "تُعاد التهيئة خلال ⁨{{duration}}⁩",
+      "resetsAt": "تُعاد التهيئة في ⁨{{time}}⁩",
+      "resetsSoon": "تُعاد التهيئة قريبًا",
+      "quotaAria": "⁨{{label}}⁩: متبقٍ ⁨{{percent}}⁩%",
+      "quotaAriaWithReset": "⁨{{label}}⁩: متبقٍ ⁨{{percent}}⁩%، ⁨{{reset}}⁩",
+      "noSubscriptionLimit": "لا يوجد حد اشتراك",
+      "payAsYouGo": "الدفع حسب الاستخدام",
+      "limitsUnavailable": "حدود الاستخدام غير متاحة",
+      "notSignedIn": "غير مسجّل الدخول",
+      "tokens7d": "⁨{{tokens}}⁩ رمز (7 أيام)",
+      "estimatedCost": "~⁨{{cost}}⁩ تقديريًا",
+      "totalTokens7d": "إجمالي الرموز (7 أيام)",
+      "totalCost7d": "الإنفاق التقديري (7 أيام)",
+      "dailyChartTitle": "الرموز اليومية (آخر 7 أيام)",
+      "dailyBarAria": "⁨{{day}}⁩: ⁨{{tokens}}⁩ رمز",
+      "breakdownTitle": "التفصيل حسب الحساب",
+      "colAccount": "الحساب",
+      "colTokens": "رموز 7 أيام",
+      "colShare": "الحصة",
+      "colSpend": "إنفاق 7 أيام",
+      "unattributed": "غير مصنف",
+      "allUsageAndLimits": "كل الاستخدام والحدود →",
+      "noAccounts": "لم يتم الإبلاغ عن حسابات مزودين بعد.",
+      "noDailyData": "لم يُسجل أي استخدام يومي خلال آخر 7 أيام."
     }
   },
   "composer": {
@@ -2225,5 +2267,8 @@
       "action": "تحقق من هذا الجهاز",
       "text": "حتى ذلك الحين لا يمكنه قراءة محادثاتك المشفرة."
     }
+  },
+  "nav": {
+    "usage": "الاستخدام"
   }
 }

@@ -47,6 +47,7 @@ export { Lobby } from '../spaces/lobby/Lobby';
 export { ThreadsNav } from '../threads/page/ThreadsNav';
 export { ThreadsEmpty } from '../threads/page/ThreadsEmpty';
 export { Canvases } from '../canvas/page/Canvases';
+export { UsagePage } from '../usage/UsagePage';
 export { FeaturedRooms } from '../rooms/explore/Featured';
 export { PublicRooms } from '../rooms/explore/Server';
 export { Invites } from '../notifications/inbox/Invites';

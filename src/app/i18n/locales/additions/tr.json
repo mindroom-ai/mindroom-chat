@@ -431,7 +431,9 @@
         "search": "Aramayı kenar çubuğunda göster",
         "searchDescription": "Komut paletini açan düğme. Gizlendiğinde, paleti \"Her şeyi bul\" alanından veya {{shortcut}} ile açın.",
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
-        "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
+        "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır.",
+        "usage": "Kullanımı kenar çubuğunda göster",
+        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın."
       },
       "plugins": {
         "title": "Eklentiler",
@@ -1376,6 +1378,46 @@
         "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
         "copied": "İstek kopyalandı. Taslağına yapıştır."
       }
+    },
+    "usage": {
+      "title": "Kullanım ve Sınırlar",
+      "navLowQuota": "Kullanım (düşük kota)",
+      "tabsLimits": "Sınırlar",
+      "tabsTokens": "Belirteçler ve Maliyet",
+      "refresh": "Yenile",
+      "updatedAgo": "{{time}} güncellendi",
+      "runtimeLabel": "Çalışma zamanı",
+      "loading": "Sağlayıcı kullanımı denetleniyor…",
+      "unavailableTitle": "Kullanım verisi yok",
+      "unavailableBody": "Bağlı hiçbir çalışma zamanı bu hesap için sağlayıcı kullanım sınırı bildirmedi.",
+      "retry": "Yeniden dene",
+      "partialData": "Kısmi veri — bazı sağlayıcılar veya kullanım kayıtları yüklenemedi.",
+      "stale": "Eski",
+      "percentLeft": "%{{percent}} kaldı",
+      "resetsIn": "{{duration}} içinde sıfırlanır",
+      "resetsAt": "{{time}} tarihinde sıfırlanır",
+      "resetsSoon": "Yakında sıfırlanır",
+      "quotaAria": "{{label}}: %{{percent}} kaldı",
+      "quotaAriaWithReset": "{{label}}: %{{percent}} kaldı, {{reset}}",
+      "noSubscriptionLimit": "Abonelik sınırı yok",
+      "payAsYouGo": "Kullandığın kadar öde",
+      "limitsUnavailable": "Kullanım sınırları kullanılamıyor",
+      "notSignedIn": "Oturum açılmadı",
+      "tokens7d": "{{tokens}} belirteç (7g)",
+      "estimatedCost": "~{{cost}} tah.",
+      "totalTokens7d": "7 günlük toplam belirteç",
+      "totalCost7d": "7 günlük tahmini harcama",
+      "dailyChartTitle": "Günlük belirteçler (son 7 gün)",
+      "dailyBarAria": "{{day}}: {{tokens}} belirteç",
+      "breakdownTitle": "Hesap bazında döküm",
+      "colAccount": "Hesap",
+      "colTokens": "7g belirteç",
+      "colShare": "Pay",
+      "colSpend": "7g harcama",
+      "unattributed": "Atanmamış",
+      "allUsageAndLimits": "Tüm kullanım ve sınırlar →",
+      "noAccounts": "Henüz bildirilen sağlayıcı hesabı yok.",
+      "noDailyData": "Son 7 günde kaydedilen günlük kullanım yok."
     }
   },
   "composer": {
@@ -1981,5 +2023,8 @@
       "action": "Bu cihazı doğrulayın",
       "text": "O zamana kadar şifreli sohbetlerinizi okuyamaz."
     }
+  },
+  "nav": {
+    "usage": "Kullanım"
   }
 }

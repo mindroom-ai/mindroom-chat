@@ -431,7 +431,9 @@
         "search": "Zoeken in de zijbalk tonen",
         "searchDescription": "De knop die het commandopalet opent. Verborgen open je het via het veld ‘Alles vinden’ of met {{shortcut}}.",
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
-        "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom."
+        "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom.",
+        "usage": "Verbruik in de zijbalk tonen",
+        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer."
       },
       "plugins": {
         "title": "Plug-ins",
@@ -1376,6 +1378,46 @@
         "kept": "Je concept is gebleven zoals het was. Kopieer het verzoek om het zelf toe te voegen.",
         "copied": "Verzoek gekopieerd. Plak het in je concept."
       }
+    },
+    "usage": {
+      "title": "Verbruik & limieten",
+      "navLowQuota": "Verbruik (laag quotum)",
+      "tabsLimits": "Limieten",
+      "tabsTokens": "Tokens & kosten",
+      "refresh": "Vernieuwen",
+      "updatedAgo": "Bijgewerkt {{time}}",
+      "runtimeLabel": "Runtime",
+      "loading": "Verbruik van aanbieders controleren…",
+      "unavailableTitle": "Verbruiksgegevens niet beschikbaar",
+      "unavailableBody": "Geen verbonden runtime heeft gebruikslimieten voor dit account gemeld.",
+      "retry": "Opnieuw proberen",
+      "partialData": "Onvolledige gegevens — sommige aanbieders of gebruiksgegevens konden niet worden geladen.",
+      "stale": "Verouderd",
+      "percentLeft": "{{percent}}% over",
+      "resetsIn": "Reset over {{duration}}",
+      "resetsAt": "Reset {{time}}",
+      "resetsSoon": "Reset binnenkort",
+      "quotaAria": "{{label}}: {{percent}}% over",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% over, {{reset}}",
+      "noSubscriptionLimit": "Geen abonnementslimiet",
+      "payAsYouGo": "Betalen naar verbruik",
+      "limitsUnavailable": "Gebruikslimieten niet beschikbaar",
+      "notSignedIn": "Niet aangemeld",
+      "tokens7d": "{{tokens}} tokens (7d)",
+      "estimatedCost": "~{{cost}} gesch.",
+      "totalTokens7d": "Totaal aantal tokens (7 dagen)",
+      "totalCost7d": "Geschatte uitgaven (7 dagen)",
+      "dailyChartTitle": "Dagelijkse tokens (laatste 7 dagen)",
+      "dailyBarAria": "{{day}}: {{tokens}} tokens",
+      "breakdownTitle": "Overzicht per account",
+      "colAccount": "Account",
+      "colTokens": "7d tokens",
+      "colShare": "Aandeel",
+      "colSpend": "7d uitgaven",
+      "unattributed": "Niet toegewezen",
+      "allUsageAndLimits": "Alle verbruik & limieten →",
+      "noAccounts": "Nog geen aanbiederaccounts gemeld.",
+      "noDailyData": "Geen dagelijks verbruik geregistreerd in de afgelopen 7 dagen."
     }
   },
   "composer": {
@@ -1981,5 +2023,8 @@
       "action": "Verifieer dit apparaat",
       "text": "Tot die tijd kan het je versleutelde gesprekken niet lezen."
     }
+  },
+  "nav": {
+    "usage": "Verbruik"
   }
 }

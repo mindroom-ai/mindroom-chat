@@ -1,8 +1,9 @@
 import { MatrixClient, Room } from 'matrix-js-sdk';
-import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
-import { deviceSignedByOwner } from '../matrix/matrix-crypto';
+import { isMindroomAgentUserIdForViewer } from './protocol/agentIdentity';
+import { deviceSignedByOwner } from './matrix-crypto';
 
 export type ModelRuntime = { id: string; userId: string; deviceId: string; curveKey: string };
+
 export const joinedModelCandidates = (mx: MatrixClient, room: Room): string[] => {
   const viewer = mx.getUserId();
   if (!viewer || room.getMember(viewer)?.membership !== 'join') return [];
@@ -11,6 +12,7 @@ export const joinedModelCandidates = (mx: MatrixClient, room: Room): string[] =>
     .filter((m) => m.userId !== viewer && isMindroomAgentUserIdForViewer(m.userId, viewer))
     .map((m) => m.userId);
 };
+
 export const hasJoinedModelAgent = (
   mx: MatrixClient,
   room: Room,
@@ -20,6 +22,7 @@ export const hasJoinedModelAgent = (
   const candidates = joinedModelCandidates(mx, room);
   return candidates.includes(runtime.userId) && agents.some((id) => candidates.includes(id));
 };
+
 export const signedModelDevices = async (
   mx: MatrixClient,
   users: string[]
@@ -54,6 +57,7 @@ export const signedModelDevices = async (
   }
   return devices;
 };
+
 export const isCurrentModelRuntime = async (
   mx: MatrixClient,
   runtime: ModelRuntime

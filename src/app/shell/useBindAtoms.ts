@@ -4,6 +4,7 @@ import { useBindSubagentFrames } from '../messages/live/bindSubagentFrames';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { useModelControllerLifetime } from '../models/useModelPicker';
+import { useProviderUsageControllerLifetime } from '../usage/useProviderUsage';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
@@ -11,7 +12,10 @@ import { allInvitesAtom, useBindAllInvitesAtom } from '../matrix/state/inviteLis
 import { allRoomsAtom, useBindAllRoomsAtom } from '../matrix/state/roomList';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom, useBindRoomToUnreadAtom } from '../matrix/state/roomToUnread';
-import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
+import {
+  roomIdToTypingMembersAtom,
+  useBindRoomIdToTypingMembersAtom,
+} from '../matrix/state/typingMembers';
 
 /** Connects the account-wide atoms to the Matrix client; each resets for a new client. */
 export function useBindAtoms(client: MatrixClient): void {
@@ -40,4 +44,5 @@ export function useBindAtoms(client: MatrixClient): void {
   // The model picker's owner listens from the start, instead of from the first thread that shows
   // a model chip; it reads the same client from MatrixClientProvider.
   useModelControllerLifetime();
+  useProviderUsageControllerLifetime();
 }
