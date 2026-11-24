@@ -9,6 +9,7 @@ Give MindRoom Chat users a quiet, always-reachable **Help & guides** menu (`?`) 
 MindRoom Chat already ships a 12-step animated Interface Tour (`src/app/tour/`, Quick 8 steps / Full 12 steps) that demonstrates threads, titles, states, resolving threads (step 7), filters (step 8), snoozing (step 9), pinning/tagging (step 10), room views (step 11), and Activity (step 12). Today, the tour is offered once at first login (`TourOffer`, when the account typically has zero threads) and afterwards is reachable only from Settings -> About, the Command Palette, the Welcome page, or an empty Compact room. Users who dismiss the initial offer often accumulate many old unresolved threads without discovering Resolve.
 
 Bas picked **Variant A** with the `resolve_threads` v1 trigger from the interactive Canvas mockups:
+
 - Quiet `?` Help & guides button in the icon rail (and phone top bar) with a subtle dot while a contextual tip applies.
 - Popover menu showing any active contextual suggestion at the top, direct jumps into specific animated Tour steps, Full tour, and Keyboard shortcuts (`Cmd+/` / `Ctrl+/`).
 - One-time floating card in the existing `NoticeSlot` (bottom of room list on desktop, top of page on phone) when unresolved threads accumulate and none have been resolved yet.
@@ -17,7 +18,7 @@ Bas picked **Variant A** with the `resolve_threads` v1 trigger from the interact
 
 - **100% client-only**: no backend or protocol changes. Reuses `src/app/tour/`, `crossRoomThreadIndexAtom`, `NoticeSlot`, `io.mindroom.settings`, and `ShortcutHelpDialog`.
 - **Layers (`.eslintrc.cjs`)**:
-  - `src/app/navigation/tourState.ts` (Layer 4): holds `TourStepId`, `tourAtom`, `tourOfferAnsweredAtom`, and `dismissedTipsSessionAtom`.
+  - `src/app/navigation/tourState.ts` (Layer 4): holds `TourStepId`, `tourAtom`, `helpMenuOpenAtom`, `tourOfferAnsweredAtom`, and `dismissedTipsSessionAtom`.
   - `src/app/preferences/accountSettings.ts` (Layer 1): persists `dismissedTips: readonly string[]` in `io.mindroom.settings`.
   - `src/app/tour/` (Layer 12): owns contextual tip evaluation (`contextualTips.ts`, `useContextualTip.ts`), the `HelpMenu` popover (`HelpMenu.tsx`, `HelpMenu.css.ts`), the one-time floating notice (`ContextualTipNotice.tsx`), and direct-step support in `TourDialog` / `TourRenderer`.
   - `src/app/sidebar/rail/HelpTab.tsx` (Layer 14): the `?` trigger button for `SidebarNav` and `PhoneTopBar`.
@@ -52,10 +53,11 @@ Bas picked **Variant A** with the `resolve_threads` v1 trigger from the interact
 ### 3. Contextual Tip Evaluator (`src/app/tour/contextualTips.ts`, `src/app/tour/useContextualTip.ts`)
 
 Pure evaluator `evaluateContextualTip(input): ContextualTip | undefined`:
+
 - Constants:
   - `RESOLVE_TIP_ID = 'resolve_threads'`
-  - `RESOLVE_TIP_MIN_OPEN = 5`
-  - `RESOLVE_TIP_MIN_OLD = 3`
+  - `RESOLVE_TIP_MIN_OPEN = 8`
+  - `RESOLVE_TIP_MIN_OLD = 5`
   - `RESOLVE_TIP_OLD_AGE_MS = 24 * 60 * 60 * 1000` (24 hours)
 - Input:
   - `entries: Iterable<CrossRoomThreadIndexEntry>`
@@ -69,13 +71,14 @@ Pure evaluator `evaluateContextualTip(input): ContextualTip | undefined`:
      - If ANY entry has `isResolved === true`, return `undefined` (the user already resolves threads).
      - Ignore currently snoozed threads (`entry.snoozedUntilTs !== undefined && entry.snoozedUntilTs > now`).
      - Count `totalOpen`, `totalOld` (`now - entry.lastActivityTs >= RESOLVE_TIP_OLD_AGE_MS`), and when `selectedRoomId` matches `entry.roomId`, also count `roomOpen` and `roomOld`.
-  3. If `selectedRoomId` is set and `(roomOpen >= 5 || roomOld >= 3)`:
+  3. If `selectedRoomId` is set and `(roomOpen >= 8 || roomOld >= 5)`:
      return `{ id: 'resolve_threads', tourStep: 'resolve', scope: 'room', openCount: roomOpen }`.
-  4. Else if `totalOpen >= 5 || totalOld >= 3`:
+  4. Else if `totalOpen >= 8 || totalOld >= 5`:
      return `{ id: 'resolve_threads', tourStep: 'resolve', scope: 'all', openCount: totalOpen }`.
   5. Otherwise return `undefined`.
 
 Hook `useContextualTip()`:
+
 - Reads `synced = useServerSyncApplied(mx)`, `index = useAtomValue(crossRoomThreadIndexAtom)`, `selectedRoomId = useSelectedRoom()`, `archivedRooms = useAtomValue(archivedRoomsAtom)`, stored `dismissedTips` from `useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE)`, and session dismissals from `dismissedTipsSessionAtom`.
 - Returns `{ tip, dismissTip, openTipTour }`:
   - `tip` is `undefined` until `synced && index.bootstrapped`.
@@ -124,6 +127,7 @@ Hook `useContextualTip()`:
   - `tip !== undefined`
   - `offerAtStart` (`useClientConfig().tour?.offerAtStart !== false`)
   - `!tourFirst` (same check as `MacAppOffer`: waits until `TourOffer` is answered in stored settings or `tourOfferAnsweredAtom`, and never shows while `tourAtom` is open)
+  - `!helpMenuOpen` (`helpMenuOpenAtom` is `false`: hides while the `?` Help & guides popover is open so the same tip is never shown twice)
   - `hasPlace` (`listSlot !== null || pageSlot !== null`)
 - Clicking **Show how** calls `dismiss()` (leave animation) and `openTipTour(tip)` (dismisses tip in session + `io.mindroom.settings`, opens Tour at step `resolve`).
 - Clicking **Dismiss (`x`)** calls `dismiss()` and `dismissTip(tip.id)`.
@@ -135,7 +139,7 @@ Hook `useContextualTip()`:
 1. **Unit tests**:
    - `tourSteps.test.ts` + `TourDialog.test.tsx` + `TourRenderer.test.tsx`: `stepIndexOf`, opening directly at `initialStep: 'resolve'`, stepping Next to `filters` and Back to `states`.
    - `accountSettings.test.ts`: sanitizing and merging `dismissedTips` (deduplication, trimming, non-array/garbage resilience).
-   - `contextualTips.test.ts`: threshold boundaries (4 open vs 5 open, 2 old vs 3 old at 24h edge, any resolved thread suppresses tip, snoozed threads excluded, archived rooms excluded, dismissed tip suppressed, room scope vs all-rooms scope).
+   - `contextualTips.test.ts`: threshold boundaries (7 open vs 8 open, 4 old vs 5 old at 24h edge, any resolved thread suppresses tip, snoozed threads excluded, archived rooms excluded, dismissed tip suppressed, room scope vs all-rooms scope).
    - `HelpMenu.test.tsx`: renders active suggestion + dismisses it; renders clean state without suggestion; clicking each guide jumps to the right tour step; clicking Full tour opens full tour; clicking Shortcuts opens `shortcutHelpOpenAtom`; Escape closes menu.
    - `ContextualTipNotice.test.tsx`: waits for `TourOffer` and sync; respects `tour.offerAtStart: false`; shows once when triggered; Show how opens tour at `resolve` and persists dismissal; Dismiss persists dismissal; hides automatically when a thread becomes resolved.
    - `HelpTab.test.tsx` + updated `SidebarNav.buttons.test.tsx` & `PhoneTopBar.test.tsx`: renders `?` with/without dot, opens popover in desktop rail and phone top bar.

@@ -35,6 +35,7 @@
 ### Task 1: Direct-step Tour Opening & Persistent `dismissedTips` Setting
 
 **Files:**
+
 - Modify: `src/app/navigation/tourState.ts`
 - Modify: `src/app/tour/tourSteps.ts`
 - Modify: `src/app/tour/TourDialog.tsx`
@@ -44,6 +45,7 @@
 - Test: `src/app/tour/tourSteps.test.ts`, `src/app/tour/TourDialog.test.tsx`, `src/app/tour/TourRenderer.test.tsx`, `src/app/preferences/accountSettings.test.ts`
 
 **Interfaces:**
+
 - Produces in `src/app/navigation/tourState.ts`:
   - `export type TourStepId = 'conversation' | 'start' | 'reply' | 'title' | 'order' | 'states' | 'resolve' | 'filters' | 'snooze' | 'pinAndTag' | 'views' | 'activity';`
   - `export type TourRequest = { level: TourLevel; initialStep?: TourStepId };`
@@ -57,7 +59,7 @@
 
 - [ ] **Step 1: Add unit tests for `stepIndexOf`, `TourDialog` `initialStep`, `TourRenderer` `initialStep`, and `dismissedTips` sanitization.**
 - [ ] **Step 2: Run targeted tests to verify they fail.**
-  Run: `nix develop -c npx vitest run src/app/tour/tourSteps.test.ts src/app/tour/TourDialog.test.tsx src/app/tour/TourRenderer.test.tsx src/app/preferences/accountSettings.test.ts`
+      Run: `nix develop -c npx vitest run src/app/tour/tourSteps.test.ts src/app/tour/TourDialog.test.tsx src/app/tour/TourRenderer.test.tsx src/app/preferences/accountSettings.test.ts`
 - [ ] **Step 3: Implement `TourStepId` & `dismissedTipsSessionAtom` in `tourState.ts`, `stepIndexOf` in `tourSteps.ts`, `initialStep` prop in `TourDialog.tsx` and `TourRenderer.tsx`, `dismissedTips` in `accountSettings.ts`, and register `dismissedTipsSessionAtom` in `accountState.test.ts` `keptAtoms`.**
 - [ ] **Step 4: Run tests including `src/app/shell/accountState.test.ts` and verify all pass.**
 - [ ] **Step 5: Commit.**
@@ -67,11 +69,13 @@
 ### Task 2: Contextual Tip Evaluator & Hook
 
 **Files:**
+
 - Create: `src/app/tour/contextualTips.ts`
 - Create: `src/app/tour/useContextualTip.ts`
 - Test: `src/app/tour/contextualTips.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CrossRoomThreadIndexEntry`, `crossRoomThreadIndexAtom`, `archivedRoomsAtom`, `useSelectedRoom`, `useServerSyncApplied`, `useAccountData`, `useSetAccountSettings`, `tourAtom`, `dismissedTipsSessionAtom`.
 - Produces in `src/app/tour/contextualTips.ts`:
   - `export const RESOLVE_TIP_ID = 'resolve_threads';`
@@ -96,10 +100,12 @@
 ### Task 3: Locale Strings Across All 17 Language Overlays
 
 **Files:**
+
 - Modify: `src/app/i18n/locales/additions/en.json`
 - Modify: all 16 other `src/app/i18n/locales/additions/*.json` (`ar`, `bn`, `de`, `es`, `fr`, `hi`, `id`, `it`, `ja`, `ko`, `nl`, `pt`, `ru`, `tr`, `zh`, `zh-TW`)
 
 **Interfaces:**
+
 - Adds `helpMenu` and `contextualTips` keys under `tour` (or top-level `helpMenu` / `tour.help` & `tour.tips`):
   - Button / aria labels: `tour.help.button`, `tour.help.buttonWithTip`
   - Menu header: `tour.help.title`, `tour.help.subtitle`, `tour.help.oneTip`
@@ -108,7 +114,7 @@
   - Resolve tip copy: `tour.tips.resolve.title`, `tour.tips.resolve.cardTitle`, `tour.tips.resolve.roomSummary` (`{{count}} open threads here, none resolved yet`), `tour.tips.resolve.allSummary` (`{{count}} open threads, none resolved yet`), `tour.tips.resolve.cardTextRoom`, `tour.tips.resolve.cardTextAll`
 
 - [ ] **Step 1: Add English strings to `src/app/i18n/locales/additions/en.json` and idiomatic translations to all 16 other overlays (using exact `Intl.PluralRules` categories if any pluralized keys are used, or non-pluralized keys where count is always >= 3).**
-  Note: because `openCount` is always >= 3 (min threshold is 3 old or 5 open), non-pluralized strings with `{{count}}` avoid awkward singulars while keeping localization clean (Wait: check `ar`/`ru` plural rules for numbers like 3, 5, 21 — actually even better, use standard `_one`/`_other` etc. or natural count phrasing! Follow whatever passes `localeAdditions.test.ts` and `i18nPluralRules.test.ts`).
+      Note: because `openCount` is always >= 3 (min threshold is 3 old or 5 open), non-pluralized strings with `{{count}}` avoid awkward singulars while keeping localization clean (Wait: check `ar`/`ru` plural rules for numbers like 3, 5, 21 — actually even better, use standard `_one`/`_other` etc. or natural count phrasing! Follow whatever passes `localeAdditions.test.ts` and `i18nPluralRules.test.ts`).
 - [ ] **Step 2: Run `nix develop -c npx vitest run src/app/i18n/` and verify every i18n test passes.**
 - [ ] **Step 3: Commit.**
 
@@ -117,6 +123,7 @@
 ### Task 4: `HelpMenu`, `HelpTab`, and `ContextualTipNotice` UI Components
 
 **Files:**
+
 - Create: `src/app/tour/HelpMenu.css.ts`
 - Create: `src/app/tour/HelpMenu.tsx`
 - Create: `src/app/tour/ContextualTipNotice.tsx`
@@ -128,6 +135,7 @@
 - Update existing tests: `src/app/sidebar/SidebarNav.buttons.test.tsx`, `src/app/sidebar/PhoneTopBar.test.tsx`
 
 **Interfaces:**
+
 - `HelpMenu({ anchor, below, onClose }: { anchor: HTMLElement; below?: boolean; onClose: () => void })`
 - `HelpTab({ inTopBar, className }: { inTopBar?: boolean; className?: string })`
 - `ContextualTipNotice()`
@@ -144,6 +152,7 @@
 ### Task 5: Docs Update & Full Verification
 
 **Files:**
+
 - Modify: `AGENTS.md` (update the one-sentence tour product summary to mention the `?` Help & guides menu and contextual resolve tip)
 - Modify: `docs/configuration.md` (note `tour.offerAtStart` also controls automatic contextual tip cards)
 

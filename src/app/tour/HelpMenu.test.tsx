@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
-import { tourAtom, type TourLevel, type TourStepId } from '../navigation/tourState';
+import {
+  helpMenuOpenAtom,
+  tourAtom,
+  type TourLevel,
+  type TourStepId,
+} from '../navigation/tourState';
 import { RESOLVE_TIP_ID, type ContextualTip } from './contextualTips';
 import { HelpMenu } from './HelpMenu';
 import { useContextualTip } from './useContextualTip';
@@ -21,9 +26,9 @@ vi.mock('folds', async (original) => ({
   ),
 }));
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
@@ -70,7 +75,8 @@ describe('HelpMenu', () => {
       scope: 'room',
       openCount: 6,
     };
-    const { store, onClose, dismissTip, openTipTour } = renderMenu({ tip });
+    const { store, onClose, dismissTip, openTipTour, view } = renderMenu({ tip });
+    expect(store.get(helpMenuOpenAtom)).toBe(true);
 
     expect(screen.getByText('1 tip')).toBeTruthy();
     expect(screen.getByText('Suggested for you')).toBeTruthy();
@@ -84,6 +90,9 @@ describe('HelpMenu', () => {
     expect(openTipTour).toHaveBeenCalledWith(tip);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(store.get(tourAtom)).toEqual({ level: 'full', initialStep: 'resolve' });
+
+    view.unmount();
+    expect(store.get(helpMenuOpenAtom)).toBe(false);
   });
 
   it('renders the clean state without a tip and jumps directly to each tour guide', () => {

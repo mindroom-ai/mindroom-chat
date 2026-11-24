@@ -55,61 +55,71 @@ const makeEntry = (
     tags: [],
     generation: 1,
     ...overrides,
-  } as CrossRoomThreadIndexEntry);
+  }) as CrossRoomThreadIndexEntry;
 
 describe('evaluateContextualTip', () => {
   const empty = new Set<string>();
 
-  it('triggers at 5 recent open threads, not at 4', () => {
-    const four = Array.from({ length: RESOLVE_TIP_MIN_OPEN - 1 }, (_, i) => makeEntry(`t${i}`));
+  it('triggers at 8 recent open threads, not at 7', () => {
+    const belowMin = Array.from({ length: RESOLVE_TIP_MIN_OPEN - 1 }, (_, i) => makeEntry(`t${i}`));
     expect(
-      evaluateContextualTip({ entries: four, archivedRooms: empty, dismissedTips: empty, now: NOW })
+      evaluateContextualTip({
+        entries: belowMin,
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+      })
     ).toBeUndefined();
 
-    const five = [...four, makeEntry('t4')];
+    const atMin = [...belowMin, makeEntry(`t${RESOLVE_TIP_MIN_OPEN - 1}`)];
     expect(
-      evaluateContextualTip({ entries: five, archivedRooms: empty, dismissedTips: empty, now: NOW })
+      evaluateContextualTip({
+        entries: atMin,
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+      })
     ).toEqual({
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
   });
 
-  it('triggers at 3 threads at least 24 hours old, not at 2 or 1ms under 24h', () => {
-    const twoOld = Array.from({ length: RESOLVE_TIP_MIN_OLD - 1 }, (_, i) =>
+  it('triggers at 5 threads at least 24 hours old, not at 4 or 1ms under 24h', () => {
+    const belowOld = Array.from({ length: RESOLVE_TIP_MIN_OLD - 1 }, (_, i) =>
       makeEntry(`old-${i}`, { lastActivityTs: OLD })
     );
     expect(
       evaluateContextualTip({
-        entries: twoOld,
+        entries: belowOld,
         archivedRooms: empty,
         dismissedTips: empty,
         now: NOW,
       })
     ).toBeUndefined();
 
-    const threeAlmostOld = Array.from({ length: RESOLVE_TIP_MIN_OLD }, (_, i) =>
+    const almostOld = Array.from({ length: RESOLVE_TIP_MIN_OLD }, (_, i) =>
       makeEntry(`almost-${i}`, { lastActivityTs: ALMOST_OLD })
     );
     expect(
       evaluateContextualTip({
-        entries: threeAlmostOld,
+        entries: almostOld,
         archivedRooms: empty,
         dismissedTips: empty,
         now: NOW,
       })
     ).toBeUndefined();
 
-    const threeOldPlusOneRecent = [
-      ...twoOld,
-      makeEntry('old-2', { lastActivityTs: OLD }),
+    const atOldPlusOneRecent = [
+      ...belowOld,
+      makeEntry(`old-${RESOLVE_TIP_MIN_OLD - 1}`, { lastActivityTs: OLD }),
       makeEntry('recent', { lastActivityTs: RECENT }),
     ];
     expect(
       evaluateContextualTip({
-        entries: threeOldPlusOneRecent,
+        entries: atOldPlusOneRecent,
         archivedRooms: empty,
         dismissedTips: empty,
         now: NOW,
@@ -118,13 +128,13 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 4,
+      openCount: RESOLVE_TIP_MIN_OLD + 1,
     });
   });
 
   it('suppresses the tip when any visible thread is already resolved', () => {
     const entries = [
-      ...Array.from({ length: 6 }, (_, i) =>
+      ...Array.from({ length: RESOLVE_TIP_MIN_OPEN + 1 }, (_, i) =>
         makeEntry(`open-${i}`, { roomId: '!room-a:example.org' })
       ),
       makeEntry('done', { roomId: '!room-b:example.org', isResolved: true }),
@@ -142,7 +152,7 @@ describe('evaluateContextualTip', () => {
 
   it('excludes currently snoozed threads while counting expired snoozes', () => {
     const snoozed = [
-      ...Array.from({ length: 4 }, (_, i) => makeEntry(`open-${i}`)),
+      ...Array.from({ length: RESOLVE_TIP_MIN_OPEN - 1 }, (_, i) => makeEntry(`open-${i}`)),
       makeEntry('snoozed', { snoozedUntilTs: NOW + 60_000 }),
     ];
     expect(
@@ -155,7 +165,7 @@ describe('evaluateContextualTip', () => {
     ).toBeUndefined();
 
     const expiredSnooze = [
-      ...Array.from({ length: 4 }, (_, i) => makeEntry(`open-${i}`)),
+      ...Array.from({ length: RESOLVE_TIP_MIN_OPEN - 1 }, (_, i) => makeEntry(`open-${i}`)),
       makeEntry('expired', { snoozedUntilTs: NOW }),
     ];
     expect(
@@ -169,12 +179,12 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
   });
 
   it('excludes archived rooms from open counts', () => {
-    const entries = Array.from({ length: 6 }, (_, i) =>
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN + 1 }, (_, i) =>
       makeEntry(`archived-${i}`, { roomId: '!archived:example.org' })
     );
     expect(
@@ -189,7 +199,9 @@ describe('evaluateContextualTip', () => {
   });
 
   it('returns undefined when the resolve tip is already dismissed', () => {
-    const entries = Array.from({ length: 6 }, (_, i) => makeEntry(`open-${i}`));
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN + 1 }, (_, i) =>
+      makeEntry(`open-${i}`)
+    );
     expect(
       evaluateContextualTip({
         entries,
@@ -202,7 +214,7 @@ describe('evaluateContextualTip', () => {
 
   it('prefers room scope when the selected room meets the threshold, else falls back to all rooms', () => {
     const entries = [
-      ...Array.from({ length: 3 }, (_, i) =>
+      ...Array.from({ length: RESOLVE_TIP_MIN_OLD }, (_, i) =>
         makeEntry(`a-${i}`, { roomId: '!room-a:example.org', lastActivityTs: OLD })
       ),
       makeEntry('a-recent', { roomId: '!room-a:example.org', lastActivityTs: RECENT }),
@@ -223,7 +235,7 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'room',
-      openCount: 4,
+      openCount: RESOLVE_TIP_MIN_OLD + 1,
     });
 
     expect(
@@ -238,12 +250,12 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 6,
+      openCount: RESOLVE_TIP_MIN_OLD + 3,
     });
   });
 
   it('ignores rooms where canResolveRoom returns false and caches per room ID', () => {
-    const entries = Array.from({ length: 5 }, (_, i) =>
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) =>
       makeEntry(`locked-${i}`, { roomId: '!locked:example.org' })
     );
     const canResolveRoom = vi.fn(() => false);
@@ -266,13 +278,13 @@ describe('evaluateContextualTip', () => {
       ...Array.from({ length: 4 }, (_, i) =>
         makeEntry(`locked-${i}`, { roomId: '!locked:example.org', lastActivityTs: OLD })
       ),
-      ...Array.from({ length: 3 }, (_, i) =>
+      ...Array.from({ length: RESOLVE_TIP_MIN_OLD }, (_, i) =>
         makeEntry(`ok-${i}`, { roomId: '!ok:example.org', lastActivityTs: OLD })
       ),
     ];
     const canResolveRoom = vi.fn((roomId: string) => roomId === '!ok:example.org');
 
-    // Viewing the restricted room falls back to all resolvable rooms (3, not 7).
+    // Viewing the restricted room falls back to all resolvable rooms (5, not 9).
     expect(
       evaluateContextualTip({
         entries: mixed,
@@ -286,7 +298,7 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 3,
+      openCount: RESOLVE_TIP_MIN_OLD,
     });
     expect(canResolveRoom).toHaveBeenCalledTimes(2);
 
@@ -304,7 +316,7 @@ describe('evaluateContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'room',
-      openCount: 3,
+      openCount: RESOLVE_TIP_MIN_OLD,
     });
 
     // Any resolved thread in a visible room still suppresses the tip even if that room is now locked.
@@ -452,7 +464,7 @@ describe('useContextualTip', () => {
       alice.client as unknown as ReturnType<typeof useMatrixClient>
     );
     const store = createStore();
-    const entries = Array.from({ length: 5 }, (_, i) => makeEntry(`t${i}`));
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) => makeEntry(`t${i}`));
     store.set(crossRoomThreadIndexAtom, indexWith(entries, false));
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -470,7 +482,7 @@ describe('useContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
   });
 
@@ -479,7 +491,7 @@ describe('useContextualTip', () => {
     alice.setAccountData.mockRejectedValueOnce(new Error('offline'));
     const bob = makeClient('@bob:example.org', {}, true);
     const store = createStore();
-    const entries = Array.from({ length: 5 }, (_, i) => makeEntry(`t${i}`));
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) => makeEntry(`t${i}`));
     store.set(crossRoomThreadIndexAtom, indexWith(entries, true));
     store.set(archivedRoomsAtom, new Set());
     vi.mocked(useSelectedRoom).mockReturnValue(undefined);
@@ -515,7 +527,7 @@ describe('useContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
 
     // Switching back to Alice keeps Alice's tip dismissed for this page load.
@@ -545,8 +557,8 @@ describe('useContextualTip', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       createElement(Provider, { store }, children);
 
-    // 5 open threads in a restricted room -> no tip.
-    const restrictedEntries = Array.from({ length: 5 }, (_, i) =>
+    // Open threads in a restricted room -> no tip.
+    const restrictedEntries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) =>
       makeEntry(`r-${i}`, { roomId: '!restricted:example.org' })
     );
     store.set(crossRoomThreadIndexAtom, indexWith(restrictedEntries, true));
@@ -554,7 +566,7 @@ describe('useContextualTip', () => {
     expect(view.result.current.tip).toBeUndefined();
 
     // Missing room fails closed.
-    const missingRoomEntries = Array.from({ length: 5 }, (_, i) =>
+    const missingRoomEntries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) =>
       makeEntry(`m-${i}`, { roomId: '!missing:example.org' })
     );
     act(() => store.set(crossRoomThreadIndexAtom, indexWith(missingRoomEntries, true)));
@@ -575,11 +587,11 @@ describe('useContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
 
     // Room version 12 creator can resolve even when state_default is 50 and users_default is 0.
-    const v12Entries = Array.from({ length: 5 }, (_, i) =>
+    const v12Entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) =>
       makeEntry(`v-${i}`, { roomId: '!v12:example.org' })
     );
     act(() => store.set(crossRoomThreadIndexAtom, indexWith(v12Entries, true)));
@@ -587,13 +599,14 @@ describe('useContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 5,
+      openCount: RESOLVE_TIP_MIN_OPEN,
     });
   });
 
   it('excludes pinned threads from the resolve tip and updates when pins change', () => {
     const oldTs = Date.now() - RESOLVE_TIP_OLD_AGE_MS - 60_000;
-    const pinnedRoom = makeRoom({ pinned: ['$p-0', '$p-1', '$p-2'] });
+    const pinnedIds = Array.from({ length: RESOLVE_TIP_MIN_OLD }, (_, i) => `p-${i}`);
+    const pinnedRoom = makeRoom({ pinned: pinnedIds.map((id) => `$${id}`) });
     const rooms = new Map([['!room-a:example.org', pinnedRoom.room]]);
     const alice = makeClient('@alice:example.org', {}, true, rooms);
     vi.mocked(useMatrixClient).mockReturnValue(
@@ -604,14 +617,14 @@ describe('useContextualTip', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       createElement(Provider, { store }, children);
 
-    const oldPinnedEntries = ['p-0', 'p-1', 'p-2'].map((id) =>
+    const oldPinnedEntries = pinnedIds.map((id) =>
       makeEntry(id, { roomId: '!room-a:example.org', lastActivityTs: oldTs })
     );
     store.set(crossRoomThreadIndexAtom, indexWith(oldPinnedEntries, true));
     const view = renderHook(() => useContextualTip(), { wrapper });
     expect(view.result.current.tip).toBeUndefined();
 
-    // Unpinning all three via m.room.pinned_events exposes them to the resolve tip.
+    // Unpinning via m.room.pinned_events exposes them to the resolve tip.
     const unpinned = pinnedRoom.setPinned([]);
     act(() => {
       alice.client.emit(RoomStateEvent.Events, unpinned, {}, null);
@@ -620,7 +633,7 @@ describe('useContextualTip', () => {
       id: RESOLVE_TIP_ID,
       tourStep: 'resolve',
       scope: 'all',
-      openCount: 3,
+      openCount: RESOLVE_TIP_MIN_OLD,
     });
   });
 });

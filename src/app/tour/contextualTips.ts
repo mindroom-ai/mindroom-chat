@@ -3,8 +3,8 @@ import type { TourStepId } from '../navigation/tourState';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 
 export const RESOLVE_TIP_ID = 'resolve_threads';
-export const RESOLVE_TIP_MIN_OPEN = 5;
-export const RESOLVE_TIP_MIN_OLD = 3;
+export const RESOLVE_TIP_MIN_OPEN = 8;
+export const RESOLVE_TIP_MIN_OLD = 5;
 export const RESOLVE_TIP_OLD_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type ContextualTipId = typeof RESOLVE_TIP_ID;

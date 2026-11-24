@@ -8,14 +8,14 @@ import {
   type MouseEvent,
 } from 'react';
 import classNames from 'classnames';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Button, Icon, IconButton, Icons, Line, Text, type IconSrc } from 'folds';
 import { IconKeyboard } from '@tabler/icons-react';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { stopPropagation } from '../lib/keyboard';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
-import { tourAtom, type TourLevel } from '../navigation/tourState';
+import { helpMenuOpenAtom, tourAtom, type TourLevel } from '../navigation/tourState';
 import { ShortcutHint, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { PopOut } from '../ui/directional';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
@@ -24,13 +24,7 @@ import { useContextualTip } from './useContextualTip';
 import * as css from './HelpMenu.css';
 
 type GuideStep =
-  | 'conversation'
-  | 'resolve'
-  | 'filters'
-  | 'snooze'
-  | 'pinAndTag'
-  | 'views'
-  | 'activity';
+  'conversation' | 'resolve' | 'filters' | 'snooze' | 'pinAndTag' | 'views' | 'activity';
 
 const GUIDES: readonly (readonly [step: GuideStep, level: TourLevel, icon: IconSrc])[] = [
   ['conversation', 'quick', Icons.Thread],
@@ -62,9 +56,15 @@ export function HelpMenu({ anchor, below = false, onClose }: HelpMenuProps) {
   const titleId = useId();
   const guidesHeadingId = useId();
   const setTour = useSetAtom(tourAtom);
+  const setHelpMenuOpen = useSetAtom(helpMenuOpenAtom);
   const setShortcutHelpOpen = useSetAtom(shortcutHelpOpenAtom);
   const { tip, dismissTip, openTipTour } = useContextualTip();
   const entries = useMenuBehaviour<HTMLDivElement>('menu', undefined, undefined);
+
+  useLayoutEffect(() => {
+    setHelpMenuOpen(true);
+    return () => setHelpMenuOpen(false);
+  }, [setHelpMenuOpen]);
 
   const measure = useCallback(
     () => ({

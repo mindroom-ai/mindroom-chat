@@ -8,7 +8,7 @@ import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../matrix/session/sessions';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
-import { tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
+import { helpMenuOpenAtom, tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
 import {
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
   sanitizeAccountSettings,
@@ -26,6 +26,7 @@ function ContextualTipNoticeForSession({ sessionId }: { sessionId: string }) {
     useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE)?.getContent()
   );
   const tourOpen = useAtomValue(tourAtom) !== undefined;
+  const helpMenuOpen = useAtomValue(helpMenuOpenAtom);
   const tourAnsweredHere = useAtomValue(tourOfferAnsweredAtom).has(sessionId);
   const tourAnswered = settings.tourOffered || tourAnsweredHere;
   const tourFirst = (offerAtStart && !tourAnswered) || tourOpen;
@@ -46,7 +47,7 @@ function ContextualTipNoticeForSession({ sessionId }: { sessionId: string }) {
   const hasPlace = listSlot !== null || pageSlot !== null;
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const { shown, slot, placement, leaving, settled, dismiss, onAnimationEnd } = useNoticePresence(
-    offerAtStart && !tourFirst && hasPlace && tip !== undefined,
+    offerAtStart && !tourFirst && !helpMenuOpen && hasPlace && tip !== undefined,
     { open: phoneLayerOpen, slideOutMs: PHONE_SLIDE_OUT_MS }
   );
 

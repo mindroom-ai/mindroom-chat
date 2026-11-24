@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../matrix/session/sessions';
-import { tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
+import { helpMenuOpenAtom, tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../preferences/accountSettings';
 import {
@@ -18,7 +18,7 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
-import { RESOLVE_TIP_ID } from './contextualTips';
+import { RESOLVE_TIP_ID, RESOLVE_TIP_MIN_OPEN } from './contextualTips';
 import { ContextualTipNotice } from './ContextualTipNotice';
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
@@ -45,7 +45,7 @@ const makeEntry = (
     tags: [],
     generation: 1,
     ...overrides,
-  } as CrossRoomThreadIndexEntry);
+  }) as CrossRoomThreadIndexEntry;
 
 const makeRoom = (powerLevels: Record<string, unknown>) => ({
   getLiveTimeline: () => ({
@@ -124,7 +124,7 @@ const setup = ({
   stored = { tourOffered: true },
   synced = true,
   bootstrapped = true,
-  entries = Array.from({ length: 5 }, (_, i) => makeEntry(`t${i}`)),
+  entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) => makeEntry(`t${i}`)),
   config = {},
   selectedRoom,
   roomPowerLevels,
@@ -191,6 +191,12 @@ describe('ContextualTipNotice', () => {
     );
     expect(card()).toBeTruthy();
 
+    // Opening the Help menu hides the floating card so the same tip is never shown twice.
+    act(() => first.store.set(helpMenuOpenAtom, true));
+    expect(card()).toBeNull();
+    act(() => first.store.set(helpMenuOpenAtom, false));
+    expect(card()).toBeTruthy();
+
     // Opening a tour hides the card.
     act(() => first.store.set(tourAtom, { level: 'quick' }));
     expect(card()).toBeNull();
@@ -205,7 +211,7 @@ describe('ContextualTipNotice', () => {
     vi.useFakeTimers();
     const { acct, store } = setup({ selectedRoom: '!room:example.org' });
     expect(card()).toBeTruthy();
-    expect(screen.getByText(/5 open threads here, none resolved yet/)).toBeTruthy();
+    expect(screen.getByText(/8 open threads here, none resolved yet/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show how' }));
     expect(store.get(tourAtom)).toEqual({ level: 'full', initialStep: 'resolve' });

@@ -24,6 +24,9 @@ export type TourRequest = { level: TourLevel; initialStep?: TourStepId };
 /** The open interface tour (src/app/tour/) and its request; undefined while it is closed. */
 export const tourAtom = atom<TourRequest | undefined>(undefined);
 
+/** Whether the Help & guides menu (src/app/tour/HelpMenu.tsx) is open; ContextualTipNotice hides while it is. */
+export const helpMenuOpenAtom = atom(false);
+
 /**
  * The accounts (session IDs, matrix/session/sessions.ts) that answered the offer of the tour
  * (src/app/tour/TourOffer.tsx) since the page loaded, while their stored answer is on its way or
