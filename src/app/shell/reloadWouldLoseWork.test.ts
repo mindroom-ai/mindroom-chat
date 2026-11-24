@@ -86,7 +86,9 @@ describe('reloadWouldLoseWork', () => {
     const store = createStore();
     store.set(
       detachedDictationSendsAtom,
-      new Map([['composer-1', { ownerKey: 'composer-1', status: 'sending' } as DetachedDictationSend]])
+      new Map([
+        ['composer-1', { ownerKey: 'composer-1', status: 'sending' } as DetachedDictationSend],
+      ])
     );
     expect(reloadWouldLoseWork(store, undefined)).toBe(true);
   });

@@ -269,6 +269,24 @@ test('Finish and send survives immediate switch to another room while transcript
       () => transcribeGate
     );
     const page = await context.newPage();
+    const sentMessages: Array<{ roomId: string; body: string }> = [];
+    await page.route(
+      (url) =>
+        /\/_matrix\/client\/(v3|r0)\/rooms\/[^/]+\/send\/m\.room\.message\//.test(url.pathname),
+      async (route) => {
+        const req = route.request();
+        if (req.method() === 'PUT') {
+          const match = /\/rooms\/([^/]+)\/send\/m\.room\.message\//.exec(
+            new URL(req.url()).pathname
+          );
+          const payload = req.postDataJSON() as { body?: string } | null;
+          if (match?.[1] && typeof payload?.body === 'string') {
+            sentMessages.push({ roomId: decodeURIComponent(match[1]), body: payload.body });
+          }
+        }
+        await route.continue();
+      }
+    );
 
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
@@ -296,19 +314,29 @@ test('Finish and send survives immediate switch to another room while transcript
     // Dictation ownership was released immediately, so Room B can dictate right away.
     await expect(page.getByRole('button', { name: 'Dictate' })).toBeEnabled({ timeout: 15_000 });
 
+    // Nothing is sent to Matrix while /transcribe is still held open.
+    expect(sentMessages).toEqual([]);
+
     // Resolve /transcribe now that we are in Room B.
     const sentText = 'Delivered to room A after switch.';
     releaseTranscribe(sentText);
 
-    // Room B stays untouched.
-    await page.waitForTimeout(1000);
+    // Wait deterministically for the Matrix m.room.message PUT to land for Room A.
+    await expect
+      .poll(() => sentMessages.some((m) => m.roomId === roomAId && m.body === sentText), {
+        timeout: 30_000,
+      })
+      .toBe(true);
+    // Room B stays completely untouched.
+    expect(sentMessages.filter((m) => m.roomId === roomBId)).toEqual([]);
     await expect(page.getByText(sentText)).toHaveCount(0);
     await expect(composer).not.toContainText(sentText);
 
-    // Switch back to Room A and verify the dictated message arrived in Room A.
+    // Switch back to Room A and verify the dictated message arrived in Room A's timeline, not composer.
     await page.getByRole('link', { name: new RegExp(roomAName) }).click();
     await expect.poll(() => decodeURIComponent(page.url())).toContain(roomAId);
     await expect(page.getByText(sentText)).toBeVisible({ timeout: 30_000 });
+    await expect(composer).not.toContainText(sentText);
   } finally {
     await context.close();
   }

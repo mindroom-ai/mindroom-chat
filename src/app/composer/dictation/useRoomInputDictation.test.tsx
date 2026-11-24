@@ -735,7 +735,12 @@ describe('useRoomInputDictation', () => {
         rootRef,
         createSession: () => created[index++]!.session,
       });
-      return <div ref={rootRef}>{latest.capsule}{latest.button}</div>;
+      return (
+        <div ref={rootRef}>
+          {latest.capsule}
+          {latest.button}
+        </div>
+      );
     }
     const view = render(
       <Provider store={store}>

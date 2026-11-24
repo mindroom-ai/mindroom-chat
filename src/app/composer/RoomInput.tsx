@@ -633,7 +633,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           const settled = ask ? true : settlePastes();
           if (settled !== true) {
             const ok = await settled.catch(() => false);
-            if (!ok || !mountedRef.current || dictationHandoffRef.current.ownershipKey !== startKey) {
+            if (
+              !ok ||
+              !mountedRef.current ||
+              dictationHandoffRef.current.ownershipKey !== startKey
+            ) {
               return;
             }
             if (settlePastes() !== true) return;
@@ -656,6 +660,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             ownUserId: mx.getUserId() ?? undefined,
             attachments: attachments.access,
             takeRootModelDraft,
+            restoreRootModelDraft: (target, content) =>
+              getModelController(mx).restoreRootModelDraft(target, content),
             uploadItem: transport.uploadItem,
             clearReplyDraft,
             resetComposer: composer.resetText,

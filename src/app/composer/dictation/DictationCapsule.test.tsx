@@ -233,9 +233,15 @@ describe('DictationCapsule', () => {
 
     expect(screen.getAllByText('composer.dictation.statusSending').length).toBeGreaterThan(0);
     expect(screen.getByTestId('dictation-preview').textContent).toBe('Draft in flight.');
-    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.cancel').disabled).toBe(true);
-    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.pause').disabled).toBe(true);
-    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(true);
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.cancel').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.pause').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(
+      true
+    );
 
     rerender(
       <DictationCapsule

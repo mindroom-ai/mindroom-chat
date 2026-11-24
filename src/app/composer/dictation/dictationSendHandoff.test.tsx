@@ -7,6 +7,7 @@ import { createEditor, Node, Transforms, type Descendant, type Editor } from 'sl
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
+import { threadModelContent } from '../../matrix/protocol/threadModel';
 import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { SlashCommand } from '../commands/useCommands';
 import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
@@ -28,15 +29,23 @@ import {
   startDetachedDictationSend,
   type StartDetachedDictationSendInput,
 } from './dictationSendHandoff';
-import type { DictationFinishResult, DictationSession, DictationSnapshot } from './dictationSession';
-import { useRoomInputDictation } from './useRoomInputDictation';
+import type {
+  DictationFinishResult,
+  DictationSession,
+  DictationSnapshot,
+} from './dictationSession';
+import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoomInputDictation';
 
 const mocks = vi.hoisted(() => ({
   sessionsList: [{ userId: '@alice:example.org' }] as Array<{ userId: string }>,
   dictationServer: {
     available: true,
     confirmed: true,
-    sessions: { baseUrl: 'https://mr.test', getToken: vi.fn(async () => 'tok'), invalidate: vi.fn() },
+    sessions: {
+      baseUrl: 'https://mr.test',
+      getToken: vi.fn(async () => 'tok'),
+      invalidate: vi.fn(),
+    },
   },
 }));
 
@@ -51,10 +60,15 @@ vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
   listSessions: () => mocks.sessionsList,
 }));
 vi.mock('./useDictationServer', () => ({ useDictationServer: () => mocks.dictationServer }));
-vi.mock('../../messages/content/voice/VoiceWaveform', () => ({ VoiceWaveform: () => <div data-testid="waveform" /> }));
-vi.mock('../../ui/glass/liquid/useLiquidGlass', () => ({ useLiquidGlass: () => ({ current: null }) }));
+vi.mock('../../messages/content/voice/VoiceWaveform', () => ({
+  VoiceWaveform: () => <div data-testid="waveform" />,
+}));
+vi.mock('../../ui/glass/liquid/useLiquidGlass', () => ({
+  useLiquidGlass: () => ({ current: null }),
+}));
 vi.mock('../../ui/IconTooltip', () => ({
-  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => children(() => undefined),
+  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
+    children(() => undefined),
 }));
 
 const deferred = <T,>() => {
@@ -68,9 +82,10 @@ const deferred = <T,>() => {
 const makeDoc = (text = ''): Descendant[] => [
   { type: 'paragraph', children: [{ text }] } as unknown as Descendant,
 ];
-const readEditorText = (editor: Editor): string => editor.children.map((n) => Node.string(n)).join('\n');
+const readEditorText = (editor: Editor): string =>
+  editor.children.map((n) => Node.string(n)).join('\n');
 const makeRoom = (roomId = '!room:example.org', name = 'General'): Room =>
-  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] }) as unknown as Room;
+  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] } as unknown as Room);
 
 const makeMockSession = (initialPhase: DictationSnapshot['phase'] = 'recording') => {
   const listeners = new Set<() => void>();
@@ -185,13 +200,21 @@ const makeStartInput = (
 ): StartDetachedDictationSendInput => {
   const room = overrides.room ?? makeRoom();
   const threadId = overrides.sendContext?.threadId;
-  const ownerKey = overrides.ownerKey ?? getRoomInputDraftKey('@alice:example.org', room.roomId, threadId);
+  const ownerKey =
+    overrides.ownerKey ?? getRoomInputDraftKey('@alice:example.org', room.roomId, threadId);
   return {
     mx: { getRoom: vi.fn(() => room) } as unknown as MatrixClient,
     ownerKey,
     draftKey: ownerKey,
     roomName: room.name,
-    sendContext: { roomId: room.roomId, room, threadId, replyDraft: undefined, threadingEnabled: true, signalBridgedRoom: false },
+    sendContext: {
+      roomId: room.roomId,
+      room,
+      threadId,
+      replyDraft: undefined,
+      threadingEnabled: true,
+      signalBridgedRoom: false,
+    },
     composerContext: { roomId: room.roomId, threadId },
     docSnapshot: makeDoc(),
     savedSelection: null,
@@ -222,22 +245,31 @@ describe('dictationAudioCapture immediate mic release', () => {
     const trackStop = vi.fn();
     const fakeStream = {
       getTracks: () => [{ stop: trackStop }],
-      getAudioTracks: () => [{ addEventListener: vi.fn(), removeEventListener: vi.fn(), stop: trackStop }],
+      getAudioTracks: () => [
+        { addEventListener: vi.fn(), removeEventListener: vi.fn(), stop: trackStop },
+      ],
     } as unknown as MediaStream;
 
     let workletPortOnMessage: ((e: MessageEvent) => void) | null = null;
     const postMessage = vi.fn();
     class FakeWorkletNode {
       port = {
-        get onmessage() { return workletPortOnMessage; },
-        set onmessage(fn: ((e: MessageEvent) => void) | null) { workletPortOnMessage = fn; },
+        get onmessage() {
+          return workletPortOnMessage;
+        },
+        set onmessage(fn: ((e: MessageEvent) => void) | null) {
+          workletPortOnMessage = fn;
+        },
         postMessage,
       };
       connect = vi.fn();
       disconnect = vi.fn();
     }
     const prevWorklet = globalThis.AudioWorkletNode;
-    Object.defineProperty(globalThis, 'AudioWorkletNode', { configurable: true, value: FakeWorkletNode });
+    Object.defineProperty(globalThis, 'AudioWorkletNode', {
+      configurable: true,
+      value: FakeWorkletNode,
+    });
     const fakeContext = {
       state: 'running',
       resume: vi.fn(async () => undefined),
@@ -265,7 +297,10 @@ describe('dictationAudioCapture immediate mic release', () => {
       deliver?.({ data: { type: 'stopped' } } as MessageEvent);
       await stopPromise;
     } finally {
-      Object.defineProperty(globalThis, 'AudioWorkletNode', { configurable: true, value: prevWorklet });
+      Object.defineProperty(globalThis, 'AudioWorkletNode', {
+        configurable: true,
+        value: prevWorklet,
+      });
     }
   });
 });
@@ -278,14 +313,23 @@ describe('dictationSendHandoff', () => {
     editor.children = [
       {
         type: 'paragraph',
-        children: [{ text: 'Hey ' }, createMentionElement('@bob:example.org', 'Bob', false), { text: '' }],
+        children: [
+          { text: 'Hey ' },
+          createMentionElement('@bob:example.org', 'Bob', false),
+          { text: '' },
+        ],
       } as unknown as Descendant,
     ];
     Transforms.select(editor, { path: [0, 2], offset: 0 });
     editor.marks = { bold: true };
 
     const file = new File(['img'], 'photo.png', { type: 'image/png' });
-    const fileItem: TUploadItem = { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } };
+    const fileItem: TUploadItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
     const { access } = makeAttachmentAccess([fileItem]);
     const uploadItem = vi.fn(async () => 'mxc://x/photo');
     const resetComposer = vi.fn();
@@ -360,7 +404,12 @@ describe('dictationSendHandoff', () => {
     const keyA = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadA');
     const replyDraft: IReplyDraft = { userId: '@bob:example.org', eventId: '$ev1', body: 'Orig' };
     const file = new File(['a'], 'doc.txt', { type: 'text/plain' });
-    const fileItem: TUploadItem = { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } };
+    const fileItem: TUploadItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
 
     // 1. Off-thread failure renders DictationSendErrorNotice; reopening on a new view clears it and retries.
     const s1 = makeMockSession();
@@ -375,7 +424,14 @@ describe('dictationSendHandoff', () => {
         room,
         session: s1.session,
         ownerKey: keyA,
-        sendContext: { roomId: room.roomId, room, threadId: '$threadA', replyDraft, threadingEnabled: true, signalBridgedRoom: false },
+        sendContext: {
+          roomId: room.roomId,
+          room,
+          threadId: '$threadA',
+          replyDraft,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
         composerContext: { roomId: room.roomId, threadId: '$threadA' },
         docSnapshot: makeDoc('Intro'),
         stagedSnapshot: [fileItem],
@@ -384,14 +440,25 @@ describe('dictationSendHandoff', () => {
         sessions: { startSendSession, restoreText: vi.fn() },
       })
     );
-    const notice = render(<Provider store={store}><DictationSendErrorNotice /></Provider>);
+    const notice = render(
+      <Provider store={store}>
+        <DictationSendErrorNotice />
+      </Provider>
+    );
     await act(async () => {
-      s1.resolveFinish({ status: 'failed', failedSegments: 1, completedSegments: 1, errorMessage: 'Timeout' });
+      s1.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 1,
+        errorMessage: 'Timeout',
+      });
       await Promise.resolve();
     });
     expect(startSendSession).not.toHaveBeenCalled();
     expect(store.get(detachedDictationErrorAtom)).toEqual({ ownerKey: keyA, roomName: 'Design' });
-    expect(screen.getByRole('alert').textContent).toContain('composer.dictation.sendFailedOffThread:Design');
+    expect(screen.getByRole('alert').textContent).toContain(
+      'composer.dictation.sendFailedOffThread:Design'
+    );
 
     const editor2 = withInlineElements(createEditor());
     editor2.children = makeDoc();
@@ -412,7 +479,11 @@ describe('dictationSendHandoff', () => {
       });
       return <div ref={rootRef}>{feat.capsule}</div>;
     }
-    const reopened = render(<Provider store={store}><Reopened viewId="view-2" /></Provider>);
+    const reopened = render(
+      <Provider store={store}>
+        <Reopened viewId="view-2" />
+      </Provider>
+    );
     expect(store.get(detachedDictationErrorAtom)).toBeUndefined();
     fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
     await act(async () => {
@@ -428,9 +499,22 @@ describe('dictationSendHandoff', () => {
 
     // 2. Insert partial merges partial speech into original draft and restores into live editor.
     const s2 = makeMockSession();
-    startDetachedDictationSend(makeStartInput({ store, room, session: s2.session, ownerKey: keyA, docSnapshot: makeDoc('Base') }));
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: s2.session,
+        ownerKey: keyA,
+        docSnapshot: makeDoc('Base'),
+      })
+    );
     await act(async () => {
-      s2.resolveFinish({ status: 'failed', failedSegments: 1, completedSegments: 1, errorMessage: 'Down' });
+      s2.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 1,
+        errorMessage: 'Down',
+      });
       await Promise.resolve();
     });
     expect(store.get(detachedDictationErrorAtom)).toBeUndefined();
@@ -448,7 +532,14 @@ describe('dictationSendHandoff', () => {
         room,
         session: s3.session,
         ownerKey: keyA,
-        sendContext: { roomId: room.roomId, room, threadId: '$threadA', replyDraft, threadingEnabled: true, signalBridgedRoom: false },
+        sendContext: {
+          roomId: room.roomId,
+          room,
+          threadId: '$threadA',
+          replyDraft,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
         docSnapshot: makeDoc('Original draft'),
         stagedSnapshot: [fileItem],
         tracksEnrollment: true,
@@ -457,7 +548,12 @@ describe('dictationSendHandoff', () => {
       })
     );
     await act(async () => {
-      s3.resolveFinish({ status: 'failed', failedSegments: 1, completedSegments: 0, errorMessage: 'Down' });
+      s3.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 0,
+        errorMessage: 'Down',
+      });
       await Promise.resolve();
     });
     fireEvent.click(screen.getByText('composer.dictation.discard'));
@@ -520,14 +616,26 @@ describe('dictationSendHandoff', () => {
       });
       return <div ref={rootRef}>{feat.capsule}</div>;
     }
-    render(<Provider store={store}><MountedComposer /></Provider>);
+    render(
+      <Provider store={store}>
+        <MountedComposer />
+      </Provider>
+    );
 
     // Empty speech + empty composer -> no send + no-speech banner.
     const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
       async () => undefined
     );
     const sEmpty = makeMockSession();
-    startDetachedDictationSend(makeStartInput({ store, room, session: sEmpty.session, ownerKey: key, sessions: { startSendSession, restoreText: vi.fn() } }));
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sEmpty.session,
+        ownerKey: key,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
+    );
     await act(async () => {
       sEmpty.resolveFinish({ status: 'completed', text: '   ' });
       await Promise.resolve();
@@ -538,13 +646,22 @@ describe('dictationSendHandoff', () => {
     // Empty speech + existing text -> sends existing text normally.
     const sExisting = makeMockSession();
     startDetachedDictationSend(
-      makeStartInput({ store, room, session: sExisting.session, ownerKey: key, docSnapshot: makeDoc('Existing text'), sessions: { startSendSession, restoreText: vi.fn() } })
+      makeStartInput({
+        store,
+        room,
+        session: sExisting.session,
+        ownerKey: key,
+        docSnapshot: makeDoc('Existing text'),
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
     );
     await act(async () => {
       sExisting.resolveFinish({ status: 'completed', text: '' });
       await Promise.resolve();
     });
-    expect(startSendSession).toHaveBeenCalledWith(expect.objectContaining({ textContent: expect.objectContaining({ body: 'Existing text' }) }));
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({ textContent: expect.objectContaining({ body: 'Existing text' }) })
+    );
 
     // Acting (/leave) and unknown (/bogus) commands restore for review instead of running silently.
     const leaveRun = vi.fn(async () => undefined);
@@ -554,7 +671,15 @@ describe('dictationSendHandoff', () => {
     startSendSession.mockClear();
     const sActing = makeMockSession();
     startDetachedDictationSend(
-      makeStartInput({ store, room, session: sActing.session, ownerKey: key, docSnapshot: makeDoc('/leave'), commandsSnapshot, sessions: { startSendSession, restoreText: vi.fn() } })
+      makeStartInput({
+        store,
+        room,
+        session: sActing.session,
+        ownerKey: key,
+        docSnapshot: makeDoc('/leave'),
+        commandsSnapshot,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
     );
     await act(async () => {
       sActing.resolveFinish({ status: 'completed', text: 'now' });
@@ -566,13 +691,23 @@ describe('dictationSendHandoff', () => {
 
     const sUnknown = makeMockSession();
     startDetachedDictationSend(
-      makeStartInput({ store, room, session: sUnknown.session, ownerKey: key, docSnapshot: makeDoc('/bogus'), commandsSnapshot, sessions: { startSendSession, restoreText: vi.fn() } })
+      makeStartInput({
+        store,
+        room,
+        session: sUnknown.session,
+        ownerKey: key,
+        docSnapshot: makeDoc('/bogus'),
+        commandsSnapshot,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
     );
     await act(async () => {
       sUnknown.resolveFinish({ status: 'completed', text: 'arg' });
       await Promise.resolve();
     });
-    expect(onCommandProblem).toHaveBeenCalledWith('featureUi.room.commandAutocomplete.unknown:/bogus');
+    expect(onCommandProblem).toHaveBeenCalledWith(
+      'featureUi.room.commandAutocomplete.unknown:/bogus'
+    );
     expect(startSendSession).not.toHaveBeenCalled();
 
     // Home ask wraps mention, passes beforeSend/onLocalEcho, and clears onSendingChange.
@@ -590,7 +725,12 @@ describe('dictationSendHandoff', () => {
         session: sAsk.session,
         ownerKey: key,
         parseCommands: false,
-        ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true, onSendingChange, onLocalEcho },
+        ask: {
+          agentUserId: '@mindroom_helper:example.org',
+          canSend: () => true,
+          onSendingChange,
+          onLocalEcho,
+        },
         sessions: { startSendSession, restoreText: vi.fn() },
       })
     );
@@ -598,7 +738,9 @@ describe('dictationSendHandoff', () => {
       sAsk.resolveFinish({ status: 'completed', text: 'summarize today' });
       await Promise.resolve();
     });
-    expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain('@mindroom_helper:example.org');
+    expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain(
+      '@mindroom_helper:example.org'
+    );
     expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', room);
     expect(onSendingChange).toHaveBeenCalledWith(false);
 
@@ -611,5 +753,144 @@ describe('dictationSendHandoff', () => {
     );
     expect(readEditorText(merged)).toBe('Hello there');
     expect([...Node.texts(merged)].map(([t]) => t)).toEqual([{ text: 'Hello there' }]);
+  });
+
+  it('blocks follow-up sends on the same thread while sending without blocking another thread, pins empty batch, and restores rootModel on recovery/no-speech', async () => {
+    const store = createStore();
+    const room = makeRoom();
+    const keyA = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadA');
+    const keyB = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadB');
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    let latest!: RoomInputDictationFeature;
+
+    function ThreadComposer({ threadId, sendKey }: { threadId: string; sendKey: string }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      latest = useRoomInputDictation({
+        editor,
+        roomId: room.roomId,
+        threadId,
+        ownerKey: `${sendKey}:view-1`,
+        sendKey,
+        rootRef,
+        createSession: () => makeMockSession('idle').session,
+      });
+      return <div ref={rootRef}>{latest.capsule}</div>;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <ThreadComposer threadId="$threadA" sendKey={keyA} />
+      </Provider>
+    );
+    const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
+      async () => undefined
+    );
+    const s1 = makeMockSession();
+    act(() => {
+      startDetachedDictationSend(
+        makeStartInput({
+          store,
+          room,
+          session: s1.session,
+          ownerKey: keyA,
+          sessions: { startSendSession, restoreText: vi.fn() },
+        })
+      );
+    });
+
+    // Thread A blocks follow-up sends while its detached dictation is still finishing.
+    expect(latest.blocksSubmit).toBe(true);
+    expect(latest.getLiveStatus()).toBe('blocked');
+
+    // Switching to Thread B is completely unblocked.
+    view.rerender(
+      <Provider store={store}>
+        <ThreadComposer threadId="$threadB" sendKey={keyB} />
+      </Provider>
+    );
+    expect(latest.blocksSubmit).toBe(false);
+    expect(latest.getLiveStatus()).toBe('idle');
+
+    // Switch back to Thread A and finish: sends explicit empty batch (never rescans newly staged files) and unblocks.
+    view.rerender(
+      <Provider store={store}>
+        <ThreadComposer threadId="$threadA" sendKey={keyA} />
+      </Provider>
+    );
+    await act(async () => {
+      s1.resolveFinish({ status: 'completed', text: 'first message' });
+      await Promise.resolve();
+    });
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({ batch: { fileItems: [] } })
+    );
+    expect(latest.blocksSubmit).toBe(false);
+    expect(latest.getLiveStatus()).toBe('idle');
+
+    // Root model draft is restored on Insert partial, No speech, and skipsRootModel command sends.
+    const rootModel = threadModelContent('@router:example.org', 'DEV1', 'fast@high');
+    const restoreRootModelDraft = vi.fn();
+
+    const sPartial = makeMockSession();
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sPartial.session,
+        ownerKey: keyA,
+        rootModel,
+        restoreRootModelDraft,
+      })
+    );
+    await act(async () => {
+      sPartial.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 1,
+        errorMessage: 'Err',
+      });
+      await Promise.resolve();
+    });
+    expect(restoreRootModelDraft).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('composer.dictation.insertPartial'));
+    expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
+
+    restoreRootModelDraft.mockClear();
+    const sNoSpeech = makeMockSession();
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sNoSpeech.session,
+        ownerKey: keyA,
+        rootModel,
+        restoreRootModelDraft,
+      })
+    );
+    await act(async () => {
+      sNoSpeech.resolveFinish({ status: 'completed', text: '' });
+      await Promise.resolve();
+    });
+    expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
+
+    restoreRootModelDraft.mockClear();
+    const sCmd = makeMockSession();
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sCmd.session,
+        ownerKey: keyA,
+        rootModel,
+        restoreRootModelDraft,
+      })
+    );
+    await act(async () => {
+      sCmd.resolveFinish({ status: 'completed', text: '/me waves' });
+      await Promise.resolve();
+    });
+    expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
+    view.unmount();
   });
 });

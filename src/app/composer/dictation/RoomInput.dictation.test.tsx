@@ -29,7 +29,9 @@ const layoutState = vi.hoisted(
     editorKeyDown: ((event: React.KeyboardEvent<HTMLDivElement>) => void) | undefined;
     startSendSession: ReturnType<typeof vi.fn>;
     handoffMock: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
-    detachForSend: ReturnType<typeof vi.fn<() => { session: { finish: ReturnType<typeof vi.fn> }; savedSelection: null }>>;
+    detachForSend: ReturnType<
+      typeof vi.fn<() => { session: { finish: ReturnType<typeof vi.fn> }; savedSelection: null }>
+    >;
   } => ({
     dictationAvailable: true,
     dictationBlocksSubmit: false,
@@ -79,8 +81,8 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
       layoutState.dictationBlocksSubmit
         ? 'blocked'
         : layoutState.dictationCanSend
-          ? 'sendable'
-          : 'idle',
+        ? 'sendable'
+        : 'idle',
     detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
   }),
 }));
@@ -478,7 +480,9 @@ describe('RoomInput dictation layout and submit guard', () => {
     layoutState.handoffMock.mockClear();
     fireEvent.click(screen.getByTestId('send-btn'));
     expect(layoutState.handoffMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ask: expect.objectContaining({ agentUserId: '@mindroom_assistant:example.org' }) })
+      expect.objectContaining({
+        ask: expect.objectContaining({ agentUserId: '@mindroom_assistant:example.org' }),
+      })
     );
     allowedAsk.unmount();
 

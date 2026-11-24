@@ -289,6 +289,9 @@ export const useRoomInputDictation = ({
   }, [clearSelectionRef, confirmed, editor, ownerKey, releaseOwnership, rootRef, sendKey, store]);
 
   const getLiveStatus = useCallback((): 'idle' | 'sendable' | 'blocked' => {
+    if (store.get(detachedDictationSendsAtom).get(sendKey)?.status === 'sending') {
+      return 'blocked';
+    }
     const liveSession = sessionBoxRef.current.session;
     if (!liveSession || detachedSessionsRef.current.has(liveSession)) return 'idle';
     const phase = liveSession.getSnapshot().phase;
@@ -297,7 +300,7 @@ export const useRoomInputDictation = ({
       return 'sendable';
     }
     return 'blocked';
-  }, [threadId]);
+  }, [sendKey, store, threadId]);
 
   const detachForSend = useCallback(() => {
     const liveSession = sessionBoxRef.current.session;
@@ -455,9 +458,13 @@ export const useRoomInputDictation = ({
     return () => observer.disconnect();
   }, [localPhase, rootRef, session]);
 
+  const detachedSending = detachedEntry?.status === 'sending';
   const active = localPhase !== 'idle';
-  const canSend = (localPhase === 'recording' || localPhase === 'paused') && !isLocalEchoEventId(threadId);
-  const blocksSubmit = active && !canSend;
+  const canSend =
+    !detachedEntry &&
+    (localPhase === 'recording' || localPhase === 'paused') &&
+    !isLocalEchoEventId(threadId);
+  const blocksSubmit = detachedSending || (active && !canSend);
   const disabled =
     !confirmed ||
     !session ||
@@ -508,8 +515,8 @@ export const useRoomInputDictation = ({
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
       }
     : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
-      ? { ...displaySnapshot, errorMessage: localNotice }
-      : displaySnapshot;
+    ? { ...displaySnapshot, errorMessage: localNotice }
+    : displaySnapshot;
 
   const capsule =
     capsuleSnapshot.phase !== 'idle' || capsuleSnapshot.errorMessage !== undefined ? (

@@ -2684,7 +2684,7 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
   });
 
   it('isolates an off-context background send on a fresh slot while another thread sends', async () => {
-    const { api, mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
+    const { mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
     const fileB = createFile('thread-b.png');
     changeThread('$threadB');
     current().selectedFilesRef.current = [createUploadItem(fileB)];
@@ -2729,5 +2729,22 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
     });
     expect(mx.sendMessage).not.toHaveBeenCalled();
     expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('does not grab files staged after Finish & Send when batch has an empty fileItems list', async () => {
+    const { api, mx } = renderHarness();
+    const laterFile = createFile('next-message.png');
+    api.selectedFilesRef.current = [createUploadItem(laterFile)];
+    api.uploadsRef.current = [successUpload(laterFile)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated only' },
+        batch: { fileItems: [] },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['dictated only']);
+    expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([laterFile]);
   });
 });

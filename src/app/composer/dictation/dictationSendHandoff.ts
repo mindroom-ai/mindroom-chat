@@ -1,6 +1,13 @@
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
-import { createEditor, Range as SlateRange, Transforms, type BaseRange, type Descendant, type Editor } from 'slate';
+import {
+  createEditor,
+  Range as SlateRange,
+  Transforms,
+  type BaseRange,
+  type Descendant,
+  type Editor,
+} from 'slate';
 import { isEmptyEditor, withInlineElements } from '../../editor/utils';
 import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
@@ -31,7 +38,12 @@ import { voiceAccountGuard } from '../voice/liveVoiceRecording';
 import type { DictationFinishResult, DictationSession } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 
-export { detachedDictationErrorAtom, detachedDictationSendsAtom, type DetachedDictationError, type DetachedDictationSend };
+export {
+  detachedDictationErrorAtom,
+  detachedDictationSendsAtom,
+  type DetachedDictationError,
+  type DetachedDictationSend,
+};
 
 type JotaiStore = ReturnType<typeof createStore>;
 type ComposerContext = { roomId: string; threadId: string | undefined };
@@ -142,12 +154,20 @@ export type StartDetachedDictationSendInput = {
     restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
   };
   restoreReplyDraft: (replyDraft: IReplyDraft) => void;
+  restoreRootModelDraft?: (room: Room, content: ThreadModelContent) => void;
   dismissLostNotices?: () => void;
 };
 
 export type HandoffComposerDictationInput = Omit<
   StartDetachedDictationSendInput,
-  'docSnapshot' | 'savedSelection' | 'pendingMarks' | 'stagedSnapshot' | 'tracksEnrollment' | 'rootModel' | 'sendContext' | 'commandsSnapshot'
+  | 'docSnapshot'
+  | 'savedSelection'
+  | 'pendingMarks'
+  | 'stagedSnapshot'
+  | 'tracksEnrollment'
+  | 'rootModel'
+  | 'sendContext'
+  | 'commandsSnapshot'
 > & {
   editor: Editor;
   room: Room;
@@ -176,9 +196,7 @@ export const handoffComposerDictationSend = (
   const pendingMarks = editor.marks ? { ...editor.marks } : null;
   const savedSelection =
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
-  const stagedSnapshot = ask
-    ? []
-    : attachments.snapshot().staged.filter((item) => !item.prepError);
+  const stagedSnapshot = ask ? [] : attachments.snapshot().staged.filter((item) => !item.prepError);
   const rootModel =
     !ask &&
     !params.forkFrom &&
@@ -285,6 +303,9 @@ export const startDetachedDictationSend = (
       if (owner) owner.restoreReplyDraft(replyDraft);
       else input.restoreReplyDraft(replyDraft);
     }
+    if (input.rootModel) {
+      input.restoreRootModelDraft?.(mx.getRoom(roomId) ?? sendContext.room, input.rootModel);
+    }
     const activeStaged = getActiveStaged();
     if (activeStaged.length > 0) owner?.restoreAttachments(roomId, activeStaged);
     clearEnrollments();
@@ -292,7 +313,17 @@ export const startDetachedDictationSend = (
   };
 
   const setEntryStatus = (status: 'sending' | 'failed'): DetachedDictationSend => {
-    currentEntry = { ownerKey, roomId, roomName: input.roomName, status, session, retryAndSend, insertPartial, discard, abort };
+    currentEntry = {
+      ownerKey,
+      roomId,
+      roomName: input.roomName,
+      status,
+      session,
+      retryAndSend,
+      insertPartial,
+      discard,
+      abort,
+    };
     if (sameAccount()) {
       const next = new Map(store.get(detachedDictationSendsAtom));
       next.set(ownerKey, currentEntry);
@@ -321,7 +352,12 @@ export const startDetachedDictationSend = (
       return;
     }
 
-    const scratch = mergeDictatedDoc(input.docSnapshot, result.text, input.savedSelection, input.pendingMarks);
+    const scratch = mergeDictatedDoc(
+      input.docSnapshot,
+      result.text,
+      input.savedSelection,
+      input.pendingMarks
+    );
     const mergedFallback = structuredClone(scratch.children);
     if (!ask) {
       const unknownCommand = readUnknownCommand(scratch.children, input.commandsSnapshot);
@@ -336,9 +372,18 @@ export const startDetachedDictationSend = (
       }
     }
 
-    const rawContent = composeTextMessage(scratch, input.isMarkdown, input.ownUserId, input.linkSchemes, input.parseCommands);
+    const rawContent = composeTextMessage(
+      scratch,
+      input.isMarkdown,
+      input.ownUserId,
+      input.linkSchemes,
+      input.parseCommands
+    );
     const textContent = rawContent
-      ? { ...(ask ? withMention(rawContent, ask.agentUserId) : rawContent), [MID_TURN_MODE_KEY]: input.midTurnMode }
+      ? {
+          ...(ask ? withMention(rawContent, ask.agentUserId) : rawContent),
+          [MID_TURN_MODE_KEY]: input.midTurnMode,
+        }
       : undefined;
     const activeStaged = getActiveStaged();
     if (!textContent && (ask || activeStaged.length === 0)) {
@@ -353,7 +398,11 @@ export const startDetachedDictationSend = (
       return;
     }
 
-    const effectiveRootModel = skipsRootModel(textContent) && activeStaged.length === 0 ? undefined : input.rootModel;
+    const effectiveRootModel =
+      skipsRootModel(textContent) && activeStaged.length === 0 ? undefined : input.rootModel;
+    if (input.rootModel && !effectiveRootModel) {
+      input.restoreRootModelDraft?.(liveRoom, input.rootModel);
+    }
     removeEntry();
     clearMatchingError();
     if (textContent && !ask) input.dismissLostNotices?.();
@@ -364,8 +413,12 @@ export const startDetachedDictationSend = (
         midTurnMode: input.midTurnMode,
         explicitMidTurnMode: input.explicitMidTurnMode,
         rootModel: effectiveRootModel ?? null,
-        batch: activeStaged.length > 0 ? { fileItems: activeStaged } : undefined,
-        context: { ...sendContext, room: liveRoom, signalBridgedRoom: isSignalBridgeRoom(liveRoom) },
+        batch: { fileItems: activeStaged },
+        context: {
+          ...sendContext,
+          room: liveRoom,
+          signalBridgedRoom: isSignalBridgeRoom(liveRoom),
+        },
         composerFallback: mergedFallback,
         composerContext,
         composerAlreadyReset: true,
@@ -388,12 +441,19 @@ export const startDetachedDictationSend = (
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
     clearMatchingError();
     setEntryStatus('sending');
-    void session.retryFailed().then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
+    void session
+      .retryFailed()
+      .then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
   }
 
   function insertPartial() {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
-    const scratch = mergeDictatedDoc(input.docSnapshot, session.takePartialText(), input.savedSelection, input.pendingMarks);
+    const scratch = mergeDictatedDoc(
+      input.docSnapshot,
+      session.takePartialText(),
+      input.savedSelection,
+      input.pendingMarks
+    );
     restoreDraftAndCleanup(structuredClone(scratch.children));
   }
 
