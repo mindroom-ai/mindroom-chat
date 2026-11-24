@@ -2637,3 +2637,114 @@ describe('useRoomInputSendSessionController root thread model stamping', () => {
     }
   });
 });
+
+describe('useRoomInputSendSessionController detached handoff invariants', () => {
+  it('parks a post-unmount startSendSession so a mounted composer for that key adopts it', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('post-unmount.png');
+    const item = createUploadItem(file);
+    api.sendSessionUploadItemsRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    unmount();
+
+    const reopened = mountAgain();
+    expect(reopened.current().joinedSendPending).toBe(false);
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated caption' },
+        batch: { fileItems: [item] },
+        composerContext: { roomId: '!room:example.org', threadId: undefined },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(reopened.current().joinedSendPending).toBe(true);
+
+    reopened.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/post-unmount.png' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['post-unmount.png', 'dictated caption']));
+  });
+
+  it('excludes already-enrolled files when starting a non-batch send on the same composer', async () => {
+    const { api, mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
+    const fileA = createFile('thread-a.png');
+    const itemA = createUploadItem(fileA);
+    api.selectedFilesRef.current = [itemA];
+    api.sendSessionUploadItemsRef.current = [itemA];
+    api.uploadsRef.current = [successUpload(fileA)];
+
+    changeThread('$threadB');
+    await act(async () => {
+      await current().startSendSession({ textContent: { msgtype: 'm.text', body: 'thread B only' } });
+    });
+    expect(sentBodies(mx)).toEqual(['thread B only']);
+  });
+
+  it('isolates an off-context background send on a fresh slot while another thread sends', async () => {
+    const { mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
+    const fileB = createFile('thread-b.png');
+    changeThread('$threadB');
+    current().selectedFilesRef.current = [createUploadItem(fileB)];
+    current().uploadsRef.current = [loadingUpload(fileB)];
+    await act(async () => {
+      await current().startSendSession();
+    });
+
+    await act(async () => {
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'from thread A' },
+        context: {
+          roomId: '!room:example.org',
+          room: { roomId: '!room:example.org', getEventForTxnId: mx.getEventForTxnId } as never,
+          threadId: '$threadA',
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        composerContext: { roomId: '!room:example.org', threadId: '$threadA' },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['from thread A']);
+    expect(current().hasActiveSendSession()).toBe(true);
+  });
+
+  it('guards upload sends with beforeSend and clears the session when refused', async () => {
+    const { api, mx } = renderHarness();
+    const file = createFile('blocked.png');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption' },
+        batch: { fileItems: [item] },
+        beforeSend: () => false,
+        composerAlreadyReset: true,
+      });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('does not grab files staged after Finish & Send when batch has an empty fileItems list', async () => {
+    const { api, mx } = renderHarness();
+    const laterFile = createFile('next-message.png');
+    api.selectedFilesRef.current = [createUploadItem(laterFile)];
+    api.uploadsRef.current = [successUpload(laterFile)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated only' },
+        batch: { fileItems: [] },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['dictated only']);
+    expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([laterFile]);
+  });
+});

@@ -222,4 +222,45 @@ describe('DictationCapsule', () => {
     );
     expect(preview.scrollTop).toBe(260);
   });
+
+  it('renders disabled controls with statusSending and Retry & send recovery when sending is true', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'finishing', previewText: 'Draft in flight.' })}
+        sending
+        {...h}
+      />
+    );
+
+    expect(screen.getAllByText('composer.dictation.statusSending').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dictation-preview').textContent).toBe('Draft in flight.');
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.cancel').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.pause').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(
+      true
+    );
+
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'failed',
+          failedSegments: 1,
+          hasPartialText: true,
+          previewText: 'Partial text.',
+          errorMessage: 'Network error',
+        })}
+        sending
+        {...h}
+      />
+    );
+
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+    expect(h.onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('composer.dictation.retry')).toBeNull();
+  });
 });

@@ -2826,4 +2826,29 @@ describe('ModelController main-room next-thread draft', () => {
     h1.controller.dispose();
     expect(h1.controller.takeRootModelDraft(h1.room)).toBeUndefined();
   });
+
+  it('restores a consumed next-thread root model draft without clobbering a newer pick', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+    const taken = h.controller.takeRootModelDraft(h.room)!;
+    expect(taken).toBeDefined();
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBeNull();
+
+    // Restores model and reasoning level when no newer choice exists.
+    h.controller.restoreRootModelDraft(h.room, taken);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+
+    // Does not clobber a newer pick made after consumption.
+    const takenAgain = h.controller.takeRootModelDraft(h.room)!;
+    h.controller.selectModel(h.room, undefined, 'fast');
+    h.controller.restoreRootModelDraft(h.room, takenAgain);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'fast',
+      reasoning: null,
+    });
+  });
 });
