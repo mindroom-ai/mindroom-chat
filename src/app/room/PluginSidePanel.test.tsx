@@ -5,8 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RoomSidePanel } from '../plugins/sidePanels';
 import { PluginSidePanel } from './PluginSidePanel';
 
+const sampleMemoryMock = vi.hoisted(() => vi.fn());
+
 vi.mock('../bug-reports/error-reporting/errorReporting', () => ({
   reportBoundaryError: () => undefined,
+}));
+
+vi.mock('../diagnostics/memorySampler', () => ({
+  sampleMemory: sampleMemoryMock,
 }));
 
 const titled = (Component: RoomSidePanel['Component']): RoomSidePanel => ({
@@ -31,7 +37,10 @@ const titleRow = () => screen.queryByRole('heading', { name: 'Notes' });
 const close = () => screen.queryByRole('button', { name: 'Close Notes' });
 
 describe('PluginSidePanel', () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    sampleMemoryMock.mockClear();
+  });
 
   it('draws the title row and Close above a panel by default', () => {
     show({ ...titled(() => <p>Notes body</p>), title: undefined });
@@ -73,5 +82,53 @@ describe('PluginSidePanel', () => {
     show({ ...titled(() => <p>Notes body</p>), frame: 'own' });
     expect(screen.queryByRole('region', { name: 'Notes' })).toBeNull();
     expect(screen.getByText('Notes body')).not.toBeNull();
+  });
+
+  it('samples memory on mount, request change, and unmount without spamming on unrelated re-renders', () => {
+    const Body = () => <p>Notes body</p>;
+    const panel = titled(Body);
+    const requestA = { pr: 1 };
+    const rendered = render(
+      <PluginSidePanel
+        panel={panel}
+        roomId="!lobby:example.org"
+        request={requestA}
+        onClose={() => undefined}
+      />
+    );
+    expect(sampleMemoryMock.mock.calls).toEqual([['plugin_panel_open']]);
+
+    // Unrelated re-render with a fresh panel wrapper and onClose keeps the same panel/request.
+    rendered.rerender(
+      <PluginSidePanel
+        panel={{ ...panel, label: 'Renamed Notes' }}
+        roomId="!lobby:example.org"
+        request={requestA}
+        onClose={() => undefined}
+      />
+    );
+    expect(sampleMemoryMock.mock.calls).toEqual([['plugin_panel_open']]);
+
+    rendered.rerender(
+      <PluginSidePanel
+        panel={panel}
+        roomId="!lobby:example.org"
+        request={{ pr: 2 }}
+        onClose={() => undefined}
+      />
+    );
+    expect(sampleMemoryMock.mock.calls).toEqual([
+      ['plugin_panel_open'],
+      ['plugin_panel_close'],
+      ['plugin_panel_open'],
+    ]);
+
+    rendered.unmount();
+    expect(sampleMemoryMock.mock.calls).toEqual([
+      ['plugin_panel_open'],
+      ['plugin_panel_close'],
+      ['plugin_panel_open'],
+      ['plugin_panel_close'],
+    ]);
   });
 });

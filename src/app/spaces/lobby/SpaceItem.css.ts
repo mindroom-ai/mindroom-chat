@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
-import { ENABLED_CARD_ACTION } from '../../lib/cardAction';
+import { CARD_ACTION_ATTRIBUTE, ENABLED_CARD_ACTION } from '../../lib/cardAction';
 
 /**
  * A space heading in the lobby. A line under it marks a closed space (its rooms hidden) and a
@@ -10,6 +10,7 @@ import { ENABLED_CARD_ACTION } from '../../lib/cardAction';
 export const SpaceItemCard = recipe({
   base: {
     minWidth: 0,
+    marginBlockStart: config.space.S400,
     paddingBlock: config.space.S100,
     paddingInlineEnd: config.space.S100,
     borderBlockEnd: `${config.borderWidth.B300} solid transparent`,
@@ -31,10 +32,18 @@ export const SpaceItemCard = recipe({
 });
 
 // The space name chip; its text truncates instead of pushing the controls out of the row.
+// When used as a joined section heading (not a card-action join pill), aligns flush-left with
+// Rooms and the room cards below.
 export const HeaderChip = style({
   minWidth: 0,
   maxWidth: '100%',
   paddingInline: config.space.S300,
+  selectors: {
+    [`&:not([${CARD_ACTION_ATTRIBUTE}])`]: {
+      paddingInline: config.space.S100,
+      marginInlineStart: `calc(-1 * ${config.space.S100})`,
+    },
+  },
 });
 
 // Holds the line placeholder at the chip's height so the heading does not jump when it loads.

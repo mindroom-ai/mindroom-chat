@@ -1,7 +1,8 @@
 import { lazy, type ComponentType, type ReactNode } from 'react';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { Room } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -15,9 +16,12 @@ import { ArchiveRoomMenuItem } from '../rooms/archive/ArchiveRoomMenuItem';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
+import { roomToParentsAtom } from '../matrix/state/roomToParents';
+import { isInSpace } from '../matrix/state/spaceAncestors';
 import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
@@ -25,8 +29,10 @@ import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { copyToClipboard } from '../lib/dom';
+import { matchesEnum } from '../lib/matchesEnum';
 import { revealDirectionControls } from '../ui/directional';
 import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
+import { removeSpaceChild } from '../spaces/lobby/spaceChildren';
 
 // Each room row has a menu: its dialogs load the first time someone opens one.
 const InviteUserPrompt = lazy(() =>
@@ -54,6 +60,8 @@ export type RoomActionProps = {
   room: Room;
   /** The space the room is listed or open in, which its search and new sub-rooms stay in. */
   spaceId?: string;
+  /** The immediate space listing this row in the sidebar; offers `Remove from <space>` when permitted. */
+  removeFromSpaceId?: string;
   /** The thread open in the room (the room header's menu), which Jump to Time stays in. */
   threadId?: string;
   /** The side an entry's own menu opens on (the notification modes), away from the screen edge. */
@@ -178,13 +186,82 @@ function TakeOffParentEntry({
   );
 }
 
-/** Remove from, for each chat room the room is a sub-room of. */
-function TakeOffEntry({ room, close }: RoomActionProps) {
+/** Removes `room` from the space section listing it when the user may edit `m.space.child` there. */
+function RemoveFromSpaceEntry({
+  room,
+  parentSpace,
+  close,
+}: {
+  room: Room;
+  parentSpace: Room;
+  close: () => void;
+}) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const permissions = useRoomPermissions(useRoomCreators(parentSpace), usePowerLevels(parentSpace));
+  const parentName = useRoomName(parentSpace);
+  if (!permissions.stateEvent(StateEvent.SpaceChild, client.getSafeUserId())) return null;
+  return (
+    <MenuEntry
+      icon={Icons.Delete}
+      critical
+      label={t('featureUi.subRooms.takeOff', { name: revealDirectionControls(parentName) })}
+      onSelect={() => {
+        close();
+        void removeSpaceChild(client, parentSpace.roomId, room.roomId);
+      }}
+    />
+  );
+}
+
+const isJoinedSpaceRoom = (room: Room | null): room is Room =>
+  Boolean(room && room.isSpaceRoom() && matchesEnum(room.getMyMembership(), KnownMembership.Join));
+
+/**
+ * Resolves the immediate joined space `roomId` may be unlinked from: explicit `removeFromSpaceId`
+ * (sidebar row section) when it is a direct parent, else `spaceId` (room header) when direct, or
+ * the unique direct joined sub-space reaching `spaceId` upward.
+ */
+const resolveRemoveFromSpaceId = (
+  client: MatrixClient,
+  roomId: string,
+  roomToParents: ReadonlyMap<string, ReadonlySet<string>>,
+  removeFromSpaceId: string | undefined,
+  spaceId: string | undefined
+): string | undefined => {
+  const directParents = roomToParents.get(roomId);
+  if (!directParents || directParents.size === 0) return undefined;
+  if (removeFromSpaceId)
+    return directParents.has(removeFromSpaceId) ? removeFromSpaceId : undefined;
+  if (!spaceId) return undefined;
+  if (directParents.has(spaceId)) return spaceId;
+  const matches = [...directParents].filter(
+    (parentId) =>
+      isJoinedSpaceRoom(client.getRoom(parentId)) && isInSpace(roomToParents, parentId, spaceId)
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
+/** Remove from, for each chat room the room is a sub-room of and the space listing it directly. */
+function TakeOffEntry({ room, spaceId, removeFromSpaceId, close }: RoomActionProps) {
+  const client = useMatrixClient();
+  const parentRooms = useParentRooms(room);
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const targetSpaceId = resolveRemoveFromSpaceId(
+    client,
+    room.roomId,
+    roomToParents,
+    removeFromSpaceId,
+    spaceId
+  );
+  const candidateSpace = targetSpaceId ? client.getRoom(targetSpaceId) : null;
+  const parentSpace = isJoinedSpaceRoom(candidateSpace) ? candidateSpace : undefined;
   return (
     <>
-      {useParentRooms(room).map((parent) => (
+      {parentRooms.map((parent) => (
         <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
       ))}
+      {parentSpace && <RemoveFromSpaceEntry room={room} parentSpace={parentSpace} close={close} />}
     </>
   );
 }

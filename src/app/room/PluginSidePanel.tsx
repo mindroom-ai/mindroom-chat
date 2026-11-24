@@ -1,8 +1,9 @@
-import { type ReactNode, Suspense } from 'react';
+import { type ReactNode, Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Box, Icon, IconButton, Icons, Text, config } from 'folds';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
+import { sampleMemory } from '../diagnostics/memorySampler';
 import { pluginFailure } from '../plugins/pluginFailure';
 import type { RoomSidePanel } from '../plugins/sidePanels';
 import { Header, Panel } from '../ui/panels/SidePanel.css';
@@ -14,7 +15,7 @@ import { Header, Panel } from '../ui/panels/SidePanel.css';
  * still be closed, until another request comes.
  */
 export function PluginSidePanel({
-  panel: { label, tag, Component, frame, title },
+  panel: { id, label, tag, Component, frame, title },
   roomId,
   request,
   onClose,
@@ -25,6 +26,13 @@ export function PluginSidePanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  useEffect(() => {
+    sampleMemory('plugin_panel_open');
+    return () => {
+      sampleMemory('plugin_panel_close');
+    };
+    // Sample when the shown panel, room, or request mounts/changes and on close, not on unrelated re-renders.
+  }, [id, Component, roomId, request]);
   const own = frame === 'own';
   // Only without its own frame: `frame: 'own'` wins.
   const titled = !own && title === 'own';
