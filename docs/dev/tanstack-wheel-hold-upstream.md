@@ -21,7 +21,7 @@
 +      this._wheelTimer = null; this._wheelLive = false
 +      if (live !== null && this._holdOffset !== 0) this.scrollOffset = Math.max(0, live + this._holdOffset)
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
-+    }, 150)
++    }, 250)
 +  }
 -  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll
 +  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !this._wheelLive
@@ -32,8 +32,7 @@
 **Problem & repro:** If app/driver code writes `scrollElement.scrollTop` synchronously and an item resizes before the `scroll` event delivers the new offset, `applyScrollAdjustment` writes from the stale cached `scrollOffset` and snaps the scroller back. Reproduce by mutating `el.scrollTop += 600` (without a scroll event) then calling `resizeItem(aboveIdx, size - 20)`.
 
 ```diff
-   // applyScrollAdjustment() else-branch:
--  const offset = this.getScrollOffset()
+-  const offset = this.getScrollOffset() // in applyScrollAdjustment() else-branch
 +  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
 +  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
 -  if (this.pendingWrite === write) this.scrollOffset += delta
