@@ -306,22 +306,20 @@ const SKELETON_ROWS = [
  * plus sticky skeleton placeholders so landing anywhere inside the reserve (Home, thumb drag,
  * or fast fling) never displays blank space.
  */
+const NOOP_LOAD_OLDER = () => undefined;
+
 export function ThreadHeadroomReserve({
   headroomPx,
   topInset,
-  loadError,
   showLoadOlder,
   paginatingBack,
   loading,
-  onLoadOlder,
 }: {
   headroomPx: number;
   topInset: string;
-  loadError: boolean;
   showLoadOlder: boolean;
   paginatingBack: boolean;
   loading: boolean;
-  onLoadOlder: () => void;
 }) {
   if (headroomPx <= 0) return null;
   const rounded = Math.round(headroomPx);
@@ -354,15 +352,13 @@ export function ThreadHeadroomReserve({
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ pointerEvents: 'auto' }}>
-          <ThreadLoadingLines
-            loadError={loadError}
-            showLoadOlder={showLoadOlder}
-            paginatingBack={paginatingBack}
-            loading={loading}
-            onLoadOlder={onLoadOlder}
-          />
-        </div>
+        <ThreadLoadingLines
+          loadError={false}
+          showLoadOlder={false}
+          paginatingBack={false}
+          loading={showLoadOlder || paginatingBack || loading}
+          onLoadOlder={NOOP_LOAD_OLDER}
+        />
         {SKELETON_ROWS.map((row, idx) => (
           <div
             key={idx}
