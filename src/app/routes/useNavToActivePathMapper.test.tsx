@@ -1,4 +1,3 @@
-import { enableMapSet } from 'immer';
 import { act, create } from 'react-test-renderer';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,7 +22,6 @@ function Mapper({
 }
 
 beforeEach(() => {
-  enableMapSet();
   saved.clear();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => saved.get(key) ?? null,

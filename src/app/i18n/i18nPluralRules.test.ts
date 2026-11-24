@@ -5,8 +5,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// patches/i18next+23.12.2.patch: i18next 23.12 built a plural rule for every lookup with a count,
-// which cost more than the rest of the translation; timeline rows look up several.
+// Upstream caches Intl.PluralRules since i18next 23.16 (previously patched on 23.12);
+// timeline rows look up several plurals per render.
 it('builds the plural rule of a language once', async () => {
   const i18n = createInstance();
   await i18n.init({

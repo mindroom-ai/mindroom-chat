@@ -330,8 +330,6 @@ function HomeAskField({ agents, first, failedNotice, open }: FieldProps) {
                 <Trans
                   i18nKey="home.ask.inRoom"
                   values={{ room: isolateInSentence(current.label) }}
-                  tOptions={{ interpolation: { escapeValue: true } }}
-                  shouldUnescape
                   components={{ avatar: <>{current.badge}</> }}
                 />
               </span>

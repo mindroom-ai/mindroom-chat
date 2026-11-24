@@ -139,8 +139,6 @@ const historyRow = (
   const value = (
     <Trans
       t={t}
-      shouldUnescape
-      tOptions={{ interpolation: { escapeValue: true } }}
       i18nKey={change ? `${KEY}.value.historyChange` : `${KEY}.value.history`}
       values={change ? { before: beforeTokens, after: afterTokens } : { n: beforeTokens }}
       components={{ b: <b /> }}

@@ -187,7 +187,7 @@ vi.mock('../app/ui/DialogChrome.css', () => ({
 void i18next.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  initImmediate: false,
+  initAsync: false,
   resources: { en: { translation: en } },
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
