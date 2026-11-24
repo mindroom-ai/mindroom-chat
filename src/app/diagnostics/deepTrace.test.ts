@@ -333,6 +333,8 @@ describe('opt-in deep diagnostic trace', () => {
     expect(sample?.data).toMatchObject({
       reason_interval: true,
       dom_nodes: expect.any(Number) as number,
+      shadow_roots: expect.any(Number) as number,
+      shadow_dom_nodes: expect.any(Number) as number,
       uptime_s: expect.any(Number) as number,
       room_live_events: 1_234,
     });

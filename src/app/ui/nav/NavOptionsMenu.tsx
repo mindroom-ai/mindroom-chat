@@ -1,54 +1,88 @@
-import { type MouseEvent, type ReactNode, useState } from 'react';
-import { Icon, IconButton, Icons, toRem, type RectCords } from 'folds';
+import { type MouseEvent, type ReactNode, useCallback, useRef, useState } from 'react';
+import { Icon, IconButton, Icons, toRem, type IconSrc, type RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
+import * as scrollableMenuCss from '../ScrollableMenu.css';
 import { stopPropagation } from '../../lib/keyboard';
 import { LoneTouchTarget } from '../styles/TouchTarget.css';
 
 type NavOptionsMenuProps = {
   /** The button's name; its own, so it is not taken for a room's More Options button. */
   label: string;
+  /** The button's icon; defaults to vertical dots. */
+  icon?: IconSrc;
   /** The menu's width in pixels. */
   width?: number;
+  /** Touch-target or layout class on the trigger button; defaults to `LoneTouchTarget`. */
+  buttonClassName?: string;
   /** The menu's groups; `close` dismisses the menu, for entries that act. */
   children: (close: () => void) => ReactNode;
 };
 
-/** Escape or a click elsewhere closes the menu, and focus stays where it is. */
-const lightDismiss = (onClose: () => void) => ({
-  onDeactivate: onClose,
-  escapeDeactivates: stopPropagation,
-  clickOutsideDeactivates: true,
-  initialFocus: false as const,
-  returnFocusOnDeactivate: false,
-});
-
 /**
- * The options button at the end of a navigation list's header (Home, Direct Messages, a space),
- * with the menu it opens below it.
+ * An action or options button at the end of a navigation list's header (Home, Direct Messages, a
+ * space), with the menu it opens below it.
  */
-export function NavOptionsMenu({ label, width = 160, children }: NavOptionsMenuProps) {
+export function NavOptionsMenu({
+  label,
+  icon = Icons.VerticalDots,
+  width = 160,
+  buttonClassName = LoneTouchTarget,
+  children,
+}: NavOptionsMenuProps) {
   const [anchor, setAnchor] = useState<RectCords>();
-  const close = () => setAnchor(undefined);
-  const open = (event: MouseEvent<HTMLButtonElement>) =>
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const refocusOnCloseRef = useRef(false);
+
+  const close = useCallback(() => {
+    setAnchor(undefined);
+    if (refocusOnCloseRef.current) {
+      refocusOnCloseRef.current = false;
+      buttonRef.current?.focus();
+    }
+  }, []);
+
+  const open = (event: MouseEvent<HTMLButtonElement>) => {
+    refocusOnCloseRef.current = false;
     setAnchor(event.currentTarget.getBoundingClientRect());
+  };
 
   const menu = (
-    <FocusTrap focusTrapOptions={lightDismiss(close)}>
-      <Menu style={{ width: '100vw', maxWidth: toRem(width) }}>{children(close)}</Menu>
+    <FocusTrap
+      focusTrapOptions={{
+        onDeactivate: close,
+        escapeDeactivates: (event) => {
+          if (!stopPropagation(event)) return false;
+          refocusOnCloseRef.current = true;
+          return true;
+        },
+        clickOutsideDeactivates: true,
+        initialFocus: false,
+        returnFocusOnDeactivate: false,
+      }}
+    >
+      <Menu
+        className={scrollableMenuCss.ScrollableMenu}
+        style={{ width: '100vw', maxWidth: toRem(width) }}
+      >
+        <div className={scrollableMenuCss.ScrollableMenuRows}>{children(close)}</div>
+      </Menu>
     </FocusTrap>
   );
 
   return (
     <>
       <IconButton
+        ref={buttonRef}
         variant="Background"
-        className={LoneTouchTarget}
+        className={buttonClassName}
         aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchor)}
         onClick={open}
       >
-        <Icon size="200" src={Icons.VerticalDots} />
+        <Icon size="200" src={icon} />
       </IconButton>
       <PopOut anchor={anchor} position="Bottom" align="End" offset={6} content={menu} />
     </>

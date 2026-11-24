@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
 }));
 // One client, whose sends go to the test's current `send`, so the stores it keys stay.
 const mx = vi.hoisted(() => ({
+  getUserId: () => '@me:example.org',
   sendEvent: (...args: unknown[]) => state.send(...args),
   makeTxnId: () => 'txn',
 }));

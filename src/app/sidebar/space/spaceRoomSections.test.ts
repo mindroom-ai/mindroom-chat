@@ -127,6 +127,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!root',
         isRoot: true,
+        parentSpaceId: undefined,
+        isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: ['!harbor'],
         scopeRoomsByName: ['!harbor'],
@@ -134,6 +136,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!leaf',
         isRoot: false,
+        parentSpaceId: '!org',
+        isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!leaf'),
         ownRoomsByName: ['!ops-chat'],
         scopeRoomsByName: ['!ops-chat'],
@@ -141,6 +145,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!research',
         isRoot: false,
+        parentSpaceId: '!root',
+        isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!research'),
         ownRoomsByName: ['!reading'],
         scopeRoomsByName: ['!reading'],
@@ -199,6 +205,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!root',
         isRoot: true,
+        parentSpaceId: undefined,
+        isEmpty: true,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
         scopeRoomsByName: [],
@@ -240,6 +248,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!root',
         isRoot: true,
+        parentSpaceId: undefined,
+        isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
         scopeRoomsByName: ['!orphan'],
@@ -247,6 +257,8 @@ describe('getSpaceRoomSections', () => {
       {
         spaceId: '!sub',
         isRoot: false,
+        parentSpaceId: '!root',
+        isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!sub'),
         ownRoomsByName: ['!sub-room'],
         scopeRoomsByName: ['!sub-child', '!sub-room'],
@@ -284,10 +296,17 @@ describe('getSpaceRoomSections', () => {
       new Set(),
       (spaceId) => editable.has(spaceId)
     );
-    expect(sectionsWithEditableRoot.map((section) => [section.spaceId, section.isRoot])).toEqual([
-      ['!root', true],
-      ['!editable-empty', false],
-      ['!leaf', false],
+    expect(
+      sectionsWithEditableRoot.map((section) => [
+        section.spaceId,
+        section.isRoot,
+        section.parentSpaceId,
+        section.isEmpty,
+      ])
+    ).toEqual([
+      ['!root', true, undefined, true],
+      ['!editable-empty', false, '!root', true],
+      ['!leaf', false, '!readonly-org', false],
     ]);
 
     // When root is NOT editable, the empty root Rooms section is hidden again,
