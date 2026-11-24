@@ -8,6 +8,7 @@ import { roomToParentsAtom } from './roomToParents';
 import { navigationRoomsAtom } from './archivedRooms';
 import { isEmojiRoom, isSpace } from '../room';
 import type { RoomToParents } from '../types/room';
+import { reachesSpaceDirectly } from './spaceAncestors';
 import { mergeSearchRoomSources } from './useSpaceSearchRooms';
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
@@ -33,26 +34,13 @@ const isEnclosedByJoinedSpace = (
   roomId: string,
   roomToParents: RoomToParents,
   joinedRoomIds: ReadonlySet<string>
-): boolean => {
-  const visited = new Set<string>([roomId]);
-  const queue = [roomId];
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-    if (!current) continue;
-    const parents = roomToParents.get(current);
-    if (!parents) continue;
-    for (const parentId of parents) {
-      if (visited.has(parentId)) continue;
-      visited.add(parentId);
-      if (isSpace(client.getRoom(parentId))) {
-        if (joinedRoomIds.has(parentId)) return true;
-      } else {
-        queue.push(parentId);
-      }
-    }
-  }
-  return false;
-};
+): boolean =>
+  reachesSpaceDirectly(
+    roomId,
+    roomToParents,
+    (parentId) => joinedRoomIds.has(parentId) && isSpace(client.getRoom(parentId)),
+    (parentId) => !isSpace(client.getRoom(parentId))
+  );
 
 /** Ordinary rooms outside any joined space (including sub-rooms of other unspaced rooms). */
 export const getUnspacedHomeRooms = (

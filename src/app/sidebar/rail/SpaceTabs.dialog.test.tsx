@@ -140,9 +140,14 @@ vi.mock('./RailScrollArea', () => ({
 }));
 
 vi.mock('../../spaces/sidebarSpaces', () => ({
-  useSavedSidebarItems: () => [],
-  useTopLevelSpaceIds: () => [mockSpace.roomId],
-  getShownSidebarItems: () => [mockSpace.roomId],
+  useShownSidebarItems: () => ({
+    items: [mockSpace.roomId],
+    saved: [],
+    topLevelSpaces: [mockSpace.roomId],
+    joinedSpaces: new Map([[mockSpace.roomId, mockSpace]]),
+    localOrder: [],
+    setLocalOrder: vi.fn(),
+  }),
 }));
 
 vi.mock('./SidebarContextMenu', async () => {

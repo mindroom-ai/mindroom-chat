@@ -1,6 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import { isSpace } from '../../matrix/room';
+import { reachesSpaceDirectly } from '../../matrix/state/spaceAncestors';
 import { getJoinedSubspaces, getSpaceOwnRooms } from '../../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
@@ -89,24 +90,13 @@ const belongsToSpaceSection = (
   roomToParents: RoomToParents,
   spaceRoomSet: ReadonlySet<string>,
   chatRooms: ReadonlySet<string>
-): boolean => {
-  const visited = new Set<string>([roomId]);
-  const queue = [roomId];
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-    if (!current) continue;
-    const parents = roomToParents.get(current);
-    if (!parents) continue;
-    if (parents.has(sectionSpaceId)) return true;
-    parents.forEach((parentId) => {
-      if (visited.has(parentId)) return;
-      if (!spaceRoomSet.has(parentId) && !chatRooms.has(parentId)) return;
-      visited.add(parentId);
-      queue.push(parentId);
-    });
-  }
-  return false;
-};
+): boolean =>
+  reachesSpaceDirectly(
+    roomId,
+    roomToParents,
+    (parentId) => parentId === sectionSpaceId,
+    (parentId) => spaceRoomSet.has(parentId) || chatRooms.has(parentId)
+  );
 
 const createSectionBuilder = (
   mx: MatrixClient,

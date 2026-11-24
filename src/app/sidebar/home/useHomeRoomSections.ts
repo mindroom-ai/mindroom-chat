@@ -2,18 +2,12 @@ import { useMemo, useReducer, useRef } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { isSpace } from '../../matrix/room';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { isOrdinaryRoom } from '../../matrix/state/useHomeRooms';
-import { spaceOrderAtomFor } from '../../spaces/sidebarOrder';
-import {
-  getShownSidebarItems,
-  useSavedSidebarItems,
-  useTopLevelSpaceIds,
-} from '../../spaces/sidebarSpaces';
+import { useShownSidebarItems } from '../../spaces/sidebarSpaces';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories';
@@ -44,29 +38,18 @@ export function useHomeRoomSections(selectedRoomId: string | undefined) {
   const directRoomIds = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
   const chatRooms = useAtomValue(chatRoomParentsAtom);
-  const savedSidebarItems = useSavedSidebarItems();
-  const topLevelSpaces = useTopLevelSpaceIds();
-  const localOrder = useAtomValue(spaceOrderAtomFor(client.getSafeUserId()));
+  const { items: sidebarItems, joinedSpaces } = useShownSidebarItems();
 
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const onCategoryClick = useCategoryHandler(setClosedCategories, (id) => closedCategories.has(id));
 
   const joinedRoomSet = useMemo(() => new Set(joinedRoomIds), [joinedRoomIds]);
-  const joinedSpaceSet = useMemo(
-    () => new Set(joinedRoomIds.filter((roomId) => isSpace(client.getRoom(roomId)))),
-    [client, joinedRoomIds]
-  );
+  const joinedSpaceSet = useMemo(() => new Set(joinedSpaces.keys()), [joinedSpaces]);
   const canEditSpace = useSpaceEditPermissions(joinedSpaceSet, joinedRoomSet);
 
   const railSpaceIds = useMemo(
-    () =>
-      getShownSidebarItems({
-        saved: savedSidebarItems,
-        topLevelSpaces,
-        isJoinedSpace: (roomId) => joinedSpaceSet.has(roomId),
-        localOrder,
-      }).flatMap((item) => (typeof item === 'string' ? [item] : item.content)),
-    [savedSidebarItems, topLevelSpaces, joinedSpaceSet, localOrder]
+    () => sidebarItems.flatMap((item) => (typeof item === 'string' ? [item] : item.content)),
+    [sidebarItems]
   );
 
   const allVisibleHomeRooms = useMemo(
