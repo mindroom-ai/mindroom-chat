@@ -21,12 +21,21 @@ export const FootnoteScopeContext = createContext<string | undefined>(undefined)
 export const scopeFootnoteId = (scopeId: string | undefined, id: string): string =>
   scopeId ? `${scopeId}-${id}` : id;
 
-/** Provides a stable per-message footnote ID scope unless an ancestor already supplies one. */
-export function FootnoteScopeProvider({ children }: { children: ReactNode }) {
+/**
+ * Provides a stable per-message footnote ID scope. By default reuses an enclosing scope so split
+ * halves of one message share IDs; pass `isolate` for independent embedded Markdown blocks.
+ */
+export function FootnoteScopeProvider({
+  children,
+  isolate = false,
+}: {
+  children: ReactNode;
+  isolate?: boolean;
+}) {
   const existing = useContext(FootnoteScopeContext);
   const generated = useId();
-  const scope = existing ?? `fn-${generated.replace(/:/g, '_')}`;
-  return <FootnoteScopeContext.Provider value={scope}>{children}</FootnoteScopeContext.Provider>;
+  const scope = (!isolate && existing) || `fn-${generated.replace(/:/g, '_')}`;
+  return <FootnoteScopeContext value={scope}>{children}</FootnoteScopeContext>;
 }
 
 const prefersReducedMotion = (): boolean =>

@@ -1,25 +1,32 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { MessageLinkHostContext } from '../../rich-text/messageLinkCards';
 import { parseHtml } from '../../rich-text/parseHtml';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { withReasoning } from '../agent-run/Reasoning';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { RenderBody } from '../content/RenderBody';
+import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
 import { loadLiveMarkdown, renderLiveMarkdown } from '../live/liveMarkdown';
+import { QuestionReply } from '../question/QuestionReply';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from './react-custom-html-parser';
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   List: 'List',
   MarginSpaced: 'MarginSpaced',
+  Code: 'Code',
   Emoticon: () => 'Emoticon',
+}));
+vi.mock('../../rich-text/Footnote.css', () => ({
   FootnoteRef: 'FootnoteRef',
   FootnoteRefLink: 'FootnoteRefLink',
   FootnotesSep: 'FootnotesSep',
   Footnotes: 'Footnotes',
-  FootnotesList: 'FootnotesList',
   FootnoteItem: 'FootnoteItem',
   FootnoteBackref: 'FootnoteBackref',
 }));
@@ -40,6 +47,16 @@ const makeParserOptions = () =>
     showLinkFavicons: true,
   });
 
+const mockScrollIntoView = () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value: scrollIntoView,
+  });
+  return scrollIntoView;
+};
+
 describe('Markdown footnotes rendering and navigation', () => {
   beforeAll(async () => {
     await loadLiveMarkdown();
@@ -54,12 +71,7 @@ describe('Markdown footnotes rendering and navigation', () => {
 
   it('scopes footnote IDs per RenderBody message and navigates within the clicked message', () => {
     vi.useFakeTimers();
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      writable: true,
-      value: scrollIntoView,
-    });
+    const scrollIntoView = mockScrollIntoView();
 
     const msg1Html = renderLiveMarkdown(
       'First[^1].\n\n[^1]: Detail one with [docs](https://mindroom.chat).'
@@ -69,7 +81,7 @@ describe('Markdown footnotes rendering and navigation', () => {
     const parserOptions = makeParserOptions();
 
     const { container } = render(
-      <MessageLinkHostContext.Provider value="timeline">
+      <MessageLinkHostContext value="timeline">
         <ClientConfigProvider value={{ messageRendering: { linkFavicons: true } }}>
           <div data-testid="msg-1">
             <RenderBody
@@ -88,7 +100,7 @@ describe('Markdown footnotes rendering and navigation', () => {
             />
           </div>
         </ClientConfigProvider>
-      </MessageLinkHostContext.Provider>
+      </MessageLinkHostContext>
     );
 
     const msg1 = container.querySelector('[data-testid="msg-1"]')!;
@@ -162,12 +174,7 @@ describe('Markdown footnotes rendering and navigation', () => {
   });
 
   it('uses instant scrolling under prefers-reduced-motion', () => {
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      writable: true,
-      value: scrollIntoView,
-    });
+    const scrollIntoView = mockScrollIntoView();
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       writable: true,
@@ -191,12 +198,7 @@ describe('Markdown footnotes rendering and navigation', () => {
   });
 
   it('falls back safely when rendered outside RenderBody and keeps external links checked', () => {
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      writable: true,
-      value: scrollIntoView,
-    });
+    mockScrollIntoView();
 
     const html = sanitizeCustomHtml(
       [
@@ -205,9 +207,9 @@ describe('Markdown footnotes rendering and navigation', () => {
       ].join('')
     );
     const { container } = render(
-      <MessageLinkHostContext.Provider value="timeline">
+      <MessageLinkHostContext value="timeline">
         {parseHtml(html, makeParserOptions())}
-      </MessageLinkHostContext.Provider>
+      </MessageLinkHostContext>
     );
 
     const refLink = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
@@ -226,5 +228,188 @@ describe('Markdown footnotes rendering and navigation', () => {
     expect(externalLink.getAttribute('target')).toBe('_blank');
     expect(externalLink.getAttribute('rel')).toBe('noreferrer noopener');
     expect(externalLink.id).toBe('');
+  });
+
+  it('shares one footnote scope across folded work and final answer in renderAgentMessageContent', () => {
+    const scrollIntoView = mockScrollIntoView();
+    const body =
+      'Checking note[^1].\n\n🔧 `web_search` [1]\n\nThe final answer.\n\n[^1]: Detail from work.';
+    const html = renderLiveMarkdown(body)!;
+    const mEvent = new MatrixEvent({
+      event_id: '$work-fn',
+      type: 'm.room.message',
+      room_id: '!room:example.org',
+      sender: '@agent:example.org',
+      origin_server_ts: 1_000_000,
+      content: {},
+    });
+
+    const { container } = render(
+      <ClientConfigProvider value={{}}>
+        <ToolCallMessageContext value={{ eventId: '$work-fn', roomId: '!room:example.org' }}>
+          {renderAgentMessageContent({
+            mEvent,
+            eventId: '$work-fn',
+            fromMindroomAgent: true,
+            displayName: 'Agent',
+            msgType: 'm.text',
+            content: {
+              msgtype: 'm.text',
+              body,
+              format: 'org.matrix.custom.html',
+              formatted_body: html,
+              'io.mindroom.ai_run': { version: 1, status: 'completed' },
+              'io.mindroom.tool_trace': {
+                version: 2,
+                events: [
+                  { type: 'tool_call_completed', tool_name: 'web_search', tool_call_id: 'c1' },
+                ],
+              },
+            },
+            htmlReactParserOptions: makeParserOptions(),
+            linkifyOpts: LINKIFY_OPTS,
+          })}
+        </ToolCallMessageContext>
+      </ClientConfigProvider>
+    );
+
+    // Expand the folded work half so both halves of the split reply are mounted.
+    const foldButton = container.querySelector<HTMLButtonElement>('[data-work-fold]')!;
+    expect(foldButton).not.toBeNull();
+    fireEvent.click(foldButton);
+
+    const refLink = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    const item = container.querySelector<HTMLLIElement>('li.footnote-item')!;
+    const backref = container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;
+    expect(refLink.getAttribute('href')).toBe(`#${item.id}`);
+    expect(backref.getAttribute('href')).toBe(`#${refLink.id}`);
+
+    fireEvent.click(refLink);
+    expect(scrollIntoView.mock.instances[0]).toBe(item);
+    expect(document.activeElement).toBe(item);
+
+    scrollIntoView.mockClear();
+    fireEvent.click(backref);
+    expect(scrollIntoView.mock.instances[0]).toBe(refLink);
+    expect(document.activeElement).toBe(refLink);
+  });
+
+  it('shares one footnote scope across before and after halves of QuestionReply', () => {
+    const scrollIntoView = mockScrollIntoView();
+    const question = {
+      text: 'Choose a color?',
+      options: [
+        { key: '🔴', label: 'Red' },
+        { key: '🟢', label: 'Green' },
+      ],
+    };
+    const md = [
+      'Context[^1].',
+      '',
+      'Choose a color?',
+      '',
+      '1. 🔴 Red',
+      '2. 🟢 Green',
+      '',
+      'React with an emoji or type the number to respond.',
+      '',
+      '[^1]: Detail after card.',
+    ].join('\n');
+    const html = renderLiveMarkdown(md)!;
+    const parserOptions = makeParserOptions();
+
+    const { container } = render(
+      <ClientConfigProvider value={{}}>
+        <QuestionReply
+          html={html}
+          question={question}
+          renderCard={() => <div data-testid="question-card">Card</div>}
+          renderHtml={(part) => (
+            <RenderBody
+              body=""
+              customBody={part}
+              htmlReactParserOptions={parserOptions}
+              linkifyOpts={LINKIFY_OPTS}
+            />
+          )}
+          renderBody={(renderPart, bodyHtml) => renderPart(bodyHtml)}
+        />
+      </ClientConfigProvider>
+    );
+
+    expect(container.querySelector('[data-testid="question-card"]')).not.toBeNull();
+    const refLink = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    const item = container.querySelector<HTMLLIElement>('li.footnote-item')!;
+    const backref = container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;
+    expect(refLink.getAttribute('href')).toBe(`#${item.id}`);
+    expect(backref.getAttribute('href')).toBe(`#${refLink.id}`);
+
+    fireEvent.click(refLink);
+    expect(scrollIntoView.mock.instances[0]).toBe(item);
+    expect(document.activeElement).toBe(item);
+
+    scrollIntoView.mockClear();
+    fireEvent.click(backref);
+    expect(scrollIntoView.mock.instances[0]).toBe(refLink);
+    expect(document.activeElement).toBe(refLink);
+  });
+
+  it('isolates footnotes in Reasoning segments from the enclosing reply body', () => {
+    const scrollIntoView = mockScrollIntoView();
+    const parserOptions = makeParserOptions();
+    const replyHtml = renderLiveMarkdown('Reply[^1].\n\n[^1]: Reply detail.')!;
+    const reasoningContent = {
+      'io.mindroom.reasoning': {
+        text: 'Thinking[^1].\n\n[^1]: Reasoning detail.',
+        duration_ms: 2000,
+      },
+    };
+
+    const { container } = render(
+      <ClientConfigProvider value={{}}>
+        <FootnoteScopeProvider>
+          {withReasoning(
+            reasoningContent,
+            <div data-testid="reply-body">
+              <RenderBody
+                body="Reply[^1]."
+                customBody={replyHtml}
+                htmlReactParserOptions={parserOptions}
+                linkifyOpts={LINKIFY_OPTS}
+              />
+            </div>,
+            parserOptions,
+            LINKIFY_OPTS,
+            replyHtml
+          )}
+        </FootnoteScopeProvider>
+      </ClientConfigProvider>
+    );
+
+    // Open the reasoning toggle so ReasoningText mounts inside the same reply.
+    fireEvent.click(container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!);
+
+    const replyBody = container.querySelector('[data-testid="reply-body"]')!;
+    const replyItem = replyBody.querySelector<HTMLLIElement>('li.footnote-item')!;
+    const allItems = [...container.querySelectorAll<HTMLLIElement>('li.footnote-item')];
+    const reasoningItem = allItems.find((el) => el !== replyItem)!;
+    const allRefs = [...container.querySelectorAll<HTMLAnchorElement>('sup.footnote-ref a')];
+    const replyRef = replyBody.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    const reasoningRef = allRefs.find((el) => el !== replyRef)!;
+
+    expect(reasoningItem).toBeDefined();
+    expect(reasoningItem.id).not.toBe(replyItem.id);
+    expect(reasoningRef.id).not.toBe(replyRef.id);
+    expect(reasoningRef.getAttribute('href')).toBe(`#${reasoningItem.id}`);
+    expect(replyRef.getAttribute('href')).toBe(`#${replyItem.id}`);
+
+    fireEvent.click(reasoningRef);
+    expect(scrollIntoView.mock.instances[0]).toBe(reasoningItem);
+    expect(document.activeElement).toBe(reasoningItem);
+
+    scrollIntoView.mockClear();
+    fireEvent.click(replyRef);
+    expect(scrollIntoView.mock.instances[0]).toBe(replyItem);
+    expect(document.activeElement).toBe(replyItem);
   });
 });

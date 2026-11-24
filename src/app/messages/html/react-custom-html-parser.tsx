@@ -25,6 +25,7 @@ import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs'
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
+import * as footnoteCss from '../../rich-text/Footnote.css';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
@@ -790,14 +791,7 @@ export const getReactCustomHtmlParser = (
           );
         case 'ol':
           return (
-            <ol
-              {...props}
-              className={
-                hasClass(attribs.class, 'footnotes-list')
-                  ? classNames(css.FootnotesList, props.className)
-                  : classNames(css.List, css.MarginSpaced, props.className)
-              }
-            >
+            <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
               {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
@@ -809,7 +803,7 @@ export const getReactCustomHtmlParser = (
               <FootnoteItem
                 {...restProps}
                 footnoteId={footnoteId}
-                className={classNames(css.FootnoteItem, restProps.className)}
+                className={classNames(footnoteCss.FootnoteItem, restProps.className)}
               >
                 {domToReact(children as DOMNode[], parserOptions)}
               </FootnoteItem>
@@ -820,7 +814,7 @@ export const getReactCustomHtmlParser = (
         case 'sup':
           if (hasClass(attribs.class, 'footnote-ref')) {
             return (
-              <sup {...props} className={classNames(css.FootnoteRef, props.className)}>
+              <sup {...props} className={classNames(footnoteCss.FootnoteRef, props.className)}>
                 {domToReact(children as DOMNode[], parserOptions)}
               </sup>
             );
@@ -828,13 +822,15 @@ export const getReactCustomHtmlParser = (
           return undefined;
         case 'hr':
           if (hasClass(attribs.class, 'footnotes-sep')) {
-            return <hr {...props} className={classNames(css.FootnotesSep, props.className)} />;
+            return (
+              <hr {...props} className={classNames(footnoteCss.FootnotesSep, props.className)} />
+            );
           }
           return undefined;
         case 'section':
           if (hasClass(attribs.class, 'footnotes')) {
             return (
-              <section {...props} className={classNames(css.Footnotes, props.className)}>
+              <section {...props} className={classNames(footnoteCss.Footnotes, props.className)}>
                 {domToReact(children as DOMNode[], parserOptions)}
               </section>
             );
@@ -873,7 +869,7 @@ export const getReactCustomHtmlParser = (
                 footnoteId={isFootnoteId(attribs.id) ? attribs.id : undefined}
                 backref={isBackref}
                 className={classNames(
-                  isBackref ? css.FootnoteBackref : css.FootnoteRefLink,
+                  isBackref ? footnoteCss.FootnoteBackref : footnoteCss.FootnoteRefLink,
                   restProps.className
                 )}
               >

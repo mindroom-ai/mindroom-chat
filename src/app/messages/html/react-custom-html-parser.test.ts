@@ -178,6 +178,7 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
   MathBlock: 'MathBlock',
 }));
 
+vi.mock('../../rich-text/Footnote.css', () => ({}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({
   Container: 'TableContainer',
   ScrollArea: 'TableScrollArea',
