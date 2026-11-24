@@ -163,10 +163,13 @@ const run = async (
         await route.continue().catch(() => undefined);
       }
     );
-    await page.evaluate((route) => {
-      window.history.pushState(null, '', route);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }, `/home/${encodeURIComponent(world.roomId)}`);
+    await page.evaluate(
+      (route) => {
+        window.history.pushState(null, '', route);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      },
+      `/home/${encodeURIComponent(world.roomId)}`
+    );
     await setRoomCompact(page, true);
     const cards = page.locator('button[data-thread-root-id]');
     await expect(cards.first()).toBeVisible({ timeout: 60_000 });

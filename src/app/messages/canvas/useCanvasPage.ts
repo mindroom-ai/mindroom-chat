@@ -4,9 +4,7 @@ import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepo
 import { MAX_CANVAS_DOCUMENT_BYTES, type ChatUiCanvas } from '../../matrix/protocol/chatUiProtocol';
 
 export type CanvasPage =
-  | { status: 'ready'; html: string }
-  | { status: 'loading' }
-  | { status: 'failed' };
+  { status: 'ready'; html: string } | { status: 'loading' } | { status: 'failed' };
 
 type Loaded = { key: string; page: CanvasPage };
 

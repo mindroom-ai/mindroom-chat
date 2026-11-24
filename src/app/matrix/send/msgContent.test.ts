@@ -12,7 +12,8 @@ import { getAudioMsgContent } from './msgContent';
 
 const createUploadItem = (file: File, duration?: number, waveform?: number[]): TUploadItem => ({
   file,
-  originalFile: file, encInfo: undefined,
+  originalFile: file,
+  encInfo: undefined,
   metadata: {
     markedAsSpoiler: false,
     // A voice message is the only kind that carries a duration and a waveform.

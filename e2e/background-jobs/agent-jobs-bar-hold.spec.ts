@@ -52,8 +52,7 @@ const replyEndedAt = async (
   const ends = chunk
     .filter((event) => {
       const relation = event.content['m.relates_to'] as
-        | { rel_type?: string; event_id?: string }
-        | undefined;
+        { rel_type?: string; event_id?: string } | undefined;
       const content = event.content['m.new_content'] as Record<string, unknown> | undefined;
       return (
         relation?.rel_type === 'm.replace' &&

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomSortMenu, RoomSortMenuContent } from './RoomSortMenu';
 
@@ -17,9 +17,9 @@ vi.mock('folds', async (original) => ({
 }));
 
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

@@ -33,6 +33,7 @@
 ### Task 1: Core Interactive Swipe Engine, Priority Registry & Hooks
 
 **Files:**
+
 - Create: `src/app/navigation/interactiveSwipeMath.ts`
 - Create: `src/app/navigation/interactiveSwipeMath.test.ts`
 - Create: `src/app/navigation/interactiveSwipe.ts`
@@ -45,6 +46,7 @@
 - Modify: `src/app/navigation/useSwipeAway.test.tsx` (verify existing cases + add interactive tracking cases)
 
 **Interfaces:**
+
 - Produces (`src/app/navigation/interactiveSwipeMath.ts`):
   - `EDGE_START_MAX_X = 28`, `SWIPE_LOCK_SLOP_PX = 10`, `SWIPE_COMMIT_RATIO = 0.35`, `SWIPE_FLICK_MIN_PX = 24`, `SWIPE_FLICK_VELOCITY = 0.45`, `SWIPE_REVERSAL_VELOCITY = -0.3`, `SWIPE_VELOCITY_WINDOW_MS = 100`, `EDGE_DISCRETE_MIN_PX = 72`, `PANEL_DISCRETE_MIN_PX = 56`, `MAX_VERTICAL_DRIFT = 64`
   - `export type SwipeTrackerState = 'pending' | 'locked' | 'yielded'`
@@ -64,15 +66,15 @@
   - `useSwipeAway(ref, edge, onSwipe, options?: { enabled?: boolean; priority?: number; begin?: ... })`
 
 - [ ] **Step 1: Write unit tests for `interactiveSwipeMath.ts` (`src/app/navigation/interactiveSwipeMath.test.ts`)**
-  Cover: axis lock at 10 px with zero-jump origin, vertical scroll yield, wrong-direction yield, clamped offset/progress, rolling 100 ms velocity window, `dt === 0` safety, commit at >=35% extent, commit on fast flick (>=24 px & >=0.45 px/ms), cancel on reversal (<= -0.3 px/ms & <50%), settle duration clamping `[120, 260]` ms, discrete fallback when `extent === 0`.
+      Cover: axis lock at 10 px with zero-jump origin, vertical scroll yield, wrong-direction yield, clamped offset/progress, rolling 100 ms velocity window, `dt === 0` safety, commit at >=35% extent, commit on fast flick (>=24 px & >=0.45 px/ms), cancel on reversal (<= -0.3 px/ms & <50%), settle duration clamping `[120, 260]` ms, discrete fallback when `extent === 0`.
 - [ ] **Step 2: Implement `src/app/navigation/interactiveSwipeMath.ts`**
-  Pure TypeScript, zero DOM access.
+      Pure TypeScript, zero DOM access.
 - [ ] **Step 3: Write `src/app/navigation/interactiveSwipe.css.ts`, `src/app/navigation/interactiveSwipe.ts`, and update `useEdgeSwipe.ts`, `useEdgeSwipeBack.ts`, `useEdgeSwipeForward.ts`, `useSwipeAway.ts`**
   - Implement global priority registry with single window capture/bubble touch arbitration + element capture for `zone: 'element'`.
   - Use rAF coalescing for `scene.update()` (flushing latest point synchronously on `touchend`), `event.preventDefault()` once locked when cancelable, one-shot capture click suppression after a locked drag, WAAPI `animateSwipeElements` helper (`cubic-bezier(0.2, 0, 0, 1)`), mid-drag abort on `hasOpenOverlay`, 2nd touch, `resize`, `visibilitychange`, unmount, and `touchcancel` (instant reset for `edge`, last-sample commit check for `element` when `cancelCommits` is true).
   - Keep `edgeSwipeBackCountAtom` in `useEdgeSwipeBack.ts` unchanged in semantics.
 - [ ] **Step 4: Write `src/app/navigation/interactiveSwipe.test.tsx` and run all navigation unit tests**
-  Test priority arbitration (overlay > sheet > panel-inner > panel > page > drawer-open), blocked higher layer never falls through, RTL logical edges, `prefers-reduced-motion` discrete fallback, mid-drag `hasOpenOverlay` cancel, 2nd finger cancel, click suppression after drag, and existing `useEdgeSwipe.test.tsx`, `useEdgeSwipeBack.test.tsx`, `useEdgeSwipeForward.test.ts`, `useSwipeAway.test.tsx`.
+      Test priority arbitration (overlay > sheet > panel-inner > panel > page > drawer-open), blocked higher layer never falls through, RTL logical edges, `prefers-reduced-motion` discrete fallback, mid-drag `hasOpenOverlay` cancel, 2nd finger cancel, click suppression after drag, and existing `useEdgeSwipe.test.tsx`, `useEdgeSwipeBack.test.tsx`, `useEdgeSwipeForward.test.ts`, `useSwipeAway.test.tsx`.
 - [ ] **Step 5: Commit Task 1**
 
 ---
@@ -80,6 +82,7 @@
 ### Task 2: `phonePageSlide` Preview Cache, Async-Safe Handoff & Thread ↔ Room Interactive Scenes
 
 **Files:**
+
 - Modify: `src/app/navigation/phonePageSlide.ts`
 - Modify: `src/app/navigation/phonePageSlide.css.ts`
 - Modify: `src/app/navigation/phonePageSlide.test.ts`
@@ -88,6 +91,7 @@
 - Modify: `src/app/room/useRoomViewThreadState.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `useEdgeSwipeBack`, `useEdgeSwipeForward`, `SWIPE_PRIORITY`, `animateSwipeElements`, `InteractiveSwipeScene` from Task 1.
 - Produces (`src/app/navigation/phonePageSlide.ts`):
   - `export type PhoneSwipePreviewKey = { sessionId: string; roomId: string; threadId?: string }`
@@ -109,7 +113,7 @@
   - On cancel: return retained preview intact to cache, restore all inline styles, zero navigation/atom/focus side effects.
   - Register `clearPhoneSwipePreviews` in `src/app/shell/accountState.ts` reset path.
 - [ ] **Step 3: Write unit tests in `phonePageSlide.test.ts` and `useRoomViewThreadState.test.tsx`**
-  Cover: `[contenteditable]` draft redaction in `copyOf`, retained room/thread preview hit + resize/session/room miss fallback to backdrop, async `popstate` handoff with zero double-slide, timeout auto-cleanup, cancelled drag leaves route & `lastExitedThreadAtom` untouched.
+      Cover: `[contenteditable]` draft redaction in `copyOf`, retained room/thread preview hit + resize/session/room miss fallback to backdrop, async `popstate` handoff with zero double-slide, timeout auto-cleanup, cancelled drag leaves route & `lastExitedThreadAtom` untouched.
 - [ ] **Step 4: Run targeted vitest tests and commit Task 2**
 
 ---
@@ -117,6 +121,7 @@
 ### Task 3: Interactive `PhoneNavDrawer` (Open & Close) and `PhoneMembersSheet` (Close)
 
 **Files:**
+
 - Modify: `src/app/sidebar/PhoneNavDrawer.tsx`
 - Modify: `src/app/sidebar/PhoneNavDrawer.css.ts`
 - Modify: `src/app/sidebar/PhoneNavDrawer.test.tsx`
@@ -125,11 +130,12 @@
 - Modify: `src/app/members/PhoneMembersSheet.test.tsx` (create if absent, or extend existing test)
 
 **Interfaces:**
+
 - Consumes: `useEdgeSwipe`, `useSwipeAway`, `SWIPE_PRIORITY`, `animateSwipeElements` from Task 1.
 - Produces: Interactive open/close scenes inside `PhoneNavDrawer` and interactive close scene inside `PhoneMembersSheet` (no new public exports needed).
 
 - [ ] **Step 1: Add `[data-swiping]` transition-override styles to `PhoneNavDrawer.css.ts` and `PhoneMembersSheet.css.ts`**
-  Ensure `&[data-swiping]` sets `transition: 'none'` (and `visibility: 'visible'` on `PhoneNavDrawer`'s `Panel`/`Scrim` while peeking).
+      Ensure `&[data-swiping]` sets `transition: 'none'` (and `visibility: 'visible'` on `PhoneNavDrawer`'s `Panel`/`Scrim` while peeking).
 - [ ] **Step 2: Wire interactive open & close scenes in `PhoneNavDrawer.tsx`**
   - Add local `peeking` state (`const filled = open || sliding || peeking`).
   - Open scene (`useEdgeSwipe` at `SWIPE_PRIORITY.DRAWER_OPEN`, enabled when `!open && !backSwipeOn`): on `begin`, `flushSync(() => setPeeking(true))`, measure `panel.getBoundingClientRect().width` (handles rail-only drawers accurately), mark `data-swiping` on panel & scrim, `update(px, p)` sets `panel.style.translate = ${px * dirSign}px 0` and `scrim.style.opacity = String(p)`. On commit: WAAPI settle to `panelWidth` / opacity `1`, call `flushSync(() => { setPeeking(false); movePhoneNavDrawer(true, setOpenNow); })` and clear inline styles + `data-swiping` in same frame. On cancel: WAAPI settle back to `0` / opacity `0`, clear inline styles + `data-swiping`, `setPeeking(false)` — `phoneNavDrawerOpenAtom` never flipped.
@@ -139,7 +145,7 @@
   - `update(px, p)` translates `panelRef` by `${px * dirSign}px 0` and sets scrim opacity to `String(1 - p)`.
   - On commit: WAAPI settle to `${panelWidth * dirSign}px 0` and opacity `0`, set `swipedDismissRef.current = true`, call `dismiss()`. In the `leaving` effect, if `swipedDismissRef.current`, call `done?.()` immediately instead of waiting `PHONE_SLIDE_OUT_MS`.
 - [ ] **Step 4: Add unit tests for `PhoneNavDrawer` and `PhoneMembersSheet` and run vitest**
-  Test: drawer peek mounts list & rail without flipping `phoneNavDrawerOpenAtom` or moving focus; cancel unmounts peek cleanly; commit opens without jump; rail-only narrower width works; close swipe dismisses cleanly without double slide; members sheet drag tracks & cancels without flipping `phoneSheetOpenAtom` and commits without 320 ms delay.
+      Test: drawer peek mounts list & rail without flipping `phoneNavDrawerOpenAtom` or moving focus; cancel unmounts peek cleanly; commit opens without jump; rail-only narrower width works; close swipe dismisses cleanly without double slide; members sheet drag tracks & cancels without flipping `phoneSheetOpenAtom` and commits without 320 ms delay.
 - [ ] **Step 5: Commit Task 3**
 
 ---
@@ -147,6 +153,7 @@
 ### Task 4: Covering Room Side Panels (`Room.tsx`) & `SubagentsPanel` Inner Detail Interactive Swipes
 
 **Files:**
+
 - Modify: `src/app/room/Room.tsx`
 - Create: `src/app/room/RoomSidePanelSwipe.css.ts` (or add styles to existing Room CSS)
 - Modify: `src/app/subagents/SubagentsPanel.tsx`
@@ -154,6 +161,7 @@
 - Modify: `src/app/room/__tests__/Room.test.ts` (or add focused `Room.sidePanelSwipe.test.tsx`)
 
 **Interfaces:**
+
 - Consumes: `useEdgeSwipeBack`, `SWIPE_PRIORITY`, `animateSwipeElements` from Task 1.
 - Produces: Unified phone side-panel host wrapper + iframe start-edge touch catcher in `Room.tsx`, and inner detail → list/parent interactive swipe in `SubagentsPanel.tsx`.
 
@@ -174,12 +182,14 @@
 ### Task 5: Image Viewer (`ImageOverlay` / `ImageViewer`) Interactive Close, Full Verification & E2E / Screenshots
 
 **Files:**
+
 - Modify: `src/app/messages/content/ImageOverlay.tsx`
 - Modify: `src/app/messages/viewers/ImageViewer.tsx`
 - Modify: `src/app/messages/viewers/ImageViewer.test.tsx` (or `ImageOverlay.test.tsx`)
 - Modify/Extend E2E specs: `e2e/sidebar/phone-room-edge-swipe.spec.ts`, `e2e/sidebar/phone-nav-drawer.spec.ts`, `e2e/sidebar/phone-page-slide.spec.ts`, `e2e/members/phone-members-sheet.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `useEdgeSwipe`, `SWIPE_PRIORITY`, `EDGE_START_MAX_X`, `animateSwipeElements` from Task 1.
 
 - [ ] **Step 1: Wire interactive edge-close in `ImageOverlay.tsx` and `ImageViewer.tsx`**
@@ -191,7 +201,7 @@
     - 2nd finger cancels swipe immediately and restores modal/backdrop so pinch zoom proceeds uninterrupted.
     - On commit: WAAPI settle off-screen + backdrop `0`, then call `requestClose()`.
 - [ ] **Step 2: Write unit tests for `ImageOverlay` / `ImageViewer` interactive swipe**
-  Cover: modal translates & backdrop fades during drag, cancel restores both & leaves history entry intact, commit calls `requestClose`, disabled when `zoom > 1`, 2nd touch cancels drag, non-edge swipe still pages images.
+      Cover: modal translates & backdrop fades during drag, cancel restores both & leaves history entry intact, commit calls `requestClose`, disabled when `zoom > 1`, 2nd touch cancels drag, non-edge swipe still pages images.
 - [ ] **Step 3: Extend E2E tests and run full verification on `m5` (or `m2` for e2e if needed)**
   - Extend phone e2e specs to verify mid-drag intermediate translation, cancel-on-short-drag (no navigation/close), and full interactive commit with zero double-slide.
   - Capture mid-drag and after screenshots (placeholder data only, zero personal data) for PR body.

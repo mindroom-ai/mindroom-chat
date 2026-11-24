@@ -79,10 +79,13 @@ const seed = async (engine: string) => {
 type World = Awaited<ReturnType<typeof seed>>;
 
 const openThread = async (page: Page, world: World) => {
-  await page.evaluate((route) => {
-    window.history.pushState(null, '', route);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`);
+  await page.evaluate(
+    (route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
+  );
   const banner = page.locator('[data-thread-context-banner]');
   await expect(banner).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(REPLIES[2], { exact: true })).toBeVisible({ timeout: 60_000 });

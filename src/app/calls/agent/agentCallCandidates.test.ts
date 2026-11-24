@@ -6,7 +6,7 @@ const VIEWER = '@alice:mindroom.test';
 const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
 
 const member = (userId: string, name: string, membership = 'join') =>
-  ({ userId, name, membership } as RoomMember);
+  ({ userId, name, membership }) as RoomMember;
 
 describe('getAgentCallCandidates', () => {
   it('keeps only joined same-homeserver agents that advertise voice calls', () => {
@@ -55,7 +55,7 @@ describe('keepThreadSenders', () => {
   const room = (
     thread: { rootEvent?: MatrixEvent; events: MatrixEvent[] } | null,
     root?: MatrixEvent
-  ) => ({ getThread: () => thread, findEventById: () => root } as unknown as Room);
+  ) => ({ getThread: () => thread, findEventById: () => root }) as unknown as Room;
 
   it('keeps only candidates who replied in the thread', () => {
     const root = event(VIEWER);

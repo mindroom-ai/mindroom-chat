@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import {
   IconBrandAws,
   IconBrandAzure,
@@ -89,14 +90,11 @@ export function ProviderModelIcon({
     );
   }
 
-  const ProviderIcon = getProviderIcon(provider, id);
-  return (
-    <ProviderIcon
-      className={className}
-      size={size}
-      style={iconSizeStyle(size)}
-      stroke={1.8}
-      aria-hidden="true"
-    />
-  );
+  return createElement(getProviderIcon(provider, id), {
+    className,
+    size,
+    style: iconSizeStyle(size),
+    stroke: 1.8,
+    'aria-hidden': 'true',
+  });
 }

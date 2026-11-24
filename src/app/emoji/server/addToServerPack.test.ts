@@ -31,7 +31,7 @@ const roomWith = (...events: MatrixEvent[]): Room =>
         },
       }),
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 /** The room's synced packs, one per state key. */
 const roomWithPacks = (packs: Record<string, PackContent>): Room =>

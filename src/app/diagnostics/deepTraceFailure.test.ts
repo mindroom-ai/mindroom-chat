@@ -457,6 +457,8 @@ describe('deep diagnostic trace storage failure', () => {
       vi.restoreAllMocks();
       vi.useRealTimers();
       await trace.setDeepTraceEnabled(false, storage);
+      // Let the final stop flush finish before tearing down so its meta read cannot leak into the next test.
+      await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().flushing).toBe(false));
       dispose();
     }
   });

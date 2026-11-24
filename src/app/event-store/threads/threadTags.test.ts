@@ -175,7 +175,9 @@ describe('parsePerTagContent', () => {
     expect(parsePerTagContent({})).toBeNull();
     expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: 'invalid' })).toBeNull();
     expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, note: 1 })).toBeNull();
-    expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, data: [] })).toBeNull();
+    expect(
+      parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, data: [] })
+    ).toBeNull();
   });
 });
 
@@ -184,9 +186,7 @@ describe('buildPerTagEventContent', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(ISO_3));
 
-    expect(
-      buildPerTagEventContent('@alice:example.com', ' queued ', { source: 'ui' })
-    ).toEqual({
+    expect(buildPerTagEventContent('@alice:example.com', ' queued ', { source: 'ui' })).toEqual({
       set_by: '@alice:example.com',
       set_at: ISO_3,
       note: 'queued',

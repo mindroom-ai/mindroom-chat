@@ -1,5 +1,5 @@
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { atomFamily } from 'jotai/utils';
+import { atomFamily } from 'jotai-family';
 import { KnownMembership, RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { AccountDataEvent, type MDirectContent } from '../matrix/types/accountData';

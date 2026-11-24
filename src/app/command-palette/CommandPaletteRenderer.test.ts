@@ -107,7 +107,7 @@ vi.mock('../lib/hooks/useScreenSize', () => ({
 vi.mock('focus-trap-react', async () => {
   const reactModule = await import('react');
   return {
-    default: ({ children }: { children: React.ReactNode }) =>
+    FocusTrap: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', { 'data-testid': 'focus-trap' }, children),
   };
 });

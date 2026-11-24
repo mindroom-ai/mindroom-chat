@@ -42,7 +42,7 @@ const event = (id: string, timestamp: number, reply = false): IEvent =>
       body: id,
       ...(reply ? { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } } : {}),
     },
-  } as unknown as IEvent);
+  }) as unknown as IEvent;
 const reply = event('$cached-reply', 2, true);
 const root = {
   ...event('$root', 1),

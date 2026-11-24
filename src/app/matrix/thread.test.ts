@@ -99,7 +99,7 @@ const makeThread = ({
     getUnfilteredTimelineSet: () => ({
       getLiveTimeline: () => liveTimeline,
     }),
-  } as unknown as Thread);
+  }) as unknown as Thread;
 
 describe('getThreadTailEvents', () => {
   it('returns the last N thread messages in chronological order', () => {

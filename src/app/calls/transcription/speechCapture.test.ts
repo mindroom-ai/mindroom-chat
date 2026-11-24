@@ -56,9 +56,8 @@ vi.mock('/assets/speech-model/ort-wasm-simd-threaded.js?retry=1', () => ({}));
 type RuntimeFlags = { wasmPaths?: { mjs?: string; wasm?: string }; wasmBinary?: ArrayBuffer };
 
 vi.mock('@ricky0123/vad-web', async () => {
-  const { FrameProcessor, defaultFrameProcessorOptions } = await import(
-    '@ricky0123/vad-web/dist/frame-processor'
-  );
+  const { FrameProcessor, defaultFrameProcessorOptions } =
+    await import('@ricky0123/vad-web/dist/frame-processor');
   const { Message } = await import('@ricky0123/vad-web/dist/messages');
   const { encodeWAV } = await import('@ricky0123/vad-web/dist/utils');
 

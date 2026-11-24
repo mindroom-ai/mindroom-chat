@@ -62,7 +62,7 @@ describe('tool positions', () => {
   it.each(sentCases.map((testCase) => [testCase.name, testCase] as const))(
     'gives the version-2 reply back byte for byte: %s',
     (_name, { sent, wire }) => {
-      const content = withToolMarkersRestored(wireContent({ sent, wire: wire as Wire }));
+      const content = withToolMarkersRestored(wireContent({ sent, wire }));
       expect(content.body).toBe(sent.body);
       expect(content.formatted_body).toBe(sent.formatted_body);
       const trace = content[TRACE] as Record<string, unknown>;
@@ -355,7 +355,7 @@ describe('tool positions on read', () => {
     "reads an agent's edit with the fallback of its restored replacement: %s",
     (_name, { sent, wire }) => {
       for (const fallbackTrace of [true, false]) {
-        const edit = editOf(wireContent({ sent, wire: wire as Wire }), fallbackTrace);
+        const edit = editOf(wireContent({ sent, wire }), fallbackTrace);
         expect(textOf(event(AGENT, edit).getContent())).toEqual([
           [`* ${sent.body}`, sent.formatted_body, fallbackTrace ? 2 : undefined],
           [sent.body, sent.formatted_body, 2],
@@ -416,7 +416,7 @@ describe('tool positions on read', () => {
   it.each(sentCases.map((testCase) => [testCase.name, testCase] as const))(
     'gives a viewer on another homeserver the text it always got, without the trace: %s',
     (_name, { sent, wire }) => {
-      const held = wireContent({ sent, wire: wire as Wire });
+      const held = wireContent({ sent, wire });
       const built = { ...held, body: sent.body, formatted_body: sent.formatted_body };
       const { [TRACE]: _trace, 'io.mindroom.stream_status': _stream, ...text } = built;
       expect(event(ELSEWHERE, held).getContent()).toEqual(text);

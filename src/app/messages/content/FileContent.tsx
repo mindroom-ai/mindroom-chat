@@ -1,6 +1,6 @@
 import React, { ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap, type FocusTrapProps } from 'focus-trap-react';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import {
   Box,
@@ -108,7 +108,7 @@ type ButtonOptions = {
   buttonSize?: '300' | '400';
 };
 
-type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
 // An outside click or Escape closes a viewer; Escape does not reach handlers behind it.
 const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
@@ -192,8 +192,8 @@ function OpenButton({
   }
 
   const label = failed
-    ? errorButtonText ?? t('sharedUi.fileContent.loadFailed')
-    : buttonText ?? defaultText;
+    ? (errorButtonText ?? t('sharedUi.fileContent.loadFailed'))
+    : (buttonText ?? defaultText);
   return (
     <Button
       size={buttonSize}
@@ -377,8 +377,8 @@ export function DownloadFile({
     >
       <Text size="B300">
         {failed
-          ? errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size })
-          : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
+          ? (errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size }))
+          : (buttonText ?? t('sharedUi.fileContent.downloadSize', { size }))}
       </Text>
     </Button>
   );

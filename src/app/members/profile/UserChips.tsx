@@ -1,6 +1,6 @@
 import { MouseEventHandler, ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap, type FocusTrapProps } from 'focus-trap-react';
 import { Chip, Icon, Icons, type RectCords, Text, config } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
@@ -31,7 +31,7 @@ const useMenuAnchor = () => {
   return { anchor, openMenu, close };
 };
 
-type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
 // A click outside or Escape closes the menu; Escape does not reach handlers behind it.
 const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };

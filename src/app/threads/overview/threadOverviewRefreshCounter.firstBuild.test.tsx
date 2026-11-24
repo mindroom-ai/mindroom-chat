@@ -139,7 +139,7 @@ const newProbe = (): Probe => ({ commits: [], mounts: 0, unmounts: 0 });
 
 /** The index and the cards under it, which `RoomTimeline` renders once the list may build. */
 function Cards({ listened, probe }: { listened?: ThreadOverviewRefresh; probe: Probe }) {
-  const fixed = useMemo(options, []);
+  const fixed = useMemo(() => options(), []);
   const overview = useThreadOverviewRefreshCounter(room, undefined, listened);
   const index = useThreadIndex({
     ...fixed,

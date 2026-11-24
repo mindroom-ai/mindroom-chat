@@ -140,7 +140,10 @@ export const chooseCallService = (
 export type SfuGrant = { url: string; jwt: string };
 
 export class SfuGrantError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
     super(message);
     this.name = 'SfuGrantError';
   }

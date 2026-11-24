@@ -16,7 +16,7 @@ const editorWith = (document: Descendant[]) => {
   return editor;
 };
 
-const line = (...children: unknown[]) => ({ type: 'paragraph', children } as Descendant);
+const line = (...children: unknown[]) => ({ type: 'paragraph', children }) as Descendant;
 
 const compose = (document: Descendant[], markdown = true) =>
   composeTextMessage(editorWith(document), markdown, ME);
@@ -226,7 +226,7 @@ describe('composeTextMessage', () => {
 });
 
 describe('holdsNoText', () => {
-  const block = (type: string, ...children: unknown[]) => ({ type, children } as Descendant);
+  const block = (type: string, ...children: unknown[]) => ({ type, children }) as Descendant;
   const drafts: Array<[name: string, document: Descendant[], noText: boolean]> = [
     ['nothing', [], true],
     ['an empty line', [line({ text: '' })], true],

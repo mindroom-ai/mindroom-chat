@@ -33,11 +33,13 @@
 ### Task 1: Routes and section-keeping navigation
 
 **Files:**
+
 - Modify: `src/app/routes/paths.ts`, `src/app/routes/pathUtils.ts`, `src/app/navigation/useRoomNavigate.ts`, `src/app/navigation/viewedPlace.ts`, `src/app/navigation/clientRouteRestore.ts`, `src/app/routes/useThreadsSelected.ts`
 - Create: `src/app/routes/useActivitySelected.ts`
 - Test: `src/app/routes/pathUtils.test.ts`, `src/app/navigation/useRoomNavigate.test.ts`, `src/app/navigation/viewedPlace.test.ts`, `src/app/navigation/clientRouteRestore.test.ts`
 
 **Interfaces:**
+
 - Produces: `ACTIVITY_PATH = '/activity/'`, `ACTIVITY_INVITES_PATH = '/activity/invites/'`, `ACTIVITY_ROOM_PATH = '/activity/:roomIdOrAlias/:eventId?/'`, `THREADS_ROOM_PATH = '/threads/:roomIdOrAlias/:eventId?/'`; `getActivityPath(): string`, `getActivityInvitesPath(): string`, `getActivityRoomPath(roomIdOrAlias: string, eventId?: string): string`, `getThreadsRoomPath(roomIdOrAlias: string, eventId?: string): string`; `useActivitySelected(): boolean` (any `/activity/` route). `INBOX_*` paths and getters are removed in Task 7, not here.
 
 - [ ] **Step 1: Failing tests.** `pathUtils.test.ts`: `getActivityRoomPath('!r:x')` is `/activity/!r%3Ax/`, with an event `/activity/!r%3Ax/%24e/`; `getThreadsRoomPath('#a:x')` is `/threads/%23a%3Ax/`. `useRoomNavigate.test.ts`: on `/activity/!r:x/` a thread of `!r:x` opens at `/activity/!r%3Ax/?threadId=$t`, on `/threads/#a:x/` (alias of `!r:x`) at `/threads/%23a%3Ax/?threadId=$t`, and another room still opens in Home. `viewedPlace.test.ts`: `/activity/%23a%3Ax/?threadId=$t` gives `{ roomId: '!r:x', threadId: '$t' }`. `clientRouteRestore.test.ts`: an `/activity/<room>/` route is restorable like a Home room route.
@@ -49,12 +51,15 @@
 ### Task 2: Thread signals
 
 **Files:**
+
 - Create: `src/app/threads/cross-room/threadSignals.ts`
 - Test: `src/app/threads/cross-room/threadSignals.test.ts`
 
 **Interfaces:**
+
 - Consumes: `collectThreadApprovals` (`matrix/protocol/threadApprovalModel.ts`), `canSubmitApprovalDecision` (`approvals/approvalActions.ts`), `isMindroomAgentUserId`, `isThreadSummaryEvent`, `isCallRowEvent`, `isThinkingPlaceholderBody`, `getAiRunInfo`, `getStreamStatusFromContent`.
 - Produces:
+
 ```ts
 export type ThreadReply = { eventId: string; senderId: string; ts: number; preview: ThreadPreview };
 export type ThreadPreview = { kind: 'text'; text: string } | { kind: 'voice' | 'image' | 'video' | 'file' };
@@ -85,13 +90,16 @@ export const readThreadSignals = (room: Room, rootId: string, userId: string, no
 ### Task 3: Activity rows model and the `activity` domain
 
 **Files:**
+
 - Create: `src/app/activity/activityRows.ts`
 - Modify: `.eslintrc.cjs` (`LAYERS` layer 10 gets `'activity'`), `docs/architecture.md` ("Layers" table, Layout tree line for `activity/`)
 - Test: `src/app/activity/activityRows.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CrossRoomThreadIndexEntry`, `ThreadSignals`.
 - Produces:
+
 ```ts
 export type ActivityKind = 'approval' | 'question' | 'invite' | 'mention' | 'stopped' | 'finished' | 'reply';
 export type ActivityTab = 'all' | 'mentions' | 'replies' | 'needsYou';
@@ -115,12 +123,15 @@ export const activityDay = (ts: number, now: number): 'today' | 'yesterday' | 'e
 ### Task 4: Activity state and actions
 
 **Files:**
+
 - Create: `src/app/activity/useActivityRows.ts`, `src/app/activity/activityActions.ts`, `src/app/activity/activityState.ts`
 - Test: `src/app/activity/activityActions.test.ts`
 
 **Interfaces:**
+
 - Consumes: `crossRoomThreadIndexAtom`, `readThreadSignals`, `buildActivityRows`, `allInvitesAtom`, `categorizeInvite` (`notifications/inbox/inviteFilter.tsx`), `acceptInvite`, `declineInvite`, `toggleReaction`, `buildToolApprovalResponseContent`, `MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT`, `markThreadAsRead`.
 - Produces:
+
 ```ts
 // activityState.ts
 export const activityUnreadOnlyAtom: PrimitiveAtom<boolean>;   // default false, session
@@ -134,6 +145,7 @@ export const answerApproval = (mx: MatrixClient, roomId: string, record: ThreadA
 export const answerQuestion = (mx: MatrixClient, room: Room, threadId: string, question: ThreadQuestion, key: string): Promise<void>;
 export const markActivityRowsRead = (mx: MatrixClient, rows: ActivityRow[], hideActivity: boolean): Promise<void>;
 ```
+
 - [ ] **Step 1: Failing tests:** `answerApproval` sends `io.mindroom.tool_approval_response` with `buildToolApprovalResponseContent(status, threadId, eventId)` where `threadId = approval.threadId ?? eventId`; refuses (rejects) when `canSubmitApprovalDecision` is false; `answerQuestion` calls `sendEvent(roomId, threadId, 'm.reaction', {m.relates_to: annotation key})` and never redacts (an existing own reaction with that key is a no-op); `markActivityRowsRead` calls `markThreadAsRead` once per unread thread row and skips needs-you and invite rows.
 - [ ] **Step 2: Run** `nix develop -c npx vitest run src/app/activity`; FAIL.
 - [ ] **Step 3: Implement.** `useActivityRows` reads `useAtomValue(crossRoomThreadIndexAtom)`, keeps a `Map<key, {generation, signals}>` in a ref so unchanged entries keep their signals, invites from `allInvitesAtom` minus spam by `categorizeInvite`, `now` refreshed every minute.
@@ -143,11 +155,13 @@ export const markActivityRowsRead = (mx: MatrixClient, rows: ActivityRow[], hide
 ### Task 5: Activity list UI and section nav
 
 **Files:**
+
 - Create: `src/app/activity/ActivityList.tsx`, `ActivityList.css.ts`, `ActivityRowItem.tsx`, `ActivityNav.tsx`, `ActivityEmpty.tsx`
 - Modify: `src/app/i18n/locales/additions/en.json` (`activity.*` keys)
 - Test: `src/app/activity/ActivityList.test.tsx` (jsdom)
 
 **Interfaces:**
+
 - Produces: `ActivityList({ variant: 'popover' | 'page' | 'sheet', onOpenRow?: (row: ActivityRow) => void, onExpand?: () => void })`; `ActivityNav()` (section nav: `PageNav` with header "Activity" and `ActivityList variant="page"`); `ActivityEmpty()` (content index: "Select something in Activity" / "You're all caught up").
 - Row click: `navigatePath(withSearchParam(getActivityRoomPath(alias, undefined), { threadId }))` for threads, `getActivityRoomPath(roomId)` for invites; the popover closes.
 - [ ] **Step 1: Failing tests:** rows render the sentence ("Code needs approval", "Maya mentioned you, Tom replied · 2 new"), the title and room; Approve calls `answerApproval` and shows "Sending…", then an error text on reject; option buttons call `answerQuestion` with the key; tabs filter; the Unread switch hides read rows; "3 automation runs hidden · Show" sets `activityShowAutomationsAtom`; empty list shows "You're all caught up".
@@ -159,12 +173,14 @@ export const markActivityRowsRead = (mx: MatrixClient, rows: ActivityRow[], hide
 ### Task 6: Bell on the rail and in the phone top bar
 
 **Files:**
+
 - Create: `src/app/sidebar/rail/ActivityTab.tsx`, `src/app/activity/ActivitySheet.tsx`
 - Modify: `src/app/sidebar/SidebarNav.tsx` (bell where `InboxTab` was), `src/app/sidebar/PhoneTopBar.tsx` (+ `.css.ts`), `src/app/sidebar/rail/ThreadsTab.tsx` (Needs-you badge from Task 8's `useThreadsNeedsYouCount`, added in Task 8)
 - Delete: `src/app/sidebar/rail/InboxTab.tsx`, `InboxTab.test.tsx`, `src/app/routes/useInbox.ts`
 - Test: `src/app/sidebar/rail/ActivityTab.test.tsx`, `src/app/sidebar/PhoneTopBar.test.tsx`, `src/app/sidebar/SidebarNav.buttons.test.tsx`, `SidebarNav.test.ts`
 
 **Interfaces:**
+
 - Consumes: `useActivityBadge`, `ActivityList`, `activityPopoverOpenAtom`, `useActivitySelected`, `getActivityPath`.
 - [ ] **Step 1: Failing tests:** the bell shows the badge count and `highlight` (red) when `needsYou`; on desktop a click opens the popover (`aria-expanded="true"`), a second click or Open as page navigates to `/activity/`; while `/activity/` is shown a click does not open the popover; on phones (in the drawer) a click navigates; the top bar has a bell button before the account that opens the sheet.
 - [ ] **Step 2: Run** `nix develop -c npx vitest run src/app/sidebar`; FAIL.
@@ -175,11 +191,13 @@ export const markActivityRowsRead = (mx: MatrixClient, rows: ActivityRow[], hide
 ### Task 7: Router, Inbox removal, command palette
 
 **Files:**
+
 - Modify: `src/app/shell/Router.tsx`, `src/app/shell/clientPages.tsx`, `src/app/routes/paths.ts`, `src/app/routes/pathUtils.ts`, `src/app/command-palette/commandPaletteActions.ts`, `commandPaletteItems.ts`, `src/app/diagnostics/flightRecorder.ts`, `src/app/navigation/phoneNavDrawer.ts` (comment)
 - Delete: `src/app/notifications/inbox/InboxNav.tsx`, `InboxNav.test.tsx`, `Notifications.tsx`, `Notifications.css.ts`, and `src/app/notifications/inboxNotification.ts` with its test if nothing else imports it
 - Test: `src/app/shell/Router.inbox.test.tsx` renamed `Router.activity.test.tsx`, `commandPaletteActions.test.ts`, `src/app/bug-reports/error-reporting/routeTemplate.test.ts`, `useNavToActivePathMapper.test.tsx`, `clientRouteRestore.behaviour.test.ts`
 
 **Interfaces:**
+
 - Routes: `ACTIVITY_PATH` section `SectionPage navId="activity" nav={<ActivityNav/>}` with index `SectionIndex page={<ActivityEmpty/>}`, `ACTIVITY_INVITES_PATH` → `<Invites/>`, `ACTIVITY_ROOM_PATH` → `<RoomPage/>`; `THREADS_PATH` section `SectionPage navId="threads" nav={<ThreadsNav/>}` with index `<ThreadsEmpty/>` and `THREADS_ROOM_PATH` → `<RoomPage/>`; `/inbox/*` → `<Navigate to={ACTIVITY_PATH} replace/>`. Task 8 provides `ThreadsNav`/`ThreadsEmpty`; until then the Threads route keeps the old page.
 - Command palette: action id `go-activity`, label `nav.activity`, path `getActivityPath()`.
 - [ ] **Step 1: Failing tests:** `/activity/` renders the Activity nav and empty page; `/activity/!r:x/?threadId=$t` renders `RoomPage`; `/inbox/invites/` redirects to `/activity/`; `/activity/invites/` renders `Invites`; the palette has Go to Activity.
@@ -191,14 +209,17 @@ export const markActivityRowsRead = (mx: MatrixClient, rows: ActivityRow[], hide
 ### Task 8: Threads section rewrite
 
 **Files:**
+
 - Create: `src/app/threads/page/threadGroups.ts`, `ThreadsNav.tsx`, `ThreadsNav.css.ts`, `ThreadsEmpty.tsx`, `useThreadsNeedsYouCount.ts`, `threadsScope.ts`
 - Delete: `src/app/threads/page/Threads.tsx`, `ThreadsView.tsx`, `ThreadsView.css.ts`, `ThreadsViewRow.tsx`, `FilterBar.tsx`, `FilterBar.css.ts`, `FilterBarMobileSheet.tsx`, `FilterBarMobileSheet.css.ts`, their tests in `threads/page/__tests__/`, `src/app/threads/cross-room/crossRoomThreadFilters.ts` and its tests
 - Modify: `src/app/account/lifecycle/sessionCleanup.ts` (+ test: the scope key replaces the filters key), `src/app/shell/Router.tsx`, `clientPages.tsx`, `src/app/sidebar/rail/ThreadsTab.tsx`, `src/app/i18n/locales/additions/en.json` (`threadsPage.*`)
 - Test: `src/app/threads/page/threadGroups.test.ts`, `src/app/threads/page/ThreadsNav.test.tsx` (jsdom)
 
 **Interfaces:**
+
 - Consumes: `crossRoomThreadIndexAtom`, `readThreadSignals`, `useJoinedRoomThreadLists(true)`, `compareCrossRoomThreadEntries` (moved into `threadGroups.ts` if `crossRoomThreadFilterPipeline.ts` goes; keep its sidebar importer working).
 - Produces:
+
 ```ts
 export type ThreadsScope = 'mine' | 'following' | 'all';
 export type ThreadGroupId = 'needsYou' | 'unread' | 'working' | 'recent' | 'automations';
@@ -207,6 +228,7 @@ export const groupThreads = (items: ThreadListItem[], scope: ThreadsScope, userI
 export const useThreadsNeedsYouCount = (): number;
 export const threadsScopeAtom: WritableAtom<ThreadsScope, ...>; // per account, localStorage key `mindroom.threadsScope.<userId>`
 ```
+
 - [ ] **Step 1: Failing tests:** scope `mine` keeps `rootSenderId === userId`, `following` keeps `isInvolved`, `all` keeps everything eligible (replies or pending send); first fitting group wins (a streaming thread with a pending approval is in needsYou); automations only in `all`; query matches `searchableText` (normalized); groups come in the order needsYou, unread, working, recent, automations and empty groups are dropped; recent sorted by `lastActivityTs`. `ThreadsNav`: scope switch, search, Show more after 50 recent, a row navigates to `/threads/<room>/?threadId=<root>`.
 - [ ] **Step 2: Run** `nix develop -c npx vitest run src/app/threads/page`; FAIL.
 - [ ] **Step 3: Implement**; wire the router (Task 7 interfaces) and the Threads badge.
@@ -216,6 +238,7 @@ export const threadsScopeAtom: WritableAtom<ThreadsScope, ...>; // per account, 
 ### Task 9: Translations, docs and product rules
 
 **Files:**
+
 - Modify: `src/app/i18n/locales/additions/*.json` (16 languages), `AGENTS.md` (phone top bar: menu button, search, the Activity bell, account), `docs/architecture.md` (Layout lines for `activity/`, `notifications/` and `threads/`, "Route pages" list), `README.md` (Inbox line)
 - Test: `src/app/i18n/localeAdditions.test.ts`
 
@@ -227,6 +250,7 @@ export const threadsScopeAtom: WritableAtom<ThreadsScope, ...>; // per account, 
 ### Task 10: End-to-end specs and the push gate
 
 **Files:**
+
 - Create: `e2e/activity/activity.spec.ts`, `e2e/threads/threads-page.spec.ts`
 - Modify or delete: the specs that open `/inbox` or the Inbox button (`e2e/notifications/inbox-live`, `inbox-call-rings`, `notifications`, `notifications-paging`, `notification-sender-impostor`; `e2e/sidebar/inbox-mark-read`, `inbox-opens-on-invites`, `inbox-phone-mark-read`, `invites-page`, `invites-accept-all`), the old Threads page specs (`e2e/threads/thread-list-pages.live.spec.ts`, `thread-reply-counts.spec.ts`, `e2e/messages/direction-controls-previews.spec.ts`, `e2e/sidebar/fresh-account-sidebar.spec.ts`, `e2e/account/account-menu.spec.ts`), `scripts/push-gate.sh` (smoke list: `e2e/activity/activity.spec.ts` instead of `e2e/sidebar/inbox-mark-read.spec.ts`)
 

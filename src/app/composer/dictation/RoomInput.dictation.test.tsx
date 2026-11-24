@@ -81,8 +81,8 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
       layoutState.dictationBlocksSubmit
         ? 'blocked'
         : layoutState.dictationCanSend
-        ? 'sendable'
-        : 'idle',
+          ? 'sendable'
+          : 'idle',
     detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
   }),
 }));
@@ -290,9 +290,8 @@ const inSlot = (slot: 'before' | 'after', id: string) =>
 
 describe('RoomInput dictation layout and submit guard', () => {
   it('renders fixed waveform voice icon and keeps desktop layout across dictation states', async () => {
-    const { useRoomInputVoice: actualUseRoomInputVoice } = await vi.importActual<
-      typeof import('../useRoomInputVoice')
-    >('../useRoomInputVoice');
+    const { useRoomInputVoice: actualUseRoomInputVoice } =
+      await vi.importActual<typeof import('../useRoomInputVoice')>('../useRoomInputVoice');
     function RealVoiceButton() {
       const voice = actualUseRoomInputVoice({
         mx: {

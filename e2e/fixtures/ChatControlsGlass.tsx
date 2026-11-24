@@ -30,7 +30,8 @@ export function ChatControlsGlass() {
         color: color.Surface.OnContainer,
       }}
     >
-      <div style={{
+      <div
+        style={{
           display: 'grid',
           // minmax(0, 1fr) lets long labels shrink instead of widening the column
           gridTemplateColumns: 'minmax(0, 1fr)',

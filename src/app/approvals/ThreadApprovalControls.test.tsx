@@ -93,12 +93,10 @@ vi.mock('./ThreadApprovals.css', () => ({
   DialogHeading: 'DialogHeading',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
-  const { default: FocusTrap } = await importOriginal<{
-    default: typeof import('focus-trap-react');
-  }>();
+  const { FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
   return {
     // JSDOM has no layout; keep the real trap and focus handoffs.
-    default: (props: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: (props: React.ComponentProps<typeof FocusTrap>) => (
       <FocusTrap
         {...props}
         focusTrapOptions={{

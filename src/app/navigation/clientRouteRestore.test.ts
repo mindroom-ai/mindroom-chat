@@ -29,7 +29,7 @@ const makeMatrixClient = ({
       const answer = resolvedAliases[alias];
       return typeof answer === 'object' ? answer : { room_id: answer };
     }),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('clientRouteRestore', () => {
   it('detects alias routes before rendering children that would flash join fallbacks', () => {

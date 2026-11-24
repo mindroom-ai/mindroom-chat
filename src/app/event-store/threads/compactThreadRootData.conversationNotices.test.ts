@@ -46,7 +46,7 @@ const notice = (
 
 const room = {
   getUnfilteredTimelineSet: () =>
-    ({ relations: { getChildEventsForEvent: () => undefined } } as never),
+    ({ relations: { getChildEventsForEvent: () => undefined } }) as never,
 };
 
 describe('isZeroReplyStandaloneThreadRootEvent for notices', () => {

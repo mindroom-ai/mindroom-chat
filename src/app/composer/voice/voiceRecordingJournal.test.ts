@@ -14,7 +14,7 @@ beforeEach(() => {
   const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, options: LockOptions, callback: LockGrantedCallback<T>) => {
         expect(options.ifAvailable).toBe(true);
         if (held.has(name)) return callback(null);
         held.add(name);

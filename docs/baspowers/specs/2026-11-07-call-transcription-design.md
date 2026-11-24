@@ -37,11 +37,11 @@ work; it describes what the software does and the contract between the two sides
 
 `calls.transcripts` in MindRoom's config:
 
-| Field | Default | What it is |
-| --- | --- | --- |
-| `enabled` | `false` | Transcribe calls between people. |
-| `notes_model` | none | A top-level `models` entry that writes the notes; none writes no notes. Validated at load. |
-| `languages` | `[]` | Language codes, hints for speech-to-text (the first is sent). |
+| Field         | Default | What it is                                                                                 |
+| ------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `enabled`     | `false` | Transcribe calls between people.                                                           |
+| `notes_model` | none    | A top-level `models` entry that writes the notes; none writes no notes. Validated at load. |
+| `languages`   | `[]`    | Language codes, hints for speech-to-text (the first is sent).                              |
 
 Speech-to-text uses MindRoom's existing voice-message settings (`voice.stt`: provider, model, host, credentials).
 Changes apply to the next request, without a restart. Turning `enabled` off stops all reading and posting in Matrix for
@@ -98,13 +98,13 @@ Under `/api/call-transcripts/v1`, with MindRoom's client sessions (`Authorizatio
 `POST /api/client-sessions` with an audience-bound Matrix OpenID token), client-origin CORS (no cookies, `no-store`,
 `Retry-After` readable). Every route answers 404 while `enabled` is false.
 
-| Route | Answer |
-| --- | --- |
-| `POST /rooms/{room_id}/call` | `{"call": Call}`: the live call, started if none; also the heartbeat |
-| `POST /calls/{call_id}/leave` | `{}` |
-| `POST /calls/{call_id}/pause` `{"paused": bool}` | `{"call": Call}` |
-| `POST /calls/{call_id}/speech` multipart `audio` (WAV), `startedAt` (ISO time) | `{"line": Line \| null}` (a line, a gap, or null when no words were heard) |
-| `GET /rooms/{room_id}/call?after=<line id>` | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}`; `lines` are those after `after` (all without it) |
+| Route                                                                          | Answer                                                                                                                              |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /rooms/{room_id}/call`                                                   | `{"call": Call}`: the live call, started if none; also the heartbeat                                                                |
+| `POST /calls/{call_id}/leave`                                                  | `{}`                                                                                                                                |
+| `POST /calls/{call_id}/pause` `{"paused": bool}`                               | `{"call": Call}`                                                                                                                    |
+| `POST /calls/{call_id}/speech` multipart `audio` (WAV), `startedAt` (ISO time) | `{"line": Line \| null}` (a line, a gap, or null when no words were heard)                                                          |
+| `GET /rooms/{room_id}/call?after=<line id>`                                    | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}`; `lines` are those after `after` (all without it) |
 
 `Call`: `id`, `roomId`, `rowEventId` (null until posted), `startedAt`, `endedAt` (null while live), `members` (user
 IDs whose apps are in the call now), `pausedBy` (user ID, or null when not paused). `Line`: `id`,

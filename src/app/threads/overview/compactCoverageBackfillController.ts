@@ -84,7 +84,8 @@ export const useCompactCoverageBackfillController = ({
 
     inFlightRef.current = true;
     batchesUsedRef.current += 1;
-    paginateBackRef.current(true)
+    paginateBackRef
+      .current(true)
       .catch(() => undefined)
       .finally(() => {
         inFlightRef.current = false;

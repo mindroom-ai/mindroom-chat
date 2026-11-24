@@ -97,9 +97,9 @@ const getRawTransactionId = (rawEvent: Partial<IEvent>): string | undefined => {
     typeof rawEvent.txn_id === 'string' && rawEvent.txn_id.length > 0
       ? rawEvent.txn_id
       : typeof rawEvent.unsigned?.transaction_id === 'string' &&
-        rawEvent.unsigned.transaction_id.length > 0
-      ? rawEvent.unsigned.transaction_id
-      : undefined;
+          rawEvent.unsigned.transaction_id.length > 0
+        ? rawEvent.unsigned.transaction_id
+        : undefined;
 
   return txnId;
 };

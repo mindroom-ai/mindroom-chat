@@ -80,8 +80,8 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
               {error
                 ? t('mindroomUi.messages.approvalArguments.loadFailed')
                 : approval.argumentSource
-                ? t('mindroomUi.messages.approvalArguments.loadingCompleteArguments')
-                : t('mindroomUi.messages.approvalArguments.onlyATruncatedPreviewIsAvailable')}
+                  ? t('mindroomUi.messages.approvalArguments.loadingCompleteArguments')
+                  : t('mindroomUi.messages.approvalArguments.onlyATruncatedPreviewIsAvailable')}
               {error && (
                 <button type="button" onClick={() => setRetry((value) => value + 1)}>
                   {t('mindroomUi.messages.approvalArguments.retry')}

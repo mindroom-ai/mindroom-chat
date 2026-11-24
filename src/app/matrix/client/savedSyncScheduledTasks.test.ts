@@ -33,7 +33,7 @@ const syncOf = (state: unknown[]): ISyncResponse =>
         },
       },
     },
-  } as unknown as ISyncResponse);
+  }) as unknown as ISyncResponse;
 
 const stateKeysOf = (events: { type: string; state_key?: string }[] | undefined, type: string) =>
   (events ?? [])

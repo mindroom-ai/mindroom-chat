@@ -253,8 +253,7 @@ const waitForLimitedSync = (page: Page, roomId: string) =>
     async (response) => {
       if (!response.url().includes('/sync?') || response.status() !== 200) return false;
       const data = (await response.json().catch(() => undefined)) as
-        | { rooms?: { join?: Record<string, { timeline?: { limited?: boolean } }> } }
-        | undefined;
+        { rooms?: { join?: Record<string, { timeline?: { limited?: boolean } }> } } | undefined;
       return data?.rooms?.join?.[roomId]?.timeline?.limited === true;
     },
     { timeout: 120_000 }
@@ -277,10 +276,13 @@ const missGapOffline = async (
 
 /** Moves the loaded client to a room, as a link inside the app would. */
 const showRoom = async (page: Page, roomId: string) => {
-  await page.evaluate((url) => {
-    window.history.pushState(null, '', url);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(roomId)}`);
+  await page.evaluate(
+    (url) => {
+      window.history.pushState(null, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(roomId)}`
+  );
 };
 
 type ViewMode = 'classic' | 'threaded' | 'compact';
@@ -582,7 +584,7 @@ test.use({
 test.describe('messages missed in a gappy sync show', () => {
   test.beforeAll(async () => {
     test.setTimeout(300_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

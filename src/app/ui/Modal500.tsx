@@ -1,6 +1,6 @@
 import { ComponentProps, ReactNode, useId, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { Modal } from './glass/GlassPrimitives';
 import { glassDenseOverBackdrop } from './styles/Glass.css';

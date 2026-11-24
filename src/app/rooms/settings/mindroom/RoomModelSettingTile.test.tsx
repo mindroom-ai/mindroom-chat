@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -57,9 +57,9 @@ vi.mock('react-i18next', async () => {
 });
 // jsdom lays nothing out, so every element counts as shown for the trap.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealFocusTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealFocusTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealFocusTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

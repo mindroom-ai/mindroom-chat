@@ -218,8 +218,7 @@ export const useRoomOrders = (): RoomOrders => {
       id: string
     ): RoomOrderData[K][string] | undefined => {
       const pendingMap = active?.[field] as
-        | Record<string, RoomOrderData[K][string] | undefined>
-        | undefined;
+        Record<string, RoomOrderData[K][string] | undefined> | undefined;
       if (pendingMap && hasOwn(pendingMap, id)) return pendingMap[id];
       return (saved[field] as Record<string, RoomOrderData[K][string] | undefined>)[id];
     };

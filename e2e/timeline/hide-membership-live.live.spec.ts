@@ -172,7 +172,7 @@ test.use({
 
 test.describe('Hide Membership Changes from another device keeps a small room on screen', () => {
   test.beforeAll(async () => {
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

@@ -88,7 +88,7 @@ describe('loadServerScaledPicture', () => {
       MatrixClient,
       string,
       Blob,
-      typeof owner
+      typeof owner,
     ];
     expect([mxcUri, picture.type, savedFor]).toEqual(['mxc://example/photo', 'image/png', owner]);
   });

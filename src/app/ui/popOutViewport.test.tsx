@@ -9,10 +9,10 @@ const anchor = { x: 315, y: 190, width: 28, height: 28 };
 let menuHeight = 357;
 
 const surface = () => document.querySelector<HTMLElement>('[data-surface]')!.parentElement!;
-// jsdom's style drops `unset` and `clamp()`, so the test records what folds writes to each side.
-const SIDES = ['top', 'bottom', 'left', 'right'] as const;
-let written = new WeakMap<CSSStyleDeclaration, Record<string, string>>();
-const placed = () => written.get(surface().style);
+const placed = () => {
+  const { top, bottom, left, right } = surface().style;
+  return { top, bottom, left, right };
+};
 const open = () =>
   render(
     <PopOut anchor={anchor} position="Bottom" align="End" offset={4} content={<div data-surface />}>
@@ -27,15 +27,6 @@ describe("folds' PopOut placement", () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
       () => new DOMRect(0, 0, 280, menuHeight)
     );
-    written = new WeakMap();
-    for (const side of SIDES) {
-      vi.spyOn(CSSStyleDeclaration.prototype, side, 'set').mockImplementation(function record(
-        this: CSSStyleDeclaration,
-        value: string
-      ) {
-        written.set(this, { ...written.get(this), [side]: value });
-      });
-    }
   });
   afterEach(() => {
     cleanup();

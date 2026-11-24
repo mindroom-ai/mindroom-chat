@@ -18,7 +18,7 @@ type TrapOptions = {
 };
 const trap = vi.hoisted(() => ({ options: undefined as TrapOptions | undefined }));
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

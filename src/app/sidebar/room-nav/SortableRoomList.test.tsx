@@ -30,7 +30,7 @@ vi.mock('./RoomNavItem', () => ({
   ),
 }));
 
-const room = (roomId: string): Room => ({ roomId, name: roomId.slice(1) } as unknown as Room);
+const room = (roomId: string): Room => ({ roomId, name: roomId.slice(1) }) as unknown as Room;
 
 describe('SortableRoomRow', () => {
   let container: HTMLDivElement;

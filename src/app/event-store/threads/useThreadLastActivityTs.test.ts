@@ -195,7 +195,7 @@ const makeRoom = (rootEvent: MatrixEvent, thread?: MockThread): Room =>
     getThread: vi.fn((threadRootId: string) =>
       threadRootId === rootEvent.getId() ? thread : undefined
     ),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('getThreadLastActivityTs', () => {
   it('uses a newer reply once the thread holds it', () => {

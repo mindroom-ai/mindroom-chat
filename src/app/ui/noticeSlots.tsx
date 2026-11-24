@@ -157,7 +157,7 @@ export const useNoticePresence = (due: boolean, phoneLayer: PhoneLayer): NoticeP
     placement: NoticePlacement;
   }>();
   const leaving = leftFrom !== undefined;
-  const slot = leftFrom ? leftFrom.slot : listSlot ?? pageSlot;
+  const slot = leftFrom ? leftFrom.slot : (listSlot ?? pageSlot);
   const placement: NoticePlacement = leftFrom?.placement ?? (listSlot ? 'list' : 'page');
   // The card comes in once where it is placed: rebuilt in a new place of the same kind (the list
   // of another section), it shows at once instead of arriving again.

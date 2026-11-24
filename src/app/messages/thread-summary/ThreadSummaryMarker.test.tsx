@@ -40,7 +40,7 @@ const renderers: ReactTestRenderer[] = [];
 let nodes: { trigger?: HTMLElement; card?: HTMLElement; link?: HTMLElement } = {};
 const nodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
   const node = document.createElement(typeof element.type === 'string' ? element.type : 'div');
-  node.getBoundingClientRect = () => ({ ...triggerRect } as DOMRect);
+  node.getBoundingClientRect = () => ({ ...triggerRect }) as DOMRect;
   vi.spyOn(node, 'focus');
   if (element.props.className === 'MarkerTrigger') nodes.trigger = node;
   if (element.props.className === 'MarkerSettingsLink') nodes.link = node;

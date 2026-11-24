@@ -183,10 +183,12 @@ const check = async (page: Page, world: World, label: string) => {
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(QUIET_MS);
     await shot(page, `${label}-pending-root`);
-    expect.soft(
-      requests.filter((request) => request.includes(localId)),
-      'requests naming the local ID'
-    ).toEqual([]);
+    expect
+      .soft(
+        requests.filter((request) => request.includes(localId)),
+        'requests naming the local ID'
+      )
+      .toEqual([]);
     await expect.soft(page.getByText(HISTORY_ERROR)).toHaveCount(0);
     await expect.soft(page.getByRole('button', { name: 'Retry history' })).toHaveCount(0);
 
@@ -199,10 +201,9 @@ const check = async (page: Page, world: World, label: string) => {
   // The thread's approval history loads for the confirmed ID.
   const rootId = threadIdOf(page);
   await expect
-    .poll(
-      () => approvalHistory.filter(({ path }) => path.includes(`/relations/${rootId}/`)),
-      { timeout: 30_000 }
-    )
+    .poll(() => approvalHistory.filter(({ path }) => path.includes(`/relations/${rootId}/`)), {
+      timeout: 30_000,
+    })
     .toContainEqual(expect.objectContaining({ status: 200 }));
   await page.waitForTimeout(1_000);
   await expect(page.getByText(HISTORY_ERROR)).toHaveCount(0);
@@ -211,10 +212,12 @@ const check = async (page: Page, world: World, label: string) => {
     body: JSON.stringify({ requests, approvalHistory }, null, 2),
     contentType: 'application/json',
   });
-  expect.soft(
-    requests.filter((request) => request.includes(`~${world.roomId}`)),
-    'requests naming any local ID'
-  ).toEqual([]);
+  expect
+    .soft(
+      requests.filter((request) => request.includes(`~${world.roomId}`)),
+      'requests naming any local ID'
+    )
+    .toEqual([]);
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
