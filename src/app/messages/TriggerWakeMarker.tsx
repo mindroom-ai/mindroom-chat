@@ -206,6 +206,7 @@ type TriggerWakeMarkerProps = {
   wake: TriggerWakeInfo;
   ts?: number;
   roomId?: string;
+  linkTrigger?: boolean;
 };
 
 const summaryParts = (wake: TriggerWakeInfo): string[] =>
@@ -224,7 +225,12 @@ const describeSource = (wake: TriggerWakeInfo): string | undefined => {
  * Quiet 1-line marker for a MindRoom reactive or direct external trigger wake event.
  * Expands in place to show trigger metadata, prompt text, and optional JSON event payload.
  */
-export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) {
+export function TriggerWakeMarker({
+  wake,
+  ts,
+  roomId,
+  linkTrigger = true,
+}: TriggerWakeMarkerProps) {
   const { t } = useTranslation();
   const [hour24Clock] = useHour24Clock();
   const dateFormatString = useSettingValue(settingsAtom, 'dateFormatString');
@@ -246,7 +252,7 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
     const id = revealDirectionControls(wake.triggerId);
     const label = t(`${KEY}.triggerLabel`, { id });
     metaItems.push(
-      roomId ? (
+      roomId && linkTrigger ? (
         <button
           key="trigger"
           type="button"

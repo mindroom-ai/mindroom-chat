@@ -291,4 +291,71 @@ describe('RoomViewHeader triggers integration', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
   });
+
+  it('shows load error in the dialog after a rejected refetch over cached rows or empty cache, and after PATCH 200 then GET failure', async () => {
+    // 1. Cached rows -> rejected refetch on open: header keeps count, dialog shows load error.
+    mocks.send
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ triggers: [rowJson()] }), { status: 200 })
+      )
+      .mockRejectedValueOnce(new Error('network down'));
+    renderRoomHeader();
+    const button = await screen.findByRole('button', { name: 'Triggers (1)' });
+    fireEvent.click(button);
+
+    const errorDialog = await screen.findByRole('dialog', { name: 'Triggers' });
+    await waitFor(() =>
+      expect(errorDialog.querySelector('[data-triggers-error]')?.textContent).toBe(
+        "Couldn't load triggers."
+      )
+    );
+    expect(errorDialog.querySelector('[data-trigger-id]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Triggers (1)' })).toBeTruthy();
+    cleanup();
+    mocks.send.mockReset();
+
+    // 2. Cached [] -> wake pill click with rejected refetch: load error, no missing-trigger notice.
+    mocks.send
+      .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }))
+      .mockRejectedValueOnce(new Error('network down'));
+    renderRoomHeader('tr_design');
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /Triggered/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'View trigger tr_design' }));
+    const emptyErrorDialog = await screen.findByRole('dialog', { name: 'Triggers' });
+    await waitFor(() =>
+      expect(emptyErrorDialog.querySelector('[data-triggers-error]')?.textContent).toBe(
+        "Couldn't load triggers."
+      )
+    );
+    expect(emptyErrorDialog.querySelector('[data-trigger-missing]')).toBeNull();
+    expect(screen.queryByText('No triggers in this room.')).toBeNull();
+    cleanup();
+    mocks.send.mockReset();
+
+    // 3. PATCH 200 then GET failure on an Off row -> load error, not a stale Off row, focus on Close.
+    const offRow = rowJson({ enabled: false, disabled_reason: 'manual' });
+    mocks.send
+      .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [offRow] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [offRow] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockRejectedValueOnce(new Error('refresh down'));
+    renderRoomHeader();
+    fireEvent.click(await screen.findByRole('button', { name: 'Triggers (1)' }));
+    const patchDialog = await screen.findByRole('dialog', { name: 'Triggers' });
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
+
+    const enableBtn = screen.getByRole('button', { name: 'Enable' });
+    enableBtn.focus();
+    fireEvent.click(enableBtn);
+    await waitFor(() =>
+      expect(patchDialog.querySelector('[data-triggers-error]')?.textContent).toBe(
+        "Couldn't load triggers."
+      )
+    );
+    expect(patchDialog.querySelector('[data-trigger-id]')).toBeNull();
+    expect(screen.queryByText('Off')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
+  });
 });

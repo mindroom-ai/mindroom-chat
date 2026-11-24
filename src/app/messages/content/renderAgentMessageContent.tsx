@@ -130,6 +130,7 @@ export type RenderAgentMessageContentOptions = {
   hydrateLongText?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
+  linkTrigger?: boolean;
 };
 
 type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
@@ -240,6 +241,7 @@ export const renderAgentMessageContent = ({
   showMessageExtras = false,
   hydrateLongText = true,
   readOnly,
+  linkTrigger,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
   // A MindRoom agent's question shows as a card with a button per option.
   const question = fromMindroomAgent
@@ -443,6 +445,7 @@ export const renderAgentMessageContent = ({
           wake={triggerWake}
           ts={ts ?? mEvent?.getTs()}
           roomId={roomId ?? mEvent?.getRoomId()}
+          linkTrigger={linkTrigger}
         />
       );
     }
@@ -531,7 +534,12 @@ export const renderAgentMessageContent = ({
   // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
   const notice =
     fromMindroomAgent && !highlightRegex
-      ? readAgentNoticeMarker(content, ts ?? mEvent?.getTs(), roomId ?? mEvent?.getRoomId())
+      ? readAgentNoticeMarker(
+          content,
+          ts ?? mEvent?.getTs(),
+          roomId ?? mEvent?.getRoomId(),
+          linkTrigger
+        )
       : null;
   if (notice) return notice;
 

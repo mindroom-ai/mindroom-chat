@@ -1,8 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  GET_TIMEOUT_MS,
-  MUTATION_TIMEOUT_MS,
   deleteRoomTrigger,
   fetchRoomTriggers,
   parseRoomTriggersResponse,
@@ -96,10 +94,7 @@ describe('roomTriggersApi', () => {
     expect(parseRoomTriggersResponse({ triggers: 'bad' })).toBeNull();
   });
 
-  it('distinguishes empty 200, 404 null, and network throw, and uses longer mutation timeout', async () => {
-    expect(MUTATION_TIMEOUT_MS).toBeGreaterThan(GET_TIMEOUT_MS);
-    expect(MUTATION_TIMEOUT_MS).toBeGreaterThanOrEqual(25_000);
-
+  it('distinguishes empty 200, 404 null, and network throw, and sends PATCH/DELETE mutations', async () => {
     sendMock.mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
     expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
     expect(sendMock).toHaveBeenCalledWith(

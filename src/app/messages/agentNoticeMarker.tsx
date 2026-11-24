@@ -17,14 +17,24 @@ import { TriggerWakeMarker } from './TriggerWakeMarker';
 export const readAgentNoticeMarker = (
   content: Record<string, unknown>,
   originTs: number | undefined,
-  roomId?: string
+  roomId?: string,
+  linkTrigger?: boolean
 ): ReactNode | null => {
   const snoozeEndedNote = readSnoozeEndedNote(content);
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
   const skillReview = readSkillReviewNotice(content);
   if (skillReview) return <SkillReviewMarker review={skillReview} />;
   const triggerWake = getLongTextSource(content) ? null : readTriggerWake(content);
-  if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={originTs} roomId={roomId} />;
+  if (triggerWake) {
+    return (
+      <TriggerWakeMarker
+        wake={triggerWake}
+        ts={originTs}
+        roomId={roomId}
+        linkTrigger={linkTrigger}
+      />
+    );
+  }
   const compaction = readCompactionNotice(content, originTs);
   return compaction ? <CompactionNoticeSeam compaction={compaction} /> : null;
 };

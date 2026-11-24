@@ -42,6 +42,7 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
     const modalRef = useRef<HTMLDivElement>(null);
     const closeBtnRef = useRef<HTMLButtonElement>(null);
     const highlightedRef = useRef<HTMLElement>(null);
+    const focusedHighlightRef = useRef<string | undefined>(undefined);
     const setModalRef = useCallback(
       (node: HTMLDivElement | null) => {
         modalRef.current = node;
@@ -52,27 +53,24 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
     );
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
     const matched = Boolean(
-      highlightTriggerId && triggers.some((row) => row.triggerId === highlightTriggerId)
+      !loadFailed &&
+      highlightTriggerId &&
+      triggers.some((row) => row.triggerId === highlightTriggerId)
     );
 
     useLayoutEffect(() => {
-      if (matched) {
+      if (matched && focusedHighlightRef.current !== highlightTriggerId) {
+        focusedHighlightRef.current = highlightTriggerId;
         highlightedRef.current?.scrollIntoView?.({ block: 'nearest' });
         highlightedRef.current?.focus({ preventScroll: true });
-      } else {
-        const modal = modalRef.current;
-        if (!modal || !modal.contains(modal.ownerDocument.activeElement)) {
-          closeBtnRef.current?.focus({ preventScroll: true });
-        }
+        return;
       }
-    }, [highlightTriggerId, matched]);
-
-    useLayoutEffect(() => {
+      if (!matched) focusedHighlightRef.current = undefined;
       const modal = modalRef.current;
-      if (modal && !modal.contains(modal.ownerDocument.activeElement)) {
+      if (!modal || !modal.contains(modal.ownerDocument.activeElement)) {
         closeBtnRef.current?.focus({ preventScroll: true });
       }
-    }, [triggers.length]);
+    }, [highlightTriggerId, matched, loadFailed, triggers]);
 
     const renderOwner = (userId: string) =>
       isUserId(userId)

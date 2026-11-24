@@ -72,15 +72,15 @@ describe('useRoomTriggers', () => {
     });
     await waitFor(() => expect(result.current.triggers).toHaveLength(1));
 
-    // Refetch network blip keeps the last good rows instead of clearing them.
+    // Refetch network blip keeps cached rows for the header count while marking loadFailed for the dialog.
     mocks.send.mockRejectedValueOnce(new Error('network blip'));
     await act(async () => {
       await result.current.refetch();
     });
+    await waitFor(() => expect(result.current.loadFailed).toBe(true));
     expect(result.current.triggers.map((t) => t.triggerId)).toEqual(['tr_a']);
-    expect(result.current.loadFailed).toBe(false);
 
-    // Toggle sends PATCH and invalidates.
+    // Toggle sends PATCH and invalidates, clearing loadFailed when GET succeeds.
     mocks.send
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(
@@ -90,8 +90,18 @@ describe('useRoomTriggers', () => {
       await result.current.toggleTrigger('tr_a', false);
     });
     await waitFor(() => expect(result.current.triggers[0]?.enabled).toBe(false));
+    expect(result.current.loadFailed).toBe(false);
 
-    // Delete sends DELETE and invalidates.
+    // PATCH 200 followed by GET failure marks loadFailed instead of leaving a stale Off row.
+    mocks.send
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockRejectedValueOnce(new Error('refresh failed'));
+    await act(async () => {
+      await result.current.toggleTrigger('tr_a', true);
+    });
+    await waitFor(() => expect(result.current.loadFailed).toBe(true));
+
+    // Delete sends DELETE and invalidates; a rejected refetch after cached [] still marks loadFailed.
     mocks.send
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
@@ -99,6 +109,14 @@ describe('useRoomTriggers', () => {
       await result.current.deleteTrigger('tr_a');
     });
     await waitFor(() => expect(result.current.triggers).toEqual([]));
+    expect(result.current.loadFailed).toBe(false);
+
+    mocks.send.mockRejectedValueOnce(new Error('empty refetch failed'));
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.loadFailed).toBe(true));
+    expect(result.current.triggers).toEqual([]);
   });
 
   it('marks loadFailed on no server, 404, or failed first load', async () => {

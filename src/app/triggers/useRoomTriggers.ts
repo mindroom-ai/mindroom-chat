@@ -49,10 +49,11 @@ export function useRoomTriggers(room: Room) {
 
   const loaded = enabled && Array.isArray(query.data);
   const loading = joined && (pending || (enabled && query.isFetching));
+  const failed = enabled && query.isError;
   return {
     triggers: loaded ? query.data! : EMPTY,
     loading,
-    loadFailed: !loading && !loaded,
+    loadFailed: loading ? loaded && failed : !loaded || failed,
     refetch: query.refetch,
     toggleTrigger,
     deleteTrigger,

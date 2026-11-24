@@ -235,13 +235,13 @@ describe('RoomTriggersDialog', () => {
     expect(loadingStatus.textContent).toBe('Loading…');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
-    // Failed load: show only the single error line, not empty state or missing notice.
+    // Failed load even with cached rows: show only the single error line, no rows, count, or missing notice.
     rerender(
       <MatrixClientProvider value={mx}>
         <MemoryRouter>
           <RoomTriggersDialog
             roomId={ROOM_ID}
-            triggers={[]}
+            triggers={[makeTrigger({ triggerId: 'tr_target', description: 'Target' })]}
             loadFailed
             highlightTriggerId="tr_gone"
             onClose={vi.fn()}
@@ -255,6 +255,7 @@ describe('RoomTriggersDialog', () => {
     expect(document.querySelector('[data-triggers-error]')?.textContent).toBe(
       "Couldn't load triggers."
     );
+    expect(screen.queryAllByRole('article')).toHaveLength(0);
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
     expect(screen.queryByText('No triggers in this room.')).toBeNull();
 
@@ -278,5 +279,75 @@ describe('RoomTriggersDialog', () => {
     );
     expect(document.querySelector('[data-trigger-missing]')?.textContent).toContain('tr_gone');
     expect(screen.getByText('No triggers in this room.')).toBeTruthy();
+  });
+
+  it('keeps focus on busy action buttons with aria-disabled and avoids stealing focus on row updates', async () => {
+    let resolveToggle!: () => void;
+    let resolveDelete!: () => void;
+    const onToggleTrigger = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveToggle = resolve;
+        })
+    );
+    const onDeleteTrigger = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        })
+    );
+    const first = makeTrigger({ triggerId: 'tr_watch', description: 'Design triage' });
+    const { rerender } = renderDialog({
+      triggers: [first],
+      highlightTriggerId: 'tr_watch',
+      onToggleTrigger,
+      onDeleteTrigger,
+    });
+
+    const toggleBtn = screen.getByRole('button', { name: 'Disable' });
+    toggleBtn.focus();
+    fireEvent.click(toggleBtn);
+    expect(document.activeElement).toBe(toggleBtn);
+    expect(toggleBtn.hasAttribute('disabled')).toBe(false);
+    expect(toggleBtn.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(toggleBtn);
+    expect(onToggleTrigger).toHaveBeenCalledTimes(1);
+
+    // Updating rows while focus is on a button inside the dialog does not steal focus back to the card.
+    rerender(
+      <MatrixClientProvider value={mx}>
+        <MemoryRouter>
+          <RoomTriggersDialog
+            roomId={ROOM_ID}
+            triggers={[first, makeTrigger({ triggerId: 'tr_other', description: 'Other' })]}
+            highlightTriggerId="tr_watch"
+            onClose={vi.fn()}
+            onOpenThread={vi.fn()}
+            onToggleTrigger={onToggleTrigger}
+            onDeleteTrigger={onDeleteTrigger}
+          />
+        </MemoryRouter>
+      </MatrixClientProvider>
+    );
+    expect(document.activeElement).toBe(toggleBtn);
+
+    resolveToggle();
+    await waitFor(() => expect(toggleBtn.getAttribute('aria-disabled')).toBeNull());
+
+    const deleteIconBtn = screen.getAllByRole('button', { name: 'Delete' })[0]!;
+    fireEvent.click(deleteIconBtn);
+    const confirmDeleteBtn = screen.getByRole('button', { name: 'Delete trigger' });
+    confirmDeleteBtn.focus();
+    fireEvent.click(confirmDeleteBtn);
+    expect(document.activeElement).toBe(confirmDeleteBtn);
+    expect(confirmDeleteBtn.hasAttribute('disabled')).toBe(false);
+    expect(confirmDeleteBtn.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(confirmDeleteBtn);
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(onDeleteTrigger).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Deleting...' })).toBe(confirmDeleteBtn);
+
+    resolveDelete();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull());
   });
 });

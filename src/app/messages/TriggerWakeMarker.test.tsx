@@ -337,4 +337,17 @@ describe('TriggerWakeMarker', () => {
       opener: linkButton,
     });
   });
+
+  it('keeps the trigger ID as plain text when linkTrigger is false', () => {
+    render(
+      <TriggerWakeMarker roomId="!ops:example.org" linkTrigger={false} wake={reactiveWake()} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.queryByRole('button', { name: /View trigger/ })).toBeNull();
+    expect(document.querySelector('[data-trigger-wake-link]')).toBeNull();
+    expect(document.querySelector('[data-trigger-wake-details]')?.textContent).toContain(
+      'Trigger tr_demo_watch'
+    );
+  });
 });

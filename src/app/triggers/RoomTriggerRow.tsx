@@ -108,6 +108,7 @@ export function RoomTriggerRow(props: Props) {
     }
   };
   const closeConfirm = () => {
+    if (busy) return;
     setConfirmDelete(false);
     setError(null);
   };
@@ -185,7 +186,7 @@ export function RoomTriggerRow(props: Props) {
                   <Button
                     {...COMPACT}
                     aria-describedby={titleId}
-                    disabled={Boolean(busy)}
+                    aria-disabled={Boolean(busy) || undefined}
                     onClick={() => void run('toggle', onToggle)}
                   >
                     <Text size="T200">{t(toggleKey)}</Text>
@@ -198,8 +199,12 @@ export function RoomTriggerRow(props: Props) {
                     aria-label={t('roomTriggers.delete')}
                     aria-describedby={titleId}
                     aria-expanded={showDeleteBar}
-                    disabled={Boolean(busy)}
-                    onClick={() => (showDeleteBar ? closeConfirm() : setConfirmDelete(true))}
+                    aria-disabled={Boolean(busy) || undefined}
+                    onClick={() => {
+                      if (busy) return;
+                      if (showDeleteBar) closeConfirm();
+                      else setConfirmDelete(true);
+                    }}
                   >
                     <Icon size="100" src={Icons.Delete} />
                   </IconButton>
@@ -223,7 +228,7 @@ export function RoomTriggerRow(props: Props) {
                   {...CONFIRM}
                   variant="Secondary"
                   fill="Soft"
-                  disabled={busy === 'delete'}
+                  aria-disabled={busy === 'delete' || undefined}
                   onClick={closeConfirm}
                 >
                   <Text size="T200">{t('roomTriggers.keep')}</Text>
@@ -232,7 +237,7 @@ export function RoomTriggerRow(props: Props) {
                   {...CONFIRM}
                   variant="Critical"
                   fill="Solid"
-                  disabled={busy === 'delete'}
+                  aria-disabled={busy === 'delete' || undefined}
                   onClick={() => void run('delete', onDelete)}
                 >
                   <Text size="T200">

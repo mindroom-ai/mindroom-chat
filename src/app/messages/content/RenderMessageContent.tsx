@@ -91,6 +91,8 @@ type RenderMessageContentProps = BodyOptions & {
   showMessageExtras?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
+  /** Whether trigger wake IDs link to the room's Triggers dialog (off outside room views). */
+  linkTrigger?: boolean;
 };
 
 type Content = Record<string, unknown>;
@@ -139,6 +141,7 @@ function CoreMessageContent({
   failedSend,
   hydrateLongText,
   readOnly,
+  linkTrigger,
 }: RenderMessageContentProps) {
   const client = useMatrixClient();
   const content = getContent<Content>();
@@ -179,7 +182,11 @@ function CoreMessageContent({
     !highlightRegex && fromMindroomAgent && !getLongTextSource(content)
       ? readTriggerWake(content)
       : null;
-  if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={ts} roomId={toolRoomId} />;
+  if (triggerWake) {
+    return (
+      <TriggerWakeMarker wake={triggerWake} ts={ts} roomId={toolRoomId} linkTrigger={linkTrigger} />
+    );
+  }
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
@@ -206,6 +213,7 @@ function CoreMessageContent({
     showMessageExtras,
     hydrateLongText,
     readOnly,
+    linkTrigger,
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (

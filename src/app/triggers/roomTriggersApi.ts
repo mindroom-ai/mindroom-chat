@@ -18,8 +18,8 @@ export type RoomTrigger = {
   canManage: boolean;
 };
 
-export const GET_TIMEOUT_MS = 8_000;
-export const MUTATION_TIMEOUT_MS = 30_000;
+const GET_TIMEOUT_MS = 8_000;
+const MUTATION_TIMEOUT_MS = 30_000;
 
 const asStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const asNum = (v: unknown): number | null =>
