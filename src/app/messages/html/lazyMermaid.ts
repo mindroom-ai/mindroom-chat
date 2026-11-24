@@ -1,13 +1,11 @@
 import { color } from 'folds';
 import type { Mermaid } from 'mermaid';
-import { DARK_THEME_NAMES, LIGHT_THEME_NAMES } from '../../preferences/themeNames';
 
 // Mermaid loads on demand with the first fenced `mermaid` code block so the initial bundle pays
 // zero bytes for it. All `initialize` + `render` pairs run sequentially through `renderQueue`
 // because Mermaid keeps its active theme configuration in module-level state.
 
-const DARK_THEME_CLASSES = new Set(DARK_THEME_NAMES.map((name) => `${name}-theme`));
-const LIGHT_THEME_CLASSES = new Set(LIGHT_THEME_NAMES.map((name) => `${name}-theme`));
+const SVG_NS = 'http://www.w3.org/2000/svg';
 const FALLBACK_FONT = 'Inter Variable, system-ui, -apple-system, sans-serif';
 
 const FALLBACK_PALETTE = {
@@ -38,11 +36,11 @@ const FALLBACK_PALETTE = {
 } as const;
 
 const SECURE_CONFIG_KEYS =
-  'secure securityLevel startOnLoad maxTextSize suppressErrorRendering maxEdges htmlLabels theme themeVariables'.split(
+  'secure securityLevel startOnLoad maxTextSize suppressErrorRendering maxEdges htmlLabels theme themeVariables themeCSS fontFamily altFontFamily'.split(
     ' '
   );
 const FORBIDDEN_SVG_TAGS = new Set(
-  'script foreignobject iframe frame frameset object embed applet base link meta form input button textarea select audio video source track noscript template portal handler animate set animatemotion animatetransform animatecolor'.split(
+  'script iframe frame frameset object embed applet base link meta form input button textarea select audio video source track noscript template portal handler animate set animatemotion animatetransform animatecolor'.split(
     ' '
   )
 );
@@ -50,13 +48,25 @@ const FORBIDDEN_ATTRS = new Set(
   'src srcdoc action formaction poster data ping dynsrc lowsrc'.split(' ')
 );
 
-// eslint-disable-next-line no-control-regex -- strip ASCII control characters before inspecting URL schemes
+// eslint-disable-next-line no-control-regex -- strip ASCII control characters before inspecting URLs
 const ASCII_CONTROLS = /[\u0000-\u001f\u007f\s]+/g;
-const SAFE_EXTERNAL_URL = /^(?:https?|mailto):/i;
 const CSS_URL_CALL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi;
 const CSS_AT_IMPORT = /@import\b[^;]*(?:;|$)/gi;
 const CSS_UNSAFE =
   /(?:expression\s*\([^)]*\)|javascript\s*:[^;"]*|vbscript\s*:[^;"]*|-moz-binding\s*:[^;]*|behavior\s*:[^;]*)/gi;
+
+// Patterns that cause Mermaid to fetch external resources during `mermaid.render()` before SVG
+// sanitization runs (imageSquare `new Image().src`, sequence actor `icon`, style/classDef `url()`,
+// and raw HTML/SVG image tags).
+const EXTERNAL_FETCH_PATTERNS = [
+  /@\{[\s\S]*?(?:^|[\s,{])['"]?img['"]?\s*:/i,
+  /@\{[\s\S]*?(?:^|[\s,{])['"]?shape['"]?\s*:\s*['"]?image\b/i,
+  /@\{[\s\S]*?\\(?:u[\da-f]{4}|x[\da-f]{2}|U[\da-f]{8})/i,
+  /(?:^|[;\n])\s*(?:properties|details)\b[^\n]*(?:['"]icon['"]\s*:\s*['"](?!@)|\\u)/i,
+  /(?:^|[;\n])\s*(?:style|classDef|linkStyle)\b[^\n]*(?:\burl\s*\(\s*(?!['"]?#)|@import\b|\\[\da-f])/i,
+  /\burl\s*\(\s*['"]?(?:https?:|\/\/|data:|blob:|file:|ftp:)/i,
+  /<(?:img|image)\b[^>]*\b(?:src|(?:xlink:)?href)\s*=/i,
+];
 
 export type MermaidThemeConfig = {
   darkMode: boolean;
@@ -108,18 +118,16 @@ const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
   return next;
 };
 
+/** Returns true when diagram source contains directives that trigger render-time network loads. */
+export const hasExternalResourceReference = (source: string): boolean =>
+  EXTERNAL_FETCH_PATTERNS.some((pattern) => pattern.test(source));
+
 const detectDarkMode = (): boolean => {
   if (typeof document === 'undefined') return false;
-  const { documentElement: html, body } = document;
-  if (html?.dataset?.themeKind === 'dark') return true;
-  if (html?.dataset?.themeKind === 'light') return false;
-  if (body?.classList?.contains('prism-dark')) return true;
-  if (body?.classList?.contains('prism-light')) return false;
-  for (const cls of html?.classList ?? []) {
-    if (DARK_THEME_CLASSES.has(cls)) return true;
-    if (LIGHT_THEME_CLASSES.has(cls)) return false;
-  }
-  return Boolean(html?.classList?.contains('dark'));
+  const kind = document.documentElement?.dataset?.themeKind;
+  if (kind === 'dark') return true;
+  if (kind === 'light') return false;
+  return Boolean(document.body?.classList?.contains('prism-dark'));
 };
 
 const readCssVar = (styles: CSSStyleDeclaration[], reference: string | undefined): string => {
@@ -139,8 +147,7 @@ export const readMermaidTheme = (element?: Element | null): MermaidThemeConfig =
   const styles: CSSStyleDeclaration[] = [];
 
   if (typeof getComputedStyle === 'function' && typeof document !== 'undefined') {
-    const unique = new Set([element, document.body, document.documentElement]);
-    for (const candidate of unique) {
+    for (const candidate of new Set([element, document.body, document.documentElement])) {
       if (candidate) styles.push(getComputedStyle(candidate));
     }
   }
@@ -200,18 +207,55 @@ const sanitizeCssText = (cssText: string): string =>
     })
     .replace(CSS_UNSAFE, '');
 
-const isSafeHref = (tagName: string, rawValue: string): boolean => {
-  const normalized = rawValue.replace(ASCII_CONTROLS, '');
-  return normalized.startsWith('#') || (tagName === 'a' && SAFE_EXTERNAL_URL.test(normalized));
+const isInternalFragment = (rawValue: string): boolean =>
+  rawValue.replace(ASCII_CONTROLS, '').startsWith('#');
+
+/** Replaces an SVG `<a>` element with an inert `<g>`, preserving child shapes and text. */
+const unwrapAnchorToGroup = (doc: Document, anchor: Element): void => {
+  const group = doc.createElementNS(SVG_NS, 'g');
+  for (const attr of Array.from(anchor.attributes)) {
+    const name = attr.name.toLowerCase();
+    const local = attr.localName.toLowerCase();
+    if (
+      local === 'href' ||
+      name === 'target' ||
+      name === 'rel' ||
+      name === 'download' ||
+      name.startsWith('on') ||
+      FORBIDDEN_ATTRS.has(name) ||
+      FORBIDDEN_ATTRS.has(local)
+    ) {
+      continue;
+    }
+    if (name === 'style') {
+      const cleaned = sanitizeCssText(attr.value).trim();
+      if (cleaned) group.setAttribute('style', cleaned);
+    } else {
+      group.setAttribute(attr.name, attr.value);
+    }
+  }
+  while (anchor.firstChild) group.appendChild(anchor.firstChild);
+  anchor.replaceWith(group);
 };
 
-/** Defense-in-depth SVG sanitizer: strips active tags, handlers, unsafe URLs, and external CSS. */
+/**
+ * Defense-in-depth SVG sanitizer: repairs missing `xmlns:xlink`, rejects non-empty
+ * `<foreignObject>` (so the caller falls back to Source instead of showing missing labels),
+ * turns `<a>` links into inert `<g>` wrappers, and strips active tags, handlers, non-fragment
+ * URLs, and external CSS loads.
+ */
 export const sanitizeMermaidSvg = (svg: string): string | null => {
   if (!svg.trim() || typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
     return null;
   }
 
-  const parsed = new DOMParser().parseFromString(svg.replace(/&nbsp;/g, '&#160;'), 'image/svg+xml');
+  let xmlSource = svg.replace(/&nbsp;/g, '&#160;');
+  // Mermaid emits `xlink:href` without declaring `xmlns:xlink` on `<svg>`, which breaks strict XML.
+  if (/\bxlink:/.test(xmlSource) && !/\bxmlns:xlink\s*=/.test(xmlSource)) {
+    xmlSource = xmlSource.replace(/<svg\b/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+  }
+
+  const parsed = new DOMParser().parseFromString(xmlSource, 'image/svg+xml');
   const root = parsed.documentElement;
   if (!root || root.localName.toLowerCase() !== 'svg' || parsed.querySelector('parsererror')) {
     return null;
@@ -220,8 +264,18 @@ export const sanitizeMermaidSvg = (svg: string): string | null => {
   for (const el of [root, ...Array.from(root.getElementsByTagName('*'))]) {
     if (el !== root && !root.contains(el)) continue;
     const tag = el.localName.toLowerCase();
+
+    if (tag === 'foreignobject') {
+      if (el.children.length > 0 || (el.textContent?.trim() ?? '') !== '') return null;
+      el.remove();
+      continue;
+    }
     if (FORBIDDEN_SVG_TAGS.has(tag)) {
       el.remove();
+      continue;
+    }
+    if (tag === 'a') {
+      unwrapAnchorToGroup(parsed, el);
       continue;
     }
     if (tag === 'style' && el.textContent) el.textContent = sanitizeCssText(el.textContent);
@@ -232,11 +286,7 @@ export const sanitizeMermaidSvg = (svg: string): string | null => {
       if (name.startsWith('on') || FORBIDDEN_ATTRS.has(name) || FORBIDDEN_ATTRS.has(local)) {
         el.removeAttributeNode(attr);
       } else if (local === 'href') {
-        if (!isSafeHref(tag, attr.value)) el.removeAttributeNode(attr);
-        else if (tag === 'a' && !attr.value.trim().startsWith('#')) {
-          el.setAttribute('target', '_blank');
-          el.setAttribute('rel', 'noreferrer noopener');
-        }
+        if (!isInternalFragment(attr.value)) el.removeAttributeNode(attr);
       } else if (name === 'style') {
         const cleaned = sanitizeCssText(attr.value).trim();
         if (cleaned) el.setAttribute('style', cleaned);
@@ -256,6 +306,9 @@ export const renderMermaidDiagram = (
 ): Promise<string | null> =>
   enqueue(async () => {
     if (signal?.cancelled) return null;
+    if (hasExternalResourceReference(source)) {
+      throw new Error('Mermaid diagram references blocked external resources');
+    }
     const mermaid = await loadMermaid();
     if (signal?.cancelled) return null;
 

@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import * as css from '../../rich-text/CustomHtml.css';
+import { subscribeAppliedTheme } from '../../theme/appliedThemeListeners';
 import * as mermaidCss from './MermaidBlock.css';
 import { readMermaidTheme, renderMermaidDiagram } from './lazyMermaid';
 
@@ -22,16 +23,10 @@ export type MermaidBlockProps = {
   sourceBody: ReactNode;
 };
 
-const documentThemeSignature = (): string => {
-  if (typeof document === 'undefined') return '';
-  const { documentElement: html, body } = document;
-  return `${html?.className ?? ''}|${html?.dataset?.themeKind ?? ''}|${body?.className ?? ''}`;
-};
-
 /**
  * Renders a fenced `mermaid` block inside the standard `CodeBlock` frame with a Diagram / Source
- * toggle. Automatically switches to Source when `searchMatch` is true, follows theme changes via
- * `MutationObserver`, and retains the last valid SVG (or falls back to Source) on parse errors.
+ * toggle. Automatically switches to Source when `searchMatch` is true, follows applied theme
+ * switches, and retains the last valid SVG (or falls back to Source) on parse errors.
  */
 export function MermaidBlock({
   source,
@@ -58,26 +53,7 @@ export function MermaidBlock({
   const [themeRevision, setThemeRevision] = useState(0);
   const [renderState, setRenderState] = useState<RenderState>({ svg: null, failedSource: null });
 
-  useEffect(() => {
-    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
-      return undefined;
-    }
-    let last = documentThemeSignature();
-    const observer = new MutationObserver(() => {
-      const next = documentThemeSignature();
-      if (next === last) return;
-      last = next;
-      setThemeRevision((rev) => rev + 1);
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme-kind'],
-    });
-    if (document.body) {
-      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    }
-    return () => observer.disconnect();
-  }, []);
+  useEffect(() => subscribeAppliedTheme(() => setThemeRevision((rev) => rev + 1)), []);
 
   const trimmedSource = source.trim();
 
@@ -148,10 +124,13 @@ export function MermaidBlock({
         </div>
       </div>
       {showingDiagram ? (
+        /* Native scroll areas need a tab stop for keyboard scrolling. */
+        /* eslint-disable jsx-a11y/no-noninteractive-tabindex */
         <div
           className={mermaidCss.MermaidViewport}
           role="region"
           aria-label={t('messageCodeBlock.mermaidDiagram')}
+          tabIndex={0}
         >
           <div
             className={mermaidCss.MermaidSvg}
@@ -160,6 +139,7 @@ export function MermaidBlock({
           />
         </div>
       ) : (
+        /* eslint-enable jsx-a11y/no-noninteractive-tabindex */
         sourceBody
       )}
     </pre>

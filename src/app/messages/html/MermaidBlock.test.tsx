@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { color } from 'folds';
 import parse from 'html-react-parser';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { MermaidConfig } from 'mermaid';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { applyAppTheme } from '../../theme/appliedTheme';
+import { LightTheme, MidnightTheme } from '../../theme/useTheme';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from './react-custom-html-parser';
-import { readMermaidTheme, renderMermaidDiagram, sanitizeMermaidSvg } from './lazyMermaid';
+import {
+  hasExternalResourceReference,
+  readMermaidTheme,
+  renderMermaidDiagram,
+  sanitizeMermaidSvg,
+} from './lazyMermaid';
 
 const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
@@ -81,9 +88,7 @@ beforeEach(() => {
   mermaidMocks.initialize.mockReset();
   mermaidMocks.render.mockReset();
   clipboardMocks.copyToClipboard.mockReset();
-  document.documentElement.className = 'light-theme';
-  document.documentElement.dataset.themeKind = 'light';
-  document.body.className = 'prism-light';
+  applyAppTheme(LightTheme);
 });
 
 afterEach(() => {
@@ -95,7 +100,7 @@ afterEach(() => {
 });
 
 describe('MermaidBlock', () => {
-  it('lazy-renders valid mermaid blocks with strict security config and skips non-mermaid code', async () => {
+  it('lazy-renders valid mermaid blocks with strict security config and keyboard-scrollable region', async () => {
     mermaidMocks.render.mockResolvedValue({ svg: sampleSvg('Flow A to B') });
 
     const tsView = renderMessageHtml('<pre><code class="language-ts">const x = 1;</code></pre>');
@@ -105,9 +110,8 @@ describe('MermaidBlock', () => {
 
     renderMessageHtml('<pre><code class="language-mermaid">graph TD\n  A --&gt; B</code></pre>');
 
-    await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Mermaid diagram' })).toBeTruthy();
-    });
+    const region = await screen.findByRole('region', { name: 'Mermaid diagram' });
+    expect(region.getAttribute('tabindex')).toBe('0');
 
     expect(mermaidMocks.initialize).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -117,6 +121,14 @@ describe('MermaidBlock', () => {
         suppressErrorRendering: true,
         theme: 'base',
         darkMode: false,
+        secure: expect.arrayContaining([
+          'securityLevel',
+          'suppressErrorRendering',
+          'htmlLabels',
+          'themeCSS',
+          'fontFamily',
+          'altFontFamily',
+        ]),
       })
     );
     expect(mermaidMocks.render).toHaveBeenCalledWith(
@@ -124,9 +136,7 @@ describe('MermaidBlock', () => {
       'graph TD\n  A --> B'
     );
     expect(screen.getByText('mermaid')).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Mermaid diagram' }).innerHTML).toContain(
-      'Flow A to B'
-    );
+    expect(region.innerHTML).toContain('Flow A to B');
   });
 
   it('toggles between Diagram and Source views while keeping Copy working in both', async () => {
@@ -138,9 +148,7 @@ describe('MermaidBlock', () => {
       '<pre><code class="language-mermaid">sequenceDiagram\n  Alice-&gt;&gt;Bob: Hi</code></pre>'
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Mermaid diagram' })).toBeTruthy();
-    });
+    await screen.findByRole('region', { name: 'Mermaid diagram' });
     expect(screen.queryByRole('button', { name: 'Wrap lines' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show source' }));
@@ -154,9 +162,7 @@ describe('MermaidBlock', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Show diagram' }));
-    await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Mermaid diagram' })).toBeTruthy();
-    });
+    await screen.findByRole('region', { name: 'Mermaid diagram' });
   });
 
   it('falls back cleanly to Source on invalid syntax without leaking error SVGs into document.body', async () => {
@@ -172,10 +178,7 @@ describe('MermaidBlock', () => {
       '<pre><code class="language-mermaid">graph TD\n  A --&gt;</code></pre>'
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('Showing source')).toBeTruthy();
-    });
-
+    await screen.findByText('Showing source');
     expect(screen.queryByRole('region', { name: 'Mermaid diagram' })).toBeNull();
     expect(container.querySelector('code')?.textContent).toContain('graph TD');
     expect(document.body.querySelector('svg.error-icon')).toBeNull();
@@ -237,12 +240,10 @@ describe('MermaidBlock', () => {
     expect(mermaidMocks.render).not.toHaveBeenCalled();
 
     view.rerender(makeTree(undefined));
-    await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Mermaid diagram' })).toBeTruthy();
-    });
+    await screen.findByRole('region', { name: 'Mermaid diagram' });
   });
 
-  it('re-renders with updated darkMode and computed palette themeVariables on theme switch', async () => {
+  it('re-renders with updated darkMode and computed palette themeVariables on applyAppTheme', async () => {
     mermaidMocks.render.mockImplementation(async () => ({
       svg: sampleSvg(document.documentElement.dataset.themeKind ?? 'unknown'),
     }));
@@ -257,10 +258,10 @@ describe('MermaidBlock', () => {
       expect.objectContaining({ theme: 'base', darkMode: false })
     );
 
-    if (primaryVar) document.body.style.setProperty(primaryVar, '#7aa2f7');
-    document.documentElement.className = 'tokyoNight-theme';
-    document.documentElement.dataset.themeKind = 'dark';
-    document.body.className = 'prism-dark';
+    act(() => {
+      if (primaryVar) document.body.style.setProperty(primaryVar, '#7aa2f7');
+      applyAppTheme(MidnightTheme);
+    });
 
     await waitFor(() => {
       expect(mermaidMocks.initialize).toHaveBeenCalledTimes(2);
@@ -322,15 +323,91 @@ describe('MermaidBlock', () => {
     ]);
   });
 
-  it('strips scripts, foreignObject, event handlers, javascript URLs, and unsafe CSS from SVG output', async () => {
+  it('rejects external render-time image and CSS fetches before calling mermaid.render', async () => {
+    const blockedSources = [
+      'flowchart LR\n  A@{ img: "https://evil.example/track.png", label: "x" } --> B',
+      'flowchart LR\n  A@{ shape: image, label: "x" } --> B',
+      'sequenceDiagram\n  participant Alice\n  properties Alice: {"icon": "https://evil.example/a.png"}\n  Alice->>Bob: hi',
+      'sequenceDiagram\n  participant Alice\n  details Alice: {"properties": {"icon": "https://evil.example/a.png"}}\n  Alice->>Bob: hi',
+      'stateDiagram-v2\n  classDef e fill:url(https://evil.example/st.png)\n  s1:::e --> s2',
+      'classDiagram\n  class A\n  style A fill:#fff; background-image:url(https://evil.example/cd.png)',
+      'flowchart LR\n  A["<img src=https://evil.example/x.png>"] --> B',
+    ];
+    for (const src of blockedSources) {
+      expect(hasExternalResourceReference(src), src).toBe(true);
+    }
+
+    const allowedSources = [
+      'flowchart LR\n  A@{ shape: diam, label: "Check" } --> B',
+      'flowchart LR\n  A[Start] --> B\n  style A fill:url(#myGrad)',
+      'flowchart LR\n  A[Click me] --> B\n  click A "https://example.com"',
+      'sequenceDiagram\n  participant Alice\n  properties Alice: {"icon": "@embedded"}\n  Alice->>Bob: hi',
+    ];
+    for (const src of allowedSources) {
+      expect(hasExternalResourceReference(src), src).toBe(false);
+    }
+
+    renderMessageHtml(
+      '<pre><code class="language-mermaid">flowchart LR\n  A@{ img: "https://evil.example/track.png", label: "x" } --&gt; B</code></pre>'
+    );
+
+    await screen.findByText('Showing source');
+    expect(mermaidMocks.render).not.toHaveBeenCalled();
+  });
+
+  it('repairs missing xmlns:xlink and unwraps diagram links into inert groups', async () => {
+    // Mermaid emits `<a xlink:href="...">` without `xmlns:xlink` on `<svg>`.
+    const mermaidLinkSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40">' +
+      '<a xlink:href="https://example.com/docs" target="_blank" class="clickable">' +
+      '<rect width="80" height="30"/><text>Docs node</text></a></svg>';
+
+    const cleaned = sanitizeMermaidSvg(mermaidLinkSvg);
+    expect(cleaned).not.toBeNull();
+    expect(cleaned).toContain('Docs node');
+    expect(cleaned).not.toMatch(/<a\b|\bhref=|\bxlink:href=/i);
+
+    mermaidMocks.render.mockResolvedValue({ svg: mermaidLinkSvg });
+    renderMessageHtml(
+      '<pre><code class="language-mermaid">flowchart LR\n  A --&gt; B</code></pre>'
+    );
+
+    const diagram = await screen.findByRole('region', { name: 'Mermaid diagram' });
+    expect(diagram.textContent).toContain('Docs node');
+    expect(diagram.querySelector('a')).toBeNull();
+    expect(diagram.querySelector('[href], [xlink\\:href]')).toBeNull();
+  });
+
+  it('falls back to Source when Mermaid emits non-empty foreignObject and strips empty ones', async () => {
+    const emptyFoSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40">' +
+      '<foreignObject width="0" height="0">   </foreignObject><text>OK</text></svg>';
+    const cleanedEmpty = sanitizeMermaidSvg(emptyFoSvg);
+    expect(cleanedEmpty).not.toBeNull();
+    expect(cleanedEmpty).toContain('OK');
+    expect(cleanedEmpty).not.toContain('foreignObject');
+
+    const katexFoSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40">' +
+      '<foreignObject width="60" height="20"><span xmlns="http://www.w3.org/1999/xhtml">x=2</span></foreignObject></svg>';
+    expect(sanitizeMermaidSvg(katexFoSvg)).toBeNull();
+
+    mermaidMocks.render.mockResolvedValue({ svg: katexFoSvg });
+    renderMessageHtml(
+      '<pre><code class="language-mermaid">sequenceDiagram\n  Alice-&gt;&gt;Bob: $$x=2$$</code></pre>'
+    );
+
+    await screen.findByText('Showing source');
+    expect(screen.queryByRole('region', { name: 'Mermaid diagram' })).toBeNull();
+  });
+
+  it('strips scripts, event handlers, external use refs, and unsafe CSS while preserving internal SVG refs', async () => {
     const hostileSvg = [
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" onload="alert(1)">',
       '<style>@import url("https://evil.example/x.css"); .node{fill:url(#grad);background:url(https://evil.example/leak.png);}</style>',
       '<script>alert("xss")</script>',
-      '<foreignObject width="100" height="50"><div xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="alert(2)"/></div></foreignObject>',
       '<g onclick="steal()">',
-      '<a href="javascript:alert(3)"><text>Bad link</text></a>',
-      '<a href="https://example.com/docs"><text>Good link</text></a>',
+      '<a href="javascript:alert(3)"><text>Label kept</text></a>',
       '<use href="#valid-marker"/>',
       '<use xlink:href="https://evil.example/sprite.svg#icon"/>',
       '<path style="marker-end:url(#arrow);fill:url(https://evil.example/p.png)" d="M0 0 L10 10"/>',
@@ -340,9 +417,8 @@ describe('MermaidBlock', () => {
 
     const cleaned = sanitizeMermaidSvg(hostileSvg);
     expect(cleaned).not.toBeNull();
-    expect(cleaned).not.toMatch(
-      /<script|foreignObject|onload|onclick|javascript:|@import|evil\.example/
-    );
+    expect(cleaned).not.toMatch(/<script|onload|onclick|javascript:|@import|evil\.example|<a\b/);
+    expect(cleaned).toContain('Label kept');
     expect(cleaned).toContain('url(#grad)');
     expect(cleaned).toContain('url(#arrow)');
     expect(cleaned).toContain('#valid-marker');
@@ -351,12 +427,7 @@ describe('MermaidBlock', () => {
     renderMessageHtml('<pre><code class="language-mermaid">graph TD\n  A --&gt; B</code></pre>');
 
     const diagram = await screen.findByRole('region', { name: 'Mermaid diagram' });
-    expect(
-      diagram.querySelector('script, foreignObject, [onload], [onclick], [onerror]')
-    ).toBeNull();
-    expect(diagram.querySelector('a[href^="javascript:"]')).toBeNull();
-    const safeLink = diagram.querySelector('a[href="https://example.com/docs"]');
-    expect(safeLink?.getAttribute('rel')).toBe('noreferrer noopener');
-    expect(safeLink?.getAttribute('target')).toBe('_blank');
+    expect(diagram.querySelector('script, a, [onload], [onclick], [onerror]')).toBeNull();
+    expect(diagram.textContent).toContain('Label kept');
   });
 });
