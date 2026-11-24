@@ -20,6 +20,7 @@ import { frameHeaders } from './scripts/frame-headers.mjs';
 import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { CANVAS_LIBRARY_DIR, canvasLibraryFiles } from './scripts/canvas-libraries.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
+import { createReactCompilerPlugin } from './scripts/react-compiler.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
@@ -177,7 +178,7 @@ const clientPluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).
 );
 
 // The app's own sources: JSX through the React plugin, `.css.ts` files through vanilla-extract.
-const sourcePlugins = [react(), vanillaExtractPlugin()];
+const sourcePlugins = [react(), createReactCompilerPlugin(), vanillaExtractPlugin()];
 
 // A slot dev server (scripts/e2e-slot.sh sets E2E_APP_PORT) pre-bundles into its own directory:
 // a server sharing node_modules/.vite rewrites the chunks the others still serve, and pages then

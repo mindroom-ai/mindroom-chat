@@ -10,6 +10,7 @@ import {
   buildModulePlugins,
   readClientPlugins,
 } from './scripts/client-plugins.mjs';
+import { createReactCompilerPlugin } from './scripts/react-compiler.mjs';
 
 // Unit tests run without the vanilla-extract plugin: tests mock `*.css.ts` modules
 // (see src/test/vitest.setup.ts) or load them under one file scope (src/test/vitest.styles.setup.ts), so
@@ -52,7 +53,7 @@ const pluginTests = (dir: string) => [
 
 export default defineConfig({
   // Vite leaves a hook with `apply: 'build'` out, as in the dev server.
-  plugins: [buildModulePlugins(plugins)],
+  plugins: [createReactCompilerPlugin({ forTests: true }), buildModulePlugins(plugins)],
   resolve: {
     // Plugins import the app through the client SDK; their tests also through its `/testing`
     // subpath, which the build leaves out so that code that ships cannot import it, as it leaves out
