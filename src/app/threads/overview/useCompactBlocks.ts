@@ -342,5 +342,21 @@ export function useCompactBlocks(options: Options) {
     flushSync(render);
     state.wake?.();
   };
-  return { rows, liveIds, extentComplete, placeReady, targetReady, prepareEnd, progress: state };
+  // Retires a waiting Back with a real state update so React commits `placeReady` before any
+  // bailed-out render can observe the mutated progress flags without running layout effects.
+  const retireBack = () => {
+    const waiting = back;
+    state.placed = state.left = true;
+    if (waiting) render();
+  };
+  return {
+    rows,
+    liveIds,
+    extentComplete,
+    placeReady,
+    targetReady,
+    prepareEnd,
+    retireBack,
+    progress: state,
+  };
 }
