@@ -5,13 +5,45 @@ import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
+import { clearLongTextHydrationCache, type LongTextSource } from '../../matrix/protocol/longText';
 import type { TriggerWakeInfo } from '../../matrix/protocol/triggerWake';
 import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { RenderMessageContent } from './RenderMessageContent';
 
+const hydrationMocks = vi.hoisted(() => ({
+  hydrateCachedLongText:
+    vi.fn<(mx: MatrixClient, source: LongTextSource) => Promise<Record<string, unknown>>>(),
+}));
+
+vi.mock('../../event-store/cache/attachmentRepository', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../event-store/cache/attachmentRepository')
+  >('../../event-store/cache/attachmentRepository');
+  return {
+    ...actual,
+    hydrateCachedLongText: hydrationMocks.hydrateCachedLongText,
+  };
+});
+
 vi.mock('../TriggerWakeMarker', () => ({
-  TriggerWakeMarker: ({ wake, ts }: { wake: TriggerWakeInfo; ts?: number }) => (
-    <div data-trigger-wake-stub={wake.sourceKind} data-ts={String(ts)}>
+  TriggerWakeMarker: ({
+    wake,
+    ts,
+    roomId,
+  }: {
+    wake: TriggerWakeInfo;
+    ts?: number;
+    roomId?: string;
+  }) => (
+    <div
+      data-trigger-wake-stub={wake.sourceKind}
+      data-ts={String(ts)}
+      data-room-id={roomId ?? ''}
+      data-kind={wake.kind ?? ''}
+      data-prompt={wake.prompt}
+      data-event-json={wake.eventJson ?? ''}
+      data-raw-body={wake.rawBody}
+    >
       {wake.triggerId}
     </div>
   ),
@@ -44,16 +76,23 @@ describe('RenderMessageContent trigger wake', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    hydrationMocks.hydrateCachedLongText.mockReset();
+    clearLongTextHydrationCache();
   });
 
-  const renderWake = async (sender: string, highlightRegex?: RegExp) => {
+  const renderWake = async (
+    sender: string,
+    highlightRegex?: RegExp,
+    content: IContent = WAKE_CONTENT
+  ) => {
+    const msgType = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
     const mEvent = new MatrixEvent({
       type: 'm.room.message',
       room_id: ROOM_ID,
       event_id: '$wake',
       sender,
       origin_server_ts: 42_000,
-      content: WAKE_CONTENT,
+      content,
     });
     const mx = {
       getUserId: () => VIEWER,
@@ -69,9 +108,9 @@ describe('RenderMessageContent trigger wake', () => {
               mEvent={mEvent}
               roomId={ROOM_ID}
               displayName="Helper"
-              msgType="m.text"
+              msgType={msgType}
               ts={42_000}
-              getContent={(() => WAKE_CONTENT) as never}
+              getContent={(() => content) as never}
               urlPreview={false}
               highlightRegex={highlightRegex}
               htmlReactParserOptions={{}}
@@ -107,5 +146,69 @@ describe('RenderMessageContent trigger wake', () => {
     await renderWake(PERSON);
     expect(container.querySelector('[data-trigger-wake-stub]')).toBeNull();
     expect(container.textContent).toContain('Check staging deploy');
+  });
+
+  it('hydrates an m.file io.mindroom.long_text trigger wake into TriggerWakeMarker with full prompt, JSON, and Copy text', async () => {
+    const fullBody = [
+      '@mindroom_helper:example.org Full webhook summary',
+      '',
+      '```json',
+      '{"deploy": "prod", "ok": true}',
+      '```',
+    ].join('\n');
+    let resolveSidecar!: (value: Record<string, unknown>) => void;
+    hydrationMocks.hydrateCachedLongText.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSidecar = resolve;
+      })
+    );
+
+    const longWakeContent: IContent = {
+      msgtype: 'm.file',
+      body: '@mindroom_helper:example.org Preview...\n\n[Message continues in attached file]',
+      filename: 'message.json',
+      url: 'mxc://example.org/wake-sidecar',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      'com.mindroom.source_kind': 'external_trigger',
+      'io.mindroom.external_trigger.id': 'deploy-hook',
+      'io.mindroom.external_trigger.kind': 'deploy.finished',
+    };
+
+    await renderWake(AGENT, undefined, longWakeContent);
+
+    const previewStub = container.querySelector('[data-trigger-wake-stub]');
+    expect(previewStub?.getAttribute('data-trigger-wake-stub')).toBe('external');
+    expect(previewStub?.getAttribute('data-ts')).toBe('42000');
+    expect(previewStub?.getAttribute('data-room-id')).toBe(ROOM_ID);
+    expect(previewStub?.textContent).toBe('deploy-hook');
+
+    await act(async () => {
+      // Sidecar omits outer trigger keys to prove outer metadata is preserved.
+      resolveSidecar({ msgtype: 'm.text', body: fullBody });
+      await Promise.resolve();
+    });
+
+    const hydratedStub = container.querySelector('[data-trigger-wake-stub]');
+    expect(hydratedStub?.getAttribute('data-trigger-wake-stub')).toBe('external');
+    expect(hydratedStub?.getAttribute('data-kind')).toBe('deploy.finished');
+    expect(hydratedStub?.getAttribute('data-prompt')).toBe('Full webhook summary');
+    expect(hydratedStub?.getAttribute('data-event-json')).toBe('{"deploy": "prod", "ok": true}');
+    expect(hydratedStub?.getAttribute('data-raw-body')).toBe(fullBody);
+  });
+
+  it('keeps an ordinary m.file attachment out of TriggerWakeMarker even with trigger metadata', async () => {
+    const ordinaryFile: IContent = {
+      msgtype: 'm.file',
+      body: 'report.json',
+      url: 'mxc://example.org/report',
+      info: { mimetype: 'application/json', size: 128 },
+      'com.mindroom.source_kind': 'external_trigger',
+      'io.mindroom.external_trigger.id': 'deploy-hook',
+    };
+
+    await renderWake(AGENT, undefined, ordinaryFile);
+
+    expect(container.querySelector('[data-trigger-wake-stub]')).toBeNull();
+    expect(container.textContent).toContain('report.json');
   });
 });

@@ -213,8 +213,13 @@ describe('readTriggerWake', () => {
     ['empty body', { msgtype: 'm.text', body: '   ', [SOURCE_KIND_KEY]: 'reactive_trigger' }],
     ['non-string body', { msgtype: 'm.text', body: 42, [SOURCE_KIND_KEY]: 'external_trigger' }],
     [
-      'non-text msgtype',
-      { msgtype: 'm.file', body: 'report.json', [SOURCE_KIND_KEY]: 'external_trigger' },
+      'ordinary m.file without long_text',
+      {
+        msgtype: 'm.file',
+        body: 'report.json',
+        url: 'mxc://example.org/report',
+        [SOURCE_KIND_KEY]: 'external_trigger',
+      },
     ],
     ['missing msgtype', { body: 'Wake', [SOURCE_KIND_KEY]: 'reactive_trigger' }],
     [
@@ -223,5 +228,27 @@ describe('readTriggerWake', () => {
     ],
   ])('returns null for %s', (_label, content) => {
     expect(readTriggerWake(content)).toBeNull();
+  });
+
+  it('parses an m.file v2 io.mindroom.long_text trigger wake preview', () => {
+    const body =
+      '@mindroom_helper:example.org Large webhook\n\n[Message continues in attached file]';
+    expect(
+      readTriggerWake({
+        msgtype: 'm.file',
+        body,
+        url: 'mxc://example.org/sidecar',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        [SOURCE_KIND_KEY]: 'external_trigger',
+        [EXTERNAL_TRIGGER_ID_KEY]: 'deploy-hook',
+        [EXTERNAL_TRIGGER_KIND_KEY]: 'deploy.finished',
+      })
+    ).toEqual({
+      sourceKind: 'external',
+      triggerId: 'deploy-hook',
+      kind: 'deploy.finished',
+      prompt: 'Large webhook\n\n[Message continues in attached file]',
+      rawBody: body,
+    });
   });
 });

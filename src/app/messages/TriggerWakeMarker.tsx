@@ -6,17 +6,16 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type MouseEventHandler,
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useInRouterContext } from 'react-router-dom';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { isTag, isText, type ChildNode } from 'domhandler';
-import parse, {
-  attributesToProps,
-  domToReact,
-  type HTMLReactParserOptions,
-} from 'html-react-parser';
+import parse, { domToReact, type HTMLReactParserOptions } from 'html-react-parser';
 import Linkify from 'linkify-react';
-import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs';
+import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Icon, Icons, Text } from 'folds';
 import { IconBolt } from '@tabler/icons-react';
 import { copyToClipboard } from '../lib/dom';
@@ -24,6 +23,8 @@ import { ownDirectionBlock, revealDirectionControls } from '../ui/directional';
 import { useHour24Clock } from '../preferences/useHour24Clock';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { settingsAtom } from '../preferences/settings';
+import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { testMatrixTo } from '../matrix/matrix-to';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { CheckIcon, CopyIcon } from '../rich-text/code/CodeBlockIcons';
@@ -38,6 +39,13 @@ import {
   StrikeRule,
 } from '../rich-text/markdown/inline/rules';
 import { sanitizeCustomHtml, sanitizeText } from '../rich-text/sanitize';
+import {
+  LINKIFY_OPTS,
+  factoryRenderLinkifyWithMention,
+  makeMentionCustomProps,
+  renderMatrixMention,
+} from './html/react-custom-html-parser';
+import { useMentionClickHandler } from './useMentionClickHandler';
 import { Time } from './Time';
 import * as css from './TriggerWakeMarker.css';
 
@@ -56,81 +64,143 @@ const hasAncestor = (node: ChildNode, tags: ReadonlySet<string>): boolean => {
   return false;
 };
 
-const renderPromptLinkify = ({ attributes, content }: IntermediateRepresentation) => (
-  <CheckedMessageLink {...attributesToProps(attributes)}>
-    {stripBidiControls(content)}
-  </CheckedMessageLink>
-);
-
-const PROMPT_LINKIFY_OPTS: LinkifyOpts = {
-  rel: 'noreferrer noopener',
-  target: '_blank',
-  defaultProtocol: 'https',
-  validate: {
-    url: (value: string) => /^(?:https?|ftp|mailto|magnet):/i.test(value) || /^www\./i.test(value),
-  },
-  render: renderPromptLinkify,
+type PromptMentionContext = {
+  client: MatrixClient;
+  roomId?: string;
+  handleMentionClick?: MouseEventHandler<HTMLElement>;
 };
 
-const promptHtmlOptions: HTMLReactParserOptions = {
-  replace: (node) => {
-    if (isText(node)) {
-      if (hasAncestor(node, NO_LINKIFY_TAGS)) {
-        return (
-          <>
-            {hasAncestor(node, LINK_TAGS)
-              ? stripBidiControls(node.data)
-              : revealDirectionControls(node.data)}
-          </>
-        );
+const textContent = (nodes: ChildNode[]): string =>
+  nodes
+    .map((node) => {
+      if (isText(node)) return node.data;
+      if (isTag(node)) return textContent(node.children);
+      return '';
+    })
+    .join('');
+
+const createPromptHtmlOptions = (mention?: PromptMentionContext): HTMLReactParserOptions => {
+  const linkifyOpts: LinkifyOpts = {
+    ...LINKIFY_OPTS,
+    render: factoryRenderLinkifyWithMention((href) =>
+      mention
+        ? renderMatrixMention(
+            mention.client,
+            mention.roomId,
+            href,
+            makeMentionCustomProps(mention.handleMentionClick)
+          )
+        : undefined
+    ),
+  };
+
+  const options: HTMLReactParserOptions = {
+    replace: (node) => {
+      if (isText(node)) {
+        if (hasAncestor(node, NO_LINKIFY_TAGS)) {
+          return (
+            <>
+              {hasAncestor(node, LINK_TAGS)
+                ? stripBidiControls(node.data)
+                : revealDirectionControls(node.data)}
+            </>
+          );
+        }
+        return <Linkify options={linkifyOpts}>{revealDirectionControls(node.data)}</Linkify>;
       }
-      return <Linkify options={PROMPT_LINKIFY_OPTS}>{revealDirectionControls(node.data)}</Linkify>;
-    }
-    if (!isTag(node)) return undefined;
-    const children = domToReact(node.children, promptHtmlOptions);
-    switch (node.name) {
-      case 'a':
-        return node.attribs.href ? (
-          <CheckedMessageLink
-            href={node.attribs.href}
-            rel={node.attribs.rel || 'noreferrer noopener'}
-            target={node.attribs.target || '_blank'}
-          >
-            {children}
-          </CheckedMessageLink>
-        ) : (
-          <>{children}</>
-        );
-      case 'strong':
-        return <strong>{children}</strong>;
-      case 'i':
-      case 'em':
-        return <i>{children}</i>;
-      case 's':
-      case 'del':
-        return <s>{children}</s>;
-      case 'code':
-        return <code className={css.InlineCode}>{children}</code>;
-      default:
-        return <>{children}</>;
-    }
-  },
+      if (!isTag(node)) return undefined;
+      const children = domToReact(node.children, options);
+      switch (node.name) {
+        case 'a': {
+          const { href } = node.attribs;
+          if (!href) return <>{children}</>;
+          if (mention && testMatrixTo(href)) {
+            const ownText = stripBidiControls(textContent(node.children)).trim() !== href;
+            const rendered = renderMatrixMention(
+              mention.client,
+              mention.roomId,
+              href,
+              makeMentionCustomProps(mention.handleMentionClick),
+              ownText ? children : undefined,
+              ownText
+            );
+            if (rendered) return rendered;
+          }
+          return (
+            <CheckedMessageLink
+              href={href}
+              rel={node.attribs.rel || 'noreferrer noopener'}
+              target={node.attribs.target || '_blank'}
+            >
+              {children}
+            </CheckedMessageLink>
+          );
+        }
+        case 'strong':
+          return <strong>{children}</strong>;
+        case 'i':
+        case 'em':
+          return <i>{children}</i>;
+        case 's':
+        case 'del':
+          return <s>{children}</s>;
+        case 'code':
+          return <code className={css.InlineCode}>{children}</code>;
+        default:
+          return <>{children}</>;
+      }
+    },
+  };
+  return options;
 };
 
-const renderPromptContent = (text: string): ReactNode => {
+const renderPromptContent = (text: string, mention?: PromptMentionContext): ReactNode => {
   try {
     const html = sanitizeCustomHtml(
       parseInlineMDWithRules(sanitizeText(text), PROMPT_INLINE_RULES)
     );
-    return parse(html, promptHtmlOptions);
+    return parse(html, createPromptHtmlOptions(mention));
   } catch {
     return revealDirectionControls(text);
   }
 };
 
+function TriggerWakePromptBody({
+  text,
+  mention,
+}: {
+  text: string;
+  mention?: PromptMentionContext;
+}) {
+  const content = useMemo(() => renderPromptContent(text, mention), [text, mention]);
+  return (
+    <Text as="p" size="T200" className={css.Prompt} {...ownDirectionBlock}>
+      {content}
+    </Text>
+  );
+}
+
+function ConnectedTriggerWakePrompt({
+  text,
+  client,
+  roomId,
+}: {
+  text: string;
+  client: MatrixClient;
+  roomId?: string;
+}) {
+  const handleMentionClick = useMentionClickHandler(roomId ?? '');
+  const mention = useMemo<PromptMentionContext>(
+    () => ({ client, roomId, handleMentionClick }),
+    [client, roomId, handleMentionClick]
+  );
+  return <TriggerWakePromptBody text={text} mention={mention} />;
+}
+
 type TriggerWakeMarkerProps = {
   wake: TriggerWakeInfo;
   ts?: number;
+  roomId?: string;
 };
 
 const summaryParts = (wake: TriggerWakeInfo): string[] =>
@@ -149,10 +219,12 @@ const describeSource = (wake: TriggerWakeInfo): string | undefined => {
  * Quiet 1-line marker for a MindRoom reactive or direct external trigger wake event.
  * Expands in place to show trigger metadata, prompt text, and optional JSON event payload.
  */
-export function TriggerWakeMarker({ wake, ts }: TriggerWakeMarkerProps) {
+export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) {
   const { t } = useTranslation();
   const [hour24Clock] = useHour24Clock();
   const dateFormatString = useSettingValue(settingsAtom, 'dateFormatString');
+  const client = useOptionalMatrixClient();
+  const inRouter = useInRouterContext();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -178,10 +250,6 @@ export function TriggerWakeMarker({ wake, ts }: TriggerWakeMarkerProps) {
     );
   }
   const promptText = wake.prompt || (metaItems.length === 0 && !wake.eventJson ? wake.rawBody : '');
-  const promptContent = useMemo(
-    () => (expanded && promptText ? renderPromptContent(promptText) : null),
-    [expanded, promptText]
-  );
   const copyLabel = copied
     ? t('messageCodeBlock.copied')
     : t('mindroomUi.messages.messageCopyActions.copyText');
@@ -241,11 +309,12 @@ export function TriggerWakeMarker({ wake, ts }: TriggerWakeMarkerProps) {
               {copied ? <CheckIcon /> : <CopyIcon />}
             </button>
           </div>
-          {promptContent && (
-            <Text as="p" size="T200" className={css.Prompt} {...ownDirectionBlock}>
-              {promptContent}
-            </Text>
-          )}
+          {promptText &&
+            (client && inRouter ? (
+              <ConnectedTriggerWakePrompt text={promptText} client={client} roomId={roomId} />
+            ) : (
+              <TriggerWakePromptBody text={promptText} />
+            ))}
           {wake.eventJson && (
             <pre
               className={css.Payload}

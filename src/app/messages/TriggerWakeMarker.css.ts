@@ -63,6 +63,12 @@ export const Meta = style({
   overflowWrap: 'anywhere',
 });
 
+// Time applies P300 (0.75) opacity on its own; inside Meta (already P400 / 0.9), keep it at 1 so
+// opacity does not compound below WCAG AA contrast.
+globalStyle(`${Meta} time`, {
+  opacity: 1,
+});
+
 export const CopyButton = style({
   '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
   display: 'inline-grid',
@@ -96,8 +102,9 @@ export const Prompt = style({
   overflowWrap: 'anywhere',
 });
 
-// Inline links keep the panel's text contrast across every palette.
-globalStyle(`${Prompt} a`, {
+// Inline links keep the panel's text contrast across every palette; mention pills keep their
+// container surface and non-underlined chip styling from CustomHtml.css.
+globalStyle(`${Prompt} a:not([class])`, {
   color: 'inherit',
   textDecoration: 'underline',
   textUnderlineOffset: toRem(2),

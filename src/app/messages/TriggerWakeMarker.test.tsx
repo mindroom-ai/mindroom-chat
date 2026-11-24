@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createStore, Provider as JotaiProvider } from 'jotai';
+import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ar from '../i18n/locales/additions/ar.json';
+import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
+import { userRoomProfileAtom } from '../navigation/userRoomProfile';
+import { getHomeRoomPath } from '../routes/pathUtils';
 import { TriggerWakeMarker } from './TriggerWakeMarker';
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- required by hoisted inference
@@ -83,7 +89,9 @@ describe('TriggerWakeMarker', () => {
     expect(panel?.textContent).toContain('Trigger tr_demo_watch');
     expect(panel?.textContent).toContain('Source github / pr.opened');
     expect(panel?.textContent).toContain('Triage: Urgent fix');
-    expect(panel?.querySelector('time')?.getAttribute('datetime')).toBe(new Date(TS).toISOString());
+    expect(panel?.querySelector('.Meta time')?.getAttribute('datetime')).toBe(
+      new Date(TS).toISOString()
+    );
     expect(panel?.textContent).toContain('Review the incoming pull request.');
 
     const payload = screen.getByRole('region', { name: 'Event payload JSON' });
@@ -215,5 +223,85 @@ describe('TriggerWakeMarker', () => {
       expect(copyMocks.copyToClipboard).toHaveBeenCalledWith(rawBody, copyButton);
       expect(screen.getByRole('button', { name: 'Copied' })).toBe(copyButton);
     });
+  });
+
+  it('routes matrix.to links in the expanded prompt through the in-app mention handler', () => {
+    const ROOM_ID = '!ops:example.org';
+    const room = {
+      roomId: ROOM_ID,
+      name: 'Ops',
+      getMyMembership: () => KnownMembership.Join,
+      getCanonicalAlias: () => null,
+      getAltAliases: () => [],
+      isSpaceRoom: () => false,
+      getThread: () => null,
+      findEventById: () => undefined,
+      getMember: (userId: string) =>
+        userId === '@alice:example.org' ? { userId, name: 'Alice', rawDisplayName: 'Alice' } : null,
+      getJoinedMembers: () => [],
+      loadMembersIfNeeded: () => Promise.resolve(true),
+    } as unknown as Room;
+    const client = {
+      getUserId: () => '@reader:example.org',
+      getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+      getRooms: () => [room],
+      on: () => undefined,
+      removeListener: () => undefined,
+    } as unknown as MatrixClient;
+    const store = createStore();
+    function LocationProbe() {
+      const location = useLocation();
+      return <output data-testid="location">{location.pathname}</output>;
+    }
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={client}>
+          <MemoryRouter initialEntries={['/home']}>
+            <LocationProbe />
+            <TriggerWakeMarker
+              roomId={ROOM_ID}
+              wake={reactiveWake({
+                prompt:
+                  'See [thread](https://matrix.to/#/!ops:example.org/$evt1), https://matrix.to/#/!ops:example.org/$evt2, https://matrix.to/#/@alice:example.org, and [docs](https://example.org/docs).',
+                eventJson: '{"permalink": "https://matrix.to/#/!ops:example.org/$json"}',
+              })}
+            />
+          </MemoryRouter>
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    const mdPermalink = screen.getByRole('link', { name: 'thread' });
+    expect(mdPermalink.getAttribute('data-mention-id')).toBe(ROOM_ID);
+    expect(mdPermalink.getAttribute('data-mention-event-id')).toBe('$evt1');
+    expect(mdPermalink.getAttribute('class')).toBeNull();
+    expect(fireEvent.click(mdPermalink)).toBe(false);
+    expect(screen.getByTestId('location').textContent).toBe(getHomeRoomPath(ROOM_ID, '$evt1'));
+
+    const barePermalink = screen.getByRole('link', { name: 'Message in #Ops' });
+    expect(barePermalink.getAttribute('data-mention-id')).toBe(ROOM_ID);
+    expect(barePermalink.getAttribute('data-mention-event-id')).toBe('$evt2');
+    expect(fireEvent.click(barePermalink)).toBe(false);
+    expect(screen.getByTestId('location').textContent).toBe(getHomeRoomPath(ROOM_ID, '$evt2'));
+
+    const userMention = screen.getByRole('link', { name: '@Alice' });
+    expect(userMention.getAttribute('data-mention-id')).toBe('@alice:example.org');
+    expect(fireEvent.click(userMention)).toBe(false);
+    expect(store.get(userRoomProfileAtom)).toMatchObject({
+      roomId: ROOM_ID,
+      userId: '@alice:example.org',
+    });
+
+    const externalLink = screen.getByRole('link', { name: 'docs' });
+    expect(externalLink.getAttribute('href')).toBe('https://example.org/docs');
+    expect(externalLink.getAttribute('target')).toBe('_blank');
+    expect(externalLink.getAttribute('rel')).toBe('noreferrer noopener');
+    expect(externalLink.getAttribute('data-mention-id')).toBeNull();
+
+    const payload = screen.getByRole('region', { name: 'Event payload JSON' });
+    expect(payload.querySelector('a')).toBeNull();
   });
 });

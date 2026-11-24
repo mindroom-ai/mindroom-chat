@@ -1,4 +1,5 @@
 import { isRecord } from '../../lib/isRecord';
+import { getLongTextSource } from './longText';
 
 export const SOURCE_KIND_KEY = 'com.mindroom.source_kind';
 export const REACTIVE_TRIGGER_ID_KEY = 'io.mindroom.reactive_trigger.id';
@@ -6,6 +7,15 @@ export const REACTIVE_TRIGGER_DEDUPE_KEY = 'io.mindroom.reactive_trigger.dedupe_
 export const EXTERNAL_TRIGGER_ID_KEY = 'io.mindroom.external_trigger.id';
 export const EXTERNAL_TRIGGER_KIND_KEY = 'io.mindroom.external_trigger.kind';
 export const EXTERNAL_TRIGGER_EVENT_ID_KEY = 'io.mindroom.external_trigger.event_id';
+
+export const TRIGGER_WAKE_METADATA_KEYS: readonly string[] = [
+  SOURCE_KIND_KEY,
+  REACTIVE_TRIGGER_ID_KEY,
+  REACTIVE_TRIGGER_DEDUPE_KEY,
+  EXTERNAL_TRIGGER_ID_KEY,
+  EXTERNAL_TRIGGER_KIND_KEY,
+  EXTERNAL_TRIGGER_EVENT_ID_KEY,
+];
 
 export type TriggerWakeSourceKind = 'reactive' | 'external';
 
@@ -103,7 +113,8 @@ const parseJsonObject = (raw: string | undefined): Record<string, unknown> | und
  * Returns null for non-text, empty or non-trigger messages; never throws on malformed bodies.
  */
 export const readTriggerWake = (content: Record<string, unknown>): TriggerWakeInfo | null => {
-  if (!TEXT_MSGTYPES.has(content.msgtype)) return null;
+  const isLongTextFile = content.msgtype === 'm.file' && getLongTextSource(content) !== undefined;
+  if (!TEXT_MSGTYPES.has(content.msgtype) && !isLongTextFile) return null;
   if (typeof content.body !== 'string' || !content.body.trim()) return null;
   const sourceKind = readSourceKind(content);
   if (!sourceKind) return null;

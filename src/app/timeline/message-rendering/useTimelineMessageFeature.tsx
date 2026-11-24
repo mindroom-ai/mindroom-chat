@@ -378,7 +378,7 @@ const readQuietMarker = (
     );
   }
   if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
-  return readAgentNoticeMarker(content, event.getTs());
+  return readAgentNoticeMarker(content, event.getTs(), room.roomId);
 };
 
 /**
