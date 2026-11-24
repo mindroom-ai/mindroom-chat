@@ -1633,7 +1633,10 @@
     "forking": "Forking {{title}}",
     "continueInNewThread": "Continue in a new thread",
     "forkCount_one": "{{count}} fork",
-    "forkCount_other": "{{count}} forks"
+    "forkCount_other": "{{count}} forks",
+    "forkedFromInRoom": "Forked from {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Forked from another room",
+    "forkingIntoRoom": "Forking {{title}} into {{room}}"
   },
   "activity": {
     "title": "Activity",

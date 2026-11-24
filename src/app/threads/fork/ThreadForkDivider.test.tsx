@@ -5,9 +5,13 @@ import { ThreadForkDivider } from './ThreadForkDivider';
 
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
-// The parent's root is in the room; nothing is read from the event cache.
+import { EventEmitter } from 'events';
+import type { MatrixClient } from 'matrix-js-sdk';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+
+const cachedRootSpy = vi.hoisted(() => vi.fn(() => undefined));
 vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
-  useCachedThreadRoot: () => undefined,
+  useCachedThreadRoot: cachedRootSpy,
 }));
 
 const ROOM = '!room:example.org';
@@ -82,5 +86,97 @@ describe('ThreadForkDivider in a fork draft', () => {
 
     expect(text(renderer.root)).toBe('Forking Plan the trip to Lisbon');
     expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  });
+
+  it('names the destination room in a cross-room fork draft', () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <ThreadForkDivider
+          room={room}
+          parent={{ threadId: '$parent', eventId: '$p2' }}
+          variant="forking"
+          targetRoomName="Project Beta"
+        />
+      );
+    });
+
+    expect(text(renderer.root)).toBe('Forking Plan the trip to Lisbon into Project Beta');
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  });
+});
+
+describe('ThreadForkDivider for cross-room forks', () => {
+  const alphaRoomId = '!alpha:example.org';
+  const alphaRoot = new MatrixEvent({
+    event_id: '$alphaRoot',
+    room_id: alphaRoomId,
+    sender: '@maya:example.org',
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content: { msgtype: 'm.text', body: 'Architecture RFC' },
+  });
+  const makeJoinedAlpha = (membership = 'join') =>
+    ({
+      roomId: alphaRoomId,
+      name: 'Project Alpha',
+      getMyMembership: () => membership,
+      getThread: () => null,
+      findEventById: (eventId: string) => (eventId === '$alphaRoot' ? alphaRoot : undefined),
+      getUnfilteredTimelineSet: () => ({
+        relations: { getChildEventsForEvent: () => undefined },
+      }),
+      hasEncryptionStateEvent: () => false,
+      getMember: () => null,
+    } as unknown as Room);
+
+  it('shows "Forked from <title> in <room>" and navigates to the parent room when joined', () => {
+    navigation.navigateRoomThread.mockClear();
+    const alphaRoom = makeJoinedAlpha('join');
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: (id: string) => (id === alphaRoomId ? alphaRoom : null),
+    }) as unknown as MatrixClient;
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <ThreadForkDivider
+            room={room}
+            parent={{ roomId: alphaRoomId, threadId: '$alphaRoot', eventId: '$a2' }}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    const button = renderer.root.findByType('button');
+    expect(text(button)).toBe('Forked from Architecture RFC in Project Alpha');
+    act(() => {
+      button.props.onClick();
+    });
+    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(alphaRoomId, '$alphaRoot', '$a2');
+  });
+
+  it('shows static "Forked from another room" with no cache fetch when parent room is not joined', () => {
+    cachedRootSpy.mockClear();
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <ThreadForkDivider
+            room={room}
+            parent={{ roomId: alphaRoomId, threadId: '$alphaRoot', eventId: '$a2' }}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(text(renderer.root)).toBe('Forked from another room');
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+    expect(cachedRootSpy).not.toHaveBeenCalled();
   });
 });

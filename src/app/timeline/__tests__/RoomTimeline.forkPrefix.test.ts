@@ -18,7 +18,7 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 const forkPrefix = vi.hoisted(() => ({
   value: {
     events: [] as unknown[],
-    parent: undefined as { threadId: string; eventId: string } | undefined,
+    parent: undefined as { roomId?: string; threadId: string; eventId: string } | undefined,
   },
 }));
 vi.mock('../../threads/fork/useThreadForkPrefix', () => ({
@@ -122,6 +122,66 @@ describe('a forked thread', () => {
         ([, ...infos]) => infos as (ThreadSummaryInfo | undefined)[]
       );
       expect(storedInfos.some((info) => info?.summaryText === 'Lisbon trip')).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('shows the fork divider above the root even when a cross-room prefix is empty and ignores target room summaryMap', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const root = makeEvent('$fork', {
+      ts: 3_000,
+      content: {
+        body: 'Continuing in Project Beta',
+        'io.mindroom.fork': {
+          room_id: '!alpha:example.org',
+          thread_id: '$parent',
+          event_id: '$p2',
+        },
+      },
+    });
+    const own = [root];
+    forkPrefix.value = {
+      events: [],
+      parent: { roomId: '!alpha:example.org', threadId: '$parent', eventId: '$p2' },
+    };
+    const timeline = makeTimeline(own, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [],
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    threadRenderStateMock.threadEvents = own;
+    threadRenderStateMock.ownThreadEvents = own;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$fork', 0]]);
+    roomTimelineVirtualizerState.virtualIndexes = [0];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            threadId: '$fork',
+            summaryMap: new Map([['$parent', { summaryText: 'Wrong target summary' }]]),
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      const divider = renderer!.root.find((node) => (node.type as unknown) === 'fork-divider');
+      expect(divider.props.parent).toEqual({
+        roomId: '!alpha:example.org',
+        threadId: '$parent',
+        eventId: '$p2',
+      });
+      expect(divider.props.summaryInfo).toBeUndefined();
     } finally {
       act(() => renderer?.unmount());
     }

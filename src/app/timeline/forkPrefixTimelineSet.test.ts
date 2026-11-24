@@ -1,6 +1,6 @@
-import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { forkPrefixThreadId, rowEditTimelineSet } from './forkPrefixTimelineSet';
+import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from './forkPrefixTimelineSet';
 
 const reply = (id: string, threadRootId?: string) => {
   const event = new MatrixEvent({ event_id: id, type: 'm.room.message', content: {} });
@@ -30,5 +30,31 @@ describe('rowEditTimelineSet', () => {
     expect(rowEditTimelineSet(room, '$parent', rowSet)).toBe(parentSet);
     expect(rowEditTimelineSet(room, undefined, rowSet)).toBe(rowSet);
     expect(rowEditTimelineSet(room, '$unknown', rowSet)).toBe(rowSet);
+  });
+});
+
+describe('rowEventRoom', () => {
+  const sourceRoom = { roomId: '!alpha:example.org' } as unknown as Room;
+  const targetRoom = { roomId: '!beta:example.org' } as unknown as Room;
+  const mx = {
+    getRoom: (id: string) => (id === '!alpha:example.org' ? sourceRoom : null),
+  } as unknown as MatrixClient;
+
+  it('resolves the owning room for a cross-room prefix row and falls back to the current room otherwise', () => {
+    const crossEvent = new MatrixEvent({
+      event_id: '$p',
+      room_id: '!alpha:example.org',
+      type: 'm.room.message',
+      content: {},
+    });
+    const unknownRoomEvent = new MatrixEvent({
+      event_id: '$u',
+      room_id: '!unknown:example.org',
+      type: 'm.room.message',
+      content: {},
+    });
+    expect(rowEventRoom(mx, targetRoom, crossEvent, '$parent')).toBe(sourceRoom);
+    expect(rowEventRoom(mx, targetRoom, crossEvent, undefined)).toBe(targetRoom);
+    expect(rowEventRoom(mx, targetRoom, unknownRoomEvent, '$parent')).toBe(targetRoom);
   });
 });

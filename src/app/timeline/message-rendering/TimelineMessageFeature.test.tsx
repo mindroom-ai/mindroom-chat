@@ -17,6 +17,8 @@ import {
   flushAsyncWork,
   matrixClientMock,
   navigateRoomThreadMock,
+  openUserRoomProfileMock,
+  settingsState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout } from '../../preferences/settings';
@@ -1033,5 +1035,104 @@ describe('the forks made at a message', () => {
     forksByPoint.value = new Map([['$m', forks]]);
     const { renderer } = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
     expect(await forkChips(renderer)).toHaveLength(0);
+  });
+});
+
+describe('cross-room fork prefix rows', () => {
+  it('uses per-row eventRoom for display name, Message room, Reply, Open in original thread, sender click, Fork from here, and encryption preview guard', async () => {
+    const { Message } = await import('../../messages/Message');
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    sourceRoom.hasEncryptionStateEvent = () => true;
+    sourceRoom.getMember = ((userId: string) =>
+      userId === '@alice:example.org' ? { name: 'Alice in Alpha' } : null) as never;
+
+    settingsState.urlPreview = true;
+    settingsState.encUrlPreview = false;
+    startFork.mockClear();
+    navigateRoomThreadMock.mockClear();
+    openUserRoomProfileMock.mockClear();
+
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const crossPrefixMsg = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        replyTo: '$p0',
+        content: { msgtype: 'm.text', body: 'Check https://example.com' },
+      }) as unknown as MatrixEvent;
+      const ownReply = makeEvent('$r1', {
+        roomId: '!room:example.org',
+        threadRootId: '$fork',
+        content: { msgtype: 'm.text', body: 'Own reply https://example.com' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer } = await mountFeature(
+        [rowFor(crossPrefixMsg, 0), rowFor(ownReply, 1)],
+        '$fork',
+        new Set(['$p1'])
+      );
+
+      const messages = renderer.root.findAllByType(Message);
+      expect(messages).toHaveLength(2);
+      const [prefixMessage, ownMessage] = messages;
+
+      // Message & Reply use sourceRoom (so Copy Link, avatars, quoted replies resolve in Alpha).
+      expect(prefixMessage!.props.room).toBe(sourceRoom);
+      expect(prefixMessage!.props.reply.props.room).toBe(sourceRoom);
+      expect(ownMessage!.props.room.roomId).toBe('!room:example.org');
+
+      // Open in original thread navigates to sourceRoom.
+      act(() => {
+        prefixMessage!.props.onOpenInOriginalThread?.();
+      });
+      expect(navigateRoomThreadMock).toHaveBeenCalledWith('!alpha:example.org', '$parent', '$p1');
+
+      // Sender click opens user profile in sourceRoom.
+      const fakeEvent = {
+        currentTarget: {
+          getAttribute: (name: string) => (name === 'data-user-id' ? '@alice:example.org' : null),
+          getBoundingClientRect: () => ({ top: 0, left: 0, width: 10, height: 10 }),
+        },
+        stopPropagation: vi.fn(),
+      };
+      act(() => {
+        prefixMessage!.props.onUserClick?.(fakeEvent);
+      });
+      expect(openUserRoomProfileMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        undefined,
+        '@alice:example.org',
+        expect.anything()
+      );
+
+      // Content uses sourceRoom display name and suppresses URL preview because sourceRoom is encrypted
+      // while the unencrypted target room still allows URL previews on its own row.
+      const contents = renderer.root.findAllByType(RenderMessageContent);
+      expect(contents[0]!.props.roomId).toBe('!alpha:example.org');
+      expect(contents[0]!.props.displayName).toBe('Alice in Alpha');
+      expect(contents[0]!.props.urlPreview).toBe(false);
+      expect(contents[1]!.props.roomId).toBe('!room:example.org');
+      expect(contents[1]!.props.urlPreview).toBe(true);
+
+      // Fork from here on an unencrypted cross-room prefix row preserves roomId.
+      sourceRoom.hasEncryptionStateEvent = () => false;
+      const unenc = await mountFeature(
+        [rowFor(crossPrefixMsg, 0)],
+        '$fork',
+        new Set(['$p1'])
+      );
+      act(() => {
+        unenc.renderer.root.findByType(Message).props.onForkClick?.('$p1');
+      });
+      expect(startFork).toHaveBeenCalledWith({
+        roomId: '!alpha:example.org',
+        threadId: '$parent',
+        eventId: '$p1',
+      });
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
   });
 });

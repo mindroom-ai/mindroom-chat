@@ -98,7 +98,7 @@ import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { forkTargetFor } from '../../event-store/threads/threadFork';
-import { forkPrefixThreadId, rowEditTimelineSet } from '../forkPrefixTimelineSet';
+import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from '../forkPrefixTimelineSet';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
 import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
 import { useThreadForks } from '../../threads/fork/useThreadForks';
@@ -558,7 +558,8 @@ export const useTimelineMessageFeature = ({
       if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return null;
       const eventId = event.getId() ?? '';
       const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const eventRoom = rowEventRoom(client, room, event, prefixThreadId);
+      const timelineSet = rowEditTimelineSet(eventRoom, prefixThreadId, rowTimelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       const content = getLatestMessageContent(event, editedEvent) as Record<string, unknown>;
       return readQuietMarker(
@@ -566,12 +567,12 @@ export const useTimelineMessageFeature = ({
         event,
         content,
         data,
-        room,
+        eventRoom,
         userId ?? undefined,
         onOpenTitleSettings
       );
     },
-    [room, threadId, userId]
+    [client, room, threadId, userId]
   );
 
   /** The row of a message, approval, sticker or undecryptable event. */
@@ -585,7 +586,9 @@ export const useTimelineMessageFeature = ({
       // here, their cards answer in the parent's thread and their reactions are read there.
       const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
       const readOnly = prefixThreadId !== undefined;
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, row.timelineSet);
+      const eventRoom = rowEventRoom(client, room, event, prefixThreadId);
+      const isCrossRoomRow = eventRoom.roomId !== room.roomId;
+      const timelineSet = rowEditTimelineSet(eventRoom, prefixThreadId, row.timelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       // A newer edit that could not be decrypted leaves this version shown, with a note; a row
       // that shows no readable version says so itself (P2-e2ee-F004).
@@ -606,7 +609,7 @@ export const useTimelineMessageFeature = ({
               event,
               content,
               data,
-              room,
+              eventRoom,
               userId ?? undefined,
               openTitleSettings
             )
@@ -624,16 +627,18 @@ export const useTimelineMessageFeature = ({
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
         // marker keeps the same elements, so one that a new marker joins stays mounted.
         const later = (row.quietRun ?? []).flatMap((marker) => {
+          const markerPrefixThreadId = forkPrefixThreadId(
+            marker.event,
+            marker.eventId,
+            data.forkPrefixEventIds
+          );
+          const markerRoom = rowEventRoom(client, room, marker.event, markerPrefixThreadId);
           renderedEventsRef.current?.push(
             marker.event,
             ...getPendingEdits(
               marker.eventId,
               marker.event,
-              rowEditTimelineSet(
-                room,
-                forkPrefixThreadId(marker.event, marker.eventId, data.forkPrefixEventIds),
-                marker.timelineSet
-              )
+              rowEditTimelineSet(markerRoom, markerPrefixThreadId, marker.timelineSet)
             )
           );
           const node = readRowQuietMarker(
@@ -707,14 +712,49 @@ export const useTimelineMessageFeature = ({
         !threadId && showThreadRepliesInRoom && !replyEventId && event.threadRootId !== eventId
           ? event.threadRootId
           : undefined;
+      // Encrypted source rooms must never leak URL previews or site favicons when rendered inside
+      // an unencrypted target room.
+      const eventEncrypted = !!eventRoom.hasEncryptionStateEvent?.();
+      const eventShowUrlPreview = isCrossRoomRow
+        ? eventEncrypted
+          ? encUrlPreview
+          : urlPreview
+        : showUrlPreview;
+      const eventShowLinkFavicons = isCrossRoomRow
+        ? shouldShowLinkFavicons({ mediaAutoLoad, urlPreview }, eventEncrypted)
+        : showLinkFavicons;
+      const rowLinkifyOpts = isCrossRoomRow
+        ? {
+            ...LINKIFY_OPTS,
+            render: factoryRenderLinkifyWithMention(
+              (href) =>
+                renderMatrixMention(
+                  client,
+                  eventRoom.roomId,
+                  href,
+                  makeMentionCustomProps(handleMentionClick)
+                ),
+              eventShowLinkFavicons
+            ),
+          }
+        : linkifyOpts;
+      const rowHtmlReactParserOptions = isCrossRoomRow
+        ? getReactCustomHtmlParser(client, eventRoom.roomId, {
+            linkifyOpts: rowLinkifyOpts,
+            handleMentionClick,
+            useAuthentication,
+            showLinkFavicons: eventShowLinkFavicons,
+          })
+        : htmlReactParserOptions;
       const contentProps = {
         mEvent: event,
         eventId,
         // Approval cards send their responses to this room and thread.
-        roomId: room.roomId,
+        roomId: eventRoom.roomId,
         threadId: prefixThreadId ?? threadId ?? event.threadRootId,
         readOnly,
-        displayName: room.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
+        displayName:
+          eventRoom.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
         msgType,
         eventType: event.getType(),
         ts: event.getTs(),
@@ -723,11 +763,11 @@ export const useTimelineMessageFeature = ({
         failedSend,
         getContent: (() => content) as <T>() => T,
         mediaAutoLoad: !!mediaAutoLoad,
-        urlPreview: !!showUrlPreview,
+        urlPreview: !!eventShowUrlPreview,
         // The collapsible tool and output sections MindRoom attaches to a message.
         showMessageExtras: true,
-        htmlReactParserOptions,
-        linkifyOpts,
+        htmlReactParserOptions: rowHtmlReactParserOptions,
+        linkifyOpts: rowLinkifyOpts,
       };
       // A voice message's echo shows under it, as its latest version says.
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
@@ -745,14 +785,14 @@ export const useTimelineMessageFeature = ({
             getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
           )}
           senderName={
-            room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
+            eventRoom.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
           renderBody={({ body, customBody }) => (
             <RenderBody
               body={body}
               customBody={customBody}
-              linkifyOpts={linkifyOpts}
-              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={rowLinkifyOpts}
+              htmlReactParserOptions={rowHtmlReactParserOptions}
             />
           )}
         />
@@ -771,8 +811,26 @@ export const useTimelineMessageFeature = ({
         (event.getSender() === userId || canRedactOthers);
       const canSendReaction = !readOnly && kind !== 'sticker';
       // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
-      // forks its own thread.
-      const forkTarget = threadId && forksAnswered ? forkTargetFor(event) : undefined;
+      // forks its own thread. Never downgrade an encrypted source into an unencrypted current room.
+      const canForkIntoCurrentRoom =
+        !isCrossRoomRow || !eventEncrypted || !!room.hasEncryptionStateEvent?.();
+      const forkTarget =
+        threadId && forksAnswered && canForkIntoCurrentRoom
+          ? forkTargetFor(event, room.roomId)
+          : undefined;
+      const openSenderProfile = isCrossRoomRow
+        ? (evt: React.MouseEvent<HTMLElement>) => {
+            const senderId = evt.currentTarget.getAttribute('data-user-id');
+            if (!senderId) return;
+            evt.stopPropagation();
+            openUserProfile(
+              eventRoom.roomId,
+              spaceRoomId,
+              senderId,
+              evt.currentTarget.getBoundingClientRect()
+            );
+          }
+        : handleSenderClick;
       // The forks made at this message, under it in the thread they were forked from: not on the
       // parent's rows shown in a fork, where they would repeat the chip the parent's own view shows.
       const forks = readOnly ? undefined : forksByPoint.get(eventId);
@@ -796,7 +854,7 @@ export const useTimelineMessageFeature = ({
           <Message
             data-message-id={eventId}
             data-message-item={row.index}
-            room={room}
+            room={eventRoom}
             mEvent={event}
             collapse={collapse}
             highlight={highlighted}
@@ -810,13 +868,22 @@ export const useTimelineMessageFeature = ({
             reply={
               replyEventId ? (
                 <Reply
-                  room={room}
+                  room={eventRoom}
                   replyEventId={replyEventId}
                   threadRootId={event.threadRootId}
                   timelineSet={timelineSet}
                   hideThreadIndicator={!!threadId}
                   data-event-id={replyEventId}
-                  onClick={data.handleOpenReply}
+                  onClick={
+                    isCrossRoomRow && !data.forkPrefixEventIds?.has(replyEventId)
+                      ? () =>
+                          navigateRoomThread(
+                            eventRoom.roomId,
+                            prefixThreadId ?? event.threadRootId ?? replyEventId,
+                            replyEventId
+                          )
+                      : data.handleOpenReply
+                  }
                 />
               ) : threadQuoteRootId ? (
                 <Reply
@@ -831,7 +898,7 @@ export const useTimelineMessageFeature = ({
               kind !== 'sticker' ? (
                 <>
                   <TimelineReactions
-                    room={room}
+                    room={eventRoom}
                     event={event}
                     relations={relations}
                     failed={reactionFailedEventId === eventId}
@@ -854,12 +921,12 @@ export const useTimelineMessageFeature = ({
             onReplyClick={readOnly ? undefined : handleReplyClick}
             onOpenInOriginalThread={
               prefixThreadId
-                ? () => navigateRoomThread(room.roomId, prefixThreadId, eventId)
+                ? () => navigateRoomThread(eventRoom.roomId, prefixThreadId, eventId)
                 : undefined
             }
             onForkClick={forkTarget ? () => startFork(forkTarget) : undefined}
-            onUserClick={handleSenderClick}
-            onUsernameClick={handleSenderClick}
+            onUserClick={openSenderProfile}
+            onUsernameClick={openSenderProfile}
             onReactionToggle={
               readOnly
                 ? undefined
@@ -948,9 +1015,17 @@ export const useTimelineMessageFeature = ({
       reactionFailedEventId,
       readRowQuietMarker,
       room,
+      client,
+      encUrlPreview,
+      handleMentionClick,
+      openUserProfile,
+      showLinkFavicons,
       showThreadRepliesInRoom,
       showUrlPreview,
+      spaceRoomId,
       startFork,
+      urlPreview,
+      useAuthentication,
       threadId,
       toggleReaction,
       userId,

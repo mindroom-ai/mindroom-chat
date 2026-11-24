@@ -16,7 +16,7 @@ import { playsMotion } from '../../ui/listMotion';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { OverflowChip } from '../ThreadContextBanner.css';
 import { ThreadForkedBadge } from '../fork/ThreadForkedBadge';
-import { useThreadTitle } from '../fork/ThreadForkDivider';
+import { useForkParentRoom, useThreadTitle } from '../fork/ThreadForkDivider';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import type { Room } from 'matrix-js-sdk';
 
@@ -343,16 +343,45 @@ function CompactThreadCardBase({
   );
 }
 
-/** A fork's card, whose badge and label name the thread it was forked from. */
+function JoinedForkCompactThreadCard({
+  parentRoom,
+  parent,
+  roomName,
+  ...props
+}: Omit<CompactThreadCardProps, 'room'> & {
+  parentRoom: Room;
+  parent: ThreadForkRef;
+  roomName?: string;
+}) {
+  const { t } = useTranslation();
+  const title = useThreadTitle(parentRoom, parent.threadId, undefined, undefined);
+  const label = roomName
+    ? t('threadFork.forkedFromInRoom', { title, room: roomName })
+    : t('threadFork.forkedFrom', { title });
+  return <CompactThreadCardBase {...props} forkedFromLabel={label} />;
+}
+
+/** A fork's card, whose badge and label name the thread (and room, if cross-room) it was forked from. */
 function ForkCompactThreadCard({
   room,
   parent,
   ...props
 }: Omit<CompactThreadCardProps, 'room'> & { room: Room; parent: ThreadForkRef }) {
   const { t } = useTranslation();
-  const title = useThreadTitle(room, parent.threadId, undefined, undefined);
+  const isCrossRoom = Boolean(parent.roomId && parent.roomId !== room.roomId);
+  const parentRoom = useForkParentRoom(room, parent.roomId);
+  if (!parentRoom) {
+    return (
+      <CompactThreadCardBase {...props} forkedFromLabel={t('threadFork.forkedFromAnotherRoom')} />
+    );
+  }
   return (
-    <CompactThreadCardBase {...props} forkedFromLabel={t('threadFork.forkedFrom', { title })} />
+    <JoinedForkCompactThreadCard
+      {...props}
+      parentRoom={parentRoom}
+      parent={parent}
+      roomName={isCrossRoom ? parentRoom.name || parentRoom.roomId : undefined}
+    />
   );
 }
 
