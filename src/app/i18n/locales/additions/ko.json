@@ -1585,7 +1585,17 @@
     "forkThread": "스레드 분기",
     "forking": "{{title}} 분기 중",
     "continueInNewThread": "새 스레드에서 계속",
-    "forkCount_other": "분기 {{count}}개"
+    "forkCount_other": "분기 {{count}}개",
+    "forkedFromInRoom": "{{room}}의 {{title}}에서 분기됨",
+    "forkedFromAnotherRoom": "다른 방에서 분기됨",
+    "forkingIntoRoom": "{{title}}을(를) {{room}}(으)로 분기 중",
+    "forkToRoom": "다른 방으로 분기…",
+    "forkToRoomTitle": "다른 방으로 분기",
+    "forkToRoomSearchPlaceholder": "방 검색…",
+    "forkToRoomEmpty": "일치하는 방이 없습니다",
+    "forkToRoomAgentWarning": "이 방의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다",
+    "forkingFromRoom": "{{room}}에서 분기 중",
+    "forkDraftAgentWarning": "여기의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다"
   },
   "activity": {
     "title": "활동",

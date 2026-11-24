@@ -2292,6 +2292,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         />
       )}
       {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
+      {feature.forkToRoomDialog}
     </Box>
   );
 }

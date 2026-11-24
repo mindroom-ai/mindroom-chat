@@ -1825,7 +1825,17 @@
     "forkCount_two": "⁨{{count}}⁩ تفريعتان",
     "forkCount_few": "⁨{{count}}⁩ تفريعات",
     "forkCount_many": "⁨{{count}}⁩ تفريعةً",
-    "forkCount_other": "⁨{{count}}⁩ تفريعة"
+    "forkCount_other": "⁨{{count}}⁩ تفريعة",
+    "forkedFromInRoom": "متفرّع من ⁨{{title}}⁩ في ⁨{{room}}⁩",
+    "forkedFromAnotherRoom": "متفرّع من غرفة أخرى",
+    "forkingIntoRoom": "تفريع ⁨{{title}}⁩ إلى ⁨{{room}}⁩",
+    "forkToRoom": "التفريع إلى غرفة…",
+    "forkToRoomTitle": "التفريع إلى غرفة",
+    "forkToRoomSearchPlaceholder": "البحث في الغرف…",
+    "forkToRoomEmpty": "لا توجد غرف مطابقة",
+    "forkToRoomAgentWarning": "الوكلاء في هذه الغرفة غير موجودين في ⁨{{room}}⁩ ولن يروا سلسلة المحادثة الأصلية",
+    "forkingFromRoom": "التفريع من ⁨{{room}}⁩",
+    "forkDraftAgentWarning": "الوكلاء هنا غير موجودين في ⁨{{room}}⁩ ولن يروا سلسلة المحادثة الأصلية"
   },
   "activity": {
     "title": "النشاط",

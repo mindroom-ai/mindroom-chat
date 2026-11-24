@@ -97,9 +97,10 @@ import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { forkTargetFor } from '../../event-store/threads/threadFork';
+import { forkTargetFor, type ThreadForkRef } from '../../event-store/threads/threadFork';
 import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from '../forkPrefixTimelineSet';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
+import { ForkToRoomDialog } from '../../threads/fork/ForkToRoomDialog';
 import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
 import { useThreadForks } from '../../threads/fork/useThreadForks';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
@@ -506,6 +507,10 @@ export const useTimelineMessageFeature = ({
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
   const startFork = useStartThreadFork(room);
+  const [forkToRoomTarget, setForkToRoomTarget] = useState<{
+    sourceRoom: Room;
+    ref: ThreadForkRef;
+  }>();
   // Where agents answer in the room, they answer a fork there too, and it stays empty.
   const forksAnswered = useRoomThreadMode(room.roomId, !!threadId) !== 'room';
   const forksByPoint = useThreadForks(room, threadId);
@@ -814,9 +819,10 @@ export const useTimelineMessageFeature = ({
       // forks its own thread. Never downgrade an encrypted source into an unencrypted current room.
       const canForkIntoCurrentRoom =
         !isCrossRoomRow || !eventEncrypted || !!room.hasEncryptionStateEvent?.();
+      const messageForkTarget = threadId ? forkTargetFor(event, room.roomId) : undefined;
       const forkTarget =
-        threadId && forksAnswered && canForkIntoCurrentRoom
-          ? forkTargetFor(event, room.roomId)
+        messageForkTarget && forksAnswered && canForkIntoCurrentRoom
+          ? messageForkTarget
           : undefined;
       const openSenderProfile = isCrossRoomRow
         ? (evt: React.MouseEvent<HTMLElement>) => {
@@ -925,6 +931,11 @@ export const useTimelineMessageFeature = ({
                 : undefined
             }
             onForkClick={forkTarget ? () => startFork(forkTarget) : undefined}
+            onForkToRoomClick={
+              messageForkTarget
+                ? () => setForkToRoomTarget({ sourceRoom: eventRoom, ref: messageForkTarget })
+                : undefined
+            }
             onUserClick={openSenderProfile}
             onUsernameClick={openSenderProfile}
             onReactionToggle={
@@ -1094,12 +1105,25 @@ export const useTimelineMessageFeature = ({
     [expansionBaseline, manualExpansionState, restoreExpansionAnchor]
   );
 
+  const forkToRoomDialog = forkToRoomTarget ? (
+    <ForkToRoomDialog
+      sourceRoom={forkToRoomTarget.sourceRoom}
+      onSelect={(targetRoomId) => {
+        const { ref } = forkToRoomTarget;
+        setForkToRoomTarget(undefined);
+        startFork(ref, targetRoomId);
+      }}
+      onClose={() => setForkToRoomTarget(undefined)}
+    />
+  ) : null;
+
   return {
     renderEvent,
     rowRepaintRevision: decryptions,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
     forksByPoint,
+    forkToRoomDialog,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

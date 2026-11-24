@@ -29,10 +29,12 @@ const THREAD = '$root';
 type ApprovalProps = ComponentProps<typeof ThreadApprovalProvider>;
 
 const LEVELS = vi.hoisted(() => ({ users_default: 0 }));
+const SOURCE_LEVELS = vi.hoisted(() => ({ users_default: 10 }));
 const state = vi.hoisted(() => ({
   mayPost: true,
   tombstone: false,
   members: [] as RoomMember[],
+  membersByRoom: new Map<string, RoomMember[]>(),
   timeline: undefined as RoomTimelineProps | undefined,
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   timelineLevels: undefined as unknown,
@@ -41,8 +43,10 @@ const state = vi.hoisted(() => ({
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
   composer: undefined as
     | {
+        room?: Room;
+        roomId?: string;
         threadId?: string;
-        forkFrom?: { threadId: string; eventId: string };
+        forkFrom?: { roomId?: string; threadId: string; eventId: string };
         onRoomMessageSent?: (eventId: string) => boolean | void;
       }
     | undefined,
@@ -53,10 +57,13 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx })
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: state.navigateRoomThread }),
 }));
-vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({
+  useRoomMembers: (_mx: unknown, roomId: string) =>
+    state.membersByRoom.get(roomId) ?? state.members,
+}));
 vi.mock('../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/hooks/usePowerLevels')>()),
-  usePowerLevels: () => LEVELS,
+  usePowerLevels: (r: Room) => (r.roomId === '!alpha:example.org' ? SOURCE_LEVELS : LEVELS),
 }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
@@ -110,19 +117,23 @@ vi.mock('./RoomTombstone', () => ({
 // The composer is its Slate text box.
 vi.mock('../composer/RoomInput', () => ({
   RoomInput: ({
+    room: inputRoom,
+    roomId: inputRoomId,
     editor,
     threadId,
     forkFrom,
     onRoomMessageSent,
     fileDropContainerRef,
   }: {
+    room: Room;
+    roomId: string;
     editor: Editor;
     threadId?: string;
-    forkFrom?: { threadId: string; eventId: string };
+    forkFrom?: { roomId?: string; threadId: string; eventId: string };
     onRoomMessageSent?: (eventId: string) => boolean | void;
     fileDropContainerRef: RefObject<HTMLElement | null>;
   }) => {
-    state.composer = { threadId, forkFrom, onRoomMessageSent };
+    state.composer = { room: inputRoom, roomId: inputRoomId, threadId, forkFrom, onRoomMessageSent };
     const view = useContext(ConversationViewContext);
     useEffect(() => {
       state.dropTarget = fileDropContainerRef.current;
@@ -140,6 +151,7 @@ beforeEach(() => {
   state.mayPost = true;
   state.tombstone = false;
   state.members = [];
+  state.membersByRoom.clear();
   state.timeline = undefined;
   state.timelineLevels = undefined;
   state.dropTarget = undefined;
@@ -504,5 +516,64 @@ describe('a fork draft', () => {
     // Closing the draft leaves the thread on screen, with its composer at once.
     rerender(<ThreadView room={room} threadId={THREAD} />);
     expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
+  });
+
+  it('splits read scope (sourceRoom + sourcePowerLevels) from send scope (targetRoom) in a cross-room fork draft', () => {
+    const sourceRoom = new Room('!alpha:example.org', mx, '@alice:example.org');
+    sourceRoom.name = 'Project Alpha';
+    room.name = 'Project Beta';
+    state.membersByRoom.set(sourceRoom.roomId, [
+      { userId: '@alice:example.org', membership: 'join' } as RoomMember,
+    ]);
+    state.membersByRoom.set(room.roomId, [
+      { userId: '@alice:example.org', membership: 'join' } as RoomMember,
+      { userId: '@mindroom_coder:example.org', membership: 'join' } as RoomMember,
+    ]);
+
+    const onBack = vi.fn();
+    render(
+      <ThreadView
+        room={room}
+        sourceRoom={sourceRoom}
+        threadId={THREAD}
+        forkAt="$point"
+        onExitCrossRoomFork={onBack}
+      />
+    );
+
+    // Timeline reads from sourceRoom with sourcePowerLevels and shows "Forking … into Project Beta".
+    expect(state.timeline).toMatchObject({
+      room: sourceRoom,
+      threadId: THREAD,
+      eventId: '$point',
+      forkAt: '$point',
+      forkTargetRoomName: 'Project Beta',
+    });
+    expect(state.timelineLevels).toBe(SOURCE_LEVELS);
+
+    // Composer sends to targetRoom with cross-room forkFrom ref.
+    expect(state.composer).toMatchObject({
+      room,
+      roomId: room.roomId,
+      threadId: undefined,
+      forkFrom: { roomId: sourceRoom.roomId, threadId: THREAD, eventId: '$point' },
+    });
+
+    // Draft header shows "Forking from Project Alpha", Back button, and agent-not-in-source warning.
+    render(<>{state.timeline?.threadHeader}</>);
+    expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(document.querySelector('[data-cross-room-fork-agent-warning]')?.textContent).toContain(
+      'Project Alpha'
+    );
+    fireEvent.click(screen.getByLabelText('Back'));
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    // Sending navigates to the new fork in targetRoom.
+    act(() => {
+      state.composer?.onRoomMessageSent?.('$newFork');
+    });
+    expect(state.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$newFork', undefined, {
+      replace: true,
+    });
   });
 });

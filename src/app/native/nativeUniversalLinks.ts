@@ -202,11 +202,29 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
   const rawThreadId = url.searchParams.get('threadId');
   const threadId =
     !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const rawForkRoom = url.searchParams.get('forkRoom');
+  const rawForkThread = url.searchParams.get('forkThread');
   const rawForkAt = url.searchParams.get('forkAt');
-  const forkAt = threadId && rawForkAt && isEventId(rawForkAt) ? rawForkAt : undefined;
+  const validCrossRoomFork =
+    !route.isLobby &&
+    !rawThreadId &&
+    !!rawForkRoom &&
+    !ASCII_CONTROL_CHARS.test(rawForkRoom) &&
+    isRoomId(rawForkRoom) &&
+    !!rawForkThread &&
+    isEventId(rawForkThread) &&
+    !!rawForkAt &&
+    isEventId(rawForkAt);
+  const forkAt = validCrossRoomFork
+    ? rawForkAt
+    : threadId && !rawForkRoom && !rawForkThread && rawForkAt && isEventId(rawForkAt)
+    ? rawForkAt
+    : undefined;
   return withSearchParam(route.basePath, {
     viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
     threadId,
+    forkRoom: validCrossRoomFork ? rawForkRoom : undefined,
+    forkThread: validCrossRoomFork ? rawForkThread : undefined,
     forkAt,
     focusEvent: !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
   });

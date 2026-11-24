@@ -13,7 +13,7 @@ import { flushSync } from 'react-dom';
 import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { ClientEvent, RoomEvent, type MatrixEvent, type Room as MatrixRoom } from 'matrix-js-sdk';
 import { Box } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
@@ -78,10 +78,13 @@ import {
   isConfirmedMatrixEventId,
   isThreadRouteReady,
 } from '../event-store/threads/threadRouteUtils';
+import { parseCrossRoomForkParams } from '../event-store/threads/threadFork';
+import { isJoinedRoom } from '../navigation/routeVisibility';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { isReturnToRoom } from '../routes/historyStack';
+import { getRoomThreadExitTargetFromHistoryState } from '../routes/roomNavigateState';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
@@ -199,6 +202,8 @@ const useRoomRoute = () => {
     entryKey: location.key,
     entryPushed: useNavigationType() === NavigationType.Push,
     entryReturned: isReturnToRoom(location.state),
+    forkRoom: search.get('forkRoom') ?? undefined,
+    forkThread: search.get('forkThread') ?? undefined,
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -225,6 +230,8 @@ function RoomContent() {
     entryKey,
     entryPushed,
     entryReturned,
+    forkRoom,
+    forkThread,
     forkAt,
   } = useRoomRoute();
   const { roomId } = room;
@@ -250,15 +257,63 @@ function RoomContent() {
     setViewMode,
     availableViewModes,
   } = useRoomViewMode(roomId, hasMindroomAgents);
+  const rawCrossRoomFork = useMemo(
+    () => parseCrossRoomForkParams({ threadId: routedThreadId, forkRoom, forkThread, forkAt }, roomId),
+    [forkAt, forkRoom, forkThread, roomId, routedThreadId]
+  );
+  const [forkSourceVersion, setForkSourceVersion] = useState(0);
+  useEffect(() => {
+    const sourceId = rawCrossRoomFork?.sourceRoomId;
+    if (!sourceId) return undefined;
+    const onMembership = (changedRoom: MatrixRoom) => {
+      if (changedRoom.roomId === sourceId) setForkSourceVersion((v) => v + 1);
+    };
+    client.on(RoomEvent.MyMembership, onMembership);
+    client.on(ClientEvent.Room, onMembership);
+    return () => {
+      client.removeListener(RoomEvent.MyMembership, onMembership);
+      client.removeListener(ClientEvent.Room, onMembership);
+    };
+  }, [client, rawCrossRoomFork?.sourceRoomId]);
+  const crossRoomFork = useMemo(() => {
+    void forkSourceVersion;
+    if (!rawCrossRoomFork) return undefined;
+    const sourceRoom = client.getRoom(rawCrossRoomFork.sourceRoomId);
+    if (!sourceRoom || !isJoinedRoom(sourceRoom) || sourceRoom.isSpaceRoom?.()) return undefined;
+    if (sourceRoom.hasEncryptionStateEvent?.() && !room.hasEncryptionStateEvent?.()) {
+      return undefined;
+    }
+    return {
+      sourceRoom,
+      threadId: rawCrossRoomFork.threadId,
+      forkAt: rawCrossRoomFork.forkAt,
+    };
+  }, [client, forkSourceVersion, rawCrossRoomFork, room]);
+  const sameRoomForkAt =
+    routedThreadId && !forkRoom && !forkThread && isConfirmedMatrixEventId(forkAt)
+      ? forkAt
+      : undefined;
+  const isForkDraft = !!sameRoomForkAt || !!crossRoomFork;
+
   // The Full view shows no thread routes, so a link to a thread brings the threads back, as an
   // action from a thread does. A direct chat between people always shows Threads.
   const threadLinkInFullView =
-    !!routedThreadId && chosenViewMode === 'classic' && !!availableViewModes?.includes('threaded');
+    (!!routedThreadId || !!crossRoomFork) &&
+    chosenViewMode === 'classic' &&
+    !!availableViewModes?.includes('threaded');
   const viewMode = threadLinkInFullView ? 'threaded' : chosenViewMode;
   useEffect(() => {
     if (threadLinkInFullView) setViewMode('threaded');
   }, [setViewMode, threadLinkInFullView]);
-  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const { navigatePath, navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const handleExitCrossRoomFork = useCallback(() => {
+    const exitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
+    if (exitTarget && exitTarget.roomId === roomId && exitTarget.exitPath && navigatePath) {
+      navigatePath(exitTarget.exitPath, { replace: true });
+      return;
+    }
+    navigateRoom(roomId, undefined, { replace: true });
+  }, [navigatePath, navigateRoom, roomId]);
   const setSettingsModal = useSetAtom(settingsModalAtom);
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
@@ -486,7 +541,7 @@ function RoomContent() {
               threadId={subagentConversation(threadId, viewMode === 'classic')}
               onClose={subagents.close}
               // A fork draft's thread is read-only, so its jobs bar stops nothing, nor does the panel.
-              readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
+              readOnly={isForkDraft}
             />
           </Suspense>
         </ResizablePanel>
@@ -1134,7 +1189,9 @@ function RoomContent() {
                   room={room}
                   eventId={eventId}
                   threadId={routedThreadId}
-                  forkAt={forkAt}
+                  forkAt={sameRoomForkAt}
+                  crossRoomFork={crossRoomFork}
+                  onExitCrossRoomFork={crossRoomFork ? handleExitCrossRoomFork : undefined}
                   focusEventInRoom={focusEventInRoom}
                   entryKey={entryKey}
                   entryPushed={entryPushed}

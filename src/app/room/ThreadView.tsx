@@ -45,6 +45,7 @@ import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
+import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
 
 const NO_SUMMARIES: ReadonlyMap<string, ThreadSummaryInfo> = new Map();
 const ignore = () => undefined;
@@ -71,9 +72,11 @@ const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
  */
 export function ThreadView({
   room,
+  sourceRoom,
   threadId,
   eventId,
   forkAt,
+  onExitCrossRoomFork,
   header,
   autoFocus = false,
   hidden = false,
@@ -86,10 +89,14 @@ export function ThreadView({
   onStoreThreadSummary = ignore,
 }: {
   room: Room;
+  /** In a cross-room fork draft, the room whose thread is previewed (read scope); sends go to `room`. */
+  sourceRoom?: Room;
   threadId: string;
   eventId?: string;
   /** A fork draft's fork point, a message of the thread (`?forkAt=`). */
   forkAt?: string;
+  /** Back action for the default cross-room draft banner when `header` is omitted. */
+  onExitCrossRoomFork?: () => void;
   header?: ReactNode;
   autoFocus?: boolean;
   hidden?: boolean;
@@ -109,10 +116,13 @@ export function ThreadView({
   const editor = useEditor();
   const view = useId();
   const viewRef = useRef<HTMLDivElement>(null);
-  const members = useRoomMembers(client, room.roomId);
-  const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);
-  const powerLevels = usePowerLevels(room);
-  const permissions = useRoomPermissions(useRoomCreators(room), powerLevels);
+  const readRoom = sourceRoom ?? room;
+  const isCrossRoomDraft = Boolean(sourceRoom && sourceRoom.roomId !== room.roomId);
+  const readMembers = useRoomMembers(client, readRoom.roomId);
+  const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(readMembers), [readMembers]);
+  const targetPowerLevels = usePowerLevels(room);
+  const readPowerLevels = usePowerLevels(readRoom);
+  const permissions = useRoomPermissions(useRoomCreators(room), targetPowerLevels);
   // As in the room view, an upgraded room takes no more messages.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   const myUserId = client.getSafeUserId();
@@ -120,7 +130,7 @@ export function ThreadView({
   const composerShown = !tombstone && canMessage;
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
-  const localRoot = useLocalEchoRoot(room, threadId);
+  const localRoot = useLocalEchoRoot(room, isCrossRoomDraft ? undefined : threadId);
   const failedRoot =
     localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
       ? localRoot.event
@@ -130,7 +140,7 @@ export function ThreadView({
   // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
   const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
   const { roomId } = room;
-  useShownConversationView(!outOfSight, view, roomId, threadId);
+  useShownConversationView(!outOfSight && !isCrossRoomDraft, view, roomId, threadId);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
   // later view finds them. Until then they stay, as a send under way may still use them.
@@ -154,8 +164,15 @@ export function ThreadView({
   const { navigateRoomThread } = useRoomNavigate();
   const draftForkAt = isConfirmedMatrixEventId(forkAt) ? forkAt : undefined;
   const forkFrom = useMemo(
-    () => (draftForkAt ? { threadId, eventId: draftForkAt } : undefined),
-    [draftForkAt, threadId]
+    () =>
+      draftForkAt
+        ? {
+            ...(isCrossRoomDraft ? { roomId: readRoom.roomId } : {}),
+            threadId,
+            eventId: draftForkAt,
+          }
+        : undefined,
+    [draftForkAt, isCrossRoomDraft, readRoom.roomId, threadId]
   );
   const store = useStore();
   const openFork = useCallback(
@@ -190,36 +207,49 @@ export function ThreadView({
     if (autoFocusRef.current && !rootConfirmed) focusConversation();
   }, [autoFocusRef, focusConversation, room, threadId]);
   // A fork draft opens to its composer.
-  const forkKey = forkFrom && `${forkFrom.threadId}\n${forkFrom.eventId}`;
+  const forkKey = forkFrom && `${forkFrom.roomId ?? ''}\n${forkFrom.threadId}\n${forkFrom.eventId}`;
   useEffect(() => {
     if (forkKey) focusConversation();
   }, [focusConversation, forkKey]);
 
+  const resolvedHeader =
+    header ??
+    (isCrossRoomDraft ? (
+      <CrossRoomForkDraftBanner
+        sourceRoom={readRoom}
+        targetRoom={room}
+        onBack={onExitCrossRoomFork}
+      />
+    ) : undefined);
+
   return (
     <ConversationViewContext.Provider value={view}>
-      <PowerLevelsContextProvider value={powerLevels}>
-        <MessageLinkCards roomId={roomId}>
+      <PowerLevelsContextProvider value={targetPowerLevels}>
+        <MessageLinkCards roomId={readRoom.roomId}>
           <ConversationLayout
             room={room}
-            threadId={threadId}
+            threadId={isCrossRoomDraft ? undefined : threadId}
             areaRef={viewRef}
             header={roomHeader}
             timeline={
-              <RoomTimeline
-                room={room}
-                threadId={threadId}
-                eventId={eventId}
-                forkAt={draftForkAt}
-                threadHeader={header}
-                threadHeaderGapAbove={!roomHeader}
-                onThreadLoadError={onThreadLoadError}
-                viewMode="threaded"
-                hasMindroomAgents={hasMindroomAgents}
-                editor={editor}
-                summaryMap={summaryMap}
-                onStoreThreadSummary={onStoreThreadSummary}
-                threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
-              />
+              <PowerLevelsContextProvider value={readPowerLevels}>
+                <RoomTimeline
+                  room={readRoom}
+                  threadId={threadId}
+                  eventId={isCrossRoomDraft ? draftForkAt : eventId}
+                  forkAt={draftForkAt}
+                  forkTargetRoomName={isCrossRoomDraft ? room.name || room.roomId : undefined}
+                  threadHeader={resolvedHeader}
+                  threadHeaderGapAbove={!roomHeader}
+                  onThreadLoadError={onThreadLoadError}
+                  viewMode="threaded"
+                  hasMindroomAgents={hasMindroomAgents}
+                  editor={editor}
+                  summaryMap={isCrossRoomDraft ? NO_SUMMARIES : summaryMap}
+                  onStoreThreadSummary={isCrossRoomDraft ? ignore : onStoreThreadSummary}
+                  threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
+                />
+              </PowerLevelsContextProvider>
             }
             focusConversation={focusConversation}
             canCancelJobs={canCancelJobs}

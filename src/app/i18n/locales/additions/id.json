@@ -1585,7 +1585,17 @@
     "forkThread": "Cabangkan utas",
     "forking": "Mencabangkan {{title}}",
     "continueInNewThread": "Lanjutkan di utas baru",
-    "forkCount_other": "{{count}} cabang"
+    "forkCount_other": "{{count}} cabang",
+    "forkedFromInRoom": "Bercabang dari {{title}} di {{room}}",
+    "forkedFromAnotherRoom": "Bercabang dari ruang lain",
+    "forkingIntoRoom": "Mencabangkan {{title}} ke {{room}}",
+    "forkToRoom": "Cabangkan ke ruang…",
+    "forkToRoomTitle": "Cabangkan ke ruang",
+    "forkToRoomSearchPlaceholder": "Cari ruang…",
+    "forkToRoomEmpty": "Tidak ada ruang yang cocok",
+    "forkToRoomAgentWarning": "Agen di ruang ini tidak ada di {{room}} dan tidak akan melihat utas asli",
+    "forkingFromRoom": "Mencabangkan dari {{room}}",
+    "forkDraftAgentWarning": "Agen di sini tidak ada di {{room}} dan tidak akan melihat utas asli"
   },
   "activity": {
     "title": "Aktivitas",

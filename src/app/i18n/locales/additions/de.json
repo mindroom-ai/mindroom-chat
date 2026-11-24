@@ -1633,7 +1633,17 @@
     "forking": "Abzweigen von {{title}}",
     "continueInNewThread": "In einem neuen Thread fortsetzen",
     "forkCount_one": "{{count}} Abzweigung",
-    "forkCount_other": "{{count}} Abzweigungen"
+    "forkCount_other": "{{count}} Abzweigungen",
+    "forkedFromInRoom": "Abgezweigt von {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Aus einem anderen Raum abgezweigt",
+    "forkingIntoRoom": "Abzweigen von {{title}} nach {{room}}",
+    "forkToRoom": "In Raum abzweigen…",
+    "forkToRoomTitle": "In Raum abzweigen",
+    "forkToRoomSearchPlaceholder": "Räume durchsuchen…",
+    "forkToRoomEmpty": "Keine passenden Räume",
+    "forkToRoomAgentWarning": "Agenten in diesem Raum sind nicht in {{room}} und sehen den ursprünglichen Thread nicht",
+    "forkingFromRoom": "Abzweigen aus {{room}}",
+    "forkDraftAgentWarning": "Agenten hier sind nicht in {{room}} und sehen den ursprünglichen Thread nicht"
   },
   "activity": {
     "title": "Aktivität",

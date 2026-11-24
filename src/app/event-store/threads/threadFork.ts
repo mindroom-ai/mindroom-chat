@@ -107,3 +107,31 @@ export const latestForkPoint = (room: Room, threadId: string): ThreadForkRef | u
   }
   return undefined;
 };
+
+export type CrossRoomForkDraftParams = {
+  sourceRoomId: string;
+  threadId: string;
+  forkAt: string;
+};
+
+/**
+ * Validates the `?forkRoom=&forkThread=&forkAt=` query-param tuple for a cross-room fork draft.
+ * Requires `threadId` to be absent, `forkRoom` to be a valid Matrix room ID (distinct from
+ * `targetRoomId` when provided), and both `forkThread` and `forkAt` to be confirmed event IDs.
+ */
+export const parseCrossRoomForkParams = (
+  params: {
+    threadId?: string | null;
+    forkRoom?: string | null;
+    forkThread?: string | null;
+    forkAt?: string | null;
+  },
+  targetRoomId?: string
+): CrossRoomForkDraftParams | undefined => {
+  if (params.threadId) return undefined;
+  const { forkRoom, forkThread, forkAt } = params;
+  if (!forkRoom || !isRoomId(forkRoom)) return undefined;
+  if (targetRoomId && forkRoom === targetRoomId) return undefined;
+  if (!isConfirmedMatrixEventId(forkThread) || !isConfirmedMatrixEventId(forkAt)) return undefined;
+  return { sourceRoomId: forkRoom, threadId: forkThread, forkAt };
+};
