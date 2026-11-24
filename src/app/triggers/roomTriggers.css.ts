@@ -1,10 +1,12 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import * as schedCss from '../schedules/roomSchedules.css';
 
-const neutralSurface = {
+const neutral = {
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
 } as const;
+const cardPad = { display: 'flex', minWidth: 0, paddingInline: config.space.S300 } as const;
 
 export const TriggerCard = style({
   selectors: {
@@ -17,48 +19,22 @@ export const TriggerCard = style({
 });
 
 export const CardHeader = style({
-  display: 'flex',
+  ...cardPad,
   alignItems: 'flex-start',
   gap: config.space.S300,
-  minWidth: 0,
-  paddingBlockStart: config.space.S300,
-  paddingBlockEnd: config.space.S200,
-  paddingInline: config.space.S300,
+  paddingBlock: `${config.space.S300} ${config.space.S200}`,
   color: color.Surface.OnContainer,
 });
 
 export const CardBody = style({
-  display: 'flex',
+  ...cardPad,
   flexDirection: 'column',
   gap: config.space.S200,
-  minWidth: 0,
   paddingBlockEnd: config.space.S300,
-  paddingInline: config.space.S300,
 });
 
-export const IconTileNeutral = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: toRem(28),
-  height: toRem(28),
-  borderRadius: config.radii.R300,
-  flexShrink: 0,
-  marginBlockStart: toRem(1),
-  ...neutralSurface,
-});
-
-export const StatusPillNeutral = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  paddingBlock: toRem(2),
-  paddingInline: toRem(8),
-  borderRadius: config.radii.Pill,
-  fontSize: config.fontSize.T200,
-  fontWeight: config.fontWeight.W500,
-  lineHeight: 1.3,
-  flexShrink: 0,
-  maxWidth: '100%',
-  ...neutralSurface,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-});
+export const IconTileNeutral = style([schedCss.IconTile.primary, neutral]);
+export const StatusPillNeutral = style([
+  schedCss.StatusPill.success,
+  { ...neutral, borderColor: color.SurfaceVariant.ContainerLine },
+]);

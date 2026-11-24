@@ -241,8 +241,9 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
-  const canOpenTrigger = Boolean(roomId && wake.triggerId);
-  const summary = summaryParts(wake, !canOpenTrigger);
+  const triggerLabel =
+    roomId && wake.triggerId ? revealDirectionControls(wake.triggerId) : undefined;
+  const summary = summaryParts(wake, !triggerLabel);
   const source = describeSource(wake);
   const metaItems: ReactNode[] = [];
   if (wake.triggerId) {
@@ -297,15 +298,13 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
           )}
           <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
         </button>
-        {canOpenTrigger && wake.triggerId && (
+        {triggerLabel && (
           <button
             type="button"
             className={css.TriggerLink}
             data-trigger-wake-link={wake.triggerId}
             aria-haspopup="dialog"
-            aria-label={t(`${KEY}.openTriggerLabel`, {
-              id: revealDirectionControls(wake.triggerId),
-            })}
+            aria-label={t(`${KEY}.openTriggerLabel`, { id: triggerLabel })}
             onClick={(event) =>
               openRoomTriggersDialog(store, roomId!, {
                 triggerId: wake.triggerId!,
@@ -314,7 +313,7 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
             }
           >
             <Text as="span" size="T200">
-              <bdi>{revealDirectionControls(wake.triggerId)}</bdi>
+              <bdi>{triggerLabel}</bdi>
             </Text>
           </button>
         )}

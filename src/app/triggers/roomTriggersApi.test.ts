@@ -1,7 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  RoomTriggerMutationError,
   deleteRoomTrigger,
   fetchRoomTriggers,
   parseRoomTriggersResponse,
@@ -24,14 +23,11 @@ const validRow = (overrides: Record<string, unknown> = {}) => ({
   relation: 'target',
   description: 'Design triage',
   prompt: 'Summarize new issues in the Design channel',
-  agent: 'assistant',
   target_room_id: ROOM_ID,
   target_thread_id: '$thread1',
   thread_mode: 'thread',
   enabled: true,
   disabled_reason: null,
-  once: false,
-  expires_at: null,
   last_fired_at: 1764000000000,
   owner_user_id: '@alice:example.org',
   can_manage: true,
@@ -43,34 +39,25 @@ afterEach(() => {
 });
 
 describe('parseRoomTriggersResponse', () => {
-  it('parses valid rows, ignores unknown fields, drops malformed rows, and deduplicates IDs', () => {
+  it('parses valid rows, ignores unknown fields, accepts null/missing optionals, and drops malformed rows', () => {
     const parsed = parseRoomTriggersResponse({
       extra_envelope_field: true,
       triggers: [
         validRow({ unknown_future_field: 'ignored', secret_like: 'ignored' }),
-        validRow({
+        {
           trigger_id: 'tr_hook',
           kind: 'webhook',
           relation: 'watch',
           description: '',
-          prompt: null,
-          agent: null,
-          target_room_id: null,
-          target_thread_id: null,
           thread_mode: 'room',
           enabled: false,
           disabled_reason: 'future_reason',
-          once: true,
-          expires_at: 1765000000000,
-          last_fired_at: null,
           owner_user_id: '@bob:example.org',
           can_manage: false,
-        }),
-        validRow({ trigger_id: 'tr_123', description: 'Duplicate ignored' }),
+        },
         validRow({ kind: 'unknown_kind' }),
         validRow({ trigger_id: '   ' }),
         validRow({ enabled: 'yes' }),
-        validRow({ last_fired_at: 'yesterday' }),
         null,
         'not-an-object',
       ],
@@ -83,14 +70,11 @@ describe('parseRoomTriggersResponse', () => {
         relation: 'target',
         description: 'Design triage',
         prompt: 'Summarize new issues in the Design channel',
-        agent: 'assistant',
         targetRoomId: ROOM_ID,
         targetThreadId: '$thread1',
         threadMode: 'thread',
         enabled: true,
         disabledReason: null,
-        once: false,
-        expiresAt: null,
         lastFiredAt: 1764000000000,
         ownerUserId: '@alice:example.org',
         canManage: true,
@@ -101,14 +85,11 @@ describe('parseRoomTriggersResponse', () => {
         relation: 'watch',
         description: '',
         prompt: null,
-        agent: null,
         targetRoomId: null,
         targetThreadId: null,
         threadMode: 'room',
         enabled: false,
         disabledReason: 'future_reason',
-        once: true,
-        expiresAt: 1765000000000,
         lastFiredAt: null,
         ownerUserId: '@bob:example.org',
         canManage: false,
@@ -151,7 +132,7 @@ describe('room triggers HTTP requests', () => {
     await expect(fetchRoomTriggers(mx, API_URL, ROOM_ID, controller.signal)).rejects.toThrow();
   });
 
-  it('sends PATCH for enable/disable and DELETE for removal, throwing on non-OK status', async () => {
+  it('sends PATCH for enable/disable and DELETE for removal, throwing with status on non-OK', async () => {
     sendMock.mockResolvedValueOnce(
       new Response(JSON.stringify(validRow({ enabled: false, disabled_reason: 'manual' })), {
         status: 200,
@@ -169,9 +150,9 @@ describe('room triggers HTTP requests', () => {
     );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
-    await expect(
-      setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', true)
-    ).rejects.toBeInstanceOf(RoomTriggerMutationError);
+    await expect(setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', true)).rejects.toMatchObject(
+      { status: 403 }
+    );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123');

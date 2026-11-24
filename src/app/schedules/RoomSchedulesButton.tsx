@@ -1,15 +1,13 @@
-import { type MouseEvent, type RefObject, useMemo } from 'react';
+import { type RefObject, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Icon, IconButton, Icons, Text, Tooltip } from 'folds';
-import { TooltipProvider } from '../ui/directional';
+import { Icons } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
-import { RoomDialogOverlay } from './RoomDialogOverlay';
+import { RoomDialogOverlay, RoomHeaderCountButton } from './RoomDialogOverlay';
 import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
-import * as css from './roomSchedules.css';
 
 /** Pending tasks from the room's current state, shared by its header, menu and dialog. */
 export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
@@ -77,44 +75,18 @@ export function RoomSchedulesMenuEntry({
   );
 }
 
-type RoomSchedulesButtonProps = {
+/** Opens pending schedules from the room header, with the count for the current scope. */
+export function RoomSchedulesButton(props: {
   total: number;
   open: boolean;
   onOpen: (opener: HTMLButtonElement) => void;
-};
-
-/** Opens pending schedules from the room header, with the count for the current scope. */
-export function RoomSchedulesButton({ total, open, onOpen }: RoomSchedulesButtonProps) {
+}) {
   const { t } = useTranslation();
-  const label = t('roomSchedules.openLabel', { total });
-
-  const tooltip = (
-    <Tooltip>
-      <Text size="T300">{label}</Text>
-    </Tooltip>
-  );
-
   return (
-    <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          className={css.Trigger}
-          variant="Surface"
-          fill="None"
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
-        >
-          <Icon size="400" src={Icons.Clock} />
-          {total > 0 && (
-            <span className={css.Count} aria-hidden="true">
-              {total}
-            </span>
-          )}
-        </IconButton>
-      )}
-    </TooltipProvider>
+    <RoomHeaderCountButton
+      {...props}
+      icon={Icons.Clock}
+      label={t('roomSchedules.openLabel', { total: props.total })}
+    />
   );
 }

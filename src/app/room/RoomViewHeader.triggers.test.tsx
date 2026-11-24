@@ -146,6 +146,7 @@ const renderRoomHeader = (withWakePill?: string) => {
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
     getMember: () => null,
+    loadMembersIfNeeded: async () => true,
   } as unknown as Room;
   const mx = Object.assign(emitter, {
     getSafeUserId: () => '@alice:example.org',

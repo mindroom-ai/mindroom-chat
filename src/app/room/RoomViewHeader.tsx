@@ -53,11 +53,9 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
-import {
-  RoomTriggersButton,
-  RoomTriggersMenuEntry,
-  RoomTriggersOverlay,
-} from '../triggers/RoomTriggersButton';
+import { RoomHeaderCountButton } from '../schedules/RoomDialogOverlay';
+import { RoomTriggersOverlay } from '../triggers/RoomTriggersDialog';
+import { TriggersIcon } from '../triggers/TriggersIcon';
 import { useRoomTriggers } from '../triggers/useRoomTriggers';
 import {
   closeRoomTriggersDialog,
@@ -311,17 +309,6 @@ export function RoomViewHeader({
   const triggersOpen = triggersDialog?.roomId === room.roomId;
   const openTriggers = (opener?: HTMLButtonElement) =>
     openRoomTriggersDialog(store, room.roomId, { opener });
-  const prevTriggersRoomId = useRef(room.roomId);
-  useEffect(() => {
-    if (prevTriggersRoomId.current !== room.roomId) {
-      closeRoomTriggersDialog(store, prevTriggersRoomId.current);
-      prevTriggersRoomId.current = room.roomId;
-    }
-  }, [room.roomId, store]);
-  const { refetch: refetchTriggers } = roomTriggers;
-  useEffect(() => {
-    if (triggersOpen) void refetchTriggers();
-  }, [triggersOpen, triggersDialog, refetchTriggers]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -443,8 +430,6 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
-  const openTriggerThread = (targetThreadId: string, targetRoomId?: string) =>
-    navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId);
   const cancelScheduledTask = useCallback(
     (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
     [mx, room]
@@ -534,23 +519,19 @@ export function RoomViewHeader({
       id: 'triggers',
       placement: 'auto',
       row: (
-        <RoomTriggersButton
+        <RoomHeaderCountButton
+          icon={TriggersIcon}
+          label={t('roomTriggers.openLabel', { total: roomTriggers.triggers.length })}
           total={roomTriggers.triggers.length}
-          open={
-            triggersOpen &&
-            triggersDialog?.triggerId === undefined &&
-            openedFromRow(
-              triggersDialog?.opener instanceof HTMLButtonElement
-                ? triggersDialog.opener
-                : undefined
-            )
-          }
+          open={triggersOpen && !triggersDialog?.triggerId && openedFromRow(triggersDialog?.opener)}
           onOpen={openTriggers}
         />
       ),
       menu: (
-        <RoomTriggersMenuEntry
-          total={roomTriggers.triggers.length}
+        <MenuEntry
+          icon={TriggersIcon}
+          label={t('roomTriggers.openLabel', { total: roomTriggers.triggers.length })}
+          aria-haspopup="dialog"
           onSelect={fromMenu(openTriggers)}
         />
       ),
@@ -880,15 +861,14 @@ export function RoomViewHeader({
           triggers={roomTriggers.triggers}
           loading={roomTriggers.isFetching}
           highlightTriggerId={triggersDialog?.triggerId}
-          highlightRequest={triggersDialog}
           onClose={(dismissed) => {
-            const opener = triggersDialog?.opener;
             closeRoomTriggersDialog(store, room.roomId);
-            if (dismissed || (dismissed === false && !opener?.isConnected)) {
-              restoreFocusAfterDismiss(opener);
-            }
+            if (dismissed) restoreFocusAfterDismiss(triggersDialog?.opener);
           }}
-          onOpenThread={openTriggerThread}
+          onRefetch={roomTriggers.refetch}
+          onOpenThread={(targetThreadId, targetRoomId) =>
+            navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId)
+          }
           onToggleTrigger={roomTriggers.toggleTrigger}
           onDeleteTrigger={roomTriggers.deleteTrigger}
         />

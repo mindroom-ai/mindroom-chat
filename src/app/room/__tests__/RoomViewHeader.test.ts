@@ -219,6 +219,7 @@ vi.mock('../../schedules/RoomSchedulesDialog', () => ({
 }));
 vi.mock('../../triggers/RoomTriggersDialog', () => ({
   RoomTriggersDialog: () => null,
+  RoomTriggersOverlay: () => null,
 }));
 
 vi.mock('../../matrix/hooks/useStateEvents', () => ({

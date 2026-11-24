@@ -24,20 +24,12 @@ const mx = {
   getUserId: () => '@alice:example.org',
   on: vi.fn(),
   removeListener: vi.fn(),
-  getRoom: (id: string) =>
-    id === '!other:example.org'
-      ? {
-          roomId: id,
-          name: 'Release Ops',
-          getMember: () => null,
-          loadMembersIfNeeded: async () => true,
-        }
-      : {
-          roomId: ROOM_ID,
-          name: 'Design',
-          getMember: () => null,
-          loadMembersIfNeeded: async () => true,
-        },
+  getRoom: () => ({
+    roomId: ROOM_ID,
+    name: 'Design',
+    getMember: (id: string) => (id === '@bob:example.org' ? { name: 'Bob' } : null),
+    loadMembersIfNeeded: async () => true,
+  }),
 } as unknown as MatrixClient;
 
 const makeTrigger = (overrides: Partial<RoomTrigger> = {}): RoomTrigger => ({
@@ -46,14 +38,11 @@ const makeTrigger = (overrides: Partial<RoomTrigger> = {}): RoomTrigger => ({
   relation: 'target',
   description: 'Design triage',
   prompt: 'Summarize new issues in the `design` channel for @alice.',
-  agent: 'assistant',
   targetRoomId: ROOM_ID,
   targetThreadId: '$triage-thread',
   threadMode: 'thread',
   enabled: true,
   disabledReason: null,
-  once: false,
-  expiresAt: null,
   lastFiredAt: NOW - 5 * 60_000,
   ownerUserId: '@alice:example.org',
   canManage: true,
@@ -88,7 +77,7 @@ afterEach(() => {
 });
 
 describe('RoomTriggersDialog', () => {
-  it('renders rows of every kind with thread link, prompt, state, last fired, and details', () => {
+  it('renders rows of every kind with thread link, prompt, state, last fired, and non-owner subtitle', () => {
     const triggers: RoomTrigger[] = [
       makeTrigger(),
       makeTrigger({
@@ -121,8 +110,6 @@ describe('RoomTriggersDialog', () => {
         threadMode: 'origin',
         enabled: false,
         disabledReason: 'expired',
-        once: true,
-        expiresAt: NOW + 3_600_000,
       }),
     ];
 
@@ -147,23 +134,21 @@ describe('RoomTriggersDialog', () => {
     expect(hookCard.textContent).toContain('Never fired');
     expect(within(hookCard).queryByRole('region', { name: 'Prompt' })).toBeNull();
 
-    // Non-owner event subscription row: kind as title when description empty, NO manage buttons.
+    // Non-owner event subscription row: kind as title, owner in subtitle, NO manage buttons.
     const eventCard = cards[2]!;
     expect(eventCard.textContent).toContain('Event subscription');
+    expect(eventCard.querySelector('[data-mention-id="@bob:example.org"]')).toBeTruthy();
+    expect(watchCard.querySelector('[data-mention-id]')).toBeNull();
     expect(eventCard.textContent).toContain('Report staging alerts');
     expect(within(eventCard).queryByRole('button', { name: /Enable|Disable/ })).toBeNull();
     expect(within(eventCard).queryByRole('button', { name: 'Delete' })).toBeNull();
 
-    // Thread tag watch row: Off, Expired, Watching this room, Details reveals metadata.
+    // Thread tag watch row: Off, Expired, Watching this room.
     const tagCard = cards[3]!;
     expect(tagCard.textContent).toContain('Thread tag');
     expect(tagCard.textContent).toContain('Watching this room');
     expect(tagCard.textContent).toContain('Off');
     expect(tagCard.textContent).toContain('Expired');
-    fireEvent.click(within(tagCard).getByRole('button', { name: 'Details' }));
-    expect(tagCard.textContent).toContain('tr_tag');
-    expect(tagCard.textContent).toContain('Release Ops');
-    expect(tagCard.textContent).toContain('Runs once');
   });
 
   it('lets the owner toggle enable/disable and confirm-delete, reporting errors cleanly', async () => {
@@ -206,7 +191,6 @@ describe('RoomTriggersDialog', () => {
         makeTrigger({ triggerId: 'tr_target', description: 'Target' }),
       ],
       highlightTriggerId: 'tr_target',
-      highlightRequest: {},
     });
 
     const targetCard = document.querySelector('[data-trigger-id="tr_target"]');
@@ -224,7 +208,6 @@ describe('RoomTriggersDialog', () => {
             triggers={[]}
             loading
             highlightTriggerId="tr_gone"
-            highlightRequest={{}}
             onClose={vi.fn()}
             onOpenThread={vi.fn()}
             onToggleTrigger={vi.fn(async () => undefined)}
@@ -244,7 +227,6 @@ describe('RoomTriggersDialog', () => {
             triggers={[]}
             loading={false}
             highlightTriggerId="tr_gone"
-            highlightRequest={{}}
             onClose={vi.fn()}
             onOpenThread={vi.fn()}
             onToggleTrigger={vi.fn(async () => undefined)}

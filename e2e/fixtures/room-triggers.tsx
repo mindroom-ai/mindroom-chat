@@ -16,7 +16,9 @@ import {
   openRoomTriggersDialog,
   roomTriggersDialogAtom,
 } from '../../src/app/navigation/roomTriggersDialog';
-import { RoomTriggersButton, RoomTriggersOverlay } from '../../src/app/triggers/RoomTriggersButton';
+import { RoomHeaderCountButton } from '../../src/app/schedules/RoomDialogOverlay';
+import { RoomTriggersOverlay } from '../../src/app/triggers/RoomTriggersDialog';
+import { TriggersIcon } from '../../src/app/triggers/TriggersIcon';
 import type { RoomTrigger } from '../../src/app/triggers/roomTriggersApi';
 import { installOverlayFocus } from '../../src/app/lib/overlayFocus';
 
@@ -57,14 +59,11 @@ const INITIAL_TRIGGERS: RoomTrigger[] = [
     relation: 'target',
     description: 'Design channel triage',
     prompt: 'Summarize new issues in the Design channel and flag blockers for @alice.',
-    agent: 'assistant',
     targetRoomId: ROOM_ID,
     targetThreadId: '$design-triage',
     threadMode: 'thread',
     enabled: true,
     disabledReason: null,
-    once: false,
-    expiresAt: null,
     lastFiredAt: now - 12 * 60_000,
     ownerUserId: '@alice:example.org',
     canManage: true,
@@ -75,14 +74,11 @@ const INITIAL_TRIGGERS: RoomTrigger[] = [
     relation: 'target',
     description: 'Release pipeline webhook',
     prompt: null,
-    agent: 'deployer',
     targetRoomId: ROOM_ID,
     targetThreadId: null,
     threadMode: 'room',
     enabled: true,
     disabledReason: null,
-    once: false,
-    expiresAt: null,
     lastFiredAt: now - 3 * 3_600_000,
     ownerUserId: '@alice:example.org',
     canManage: true,
@@ -93,14 +89,11 @@ const INITIAL_TRIGGERS: RoomTrigger[] = [
     relation: 'target',
     description: 'Staging error alerts',
     prompt: 'Investigate spikes in `staging-api` error rates and link recent deploys.',
-    agent: 'oncall',
     targetRoomId: ROOM_ID,
     targetThreadId: null,
     threadMode: 'new_thread',
     enabled: true,
     disabledReason: null,
-    once: false,
-    expiresAt: null,
     lastFiredAt: now - 2 * 86_400_000,
     ownerUserId: '@bob:example.org',
     canManage: false,
@@ -111,14 +104,11 @@ const INITIAL_TRIGGERS: RoomTrigger[] = [
     relation: 'watch',
     description: 'Urgent tag summary',
     prompt: 'Review threads tagged urgent and post a quick status summary.',
-    agent: 'assistant',
     targetRoomId: OPS_ROOM_ID,
     targetThreadId: null,
     threadMode: 'origin',
     enabled: false,
     disabledReason: 'manual',
-    once: false,
-    expiresAt: null,
     lastFiredAt: null,
     ownerUserId: '@alice:example.org',
     canManage: true,
@@ -152,7 +142,9 @@ function Fixture() {
         alignItems: 'flex-start',
       }}
     >
-      <RoomTriggersButton
+      <RoomHeaderCountButton
+        icon={TriggersIcon}
+        label={`Triggers (${triggers.length})`}
         total={triggers.length}
         open={open}
         onOpen={(opener) => openRoomTriggersDialog(store, ROOM_ID, { opener })}
@@ -174,7 +166,6 @@ function Fixture() {
           roomId={ROOM_ID}
           triggers={triggers}
           highlightTriggerId={dialog?.triggerId}
-          highlightRequest={dialog}
           onClose={() => closeRoomTriggersDialog(store, ROOM_ID)}
           onOpenThread={(threadId) => setStatusMessage(`Opened ${threadId}`)}
           onToggleTrigger={async (triggerId, enabled) => {
