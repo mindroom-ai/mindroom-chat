@@ -1,73 +1,150 @@
-/* eslint-env node */
-// What the app's ESLint config (.eslintrc.cjs) shares with the one a client plugin outside this
-// repository extends (.eslintrc.plugin.cjs): the parser, plugins and presets, the type-aware rules,
-// and the rule that keeps styles in reading order.
+// What the app's ESLint config (eslint.config.mjs) shares with the one a client plugin outside this
+// repository extends (eslint.config.plugin.mjs): the parser, plugins and presets, the type-aware
+// rules, and the rule that keeps styles in reading order.
+import { fixupPluginRules } from '@eslint/compat';
+import js from '@eslint/js';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
+import { createNodeResolver, importX } from 'eslint-plugin-import-x';
+import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
+import reactPlugin from 'eslint-plugin-react';
+import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import globals from 'globals';
 
 // The app turns i18next's escaping off (src/app/i18n/i18n.ts), and a <Trans> puts its values into
 // the sentence before react-i18next reads the sentence as markup, so a name holding a tag named
 // like one of the sentence's components would add that tag's attributes to it. A <Trans> with
 // values escapes them and unescapes the text.
-const ESCAPED_TRANS = {
+export const ESCAPED_TRANS = {
   selector:
     "JSXOpeningElement[name.name='Trans']:has(> JSXAttribute[name.name='values']):matches(:not(:has(> JSXAttribute[name.name='tOptions'])), :not(:has(> JSXAttribute[name.name='shouldUnescape'])))",
   message:
     'A <Trans> with values reads them as markup: give it tOptions={{ interpolation: { escapeValue: true } }} and shouldUnescape.',
 };
 
-/** The parser, plugins, presets and rules for every file. */
-const COMMON = {
-  parser: '@typescript-eslint/parser',
-  parserOptions: { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true } },
-  env: { browser: true, es2022: true, node: true },
-  settings: {
-    react: { version: '19.3' },
-    // import/no-restricted-paths skips an import it cannot resolve, and the node resolver tries no
-    // TypeScript extensions by default.
-    'import/resolver': { node: { extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'] } },
-  },
-  plugins: ['@typescript-eslint', 'react', 'react-hooks', 'import', 'jsx-a11y'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'plugin:react/recommended',
-    'plugin:react/jsx-runtime',
-    'plugin:react-hooks/recommended',
-    'plugin:jsx-a11y/recommended',
-    'prettier',
+export const LINTED_FILES = ['**/*.{ts,tsx,js,jsx,mjs,cjs}'];
+export const RESOLVER_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
+
+// eslint-plugin-react 7.37.5 still calls RuleContext/SourceCode methods removed in ESLint 10.
+const compatReactPlugin = fixupPluginRules(reactPlugin);
+
+/** Shared rules applied on top of the recommended presets. */
+export const COMMON_RULES = {
+  // TypeScript checks prop types; the React prop-types rule would only duplicate it.
+  'react/prop-types': 'off',
+  // Older files carry `eslint-disable` comments for rules from these plugins,
+  // so the plugins load; these stricter rules stay off because that code predates them.
+  'import/first': 'off',
+  'import/no-relative-packages': 'off',
+  'jsx-a11y/no-static-element-interactions': 'off',
+  'jsx-a11y/role-supports-aria-props': 'off',
+  'jsx-a11y/no-autofocus': 'off',
+  // Component factories and test doubles return anonymous components.
+  'react/display-name': 'off',
+  // Files that still import React for the classic JSX transform keep working.
+  '@typescript-eslint/no-unused-vars': [
+    'error',
+    {
+      args: 'none',
+      ignoreRestSiblings: true,
+      varsIgnorePattern: '^(React|_)',
+      caughtErrorsIgnorePattern: '^_',
+    },
   ],
-  rules: {
-    // TypeScript checks prop types; the React prop-types rule would only duplicate it.
-    'react/prop-types': 'off',
-    // Older files carry `eslint-disable` comments for rules from these plugins,
-    // so the plugins load; these stricter rules stay off because that code predates them.
-    'import/first': 'off',
-    'import/no-relative-packages': 'off',
-    'jsx-a11y/no-static-element-interactions': 'off',
-    'jsx-a11y/role-supports-aria-props': 'off',
-    'jsx-a11y/no-autofocus': 'off',
-    // Component factories and test doubles return anonymous components.
-    'react/display-name': 'off',
-    // Files that still import React for the classic JSX transform keep working.
-    '@typescript-eslint/no-unused-vars': [
-      'error',
-      {
-        args: 'none',
-        ignoreRestSiblings: true,
-        varsIgnorePattern: '^(React|_)',
-        caughtErrorsIgnorePattern: '^_',
-      },
-    ],
-    '@typescript-eslint/no-explicit-any': 'warn',
-    'prefer-const': 'warn',
-    'no-restricted-syntax': ['error', ESCAPED_TRANS],
-  },
+  '@typescript-eslint/no-explicit-any': 'warn',
+  'prefer-const': 'warn',
+  'no-restricted-syntax': ['error', ESCAPED_TRANS],
+  // eslint-plugin-react-hooks 7 React Compiler rules: rules-of-hooks and exhaustive-deps stay as
+  // before; real-bug rules with few violations stay errors (set-state-in-render, error-boundaries,
+  // static-components, use-memo); the rest stay off with their repo-wide violation counts.
+  'react-hooks/config': 'off', // 0 violations; React Compiler config only
+  'react-hooks/gating': 'off', // 0 violations; React Compiler gating only
+  'react-hooks/unsupported-syntax': 'off', // 0 violations; React Compiler only
+  'react-hooks/incompatible-library': 'off', // 7 violations (TanStack useVirtualizer); React Compiler only
+  'react-hooks/preserve-manual-memoization': 'off', // 12 violations; React Compiler only
+  'react-hooks/purity': 'off', // 16 violations (Date.now() during render)
+  'react-hooks/globals': 'off', // 64 violations
+  'react-hooks/immutability': 'off', // 79 violations
+  'react-hooks/set-state-in-effect': 'off', // 132 violations
+  'react-hooks/refs': 'off', // 419 violations
 };
 
+/** Flat config entries for the parser, plugins, presets and base rules of every linted file. */
+export const createCommonConfigs = ({
+  resolver = createNodeResolver({ extensions: RESOLVER_EXTENSIONS }),
+} = {}) => [
+  {
+    ...js.configs.recommended,
+    files: LINTED_FILES,
+  },
+  ...tsPlugin.configs['flat/recommended'].map((config) => ({
+    ...config,
+    files: config.files ?? LINTED_FILES,
+  })),
+  {
+    name: 'react/recommended-and-jsx-runtime',
+    files: LINTED_FILES,
+    plugins: { react: compatReactPlugin },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+        jsxPragma: null,
+      },
+    },
+    rules: {
+      ...reactPlugin.configs.flat.recommended.rules,
+      ...reactPlugin.configs.flat['jsx-runtime'].rules,
+    },
+  },
+  {
+    ...reactHooksPlugin.configs.flat.recommended,
+    files: LINTED_FILES,
+  },
+  {
+    ...jsxA11yPlugin.flatConfigs.recommended,
+    files: LINTED_FILES,
+  },
+  {
+    ...eslintConfigPrettier,
+    files: LINTED_FILES,
+  },
+  {
+    name: 'mindroom/base',
+    files: LINTED_FILES,
+    // Keep ESLint 8's default: older files carry disable comments for rules that are off.
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    languageOptions: {
+      parser: tsParser,
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: {
+        ...globals.browser,
+        ...globals.es2022,
+        ...globals.node,
+      },
+    },
+    plugins: {
+      // Registered as `import` so existing rule IDs (`import/no-restricted-paths`) and
+      // disable comments (`import/first`, `import/no-relative-packages`) keep their names.
+      import: importX,
+    },
+    settings: {
+      react: { version: '19.3' },
+      // import/no-restricted-paths skips an import it cannot resolve, and the node resolver tries
+      // no TypeScript extensions by default.
+      'import-x/resolver-next': [resolver],
+    },
+    rules: COMMON_RULES,
+  },
+];
+
 /** The folds components that src/app/ui/directional.tsx places in reading order. */
-const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
+export const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
 
 /** Rules that need the types of a TypeScript program (`parserOptions.project`). */
-const TYPE_AWARE_RULES = {
+export const TYPE_AWARE_RULES = {
   // react-test-renderer's synchronous `act` answers a `DebugPromiseLike`, a thenable its
   // types make impossible to await; it is not a floating promise.
   '@typescript-eslint/no-floating-promises': [
@@ -105,9 +182,9 @@ const TYPE_AWARE_RULES = {
 // and counts. Any other side that must stay physical takes
 // `// eslint-disable-next-line no-restricted-syntax -- <why it stays>` on the line before it.
 //
-// This rule owns no-restricted-syntax for those sources: ESLint overrides replace a rule's options
-// instead of merging them, so any other no-restricted-syntax config for these files would drop
-// these selectors (or be dropped), and the overrides repeat ESCAPED_TRANS, the one restriction
+// This rule owns no-restricted-syntax for those sources: later flat-config objects replace a rule's
+// options instead of merging them, so any other no-restricted-syntax config for these files would
+// drop these selectors (or be dropped), and the overrides repeat ESCAPED_TRANS, the one restriction
 // every file has. Add a new restriction to the lists below instead.
 const PHYSICAL_NAME = String.raw`/^((margin|padding|scrollMargin|scrollPadding)(Left|Right)|border(Left|Right)(Width|Style|Color)?|border(Top|Bottom)(Left|Right)Radius|(margin|padding|scroll-margin|scroll-padding)-(left|right)|border-(left|right)(-(width|style|color))?|border-(top|bottom)-(left|right)-radius)$/`;
 const SIDE_KEYWORD_NAME = String.raw`/^(textAlign|text-align|float|clear|justifyContent|justify-content|justifyItems|justify-items|justifySelf|justify-self)$/`;
@@ -211,24 +288,22 @@ const LOGICAL_SIDES_IN_STYLE_FILES = [
 ];
 
 /**
- * The overrides that find physical sides in the TypeScript files under `prefix` (such as `src/`, or
- * '' for every one) other than `excludedFiles`. By pattern rather than the list of files on disk,
- * so text linted under a made-up path gets the rule too.
+ * The flat-config entries that find physical sides in the TypeScript files under `prefix` (such as
+ * `src/`, or '' for every one) other than `ignores`. By pattern rather than the list of files on
+ * disk, so text linted under a made-up path gets the rule too.
  * @param {string} prefix
- * @param {string[]} excludedFiles
+ * @param {string[]} ignores
  */
-const logicalSidesOverrides = (prefix, excludedFiles) => [
+export const logicalSidesOverrides = (prefix, ignores) => [
   {
     files: [`${prefix}**/*.{ts,tsx}`],
-    excludedFiles,
+    ignores,
     rules: { 'no-restricted-syntax': ['error', ESCAPED_TRANS, ...LOGICAL_SIDES_IN_STYLE_PROPS] },
   },
   {
     // A vanilla-extract file is styles throughout, so `left` and `right` count anywhere in it.
     files: [`${prefix}**/*.css.ts`],
-    excludedFiles,
+    ignores,
     rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_FILES] },
   },
 ];
-
-module.exports = { COMMON, DIRECTIONAL_COMPONENTS, TYPE_AWARE_RULES, logicalSidesOverrides };

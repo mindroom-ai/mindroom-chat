@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
-// The ESLint rule of .eslintrc.cjs that keeps physical sides (left, right) out of the styles of
+// The ESLint rule of eslint.config.mjs that keeps physical sides (left, right) out of the styles of
 // src, so the interface mirrors in right-to-left languages. Made-up paths get the rule by pattern.
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../', import.meta.url)) });
 const STYLE_FILE = 'src/app/ui/Example.css.ts';

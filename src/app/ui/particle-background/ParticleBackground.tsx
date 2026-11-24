@@ -54,8 +54,8 @@ export function MindRoomParticleBackground({
   position = 'absolute',
   selfContained = false,
 }: MindRoomParticleBackgroundProps) {
-  const software = React.useMemo(rendersWebGLOnCpu, []);
-  const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
+  const software = React.useMemo(() => rendersWebGLOnCpu(), []);
+  const particleCount = React.useMemo(() => resolveMindRoomParticleCount(), []);
   const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
   const options = React.useMemo<ParticularDriftUserOptions>(
     () => ({

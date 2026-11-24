@@ -11,7 +11,7 @@ import {
   walkProductionSources,
 } from './architecture';
 
-// The domain layers of .eslintrc.cjs, checked by linting probe text under made-up paths (as
+// The domain layers of eslint.config.mjs, checked by linting probe text under made-up paths (as
 // surfaceImports.test.ts does). import/no-restricted-paths skips every import it cannot resolve,
 // so without these probes a broken resolver setting or a missing zone would pass in silence.
 const RULE = 'import/no-restricted-paths';

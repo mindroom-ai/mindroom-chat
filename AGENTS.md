@@ -7,7 +7,7 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 - **No copyleft code.** Never copy code from GPL or AGPL projects, which most other Matrix clients are. The MindRoom backend (`/home/basnijholt/Work/dev/mindroom/`, Apache-2.0) defines the event formats the client reads (`docs/architecture.md` "MindRoom event formats").
 - **Strict flags.** Every file, tests and `e2e/` included, compiles with the flags of `config/tsconfig.strict.json`; `just strict` and CI's "Strict check" step fail on any error. `just typecheck` and CI's "Type check" step compile the app sources on their own (`config/tsconfig.app.json`: `src/` without tests) with the same flags.
 - **Type-aware lint.** Every TypeScript file, tests and `e2e/` included, passes the type-aware ESLint rules of `just lint`.
-- **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
+- **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `eslint.config.mjs`.
 - **Quiet Glass sheets and dialogs.** Dialogs, settings frames, bottom sheets, and picker/directory sheets reuse `src/app/ui/DialogChrome.{tsx,css.ts}` (`DialogCloseButton`, `SheetScrollArea`, `SheetTitleBar`, `InsetField`, `SheetRow`, `SheetRowActionIdle`, `SheetFooter`) with `GlassPrimitives`, `Modal500`, `InsetScrollbar`, and `Segmented.css.ts` instead of adding one-off scrollbars, close buttons, or modal headers.
 
 ## Licenses and product
@@ -26,7 +26,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just strict` | `tsc --noEmit -p config/tsconfig.strict.json`: everything, tests and `e2e/` included, with the stricter flags; must report 0 errors |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
 | `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for TypeScript, `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx`, and logical sides in styles (the files each rule covers and its exceptions: the `justfile` comment) |
-| `just format <paths>` | Prettier (2.8.8) on the files you changed |
+| `just format <paths>` | Prettier 3 on the files you changed |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/` (`scripts/build.sh`, which `npm run build:ios` runs too), with the client plugins `bundled-plugins.txt` pins while `MINDROOM_CLIENT_PLUGINS` is unset; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
 | `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`, which CI checks after its build. Options: the `scripts/perf/bundle-report.mjs` header |

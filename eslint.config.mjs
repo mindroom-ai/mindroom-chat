@@ -1,22 +1,27 @@
-/* eslint-env node */
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { globalIgnores } from 'eslint/config';
 
-const {
-  COMMON,
+import {
   DIRECTIONAL_COMPONENTS,
+  ESCAPED_TRANS,
+  LINTED_FILES,
   TYPE_AWARE_RULES,
+  createCommonConfigs,
   logicalSidesOverrides,
-} = require('./scripts/eslint-shared.cjs');
+} from './scripts/eslint-shared.mjs';
 
-// TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and two configs). The list
+const ROOT_DIR = fs.realpathSync(path.dirname(fileURLToPath(import.meta.url)));
+
+// TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and config files). The list
 // holds only files that exist, because the type-aware rules need each file in the TypeScript
 // program; text linted under a made-up path (as surfaceImports.test.ts does) gets the other rules
 // only.
 function typeScriptFiles() {
   const sources = ['src', 'e2e', 'electron', 'scripts'].flatMap((dir) =>
     fs
-      .readdirSync(path.join(__dirname, dir), { recursive: true })
+      .readdirSync(path.join(ROOT_DIR, dir), { recursive: true })
       .map((file) => path.posix.join(dir, String(file).split(path.sep).join('/')))
   );
   return [
@@ -64,8 +69,7 @@ const ATOM_FACTORIES = [
 // Every file takes its surfaces from the glass primitives above, makes its atoms where the account
 // state test follows them, and places pop-outs and tooltips in reading order through the directional
 // wrappers, which mirror folds' physical sides in a right-to-left interface; only the wrapper module
-// itself uses folds' own components. ESLint keys `paths` by module name, so this second restriction
-// on `folds` is a pattern.
+// itself uses folds' own components.
 const IMPORT_RESTRICTIONS = {
   paths: [
     ...GLASS_RESTRICTIONS.paths,
@@ -144,104 +148,98 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
 // Tests and their helpers (the files config/tsconfig.app.json leaves out) may import any layer.
 const LAYERS_EXEMPT = [...TESTS, '**/*.test.shared.ts', '**/test-utils/**', '**/testUtils.ts'];
 
-module.exports = {
-  root: true,
-  ...COMMON,
-  ignorePatterns: ['node_modules/', 'dist/', 'test-results/', 'playwright-report/', '.baspowers/'],
-  rules: {
-    ...COMMON.rules,
-    'no-restricted-imports': ['error', IMPORT_RESTRICTIONS],
+export default [
+  globalIgnores(['node_modules/', 'dist/', 'test-results/', 'playwright-report/', '.baspowers/']),
+  ...createCommonConfigs(),
+  {
+    files: LINTED_FILES,
+    rules: {
+      'no-restricted-imports': ['error', IMPORT_RESTRICTIONS],
+    },
   },
-  overrides: [
-    {
-      // CommonJS files, this config among them, load modules with `require`.
-      files: ['**/*.cjs'],
-      rules: {
-        '@typescript-eslint/no-require-imports': 'off',
-      },
+  {
+    // CommonJS files load modules with `require`.
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
     },
-    {
-      // Tests build loose doubles and inline components on purpose.
-      files: ['**/*.test.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
-      rules: {
-        '@typescript-eslint/no-explicit-any': 'off',
-      },
+  },
+  {
+    // Tests build loose doubles and inline components on purpose.
+    files: ['**/*.test.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
     },
-    {
-      // A spec's own WebKit comes from e2e/helpers/webkit.ts, whose contexts keep Safari's user
-      // agent and block the service worker, whose requests Playwright's WebKit does not route.
-      files: ['e2e/**/*.{ts,tsx}'],
-      excludedFiles: ['e2e/helpers/webkit.ts'],
-      rules: {
-        'no-restricted-properties': [
-          'error',
-          {
-            object: 'webkit',
-            property: 'launch',
-            message: 'Launch WebKit with launchWebKit or onWebKitPage from e2e/helpers/webkit.ts.',
-          },
-        ],
-      },
+  },
+  {
+    // A spec's own WebKit comes from e2e/helpers/webkit.ts, whose contexts keep Safari's user
+    // agent and block the service worker, whose requests Playwright's WebKit does not route.
+    files: ['e2e/**/*.{ts,tsx}'],
+    ignores: ['e2e/helpers/webkit.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'webkit',
+          property: 'launch',
+          message: 'Launch WebKit with launchWebKit or onWebKitPage from e2e/helpers/webkit.ts.',
+        },
+      ],
     },
-    {
-      // Type-aware rules for the TypeScript that tsconfig.json compiles. Types come from
-      // config/tsconfig.strict.json, whose unchecked index access `just strict` enforces.
-      files: typeScriptFiles(),
-      parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
-      rules: TYPE_AWARE_RULES,
+  },
+  {
+    // Type-aware rules for the TypeScript that tsconfig.json compiles. Types come from
+    // config/tsconfig.strict.json, whose unchecked index access `just strict` enforces.
+    files: typeScriptFiles(),
+    languageOptions: {
+      parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: ROOT_DIR },
     },
-    {
-      // Only nativeShell.ts reads the Electron preload bridge (property access, destructuring,
-      // or bracket lookup). Placed before logicalSidesOverrides, which appends the same syntax
-      // checks so neither override drops the other's rules.
-      files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
-      excludedFiles: ['src/app/lib/nativeShell.ts'],
-      rules: {
-        'no-restricted-properties': ['error', ...DESKTOP_BRIDGE_PROPERTIES],
-        'no-restricted-syntax': [
-          'error',
-          ...COMMON.rules['no-restricted-syntax'].slice(1),
-          ...DESKTOP_BRIDGE_SYNTAX,
-        ],
-      },
+    rules: TYPE_AWARE_RULES,
+  },
+  {
+    // Only nativeShell.ts reads the Electron preload bridge (property access, destructuring,
+    // or bracket lookup). Placed before logicalSidesOverrides, which appends the same syntax
+    // checks so neither override drops the other's rules.
+    files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
+    ignores: ['src/app/lib/nativeShell.ts'],
+    rules: {
+      'no-restricted-properties': ['error', ...DESKTOP_BRIDGE_PROPERTIES],
+      'no-restricted-syntax': ['error', ESCAPED_TRANS, ...DESKTOP_BRIDGE_SYNTAX],
     },
-    // Physical sides in styles (scripts/eslint-shared.cjs), keeping the bridge syntax checks.
-    ...logicalSidesOverrides('src/', TESTS).map((override) => ({
-      ...override,
-      rules: {
-        ...override.rules,
-        'no-restricted-syntax': [
-          ...override.rules['no-restricted-syntax'],
-          ...DESKTOP_BRIDGE_SYNTAX,
-        ],
-      },
-    })),
-    {
-      // Domain layers (LAYERS above). Zones resolve from this directory, so the
-      // rule does not depend on the directory ESLint runs in.
-      files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
-      excludedFiles: LAYERS_EXEMPT,
-      rules: {
-        'import/no-restricted-paths': ['error', { basePath: __dirname, zones: LAYER_ZONES }],
-      },
+  },
+  // Physical sides in styles (scripts/eslint-shared.mjs), keeping the bridge syntax checks.
+  ...logicalSidesOverrides('src/', TESTS).map((override) => ({
+    ...override,
+    rules: {
+      ...override.rules,
+      'no-restricted-syntax': [...override.rules['no-restricted-syntax'], ...DESKTOP_BRIDGE_SYNTAX],
     },
-    // The two wrappers relax the import rule that every other file has.
-    {
-      // The directional wrappers place folds' own pop-outs and tooltips.
-      files: ['src/app/ui/directional.tsx'],
-      rules: {
-        'no-restricted-imports': [
-          'error',
-          { paths: IMPORT_RESTRICTIONS.paths, patterns: GLASS_RESTRICTIONS.patterns },
-        ],
-      },
+  })),
+  {
+    // Domain layers (LAYERS above). Zones resolve from this directory, so the
+    // rule does not depend on the directory ESLint runs in.
+    files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
+    ignores: LAYERS_EXEMPT,
+    rules: {
+      'import/no-restricted-paths': ['error', { basePath: ROOT_DIR, zones: LAYER_ZONES }],
     },
-    {
-      // The adapter wraps the raw folds surfaces.
-      files: ['src/app/ui/glass/GlassPrimitives.tsx'],
-      rules: {
-        'no-restricted-imports': 'off',
-      },
+  },
+  // The two wrappers relax the import rule that every other file has.
+  {
+    // The directional wrappers place folds' own pop-outs and tooltips.
+    files: ['src/app/ui/directional.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: IMPORT_RESTRICTIONS.paths, patterns: GLASS_RESTRICTIONS.patterns },
+      ],
     },
-  ],
-};
+  },
+  {
+    // The adapter wraps the raw folds surfaces.
+    files: ['src/app/ui/glass/GlassPrimitives.tsx'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+];

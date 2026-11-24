@@ -89,7 +89,7 @@ const useJobRuns = (
   );
   // Rows that start to say the calls or the usage take the runs anew, whose held ones may be older.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(pick, [pick, shown, listed]);
+  return useMemo(() => pick(), [pick, shown, listed]);
 };
 
 /**
