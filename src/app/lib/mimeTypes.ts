@@ -11,14 +11,34 @@ const BLOB_SAFE_MIMETYPES = new Set([
   // Sorted per type. `x-m4a` and `x-wav` are what some systems report for .m4a and .wav files.
   ...subtypesOf('audio', ['aac', 'flac', 'mp4', 'mpeg', 'ogg', 'wav', 'webm', 'x-m4a', 'x-wav']),
   // `svg+xml` is left out on purpose: SVG can carry script.
-  ...subtypesOf('image', ['apng', 'avif', 'bmp', 'gif', 'jpeg', 'png', 'webp']),
+  ...subtypesOf('image', [
+    'apng',
+    'avif',
+    'bmp',
+    'gif',
+    'heic',
+    'heic-sequence',
+    'heif',
+    'heif-sequence',
+    'jpeg',
+    'png',
+    'webp',
+  ]),
   // QuickTime is not listed; getBlobSafeMimeType maps it to MP4.
   ...subtypesOf('video', ['mp4', 'ogg', 'webm']),
 ]);
 
+const HEIC_MIMETYPES = new Set(
+  subtypesOf('image', ['heic', 'heic-sequence', 'heif', 'heif-sequence'])
+);
+
 /** The type without parameters, lower case: `Text/Plain; charset=utf-8` is `text/plain`. */
 export const getMimeTypeBase = (mimeType: string): string =>
   (mimeType.split(';')[0] ?? '').trim().toLowerCase();
+
+/** Whether the type is HEIC or HEIF, which Chromium decodes through a lazy fallback decoder. */
+export const isHeicMimeType = (mimeType: string): boolean =>
+  HEIC_MIMETYPES.has(getMimeTypeBase(mimeType));
 
 /** A type safe to give a blob URL; anything else is served as a download. */
 export const getBlobSafeMimeType = (mimeType: string): string => {

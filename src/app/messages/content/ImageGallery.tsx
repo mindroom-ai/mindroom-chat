@@ -4,7 +4,7 @@ import { revokeBlobUrl } from '../../lib/hooks/useBlobUrlCleanup';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ImageOverlay } from './ImageOverlay';
 import { ImageSlidesContext, type ImageSlide } from './imageSlides';
-import { loadImageOriginal } from './imageOriginal';
+import { loadImageOriginalForViewer } from './imageOriginal';
 
 type ImageGalleryProps = {
   /** The picture the viewer opens on. */
@@ -13,7 +13,7 @@ type ImageGalleryProps = {
 };
 
 /** A slide's loaded original, for the slide `key` names. */
-type Original = { key: string; src?: string; failed?: boolean };
+type Original = { key: string; src?: string; downloadBlob?: Blob; failed?: boolean };
 
 /** What a slide's original is loaded from: its event's revision and its file. */
 const slideKey = ({ eventId, owner, url, encInfo }: ImageSlide): string =>
@@ -58,14 +58,14 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
     if (!target) return undefined;
     let live = true;
     let objectUrl: string | undefined;
-    loadImageOriginal(mx, target).then(
-      (url) => {
+    loadImageOriginalForViewer(mx, target).then(
+      ({ src, downloadBlob }) => {
         if (!live) {
-          revokeBlobUrl(url);
+          revokeBlobUrl(src);
           return;
         }
-        objectUrl = url;
-        setOriginal({ key, src: url });
+        objectUrl = src;
+        setOriginal({ key, src, downloadBlob });
       },
       () => {
         if (live) setOriginal({ key, failed: true });
@@ -98,6 +98,7 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
     <ImageOverlay
       openWhileLoading
       src={shown?.src}
+      downloadBlob={shown?.downloadBlob}
       alt={current.body}
       requestClose={requestClose}
       onRetry={shown?.failed ? retry : undefined}

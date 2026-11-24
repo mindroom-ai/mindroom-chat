@@ -33,7 +33,9 @@ vi.mock('./FileRow.css', () => ({
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
 vi.mock('../layout/layout', () => ({ MessageTextBody: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 
 describe('file renderers', () => {
   it('render events whose file name or MIME type is not a string', () => {
@@ -152,6 +154,10 @@ describe('MImage', () => {
   it.each([
     ['image/svg+xml', 'file'],
     ['image/png', 'image'],
+    ['image/heic', 'image'],
+    ['image/heif', 'image'],
+    ['image/heic-sequence', 'image'],
+    ['image/heif-sequence', 'image'],
   ])('renders an image declared as %s as %s content', (mimetype, renderedAs) => {
     const renderer = create(
       React.createElement(MImage, {

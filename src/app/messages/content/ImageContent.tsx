@@ -13,7 +13,7 @@ import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepo
 import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
 import { revealDirectionControls } from '../../ui/directional';
 import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
-import { loadImageOriginal } from './imageOriginal';
+import { createDisplayableImageUrl, loadImageOriginal } from './imageOriginal';
 import { ImageGallery } from './ImageGallery';
 import * as css from './style.css';
 
@@ -140,7 +140,7 @@ export const ImageContent = as<'div', ImageContentProps>(
           encryptedFile: preview.encryptedFile,
           mimeType: preview.mimeType,
         });
-        return URL.createObjectURL(blob);
+        return (await createDisplayableImageUrl(blob, preview.mimeType, preview.mxcUri)).src;
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [mx, ownerKey, thumbnailKey, serverScaled, url, loadOriginal]),
       revokeBlobUrl

@@ -456,4 +456,23 @@ describe('ImageViewer download', () => {
     rerender(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
   });
+
+  it('saves downloadBlob instead of fetching src when a converted display copy is shown', async () => {
+    saveFile.mockClear();
+    saveFile.mockResolvedValueOnce(true);
+    const originalHeic = new Blob(['raw-heic-bytes'], { type: 'image/heic' });
+    render(
+      <ImageViewer
+        src="blob:converted-jpeg"
+        downloadBlob={originalHeic}
+        alt="photo.heic"
+        requestClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledOnce());
+    const [savedBlob, savedName] = saveFile.mock.calls[0] as [Blob, string];
+    expect(savedName).toBe('photo.heic');
+    expect(savedBlob.size).toBe(originalHeic.size);
+  });
 });

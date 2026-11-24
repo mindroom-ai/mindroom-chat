@@ -41,7 +41,7 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  * Retry only saves again. The state belongs to the picture it was for: another picture starts
  * at a plain Download.
  */
-const useSaveMedia = (src: string, fileName: string) => {
+const useSaveMedia = (src: string, fileName: string, downloadBlob?: Blob) => {
   const [saved, setSaved] = useState<{ src: string; state: DownloadState }>();
   const blobRef = useRef<{ src: string; blob: Blob }>();
   const state = saved?.src === src ? saved.state : 'idle';
@@ -54,7 +54,7 @@ const useSaveMedia = (src: string, fileName: string) => {
     setSaved({ src, state: 'saving' });
     try {
       if (blobRef.current?.src !== src) {
-        blobRef.current = { src, blob: await downloadMedia(src) };
+        blobRef.current = { src, blob: downloadBlob ?? (await downloadMedia(src)) };
       }
       await saveFile(new Blob([blobRef.current.blob], { type: DOWNLOAD_MIME_TYPE }), fileName);
       finish('idle');
@@ -72,6 +72,8 @@ type ImageViewerProps = {
   alt: string;
   /** The picture; until it is there the image area shows a spinner. */
   src?: string;
+  /** Original attachment bytes to save when `src` is a converted display copy (e.g. HEIC). */
+  downloadBlob?: Blob;
   requestClose: () => void;
   /** Set when the picture failed to load: the image area offers Retry in its place. */
   onRetry?: () => void;
@@ -176,6 +178,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       requestClose,
       alt,
       src,
+      downloadBlob,
       onRetry,
       onImageError,
       position,
@@ -188,7 +191,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     ref
   ) => {
     const { t } = useTranslation();
-    const [downloadState, download] = useSaveMedia(src ?? '', alt);
+    const [downloadState, download] = useSaveMedia(src ?? '', alt, downloadBlob);
     // The name shows its direction controls; the download keeps it as it is.
     const shownAlt = revealDirectionControls(alt);
     const imageRef = useRef<HTMLImageElement>(null);
