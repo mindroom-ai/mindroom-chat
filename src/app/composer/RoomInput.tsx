@@ -534,11 +534,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       editor,
       roomId,
       threadId,
-      thread: threadId !== undefined,
+      thread: threadId !== undefined || forkFrom !== undefined,
       ownerKey: dictationOwnerKey,
       sendKey: textKey,
       draftKey: textKey,
       rootRef,
+      containerRef: fileDropContainerRef,
       onCommandProblem: setCommandProblem,
       restoreAttachments: restoreDictationAttachments,
       restoreReplyDraft,
@@ -936,6 +937,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         ? {
             ...voice.voiceKey,
             root: () => rootRef.current,
+            container: () => fileDropContainerRef?.current ?? null,
             thread: threadId !== undefined,
             hasContent: () =>
               !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,

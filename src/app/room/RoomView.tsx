@@ -1,4 +1,11 @@
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -96,7 +103,7 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
  * element marked `data-keeps-typing`: a region that reads keys without a text field (a game, a
  * drawing surface) carries it.
  */
-const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
+const useTypeToCompose = (focusComposer: () => boolean, enabled: boolean) => {
   const handleKey = useCallback(
     (evt: KeyboardEvent) => {
       if (!enabled || evt.defaultPrevented) return;
@@ -110,8 +117,7 @@ const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
   useKeyDown(window, handleKey);
   useShortcut('focusComposer', () => {
     if (!enabled || focusOwnsTyping()) return false;
-    focusComposer();
-    return true;
+    return focusComposer();
   });
 };
 
@@ -189,12 +195,21 @@ export function RoomView({
   const hidden = useAtomValue(conversationHiddenAtom);
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // Under the column that fills the page, typing goes to the column's composer instead.
+  // Under the column that fills the page, or with focus inside the beside thread column,
+  // typing and Escape go to the column's composer instead.
   const focusColumn = useRef<() => void>(undefined);
-  const focusComposer = useCallback(() => {
-    if (!columnFills) ReactEditor.focus(editor);
-    else focusColumn.current?.();
-  }, [columnFills, editor]);
+  const focusComposer = useCallback((): boolean => {
+    const inColumn =
+      !!document.activeElement && !!columnRef.current?.contains(document.activeElement);
+    if (columnFills || inColumn) {
+      if (behindPanel || !focusColumn.current) return false;
+      focusColumn.current();
+      return true;
+    }
+    if (hidden) return false;
+    ReactEditor.focus(editor);
+    return true;
+  }, [behindPanel, columnFills, editor, hidden]);
   const focusScheduleComposer = useCallback(
     (targetThreadId?: string) => {
       if (targetThreadId) focusColumn.current?.();
@@ -202,7 +217,26 @@ export function RoomView({
     },
     [editor]
   );
-  useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
+  useTypeToCompose(focusComposer, composerShown && !behindPanel);
+  const handleThreadColumnKeyDown = (evt: ReactKeyboardEvent<HTMLDivElement>) => {
+    noteThreadColumnKey(evt);
+    if (
+      !composerShown ||
+      behindPanel ||
+      evt.defaultPrevented ||
+      !(isTypingKey(evt.nativeEvent) || isPasteKey(evt.nativeEvent))
+    ) {
+      return;
+    }
+    if (
+      computerOwnsKeyboardEvent(evt.nativeEvent) ||
+      editableActiveElement() ||
+      focusOwnsTyping()
+    ) {
+      return;
+    }
+    focusColumn.current?.();
+  };
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
   const focusedThreadId = isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined;
@@ -385,7 +419,7 @@ export function RoomView({
           onExpand={besideWhileSecond ? undefined : showFull}
           expandLabel={t('thread.showFull')}
           testId="thread-column"
-          onKeyDown={noteThreadColumnKey}
+          onKeyDown={handleThreadColumnKeyDown}
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
             {threadState.threadNotFound ? (

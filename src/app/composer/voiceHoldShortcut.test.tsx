@@ -184,6 +184,48 @@ describe('resolveVoiceComposer', () => {
     expect(resolveVoiceComposer(document.body)).toBeUndefined();
     views.forEach((view) => view.unmount());
   });
+
+  it('picks the composer whose conversation container holds focus, else prefers the thread', () => {
+    const roomContainer = document.createElement('div');
+    const roomTimeline = document.createElement('button');
+    roomContainer.append(roomTimeline);
+    document.body.append(roomContainer);
+    const roomRoot = shownRoot(roomContainer);
+
+    const threadContainer = document.createElement('div');
+    const threadTimeline = document.createElement('button');
+    threadContainer.append(threadTimeline);
+    document.body.append(threadContainer);
+    const threadRoot = shownRoot(threadContainer);
+
+    const composer = (thread: boolean, root: HTMLElement, container: HTMLElement) =>
+      renderHook(() =>
+        useVoiceComposer({
+          root: () => root,
+          container: () => container,
+          thread,
+          active: () => false,
+          offersFailed: () => false,
+          phase: () => 'none',
+          hasContent: () => false,
+          start: () => false,
+          send: () => undefined,
+          focus: () => undefined,
+        })
+      );
+    const room = composer(false, roomRoot, roomContainer);
+    const thread = composer(true, threadRoot, threadContainer);
+
+    const roomTarget = resolveVoiceComposer(roomRoot);
+    const threadTarget = resolveVoiceComposer(threadRoot);
+    expect(roomTarget).toBeDefined();
+    expect(roomTarget).not.toBe(threadTarget);
+    expect(resolveVoiceComposer(roomTimeline)).toBe(roomTarget);
+    expect(resolveVoiceComposer(threadTimeline)).toBe(threadTarget);
+    expect(resolveVoiceComposer(document.body)).toBe(threadTarget);
+
+    [room, thread].forEach((view) => view.unmount());
+  });
 });
 
 describe('useVoiceHoldShortcut', () => {

@@ -601,7 +601,13 @@ it('shows a thread that is not found as such, with the way back, instead of its 
   expect(column()).toBeNull();
   const notice = within(screen.getByTestId('thread-column'));
   expect(notice.getByRole('heading', { name: 'Thread not found' })).toBeDefined();
-  fireEvent.click(notice.getByRole('button', { name: 'Back' }));
+  const backButton = notice.getByRole('button', { name: 'Back' });
+  backButton.focus();
+  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
+    false
+  );
+  expect(document.activeElement).toBe(backButton);
+  fireEvent.click(backButton);
   expect(back).toHaveBeenCalledOnce();
 });
 
@@ -797,6 +803,38 @@ it('gives the letters typed with nothing focused to the column that fills the pa
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
+});
+
+it('sends typing, paste, and Escape inside the beside thread column to Reply, while body still focuses Message', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  const back = screen.getByRole('button', { name: 'Back' });
+  const reply = screen.getByLabelText('Reply');
+  const message = screen.getByRole('textbox', { name: 'Message' });
+
+  back.focus();
+  fireEvent.keyDown(back, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(reply);
+
+  back.focus();
+  fireEvent.keyDown(back, { key: 'v', code: 'KeyV', metaKey: true });
+  expect(document.activeElement).toBe(reply);
+
+  back.focus();
+  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
+  expect(document.activeElement).toBe(reply);
+
+  (document.activeElement as HTMLElement).blur();
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(message);
+
+  (document.activeElement as HTMLElement).blur();
+  fireEvent.keyDown(document.body, { key: 'v', code: 'KeyV', metaKey: true });
+  expect(document.activeElement).toBe(message);
+
+  (document.activeElement as HTMLElement).blur();
+  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
+  expect(document.activeElement).toBe(message);
 });
 
 it("gives a file dropped on the thread column's header, beside the messages or filling the page, to the thread's composer", () => {

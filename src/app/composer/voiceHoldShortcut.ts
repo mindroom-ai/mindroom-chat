@@ -10,11 +10,13 @@ import {
   type VoiceHold,
   type VoiceHoldTarget,
 } from '../shortcuts/voiceHold';
+import { isComposerShown, pickComposerTarget } from './composerTarget';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
 
 /** A composer that records voice: its root element, whether it writes a thread, and its actions. */
 export type VoiceComposer = VoiceHoldTarget & {
   root: () => HTMLElement | null;
+  container?: () => HTMLElement | null;
   thread: boolean;
   /** A recording whose send failed waits here, in this composer alone. */
   offersFailed: () => boolean;
@@ -26,16 +28,12 @@ type Entry = { current?: VoiceComposer; target: VoiceHoldTarget };
 // In mount order, like the shortcut handlers.
 const entries = new Set<Entry>();
 
-/** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
-const shown = (root: HTMLElement | null | undefined): boolean =>
-  !!root?.isConnected && !root.closest('[inert]') && root.getClientRects().length > 0;
-
 // A press pins an entry's target, so each call reads the composer as it is then, and one that went
 // away or out of sight since (the test a press picks its composer by) does nothing: a recording
 // that runs stays the account's.
 const createEntry = (): Entry => {
   const live = () =>
-    entries.has(entry) && shown(entry.current?.root()) ? entry.current : undefined;
+    entries.has(entry) && isComposerShown(entry.current?.root()) ? entry.current : undefined;
   const entry: Entry = {
     target: {
       active: () => live()?.active() ?? false,
@@ -69,18 +67,22 @@ export const useVoiceComposer = (composer: VoiceComposer | undefined): void => {
 /**
  * The composer a press of the voice key acts in, among those shown. One that offers a failed
  * recording is the only one that may (no other recording starts while it waits); else the focused
- * composer, else the open thread's, else the room's. A recording that runs is the account's and
- * shows in every composer (capture/liveCapture.ts), so it is sent from the one found so.
+ * composer, else the focused conversation's composer, else the open thread's, else the room's. A
+ * recording that runs is the account's and shows in every composer (capture/liveCapture.ts), so
+ * it is sent from the one found so.
  */
 export const resolveVoiceComposer = (
   focused: Element | null = document.activeElement
 ): VoiceHoldTarget | undefined => {
-  const live = [...entries].reverse().filter((entry) => shown(entry.current?.root()));
+  const live = [...entries]
+    .reverse()
+    .flatMap((entry) =>
+      entry.current && isComposerShown(entry.current.root())
+        ? [{ ...entry.current, target: entry.target }]
+        : []
+    );
   return (
-    live.find((entry) => entry.current?.offersFailed()) ??
-    live.find((entry) => !!focused && !!entry.current?.root()?.contains(focused)) ??
-    live.find((entry) => entry.current?.thread) ??
-    live[0]
+    live.find((candidate) => candidate.offersFailed()) ?? pickComposerTarget(live, focused)
   )?.target;
 };
 

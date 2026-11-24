@@ -172,11 +172,11 @@ export function ThreadView({
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
   useEffect(() => {
     if (!focusRef) return undefined;
-    focusRef.current = focusConversation;
+    focusRef.current = composerShown ? focusConversation : undefined;
     return () => {
       focusRef.current = undefined;
     };
-  }, [focusConversation, focusRef]);
+  }, [composerShown, focusConversation, focusRef]);
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
   // same thread: the focus stays where the person took it meanwhile. `autoFocus` counts as a thread
   // opens or changes: changing it alone (the column changing width) moves no focus.
