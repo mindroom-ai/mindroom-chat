@@ -13,7 +13,7 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
 
 /**
  * Vite plugin: fails the build when the modules it keeps after tree-shaking come from two
- * directories of one package name and version. It checks at the end of the build phase: the
+ * directories of one package name and version. It checks in generateBundle: the
  * service worker build that runs once the app's bundle closes would hide a later error behind its
  * own. The packages a client plugin installed in its own directory (`pluginDirs`, from
  * MINDROOM_CLIENT_PLUGINS) are left out, as the plugin's, except a copy of a package the app shares
