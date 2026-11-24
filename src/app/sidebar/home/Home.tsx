@@ -49,7 +49,7 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
-import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import * as searchFieldCss from '../../ui/SearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';

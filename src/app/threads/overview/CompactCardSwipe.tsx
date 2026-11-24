@@ -70,6 +70,38 @@ export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>):
   }, [listRef]);
 };
 
+export type CompactCardSwipeStripProps = {
+  resolved: boolean;
+  label: string;
+  armed?: boolean;
+  stripRef?: RefObject<HTMLDivElement | null>;
+  'data-tour-swipe'?: string;
+};
+
+/** The action strip revealed behind a swiped compact card; shared with the interface tour. */
+export function CompactCardSwipeStrip({
+  resolved,
+  label,
+  armed = false,
+  stripRef,
+  ...props
+}: CompactCardSwipeStripProps) {
+  return (
+    <div
+      ref={stripRef}
+      className={css.SwipeAction}
+      data-compact-card-swipe="action"
+      data-armed={armed ? 'true' : undefined}
+      data-resolved={resolved ? 'true' : undefined}
+      aria-hidden
+      {...props}
+    >
+      <Icon size="200" src={resolved ? Icons.Reload : Icons.Check} />
+      <Text size="B300">{label}</Text>
+    </div>
+  );
+}
+
 export type CompactCardSwipeProps = {
   enabled: boolean;
   resolved: boolean;
@@ -269,17 +301,12 @@ export function CompactCardSwipe({
   return (
     <>
       {strip && (
-        <div
-          ref={stripRef}
-          className={css.SwipeAction}
-          data-compact-card-swipe="action"
-          data-armed={armed ? 'true' : undefined}
-          data-resolved={strip.resolved ? 'true' : undefined}
-          aria-hidden
-        >
-          <Icon size="200" src={strip.resolved ? Icons.Reload : Icons.Check} />
-          <Text size="B300">{strip.label}</Text>
-        </div>
+        <CompactCardSwipeStrip
+          stripRef={stripRef}
+          resolved={strip.resolved}
+          label={strip.label}
+          armed={armed}
+        />
       )}
       <div
         ref={trackRef}

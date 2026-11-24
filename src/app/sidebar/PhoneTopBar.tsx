@@ -23,8 +23,8 @@ import { ActivitySheet } from '../activity/ActivitySheet';
 import { useRailButtons } from '../settings/railButtons';
 import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
-import { ActivityBadge } from './rail/ActivityTab';
-import * as css from './PhoneTopBar.css';
+import { ActivityBadge } from '../activity/ActivityBadge';
+import * as css from '../ui/sidebar/PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
 export const PHONE_NAV_DRAWER_ID = 'phone-nav-drawer';

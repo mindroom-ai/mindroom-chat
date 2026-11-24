@@ -2128,7 +2128,7 @@
       },
       "pinAndTag": {
         "title": "Fissa e aggiungi tag",
-        "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
+        "text": "Premi la puntina su una scheda, oppure Fissa thread in Opzioni del thread (⋯), per tenere un thread in cima. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
       },
       "filters": {
         "title": "I filtri nascondono i thread risolti",

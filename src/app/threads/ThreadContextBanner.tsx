@@ -41,11 +41,10 @@ import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { useLiquidGlass } from '../ui/glass/liquid/useLiquidGlass';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
-import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { focusedCompactCard } from './overview/compactCardKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
-import { PhoneBackButton } from '../ui/page/PhoneBackButton';
+import { ThreadBannerActions, ThreadBannerBackButton } from './ThreadBannerChrome';
 import { useShortViewport } from '../ui/page/floatingCards';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -433,45 +432,16 @@ export function ThreadContextBanner({
     <ThreadHeaderSlot room={room} threadId={threadRootId} />
   ) : null;
 
-  const backButton = onClose ? (
-    <IconTooltip label={t('thread.close')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          className={toolbarCss.MessageOptionsButton}
-          variant="SurfaceVariant"
-          fill="None"
-          aria-label={t('thread.close')}
-          onClick={onClose}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
-      )}
-    </IconTooltip>
-  ) : phone ? (
-    <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
-  ) : (
-    // At the banner's start, so its tooltip opens toward the banner, not past it.
-    // folds aligns to physical edges, and right-to-left puts the button on the right.
-    <IconTooltip
+  const backButton = (
+    <ThreadBannerBackButton
+      phone={phone}
       label={t('thread.back')}
+      closeLabel={t('thread.close')}
       shortcut="leaveThread"
-      align={i18n.dir() === 'rtl' ? 'End' : 'Start'}
-    >
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          className={toolbarCss.MessageOptionsButton}
-          variant="SurfaceVariant"
-          fill="None"
-          aria-label={t('thread.back')}
-          {...shortcutAttributes('leaveThread')}
-          onClick={onExitThread}
-        >
-          <Icon data-directional src={Icons.ArrowLeft} />
-        </IconButton>
-      )}
-    </IconTooltip>
+      rtl={i18n.dir() === 'rtl'}
+      onBack={onExitThread}
+      onClose={onClose}
+    />
   );
 
   return (
@@ -727,107 +697,42 @@ export function ThreadContextBanner({
                   </div>
                 )}
               </div>,
-              <Box
+              <ThreadBannerActions
                 key="actions"
-                className={css.RowActions}
-                alignItems="Center"
-                gap="100"
-                shrink="No"
-              >
-                {pluginControls}
-                <IconTooltip label={t('threadActions.more')}>
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={(node: HTMLButtonElement | null) => {
-                        triggerRef(node);
-                        moreButtonRef.current = node;
-                      }}
-                      className={toolbarCss.MessageOptionsButton}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-label={t('threadActions.more')}
-                      aria-haspopup="menu"
-                      aria-expanded={!!activeMenu}
-                      disabled={!canOpenMenu}
-                      onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                        openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
-                      }
-                    >
-                      <Icon src={Icons.VerticalDots} size="100" />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-                {/* A compact banner pins from More; its row still says a thread is pinned. */}
-                {!compact && pinning.canPin && mutableThreadRootId ? (
-                  <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
-                    {(triggerRef) => (
-                      <IconButton
-                        ref={triggerRef}
-                        aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                        className={classNames(
-                          toolbarCss.MessageOptionsButton,
-                          !isPinned && css.CompactHidden
-                        )}
-                        variant="SurfaceVariant"
-                        fill="None"
-                        aria-pressed={isPinned}
-                        disabled={pinning.updating || updating}
-                        onClick={() => void pinning.setPinned(mutableThreadRootId, !isPinned)}
-                      >
-                        <Icon src={Icons.Pin} size="100" filled={isPinned} />
-                      </IconButton>
-                    )}
-                  </IconTooltip>
-                ) : (
-                  isPinned && (
-                    <Box
-                      as="span"
-                      role="img"
-                      aria-label={t('threadNav.pinned')}
-                      title={t('threadNav.pinned')}
-                    >
-                      <Icon src={Icons.Pin} size="100" filled />
-                    </Box>
-                  )
-                )}
-                {!isPinned && (
-                  // Resolve is in More, but a resolved status stays visible for readers.
-                  <IconTooltip
-                    label={
-                      headerModel.isResolved
-                        ? (resolvedByLabel ?? t('thread.resolved'))
-                        : t('thread.resolve')
-                    }
-                    hint={
-                      headerModel.isResolved && headerModel.canEdit
-                        ? t('threadActions.reopen')
-                        : undefined
-                    }
-                    shortcut={resolveShortcut}
-                  >
-                    {(triggerRef) => (
-                      <IconButton
-                        ref={triggerRef}
-                        aria-label={t(
-                          headerModel.isResolved ? 'thread.resolved' : 'thread.resolve'
-                        )}
-                        className={classNames(
-                          toolbarCss.MessageOptionsButton,
-                          headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
-                        )}
-                        variant="SurfaceVariant"
-                        fill="None"
-                        aria-describedby={showResolver ? resolverBylineId : undefined}
-                        onClick={handleToggleResolve}
-                        disabled={resolveDisabled}
-                        {...shortcutAttributes(resolveShortcut)}
-                      >
-                        <Icon src={Icons.Check} size="100" />
-                      </IconButton>
-                    )}
-                  </IconTooltip>
-                )}
-              </Box>,
+                before={pluginControls}
+                moreLabel={t('threadActions.more')}
+                moreButtonRef={moreButtonRef}
+                canOpenMenu={canOpenMenu}
+                menuOpen={!!activeMenu}
+                onOpenMenu={(event) =>
+                  openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                }
+                showPinButton={!compact && pinning.canPin && !!mutableThreadRootId}
+                isPinned={isPinned}
+                pinLabel={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                pinnedLabel={t('threadNav.pinned')}
+                pinDisabled={pinning.updating || updating}
+                onTogglePin={() =>
+                  mutableThreadRootId && void pinning.setPinned(mutableThreadRootId, !isPinned)
+                }
+                showResolveButton={!isPinned}
+                isResolved={headerModel.isResolved}
+                resolveLabel={
+                  headerModel.isResolved
+                    ? (resolvedByLabel ?? t('thread.resolved'))
+                    : t('thread.resolve')
+                }
+                resolveAriaLabel={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+                resolveHint={
+                  headerModel.isResolved && headerModel.canEdit
+                    ? t('threadActions.reopen')
+                    : undefined
+                }
+                resolveShortcut={resolveShortcut}
+                resolveDescribedBy={showResolver ? resolverBylineId : undefined}
+                resolveDisabled={resolveDisabled}
+                onToggleResolve={handleToggleResolve}
+              />,
             ])}
           </div>
         )}

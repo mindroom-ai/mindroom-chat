@@ -95,6 +95,16 @@ describe('tourSteps', () => {
     expect(stepIndexOf('quick', 'activity')).toBe(0);
   });
 
+  it('times snooze and pinAndTag for their multi-phase sequences', () => {
+    expect(TOUR_STEPS.find((step) => step.id === 'snooze')?.phases).toEqual([1000, 0]);
+    expect(TOUR_STEPS.find((step) => step.id === 'pinAndTag')?.phases).toEqual([
+      1200, 1100, 1200, 0,
+    ]);
+    const text = translateFromEn('tour.steps.pinAndTag.text');
+    expect(text).toContain('Pin thread in Thread options');
+    expect(text).toContain('Edit tags');
+  });
+
   it('says in Keep going how many steps the Full tour adds', () => {
     expect(translateFromEn('tour.dialog.keepGoing')).toContain(
       String(TOUR_STEPS.length - QUICK_STEP_COUNT)

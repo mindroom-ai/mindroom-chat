@@ -1,5 +1,6 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { phoneTopBarHeight } from '../ui/sidebar/PhoneTopBar.css';
 import { railWidth } from '../ui/sidebar/SidebarItem.css';
 import { motion } from '../ui/styles/Motion.css';
 import { transition } from '../ui/styles/transition';
@@ -72,31 +73,6 @@ export const Page = style({
   minHeight: 0,
 });
 
-/** The room's header: its avatar and name, then its buttons. */
-export const Header = style({
-  display: 'flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  columnGap: config.space.S300,
-  minHeight: toRem(52),
-  paddingInline: config.space.S400,
-  borderBlockEnd: hairline,
-});
-
-export const HeaderName = style({ flexGrow: 1, minWidth: 0 });
-
-export const HeaderButtons = style({
-  display: 'flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  columnGap: config.space.S100,
-});
-
-/** A back chevron as tall as the header's icons, as the phone's pages draw it. */
-export const BackChevron = style({
-  selectors: { '&&': { width: toRem(32), height: toRem(32) } },
-});
-
 /** What the header and the composer leave: the bar, then the cards, the thread or the messages. */
 export const Body = style({
   position: 'relative',
@@ -112,8 +88,11 @@ const arrive = keyframes({
   to: { opacity: 1, transform: 'none' },
 });
 
-/** What arrives in the room (a card, a message, the filter bar) fades in and settles. */
-export const Arriving = style(once(arrive, motion.duration.Slow, motion.easing.Decelerate));
+/** What arrives in the room (a message, the filter bar) fades in and settles. */
+export const Arriving = style([
+  once(arrive, motion.duration.Slow, motion.easing.Decelerate),
+  { flexShrink: 0 },
+]);
 
 /**
  * The Compact view's cards, a little apart. Not positioned: a card's place counts from the body
@@ -128,74 +107,6 @@ export const CardList = style({
   padding: config.space.S300,
 });
 
-/** The heading of the Pinned section: a pin and the word. */
-export const PinnedHeading = style({
-  display: 'flex',
-  alignItems: 'center',
-  columnGap: config.space.S100,
-});
-
-/** Holds a card with its buttons and its menu. */
-export const CardShell = style({
-  position: 'relative',
-  flexShrink: 0,
-  minWidth: 0,
-});
-
-/** The card whose menu is open stands over the cards after it. */
-export const CardShellRaised = style({ zIndex: 3 });
-
-/** The card the pointer is on: tinted as the app tints a hovered card. */
-export const CardShellHovered = style({});
-globalStyle(`${CardShellHovered} [data-thread-root-id]`, {
-  backgroundColor: color.SurfaceVariant.ContainerHover,
-});
-
-/** A phone's card leaves room at the end of its last row for the Thread options button. */
-export const PhoneCardShell = style({});
-globalStyle(`${PhoneCardShell} [data-compact-card-metadata]`, {
-  paddingInlineEnd: toRem(32),
-});
-
-/** The buttons a card shows while the pointer is on it, over the card's end. */
-export const CardActions = style([
-  once(fadeIn, motion.duration.Normal, motion.easing.Standard, '300ms'),
-  {
-    position: 'absolute',
-    insetInlineEnd: config.space.S300,
-    // Centered by its margins, not a transform: the spotlight measures layout offsets.
-    insetBlock: 0,
-    marginBlock: 'auto',
-    height: 'fit-content',
-    display: 'flex',
-    alignItems: 'center',
-    columnGap: config.space.S100,
-    backgroundColor: color.SurfaceVariant.ContainerHover,
-    selectors: {
-      // The card's text fades out under the buttons.
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        insetBlock: 0,
-        insetInlineStart: `calc(-1 * ${config.space.S500})`,
-        width: config.space.S500,
-        background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
-      },
-      '[dir="rtl"] &::before': {
-        background: `linear-gradient(to left, transparent, ${color.SurfaceVariant.ContainerHover})`,
-      },
-    },
-  },
-]);
-
-/** A phone's Thread options button, centered on the card's last row. */
-export const CardMenuButton = style({
-  position: 'absolute',
-  insetInlineEnd: config.space.S100,
-  insetBlockEnd: `calc(${config.borderWidth.B300} + ${config.space.S200} + ${toRem(12)} - 1.25rem)`,
-  selectors: { '&&': { width: '2.5rem', height: '2.5rem' } },
-});
-
 const SWIPE = toRem(108);
 const swipe = keyframes({
   from: { transform: 'none' },
@@ -205,9 +116,6 @@ const swipeRightToLeft = keyframes({
   from: { transform: 'none' },
   to: { transform: `translateX(${SWIPE})` },
 });
-
-/** A card and, under it, what a swipe shows. */
-export const SwipeTrack = style({ position: 'relative' });
 
 /** A card swiped toward the start of the line, once the step's scene starts. */
 export const Swiped = style([
@@ -229,22 +137,41 @@ const drop = keyframes({
 /** A menu that opens fades in from just above its place. */
 const opening = once(drop, motion.duration.Normal, motion.easing.Decelerate);
 
-/** A card's Thread options menu, below its button. */
+/**
+ * A card's Thread options menu, floating inside `Page` (like the app's `PopOut`, never clipped by
+ * `Body` or `Composer`). Positioned below the card's `⋯` button on wide screens.
+ */
 export const CardMenu = style([
   opening,
   {
     position: 'absolute',
-    zIndex: 3,
+    zIndex: 4,
     insetInlineEnd: config.space.S300,
-    insetBlockStart: `calc(50% + ${toRem(20)})`,
+    insetBlockStart: toRem(104),
     inlineSize: toRem(224),
   },
 ]);
 
-/** On a phone the menu opens over the card's lower rows, so all of it stays in the stage. */
+/** A pinned card sits under the Pinned header, so its shorter menu starts a little lower. */
+export const CardMenuPinned = style({
+  insetBlockStart: toRem(136),
+});
+
+/** On a phone, the grouped menu floats near the top of `Page` so every group fits the stage. */
 export const PhoneCardMenu = style({
   insetInlineEnd: config.space.S200,
-  insetBlockStart: toRem(26),
+  insetBlockStart: toRem(16),
+});
+
+/** On a phone, a pinned card's shorter menu starts below the room header. */
+export const PhoneCardMenuPinned = style({
+  insetInlineEnd: config.space.S200,
+  insetBlockStart: toRem(52),
+});
+
+/** Overrides viewport-unit `100dvh` cap inside the scaled tour stage so menus scale with `Room`. */
+export const StageMenuSurface = style({
+  maxHeight: 'none',
 });
 
 /** A phone's room menu, under the button at the header's end. */
@@ -311,39 +238,8 @@ export const Thread = style({
 export const Messages = style({
   display: 'flex',
   flexDirection: 'column',
-  rowGap: config.space.S400,
   minHeight: 0,
-  padding: `${config.space.S200} ${config.space.S400}`,
-});
-
-/** One message: the sender's avatar, then name, time and text. */
-export const Message = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  columnGap: config.space.S300,
-  minWidth: 0,
-});
-
-export const MessageBody = style({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-  rowGap: toRem(2),
-  minWidth: 0,
-});
-
-export const MessageHead = style({
-  display: 'flex',
-  alignItems: 'baseline',
-  columnGap: config.space.S200,
-});
-
-/** A message's text, with the mark of an agent that is still writing after it. */
-export const MessageText = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  columnGap: config.space.S200,
-  minWidth: 0,
+  paddingBlock: config.space.S100,
 });
 
 /** The reply count under a thread's first message. */
@@ -352,42 +248,10 @@ export const ReplyChip = style({ marginBlockStart: config.space.S100 });
 /** The rail's edge toward the page. */
 export const Rail = style({ borderInlineEnd: hairline });
 
-/** A phone's top bar: menu, search, the bell and the account. */
-export const PhoneBar = style({
-  display: 'flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  columnGap: config.space.S200,
-  blockSize: toRem(52),
-  paddingInline: config.space.S200,
-  backgroundColor: color.Background.Container,
-  color: color.Background.OnContainer,
-});
-
-/** The top bar's search field, which only stands for the real one. */
-export const PhoneSearch = style({
-  display: 'flex',
-  alignItems: 'center',
-  flexGrow: 1,
-  blockSize: toRem(36),
-  paddingInline: config.space.S300,
-  borderRadius: config.radii.Pill,
-  border: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
-  backgroundColor: color.Surface.Container,
-  opacity: config.opacity.P300,
-});
-
-/** Holds the bell and its count. */
-export const BellFrame = style({ position: 'relative', flexShrink: 0 });
-
-/** The bell's count, over the bell's top end corner. */
-export const BellBadge = style({
-  position: 'absolute',
-  insetBlockStart: toRem(-2),
-  insetInlineEnd: toRem(-4),
-});
-
-/** The bell's list beside the rail, over the spotlight's shade. */
+/**
+ * The bell's list beside the rail, over the spotlight's shade. Clipping lives on `ActivityMenu`
+ * (matching `ActivityPopover.tsx`) so the popover keeps its real rounded corners and box shadow.
+ */
 export const ActivityPanel = style([
   opening,
   {
@@ -396,12 +260,23 @@ export const ActivityPanel = style([
     insetBlockStart: config.space.S200,
     insetInlineStart: `calc(${railWidth} + ${config.space.S200})`,
     inlineSize: `min(${toRem(380)}, calc(100% - ${railWidth} - 2 * ${config.space.S200}))`,
+    maxBlockSize: `calc(100% - 2 * ${config.space.S200})`,
+    display: 'flex',
+    flexDirection: 'column',
   },
 ]);
 
+export const ActivityMenu = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  maxBlockSize: '100%',
+  overflow: 'hidden',
+});
+
 const sheetUp = keyframes({ from: { transform: 'translateY(100%)' }, to: { transform: 'none' } });
 
-/** On a phone the bell's list slides up as a sheet. */
+/** On a phone the bell's list slides up as a sheet, staying clear of the top bar and bell. */
 export const ActivitySheet = style([
   once(sheetUp, motion.duration.Slower, motion.easing.Decelerate),
   {
@@ -409,7 +284,10 @@ export const ActivitySheet = style([
     zIndex: 11,
     insetInline: 0,
     insetBlockEnd: 0,
-    paddingBlockEnd: config.space.S200,
+    maxBlockSize: `calc(100% - ${phoneTopBarHeight})`,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
     borderStartStartRadius: config.radii.R500,
     borderStartEndRadius: config.radii.R500,
     borderBlockStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
@@ -419,17 +297,13 @@ export const ActivitySheet = style([
   },
 ]);
 
-/** A phone's sheet starts with its title and a close button. */
+/** Matches `BottomSheet`'s header alignment with compact vertical padding above `Unread`. */
 export const SheetHeader = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingInlineEnd: config.space.S200,
+  flexShrink: 0,
+  height: 'auto',
+  minBlockSize: toRem(32),
+  paddingInline: config.space.S300,
   paddingBlockStart: config.space.S100,
-});
-
-export const ActivityTitle = style({
-  padding: `${config.space.S200} ${config.space.S300}`,
 });
 
 /** The layer the ring is placed in: left to right in every language, over all of the room. */

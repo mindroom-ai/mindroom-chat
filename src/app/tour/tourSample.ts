@@ -94,6 +94,25 @@ export const sampleActivityTs = (
   now: number
 ): number => (state.replied || state.noReplies || state.streaming ? now : now - THREADS[id].age);
 
+/**
+ * The people who replied to a sample thread, as `ThreadIndicator` shows beside the reply count.
+ * Matches `threadBadgeViewModel.ts` by listing reply senders only (so a 1-reply thread shows 1).
+ */
+export const sampleReplyParticipants = (
+  id: SampleThreadId,
+  state: SampleCardState,
+  t: TFunction
+): Array<{ userId: string; displayName: string }> => {
+  const count = sampleReplyCount(id, state);
+  if (count === 0) return [];
+  const thread = THREADS[id];
+  const senders = count === 1 ? [thread.replier] : [thread.replier, thread.starter];
+  return senders.map((sender) => ({
+    userId: sampleUserId(sender),
+    displayName: sampleName(sender, t),
+  }));
+};
+
 /** The key of a thread's last reply in a state. */
 const replyKey = (id: SampleThreadId, state: SampleCardState): SampleTextKey =>
   id === 'vendor' && state.replied ? 'vendorNewReply' : `${id}Reply`;

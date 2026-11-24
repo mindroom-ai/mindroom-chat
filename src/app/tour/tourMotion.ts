@@ -11,6 +11,16 @@ export const hasCoarsePointer = (): boolean =>
   typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false);
 
 /**
+ * Whether the primary pointer cannot hover, matching `CompactRoomView.css.ts`'s `(hover: none)`
+ * rule that hides card hover quick actions on touch tablets as well as phones.
+ */
+export const hasNoHover = (): boolean =>
+  typeof window !== 'undefined' && (window.matchMedia?.('(hover: none)').matches ?? false);
+
+/** Whether cards use touch actions (permanent `⋯`, swipe to resolve, Pin in Thread options). */
+export const hasTouchCardActions = (phone: boolean): boolean => phone || hasNoHover();
+
+/**
  * The motion tokens `Slower` and `Standard` (ui/styles/Motion.css.ts) as numbers and text, for
  * the Web Animations the tour plays from script, which cannot read a custom property.
  */
