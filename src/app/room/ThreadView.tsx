@@ -230,7 +230,7 @@ export function ThreadView({
     ) : undefined);
 
   return (
-    <ConversationViewContext.Provider value={view}>
+    <ConversationViewContext value={view}>
       <PowerLevelsContextProvider value={targetPowerLevels}>
         <MessageLinkCards roomId={readRoom.roomId}>
           <ConversationLayout
@@ -285,6 +285,6 @@ export function ThreadView({
           />
         </MessageLinkCards>
       </PowerLevelsContextProvider>
-    </ConversationViewContext.Provider>
+    </ConversationViewContext>
   );
 }

@@ -521,12 +521,12 @@ it('keeps send completion bound to committed records during a suspended transiti
   }
   const tree = (block: boolean) => (
     <React.Suspense fallback={null}>
-      <IgnoredContext.Provider value={block ? hiddenUsers : visibleUsers}>
+      <IgnoredContext value={block ? hiddenUsers : visibleUsers}>
         <ThreadApprovalProvider room={room} threadId="$thread">
           <Probe />
           <Gate block={block} />
         </ThreadApprovalProvider>
-      </IgnoredContext.Provider>
+      </IgnoredContext>
     </React.Suspense>
   );
   await act(async () => {

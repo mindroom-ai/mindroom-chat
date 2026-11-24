@@ -141,13 +141,7 @@ const renderMenu = (props: Partial<ThreadActionsMenuProps> = {}, second?: Second
     />
   );
   act(() =>
-    root.render(
-      second ? (
-        <SecondThreadContext.Provider value={second}>{menu}</SecondThreadContext.Provider>
-      ) : (
-        menu
-      )
-    )
+    root.render(second ? <SecondThreadContext value={second}>{menu}</SecondThreadContext> : menu)
   );
   return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];
 };

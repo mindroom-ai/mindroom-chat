@@ -33,7 +33,7 @@ afterEach(() => {
 const openMenu = (view?: string, onAttachAppLogs: () => void = () => undefined) => {
   const noop = () => undefined;
   render(
-    <ConversationViewContext.Provider value={view}>
+    <ConversationViewContext value={view}>
       <ComposerActionsMenu
         formattingOpen={false}
         onAttach={noop}
@@ -41,7 +41,7 @@ const openMenu = (view?: string, onAttachAppLogs: () => void = () => undefined) 
         onToggleFormatting={noop}
         onEmoji={noop}
       />
-    </ConversationViewContext.Provider>
+    </ConversationViewContext>
   );
   fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
 };

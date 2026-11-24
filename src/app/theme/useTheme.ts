@@ -172,7 +172,7 @@ export const useChosenTheme = (): Theme => {
 // Set by `AppTheme`; outside it, `useTheme` falls back to the settings' choice.
 const ThemeContext = createContext<Theme | undefined>(undefined);
 
-export const ThemeContextProvider = ThemeContext.Provider;
+export const ThemeContextProvider = ThemeContext;
 
 /** The theme the app shows: the provided one, or the one the settings select. */
 export const useTheme = (): Theme => {

@@ -505,7 +505,7 @@ describe('inline website favicons', () => {
     });
     // RenderBody allows icons where the deployment does.
     return renderToStaticMarkup(
-      React.createElement(LinkFaviconContext.Provider, { value: true }, parse(html, opts))
+      React.createElement(LinkFaviconContext, { value: true }, parse(html, opts))
     );
   };
 
@@ -623,11 +623,7 @@ describe('tool call status from approval cards', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(
-          ToolCallMessageContext.Provider,
-          { value: { eventId } },
-          parse(html, opts)
-        )
+        React.createElement(ToolCallMessageContext, { value: { eventId } }, parse(html, opts))
       );
     });
     return renderer as ReactTestRenderer;
@@ -674,7 +670,7 @@ describe('tool call status from approval cards', () => {
     act(() => {
       renderer = create(
         React.createElement(
-          ToolCallMessageContext.Provider,
+          ToolCallMessageContext,
           { value: { eventId: '$reply' } },
           parse(html, opts)
         )
@@ -746,7 +742,7 @@ describe('tool call status from approval cards', () => {
             Provider,
             { store },
             React.createElement(
-              ToolCallMessageContext.Provider,
+              ToolCallMessageContext,
               { value: { eventId: '$reply' } },
               // The reply's reasoning line draws the cog.
               React.createElement(
@@ -956,7 +952,7 @@ describe('useToolTraceMarkerParserOptions', () => {
           Provider,
           { store },
           React.createElement(
-            ToolCallMessageContext.Provider,
+            ToolCallMessageContext,
             { value: { eventId: '$reply', roomId: ROOM, threadId } },
             React.createElement(
               ToolCallsFold,
@@ -1111,7 +1107,7 @@ describe('useToolTraceMarkerParserOptions', () => {
             Provider,
             { store },
             React.createElement(
-              ToolCallMessageContext.Provider,
+              ToolCallMessageContext,
               { value: { eventId: '$reply', roomId: ROOM } },
               React.createElement(
                 ToolCallsFold,

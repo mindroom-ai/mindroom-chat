@@ -9,7 +9,7 @@ const serverCapabilitiesContext = createContext<Capabilities | undefined>(undefi
 
 const NO_CAPABILITIES: Capabilities = {};
 
-export const CapabilitiesProvider = serverCapabilitiesContext.Provider;
+export const CapabilitiesProvider = serverCapabilitiesContext;
 
 /** The loaded capabilities; outside `CapabilitiesProvider`, none are known. */
 export function useCapabilities(): Capabilities {

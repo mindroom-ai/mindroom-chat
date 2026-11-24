@@ -286,9 +286,9 @@ describe('reasoning header', () => {
     const reply = (content: Record<string, unknown>) => {
       act(() => {
         renderer = create(
-          <ToolCallsCogContext.Provider value={cog}>
+          <ToolCallsCogContext value={cog}>
             {withReasoning(content, <p>Answer</p>, {})}
-          </ToolCallsCogContext.Provider>
+          </ToolCallsCogContext>
         );
       });
       return renderer!.root.find((node) => node.props?.['data-cog'] !== undefined);
@@ -359,13 +359,13 @@ describe('reasoning header', () => {
     };
     const body = <Body />;
     const show = ({ cog, ...extra }: Record<string, unknown>) => (
-      <ToolCallsCogContext.Provider value={cog ? <button>1</button> : null}>
+      <ToolCallsCogContext value={cog ? <button>1</button> : null}>
         {withReasoning(
           { body: 'Answer', 'io.mindroom.stream_status': 'streaming', ...extra },
           body,
           {}
         )}
-      </ToolCallsCogContext.Provider>
+      </ToolCallsCogContext>
     );
     act(() => {
       renderer = create(show({}));

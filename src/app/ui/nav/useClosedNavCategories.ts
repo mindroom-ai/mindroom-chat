@@ -4,7 +4,7 @@ import type { ClosedNavCategoriesAtom } from './closedNavCategories';
 // Holds the signed-in user's collapsed-category atom; undefined outside a provider.
 const closedCategoriesContext = createContext<ClosedNavCategoriesAtom | undefined>(undefined);
 
-export const ClosedNavCategoriesProvider = closedCategoriesContext.Provider;
+export const ClosedNavCategoriesProvider = closedCategoriesContext;
 
 /** The collapsed sidebar categories atom from the nearest `ClosedNavCategoriesProvider`. */
 export function useClosedNavCategoriesAtom(): ClosedNavCategoriesAtom {

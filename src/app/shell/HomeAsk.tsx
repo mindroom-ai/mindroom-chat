@@ -397,7 +397,7 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
   return (
     <div ref={askRef} className={css.Ask}>
       {composerRoom ? (
-        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+        <ConversationViewContext value={HOME_ASK_VIEW}>
           <RoomInput
             editor={editor}
             room={composerRoom}
@@ -436,7 +436,7 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
                 }),
             }}
           />
-        </ConversationViewContext.Provider>
+        </ConversationViewContext>
       ) : (
         <div className={css.StandIn}>
           <button

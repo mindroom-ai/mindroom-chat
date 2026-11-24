@@ -1202,18 +1202,18 @@ function RoomContent() {
   const sidePanel = usePanelSlot(
     shown && (
       <PanelFrameProvider key={shown.id} value={frame}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
           {shown.render()}
-        </PluginPanelControlsContext.Provider>
+        </PluginPanelControlsContext>
       </PanelFrameProvider>
     )
   );
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
-      <ChatUiActionContext.Provider value={uiActions}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
-          <SecondThreadContext.Provider value={secondThread}>
+      <ChatUiActionContext value={uiActions}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
+          <SecondThreadContext value={secondThread}>
             <Box
               ref={conversationRef}
               data-conversation-behind-panel={String(behindPanel)}
@@ -1247,7 +1247,7 @@ function RoomContent() {
                 />
               </MessageLinkCards>
             </Box>
-            <RoomPanelEdgeSwipeContext.Provider value={mobile && behindPanel}>
+            <RoomPanelEdgeSwipeContext value={mobile && behindPanel}>
               {sidePanel && (
                 <div
                   ref={sidePanelHostRef}
@@ -1262,7 +1262,7 @@ function RoomContent() {
                   {sidePanel}
                 </div>
               )}
-            </RoomPanelEdgeSwipeContext.Provider>
+            </RoomPanelEdgeSwipeContext>
             {/* A thread card dragged on the page drops at the room's end edge into B. */}
             {secondThread && (
               <SecondThreadDropZone
@@ -1270,9 +1270,9 @@ function RoomContent() {
                 onOpen={secondThread.open}
               />
             )}
-          </SecondThreadContext.Provider>
-        </PluginPanelControlsContext.Provider>
-      </ChatUiActionContext.Provider>
+          </SecondThreadContext>
+        </PluginPanelControlsContext>
+      </ChatUiActionContext>
     </PowerLevelsContextProvider>
   );
 }

@@ -104,10 +104,8 @@ const render = (
 ) =>
   act(() => {
     renderer = create(
-      <InlineSecretRequestsContext.Provider value={secrets}>
-        <ToolCallMessageContext.Provider
-          value={{ eventId: '$reply', roomId: '!room:x', threadId: '$root' }}
-        >
+      <InlineSecretRequestsContext value={secrets}>
+        <ToolCallMessageContext value={{ eventId: '$reply', roomId: '!room:x', threadId: '$root' }}>
           <ToolCallsFold>
             <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
             {parse(content.formatted_body, markerParserOptions({}, content))}
@@ -130,8 +128,8 @@ const render = (
               />
             )}
           </ToolCallsFold>
-        </ToolCallMessageContext.Provider>
-      </InlineSecretRequestsContext.Provider>
+        </ToolCallMessageContext>
+      </InlineSecretRequestsContext>
     );
   });
 

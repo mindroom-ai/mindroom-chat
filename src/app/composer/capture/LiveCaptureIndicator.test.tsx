@@ -290,9 +290,9 @@ describe('LiveCaptureIndicator', () => {
     store.set(liveCaptureAtom, dictationSession().entry);
     render(
       <Provider store={store}>
-        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+        <ConversationViewContext value={HOME_ASK_VIEW}>
           <VisibleCapsuleProbe showingLive />
-        </ConversationViewContext.Provider>
+        </ConversationViewContext>
         <NoticeSlot place="page" />
         <LiveCaptureIndicator />
       </Provider>

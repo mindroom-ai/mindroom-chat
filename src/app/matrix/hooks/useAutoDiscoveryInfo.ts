@@ -3,7 +3,7 @@ import type { AutoDiscoveryInfo } from '../cs-api';
 
 const AutoDiscoveryInfoContext = createContext<AutoDiscoveryInfo | null>(null);
 
-export const AutoDiscoveryInfoProvider = AutoDiscoveryInfoContext.Provider;
+export const AutoDiscoveryInfoProvider = AutoDiscoveryInfoContext;
 
 /** The homeserver's `/.well-known/matrix/client` document. */
 export function useAutoDiscoveryInfo(): AutoDiscoveryInfo {

@@ -151,8 +151,8 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
     ) : null;
 
   return (
-    <ToolCallsFoldContext.Provider value={fold}>
-      <ToolCallsCogContext.Provider value={cog}>{children}</ToolCallsCogContext.Provider>
-    </ToolCallsFoldContext.Provider>
+    <ToolCallsFoldContext value={fold}>
+      <ToolCallsCogContext value={cog}>{children}</ToolCallsCogContext>
+    </ToolCallsFoldContext>
   );
 }

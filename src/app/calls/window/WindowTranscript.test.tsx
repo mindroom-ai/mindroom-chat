@@ -105,12 +105,12 @@ const showTranscript = (split?: number) =>
 // The window's title bar, its handle (focusable, as a button is), comes before the call's body.
 const windowWith = (size: CallWindowSize) => (
   <Provider store={store}>
-    <CallWindowSizeContext.Provider value={size}>
+    <CallWindowSizeContext value={size}>
       <button type="button" data-call-window-handle="" />
       <WindowTranscript room={room}>
         <button type="button" data-stage="" />
       </WindowTranscript>
-    </CallWindowSizeContext.Provider>
+    </CallWindowSizeContext>
   </Provider>
 );
 

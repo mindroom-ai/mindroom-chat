@@ -14,7 +14,7 @@ export const ClientStartupProvider = ({
 }: ClientStartupContextValue & { children: ReactNode }) => {
   const value = useMemo(() => ({ hasCompletedInitialSync }), [hasCompletedInitialSync]);
 
-  return <ClientStartupContext.Provider value={value}>{children}</ClientStartupContext.Provider>;
+  return <ClientStartupContext value={value}>{children}</ClientStartupContext>;
 };
 
 export const useClientStartupContext = (): ClientStartupContextValue =>

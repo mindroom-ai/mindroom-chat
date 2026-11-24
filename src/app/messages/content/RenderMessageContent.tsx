@@ -209,9 +209,9 @@ function CoreMessageContent({
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (
-    <ToolCallMessageContext.Provider value={toolCallMessage}>
+    <ToolCallMessageContext value={toolCallMessage}>
       <ToolCallsFold>{agentContent}</ToolCallsFold>
-    </ToolCallMessageContext.Provider>
+    </ToolCallMessageContext>
   );
   if (callTranscript && agentMessage) {
     return (

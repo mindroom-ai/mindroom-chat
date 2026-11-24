@@ -627,7 +627,7 @@ function Spoiler({ reason, children }: { reason?: string; children: ReactNode })
       onClick={revealed ? undefined : reveal}
       onKeyDown={onKeyDown}
     >
-      <LinkFaviconContext.Provider value={false}>{children}</LinkFaviconContext.Provider>
+      <LinkFaviconContext value={false}>{children}</LinkFaviconContext>
     </span>
   );
 }

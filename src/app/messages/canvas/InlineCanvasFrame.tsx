@@ -1,8 +1,8 @@
 import {
   type ReactNode,
   type RefObject,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -397,8 +397,6 @@ export function InlineCanvasFrame({
   const { t } = useTranslation();
   const config = useClientConfig();
   const mx = useMatrixClient();
-  const actions = useContext(ChatUiActionContext);
-  const openCanvasId = actions?.openCanvasId;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
     const redacted = () => queueMicrotask(refresh);
@@ -422,9 +420,10 @@ export function InlineCanvasFrame({
     libraries: config.mindroom?.canvas?.libraries === true,
     remote: config.mindroom?.canvas?.remoteAssets === true,
   };
+  const actions = readOnly ? undefined : use(ChatUiActionContext);
   const body = readOnly ? (
     <PassiveInlineCanvas key={action.eventId} {...props} />
-  ) : openCanvasId === action.eventId ? (
+  ) : actions?.openCanvasId === action.eventId ? (
     <Text size="T300" priority="300" role="status" data-canvas-in-panel>
       {t('mindroomUi.canvas.shownInPanel')}
     </Text>
@@ -432,7 +431,7 @@ export function InlineCanvasFrame({
     // One host per canvas: its saved and shared state hooks rely on the canvas never changing under them.
     <InteractiveInlineCanvas key={action.eventId} {...props} />
   );
-  const headerAction = !readOnly && !actions?.textRequest ? actions?.read(event) : undefined;
+  const headerAction = actions && !actions.textRequest ? actions.read(event) : undefined;
   const unavailableReason = headerAction ? actions?.unavailable(headerAction) : undefined;
 
   return (

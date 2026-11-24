@@ -153,11 +153,7 @@ function RoomSwipeHarness({
   children: React.ReactNode;
 }) {
   useEdgeSwipeBack(onRoomClose, handledByRoom, { priority: SWIPE_PRIORITY.PANEL });
-  return (
-    <RoomPanelEdgeSwipeContext.Provider value={handledByRoom}>
-      {children}
-    </RoomPanelEdgeSwipeContext.Provider>
-  );
+  return <RoomPanelEdgeSwipeContext value={handledByRoom}>{children}</RoomPanelEdgeSwipeContext>;
 }
 
 describe('SubagentsPanel interactive inner detail swipes', () => {

@@ -1002,9 +1002,7 @@ const createRoomInputTree = (
   return React.createElement(
     Provider,
     { store },
-    props?.view
-      ? React.createElement(ConversationViewContext.Provider, { value: props.view }, input)
-      : input
+    props?.view ? React.createElement(ConversationViewContext, { value: props.view }, input) : input
   );
 };
 
@@ -4410,7 +4408,7 @@ describe('RoomInput', () => {
             'section',
             { 'data-composer': 'view', key: view.key ?? VIEW },
             React.createElement(
-              ConversationViewContext.Provider,
+              ConversationViewContext,
               { value: view.key ?? VIEW },
               React.createElement(RoomInput, {
                 editor: createEditor(),

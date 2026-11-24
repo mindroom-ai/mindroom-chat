@@ -76,9 +76,9 @@ const renderTwoComposers = () => {
     renderer = create(
       <Provider store={store}>
         <Composer name="page" />
-        <ConversationViewContext.Provider value={VIEW}>
+        <ConversationViewContext value={VIEW}>
           <Composer name="view" />
-        </ConversationViewContext.Provider>
+        </ConversationViewContext>
       </Provider>
     );
   });

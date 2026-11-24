@@ -23,7 +23,7 @@ const renderLink = (
       <CheckedMessageLink href={href}>{text}</CheckedMessageLink>
     </div>
   );
-  render(<MessageLinkCardContext.Provider value={show}>{parent}</MessageLinkCardContext.Provider>);
+  render(<MessageLinkCardContext value={show}>{parent}</MessageLinkCardContext>);
   return screen.getByRole('link');
 };
 

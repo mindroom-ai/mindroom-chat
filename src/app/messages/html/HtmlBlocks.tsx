@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, type JSX, useContext, useMemo, useRef, useState } from 'react';
+import React, { ReactNode, type JSX, use, useContext, useMemo, useRef, useState } from 'react';
 import {
   type DOMNode,
   Element,
@@ -491,7 +491,6 @@ function ToolRefGroupBlock({
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const fold = useContext(ToolCallsFoldContext);
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
   const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
@@ -507,7 +506,8 @@ function ToolRefGroupBlock({
     shown ? undefined : calls.map((tool) => ({ toolName: tool.toolName, state: stateOf(tool) }))
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
-  if (!shown && fold && !fold.open) return null;
+  const fold = shown ? undefined : use(ToolCallsFoldContext);
+  if (fold && !fold.open) return null;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Only a running call shows how long it has run; the line shows the one that started first.
@@ -519,7 +519,7 @@ function ToolRefGroupBlock({
 
   return (
     <ThreadActivity
-      rootRef={!shown && fold?.open ? fold.registerRun : undefined}
+      rootRef={fold?.open ? fold.registerRun : undefined}
       icon={
         <ActivityIcon
           src={icon.src}
@@ -600,11 +600,11 @@ function InlineSecretRequestBlock({
 }) {
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const fold = useContext(ToolCallsFoldContext);
   const { eventId, request, agentUserId } = secret;
   const toolName = request.kind === 'key' ? request.displayName : (request.label ?? request.env);
   const roomId = message?.roomId;
-  const hidden = !shown && !!fold && !fold.open;
+  const fold = shown ? undefined : use(ToolCallsFoldContext);
+  const hidden = !!fold && !fold.open;
   const { line, taken, lineRef } = useSecretRequestLine(eventId, !!roomId, hidden);
   useFoldedToolCalls(
     shown || taken ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
@@ -615,7 +615,7 @@ function InlineSecretRequestBlock({
   return (
     <SecretRequestLine
       lineRef={lineRef}
-      rootRef={!shown && fold?.open ? fold.registerRun : undefined}
+      rootRef={fold?.open ? fold.registerRun : undefined}
       eventId={eventId}
       request={request}
       roomId={roomId}

@@ -128,7 +128,7 @@ const renderHarness = (
       { store },
       options?.view !== undefined
         ? React.createElement(
-            ConversationViewContext.Provider,
+            ConversationViewContext,
             { value: options.view },
             React.createElement(Harness, props)
           )

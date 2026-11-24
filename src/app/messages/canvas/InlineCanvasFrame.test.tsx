@@ -89,7 +89,7 @@ const render = (
     root.render(
       <MatrixClientProvider value={fixture.mx}>
         <ClientConfigProvider value={{ mindroom: { canvas: { enabled, remoteAssets } } }}>
-          <ChatUiActionContext.Provider
+          <ChatUiActionContext
             value={{
               read,
               unavailable,
@@ -98,7 +98,7 @@ const render = (
             }}
           >
             <InlineCanvasFrame event={request} readOnly={readOnly} fallback={fallback} />
-          </ChatUiActionContext.Provider>
+          </ChatUiActionContext>
         </ClientConfigProvider>
       </MatrixClientProvider>
     )

@@ -189,15 +189,15 @@ export function MessageExtras({
             <div className={css.Content}>
               {/* Only the reply's body draws a secret request at its call, and gives
               approval cards to calls by their tool's name. */}
-              <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
-                <ToolApprovalsByNameContext.Provider value={false}>
+              <InlineSecretRequestsContext value={NO_INLINE_SECRET_REQUESTS}>
+                <ToolApprovalsByNameContext value={false}>
                   <MessageExtraSectionContent
                     content={section.content}
                     contentType={section.contentType}
                     htmlReactParserOptions={parserOptions}
                   />
-                </ToolApprovalsByNameContext.Provider>
-              </InlineSecretRequestsContext.Provider>
+                </ToolApprovalsByNameContext>
+              </InlineSecretRequestsContext>
             </div>
           </MessageExtraDetails>
         );

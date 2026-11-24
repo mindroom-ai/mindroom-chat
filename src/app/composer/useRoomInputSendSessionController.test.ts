@@ -341,7 +341,7 @@ const renderHarness = (
       act(() => {
         viewRenderer = create(
           React.createElement(
-            ConversationViewContext.Provider,
+            ConversationViewContext,
             { value: 'thread-view' },
             React.createElement(TestHarness, {
               ...props,

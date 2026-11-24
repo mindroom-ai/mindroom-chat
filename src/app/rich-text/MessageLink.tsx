@@ -1,4 +1,4 @@
-import React, { ComponentPropsWithoutRef, createContext, useContext, useState } from 'react';
+import React, { ComponentPropsWithoutRef, createContext, use, useState } from 'react';
 
 // Spoiler text never starts a favicon lookup, even after disclosure.
 // Links show icons only inside a provider that allows them (RenderBody, from config.json).
@@ -87,8 +87,7 @@ export function MessageLink({
   showFavicon = false,
   ...props
 }: ComponentPropsWithoutRef<'a'> & { showFavicon?: boolean }) {
-  const allowed = useContext(LinkFaviconContext);
-  const iconUrl = showFavicon && allowed ? getIconUrl(props.href) : undefined;
+  const iconUrl = showFavicon && use(LinkFaviconContext) ? getIconUrl(props.href) : undefined;
   return (
     <a {...props}>
       {iconUrl && <SiteIcon key={iconUrl} src={iconUrl} />}

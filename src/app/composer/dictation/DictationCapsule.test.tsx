@@ -291,9 +291,9 @@ describe('DictationCapsule', () => {
 
     const homeLive = render(
       <Provider store={store}>
-        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+        <ConversationViewContext value={HOME_ASK_VIEW}>
           <DictationCapsule snapshot={baseSnapshot({ phase: 'recording' })} showingLive {...h} />
-        </ConversationViewContext.Provider>
+        </ConversationViewContext>
       </Provider>
     );
     expect(store.get(liveCaptureCapsulesShownAtom)).toBe(1);

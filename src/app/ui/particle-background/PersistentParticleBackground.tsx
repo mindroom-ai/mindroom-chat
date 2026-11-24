@@ -50,14 +50,14 @@ export function PersistentParticleBackgroundProvider({ children }: { children: R
   }, []);
 
   return (
-    <PersistentParticleBackgroundContext.Provider value={acquire}>
+    <PersistentParticleBackgroundContext value={acquire}>
       {active && (
         <div className={css.PersistentParticleBackground}>
           <MindRoomParticleBackground position="fixed" />
         </div>
       )}
       {children}
-    </PersistentParticleBackgroundContext.Provider>
+    </PersistentParticleBackgroundContext>
   );
 }
 
