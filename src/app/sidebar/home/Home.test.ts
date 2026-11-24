@@ -132,9 +132,9 @@ vi.mock('../room-nav/RoomNavItem', () => ({
 }));
 vi.mock('../room-nav/roomOrder', () => ({
   HOME_ROOM_LIST: 'home',
-  useRoomOrder: (_listId: string, roomIds: string[]) => ({
-    roomIds,
-    manual: false,
+  useRoomOrders: () => ({
+    orderOf: (_listId: string, roomIds: readonly string[]) => [...roomIds],
+    isManual: () => false,
     save: vi.fn(),
     reset: vi.fn(),
   }),

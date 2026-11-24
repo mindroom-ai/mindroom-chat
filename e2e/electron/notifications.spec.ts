@@ -299,12 +299,13 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
     // 1. Message notification + Dock badge while main window is hidden.
     const badgeBeforeFirst = (await lastBadgeCount(app)) ?? 0;
     await hideMainWindow(app);
-    await sendRoomMessage(
+    const firstEventId = await sendRoomMessage(
       homeserver,
       writer.accessToken,
       busyId,
       threadMention(rootId, reader.userId, 'check the release notes')
     );
+    const firstTag = `${busyId}:${firstEventId}`;
     await expect
       .poll(() => lastBadgeCount(app) ?? 0, { timeout: 30_000 })
       .toBeGreaterThan(badgeBeforeFirst);
@@ -312,13 +313,13 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
       await expect.poll(() => dockBadge(app), { timeout: 10_000 }).toMatch(/^[1-9]/);
     }
     await expect
-      .poll(async () => (await recordedNotes(page)).findIndex((n) => n.tag === busyId), {
+      .poll(async () => (await recordedNotes(page)).findIndex((n) => n.tag === firstTag), {
         timeout: 30_000,
       })
       .toBeGreaterThanOrEqual(0);
     await clickNote(
       page,
-      (await recordedNotes(page)).findIndex((n) => n.tag === busyId)
+      (await recordedNotes(page)).findIndex((n) => n.tag === firstTag)
     );
     await expect.poll(() => mainWindowVisible(app), { timeout: 15_000 }).toBe(true);
     await expect(page).toHaveURL(
@@ -335,19 +336,22 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
     await expect
       .poll(() => page.evaluate(() => window.mindroomDesktop?.isWindowFocused()))
       .toBe(false);
-    await sendRoomMessage(
+    const hiddenReplyId = await sendRoomMessage(
       homeserver,
       writer.accessToken,
       busyId,
       threadMention(rootId, reader.userId, 'reply while hidden on open thread')
     );
+    const hiddenReplyTag = `${busyId}:${hiddenReplyId}`;
     await expect
       .poll(
         async () =>
           (
             await recordedNotes(page)
           ).findIndex(
-            (n) => n.tag === busyId && (n.body ?? '').includes('reply while hidden on open thread')
+            (n) =>
+              n.tag === hiddenReplyTag &&
+              (n.body ?? '').includes('reply while hidden on open thread')
           ),
         { timeout: 30_000 }
       )
@@ -402,15 +406,16 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
         }),
       }
     );
-    const callTag = `call-ring-${callId}`;
+    const callTagPrefix = `call-ring-${callId}:`;
     await expect
-      .poll(async () => (await recordedNotes(page)).findIndex((n) => n.tag === callTag), {
-        timeout: 30_000,
-      })
+      .poll(
+        async () => (await recordedNotes(page)).findIndex((n) => n.tag?.startsWith(callTagPrefix)),
+        { timeout: 30_000 }
+      )
       .toBeGreaterThanOrEqual(0);
     await clickNote(
       page,
-      (await recordedNotes(page)).findIndex((n) => n.tag === callTag)
+      (await recordedNotes(page)).findIndex((n) => n.tag?.startsWith(callTagPrefix))
     );
     await expect.poll(() => mainWindowVisible(app), { timeout: 15_000 }).toBe(true);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(callId)));
@@ -482,7 +487,7 @@ test('@homeserver hidden window for >5 minutes still raises one notification and
     await new Promise((resolve) => setTimeout(resolve, hiddenMs));
     expect(await mainWindowVisible(app)).toBe(false);
 
-    await sendRoomMessage(
+    const wakeEventId = await sendRoomMessage(
       homeserver,
       writer.accessToken,
       busyId,
@@ -494,7 +499,7 @@ test('@homeserver hidden window for >5 minutes still raises one notification and
         {
           title: 'desktop_p9_long Busy',
           body: expect.stringContaining('wake up after five minutes'),
-          tag: busyId,
+          tag: `${busyId}:${wakeEventId}`,
         },
       ]);
 

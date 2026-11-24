@@ -40,4 +40,27 @@ describe('call memberships', () => {
       '@alice:example.org:PHONE'
     );
   });
+
+  it('reads screen-only companion metadata from applicationData', () => {
+    const companion = {
+      userId: '@alice:example.com',
+      deviceId: 'IPHONE-screen',
+      createdTs: () => 50,
+      isExpired: () => false,
+      applicationData: {
+        type: 'm.call',
+        'chat.mindroom.screen_only': true,
+        'chat.mindroom.screen_parent_device_id': 'IPHONE',
+      },
+    } as unknown as CallMembership;
+    expect(activeMemberships({ memberships: [companion] })).toEqual([
+      {
+        userId: '@alice:example.com',
+        deviceId: 'IPHONE-screen',
+        createdTs: 50,
+        screenOnly: true,
+        screenParentDeviceId: 'IPHONE',
+      },
+    ]);
+  });
 });

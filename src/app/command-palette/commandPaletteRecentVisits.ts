@@ -1,17 +1,21 @@
 /** How many of the rows visited last lead the Threads and Rooms sections while nothing is typed. */
 export const RECENT_VISIT_PINS = 3;
 
-/** What a visited row gains for typed text: more than an unread thread (10). */
-const RECENT_VISIT_BOOST = 20;
+/** What a pinned recent visit gains for typed text: more than an unread thread (10). */
+const RECENT_VISIT_PIN_BOOST = 20;
+
+/** What an older remembered visit gains for typed text: less than an unread thread (10). */
+const RECENT_VISIT_BOOST = 5;
 
 type RankedRow = { id: string; sortRank?: number; boost?: number; recentVisit?: boolean };
 
 /**
  * Lifts the rows the user visited last. `visitedIds` are row IDs, newest visit first; the open row
  * (`openId`) is never lifted and keeps its place. The first `RECENT_VISIT_PINS` visited rows the
- * list holds rank above every other row, newest visit first, so they lead while nothing is typed;
- * every visited row gains `RECENT_VISIT_BOOST` for typed text. Typed matches of one score and boost
- * fall back to that rank too, so among them the visit last made still comes first.
+ * list holds rank above every other row, newest visit first, so they lead while nothing is typed,
+ * and gain `RECENT_VISIT_PIN_BOOST` for typed text; older remembered visits keep their rank and
+ * gain `RECENT_VISIT_BOOST`. Typed matches of one score and boost fall back to that rank too, so
+ * among them the visit last made still comes first.
  */
 export const withRecentVisits = <T extends RankedRow>(
   rows: T[],
@@ -32,7 +36,7 @@ export const withRecentVisits = <T extends RankedRow>(
     return {
       ...row,
       sortRank: pinned ? topRank + RECENT_VISIT_PINS - visit : row.sortRank,
-      boost: (row.boost ?? 0) + RECENT_VISIT_BOOST,
+      boost: (row.boost ?? 0) + (pinned ? RECENT_VISIT_PIN_BOOST : RECENT_VISIT_BOOST),
       ...(pinned ? { recentVisit: true } : undefined),
     };
   });

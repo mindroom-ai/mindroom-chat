@@ -521,7 +521,8 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
+        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni",
+        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avvisi di terze parti",
         "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
         "debugMode": "Modalità debug",
-        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata."
+        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata.",
+        "updatesTitle": "Aggiornamenti dell’app",
+        "updatesDescription": "Gli aggiornamenti vengono scaricati automaticamente in background.",
+        "checkForUpdates": "Verifica aggiornamenti",
+        "checkingForUpdates": "Verifica degli aggiornamenti…",
+        "upToDate": "MindRoom è aggiornato.",
+        "updateAvailable": "È disponibile un aggiornamento. Potrai riavviare qui non appena sarà pronto.",
+        "updateCheckFailed": "Impossibile verificare gli aggiornamenti in questo momento. Riprova.",
+        "updateReady": "La versione {{version}} è pronta per l’installazione.",
+        "restartToUpdate": "Riavvia per aggiornare",
+        "updateInstallFailed": "Impossibile riavviare per installare l’aggiornamento. Riprova."
       }
     },
     "createChat": {
@@ -546,7 +557,6 @@
     },
     "spaceNav": {
       "options": "Opzioni dello spazio",
-      "subspaces": "Sottospazi",
       "subspaceUnread": "{{name}}, messaggi non letti",
       "backToParent": "Torna a {{name}}"
     },
@@ -577,7 +587,13 @@
         "shareAgain": "Condividi di nuovo",
         "microphoneStopped": "Il tuo microfono si è interrotto.",
         "cameraStopped": "La tua fotocamera si è interrotta.",
-        "turnBackOn": "Riattiva"
+        "turnBackOn": "Riattiva",
+        "nativeScreenShareConnecting": "Connessione della condivisione schermo in corso…",
+        "nativeScreenShareFailed": "Impossibile condividere l’intero schermo.",
+        "nativeScreenSharePickerTimedOut": "La condivisione dello schermo non è partita in tempo.",
+        "nativeScreenShareStopped": "La condivisione dello schermo si è interrotta.",
+        "nativeScreenShareSheetBody": "Tutto ciò che compare sul tuo schermo, incluse le notifiche e le altre app, sarà visibile nella chiamata.",
+        "nativeScreenShareSheetCaption": "Tocca il pulsante sopra, poi tocca Avvia trasmissione."
       },
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
@@ -884,7 +900,9 @@
     "call": {
       "controls": {
         "startAppShare": "Condividi questa app",
-        "stopAppShare": "Interrompi la condivisione di questa app"
+        "stopAppShare": "Interrompi la condivisione di questa app",
+        "startEntireScreenShare": "Condividi l’intero schermo",
+        "stopEntireScreenShare": "Interrompi la condivisione dell’intero schermo"
       }
     }
   },
@@ -1440,8 +1458,10 @@
       "cancel": "Annulla dettatura",
       "pause": "Metti in pausa dettatura",
       "resume": "Riprendi dettatura",
-      "finish": "Termina dettatura",
+      "finish": "Inserisci nel campo di testo",
+      "finishAndSend": "Termina e invia",
       "retry": "Riprova",
+      "retryAndSend": "Riprova e invia",
       "insertPartial": "Inserisci testo parziale",
       "discard": "Scarta",
       "dismissError": "Chiudi errore di dettatura",
@@ -1450,6 +1470,10 @@
       "statusListening": "Dettatura in corso",
       "statusPaused": "Dettatura in pausa",
       "statusFinishing": "Completamento...",
+      "statusSending": "Completamento e invio...",
+      "noSpeech": "Nessuna voce rilevata.",
+      "noSpeechOffThread": "Nessuna voce rilevata in {{room}}.",
+      "sendFailedOffThread": "Impossibile completare il messaggio dettato in {{room}}. Aprilo per riprovare.",
       "statusPendingRetry_one": "{{count}} segmento in attesa di nuovo tentativo",
       "statusPendingRetry_many": "{{count}} segmenti in attesa di nuovo tentativo",
       "statusPendingRetry_other": "{{count}} segmenti in attesa di nuovo tentativo",

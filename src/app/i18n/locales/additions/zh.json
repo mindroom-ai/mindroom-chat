@@ -495,7 +495,8 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "plugins": "插件, 扩展, 附加组件, 集成"
+        "plugins": "插件, 扩展, 附加组件, 集成",
+        "appUpdates": "更新, 版本, 升级, 重启"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "第三方声明",
         "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
         "debugMode": "调试模式",
-        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。"
+        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。",
+        "updatesTitle": "应用更新",
+        "updatesDescription": "更新会在后台自动下载。",
+        "checkForUpdates": "检查更新",
+        "checkingForUpdates": "正在检查更新…",
+        "upToDate": "MindRoom 已是最新版本。",
+        "updateAvailable": "有可用更新。准备就绪后可在此处重启。",
+        "updateCheckFailed": "目前无法检查更新，请重试。",
+        "updateReady": "版本 {{version}} 已准备好安装。",
+        "restartToUpdate": "重启以更新",
+        "updateInstallFailed": "无法重启以安装更新，请重试。"
       }
     },
     "createChat": {
@@ -520,7 +531,6 @@
     },
     "spaceNav": {
       "options": "空间选项",
-      "subspaces": "子空间",
       "subspaceUnread": "{{name}}，有未读消息",
       "backToParent": "返回 {{name}}"
     },
@@ -549,7 +559,13 @@
         "shareAgain": "重新共享",
         "microphoneStopped": "你的麦克风已停止。",
         "cameraStopped": "你的摄像头已停止。",
-        "turnBackOn": "重新开启"
+        "turnBackOn": "重新开启",
+        "nativeScreenShareConnecting": "正在连接屏幕共享…",
+        "nativeScreenShareFailed": "无法共享你的整个屏幕。",
+        "nativeScreenSharePickerTimedOut": "屏幕共享未能及时开始。",
+        "nativeScreenShareStopped": "屏幕共享已停止。",
+        "nativeScreenShareSheetBody": "你屏幕上的所有内容（包括通知和其他应用）都将对通话可见。",
+        "nativeScreenShareSheetCaption": "轻点上方按钮，然后轻点“开始直播”。"
       },
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
@@ -850,7 +866,9 @@
     "call": {
       "controls": {
         "startAppShare": "共享此应用",
-        "stopAppShare": "停止共享此应用"
+        "stopAppShare": "停止共享此应用",
+        "startEntireScreenShare": "共享整个屏幕",
+        "stopEntireScreenShare": "停止共享整个屏幕"
       }
     }
   },
@@ -1350,8 +1368,10 @@
       "cancel": "取消听写",
       "pause": "暂停听写",
       "resume": "继续听写",
-      "finish": "完成听写",
+      "finish": "完成并插入输入框",
+      "finishAndSend": "完成并发送",
       "retry": "重试",
+      "retryAndSend": "重试并发送",
       "insertPartial": "插入部分文本",
       "discard": "放弃",
       "dismissError": "关闭听写错误",
@@ -1360,6 +1380,10 @@
       "statusListening": "正在听写",
       "statusPaused": "听写已暂停",
       "statusFinishing": "正在完成...",
+      "statusSending": "正在完成并发送...",
+      "noSpeech": "未检测到语音。",
+      "noSpeechOffThread": "在 {{room}} 中未检测到语音。",
+      "sendFailedOffThread": "无法完成 {{room}} 中的听写消息。请打开并重试。",
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",

@@ -24,6 +24,7 @@ const WEB: SettingsContext = {
   developerTools: false,
   errorReporting: false,
   railButtons: { threads: true, canvases: true, explore: true },
+  nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
 };
@@ -154,6 +155,16 @@ describe('settings registry', () => {
     expect(getShownSettings(WEB).map((setting) => setting.id)).not.toContain('macApp');
     expect(found({ ...WEB, macApp: true }, 'mac')).toContain('macApp');
     expect(found({ ...WEB, macApp: true }, 'homebrew')).toEqual(['macApp']);
+  });
+
+  it('lists App updates on About only when nativeUpdate is true, where search finds it', () => {
+    const found = (context: SettingsContext, query: string) =>
+      searchSettings(query, getShownSettings(context), (key, values) =>
+        translateFromEn(key, values)
+      ).map(({ setting }) => setting.id);
+    expect(getShownSettings(WEB).map((setting) => setting.id)).not.toContain('appUpdates');
+    expect(found({ ...WEB, nativeUpdate: true }, 'updates')).toContain('appUpdates');
+    expect(found({ ...WEB, nativeUpdate: true }, 'upgrade')).toEqual(['appUpdates']);
   });
 
   it('labels the roaming settings with the account and keeps every other app setting on the device', () => {

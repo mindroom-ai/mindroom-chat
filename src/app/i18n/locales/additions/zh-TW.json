@@ -495,7 +495,8 @@
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
-        "plugins": "外掛程式, 插件, 擴充功能, 整合"
+        "plugins": "外掛程式, 插件, 擴充功能, 整合",
+        "appUpdates": "更新, 版本, 升級, 重新啟動"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "第三方聲明",
         "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
         "debugMode": "除錯模式",
-        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。"
+        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。",
+        "updatesTitle": "應用程式更新",
+        "updatesDescription": "更新會在背景自動下載。",
+        "checkForUpdates": "檢查更新",
+        "checkingForUpdates": "正在檢查更新…",
+        "upToDate": "MindRoom 已是最新版本。",
+        "updateAvailable": "有可用更新。準備就緒後可在此處重新啟動。",
+        "updateCheckFailed": "目前無法檢查更新，請再試一次。",
+        "updateReady": "版本 {{version}} 已準備好安裝。",
+        "restartToUpdate": "重新啟動以更新",
+        "updateInstallFailed": "無法重新啟動以安裝更新，請再試一次。"
       }
     },
     "createChat": {
@@ -520,7 +531,6 @@
     },
     "spaceNav": {
       "options": "空間選項",
-      "subspaces": "子空間",
       "subspaceUnread": "{{name}}，有未讀訊息",
       "backToParent": "返回 {{name}}"
     },
@@ -549,7 +559,13 @@
         "shareAgain": "再次分享",
         "microphoneStopped": "你的麥克風已停止。",
         "cameraStopped": "你的攝影機已停止。",
-        "turnBackOn": "重新開啟"
+        "turnBackOn": "重新開啟",
+        "nativeScreenShareConnecting": "正在連線螢幕分享…",
+        "nativeScreenShareFailed": "無法分享你的整個螢幕。",
+        "nativeScreenSharePickerTimedOut": "螢幕分享未能及時開始。",
+        "nativeScreenShareStopped": "螢幕分享已停止。",
+        "nativeScreenShareSheetBody": "你螢幕上的所有內容（包括通知和其他應用程式）都會在通話中顯示。",
+        "nativeScreenShareSheetCaption": "點一下上方按鈕，然後點一下「開始直播」。"
       },
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
@@ -850,7 +866,9 @@
     "call": {
       "controls": {
         "startAppShare": "分享此應用程式",
-        "stopAppShare": "停止分享此應用程式"
+        "stopAppShare": "停止分享此應用程式",
+        "startEntireScreenShare": "分享整個螢幕",
+        "stopEntireScreenShare": "停止分享整個螢幕"
       }
     }
   },
@@ -1350,8 +1368,10 @@
       "cancel": "取消聽寫",
       "pause": "暫停聽寫",
       "resume": "繼續聽寫",
-      "finish": "完成聽寫",
+      "finish": "完成並插入輸入框",
+      "finishAndSend": "完成並傳送",
       "retry": "重試",
+      "retryAndSend": "重試並傳送",
       "insertPartial": "插入部分文字",
       "discard": "捨棄",
       "dismissError": "關閉聽寫錯誤",
@@ -1360,6 +1380,10 @@
       "statusListening": "正在聽寫",
       "statusPaused": "聽寫已暫停",
       "statusFinishing": "正在完成...",
+      "statusSending": "正在完成並傳送...",
+      "noSpeech": "未偵測到語音。",
+      "noSpeechOffThread": "在 {{room}} 中未偵測到語音。",
+      "sendFailedOffThread": "無法完成 {{room}} 中的聽寫訊息。請開啟並重試。",
       "statusPendingRetry_other": "{{count}} 個片段等待重試",
       "capReached": "已達到 5:00 上限",
       "micInterrupted": "麥克風已中斷連線。請繼續或完成。",

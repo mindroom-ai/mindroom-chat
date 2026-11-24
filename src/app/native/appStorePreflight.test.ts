@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  BROADCAST_EXTENSION_INFO_PLIST_PATH,
   NOTIFICATION_SERVICE_INFO_PLIST_PATH,
   WATCH_INFO_PLIST_PATH,
   XCODE_PROJECT_PATH,
   appStoreVersionProblems,
+  broadcastExtensionUploadProblems,
   notificationServiceUploadProblems,
   watchAppUploadProblems,
 } from '../../../scripts/appstore-preflight.mjs';
@@ -24,6 +26,10 @@ const checkedInInfoPlist = readFileSync(join(repoRoot, INFO_PLIST_PATH), 'utf8')
 const checkedInWatchInfoPlist = readFileSync(join(repoRoot, WATCH_INFO_PLIST_PATH), 'utf8');
 const checkedInNotificationServiceInfoPlist = readFileSync(
   join(repoRoot, NOTIFICATION_SERVICE_INFO_PLIST_PATH),
+  'utf8'
+);
+const checkedInBroadcastExtensionInfoPlist = readFileSync(
+  join(repoRoot, BROADCAST_EXTENSION_INFO_PLIST_PATH),
   'utf8'
 );
 
@@ -192,6 +198,77 @@ describe('notificationServiceUploadProblems', () => {
   });
 });
 
+describe('broadcastExtensionUploadProblems', () => {
+  const broadcastProblems = (
+    overrides: Partial<Parameters<typeof broadcastExtensionUploadProblems>[0]> = {}
+  ): string[] =>
+    broadcastExtensionUploadProblems({
+      projectText: checkedInProject,
+      infoPlistText: checkedInInfoPlist,
+      broadcastExtensionInfoPlistText: checkedInBroadcastExtensionInfoPlist,
+      ...overrides,
+    });
+
+  it('accepts the Broadcast Upload Extension configuration', () => {
+    expect(broadcastProblems()).toEqual([]);
+  });
+
+  it('rejects a version or build mismatch with App', () => {
+    const mismatchedVersion = replaceAppTargetBuildSetting(
+      checkedInProject,
+      'MARKETING_VERSION',
+      '9.9.9',
+      'MindRoomBroadcast'
+    );
+    expect(broadcastProblems({ projectText: mismatchedVersion })).toEqual([
+      expect.stringContaining('Target MindRoomBroadcast MARKETING_VERSION (9.9.9) must match App'),
+    ]);
+
+    const mismatchedBuild = replaceAppTargetBuildSetting(
+      checkedInProject,
+      'CURRENT_PROJECT_VERSION',
+      '99999',
+      'MindRoomBroadcast'
+    );
+    expect(broadcastProblems({ projectText: mismatchedBuild })).toEqual([
+      expect.stringContaining(
+        'Target MindRoomBroadcast CURRENT_PROJECT_VERSION (99999) must match App'
+      ),
+    ]);
+  });
+
+  it('rejects invalid extension Info.plist values and missing App Info.plist keys', () => {
+    const badExtPlist = checkedInBroadcastExtensionInfoPlist
+      .replace('<string>$(MARKETING_VERSION)</string>', '<string>1.0.0</string>')
+      .replace('<string>com.apple.broadcast-services-upload</string>', '<string>com.apple.wrong</string>')
+      .replace('<string>RPBroadcastProcessModeSampleBuffer</string>', '<string>WrongMode</string>')
+      .replace('<string>group.chat.mindroom.app</string>', '<string>group.wrong</string>');
+    expect(broadcastProblems({ broadcastExtensionInfoPlistText: badExtPlist })).toEqual([
+      "MindRoomBroadcast Info.plist CFBundleShortVersionString must be $(MARKETING_VERSION), got '1.0.0'.",
+      "MindRoomBroadcast Info.plist NSExtensionPointIdentifier must be com.apple.broadcast-services-upload, got 'com.apple.wrong'.",
+      "MindRoomBroadcast Info.plist RPBroadcastProcessMode must be RPBroadcastProcessModeSampleBuffer, got 'WrongMode'.",
+      "MindRoomBroadcast Info.plist RTCAppGroupIdentifier must be group.chat.mindroom.app, got 'group.wrong'.",
+    ]);
+
+    const badAppPlist = checkedInInfoPlist
+      .replace('<string>group.chat.mindroom.app</string>', '<string>group.wrong</string>')
+      .replace('<string>chat.mindroom.app.broadcast</string>', '');
+    expect(broadcastProblems({ infoPlistText: badAppPlist })).toEqual([
+      "App Info.plist RTCAppGroupIdentifier must be group.chat.mindroom.app, got 'group.wrong'.",
+      "App Info.plist RTCScreenSharingExtension must be chat.mindroom.app.broadcast, got '(missing)'.",
+    ]);
+  });
+
+  it('updates MindRoomBroadcast versions in ci_pre_xcodebuild.sh', () => {
+    const ciPreXcodebuild = readFileSync(
+      join(repoRoot, 'ios/App/ci_scripts/ci_pre_xcodebuild.sh'),
+      'utf8'
+    );
+    const targetsMatch = ciPreXcodebuild.match(/const targets = \[([^\]]+)\];/);
+    expect(targetsMatch?.[1]).toContain("'MindRoomBroadcast'");
+  });
+});
+
 describe('appstore-preflight.mjs', () => {
   const checkouts: string[] = [];
   afterEach(() => {
@@ -206,6 +283,7 @@ describe('appstore-preflight.mjs', () => {
       [INFO_PLIST_PATH]: checkedInInfoPlist,
       [WATCH_INFO_PLIST_PATH]: checkedInWatchInfoPlist,
       [NOTIFICATION_SERVICE_INFO_PLIST_PATH]: checkedInNotificationServiceInfoPlist,
+      [BROADCAST_EXTENSION_INFO_PLIST_PATH]: checkedInBroadcastExtensionInfoPlist,
     };
     Object.entries(files).forEach(([path, content]) => {
       mkdirSync(dirname(join(root, path)), { recursive: true });

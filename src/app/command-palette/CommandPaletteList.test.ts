@@ -179,6 +179,40 @@ describe('CommandPaletteList', () => {
     expect(space.findByProps({ className: 'Tag' })).toBe(tags[0]);
   });
 
+  it('marks resolved threads with data-resolved, a check icon and a Resolved tag', () => {
+    const thread = (threadId: string, summaryText: string, isResolved: boolean) => ({
+      id: `thread:!a:example.org:${threadId}`,
+      kind: 'thread' as const,
+      roomId: '!a:example.org',
+      threadId,
+      summaryText,
+      roomName: 'Product',
+      isResolved,
+    });
+    const renderer = renderList({
+      sections: [
+        {
+          id: 'threads',
+          title: 'Threads',
+          items: [
+            thread('$open', 'Mobile widget rollout', false),
+            thread('$done', 'Widget layout glitch', true),
+          ],
+        },
+      ],
+    });
+
+    const rowById = (itemId: string) => renderer.root.findByProps({ 'data-item-id': itemId });
+    const openRow = rowById('thread:!a:example.org:$open');
+    const resolvedRow = rowById('thread:!a:example.org:$done');
+    expect(openRow.props['data-resolved']).toBeUndefined();
+    expect(openRow.findByType('row-icon' as never).props.src).toBe('message');
+    expect(openRow.findAllByProps({ className: 'Tag' })).toHaveLength(0);
+    expect(resolvedRow.props['data-resolved']).toBe('true');
+    expect(resolvedRow.findByType('row-icon' as never).props.src).toBe('check');
+    expect(resolvedRow.findByProps({ className: 'Tag' }).children).toEqual(['Resolved']);
+  });
+
   it('shows a message hit with its sender, room, thread, marked match and time', () => {
     const renderer = renderList({
       sections: [

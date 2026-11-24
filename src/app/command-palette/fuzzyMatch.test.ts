@@ -82,6 +82,18 @@ describe('matchWord order', () => {
     expect(match('cr', 'Create Room')?.score).toBe(match('cr', 'Crumbs')?.score);
   });
 
+  it('grants the start-of-field score bonus only to names while still preferring earlier words via detail', () => {
+    for (const query of ['widg', 'widget']) {
+      const first = match(query, 'Widget layout glitch', false);
+      const later = match(query, 'Mobile widget rollout', false);
+      expect(first?.score).toBe(later?.score);
+      expect(first!.detail).toBeGreaterThan(later!.detail);
+      expect(match(query, 'Widget layout glitch', true)!.score).toBeGreaterThan(
+        match(query, 'Mobile widget rollout', true)!.score
+      );
+    }
+  });
+
   it('ranks a whole word above a longer word that starts the same', () => {
     expect(ranked('john', ['Johnson Account', 'Johnny Appleseed', 'John Smith'])[0]).toBe(
       'John Smith'

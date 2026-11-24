@@ -270,27 +270,45 @@ describe('registeredPlugins', () => {
         version: '1.0.0',
         name: '   ',
         description: '   ',
+        defaultEnabled: true,
         plugin: {},
       },
       {
         id: 'custom-id',
         version: '1.0.0',
         name: '  My Custom Plugin  ',
+        defaultEnabled: false,
         plugin: {},
       }
     );
     try {
       const loaded = await loadRegistry();
       expect(
-        loaded.map(({ id, displayName, description }) => ({ id, displayName, description }))
+        loaded.map(({ id, displayName, description, defaultEnabled }) => ({
+          id,
+          displayName,
+          description,
+          defaultEnabled,
+        }))
       ).toEqual([
         {
           id: 'pull-requests',
           displayName: 'Pull Requests',
           description: 'Review pull requests in rooms',
+          defaultEnabled: true,
         },
-        { id: 'thread-usage', displayName: 'Thread Usage', description: undefined },
-        { id: 'custom-id', displayName: 'My Custom Plugin', description: undefined },
+        {
+          id: 'thread-usage',
+          displayName: 'Thread Usage',
+          description: undefined,
+          defaultEnabled: true,
+        },
+        {
+          id: 'custom-id',
+          displayName: 'My Custom Plugin',
+          description: undefined,
+          defaultEnabled: false,
+        },
       ]);
     } finally {
       entries.list.splice(0, entries.list.length, ...original);

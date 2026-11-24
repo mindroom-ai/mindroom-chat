@@ -111,6 +111,7 @@ import {
 import { useRoomInputVoice } from './useRoomInputVoice';
 import { VoiceMessageIcon } from './voice/VoiceMessageIcon';
 import { useRoomInputDictation } from './dictation/useRoomInputDictation';
+import { handoffComposerDictationSend } from './dictation/dictationSendHandoff';
 import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
@@ -415,6 +416,27 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store, userId, view]
     );
 
+    const restoreReplyDraft = useCallback(
+      (saved: IReplyDraft) => {
+        const replyAtom = composerReplyDraftAtom(roomId, view);
+        if (store.get(replyAtom) !== undefined) return;
+        store.set(replyAtom, saved);
+        if (userId && view === undefined) keepReplyDraft(userId, roomId, saved);
+      },
+      [roomId, store, userId, view]
+    );
+
+    const restoreDictationAttachments = useCallback(
+      (targetRoomId: string, items: TUploadItem[]) => {
+        const existing = new Set(
+          attachments.access.snapshot(targetRoomId).staged.map((item) => item.file)
+        );
+        const missing = items.filter((item) => !existing.has(item.file));
+        if (missing.length > 0) attachments.access.append(targetRoomId, missing);
+      },
+      [attachments.access]
+    );
+
     const askedAgent = ask?.agentUserId;
     const askedDirect = !!ask?.isDirect;
     const restoreComposerFallbackForRoom = useCallback(
@@ -511,9 +533,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const dictation = useRoomInputDictation({
       editor,
       roomId,
+      threadId,
       ownerKey: dictationOwnerKey,
+      sendKey: textKey,
       rootRef,
       conversationHidden,
+      onCommandProblem: setCommandProblem,
+      restoreAttachments: restoreDictationAttachments,
+      restoreReplyDraft,
+      saveDraft,
     });
 
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
@@ -572,11 +600,78 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
+    const dictationHandoffRef = useLatestRef({
+      ownerKey: textKey,
+      ownershipKey: dictationOwnerKey,
+      draftKey: textKey,
+      room,
+      roomId,
+      roomName,
+      threadId,
+      draftThreadId,
+      replyDraft,
+      threadingEnabled,
+      forkFrom,
+      isMarkdown,
+      linkSchemes,
+      parseCommands,
+      commands,
+      ask,
+      restoreReplyDraft,
+      sessions,
+    });
+
     const submit = useCallback(
       async (explicitMode: MidTurnMode | undefined, waited: boolean) => {
-        if (dictation.blocksSubmit) return;
+        const liveDictation = dictation.getLiveStatus();
+        if (liveDictation === 'blocked') return;
         if (voiceActive && voice.blocksSubmit()) return;
         const mode = explicitMode ?? midTurnSend;
+        if (!waited && liveDictation === 'sendable') {
+          const startKey = dictationHandoffRef.current.ownershipKey;
+          const settled = ask ? true : settlePastes();
+          if (settled !== true) {
+            const ok = await settled.catch(() => false);
+            if (
+              !ok ||
+              !mountedRef.current ||
+              dictationHandoffRef.current.ownershipKey !== startKey
+            ) {
+              return;
+            }
+            if (settlePastes() !== true) return;
+          }
+          const live = dictationHandoffRef.current;
+          if (isLocalEchoEventId(live.threadId) || (live.ask && !live.ask.canSend())) return;
+          const detached = dictation.detachForSend();
+          if (!detached) return;
+          handoffComposerDictationSend({
+            ...live,
+            store,
+            mx,
+            editor,
+            composerContext: { roomId: live.roomId, threadId: live.draftThreadId },
+            session: detached.session,
+            savedSelection: detached.savedSelection,
+            preExistingContent: buildTextContent(mode),
+            midTurnMode: mode,
+            explicitMidTurnMode: explicitMode !== undefined,
+            ownUserId: mx.getUserId() ?? undefined,
+            attachments: attachments.access,
+            takeRootModelDraft,
+            restoreRootModelDraft: (target, content) =>
+              getModelController(mx).restoreRootModelDraft(target, content),
+            uploadItem: transport.uploadItem,
+            clearReplyDraft,
+            resetComposer: composer.resetText,
+            stopTyping: () => sendTypingStatus(false),
+            dismissLostNotices: () => {
+              dismissLostFiles();
+              dismissLostPastes();
+            },
+          });
+          return;
+        }
         if (!ask) {
           // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
           // of MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
@@ -646,19 +741,27 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [
         ask,
+        attachments.access,
         buildTextContent,
+        clearReplyDraft,
         commands,
+        composer,
+        dictation,
+        dictationHandoffRef,
         dismissLostFiles,
         dismissLostPastes,
         editor,
         holdForRoot,
         midTurnSend,
+        mx,
         runActingCommand,
         sendTypingStatus,
-        dictation.blocksSubmit,
         sessions,
         settlePastes,
+        store,
         t,
+        takeRootModelDraft,
+        transport.uploadItem,
         voice,
         voiceActive,
       ]
@@ -851,10 +954,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         formattingOpen,
     });
 
-    const sendLabel = t('composer.sendMessage');
+    const dictationCanSend = Boolean(dictation.canSend);
+    const sendLabel = dictationCanSend
+      ? t('composer.dictation.finishAndSend')
+      : t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
     const boardOpen = emojiAnchor !== undefined;
-    const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice;
+    const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice && !dictationCanSend;
     const showPhoneEmptyVoice =
       phone && !ask && dictation.available && !forkFrom && !dictation.active && composerEmpty;
 
@@ -1083,7 +1189,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   hasContent={() =>
                     buildTextContent(midTurnSend) !== undefined ||
                     hasSendableStagedFiles(attachments.access.snapshot()) ||
-                    hasVoice
+                    hasVoice ||
+                    dictationCanSend
                   }
                   empty={composerEmpty}
                   defaultMode={midTurnSend}

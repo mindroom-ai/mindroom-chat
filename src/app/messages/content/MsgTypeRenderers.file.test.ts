@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
+import { MAX_HEIC_BYTES } from './imageOriginal';
 import { FileContent, ReadTextFile } from './FileContent';
 import { FileDownloadButton } from './FileHeader';
 
@@ -161,9 +162,12 @@ describe('MFile', () => {
 
 describe('MImage', () => {
   it.each([
-    ['image/svg+xml', 'file'],
-    ['image/png', 'image'],
-  ])('renders an image declared as %s as %s content', (mimetype, renderedAs) => {
+    ['image/svg+xml', undefined, 'file'],
+    ['image/png', undefined, 'image'],
+    ['image/heic', undefined, 'image'],
+    ['image/heif', undefined, 'image'],
+    ['image/heic', MAX_HEIC_BYTES + 1, 'file'],
+  ])('renders %s (size %s) as %s content', (mimetype, size, renderedAs) => {
     let renderer!: ReturnType<typeof create>;
     act(() => {
       renderer = create(
@@ -172,7 +176,7 @@ describe('MImage', () => {
             msgtype: MsgType.Image,
             body: 'diagram',
             url: 'mxc://example.org/diagram',
-            info: { mimetype },
+            info: size === undefined ? { mimetype } : { mimetype, size },
           },
           renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
           renderImageContent: () => React.createElement('div', { 'data-renderer': 'image' }),
@@ -182,6 +186,32 @@ describe('MImage', () => {
 
     expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"${renderedAs}"`);
 
-    renderer.unmount();
+    act(() => renderer.unmount());
+  });
+
+  it('falls back to the file row when onFallbackToFile is triggered', () => {
+    let fallback: (() => void) | undefined;
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MImage, {
+          content: {
+            msgtype: MsgType.Image,
+            body: 'photo.heic',
+            url: 'mxc://example.org/photo',
+            info: { mimetype: 'image/heic' },
+          },
+          renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
+          renderImageContent: ({ onFallbackToFile }) => {
+            fallback = onFallbackToFile;
+            return React.createElement('div', { 'data-renderer': 'image' });
+          },
+        })
+      );
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"image"`);
+    act(() => fallback?.());
+    expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"file"`);
+    act(() => renderer.unmount());
   });
 });

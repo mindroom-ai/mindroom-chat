@@ -106,7 +106,7 @@ const getItemIcon = (item: CommandPaletteItem): IconSrc => {
     case 'action':
       return item.icon ?? Icons.Terminal;
     case 'thread':
-      return Icons.Message;
+      return item.isResolved ? Icons.Check : Icons.Message;
     case 'room':
       return Icons.Hash;
     case 'space':
@@ -349,6 +349,9 @@ function ItemText({
         </span>
         {item.kind === 'action' && item.tag && <span className={css.Tag}>{item.tag}</span>}
         {item.kind === 'space' && <span className={css.Tag}>{t('commandPalette.space')}</span>}
+        {item.kind === 'thread' && item.isResolved && (
+          <span className={css.Tag}>{t('thread.resolved')}</span>
+        )}
         {isPerson(item) && isMindroomAgentUserId(item.userId) && (
           <span className={css.Tag}>{t('threadActions.agent')}</span>
         )}
@@ -434,6 +437,7 @@ export function CommandPaletteList({
                   data-item-id={item.id}
                   data-kind={item.kind}
                   data-selected={isSelected}
+                  data-resolved={item.kind === 'thread' && item.isResolved ? 'true' : undefined}
                   onPointerMove={(event) => {
                     if (event.pointerType === 'mouse' && !isSelected) onHighlight(item.id);
                   }}

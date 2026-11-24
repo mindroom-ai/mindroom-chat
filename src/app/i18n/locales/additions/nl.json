@@ -508,7 +508,8 @@
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
-        "plugins": "plug-ins, plugins, extensies, add-ons, integraties"
+        "plugins": "plug-ins, plugins, extensies, add-ons, integraties",
+        "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Kennisgevingen van derden",
         "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
         "debugMode": "Debugmodus",
-        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen."
+        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen.",
+        "updatesTitle": "App-updates",
+        "updatesDescription": "Updates worden automatisch op de achtergrond gedownload.",
+        "checkForUpdates": "Controleren op updates",
+        "checkingForUpdates": "Controleren op updates…",
+        "upToDate": "MindRoom is up-to-date.",
+        "updateAvailable": "Er is een update beschikbaar. Zodra deze klaar is, kun je hier opnieuw opstarten.",
+        "updateCheckFailed": "Kan nu niet controleren op updates. Probeer het opnieuw.",
+        "updateReady": "Versie {{version}} staat klaar om te installeren.",
+        "restartToUpdate": "Opnieuw opstarten om bij te werken",
+        "updateInstallFailed": "Kan niet opnieuw opstarten om de update te installeren. Probeer het opnieuw."
       }
     },
     "createChat": {
@@ -533,7 +544,6 @@
     },
     "spaceNav": {
       "options": "Opties voor space",
-      "subspaces": "Sub-spaces",
       "subspaceUnread": "{{name}}, ongelezen berichten",
       "backToParent": "Terug naar {{name}}"
     },
@@ -563,7 +573,13 @@
         "shareAgain": "Opnieuw delen",
         "microphoneStopped": "Je microfoon is gestopt.",
         "cameraStopped": "Je camera is gestopt.",
-        "turnBackOn": "Weer inschakelen"
+        "turnBackOn": "Weer inschakelen",
+        "nativeScreenShareConnecting": "Scherm delen verbinden…",
+        "nativeScreenShareFailed": "Kon je hele scherm niet delen.",
+        "nativeScreenSharePickerTimedOut": "Scherm delen is niet op tijd gestart.",
+        "nativeScreenShareStopped": "Scherm delen is gestopt.",
+        "nativeScreenShareSheetBody": "Alles op je scherm, inclusief meldingen en andere apps, is zichtbaar in de oproep.",
+        "nativeScreenShareSheetCaption": "Tik op de knop hierboven en tik daarna op Start uitzending."
       },
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
@@ -867,7 +883,9 @@
     "call": {
       "controls": {
         "startAppShare": "Deze app delen",
-        "stopAppShare": "Stoppen met delen van deze app"
+        "stopAppShare": "Stoppen met delen van deze app",
+        "startEntireScreenShare": "Hele scherm delen",
+        "stopEntireScreenShare": "Stoppen met delen van hele scherm"
       }
     }
   },
@@ -1395,8 +1413,10 @@
       "cancel": "Dicteren annuleren",
       "pause": "Dicteren pauzeren",
       "resume": "Dicteren hervatten",
-      "finish": "Dicteren voltooien",
+      "finish": "Voltooien in invoerveld",
+      "finishAndSend": "Voltooien en versturen",
       "retry": "Opnieuw proberen",
+      "retryAndSend": "Opnieuw proberen en versturen",
       "insertPartial": "Deeltekst invoegen",
       "discard": "Verwijderen",
       "dismissError": "Dicteerfout sluiten",
@@ -1405,6 +1425,10 @@
       "statusListening": "Aan het dicteren",
       "statusPaused": "Dicteren gepauzeerd",
       "statusFinishing": "Afronden...",
+      "statusSending": "Afronden en versturen...",
+      "noSpeech": "Geen spraak gedetecteerd.",
+      "noSpeechOffThread": "Geen spraak gedetecteerd in {{room}}.",
+      "sendFailedOffThread": "Kan gedicteerd bericht in {{room}} niet voltooien. Open de ruimte om opnieuw te proberen.",
       "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
       "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
       "capReached": "Limiet van 5:00 bereikt",

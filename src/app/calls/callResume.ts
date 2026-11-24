@@ -196,16 +196,23 @@ export const deviceInCallElsewhere = async (mx: MatrixClient): Promise<boolean> 
   return requests > (requestsHere.get(name) ?? 0);
 };
 
+/** Synthetic device ID used by the native iOS whole-phone screen share companion. */
+export const screenCompanionDeviceId = (deviceId: string) => `${deviceId}-screen`;
+
 /** Withdraws this device's call memberships in the given rooms (MSC4143: empty content). */
 export const withdrawOwnMemberships = async (mx: MatrixClient, rooms: Room[]): Promise<void> => {
   const userId = mx.getSafeUserId();
   const deviceId = mx.getDeviceId();
   if (!deviceId) return;
+  const screenDeviceId = screenCompanionDeviceId(deviceId);
   const withdrawals = rooms.flatMap((room) => {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     return (state?.getStateEvents(CALL_MEMBER) ?? [])
       .filter((event) => event.getSender() === userId)
-      .filter((event) => event.getContent().device_id === deviceId)
+      .filter((event) => {
+        const eventDeviceId = event.getContent().device_id;
+        return eventDeviceId === deviceId || eventDeviceId === screenDeviceId;
+      })
       .map((event) =>
         mx.sendStateEvent(room.roomId, CALL_MEMBER as never, {} as never, event.getStateKey())
       );

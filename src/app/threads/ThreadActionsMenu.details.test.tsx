@@ -88,6 +88,7 @@ const pluginWith = (Component: ComponentType<ThreadDetailProps>): RegisteredPlug
   id: 'test',
   tag: 'test@1.0.0',
   displayName: 'Test',
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],

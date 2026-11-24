@@ -495,7 +495,8 @@
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
-        "plugins": "플러그인, 확장 기능, 애드온, 연동"
+        "plugins": "플러그인, 확장 기능, 애드온, 연동",
+        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "타사 고지 사항",
         "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다.",
         "debugMode": "디버그 모드",
-        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요."
+        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요.",
+        "updatesTitle": "앱 업데이트",
+        "updatesDescription": "업데이트는 백그라운드에서 자동으로 다운로드됩니다.",
+        "checkForUpdates": "업데이트 확인",
+        "checkingForUpdates": "업데이트를 확인하는 중…",
+        "upToDate": "MindRoom이 최신 버전입니다.",
+        "updateAvailable": "업데이트가 있습니다. 준비되면 여기에서 다시 시작할 수 있습니다.",
+        "updateCheckFailed": "지금은 업데이트를 확인할 수 없습니다. 다시 시도하세요.",
+        "updateReady": "버전 {{version}}을(를) 설치할 준비가 되었습니다.",
+        "restartToUpdate": "다시 시작하여 업데이트",
+        "updateInstallFailed": "업데이트를 설치하기 위해 다시 시작하지 못했습니다. 다시 시도하세요."
       }
     },
     "createChat": {
@@ -520,7 +531,6 @@
     },
     "spaceNav": {
       "options": "스페이스 옵션",
-      "subspaces": "하위 스페이스",
       "subspaceUnread": "{{name}}, 읽지 않은 메시지",
       "backToParent": "{{name}}(으)로 돌아가기"
     },
@@ -549,7 +559,13 @@
         "shareAgain": "다시 공유",
         "microphoneStopped": "마이크가 중지되었습니다.",
         "cameraStopped": "카메라가 중지되었습니다.",
-        "turnBackOn": "다시 켜기"
+        "turnBackOn": "다시 켜기",
+        "nativeScreenShareConnecting": "화면 공유 연결 중…",
+        "nativeScreenShareFailed": "전체 화면을 공유할 수 없습니다.",
+        "nativeScreenSharePickerTimedOut": "화면 공유가 제시간에 시작되지 않았습니다.",
+        "nativeScreenShareStopped": "화면 공유가 중지되었습니다.",
+        "nativeScreenShareSheetBody": "알림과 다른 앱을 포함해 화면의 모든 내용이 통화에 표시됩니다.",
+        "nativeScreenShareSheetCaption": "위 버튼을 탭한 다음 방송 시작을 탭하세요."
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
@@ -850,7 +866,9 @@
     "call": {
       "controls": {
         "startAppShare": "이 앱 공유",
-        "stopAppShare": "이 앱 공유 중지"
+        "stopAppShare": "이 앱 공유 중지",
+        "startEntireScreenShare": "전체 화면 공유",
+        "stopEntireScreenShare": "전체 화면 공유 중지"
       }
     }
   },
@@ -1350,8 +1368,10 @@
       "cancel": "받아쓰기 취소",
       "pause": "받아쓰기 일시정지",
       "resume": "받아쓰기 재개",
-      "finish": "받아쓰기 완료",
+      "finish": "입력창에 삽입하고 완료",
+      "finishAndSend": "완료하고 전송",
       "retry": "다시 시도",
+      "retryAndSend": "다시 시도하고 전송",
       "insertPartial": "일부 텍스트 삽입",
       "discard": "폐기",
       "dismissError": "받아쓰기 오류 닫기",
@@ -1360,6 +1380,10 @@
       "statusListening": "받아쓰기 중",
       "statusPaused": "받아쓰기 일시정지됨",
       "statusFinishing": "마무리 중...",
+      "statusSending": "마무리하고 전송 중...",
+      "noSpeech": "음성이 감지되지 않았습니다.",
+      "noSpeechOffThread": "{{room}}에서 음성이 감지되지 않았습니다.",
+      "sendFailedOffThread": "{{room}}의 받아쓰기 메시지를 완료할 수 없습니다. 열어서 다시 시도하세요.",
       "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",

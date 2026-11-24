@@ -108,5 +108,10 @@
 	<!-- Photo Library add access for saving media generated in chat flows -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>MindRoom needs permission to save images and videos from chats to your photo library.</string>
+	<!-- App Group & Broadcast Upload Extension for LiveKit ReplayKit whole-phone screen sharing -->
+	<key>RTCAppGroupIdentifier</key>
+	<string>group.chat.mindroom.app</string>
+	<key>RTCScreenSharingExtension</key>
+	<string>chat.mindroom.app.broadcast</string>
 </dict>
 </plist>

@@ -508,7 +508,8 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
+        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
+        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
         "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
         "debugMode": "Hata ayıklama modu",
-        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın."
+        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın.",
+        "updatesTitle": "Uygulama güncellemeleri",
+        "updatesDescription": "Güncellemeler arka planda otomatik olarak indirilir.",
+        "checkForUpdates": "Güncellemeleri denetle",
+        "checkingForUpdates": "Güncellemeler denetleniyor…",
+        "upToDate": "MindRoom güncel.",
+        "updateAvailable": "Bir güncelleme mevcut. Hazır olduğunda buradan yeniden başlatabilirsiniz.",
+        "updateCheckFailed": "Şu anda güncellemeler denetlenemedi. Tekrar deneyin.",
+        "updateReady": "{{version}} sürümü yüklenmeye hazır.",
+        "restartToUpdate": "Güncellemek için yeniden başlat",
+        "updateInstallFailed": "Güncellemeyi yüklemek için yeniden başlatılamadı. Tekrar deneyin."
       }
     },
     "createChat": {
@@ -533,7 +544,6 @@
     },
     "spaceNav": {
       "options": "Alan seçenekleri",
-      "subspaces": "Alt alanlar",
       "subspaceUnread": "{{name}}, okunmamış mesajlar",
       "backToParent": "{{name}} alanına dön"
     },
@@ -563,7 +573,13 @@
         "shareAgain": "Tekrar paylaş",
         "microphoneStopped": "Mikrofonunuz durdu.",
         "cameraStopped": "Kameranız durdu.",
-        "turnBackOn": "Tekrar aç"
+        "turnBackOn": "Tekrar aç",
+        "nativeScreenShareConnecting": "Ekran paylaşımı bağlanıyor…",
+        "nativeScreenShareFailed": "Tüm ekranınız paylaşılamadı.",
+        "nativeScreenSharePickerTimedOut": "Ekran paylaşımı zamanında başlamadı.",
+        "nativeScreenShareStopped": "Ekran paylaşımı durdu.",
+        "nativeScreenShareSheetBody": "Bildirimler ve diğer uygulamalar dahil ekranınızdaki her şey aramada görünür olacak.",
+        "nativeScreenShareSheetCaption": "Yukarıdaki düğmeye dokunun, ardından Yayını Başlat’a dokunun."
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
@@ -867,7 +883,9 @@
     "call": {
       "controls": {
         "startAppShare": "Bu uygulamayı paylaş",
-        "stopAppShare": "Bu uygulamayı paylaşmayı durdur"
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur",
+        "startEntireScreenShare": "Tüm ekranı paylaş",
+        "stopEntireScreenShare": "Tüm ekranı paylaşmayı durdur"
       }
     }
   },
@@ -1395,8 +1413,10 @@
       "cancel": "Dikteyi iptal et",
       "pause": "Dikteyi duraklat",
       "resume": "Dikteyi sürdür",
-      "finish": "Dikteyi bitir",
+      "finish": "Metin alanına aktararak bitir",
+      "finishAndSend": "Bitir ve gönder",
       "retry": "Yeniden dene",
+      "retryAndSend": "Yeniden dene ve gönder",
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
@@ -1405,6 +1425,10 @@
       "statusListening": "Dikte ediliyor",
       "statusPaused": "Dikte duraklatıldı",
       "statusFinishing": "Tamamlanıyor...",
+      "statusSending": "Tamamlanıyor ve gönderiliyor...",
+      "noSpeech": "Konuşma algılanmadı.",
+      "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
+      "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
       "capReached": "5:00 sınırına ulaşıldı",

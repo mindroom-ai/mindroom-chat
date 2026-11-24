@@ -8,13 +8,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Box, Button, Line, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
+import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { DiscardVoiceRecordingDialog } from './DiscardVoiceRecordingDialog';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
+import * as voiceCapsuleCss from './VoiceRecordingCapsule.css';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
@@ -236,22 +237,19 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         onDiscard={confirmDiscard}
       />
 
-      <div>
-        <Line variant="SurfaceVariant" size="300" />
-        <Box style={{ padding: `${config.space.S200} ${config.space.S300}` }}>
-          <VoiceRecordingCapsule
-            phase={phase}
-            elapsedMs={hasPendingSend ? pendingDuration : elapsedMs}
-            waveform={hasPendingSend ? pendingWaveform : waveform}
-            sampleCount={hasPendingSend ? undefined : sampleCount}
-            canPause={canPause}
-            hasPendingSend={hasPendingSend}
-            recovered={recovered}
-            onDiscard={() => setDiscardConfirmationOpen(true)}
-            onPause={pause}
-            onResume={resume}
-          />
-        </Box>
+      <div className={voiceCapsuleCss.Container}>
+        <VoiceRecordingCapsule
+          phase={phase}
+          elapsedMs={hasPendingSend ? pendingDuration : elapsedMs}
+          waveform={hasPendingSend ? pendingWaveform : waveform}
+          sampleCount={hasPendingSend ? undefined : sampleCount}
+          canPause={canPause}
+          hasPendingSend={hasPendingSend}
+          recovered={recovered}
+          onDiscard={() => setDiscardConfirmationOpen(true)}
+          onPause={pause}
+          onResume={resume}
+        />
       </div>
     </>
   );

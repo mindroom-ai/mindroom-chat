@@ -508,7 +508,8 @@
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
-        "plugins": "plugins, extensions, add-ons, integrations"
+        "plugins": "plugins, extensions, add-ons, integrations",
+        "appUpdates": "update, updates, version, upgrade, restart"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace."
+        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace.",
+        "updatesTitle": "App updates",
+        "updatesDescription": "Updates download automatically in the background.",
+        "checkForUpdates": "Check for updates",
+        "checkingForUpdates": "Checking for updates…",
+        "upToDate": "MindRoom is up to date.",
+        "updateAvailable": "An update is available. You can restart here once it's ready.",
+        "updateCheckFailed": "Couldn't check for updates right now. Try again.",
+        "updateReady": "Version {{version}} is ready to install.",
+        "restartToUpdate": "Restart to update",
+        "updateInstallFailed": "Couldn't restart to install the update. Try again."
       }
     },
     "createChat": {
@@ -533,7 +544,6 @@
     },
     "spaceNav": {
       "options": "Space Options",
-      "subspaces": "Sub-spaces",
       "subspaceUnread": "{{name}}, unread messages",
       "backToParent": "Back to {{name}}"
     },
@@ -563,7 +573,13 @@
         "shareAgain": "Share again",
         "microphoneStopped": "Your microphone stopped.",
         "cameraStopped": "Your camera stopped.",
-        "turnBackOn": "Turn back on"
+        "turnBackOn": "Turn back on",
+        "nativeScreenShareConnecting": "Connecting screen share…",
+        "nativeScreenShareFailed": "Could not share your entire screen.",
+        "nativeScreenSharePickerTimedOut": "Screen sharing did not start in time.",
+        "nativeScreenShareStopped": "Screen sharing stopped.",
+        "nativeScreenShareSheetBody": "Everything on your screen, including notifications and other apps, will be visible to the call.",
+        "nativeScreenShareSheetCaption": "Tap the button above, then tap Start Broadcast."
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",
@@ -867,7 +883,9 @@
     "call": {
       "controls": {
         "startAppShare": "Share this app",
-        "stopAppShare": "Stop sharing this app"
+        "stopAppShare": "Stop sharing this app",
+        "startEntireScreenShare": "Share entire screen",
+        "stopEntireScreenShare": "Stop sharing entire screen"
       }
     }
   },
@@ -1395,8 +1413,10 @@
       "cancel": "Cancel dictation",
       "pause": "Pause dictation",
       "resume": "Resume dictation",
-      "finish": "Finish dictation",
+      "finish": "Finish into composer",
+      "finishAndSend": "Finish and send",
       "retry": "Retry",
+      "retryAndSend": "Retry and send",
       "insertPartial": "Insert partial",
       "discard": "Discard",
       "dismissError": "Dismiss dictation error",
@@ -1405,6 +1425,10 @@
       "statusListening": "Dictating",
       "statusPaused": "Dictation paused",
       "statusFinishing": "Finishing...",
+      "statusSending": "Finishing and sending...",
+      "noSpeech": "No speech detected.",
+      "noSpeechOffThread": "No speech detected in {{room}}.",
+      "sendFailedOffThread": "Could not finish dictated message in {{room}}. Open it to retry.",
       "statusPendingRetry_one": "{{count}} segment pending retry",
       "statusPendingRetry_other": "{{count}} segments pending retry",
       "capReached": "5:00 limit reached",

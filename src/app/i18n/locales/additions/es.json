@@ -521,7 +521,8 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "plugins": "complementos, plugins, extensiones, integraciones"
+        "plugins": "complementos, plugins, extensiones, integraciones",
+        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada.",
+        "updatesTitle": "Actualizaciones de la app",
+        "updatesDescription": "Las actualizaciones se descargan automáticamente en segundo plano.",
+        "checkForUpdates": "Buscar actualizaciones",
+        "checkingForUpdates": "Buscando actualizaciones…",
+        "upToDate": "MindRoom está actualizado.",
+        "updateAvailable": "Hay una actualización disponible. Podrás reiniciar desde aquí cuando esté lista.",
+        "updateCheckFailed": "No se pudieron buscar actualizaciones en este momento. Inténtalo de nuevo.",
+        "updateReady": "La versión {{version}} está lista para instalar.",
+        "restartToUpdate": "Reiniciar para actualizar",
+        "updateInstallFailed": "No se pudo reiniciar para instalar la actualización. Inténtalo de nuevo."
       }
     },
     "createChat": {
@@ -546,7 +557,6 @@
     },
     "spaceNav": {
       "options": "Opciones del espacio",
-      "subspaces": "Subespacios",
       "subspaceUnread": "{{name}}, mensajes sin leer",
       "backToParent": "Volver a {{name}}"
     },
@@ -577,7 +587,13 @@
         "shareAgain": "Compartir de nuevo",
         "microphoneStopped": "Tu micrófono se ha detenido.",
         "cameraStopped": "Tu cámara se ha detenido.",
-        "turnBackOn": "Volver a activar"
+        "turnBackOn": "Volver a activar",
+        "nativeScreenShareConnecting": "Conectando pantalla compartida…",
+        "nativeScreenShareFailed": "No se pudo compartir toda tu pantalla.",
+        "nativeScreenSharePickerTimedOut": "La pantalla compartida no se inició a tiempo.",
+        "nativeScreenShareStopped": "Se detuvo la pantalla compartida.",
+        "nativeScreenShareSheetBody": "Todo lo que aparece en tu pantalla, incluidas las notificaciones y otras aplicaciones, será visible en la llamada.",
+        "nativeScreenShareSheetCaption": "Toca el botón de arriba y luego toca Iniciar transmisión."
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
@@ -884,7 +900,9 @@
     "call": {
       "controls": {
         "startAppShare": "Compartir esta aplicación",
-        "stopAppShare": "Dejar de compartir esta aplicación"
+        "stopAppShare": "Dejar de compartir esta aplicación",
+        "startEntireScreenShare": "Compartir toda la pantalla",
+        "stopEntireScreenShare": "Dejar de compartir toda la pantalla"
       }
     }
   },
@@ -1440,8 +1458,10 @@
       "cancel": "Cancelar dictado",
       "pause": "Pausar dictado",
       "resume": "Reanudar dictado",
-      "finish": "Finalizar dictado",
+      "finish": "Finalizar en el cuadro de texto",
+      "finishAndSend": "Finalizar y enviar",
       "retry": "Reintentar",
+      "retryAndSend": "Reintentar y enviar",
       "insertPartial": "Insertar texto parcial",
       "discard": "Descartar",
       "dismissError": "Cerrar error de dictado",
@@ -1450,6 +1470,10 @@
       "statusListening": "Dictando",
       "statusPaused": "Dictado en pausa",
       "statusFinishing": "Finalizando...",
+      "statusSending": "Finalizando y enviando...",
+      "noSpeech": "No se detectó voz.",
+      "noSpeechOffThread": "No se detectó voz en {{room}}.",
+      "sendFailedOffThread": "No se pudo finalizar el mensaje dictado en {{room}}. Ábrelo para reintentar.",
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
       "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",

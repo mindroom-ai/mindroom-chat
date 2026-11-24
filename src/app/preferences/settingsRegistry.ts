@@ -37,6 +37,8 @@ export type SettingsContext = {
   errorReporting: boolean;
   /** The sidebar buttons the deployment offers a switch for. */
   railButtons: Readonly<Record<string, boolean>>;
+  /** The packaged Electron desktop app's updater bridge is present (native/nativeUpdate.ts). */
+  nativeUpdate: boolean;
   /** The deployment offers the Mac app and this is a browser on a Mac (native/macApp.ts). */
   macApp: boolean;
   /** At least one bundled client plugin is left enabled by deployment config.json. */
@@ -778,6 +780,16 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.developer`,
     scope: 'account',
     hidden: (context) => !context.developerTools,
+  },
+  {
+    id: 'appUpdates',
+    page: 'about',
+    group: `${ABOUT}.options`,
+    labelKey: `${ABOUT}.updatesTitle`,
+    descriptionKey: `${ABOUT}.updatesDescription`,
+    keywordsKey: `${KEYWORDS}.appUpdates`,
+    scope: 'device',
+    hidden: (context) => !context.nativeUpdate,
   },
   {
     id: 'macApp',

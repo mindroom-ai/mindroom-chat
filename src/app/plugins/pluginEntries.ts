@@ -7,6 +7,7 @@ export type PluginEntry = {
   version: string;
   name?: string;
   description?: string;
+  defaultEnabled?: boolean;
   plugin: unknown;
 };
 

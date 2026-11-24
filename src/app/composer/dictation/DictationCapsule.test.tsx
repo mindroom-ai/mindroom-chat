@@ -2,6 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import { DictationCapsule } from './DictationCapsule';
 import type { DictationSnapshot } from './dictationSession';
 
@@ -59,7 +60,8 @@ afterEach(() => cleanup());
 describe('DictationCapsule', () => {
   it('renders Cancel, live waveform, timer, Pause, and Finish while recording', () => {
     const h = handlers();
-    render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
+    const { container } = render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
+    expect(container.firstElementChild?.className).toBe(voiceCss.Container);
 
     expect(screen.getByText('0:18')).toBeTruthy();
     expect(screen.queryByTestId('dictation-preview')).toBeNull();
@@ -219,5 +221,46 @@ describe('DictationCapsule', () => {
       />
     );
     expect(preview.scrollTop).toBe(260);
+  });
+
+  it('renders disabled controls with statusSending and Retry & send recovery when sending is true', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'finishing', previewText: 'Draft in flight.' })}
+        sending
+        {...h}
+      />
+    );
+
+    expect(screen.getAllByText('composer.dictation.statusSending').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dictation-preview').textContent).toBe('Draft in flight.');
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.cancel').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.pause').disabled).toBe(
+      true
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(
+      true
+    );
+
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'failed',
+          failedSegments: 1,
+          hasPartialText: true,
+          previewText: 'Partial text.',
+          errorMessage: 'Network error',
+        })}
+        sending
+        {...h}
+      />
+    );
+
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+    expect(h.onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('composer.dictation.retry')).toBeNull();
   });
 });

@@ -18,7 +18,7 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
-import { desktopBridge, isAppWindowFocused } from '../lib/nativeShell';
+import { desktopBridge, isAppWindowFocused, isDesktopApp } from '../lib/nativeShell';
 import { isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
@@ -134,7 +134,7 @@ function RingAlerts({
     const note = new SystemNotification(latest.current.title, {
       body: latest.current.line,
       icon: MINDROOM_FAVICON_SRC,
-      tag: `call-ring-${ring.roomId}`,
+      tag: isDesktopApp() ? `call-ring-${ring.roomId}:${ring.eventId}` : `call-ring-${ring.roomId}`,
       requireInteraction: true,
       // The ringtone is the sound; the system adds none of its own.
       silent: true,

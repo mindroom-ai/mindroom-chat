@@ -99,6 +99,36 @@ type CommandPaletteSourceOptions = {
   onLogout?: () => void;
 };
 
+const RESOLVED_THREAD_BOOST = -40;
+
+type CommandPaletteThreadRankEntry = {
+  roomId: string;
+  threadRootId: string;
+  lastActivityTs: number;
+  isUnread: boolean;
+  isResolved: boolean;
+};
+
+export const rankCommandPaletteThreads = <T extends CommandPaletteThreadRankEntry>(
+  entries: readonly T[],
+  selectedRoomId?: string,
+  selectedThreadId?: string
+): Array<{ entry: T; sortRank: number; boost: number }> =>
+  [...entries]
+    .sort(
+      (a, b) => Number(a.isResolved) - Number(b.isResolved) || b.lastActivityTs - a.lastActivityTs
+    )
+    .map((entry, index, sorted) => {
+      const isOpen = entry.roomId === selectedRoomId && entry.threadRootId === selectedThreadId;
+      return {
+        entry,
+        // The thread already open goes last, like the room already open.
+        sortRank: isOpen ? 0 : sorted.length - index,
+        boost:
+          (!isOpen && entry.isUnread ? 10 : 0) + (entry.isResolved ? RESOLVED_THREAD_BOOST : 0),
+      };
+    });
+
 const liveState = (room: Room) => room.getLiveTimeline().getState(EventTimeline.FORWARDS);
 
 const roomTopic = (room: Room): string | undefined => {
@@ -213,11 +243,12 @@ export const useCommandPaletteSource = ({
   const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(() => {
     const threadItemId = (roomId: string, threadId: string) =>
       `thread:${getCrossRoomThreadIndexKey(roomId, threadId)}`;
+    const visibleEntries = Array.from(threadIndex.entries.values()).filter((entry) =>
+      isRoomVisible(entry.roomId, archivedRooms)
+    );
     return withRecentVisits(
-      Array.from(threadIndex.entries.values())
-        .filter((entry) => isRoomVisible(entry.roomId, archivedRooms))
-        .sort((a, b) => b.lastActivityTs - a.lastActivityTs)
-        .map((entry, index, entries) => ({
+      rankCommandPaletteThreads(visibleEntries, selectedRoomId, selectedThreadId).map(
+        ({ entry, sortRank, boost }) => ({
           id: `thread:${entry.key}`,
           kind: 'thread',
           roomId: entry.roomId,
@@ -227,14 +258,11 @@ export const useCommandPaletteSource = ({
           roomName: entry.roomName,
           tags: entry.tags,
           isResolved: entry.isResolved,
-          // The thread already open goes last, like the room already open.
-          sortRank:
-            entry.roomId === selectedRoomId && entry.threadRootId === selectedThreadId
-              ? 0
-              : entries.length - index,
-          boost: entry.isUnread ? 10 : 0,
+          sortRank,
+          boost,
           onSelect: () => navigateRoomThread(entry.roomId, entry.threadRootId),
-        })),
+        })
+      ),
       recentThreads.map((visit) => threadItemId(visit.roomId, visit.threadId)),
       selectedRoomId && selectedThreadId
         ? threadItemId(selectedRoomId, selectedThreadId)

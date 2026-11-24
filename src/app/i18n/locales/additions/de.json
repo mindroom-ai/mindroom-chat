@@ -508,7 +508,8 @@
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
-        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen"
+        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen",
+        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Hinweise zu Drittanbietern",
         "soundsCredit": "Die Benachrichtigungs- und Einladungstöne sind Klänge, die für diese App synthetisiert wurden.",
         "debugMode": "Debug-Modus",
-        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen."
+        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen.",
+        "updatesTitle": "App-Updates",
+        "updatesDescription": "Updates werden automatisch im Hintergrund heruntergeladen.",
+        "checkForUpdates": "Nach Updates suchen",
+        "checkingForUpdates": "Suche nach Updates…",
+        "upToDate": "MindRoom ist auf dem neuesten Stand.",
+        "updateAvailable": "Ein Update ist verfügbar. Sobald es bereit ist, kannst du hier neu starten.",
+        "updateCheckFailed": "Derzeit konnte nicht nach Updates gesucht werden. Versuche es erneut.",
+        "updateReady": "Version {{version}} kann installiert werden.",
+        "restartToUpdate": "Zum Aktualisieren neu starten",
+        "updateInstallFailed": "Neustart zum Installieren des Updates fehlgeschlagen. Versuche es erneut."
       }
     },
     "createChat": {
@@ -533,7 +544,6 @@
     },
     "spaceNav": {
       "options": "Space-Optionen",
-      "subspaces": "Unter-Spaces",
       "subspaceUnread": "{{name}}, ungelesene Nachrichten",
       "backToParent": "Zurück zu {{name}}"
     },
@@ -563,7 +573,13 @@
         "shareAgain": "Erneut teilen",
         "microphoneStopped": "Dein Mikrofon wurde gestoppt.",
         "cameraStopped": "Deine Kamera wurde gestoppt.",
-        "turnBackOn": "Wieder einschalten"
+        "turnBackOn": "Wieder einschalten",
+        "nativeScreenShareConnecting": "Bildschirmfreigabe wird verbunden…",
+        "nativeScreenShareFailed": "Dein gesamter Bildschirm konnte nicht geteilt werden.",
+        "nativeScreenSharePickerTimedOut": "Die Bildschirmfreigabe wurde nicht rechtzeitig gestartet.",
+        "nativeScreenShareStopped": "Die Bildschirmfreigabe wurde beendet.",
+        "nativeScreenShareSheetBody": "Alles auf deinem Bildschirm, einschließlich Benachrichtigungen und anderer Apps, ist im Anruf sichtbar.",
+        "nativeScreenShareSheetCaption": "Tippe oben auf die Taste und dann auf „Übertragung starten“."
       },
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",
@@ -867,7 +883,9 @@
     "call": {
       "controls": {
         "startAppShare": "Diese App teilen",
-        "stopAppShare": "Teilen dieser App beenden"
+        "stopAppShare": "Teilen dieser App beenden",
+        "startEntireScreenShare": "Gesamten Bildschirm teilen",
+        "stopEntireScreenShare": "Teilen des gesamten Bildschirms beenden"
       }
     }
   },
@@ -1395,8 +1413,10 @@
       "cancel": "Diktat abbrechen",
       "pause": "Diktat pausieren",
       "resume": "Diktat fortsetzen",
-      "finish": "Diktat beenden",
+      "finish": "In das Eingabefeld übernehmen",
+      "finishAndSend": "Beenden und senden",
       "retry": "Erneut versuchen",
+      "retryAndSend": "Erneut versuchen und senden",
       "insertPartial": "Teiltext einfügen",
       "discard": "Verwerfen",
       "dismissError": "Diktatfehler schließen",
@@ -1405,6 +1425,10 @@
       "statusListening": "Diktat läuft",
       "statusPaused": "Diktat pausiert",
       "statusFinishing": "Wird abgeschlossen...",
+      "statusSending": "Wird abgeschlossen und gesendet...",
+      "noSpeech": "Keine Sprache erkannt.",
+      "noSpeechOffThread": "Keine Sprache in {{room}} erkannt.",
+      "sendFailedOffThread": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Öffne den Raum, um es erneut zu versuchen.",
       "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
       "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
       "capReached": "Limit von 5:00 erreicht",

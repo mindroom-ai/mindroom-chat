@@ -344,6 +344,7 @@ describe('ThreadsNav', () => {
     state.plugins.push({
       id: 'example',
       tag: 'example@1.0.0',
+      defaultEnabled: true,
       messageRenderers: [
         {
           match: () => true,

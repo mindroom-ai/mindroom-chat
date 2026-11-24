@@ -1,0 +1,495 @@
+import type { createStore } from 'jotai';
+import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
+import {
+  createEditor,
+  Range as SlateRange,
+  Transforms,
+  type BaseRange,
+  type Descendant,
+  type Editor,
+} from 'slate';
+import { isEmptyEditor, withInlineElements } from '../../editor/utils';
+import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
+import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
+import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
+import { listSessions } from '../../matrix/session/sessions';
+import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
+import type { MidTurnMode } from '../../preferences/midTurnModes';
+import type { SlashCommand } from '../commands/useCommands';
+import { composeTextMessage, withMention } from '../composeTextMessage';
+import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
+import {
+  activeDictationAtom,
+  detachedDictationErrorAtom,
+  detachedDictationSendsAtom,
+  restoreTextToDraft,
+  roomUploadAtomFamily,
+  type DetachedDictationError,
+  type DetachedDictationSend,
+  type IReplyDraft,
+} from '../roomInputDrafts';
+import { readActingCommand, readUnknownCommand } from '../slashCommandQuery';
+import {
+  skipsRootModel,
+  type RoomInputSendContext,
+  type StartRoomInputSendSessionOptions,
+} from '../useRoomInputSendSessionController';
+import { voiceAccountGuard } from '../voice/liveVoiceRecording';
+import type { DictationFinishResult, DictationSession } from './dictationSession';
+import { insertDictatedText } from './insertDictatedText';
+
+export {
+  detachedDictationErrorAtom,
+  detachedDictationSendsAtom,
+  type DetachedDictationError,
+  type DetachedDictationSend,
+};
+
+type JotaiStore = ReturnType<typeof createStore>;
+type ComposerContext = { roomId: string; threadId: string | undefined };
+
+export type MountedDictationOwner = {
+  restoreText: (fragment: Descendant[]) => void;
+  restoreReplyDraft: (replyDraft: IReplyDraft) => void;
+  restoreAttachments: (roomId: string, items: TUploadItem[]) => void;
+  onCommandProblem: (unknownCommand: string) => void;
+  onNoSpeech: () => void;
+};
+
+const mountedOwnersByStore = new WeakMap<JotaiStore, Map<string, Set<MountedDictationOwner>>>();
+
+/** Tracks mounted composers per stable send key so background completions reach a live view. */
+export const registerMountedDictationOwner = (
+  store: JotaiStore,
+  sendKey: string,
+  owner: MountedDictationOwner
+): (() => void) => {
+  let map = mountedOwnersByStore.get(store);
+  if (!map) {
+    map = new Map();
+    mountedOwnersByStore.set(store, map);
+  }
+  let set = map.get(sendKey);
+  if (!set) {
+    set = new Set();
+    map.set(sendKey, set);
+  }
+  set.add(owner);
+  return () => {
+    set.delete(owner);
+    if (set.size === 0) map.delete(sendKey);
+  };
+};
+
+const getMountedOwner = (store: JotaiStore, sendKey: string): MountedDictationOwner | undefined => {
+  const set = mountedOwnersByStore.get(store)?.get(sendKey);
+  return set && set.size > 0 ? [...set][set.size - 1] : undefined;
+};
+
+const hasDocContent = (children: Descendant[]): boolean => {
+  if (children.length === 0) return false;
+  const scratch = withInlineElements(createEditor());
+  scratch.children = children;
+  return !isEmptyEditor(scratch);
+};
+
+/** Merges dictated text into a cloned Slate document off-DOM, keeping inline nodes and marks. */
+export const mergeDictatedDoc = (
+  docSnapshot: Descendant[],
+  rawText: string,
+  savedSelection: BaseRange | null,
+  pendingMarks: Record<string, unknown> | null
+): Editor => {
+  const scratch = withInlineElements(createEditor());
+  scratch.children = structuredClone(docSnapshot);
+  if (pendingMarks && (!savedSelection || SlateRange.isCollapsed(savedSelection))) {
+    if (savedSelection) {
+      try {
+        Transforms.select(scratch, savedSelection);
+      } catch {
+        // Out-of-bounds selection falls back to end of doc in insertDictatedText.
+      }
+    }
+    scratch.marks = { ...pendingMarks };
+  }
+  insertDictatedText(scratch, rawText, savedSelection, { focus: false });
+  return scratch;
+};
+
+export type DetachedDictationAsk = {
+  agentUserId: string;
+  isDirect?: boolean;
+  canSend: (sentTo?: Room) => boolean;
+  onSendingChange?: (sending: boolean) => void;
+  onLocalEcho?: (eventId: string, room: Room) => void;
+};
+
+export type StartDetachedDictationSendInput = {
+  store: JotaiStore;
+  mx: MatrixClient;
+  ownerKey: string;
+  ownershipKey?: string;
+  draftKey: string;
+  roomName: string;
+  sendContext: RoomInputSendContext;
+  composerContext: ComposerContext;
+  session: DictationSession;
+  docSnapshot: Descendant[];
+  savedSelection: BaseRange | null;
+  pendingMarks: Record<string, unknown> | null;
+  stagedSnapshot: TUploadItem[];
+  tracksEnrollment: boolean;
+  rootModel?: ThreadModelContent;
+  midTurnMode: MidTurnMode;
+  explicitMidTurnMode: boolean;
+  isMarkdown: boolean;
+  ownUserId: string | undefined;
+  linkSchemes?: readonly string[];
+  parseCommands: boolean;
+  commandsSnapshot: Record<string, SlashCommand>;
+  ask?: DetachedDictationAsk;
+  attachments: RoomInputAttachmentAccess;
+  sessions: {
+    startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
+    restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
+  };
+  restoreReplyDraft: (replyDraft: IReplyDraft) => void;
+  restoreRootModelDraft?: (room: Room, content: ThreadModelContent) => void;
+  dismissLostNotices?: () => void;
+};
+
+export type HandoffComposerDictationInput = Omit<
+  StartDetachedDictationSendInput,
+  | 'docSnapshot'
+  | 'savedSelection'
+  | 'pendingMarks'
+  | 'stagedSnapshot'
+  | 'tracksEnrollment'
+  | 'rootModel'
+  | 'sendContext'
+  | 'commandsSnapshot'
+> & {
+  editor: Editor;
+  room: Room;
+  roomId: string;
+  threadId?: string;
+  replyDraft?: IReplyDraft;
+  threadingEnabled: boolean;
+  forkFrom?: unknown;
+  savedSelection: BaseRange | null;
+  commands: Record<string, SlashCommand>;
+  preExistingContent?: IContent;
+  takeRootModelDraft: (room: Room) => ThreadModelContent | undefined;
+  uploadItem: (item: TUploadItem) => Promise<string>;
+  clearReplyDraft: (ctx: { roomId: string; replyDraft?: IReplyDraft }) => void;
+  resetComposer: () => void;
+  stopTyping: () => void;
+};
+
+/** Snapshots composer state, enrolls/starts staged uploads, resets composer, and starts handoff. */
+export const handoffComposerDictationSend = (
+  params: HandoffComposerDictationInput
+): DetachedDictationSend => {
+  const { editor, room, roomId, threadId, replyDraft, threadingEnabled, ask, attachments, store } =
+    params;
+  const docSnapshot = structuredClone(editor.children);
+  const pendingMarks = editor.marks ? { ...editor.marks } : null;
+  const savedSelection =
+    params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
+  const { staged, enrolled } = ask ? { staged: [], enrolled: [] } : attachments.snapshot();
+  const enrolledFiles = new Set(enrolled.map((item) => item.file));
+  const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
+  const rootModel =
+    !ask &&
+    !params.forkFrom &&
+    threadingEnabled &&
+    !threadId &&
+    !replyDraft &&
+    !skipsRootModel(params.preExistingContent)
+      ? params.takeRootModelDraft(room)
+      : undefined;
+  if (stagedSnapshot.length > 0) {
+    attachments.enroll(stagedSnapshot);
+    const roomEncrypted = room.hasEncryptionStateEvent();
+    stagedSnapshot.forEach((item) => {
+      if (roomEncrypted && !item.encInfo) return;
+      if (store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Idle) {
+        void params.uploadItem(item).catch(() => undefined);
+      }
+    });
+  }
+  const tracksEnrollment =
+    stagedSnapshot.length > 0 &&
+    attachments.snapshot(roomId).enrolled.some((entry) => entry.file === stagedSnapshot[0]!.file);
+  if (replyDraft) params.clearReplyDraft({ roomId, replyDraft });
+  params.resetComposer();
+  params.stopTyping();
+  ask?.onSendingChange?.(true);
+  return startDetachedDictationSend({
+    ...params,
+    sendContext: {
+      roomId,
+      room,
+      threadId,
+      replyDraft,
+      threadingEnabled,
+      signalBridgedRoom: isSignalBridgeRoom(room),
+    },
+    docSnapshot,
+    savedSelection,
+    pendingMarks,
+    stagedSnapshot,
+    tracksEnrollment,
+    rootModel,
+    commandsSnapshot: { ...params.commands },
+  });
+};
+
+/** Hands a recording/paused dictation session off to finish and send in the background. */
+export const startDetachedDictationSend = (
+  input: StartDetachedDictationSendInput
+): DetachedDictationSend => {
+  const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
+  const ownershipKey = input.ownershipKey ?? ownerKey;
+  const { roomId, replyDraft } = sendContext;
+  const sameAccount = voiceAccountGuard(store);
+  const stagedFiles = input.stagedSnapshot.map((item) => item.file);
+  let aborted = false;
+  let accountRestored = false;
+  let currentEntry!: DetachedDictationSend;
+
+  const getActiveStaged = (): TUploadItem[] => {
+    if (ask || input.stagedSnapshot.length === 0) return [];
+    if (!input.tracksEnrollment) return input.stagedSnapshot;
+    const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
+    return input.stagedSnapshot
+      .map((item) => enrolledByFile.get(item.file))
+      .filter((item): item is TUploadItem => item !== undefined && !item.prepError);
+  };
+
+  const clearEnrollments = () => {
+    if (stagedFiles.length > 0) attachments.clearEnrollment(stagedFiles);
+  };
+
+  const clearMatchingError = () => {
+    if (sameAccount() && store.get(detachedDictationErrorAtom)?.ownerKey === ownerKey) {
+      store.set(detachedDictationErrorAtom, undefined);
+    }
+  };
+
+  const removeEntry = () => {
+    const current = store.get(detachedDictationSendsAtom);
+    if (current.get(ownerKey) !== currentEntry) return;
+    const next = new Map(current);
+    next.delete(ownerKey);
+    store.set(detachedDictationSendsAtom, next);
+  };
+
+  const restoreDocOnAccountSwitch = () => {
+    if (accountRestored || !hasDocContent(input.docSnapshot)) return;
+    accountRestored = true;
+    if (input.ownUserId && listSessions().some((entry) => entry.userId === input.ownUserId)) {
+      restoreTextToDraft(store, input.draftKey, input.docSnapshot);
+    }
+  };
+
+  const restoreDraftAndCleanup = (fragment: Descendant[]) => {
+    removeEntry();
+    clearMatchingError();
+    const owner = getMountedOwner(store, ownerKey);
+    if (hasDocContent(fragment)) {
+      if (owner) owner.restoreText(fragment);
+      else input.sessions.restoreText(composerContext, fragment);
+    }
+    if (replyDraft) {
+      if (owner) owner.restoreReplyDraft(replyDraft);
+      else input.restoreReplyDraft(replyDraft);
+    }
+    if (input.rootModel) {
+      input.restoreRootModelDraft?.(mx.getRoom(roomId) ?? sendContext.room, input.rootModel);
+    }
+    const activeStaged = getActiveStaged();
+    if (activeStaged.length > 0) owner?.restoreAttachments(roomId, activeStaged);
+    clearEnrollments();
+    ask?.onSendingChange?.(false);
+  };
+
+  const setEntryStatus = (status: 'sending' | 'failed'): DetachedDictationSend => {
+    currentEntry = {
+      ownerKey,
+      roomId,
+      roomName: input.roomName,
+      status,
+      session,
+      retryAndSend,
+      insertPartial,
+      discard,
+      abort,
+    };
+    if (sameAccount()) {
+      const next = new Map(store.get(detachedDictationSendsAtom));
+      next.set(ownerKey, currentEntry);
+      store.set(detachedDictationSendsAtom, next);
+    }
+    return currentEntry;
+  };
+
+  const handleFinishResult = async (result: DictationFinishResult): Promise<void> => {
+    if (aborted || !sameAccount()) {
+      clearEnrollments();
+      session.discard();
+      restoreDocOnAccountSwitch();
+      removeEntry();
+      return;
+    }
+    if (result.status === 'cancelled') {
+      restoreDraftAndCleanup(input.docSnapshot);
+      return;
+    }
+    if (result.status === 'failed') {
+      setEntryStatus('failed');
+      if (!getMountedOwner(store, ownerKey)) {
+        store.set(detachedDictationErrorAtom, {
+          ownerKey,
+          roomName: input.roomName,
+          kind: 'failed',
+        });
+      }
+      return;
+    }
+
+    const scratch = mergeDictatedDoc(
+      input.docSnapshot,
+      result.text,
+      input.savedSelection,
+      input.pendingMarks
+    );
+    const mergedFallback = structuredClone(scratch.children);
+    if (!ask) {
+      const unknownCommand = readUnknownCommand(scratch.children, input.commandsSnapshot);
+      if (unknownCommand !== undefined) {
+        restoreDraftAndCleanup(mergedFallback);
+        getMountedOwner(store, ownerKey)?.onCommandProblem(unknownCommand);
+        return;
+      }
+      if (readActingCommand(scratch.children, input.commandsSnapshot)) {
+        restoreDraftAndCleanup(mergedFallback);
+        return;
+      }
+    }
+
+    const rawContent = composeTextMessage(
+      scratch,
+      input.isMarkdown,
+      input.ownUserId,
+      input.linkSchemes,
+      input.parseCommands
+    );
+    const textContent = rawContent
+      ? {
+          ...(ask ? withMention(rawContent, ask.agentUserId) : rawContent),
+          [MID_TURN_MODE_KEY]: input.midTurnMode,
+        }
+      : undefined;
+    const activeStaged = getActiveStaged();
+    if (!textContent && (ask || activeStaged.length === 0)) {
+      restoreDraftAndCleanup(input.docSnapshot);
+      const mountedOwner = getMountedOwner(store, ownerKey);
+      if (mountedOwner) {
+        mountedOwner.onNoSpeech();
+      } else {
+        store.set(detachedDictationErrorAtom, {
+          ownerKey,
+          roomName: input.roomName,
+          kind: 'noSpeech',
+        });
+      }
+      return;
+    }
+
+    const liveRoom = mx.getRoom(roomId);
+    if (!liveRoom) {
+      restoreDraftAndCleanup(mergedFallback);
+      return;
+    }
+
+    const effectiveRootModel =
+      skipsRootModel(textContent) && activeStaged.length === 0 ? undefined : input.rootModel;
+    if (input.rootModel && !effectiveRootModel) {
+      input.restoreRootModelDraft?.(liveRoom, input.rootModel);
+    }
+    removeEntry();
+    clearMatchingError();
+    if (textContent && !ask) input.dismissLostNotices?.();
+
+    try {
+      await input.sessions.startSendSession({
+        textContent,
+        midTurnMode: input.midTurnMode,
+        explicitMidTurnMode: input.explicitMidTurnMode,
+        rootModel: effectiveRootModel ?? null,
+        batch: { fileItems: activeStaged },
+        context: {
+          ...sendContext,
+          room: liveRoom,
+          signalBridgedRoom: isSignalBridgeRoom(liveRoom),
+        },
+        composerFallback: mergedFallback,
+        composerContext,
+        composerAlreadyReset: true,
+        beforeSend: (sentTo) => sameAccount() && (!ask || ask.canSend(sentTo)),
+        onLocalEchoCreated: ask?.onLocalEcho
+          ? (eventId, sentRoom) => {
+              if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
+            }
+          : undefined,
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[dictation-send] could not send dictated message', error);
+    } finally {
+      if (sameAccount()) ask?.onSendingChange?.(false);
+    }
+  };
+
+  function retryAndSend() {
+    if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
+    clearMatchingError();
+    setEntryStatus('sending');
+    void session
+      .retryFailed()
+      .then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
+  }
+
+  function insertPartial() {
+    if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
+    const scratch = mergeDictatedDoc(
+      input.docSnapshot,
+      session.takePartialText(),
+      input.savedSelection,
+      input.pendingMarks
+    );
+    restoreDraftAndCleanup(structuredClone(scratch.children));
+  }
+
+  function discard() {
+    if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
+    session.discard();
+    restoreDraftAndCleanup(input.docSnapshot);
+  }
+
+  function abort() {
+    if (aborted) return;
+    aborted = true;
+    session.discard();
+    clearEnrollments();
+    restoreDocOnAccountSwitch();
+  }
+
+  // Register entry before releasing activeDictationAtom so reload protection never flickers false.
+  const entry = setEntryStatus('sending');
+  const finishPromise = session.finish();
+  if (store.get(activeDictationAtom) === ownershipKey) store.set(activeDictationAtom, undefined);
+  void finishPromise.then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
+  return entry;
+};

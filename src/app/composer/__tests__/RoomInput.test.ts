@@ -419,12 +419,15 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
   useRoomInputDictation: () => ({
     available: false,
     blocksSubmit: false,
+    canSend: false,
     active: false,
     disabled: true,
     label: 'Dictate',
     button: null,
     capsule: null,
     start: () => false,
+    getLiveStatus: () => 'idle',
+    detachForSend: () => undefined,
   }),
 }));
 

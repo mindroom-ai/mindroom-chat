@@ -54,6 +54,7 @@ export type RegisteredPlugin = {
   readonly tag: string;
   readonly displayName: string;
   readonly description?: string;
+  readonly defaultEnabled: boolean;
   readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
   readonly pages: readonly PluginPage[];
@@ -83,7 +84,14 @@ const formatPluginId = (id: string): string =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
-const register = ({ id, version, name, description, plugin }: PluginEntry): RegisteredPlugin => {
+const register = ({
+  id,
+  version,
+  name,
+  description,
+  defaultEnabled,
+  plugin,
+}: PluginEntry): RegisteredPlugin => {
   const displayName = optionalText(name) ?? formatPluginId(id);
   const trimmedDescription = optionalText(description);
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
@@ -104,6 +112,7 @@ const register = ({ id, version, name, description, plugin }: PluginEntry): Regi
     tag: `${id}@${version}`,
     displayName,
     ...(trimmedDescription !== undefined ? { description: trimmedDescription } : {}),
+    defaultEnabled: defaultEnabled !== false,
     // The build does not type-check plugins: anything but a list of renderers counts as none.
     messageRenderers: Object.freeze(
       Array.isArray(renderers)

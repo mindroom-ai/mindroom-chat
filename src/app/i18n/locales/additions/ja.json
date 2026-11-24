@@ -495,7 +495,8 @@
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
-        "plugins": "プラグイン, 拡張機能, アドオン, 連携"
+        "plugins": "プラグイン, 拡張機能, アドオン, 連携",
+        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "サードパーティ通知",
         "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。",
         "debugMode": "デバッグモード",
-        "debugModeDescription": "メッセージでこのデバイスの診断情報を送れるように、入力欄の＋メニューに「アプリのログを添付」を追加します。メモリ値と詳細なトレースを含めるには、下の詳細な診断トレースをオンにしてください。"
+        "debugModeDescription": "メッセージでこのデバイスの診断情報を送れるように、入力欄の＋メニューに「アプリのログを添付」を追加します。メモリ値と詳細なトレースを含めるには、下の詳細な診断トレースをオンにしてください。",
+        "updatesTitle": "アプリのアップデート",
+        "updatesDescription": "アップデートはバックグラウンドで自動的にダウンロードされます。",
+        "checkForUpdates": "アップデートを確認",
+        "checkingForUpdates": "アップデートを確認しています…",
+        "upToDate": "MindRoom は最新です。",
+        "updateAvailable": "アップデートがあります。準備ができたらここから再起動できます。",
+        "updateCheckFailed": "現在アップデートを確認できませんでした。もう一度試してください。",
+        "updateReady": "バージョン {{version}} をインストールする準備ができました。",
+        "restartToUpdate": "再起動してアップデート",
+        "updateInstallFailed": "アップデートをインストールするための再起動に失敗しました。もう一度試してください。"
       }
     },
     "createChat": {
@@ -520,7 +531,6 @@
     },
     "spaceNav": {
       "options": "スペースのオプション",
-      "subspaces": "サブスペース",
       "subspaceUnread": "{{name}}、未読メッセージあり",
       "backToParent": "{{name}} に戻る"
     },
@@ -549,7 +559,13 @@
         "shareAgain": "もう一度共有",
         "microphoneStopped": "マイクが停止しました。",
         "cameraStopped": "カメラが停止しました。",
-        "turnBackOn": "もう一度オンにする"
+        "turnBackOn": "もう一度オンにする",
+        "nativeScreenShareConnecting": "画面共有を接続中…",
+        "nativeScreenShareFailed": "画面全体を共有できませんでした。",
+        "nativeScreenSharePickerTimedOut": "画面共有が時間内に開始されませんでした。",
+        "nativeScreenShareStopped": "画面共有が停止しました。",
+        "nativeScreenShareSheetBody": "通知やほかのアプリを含め、画面上のすべてが通話に表示されます。",
+        "nativeScreenShareSheetCaption": "上のボタンをタップしてから、「ブロードキャストを開始」をタップしてください。"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
@@ -850,7 +866,9 @@
     "call": {
       "controls": {
         "startAppShare": "このアプリを共有",
-        "stopAppShare": "このアプリの共有を停止"
+        "stopAppShare": "このアプリの共有を停止",
+        "startEntireScreenShare": "画面全体を共有",
+        "stopEntireScreenShare": "画面全体の共有を停止"
       }
     }
   },
@@ -1350,8 +1368,10 @@
       "cancel": "音声入力をキャンセル",
       "pause": "音声入力を一時停止",
       "resume": "音声入力を再開",
-      "finish": "音声入力を完了",
+      "finish": "入力欄に挿入して完了",
+      "finishAndSend": "完了して送信",
       "retry": "再試行",
+      "retryAndSend": "再試行して送信",
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",
@@ -1360,6 +1380,10 @@
       "statusListening": "音声入力中",
       "statusPaused": "音声入力を一時停止中",
       "statusFinishing": "完了処理中...",
+      "statusSending": "完了して送信中...",
+      "noSpeech": "音声が検出されませんでした。",
+      "noSpeechOffThread": "{{room}} で音声が検出されませんでした。",
+      "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",

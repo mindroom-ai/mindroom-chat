@@ -67,6 +67,7 @@ vi.mock('../../plugins/registry', () => ({
     {
       id: 'marks',
       tag: 'marks@1.0.0',
+      defaultEnabled: true,
       conversationCovers: [],
       messageRenderers: [],
       pages: [],
