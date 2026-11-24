@@ -3,20 +3,26 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { MAX_FORK_DEPTH, threadForkContent } from '../../event-store/threads/threadFork';
 import { loadThreadForkPrefix } from './loadThreadForkPrefix';
 
-type Fork = { threadId: string; eventId: string };
+type Fork = { roomId?: string; threadId: string; eventId: string };
 
-const message = (id: string, ts: number, threadRootId?: string) =>
+const ROOM_A = '!alpha:example.org';
+const ROOM_B = '!beta:example.org';
+const ROOM_C = '!gamma:example.org';
+
+const message = (id: string, ts: number, threadRootId?: string, roomId = ROOM_A) =>
   ({
     getId: () => id,
+    getRoomId: () => roomId,
     getTs: () => ts,
     threadRootId,
     isThreadRoot: false,
     getOriginalContent: () => ({ body: id }),
   }) as unknown as MatrixEvent;
 
-const root = (id: string, ts: number, fork?: Fork) =>
+const root = (id: string, ts: number, fork?: Fork, roomId = ROOM_A) =>
   ({
     getId: () => id,
+    getRoomId: () => roomId,
     getTs: () => ts,
     threadRootId: undefined,
     isThreadRoot: true,
@@ -25,9 +31,11 @@ const root = (id: string, ts: number, fork?: Fork) =>
 
 const ids = (events: MatrixEvent[]) => events.map((event) => event.getId());
 
-/** A loader over fixed threads; unknown ones are empty. */
+/** A loader over fixed threads; keys are either `roomId|threadId` or `threadId`. */
 const loaderOf = (threads: Record<string, MatrixEvent[]>) =>
-  vi.fn((threadId: string) => Promise.resolve(threads[threadId] ?? []));
+  vi.fn((roomId: string, threadId: string) =>
+    Promise.resolve(threads[`${roomId}|${threadId}`] ?? threads[threadId] ?? [])
+  );
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -55,7 +63,7 @@ describe('loadThreadForkPrefix', () => {
     const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10, parent));
     expect(ids(prefix.events)).toEqual(['$p', '$a', '$b']);
     expect(prefix.parent).toEqual(parent);
-    expect(loadThreadEvents).toHaveBeenCalledWith('$p', '$b');
+    expect(loadThreadEvents).toHaveBeenCalledWith(ROOM_A, '$p', '$b');
   });
 
   it("puts a parent's own prefix in front of its messages", async () => {
@@ -73,7 +81,7 @@ describe('loadThreadForkPrefix', () => {
     );
     expect(ids(prefix.events)).toEqual(['$g', '$g1', '$p', '$p1']);
     expect(prefix.parent).toEqual({ threadId: '$p', eventId: '$p1' });
-    expect(loadThreadEvents.mock.calls.map(([threadId]) => threadId)).toEqual(['$p', '$g']);
+    expect(loadThreadEvents.mock.calls.map(([, threadId]) => threadId)).toEqual(['$p', '$g']);
   });
 
   it('follows at most 8 parents and logs once', async () => {
@@ -105,7 +113,7 @@ describe('loadThreadForkPrefix', () => {
       { loadThreadEvents },
       root('$f', 10, { threadId: '$p', eventId: '$p1' })
     );
-    expect(loadThreadEvents.mock.calls.map(([threadId]) => threadId)).toEqual(['$p', '$q']);
+    expect(loadThreadEvents.mock.calls.map(([, threadId]) => threadId)).toEqual(['$p', '$q']);
     expect(ids(prefix.events)).toEqual(['$q', '$p', '$p1']);
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -135,5 +143,53 @@ describe('loadThreadForkPrefix', () => {
       root('$f', 10, { threadId: '$p', eventId: '$p1' })
     );
     expect(ids(prefix.events)).toEqual(['$p', '$p1']);
+  });
+
+  it('resolves multi-hop A -> B -> C where B -> A omits room_id in A, not C', async () => {
+    // Thread $a and thread $b both live in ROOM_A ($b forks $a without room_id).
+    // Thread $c lives in ROOM_C and cross-room forks $b in ROOM_A.
+    const loadThreadEvents = loaderOf({
+      [`${ROOM_A}|$a`]: [root('$a', 1, undefined, ROOM_A), message('$a1', 2, '$a', ROOM_A)],
+      [`${ROOM_A}|$b`]: [
+        root('$b', 3, { threadId: '$a', eventId: '$a1' }, ROOM_A),
+        message('$b1', 4, '$b', ROOM_A),
+      ],
+      // Put a decoy $a in ROOM_C to prove hop 2 does NOT resolve in C.
+      [`${ROOM_C}|$a`]: [root('$a', 99, undefined, ROOM_C), message('$a1', 100, '$a', ROOM_C)],
+    });
+    const prefix = await loadThreadForkPrefix(
+      { loadThreadEvents, roomId: ROOM_C },
+      root('$c', 10, { roomId: ROOM_A, threadId: '$b', eventId: '$b1' }, ROOM_C)
+    );
+    expect(loadThreadEvents.mock.calls).toEqual([
+      [ROOM_A, '$b', '$b1'],
+      [ROOM_A, '$a', '$a1'],
+    ]);
+    expect(ids(prefix.events)).toEqual(['$a', '$a1', '$b', '$b1']);
+    expect(prefix.events.map((e) => e.getRoomId())).toEqual([ROOM_A, ROOM_A, ROOM_A, ROOM_A]);
+  });
+
+  it('keys visited by (roomId, threadId) across rooms and catches cross-room cycles', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const loadThreadEvents = loaderOf({
+      [`${ROOM_B}|$p`]: [
+        root('$p', 4, { roomId: ROOM_A, threadId: '$p', eventId: '$a1' }, ROOM_B),
+        message('$b1', 5, '$p', ROOM_B),
+      ],
+      [`${ROOM_A}|$p`]: [
+        root('$p', 1, { roomId: ROOM_B, threadId: '$p', eventId: '$b1' }, ROOM_A),
+        message('$a1', 2, '$p', ROOM_A),
+      ],
+    });
+    const prefix = await loadThreadForkPrefix(
+      { loadThreadEvents, roomId: ROOM_C },
+      root('$c', 10, { roomId: ROOM_B, threadId: '$p', eventId: '$b1' }, ROOM_C)
+    );
+    expect(loadThreadEvents.mock.calls).toEqual([
+      [ROOM_B, '$p', '$b1'],
+      [ROOM_A, '$p', '$a1'],
+    ]);
+    expect(ids(prefix.events)).toEqual(['$p', '$a1', '$p', '$b1']);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

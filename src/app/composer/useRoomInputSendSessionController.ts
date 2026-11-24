@@ -415,7 +415,7 @@ const placeMessage = async (
     return { content: { ...content, 'm.relates_to': joined }, relation: joined };
   }
   return {
-    content: { ...content, ...threadForkContent(fork.ref) },
+    content: { ...content, ...threadForkContent(fork.ref, session.roomId) },
     relation,
     settleFork: place.settle,
   };

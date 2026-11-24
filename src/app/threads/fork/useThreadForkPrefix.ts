@@ -3,6 +3,7 @@ import {
   ClientEvent,
   MatrixEventEvent,
   RelationType,
+  RoomEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -14,7 +15,8 @@ import {
 } from '../../event-store/cache/eventRepository';
 import { THREAD_BATCH_SIZE } from '../../event-store/cache/preloadSettings';
 import { isCompleteCachedThreadSnapshot } from '../../event-store/cache/threadCacheSnapshot';
-import { useFetchRoomEvent } from '../../event-store/cache/useRoomEvent';
+import { fetchRoomEventFor } from '../../event-store/cache/useRoomEvent';
+import { isJoinedRoom } from '../../navigation/routeVisibility';
 import {
   enqueueThreadBackfillJob,
   MAX_THREAD_FETCH_ITERATIONS,
@@ -35,8 +37,17 @@ type Sources = {
   room: Room;
   sessionId: string | undefined;
   scheduler: BackfillScheduler;
-  fetchRoomEvent: (eventId: string, threadId?: string) => Promise<MatrixEvent>;
   isCurrent: () => boolean;
+};
+
+const resolveHopRoom = (
+  mx: MatrixClient,
+  currentRoom: Room,
+  hopRoomId: string
+): Room | undefined => {
+  if (hopRoomId === currentRoom.roomId) return currentRoom;
+  const candidate = mx.getRoom(hopRoomId);
+  return isJoinedRoom(candidate) ? candidate ?? undefined : undefined;
 };
 
 const uniqueEvents = (events: (MatrixEvent | null | undefined)[]): MatrixEvent[] => {
@@ -89,7 +100,7 @@ const cachedThreadEvents = async (
  * stopped before the thread's start keeps the newest events it read.
  */
 const backfilledThreadEvents = async (
-  { mx, room, scheduler, fetchRoomEvent, isCurrent }: Sources,
+  { mx, room, sessionId, scheduler, isCurrent }: Sources,
   threadId: string
 ): Promise<MatrixEvent[]> => {
   if (!isCurrent()) return [];
@@ -104,7 +115,9 @@ const backfilledThreadEvents = async (
   const root =
     room.getThread(threadId)?.rootEvent ??
     room.findEventById(threadId) ??
-    (await fetchRoomEvent(threadId, threadId).catch(() => undefined));
+    (await fetchRoomEventFor(mx, sessionId, room.roomId, threadId, threadId).catch(
+      () => undefined
+    ));
   return uniqueEvents([root, ...page.events]);
 };
 
@@ -138,7 +151,12 @@ const changedEventId = (event: MatrixEvent): string | undefined => {
 };
 
 /** A loaded prefix, for the root with this ID and this reference (whichever copy of it). */
-type Loaded = { rootId: string | undefined; parentKey: string; prefix: ThreadForkPrefix };
+type Loaded = {
+  rootId: string | undefined;
+  parentKey: string;
+  prefix: ThreadForkPrefix;
+  watchedRoomIds: ReadonlySet<string>;
+};
 
 const NOT_A_FORK: ThreadForkPrefix = { events: [] };
 
@@ -147,7 +165,8 @@ const NOT_A_FORK: ThreadForkPrefix = { events: [] };
  * loaded again when the root's ID or its reference changes, and the loaded one shows meanwhile
  * while the reference stays; another copy of the same root (the SDK's replacing the cache's)
  * keeps it, also while that copy waits to be decrypted. Edits the
- * parents' messages get later show in the events it holds; a redaction of one loads it again.
+ * parents' messages get later show in the events it holds; a redaction of one, or a membership
+ * change in any parent room, loads it again.
  */
 export const useThreadForkPrefix = (
   room: Room,
@@ -156,7 +175,6 @@ export const useThreadForkPrefix = (
   const mx = useMatrixClient();
   const sessionId = useActiveSession()?.sessionId;
   const { scheduler } = useSyncEngine();
-  const fetchRoomEvent = useFetchRoomEvent(room);
   const [loaded, setLoaded] = useState<Loaded>();
   const [revision, refresh] = useForceUpdate();
   const [reloads, reload] = useForceUpdate();
@@ -169,44 +187,59 @@ export const useThreadForkPrefix = (
     (root && isUnreadableYet(root) && loaded?.rootId === rootId
       ? loaded?.prefix.parent
       : undefined);
-  const parentKey = reference && `${reference.threadId} ${reference.eventId}`;
+  const parentKey =
+    reference && `${reference.roomId ?? ''} ${reference.threadId} ${reference.eventId}`;
 
   useEffect(() => {
-    // Also after a redaction of a prefix message (`reloads`); the loaded prefix shows meanwhile.
+    // Also after a redaction of a prefix message or parent-room membership change (`reloads`).
     void reloads;
     const shownRoot = rootRef.current;
     if (!shownRoot || !parentKey) return undefined;
     let current = true;
-    const sources: Sources = {
-      mx,
-      room,
-      sessionId,
-      scheduler,
-      fetchRoomEvent,
-      isCurrent: () => current,
+    const watchedRoomIds = new Set<string>();
+    const loadThreadEvents = (hopRoomId: string, threadId: string, forkPointId: string) => {
+      if (hopRoomId !== room.roomId) watchedRoomIds.add(hopRoomId);
+      const hopRoom = resolveHopRoom(mx, room, hopRoomId);
+      if (!hopRoom) return Promise.resolve([]);
+      const sources: Sources = {
+        mx,
+        room: hopRoom,
+        sessionId,
+        scheduler,
+        isCurrent: () => current,
+      };
+      return loadParentThreadEvents(sources, threadId, forkPointId);
     };
-    const loadThreadEvents = (threadId: string, forkPointId: string) =>
-      loadParentThreadEvents(sources, threadId, forkPointId);
-    void loadThreadForkPrefix({ loadThreadEvents }, shownRoot)
+    void loadThreadForkPrefix({ loadThreadEvents, roomId: room.roomId }, shownRoot)
       .catch((error: unknown): ThreadForkPrefix => {
         console.warn('[threadFork] prefix load failed', error);
         return { events: [], parent: parseThreadForkRef(shownRoot.getOriginalContent()) };
       })
       .then((prefix) => {
-        if (current) setLoaded({ rootId: shownRoot.getId(), parentKey, prefix });
+        if (current) setLoaded({ rootId: shownRoot.getId(), parentKey, prefix, watchedRoomIds });
       });
     return () => {
       current = false;
     };
-  }, [fetchRoomEvent, mx, parentKey, reloads, room, rootId, rootRef, scheduler, sessionId]);
+  }, [mx, parentKey, reloads, room, rootId, rootRef, scheduler, sessionId]);
 
   // The prefix depends on the reference alone: a root that gets its server ID keeps it.
   const shown = loaded?.parentKey === parentKey ? loaded : undefined;
   const events = shown?.prefix.events;
+  const watchedRoomIds = shown?.watchedRoomIds;
+  const parentRoomId = reference?.roomId;
   useEffect(() => {
     if (!root) return undefined;
     const prefixEvents = events ?? [];
     const held = new Set([root, ...prefixEvents]);
+    const prefixRoomIds = new Set(
+      prefixEvents.map((prefixEvent) => prefixEvent.getRoomId() ?? room.roomId)
+    );
+    const membershipRoomIds = new Set<string>(watchedRoomIds ?? []);
+    if (parentRoomId && parentRoomId !== room.roomId) membershipRoomIds.add(parentRoomId);
+    prefixRoomIds.forEach((id) => {
+      if (id !== room.roomId) membershipRoomIds.add(id);
+    });
     const onChange = (event: MatrixEvent) => {
       // A held message decrypted or took an edit in place.
       if (held.has(event)) {
@@ -214,29 +247,48 @@ export const useThreadForkPrefix = (
         return;
       }
       const targetId = changedEventId(event);
-      if (!targetId || event.getRoomId() !== room.roomId || isUnreadableYet(event)) return;
-      const edits = prefixEvents
+      const eventRoomId = event.getRoomId();
+      if (!targetId || !eventRoomId || !prefixRoomIds.has(eventRoomId) || isUnreadableYet(event)) {
+        return;
+      }
+      const editRoom = resolveHopRoom(mx, room, eventRoomId);
+      if (!editRoom) return;
+      const roomPrefixEvents = prefixEvents.filter(
+        (prefixEvent) => (prefixEvent.getRoomId() ?? room.roomId) === eventRoomId
+      );
+      const edits = roomPrefixEvents
         .map((prefixEvent) => getAppliedEdit(prefixEvent))
         .filter((edit): edit is MatrixEvent => !!edit);
-      if (!holds([...prefixEvents, ...edits], targetId)) return;
+      if (!holds([...roomPrefixEvents, ...edits], targetId)) return;
       // A redacted message leaves its thread. Redacting a copy would put it in the room's main
       // timeline (the SDK's `makeRedacted`), so the prefix is read again, as a new view reads it.
       if (event.isRedaction()) {
         reload();
         return;
       }
-      hydrateCachedEvents({ room, events: [...prefixEvents, ...edits, event] });
+      hydrateCachedEvents({ room: editRoom, events: [...roomPrefixEvents, ...edits, event] });
       refresh();
+    };
+    const onMembershipChange = (changedRoom: Room) => {
+      if (membershipRoomIds.has(changedRoom.roomId)) reload();
     };
     mx.on(ClientEvent.Event, onChange);
     mx.on(MatrixEventEvent.Decrypted, onChange);
     mx.on(MatrixEventEvent.Replaced, onChange);
+    if (membershipRoomIds.size > 0) {
+      mx.on(RoomEvent.MyMembership, onMembershipChange);
+      mx.on(ClientEvent.Room, onMembershipChange);
+    }
     return () => {
       mx.removeListener(ClientEvent.Event, onChange);
       mx.removeListener(MatrixEventEvent.Decrypted, onChange);
       mx.removeListener(MatrixEventEvent.Replaced, onChange);
+      if (membershipRoomIds.size > 0) {
+        mx.removeListener(RoomEvent.MyMembership, onMembershipChange);
+        mx.removeListener(ClientEvent.Room, onMembershipChange);
+      }
     };
-  }, [events, mx, refresh, reload, room, root]);
+  }, [events, mx, parentRoomId, refresh, reload, room, root, watchedRoomIds]);
 
   return useMemo(() => {
     // The held events change in place; a new list tells consumers so.

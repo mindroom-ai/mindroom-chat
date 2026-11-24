@@ -208,6 +208,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
         homeserver: HOMESERVER,
         username: world.reader.username,
         password: PASSWORD,
+        developerTools: true,
       });
       // eslint-disable-next-line no-await-in-loop
       await check(page, world, `${engine}-${viewport}`, viewport === 'phone');

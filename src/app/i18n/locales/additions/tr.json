@@ -1663,7 +1663,17 @@
     "forking": "{{title}} konusundan ayrılıyor",
     "continueInNewThread": "Yeni bir konuda devam et",
     "forkCount_one": "{{count}} ayrım",
-    "forkCount_other": "{{count}} ayrım"
+    "forkCount_other": "{{count}} ayrım",
+    "forkedFromInRoom": "{{room}} odasındaki {{title}} konusundan ayrıldı",
+    "forkedFromAnotherRoom": "Başka bir odadan ayrıldı",
+    "forkingIntoRoom": "{{title}} konusu {{room}} odasına ayrılıyor",
+    "forkToRoom": "Odaya ayır…",
+    "forkToRoomTitle": "Odaya ayır",
+    "forkToRoomSearchPlaceholder": "Odaları ara…",
+    "forkToRoomEmpty": "Eşleşen oda yok",
+    "forkToRoomAgentWarning": "Bu odadaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
+    "forkingFromRoom": "{{room}} odasından ayrılıyor",
+    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez"
   },
   "activity": {
     "title": "Etkinlik",
@@ -1963,6 +1973,42 @@
       "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
+    },
+    "help": {
+      "button": "Yardım ve rehberler",
+      "buttonWithTip": "Yardım ve rehberler (1 ipucu)",
+      "title": "Yardım ve rehberler",
+      "subtitle": "Hızlı rehberler",
+      "oneTip": "1 ipucu",
+      "suggested": "Sizin için önerilen",
+      "showHow": "Nasıl yapıldığını gör",
+      "dismissTip": "İpucunu kapat",
+      "guidesHeading": "Arayüz rehberleri",
+      "guides": {
+        "conversation": "Konular nasıl çalışır",
+        "resolve": "Bitenleri çözüldü işaretle",
+        "filters": "Çözülen konuları bul",
+        "snooze": "Sonraya ertele",
+        "pinAndTag": "Konuları sabitle ve etiketle",
+        "views": "Kompakt ve Konular görünümü",
+        "activity": "Etkinlik ve onaylar"
+      },
+      "fullTour": "Tam tur",
+      "shortcuts": "Kısayollar"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Biten konuları çözüldü işaretleyin",
+        "cardTitle": "Biten konuları çözüldü işaretleyin",
+        "roomSummary_one": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "roomSummary_other": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "allSummary_one": "{{count}} açık konu var, henüz çözülen yok",
+        "allSummary_other": "{{count}} açık konu var, henüz çözülen yok",
+        "cardTextRoom_one": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextRoom_other": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_one": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_other": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin."
+      }
     }
   },
   "threadNav": {

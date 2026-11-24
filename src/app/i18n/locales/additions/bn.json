@@ -1663,7 +1663,17 @@
     "forking": "{{title}} থেকে শাখা তৈরি হচ্ছে",
     "continueInNewThread": "নতুন থ্রেডে চালিয়ে যান",
     "forkCount_one": "{{count}}টি শাখা",
-    "forkCount_other": "{{count}}টি শাখা"
+    "forkCount_other": "{{count}}টি শাখা",
+    "forkedFromInRoom": "{{room}}-এ {{title}} থেকে শাখা তৈরি",
+    "forkedFromAnotherRoom": "অন্য রুম থেকে শাখা তৈরি",
+    "forkingIntoRoom": "{{title}} থেকে {{room}}-এ শাখা তৈরি হচ্ছে",
+    "forkToRoom": "অন্য রুমে শাখা তৈরি করুন…",
+    "forkToRoomTitle": "অন্য রুমে শাখা তৈরি করুন",
+    "forkToRoomSearchPlaceholder": "রুম খুঁজুন…",
+    "forkToRoomEmpty": "কোনো মিল থাকা রুম নেই",
+    "forkToRoomAgentWarning": "এই রুমের এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না",
+    "forkingFromRoom": "{{room}} থেকে শাখা তৈরি হচ্ছে",
+    "forkDraftAgentWarning": "এখানকার এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না"
   },
   "activity": {
     "title": "কার্যকলাপ",
@@ -1963,6 +1973,42 @@
       "settingsKeywords": "ট্যুর, টিউটোরিয়াল, গাইড, নির্দেশিকা, সাহায্য, পরিচিতি, থ্রেড",
       "howThreadsWork": "থ্রেড কীভাবে কাজ করে",
       "noThreadsHint": "একটি শুরু করতে নিচে বার্তা পাঠান।"
+    },
+    "help": {
+      "button": "সাহায্য ও গাইড",
+      "buttonWithTip": "সাহায্য ও গাইড (১টি টিপ)",
+      "title": "সাহায্য ও গাইড",
+      "subtitle": "দ্রুত গাইড",
+      "oneTip": "১টি টিপ",
+      "suggested": "আপনার জন্য পরামর্শ",
+      "showHow": "কীভাবে দেখুন",
+      "dismissTip": "টিপ সরিয়ে দিন",
+      "guidesHeading": "UI গাইড",
+      "guides": {
+        "conversation": "থ্রেড কীভাবে কাজ করে",
+        "resolve": "যা শেষ হয়েছে তা সমাধান করুন",
+        "filters": "সমাধান হওয়া থ্রেড খুঁজুন",
+        "snooze": "পরের জন্য স্থগিত করুন",
+        "pinAndTag": "থ্রেড পিন ও ট্যাগ করুন",
+        "views": "কমপ্যাক্ট বনাম থ্রেড ভিউ",
+        "activity": "কার্যকলাপ ও অনুমোদন"
+      },
+      "fullTour": "সম্পূর্ণ ট্যুর",
+      "shortcuts": "শর্টকাট"
+    },
+    "tips": {
+      "resolve": {
+        "title": "শেষ হওয়া থ্রেড সমাধান করুন",
+        "cardTitle": "শেষ হওয়া থ্রেড সমাধান করুন",
+        "roomSummary_one": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "roomSummary_other": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "allSummary_one": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "allSummary_other": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "cardTextRoom_one": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextRoom_other": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextAll_one": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextAll_other": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।"
+      }
     }
   },
   "threadNav": {

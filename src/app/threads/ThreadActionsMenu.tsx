@@ -53,6 +53,7 @@ import * as css from './ThreadActionsMenu.css';
 import { latestForkPoint } from '../event-store/threads/threadFork';
 import { ForkIcon } from '../messages/ForkIcon';
 import { useStartThreadFork } from './fork/useStartThreadFork';
+import { ForkToRoomDialog } from './fork/ForkToRoomDialog';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -79,7 +80,7 @@ export type ThreadActionsMenuProps = {
   tagsAtTop?: boolean;
 };
 
-type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
+type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze' | 'forkToRoom';
 
 // As the original's thread menu measures: at least 220px wide, with the banner's 12px corners. A
 // screen narrower than that at a large Page Zoom (320px at 150%) keeps a 0.5rem margin on each side.
@@ -410,6 +411,22 @@ export function ThreadActionsMenu({
     );
   }
 
+  if (dialog === 'forkToRoom') {
+    const latestPoint = latestForkPoint(room, rootId);
+    if (latestPoint) {
+      return (
+        <ForkToRoomDialog
+          sourceRoom={room}
+          onSelect={(targetRoomId) => {
+            startFork(latestPoint, targetRoomId);
+            onClose();
+          }}
+          onClose={onClose}
+        />
+      );
+    }
+  }
+
   if (dialog === 'regenerate' && requested) {
     return (
       <ActionDialog label={t('threadActions.regenerate')} onClose={closeDialog} busy={false}>
@@ -588,16 +605,24 @@ export function ThreadActionsMenu({
     });
   }
   // The copy of the open thread (the card's has Open instead): a fork at its latest message.
-  const forkPoint = onOpenThread || !forksAnswered ? undefined : latestForkPoint(room, rootId);
-  if (forkPoint) {
+  const latestPoint = onOpenThread ? undefined : latestForkPoint(room, rootId);
+  if (latestPoint && forksAnswered) {
     items.push({
       action: 'fork',
       label: t('threadFork.forkThread'),
       icon: ForkIcon,
       onSelect: () => {
-        startFork(forkPoint);
+        startFork(latestPoint);
         onClose();
       },
+    });
+  }
+  if (latestPoint) {
+    items.push({
+      action: 'forkToRoom',
+      label: t('threadFork.forkToRoom'),
+      icon: ForkIcon,
+      onSelect: () => openDialog('forkToRoom'),
     });
   }
   items.push({

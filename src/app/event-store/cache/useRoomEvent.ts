@@ -49,27 +49,32 @@ const readCache = async <T>(read: () => Promise<T | undefined>): Promise<T | und
   }
 };
 
-/**
- * Load an event that is not in the room timeline: the thread cache first (when the event is
- * known to sit in a thread), then the room cache, then the homeserver.
- */
+/** Loads an event for `roomId`: thread cache, then room cache, then homeserver. */
+export const fetchRoomEventFor = async (
+  mx: MatrixClient,
+  sessionId: string | undefined,
+  roomId: string,
+  eventId: string,
+  threadId?: string
+): Promise<MatrixEvent> => {
+  if (sessionId) {
+    const cached =
+      (threadId
+        ? await readCache(() => loadCachedThreadEvent(sessionId, roomId, threadId, eventId))
+        : undefined) ?? (await readCache(() => loadCachedRoomEvent(sessionId, roomId, eventId)));
+    if (cached) return hydrateLoadedEvent(mx, { room_id: roomId, ...cached });
+  }
+  return hydrateLoadedEvent(mx, await mx.fetchRoomEvent(roomId, eventId));
+};
+
 export const useFetchRoomEvent = (room: Room): FetchRoomEvent => {
   const mx = useMatrixClient();
   const sessionId = useActiveSession()?.sessionId;
   const { roomId } = room;
 
   return useCallback(
-    async (eventId: string, threadId?: string) => {
-      if (sessionId) {
-        const cached =
-          (threadId
-            ? await readCache(() => loadCachedThreadEvent(sessionId, roomId, threadId, eventId))
-            : undefined) ??
-          (await readCache(() => loadCachedRoomEvent(sessionId, roomId, eventId)));
-        if (cached) return hydrateLoadedEvent(mx, { room_id: roomId, ...cached });
-      }
-      return hydrateLoadedEvent(mx, await mx.fetchRoomEvent(roomId, eventId));
-    },
+    (eventId: string, threadId?: string) =>
+      fetchRoomEventFor(mx, sessionId, roomId, eventId, threadId),
     [mx, roomId, sessionId]
   );
 };

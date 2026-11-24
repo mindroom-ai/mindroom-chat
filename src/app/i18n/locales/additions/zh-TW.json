@@ -1615,7 +1615,17 @@
     "forkThread": "分支討論串",
     "forking": "正在從 {{title}} 分支",
     "continueInNewThread": "在新討論串中繼續",
-    "forkCount_other": "{{count}} 個分支"
+    "forkCount_other": "{{count}} 個分支",
+    "forkedFromInRoom": "分支自 {{room}} 中的 {{title}}",
+    "forkedFromAnotherRoom": "分支自其他房間",
+    "forkingIntoRoom": "正在將 {{title}} 分支到 {{room}}",
+    "forkToRoom": "分支到房間…",
+    "forkToRoomTitle": "分支到房間",
+    "forkToRoomSearchPlaceholder": "搜尋房間…",
+    "forkToRoomEmpty": "沒有符合的房間",
+    "forkToRoomAgentWarning": "此房間中的代理程式不在 {{room}} 中，無法查看原討論串",
+    "forkingFromRoom": "正在從 {{room}} 分支",
+    "forkDraftAgentWarning": "此處的代理程式不在 {{room}} 中，無法查看原討論串"
   },
   "activity": {
     "title": "動態",
@@ -1907,6 +1917,38 @@
       "settingsKeywords": "導覽, 教學, 指南, 說明, 入門, 引導, 討論串",
       "howThreadsWork": "討論串如何運作",
       "noThreadsHint": "在下方傳送一則訊息即可發起討論串。"
+    },
+    "help": {
+      "button": "說明與指南",
+      "buttonWithTip": "說明與指南（1 則提示）",
+      "title": "說明與指南",
+      "subtitle": "快速指南",
+      "oneTip": "1 則提示",
+      "suggested": "為你推薦",
+      "showHow": "查看方法",
+      "dismissTip": "關閉提示",
+      "guidesHeading": "介面指南",
+      "guides": {
+        "conversation": "討論串如何運作",
+        "resolve": "解決已完成的討論串",
+        "filters": "尋找已解決的討論串",
+        "snooze": "延後至稍後處理",
+        "pinAndTag": "釘選和加上標籤",
+        "views": "緊湊檢視與討論串檢視",
+        "activity": "動態與核准"
+      },
+      "fullTour": "完整導覽",
+      "shortcuts": "快速鍵"
+    },
+    "tips": {
+      "resolve": {
+        "title": "解決已完成的討論串",
+        "cardTitle": "解決已完成的討論串",
+        "roomSummary_other": "這個房間有 {{count}} 個未解決的討論串，尚無已解決項目",
+        "allSummary_other": "共有 {{count}} 個未解決的討論串，尚無已解決項目",
+        "cardTextRoom_other": "這個房間有 {{count}} 個未解決的討論串，尚無已解決項目。將已完成的標記為已解決，讓清單保持整齊。",
+        "cardTextAll_other": "共有 {{count}} 個未解決的討論串，尚無已解決項目。將已完成的標記為已解決，讓清單保持整齊。"
+      }
     }
   },
   "threadNav": {

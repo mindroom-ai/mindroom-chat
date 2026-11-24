@@ -10,6 +10,7 @@ import { ExploreTab } from './rail/ExploreTab';
 import { HomeTab } from './rail/HomeTab';
 import { ActivityTab } from './rail/ActivityTab';
 import { SearchTab } from '../command-palette/CommandPaletteSidebarTab';
+import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
 import { SpaceTabs } from './rail/SpaceTabs';
 import { ThreadsTab } from './rail/ThreadsTab';
@@ -82,6 +83,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               {shown.search && !phone && <SearchTab />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
+              <HelpTab />
               <SettingsTab />
             </SidebarStack>
             {footer && (

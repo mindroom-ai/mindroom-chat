@@ -1663,7 +1663,17 @@
     "forking": "Abzweigen von {{title}}",
     "continueInNewThread": "In einem neuen Thread fortsetzen",
     "forkCount_one": "{{count}} Abzweigung",
-    "forkCount_other": "{{count}} Abzweigungen"
+    "forkCount_other": "{{count}} Abzweigungen",
+    "forkedFromInRoom": "Abgezweigt von {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Aus einem anderen Raum abgezweigt",
+    "forkingIntoRoom": "Abzweigen von {{title}} nach {{room}}",
+    "forkToRoom": "In Raum abzweigen…",
+    "forkToRoomTitle": "In Raum abzweigen",
+    "forkToRoomSearchPlaceholder": "Räume durchsuchen…",
+    "forkToRoomEmpty": "Keine passenden Räume",
+    "forkToRoomAgentWarning": "Agenten in diesem Raum sind nicht in {{room}} und sehen den ursprünglichen Thread nicht",
+    "forkingFromRoom": "Abzweigen aus {{room}}",
+    "forkDraftAgentWarning": "Agenten hier sind nicht in {{room}} und sehen den ursprünglichen Thread nicht"
   },
   "activity": {
     "title": "Aktivität",
@@ -1963,6 +1973,42 @@
       "settingsKeywords": "Tour, Rundgang, Tutorial, Anleitung, Hilfe, Einführung, Threads",
       "howThreadsWork": "So funktionieren Threads",
       "noThreadsHint": "Sende unten eine Nachricht, um einen zu starten."
+    },
+    "help": {
+      "button": "Hilfe & Anleitungen",
+      "buttonWithTip": "Hilfe & Anleitungen (1 Tipp)",
+      "title": "Hilfe & Anleitungen",
+      "subtitle": "Kurzanleitungen",
+      "oneTip": "1 Tipp",
+      "suggested": "Für dich vorgeschlagen",
+      "showHow": "So geht’s",
+      "dismissTip": "Tipp ausblenden",
+      "guidesHeading": "UI-Anleitungen",
+      "guides": {
+        "conversation": "So funktionieren Threads",
+        "resolve": "Erledigtes auflösen",
+        "filters": "Gelöste Threads finden",
+        "snooze": "Für später zurückstellen",
+        "pinAndTag": "Threads anheften & taggen",
+        "views": "Kompakt- vs. Thread-Ansicht",
+        "activity": "Aktivität & Freigaben"
+      },
+      "fullTour": "Vollständige Tour",
+      "shortcuts": "Tastenkürzel"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Erledigte Threads auflösen",
+        "cardTitle": "Erledigte Threads auflösen",
+        "roomSummary_one": "{{count}} offener Thread hier, noch keiner gelöst",
+        "roomSummary_other": "{{count}} offene Threads hier, noch keiner gelöst",
+        "allSummary_one": "{{count}} offener Thread, noch keiner gelöst",
+        "allSummary_other": "{{count}} offene Threads, noch keiner gelöst",
+        "cardTextRoom_one": "{{count}} offener Thread hier, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextRoom_other": "{{count}} offene Threads hier, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextAll_one": "{{count}} offener Thread, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextAll_other": "{{count}} offene Threads, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen."
+      }
     }
   },
   "threadNav": {

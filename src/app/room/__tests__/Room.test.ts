@@ -25,6 +25,7 @@ type MockRoomViewProps = {
   focusEventInRoom?: boolean;
   threadId?: string;
   forkAt?: string;
+  crossRoomFork?: { sourceRoom: { roomId: string }; threadId: string; forkAt: string };
   onThreadLoadError?: (threadId: string) => void;
   onComputerToggle?: () => void;
 };
@@ -62,6 +63,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     mx: {
       getSafeUserId: () => '@alice:example.org',
       getHomeserverUrl: () => 'https://example.org',
+      getRoom: (id: string) => roomState.rooms.get(id) ?? null,
       relations: vi.fn(),
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
@@ -71,6 +73,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     },
     room: {
       roomId: '!room:example.org',
+      hasEncryptionStateEvent: () => roomState.roomEncrypted,
       getMembers: () => roomState.members,
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
@@ -109,6 +112,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
+      roomEncrypted: false,
+      rooms: new Map<string, unknown>(),
       loadedEvents: new Map<string, MatrixEvent>(),
       conversationCanvases: [] as CanvasListEntry[],
       conversationCanvasesFor: [] as unknown[][],
@@ -397,6 +402,8 @@ describe('Room', { timeout: 30_000 }, () => {
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
+    roomState.roomEncrypted = false;
+    roomState.rooms.clear();
     roomState.loadedEvents.clear();
     roomState.conversationCanvases = [];
     roomState.conversationCanvasesFor = [];
@@ -433,6 +440,63 @@ describe('Room', { timeout: 30_000 }, () => {
     });
 
     expect(roomState.roomViewProps).toMatchObject({ threadId: '$thread', forkAt: '$point' });
+  });
+
+  it('validates cross-room fork draft query params and rejects invalid, partial, or unjoined rooms', async () => {
+    const sourceRoom = {
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      getMyMembership: () => 'join',
+      isSpaceRoom: () => false,
+      hasEncryptionStateEvent: () => false,
+    };
+    roomState.rooms.set('!alpha:example.org', sourceRoom);
+    const { Room } = await import('../Room');
+
+    // Valid tuple with joined source room opens crossRoomFork and leaves threadId unset.
+    roomState.search = '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point';
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+    expect(roomState.roomViewProps?.threadId).toBeUndefined();
+    expect(roomState.roomViewProps?.forkAt).toBeUndefined();
+    expect(roomState.roomViewProps?.crossRoomFork).toEqual({
+      sourceRoom,
+      threadId: '$parent',
+      forkAt: '$point',
+    });
+
+    // Invalid/partial/mixed/same-room/unjoined params never open a broken draft.
+    const invalidSearches = [
+      '?forkRoom=%21alpha%3Aexample.org&forkAt=%24point',
+      '?forkRoom=notaroom&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21room%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21unjoined%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?threadId=%24t&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?threadId=&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24&forkAt=%24point',
+    ];
+    for (const search of invalidSearches) {
+      roomState.search = search;
+      roomState.roomViewProps = undefined;
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      const invalidProps = roomState.roomViewProps as MockRoomViewProps | undefined;
+      expect(invalidProps?.crossRoomFork, search).toBeUndefined();
+    }
+
+    // Encrypted source room into unencrypted target room is rejected.
+    sourceRoom.hasEncryptionStateEvent = () => true;
+    roomState.roomEncrypted = false;
+    roomState.search = '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point';
+    roomState.roomViewProps = undefined;
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+    const encryptedProps = roomState.roomViewProps as MockRoomViewProps | undefined;
+    expect(encryptedProps?.crossRoomFork).toBeUndefined();
   });
 
   it("hands the room view the router's key of the entry whose address focuses an event, and how it came", async () => {
