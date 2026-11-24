@@ -16,7 +16,6 @@ export const HOME_ROOM_LIST = 'home';
 export type RoomSortMode = 'recent' | 'name' | 'manual';
 /** Stored mode value; `'inherit'` lets a sub-space with a saved list inherit from its parent. */
 export type StoredRoomSortMode = RoomSortMode | 'inherit';
-export type InheritSource = string | readonly string[];
 export type RoomOrderLists = Record<string, string[]>;
 export type RoomOrderData = {
   lists: RoomOrderLists;
@@ -38,8 +37,6 @@ const isStoredMode = (value: unknown): value is StoredRoomSortMode =>
   typeof value === 'string' && VALID_MODES.has(value);
 const isConcreteMode = (value: StoredRoomSortMode | undefined): value is RoomSortMode =>
   value === 'recent' || value === 'name' || value === 'manual';
-const toAncestors = (inheritFrom?: InheritSource): readonly string[] =>
-  inheritFrom === undefined ? [] : typeof inheritFrom === 'string' ? [inheritFrom] : inheritFrom;
 const uniqueStrings = (value: unknown): string[] =>
   Array.isArray(value)
     ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))]
@@ -139,12 +136,6 @@ export const withRoomOrderChanges = (
   return next;
 };
 
-/** Applies list `changes` to account data content while preserving other lists and unknown keys. */
-export const withRoomOrders = (
-  content: unknown,
-  changes: Readonly<Record<string, readonly string[] | undefined>>
-): Record<string, unknown> => withRoomOrderChanges(content, { lists: changes });
-
 /** Applies `changes` to `io.mindroom.room_order` in one account-data write. */
 export const saveRoomOrderChanges = async (
   client: MatrixClient,
@@ -157,12 +148,6 @@ export const saveRoomOrderChanges = async (
   );
 };
 
-/** Applies all list `changes` to `io.mindroom.room_order` in one account-data write. */
-export const saveRoomOrders = async (
-  client: MatrixClient,
-  changes: Readonly<Record<string, readonly string[] | undefined>>
-): Promise<void> => saveRoomOrderChanges(client, { lists: changes });
-
 type PendingChanges = {
   event: MatrixEvent | undefined;
   lists: Record<string, string[] | undefined>;
@@ -172,34 +157,29 @@ type PendingChanges = {
 
 export type RoomOrders = {
   orderOf: (listId: string, roomIds: readonly string[]) => string[];
-  modeOf: (listId: string, inheritFrom?: InheritSource) => RoomSortMode;
+  modeOf: (listId: string, inheritFrom?: readonly string[]) => RoomSortMode;
   hasExplicitMode: (listId: string) => boolean;
-  showTimesOf: (listId: string, inheritFrom?: InheritSource) => boolean;
+  showTimesOf: (listId: string, inheritFrom?: readonly string[]) => boolean;
   hasSavedOrder: (listId: string) => boolean;
-  isManual: (listId: string, inheritFrom?: InheritSource) => boolean;
   save: (listId: string, order: string[]) => void;
   setMode: (listId: string, mode: RoomSortMode, currentOrder?: readonly string[]) => void;
-  setShowTimes: (listId: string, show: boolean, inheritFrom?: InheritSource) => void;
+  setShowTimes: (listId: string, show: boolean, inheritFrom?: readonly string[]) => void;
   resetSubspaceOverride: (subspaceId: string) => void;
   appendRoom: (
     listId: string,
     visibleRoomIds: readonly string[],
     roomId: string,
-    inheritFrom?: InheritSource
+    inheritFrom?: readonly string[]
   ) => void;
-  reset: (listIds: readonly string[]) => void;
 };
 
 export type RoomOrder = {
-  roomIds: string[];
   mode: RoomSortMode;
   showTimes: boolean;
   hasSavedOrder: boolean;
-  manual: boolean;
   save: (order: string[]) => void;
   setMode: (mode: RoomSortMode) => void;
   setShowTimes: (show: boolean) => void;
-  reset: () => void;
 };
 
 const mergeMap = <T, R>(
@@ -248,16 +228,16 @@ export const useRoomOrders = (): RoomOrders => {
       return hasSavedOrder(id) ? 'manual' : undefined;
     };
 
-    const modeOf = (id: string, inheritFrom?: InheritSource): RoomSortMode => {
-      for (const candidate of [id, ...toAncestors(inheritFrom)]) {
+    const modeOf = (id: string, inheritFrom?: readonly string[]): RoomSortMode => {
+      for (const candidate of inheritFrom ? [id, ...inheritFrom] : [id]) {
         const mode = explicitModeOf(candidate);
         if (mode) return mode;
       }
       return 'name';
     };
 
-    const showTimesOf = (id: string, inheritFrom?: InheritSource): boolean => {
-      for (const candidate of [id, ...toAncestors(inheritFrom)]) {
+    const showTimesOf = (id: string, inheritFrom?: readonly string[]): boolean => {
+      for (const candidate of inheritFrom ? [id, ...inheritFrom] : [id]) {
         const show = read('showTimes', candidate);
         if (show !== undefined) return show;
       }
@@ -287,7 +267,6 @@ export const useRoomOrders = (): RoomOrders => {
       hasExplicitMode: (id) => explicitModeOf(id) !== undefined,
       showTimesOf,
       hasSavedOrder,
-      isManual: (id, inheritFrom) => modeOf(id, inheritFrom) === 'manual',
       save: (id, order) => write({ lists: { [id]: order }, modes: { [id]: 'manual' } }),
       setMode: (id, mode, currentOrder) => {
         const freeze =
@@ -302,8 +281,8 @@ export const useRoomOrders = (): RoomOrders => {
           write({ showTimes: { [id]: true } });
           return;
         }
-        const ancestors = toAncestors(inheritFrom);
-        const parentShows = ancestors.length > 0 && showTimesOf(ancestors[0]!, ancestors.slice(1));
+        const parentShows =
+          Boolean(inheritFrom?.length) && showTimesOf(inheritFrom![0]!, inheritFrom!.slice(1));
         if (parentShows) write({ showTimes: { [id]: false } });
         else if (read('showTimes', id) !== undefined) write({ showTimes: { [id]: undefined } });
       },
@@ -320,18 +299,9 @@ export const useRoomOrders = (): RoomOrders => {
       appendRoom: (id, visibleRoomIds, roomId, inheritFrom) => {
         if (modeOf(id, inheritFrom) !== 'manual') return;
         const savedList = read('lists', id);
-        if (savedList)
+        if (savedList) {
           write({ lists: { [id]: appendRoomOrder(savedList, visibleRoomIds, roomId) } });
-      },
-      reset: (listIds) => {
-        if (listIds.length === 0) return;
-        const lists: Record<string, undefined> = {};
-        const modes: Record<string, undefined> = {};
-        listIds.forEach((id) => {
-          lists[id] = undefined;
-          if (read('modes', id) !== undefined) modes[id] = undefined;
-        });
-        write({ lists, ...(Object.keys(modes).length > 0 ? { modes } : undefined) });
+        }
       },
     };
   }, [client, event, saved, active]);

@@ -188,15 +188,9 @@ export function useSpaceRoomSections(
 
   const sections = useMemo<RenderedSpaceRoomSection[]>(() => {
     void activityVersion;
-    const parentBySection = new Map(
-      rawSections.flatMap((s) => (s.parentSpaceId ? [[s.spaceId, s.parentSpaceId] as const] : []))
-    );
     return rawSections.map((section) => {
       const closed = closedCategories.has(section.categoryId);
-      const localAncestors = walkChain(section.parentSpaceId, section.spaceId, (id) =>
-        parentBySection.get(id)
-      );
-      const chain = [...new Set([...localAncestors, ...rootAncestors])].filter(
+      const chain = [...new Set([...section.ancestorSpaceIds, ...rootAncestors])].filter(
         (id) => id !== section.spaceId
       );
       const inheritFrom = chain.length > 0 ? chain : undefined;

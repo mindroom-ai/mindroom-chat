@@ -1,13 +1,9 @@
-import { type KeyboardEvent, type MouseEvent, useCallback, useRef, useState } from 'react';
-import { Icon, IconButton, Icons, Line, Switch, Text, config, toRem, type RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import type { KeyboardEvent } from 'react';
+import { Icon, Icons, Line, Switch, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { PopOut } from '../../ui/directional';
-import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { MenuItem } from '../../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../../ui/MenuEntry';
-import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
-import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
-import { stopPropagation } from '../../lib/keyboard';
+import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import type { RoomSortMode } from './roomOrder';
 
 const headingStyle = { paddingBlock: config.space.S100, paddingInline: config.space.S200 } as const;
@@ -181,81 +177,30 @@ export function RoomSortMenu({
   hasSavedOrder,
   onModeChange,
   onShowTimesChange,
-  buttonClassName = LoneTouchTarget,
+  buttonClassName,
 }: RoomSortMenuProps) {
   const { t } = useTranslation();
-  const [anchor, setAnchor] = useState<RectCords>();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const refocusOnCloseRef = useRef(false);
-
-  const close = useCallback(() => {
-    setAnchor(undefined);
-    if (refocusOnCloseRef.current) {
-      refocusOnCloseRef.current = false;
-      buttonRef.current?.focus();
-    }
-  }, []);
-
-  const open = (event: MouseEvent<HTMLButtonElement>) => {
-    refocusOnCloseRef.current = false;
-    setAnchor(event.currentTarget.getBoundingClientRect());
-  };
-
-  const active = mode !== 'name' || showTimes;
-  const label = t('featureUi.roomOrder.sortRooms');
-
-  const menu = (
-    <FocusTrap
-      focusTrapOptions={{
-        onDeactivate: close,
-        escapeDeactivates: (event) => {
-          if (!stopPropagation(event)) return false;
-          refocusOnCloseRef.current = true;
-          return true;
-        },
-        clickOutsideDeactivates: true,
-        initialFocus: false,
-        returnFocusOnDeactivate: false,
-      }}
-    >
-      <Menu
-        role="menu"
-        aria-label={label}
-        className={scrollableMenuCss.ScrollableMenu}
-        style={{ width: '100vw', maxWidth: toRem(220) }}
-      >
-        <div className={scrollableMenuCss.ScrollableMenuRows}>
-          <RoomSortMenuContent
-            mode={mode}
-            showTimes={showTimes}
-            hasSavedOrder={hasSavedOrder}
-            onModeChange={(nextMode) => {
-              onModeChange(nextMode);
-              close();
-            }}
-            onShowTimesChange={onShowTimesChange}
-          />
-        </div>
-      </Menu>
-    </FocusTrap>
-  );
-
   return (
-    <>
-      <IconButton
-        ref={buttonRef}
-        variant={active ? 'Primary' : 'Background'}
-        fill={active ? 'Soft' : undefined}
-        className={buttonClassName}
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={Boolean(anchor)}
-        data-sort-active={active ? 'true' : undefined}
-        onClick={open}
-      >
-        <Icon size="200" src={Icons.Sort} />
-      </IconButton>
-      <PopOut anchor={anchor} position="Bottom" align="End" offset={6} content={menu} />
-    </>
+    <NavOptionsMenu
+      icon={Icons.Sort}
+      label={t('featureUi.roomOrder.sortRooms')}
+      width={220}
+      active={mode !== 'name' || showTimes}
+      menuRole="menu"
+      buttonClassName={buttonClassName}
+    >
+      {(close) => (
+        <RoomSortMenuContent
+          mode={mode}
+          showTimes={showTimes}
+          hasSavedOrder={hasSavedOrder}
+          onModeChange={(nextMode) => {
+            onModeChange(nextMode);
+            close();
+          }}
+          onShowTimesChange={onShowTimesChange}
+        />
+      )}
+    </NavOptionsMenu>
   );
 }

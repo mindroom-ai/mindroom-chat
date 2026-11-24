@@ -329,6 +329,7 @@ test('sorts by recent activity with activity times, preserves custom order, and 
     msgtype: 'm.text',
     body: 'earlier in cedar',
   });
+  // Brief gap so sequential local homeserver sends get distinct millisecond origin_server_ts.
   await page.waitForTimeout(50);
   await sendRoomMessage(HOMESERVER, account.accessToken, alder, {
     msgtype: 'm.text',
@@ -342,10 +343,12 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
     .toEqual([alder, birch, dahlia, cedar]);
+  // Move cursor away from rows so row hover options do not hide the quiet-row timestamp.
+  await page.mouse.move(0, 0);
   await expect(row(page, 'Grove', alder).locator('[data-room-activity-time]')).toBeVisible();
 
   // Override Canopy sub-space to A to Z independently of Grove.
-  await groveNav.getByRole('button', { name: 'Canopy' }).hover();
+  await groveNav.getByRole('button', { name: 'Canopy', exact: true }).hover();
   await groveNav.getByRole('button', { name: 'Canopy options' }).click();
   await expect(page.getByRole('menuitemradio', { name: 'Match space (Recent)' })).toHaveAttribute(
     'aria-checked',
@@ -355,7 +358,7 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([alder, birch, cedar, dahlia]);
 
   // Reset Canopy back to Match space (Recent).
-  await groveNav.getByRole('button', { name: 'Canopy' }).hover();
+  await groveNav.getByRole('button', { name: 'Canopy', exact: true }).hover();
   await groveNav.getByRole('button', { name: 'Canopy options' }).click();
   await page.getByRole('menuitemradio', { name: 'Match space (Recent)' }).click();
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([alder, birch, dahlia, cedar]);
@@ -371,5 +374,6 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
     .toEqual([birch, alder, cedar, dahlia]);
+  await page.mouse.move(0, 0);
   await expect(row(page, 'Grove', birch).locator('[data-room-activity-time]')).toBeVisible();
 });

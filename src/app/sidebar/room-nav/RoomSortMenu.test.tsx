@@ -48,7 +48,7 @@ describe('RoomSortMenu', () => {
     const trigger = screen.getByRole('button', { name: 'Sort rooms' });
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(trigger.getAttribute('data-sort-active')).toBeNull();
+    expect(trigger.getAttribute('data-active')).toBeNull();
 
     // Open popover.
     fireEvent.click(trigger);
@@ -97,9 +97,9 @@ describe('RoomSortMenu', () => {
         onShowTimesChange={onShowTimesChange}
       />
     );
-    expect(
-      screen.getByRole('button', { name: 'Sort rooms' }).getAttribute('data-sort-active')
-    ).toBe('true');
+    expect(screen.getByRole('button', { name: 'Sort rooms' }).getAttribute('data-active')).toBe(
+      'true'
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Sort rooms' }));
     expect(screen.getByRole('menuitemradio', { name: 'Custom order' }).textContent).not.toContain(
       'Saved'

@@ -162,15 +162,12 @@ export const useSubRoomList = (
 
   const roomOrder = useMemo<RoomOrder>(
     () => ({
-      roomIds: list.orderedTop,
       mode,
       showTimes,
       hasSavedOrder: roomOrders.hasSavedOrder(listId),
-      manual: mode === 'manual',
       save: (order: string[]) => roomOrders.save(listId, order),
       setMode: (nextMode: RoomSortMode) => roomOrders.setMode(listId, nextMode, list.orderedTop),
       setShowTimes: (show: boolean) => roomOrders.setShowTimes(listId, show),
-      reset: () => roomOrders.reset([listId]),
     }),
     [roomOrders, listId, list.orderedTop, mode, showTimes]
   );

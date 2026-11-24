@@ -203,12 +203,14 @@ vi.mock('../../ui/directional', async (importOriginal) => ({
 vi.mock('../../ui/nav/NavOptionsMenu', () => ({
   NavOptionsMenu: ({
     label,
+    active,
     children,
   }: {
     label: string;
+    active?: boolean;
     children: (close: () => void) => React.ReactNode;
   }) => (
-    <div data-nav-options={label} aria-label={label}>
+    <div data-nav-options={label} aria-label={label} data-active={active ? 'true' : undefined}>
       {children(() => undefined)}
     </div>
   ),
@@ -606,20 +608,10 @@ describe('Space navigation', () => {
       iconSketches,
     ]);
 
-    const openHeaderSort = () => {
-      const sortBtn = renderer!.root.find(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
-      );
-      act(() => {
-        sortBtn.props.onClick({
-          currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 24, height: 24 }) },
-        });
-      });
-    };
+    const headerSortMenu = () => renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
 
     // Switch Space to A to Z: compost (invited) sorts before seedlings (joined), lists stay intact.
-    openHeaderSort();
-    const aToZ = renderer!.root.find(
+    const aToZ = headerSortMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('A to Z')
     );
     act(() => {
@@ -641,8 +633,7 @@ describe('Space navigation', () => {
     ]);
 
     // Switching back to Custom order restores the preserved custom list without losing it.
-    openHeaderSort();
-    const custom = renderer!.root.find(
+    const custom = headerSortMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Custom order')
     );
     expect(textOf(custom)).toContain('Saved');
@@ -675,20 +666,13 @@ describe('Space navigation', () => {
     });
     expect(timelineListeners.size).toBe(0);
 
-    // Open Space header Sort rooms menu, enable Show activity times, then pick Recent activity.
-    const sortBtn = renderer!.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
-    );
-    act(() => {
-      sortBtn.props.onClick({
-        currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 24, height: 24 }) },
-      });
-    });
-    const showTimesRow = renderer!.root.find((node) => node.props.role === 'menuitemcheckbox');
+    // Enable Show activity times and switch to Recent activity via the Space header Sort rooms menu.
+    const headerSortMenu = () => renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
+    const showTimesRow = headerSortMenu().find((node) => node.props.role === 'menuitemcheckbox');
     act(() => {
       showTimesRow.props.onClick();
     });
-    const recentItem = renderer!.root.find(
+    const recentItem = headerSortMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Recent activity')
     );
     act(() => {
@@ -763,18 +747,19 @@ describe('Space navigation', () => {
         });
       });
     };
+    const subMenu = () => renderer!.root.findByProps({ 'data-popout': true });
     openDesignOptions();
-    const matchSpaceRadio = renderer!.root.find(
+    const matchSpaceRadio = subMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Match space (Recent)')
     );
     expect(matchSpaceRadio.props['aria-checked']).toBe(true);
 
     // Override Design Team: turn off Show activity times (explicit false) and set A to Z.
-    const subShowTimes = renderer!.root.find((node) => node.props.role === 'menuitemcheckbox');
+    const subShowTimes = subMenu().find((node) => node.props.role === 'menuitemcheckbox');
     act(() => {
       subShowTimes.props.onClick();
     });
-    const subAToZ = renderer!.root.find(
+    const subAToZ = subMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('A to Z')
     );
     act(() => {
@@ -799,7 +784,7 @@ describe('Space navigation', () => {
 
     // Reset Design Team back via "Match space (Recent)".
     openDesignOptions();
-    const resetMatch = renderer!.root.find(
+    const resetMatch = subMenu().find(
       (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Match space (Recent)')
     );
     expect(resetMatch.props['aria-checked']).toBe(false);
@@ -838,10 +823,37 @@ describe('Space navigation', () => {
     expect(
       rows().find((node) => node.props['data-row-room'] === iconSketches)!.props['data-activity-ts']
     ).toBe(4000);
-    const sortBtn = renderer!.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
-    );
-    expect(sortBtn.props['data-sort-active']).toBe('true');
+    const sortMenu = renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
+    expect(sortMenu.props['data-active']).toBe('true');
+  });
+
+  it('inherits sort mode and showTimes across a hidden empty organizer sub-space', () => {
+    const { space, organizer, research, readingList, interviews } = rooms.ids;
+    // Organizer is empty and non-editable (hidden from rendered sections), while Research sits under it.
+    accountData.content = {
+      modes: { [space]: 'recent' },
+      showTimes: { [space]: true },
+    };
+    // A to Z order in research: Field Interviews, Reading List. Recent order reverses them.
+    activityByRoom.set(interviews, 1000);
+    activityByRoom.set(readingList, 5000);
+
+    renderSpace([space, organizer, research, readingList, interviews], {
+      [organizer]: [space],
+      [research]: [organizer],
+      [readingList]: [research],
+      [interviews]: [research],
+    });
+
+    // Organizer is hidden, yet Research inherits Recent and showTimes from root space!
+    expect(sectionButtons().map((node) => textOf(node))).toEqual(['Research Group']);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([readingList, interviews]);
+    expect(
+      renderer!.root.findByProps({ 'data-sortable-list': research }).props['data-reorder-disabled']
+    ).toBe('true');
+    expect(
+      rows().find((node) => node.props['data-row-room'] === readingList)!.props['data-activity-ts']
+    ).toBe(5000);
   });
 
   it('shows editable empty sub-spaces, reacts to power-level changes, and keeps section headers mounted across toggles', () => {

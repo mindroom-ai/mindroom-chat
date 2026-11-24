@@ -3,6 +3,7 @@ import {
   RelationType,
   RoomEvent,
   type MatrixClient,
+  type MatrixEvent,
   type Room,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
@@ -11,10 +12,51 @@ import type { RoomSortMode } from './roomOrder';
 
 export type SubRoomChildrenTree = { children: ReadonlyMap<string, string[]> };
 
-/** Safe last-active timestamp for a room (`0` when missing or invalid). */
+const validTs = (ts: unknown): number =>
+  typeof ts === 'number' && Number.isFinite(ts) && ts > 0 ? ts : 0;
+
+const isReplaceEdit = (event: MatrixEvent | null | undefined): boolean =>
+  Boolean(event?.isRelation?.(RelationType.Replace));
+
+const latestNonEditTs = (events: readonly MatrixEvent[] | undefined): number => {
+  if (!events) return 0;
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (!event || isReplaceEdit(event)) continue;
+    const ts = validTs(event.getTs?.());
+    if (ts > 0) return ts;
+  }
+  return 0;
+};
+
+/**
+ * Latest activity timestamp for `room`, combining the live main timeline and all known threads
+ * (loaded thread timelines plus bundled `replyToEvent` summaries) while excluding `m.replace`
+ * edits. Falls back to `room.getLastActiveTimestamp()` only when no live-timeline events are
+ * loaded yet.
+ */
 export const getRoomActivityTimestamp = (room: Room | null | undefined): number => {
-  const ts = room?.getLastActiveTimestamp?.();
-  return typeof ts === 'number' && Number.isFinite(ts) && ts > 0 ? ts : 0;
+  if (!room) return 0;
+  const mainEvents = room.getLiveTimeline?.()?.getEvents?.();
+  let maxTs = latestNonEditTs(mainEvents);
+
+  const threads = room.getThreads?.();
+  if (threads) {
+    for (const thread of threads) {
+      maxTs = Math.max(maxTs, latestNonEditTs(thread.events ?? thread.timeline));
+      const reply = thread.replyToEvent;
+      if (reply && !isReplaceEdit(reply)) {
+        maxTs = Math.max(maxTs, validTs(reply.getTs?.()));
+      }
+    }
+  }
+
+  // Only fall back when the room has no loaded main-timeline events; if events are loaded (e.g.
+  // only an `m.replace` edit), never fall back because `getLastActiveTimestamp()` counts edits.
+  if (maxTs === 0 && (!mainEvents || mainEvents.length === 0)) {
+    return validTs(room.getLastActiveTimestamp?.());
+  }
+  return maxTs;
 };
 
 /** Max activity timestamp of `roomId` and all nested descendant sub-rooms in `tree`. */
@@ -73,8 +115,9 @@ export type ActivityTrackedSection = {
 };
 
 /**
- * Subscribes to live timeline events only while at least one tracked section uses Recent sorting
- * or shows activity times, ignoring backfill and `m.replace` edits.
+ * Subscribes to live timeline events (both main timeline and thread replies, which `matrix-js-sdk`
+ * re-emits on the client as `RoomEvent.Timeline`) only while at least one tracked section uses
+ * Recent sorting or shows activity times, ignoring backfill and `m.replace` edits.
  */
 export const useRoomActivityListener = (
   sections: readonly ActivityTrackedSection[],
@@ -97,7 +140,7 @@ export const useRoomActivityListener = (
       data
     ) => {
       if (!room || toStartOfTimeline || !data.liveEvent) return;
-      if (event.isRelation?.(RelationType.Replace)) return;
+      if (isReplaceEdit(event)) return;
       for (const section of sectionsRef.current) {
         if ((!section.recent && !section.showTimes) || !section.trackedRoomIds.has(room.roomId)) {
           continue;

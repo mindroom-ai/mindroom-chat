@@ -11,7 +11,6 @@ const { homeRoomsState, navigate, screen, sortState, roomsById } = vi.hoisted(()
     setMode: ReturnType<typeof vi.fn>;
     setShowTimes: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
-    reset: ReturnType<typeof vi.fn>;
   } = {
     mode: 'name',
     showTimes: false,
@@ -19,7 +18,6 @@ const { homeRoomsState, navigate, screen, sortState, roomsById } = vi.hoisted(()
     setMode: vi.fn(),
     setShowTimes: vi.fn(),
     save: vi.fn(),
-    reset: vi.fn(),
   };
   return {
     homeRoomsState: { roomIds: ['!room:example.org'] },
@@ -206,13 +204,11 @@ vi.mock('../room-nav/roomOrder', () => ({
     hasExplicitMode: () => sortState.mode !== 'name',
     showTimesOf: () => sortState.showTimes,
     hasSavedOrder: () => Boolean(sortState.savedList?.length),
-    isManual: () => sortState.mode === 'manual',
     save: sortState.save,
     setMode: sortState.setMode,
     setShowTimes: sortState.setShowTimes,
     resetSubspaceOverride: vi.fn(),
     appendRoom: vi.fn(),
-    reset: sortState.reset,
   }),
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
