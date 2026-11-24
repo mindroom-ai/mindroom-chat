@@ -143,6 +143,8 @@ describe('loadVideoElement', () => {
     expect(await settled(loading)).toBe(true);
     await expect(loading).resolves.toBe(video);
     expect(pause).toHaveBeenCalledTimes(1);
+    // Flush jsdom's 0 ms volumechange task queued by video.muted = true; load timeouts are >= 2 s.
+    vi.advanceTimersByTime(0);
     expect(vi.getTimerCount()).toBe(0);
   });
 

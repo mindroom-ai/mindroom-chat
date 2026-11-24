@@ -135,9 +135,11 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 const store = () => getSubagentRunStore(mx as unknown as MatrixClient);
 
 let renderer: ReactTestRenderer | undefined;
+const mountedLayouts: HTMLElement[] = [];
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  while (mountedLayouts.length > 0) mountedLayouts.pop()?.remove();
   store().clear();
   screen.size = 'Desktop';
   view.mode = 'compact';
@@ -174,6 +176,10 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
   const more = document.createElement('button');
   more.dataset.roomMoreOptions = '';
   tail.append(more);
+  header.append(tail);
+  // CSSOM getComputedStyle only resolves layout styles for connected elements.
+  document.body.append(header);
+  mountedLayouts.push(header);
   const calls = document.createElement('div');
   let count = initialCalls;
   const box = (width: number) => new DOMRect(0, 0, width, 40);
