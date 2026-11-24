@@ -1,4 +1,4 @@
-import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
@@ -23,6 +23,7 @@ import {
 } from '../../event-store/sdk/readOnlyEventMapper';
 import { getSummaryLatestEvent } from '../../event-store/cache/cachedThreadSummary';
 import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
+import { isRecord } from '../../lib/isRecord';
 
 /**
  * Per page, not per mount: returning to a room's overview must not read every
@@ -30,19 +31,101 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
  * threads each mount cost hundreds of IndexedDB transactions and megabytes of
  * reads, all through WebKit's networking process.
  */
+type RootRevisionFingerprint = readonly unknown[];
+type SavedRootRevision = { revision: number; fingerprint: RootRevisionFingerprint };
+
 const restoredRooms = new WeakSet<Room>();
 const savedRootRevisions = new WeakMap<
   Room,
-  { isCurrent: () => boolean; revisions: Map<string, number> }
+  { isCurrent: () => boolean; revisions: Map<string, SavedRootRevision> }
 >();
 
 /** Root revisions saved under the room's cache write lease; a cleared room cache starts over. */
-const getSavedRootRevisions = (room: Room, isCurrent: () => boolean): Map<string, number> => {
+const getSavedRootRevisions = (
+  room: Room,
+  isCurrent: () => boolean
+): Map<string, SavedRootRevision> => {
   const saved = savedRootRevisions.get(room);
   if (saved?.isCurrent()) return saved.revisions;
-  const revisions = new Map<string, number>();
+  const revisions = new Map<string, SavedRootRevision>();
   savedRootRevisions.set(room, { isCurrent, revisions });
   return revisions;
+};
+
+const isRoomEventRedacted = (room: Room, eventId: string | undefined): boolean =>
+  Boolean(
+    eventId &&
+      (room.redactedBundledEdits?.has(eventId) || room.findEventById?.(eventId)?.isRedacted())
+  );
+
+/**
+ * O(1) identity/state snapshot of every input that can affect `getRootRevision(room, rootEvent)`.
+ * Unchanged roots skip serialization and JSON hashing entirely on later pages and revisits.
+ */
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  isRecord(value) ? value : undefined;
+
+const eventIdOf = (value: unknown): string | undefined =>
+  isRecord(value) && typeof value.event_id === 'string' ? value.event_id : undefined;
+
+const getRootFingerprint = (room: Room, rootEvent: MatrixEvent): RootRevisionFingerprint => {
+  const rawEvent = rootEvent.event;
+  const unsigned = rawEvent.unsigned;
+  const relations = asRecord(unsigned?.['m.relations']);
+  const bundledThread = asRecord(relations?.[RelationType.Thread]);
+  const bundledLatest = bundledThread?.latest_event;
+  const bundledLatestId = eventIdOf(bundledLatest);
+  const bundledLatestUnsigned = asRecord(asRecord(bundledLatest)?.unsigned);
+  const bundledLatestReplaceId = eventIdOf(
+    asRecord(bundledLatestUnsigned?.['m.relations'])?.[RelationType.Replace]
+  );
+  const bundledReplace = relations?.[RelationType.Replace];
+  const bundledReplaceId = eventIdOf(bundledReplace);
+  const edit = rootEvent.replacingEvent();
+  const editId = edit?.getId();
+  return [
+    rootEvent,
+    rawEvent,
+    rawEvent.content,
+    unsigned,
+    unsigned?.redacted_because,
+    relations,
+    bundledThread,
+    bundledLatest,
+    bundledLatestId,
+    bundledLatestUnsigned?.redacted_because,
+    bundledThread?.count,
+    bundledThread?.current_user_participated,
+    bundledReplace,
+    bundledReplaceId,
+    rootEvent.getType(),
+    rootEvent.isDecryptionFailure(),
+    rootEvent.status,
+    rootEvent.isRedacted(),
+    rootEvent.getClearContent(),
+    edit,
+    edit?.event,
+    edit?.event?.content,
+    edit?.event?.unsigned,
+    edit?.event?.unsigned?.redacted_because,
+    edit?.getType(),
+    edit?.isDecryptionFailure(),
+    edit?.status,
+    edit?.isRedacted(),
+    edit?.getClearContent(),
+    isRoomEventRedacted(room, bundledLatestId),
+    isRoomEventRedacted(room, bundledLatestReplaceId),
+    isRoomEventRedacted(room, bundledReplaceId),
+    isRoomEventRedacted(room, editId),
+  ];
+};
+
+const sameRootFingerprint = (a: RootRevisionFingerprint, b: RootRevisionFingerprint): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 };
 
 /** 53-bit string hash (cyrb53): the page keeps a number per root, not its JSON. */
@@ -68,7 +151,7 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
       rootEvent.isDecryptionFailure(),
       edit?.getType(),
       edit?.isDecryptionFailure(),
-      serializeThreadCacheEvents(room, [], rootEvent),
+      serializeThreadCacheEvents(room, [], rootEvent, { clone: false }),
     ])
   );
 };
@@ -118,7 +201,8 @@ export const useRoomThreadList = (
         restored.forEach(({ cached, rootEvent }) => {
           const id = rootEvent.getId();
           if (id && rootEvent.event === cached && room.getThread(id)?.rootEvent === rootEvent) {
-            saved.set(id, getRootRevision(room, rootEvent));
+            const revision = getRootRevision(room, rootEvent);
+            saved.set(id, { revision, fingerprint: getRootFingerprint(room, rootEvent) });
           }
         });
         setVersion((current) => current + 1);
@@ -146,9 +230,17 @@ export const useRoomThreadList = (
       );
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
         // Later pages can update the same SDK object, including its edits.
+        const existing = saved.get(threadId);
+        if (
+          existing &&
+          sameRootFingerprint(existing.fingerprint, getRootFingerprint(room, rootEvent))
+        ) {
+          return;
+        }
         const revision = getRootRevision(room, rootEvent);
-        if (saved.get(threadId) === revision) return;
-        saved.set(threadId, revision);
+        // Capture fingerprint after `getRootRevision` so hydration changes are reflected.
+        saved.set(threadId, { revision, fingerprint: getRootFingerprint(room, rootEvent) });
+        if (existing?.revision === revision) return;
         // Keep the listed reply as an edit target when sync did not include its original event.
         // One bundled reply does not prove the thread's history or tail was downloaded.
         const latest = getSummaryLatestEvent(rootEvent.event);

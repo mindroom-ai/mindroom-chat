@@ -220,6 +220,25 @@ describe('serializeEventsForCache', () => {
     const serialized = serializeEventsForCache(room, [edit]);
     expect(serialized.map((event) => event.event_id)).toEqual(['$edit-1']);
   });
+
+  it('skips structuredClone without mutating raw events when clone is false', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const sdkReplacement = makeEditEvent('$sdk', 3000, '$target', '@alice:example.org', 'latest');
+    targetEvent.makeReplaced(sdkReplacement);
+
+    const cloneSpy = vi.spyOn(globalThis, 'structuredClone');
+    try {
+      const noClone = serializeEventsForCache(room, [targetEvent], { clone: false });
+      expect(cloneSpy).not.toHaveBeenCalled();
+      expect(targetEvent.event.unsigned?.['m.relations']).toBeUndefined();
+
+      const withClone = serializeEventsForCache(room, [targetEvent]);
+      expect(cloneSpy).toHaveBeenCalled();
+      expect(JSON.stringify(noClone)).toBe(JSON.stringify(withClone));
+    } finally {
+      cloneSpy.mockRestore();
+    }
+  });
 });
 
 describe('hydrateCachedEvents', () => {

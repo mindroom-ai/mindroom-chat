@@ -127,6 +127,30 @@ describe('parsePerTagStateKey', () => {
     expect(parsePerTagStateKey('["not-an-event","bug"]')).toBeNull();
     expect(parsePerTagStateKey('["$root","bad tag"]')).toBeNull();
   });
+
+  it('skips JSON.parse for legacy keys and caches parsed per-tag keys', () => {
+    const parseSpy = vi.spyOn(JSON, 'parse');
+    try {
+      expect(parsePerTagStateKey('$legacy-root')).toBeNull();
+      expect(parsePerTagStateKey('')).toBeNull();
+      expect(parseSpy).not.toHaveBeenCalled();
+
+      const key = '["$cached-root","Priority"]';
+      const first = parsePerTagStateKey(key);
+      const second = parsePerTagStateKey(key);
+      expect(first).toEqual({ threadRootId: '$cached-root', tagName: 'priority' });
+      expect(second).toBe(first);
+      expect(Object.isFrozen(first)).toBe(true);
+      expect(parseSpy).toHaveBeenCalledTimes(1);
+
+      expect(parsePerTagStateKey('  ["$ws-root","Urgent"]')).toEqual({
+        threadRootId: '$ws-root',
+        tagName: 'urgent',
+      });
+    } finally {
+      parseSpy.mockRestore();
+    }
+  });
 });
 
 describe('buildPerTagStateKey', () => {

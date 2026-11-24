@@ -486,6 +486,8 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   const timeline = listInPages(room);
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
     timeline.setPaginationToken(null, Direction.Backward);
+    // Mutate the root before the final pass so `checkAll` re-serializes it and hits the error.
+    root.makeReplaced(rootEdit('$listed', 'Edited before end'));
     failNextRevision = true;
     return false;
   });
@@ -507,7 +509,7 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   );
 });
 
-it('checks each listed root with its page and once more as the load ends, not once per page', async () => {
+it('skips re-serializing unchanged roots across pages and revisits', async () => {
   const { mx, room, engine } = setUpRoom();
   const saved: string[] = [];
   recordSaves(engine, (threadId) => saved.push(threadId));
@@ -540,15 +542,20 @@ it('checks each listed root with its page and once more as the load ends, not on
   await showOverview();
   const all = [...firstPage, ...laterPages].map((r) => r.getId());
   expect(saved).toEqual(all);
-  // One check per root as its page arrives, and one more of every root once the list is complete.
-  expect(revisedRoots.slice(0, all.length)).toEqual(all);
-  expect(revisedRoots.slice(all.length).sort()).toEqual([...all].sort());
+  // Each unchanged root is serialized once as its page arrives, not again at the end of the load.
+  expect(revisedRoots).toEqual(all);
 
-  // A list that arrives in one page checks each root once.
+  // Revisiting with unchanged roots skips re-serialization completely.
   revisedRoots.length = 0;
   await showOverview();
-  expect([...revisedRoots].sort()).toEqual([...all].sort());
+  expect(revisedRoots).toEqual([]);
   expect(saved).toEqual(all);
+
+  // A mutated root invalidates its fingerprint, re-serializes, and saves.
+  firstPage[1]!.makeReplaced(rootEdit('$first-1', 'Updated title'));
+  await showOverview();
+  expect(revisedRoots).toEqual(['$first-1']);
+  expect(saved).toEqual([...all, '$first-1']);
 });
 
 it('saves only changed listed roots when the overview is shown again', async () => {
