@@ -14,9 +14,7 @@ vi.mock('folds', () => {
       children,
       style,
       ref,
-    }: Record<string, unknown> & { children?: React.ReactNode } & {
-      ref?: React.Ref<HTMLElement>;
-    }) =>
+    }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
       React.createElement(name, { ref, style, ...extra }, children as React.ReactNode);
   return {
     Box: tag('div'),

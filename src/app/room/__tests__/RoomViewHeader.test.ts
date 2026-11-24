@@ -60,10 +60,9 @@ vi.mock('folds', async (importOriginal) => {
       children,
       ref,
       ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    }: React.ComponentPropsWithRef<'button'> & {
       children: React.ReactNode;
-    } & { ref?: React.Ref<HTMLButtonElement> }) =>
-      reactModule.createElement('button', { ref, type: 'button', ...props }, children),
+    }) => reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ArrowLeft: 'ArrowLeft',
       CheckTwice: 'CheckTwice',

@@ -61,10 +61,7 @@ vi.mock('folds', async () => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: ({
-      children,
-      ref,
-    }: { children?: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+    Menu: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
       reactModule.createElement('div', { ref }, children),
     PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
       anchor ? reactModule.createElement('div', null, content) : null,

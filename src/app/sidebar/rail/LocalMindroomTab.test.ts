@@ -24,9 +24,8 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     children,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' | 'div' } & {
-    ref?: React.Ref<HTMLButtonElement>;
-  }) => React.createElement(As, { ...props, ref }, children),
+  }: React.ComponentPropsWithRef<'button'> & { as?: 'button' | 'div' }) =>
+    React.createElement(As, { ...props, ref }, children),
 }));
 
 vi.mock('../../ui/Modal500', () => ({

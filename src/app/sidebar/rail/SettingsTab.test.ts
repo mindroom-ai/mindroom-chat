@@ -62,10 +62,9 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     children,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  }: React.ComponentPropsWithRef<'button'> & {
     children: React.ReactNode;
-  } & { ref?: React.Ref<HTMLButtonElement> }) =>
-    React.createElement('button', { ref, type: 'button', ...props }, children),
+  }) => React.createElement('button', { ref, type: 'button', ...props }, children),
 }));
 
 vi.mock('../../avatars/UserAvatar', () => ({

@@ -43,14 +43,13 @@ vi.mock('folds', () => ({
     visibility,
     ref,
     ...props
-  }: React.HTMLAttributes<HTMLDivElement> & {
+  }: React.ComponentPropsWithRef<'div'> & {
     direction?: string;
     hideTrack?: boolean;
     size?: string;
     variant?: string;
     visibility?: string;
-  } & { ref?: React.Ref<HTMLDivElement> }) =>
-    React.createElement('div', { ...props, ref }, children),
+  }) => React.createElement('div', { ...props, ref }, children),
   Text: ({
     as: asElement = 'span',
     children,

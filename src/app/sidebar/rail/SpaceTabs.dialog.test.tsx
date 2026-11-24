@@ -70,7 +70,10 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     children,
     ref,
     ...props
-  }: { children?: ReactNode } & { ref?: React.Ref<HTMLDivElement> }) => (
+  }: {
+    children?: ReactNode;
+    ref?: React.Ref<HTMLDivElement>;
+  }) => (
     <div ref={ref} {...props}>
       {children}
     </div>
@@ -92,8 +95,8 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     children?: ReactNode;
     'data-id'?: string;
     'data-folder-id'?: string;
-  } & { ref?: React.Ref<HTMLButtonElement> }) =>
-    React.createElement(as, { ...props, ref }, children),
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement(as, { ...props, ref }, children),
 }));
 
 vi.mock('../../avatars/RoomAvatar', () => ({

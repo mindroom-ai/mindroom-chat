@@ -82,12 +82,11 @@ vi.mock('../../ui/nav/NavItem', async () => {
       children,
       ref,
       ...props
-    }: React.HTMLAttributes<HTMLDivElement> & {
+    }: React.ComponentPropsWithRef<'div'> & {
       highlight?: boolean;
       variant?: string;
       radii?: string;
-    } & { ref?: React.Ref<HTMLDivElement> }) =>
-      reactModule.createElement('div', { ...props, ref }, children),
+    }) => reactModule.createElement('div', { ...props, ref }, children),
     NavItemContent: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     NavItemOptions: ({ children }: { children?: React.ReactNode }) =>

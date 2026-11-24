@@ -49,9 +49,8 @@ vi.mock('../ui/sidebar/SidebarItem', () => ({
     outlined: _outlined,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { outlined?: boolean } & {
-    ref?: React.Ref<HTMLButtonElement>;
-  }) => React.createElement('button', { ...props, ref }, children),
+  }: React.ComponentPropsWithRef<'button'> & { outlined?: boolean }) =>
+    React.createElement('button', { ...props, ref }, children),
   SidebarItem: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   SidebarItemTooltip: ({

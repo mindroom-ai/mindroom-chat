@@ -18,9 +18,7 @@ vi.mock('folds', async () => {
       children,
       ref,
       ...props
-    }: Record<string, unknown> & { children?: React.ReactNode } & {
-      ref?: React.Ref<HTMLElement>;
-    }) =>
+    }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
       reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode);
 
   return {

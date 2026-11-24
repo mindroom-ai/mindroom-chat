@@ -10,10 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('folds', () => ({
-  Scroll: ({
-    children,
-    ref,
-  }: { children: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+  Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
     React.createElement('div', { ref }, children),
 }));
 

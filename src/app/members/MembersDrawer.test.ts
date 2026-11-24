@@ -21,10 +21,7 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('div', null, children),
     Badge: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    Box: ({
-      children,
-      ref,
-    }: { children?: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+    Box: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
       reactModule.createElement('div', { ref }, children),
     Chip: ({
       children,
@@ -38,9 +35,8 @@ vi.mock('folds', async (importOriginal) => {
       children,
       ref,
       ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode } & {
-      ref?: React.Ref<HTMLButtonElement>;
-    }) => reactModule.createElement('button', { ref, type: 'button', ...props }, children),
+    }: React.ComponentPropsWithRef<'button'> & { children?: React.ReactNode }) =>
+      reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ChevronTop: 'ChevronTop',
       Cross: 'Cross',
@@ -59,10 +55,7 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('button', { type: 'button', ...props }, children),
     PopOut: ({ children, content }: { children?: React.ReactNode; content?: React.ReactNode }) =>
       reactModule.createElement(reactModule.Fragment, null, children, content),
-    Scroll: ({
-      children,
-      ref,
-    }: { children?: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+    Scroll: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
       reactModule.createElement('div', { ref }, children),
     Spinner: () => reactModule.createElement('div'),
     Text: ({

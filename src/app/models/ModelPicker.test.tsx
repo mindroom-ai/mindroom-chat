@@ -158,8 +158,7 @@ vi.mock('../ui/glass/GlassPrimitives', () => ({
     size: _size,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> &
-    Record<'variant' | 'radii' | 'size', string> & { ref?: React.Ref<HTMLButtonElement> }) => (
+  }: React.ComponentPropsWithRef<'button'> & Record<'variant' | 'radii' | 'size', string>) => (
     <button ref={ref} {...props} />
   ),
 }));

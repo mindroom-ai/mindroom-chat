@@ -70,7 +70,8 @@ vi.mock('folds', () => ({
     children?: React.ReactNode;
     onClick?: () => void;
     [key: string]: unknown;
-  } & { ref?: React.Ref<HTMLButtonElement> }) =>
+    ref?: React.Ref<HTMLButtonElement>;
+  }) =>
     React.createElement(
       'button',
       { ...props, onClick, ref, type: props.type ?? 'button' },
@@ -93,8 +94,8 @@ vi.mock('folds', () => ({
   }: {
     onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
     [key: string]: unknown;
-  } & { ref?: React.Ref<HTMLInputElement> }) =>
-    React.createElement('input', { ...props, onChange, ref }),
+    ref?: React.Ref<HTMLInputElement>;
+  }) => React.createElement('input', { ...props, onChange, ref }),
   Spinner: () => React.createElement('span', null, 'spinner'),
   Text: ({ as: Tag = 'span', children, ...props }: any) =>
     React.createElement(Tag, props, children),

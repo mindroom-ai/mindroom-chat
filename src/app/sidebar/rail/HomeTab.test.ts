@@ -36,10 +36,7 @@ vi.mock('folds', async () => {
       Home: 'Home',
       CheckTwice: 'CheckTwice',
     },
-    Menu: ({
-      children,
-      ref,
-    }: { children: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+    Menu: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
       reactModule.createElement('div', { ref }, children),
     MenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) =>
       reactModule.createElement('button', { type: 'button', onClick }, children),
@@ -134,10 +131,9 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     children,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  }: React.ComponentPropsWithRef<'button'> & {
     children: React.ReactNode;
-  } & { ref?: React.Ref<HTMLButtonElement> }) =>
-    React.createElement('button', { ref, type: 'button', ...props }, children),
+  }) => React.createElement('button', { ref, type: 'button', ...props }, children),
 }));
 
 vi.mock('../../routes/useHomeSelected', () => ({

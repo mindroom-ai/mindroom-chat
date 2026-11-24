@@ -232,13 +232,13 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
     children,
     ref,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  }: React.ComponentPropsWithRef<'button'> & {
     closed?: boolean;
     ownDirection?: boolean;
     after?: React.ReactNode;
     children?: React.ReactNode;
     'data-category-id'?: string;
-  } & { ref?: React.Ref<HTMLButtonElement> }) {
+  }) {
     const categoryId = props['data-category-id'] ?? '';
     categoryButtonStats.renders.set(
       categoryId,
