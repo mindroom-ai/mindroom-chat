@@ -311,12 +311,32 @@ describe('buildActivityRows', () => {
     expect(rows[0]).toMatchObject({ actorIds: ['@maya:x', '@tom:x'] });
   });
 
-  it('omits a thread where only the user replied', () => {
+  it("omits threads where only the user's reply is present, recent, or post-resolve", () => {
+    const staleTs = NOW - ACTIVITY_READ_WINDOW_MS - DAY;
+    const resolved = { isResolved: true, resolvedTs: NOW - 60_000, lastActivityTs: NOW };
+    const ownAfterResolve = {
+      newsTs: NOW,
+      otherNewsTs: NOW - 120_000,
+      lastReply: reply('@alice:x', NOW),
+      lastOtherReply: reply('@tom:x', NOW - 120_000),
+    };
     const { rows } = build([
       [
         entry('own', { lastActivityTs: NOW }),
         { newsTs: NOW, lastReply: reply('@alice:x', NOW), lastOtherReply: undefined },
       ],
+      [
+        entry('stale', { lastActivityTs: NOW }),
+        {
+          newsTs: NOW,
+          otherNewsTs: staleTs,
+          lastReply: reply('@alice:x', NOW),
+          lastOtherReply: reply('@tom:x', staleTs),
+        },
+      ],
+      [entry('res-reply', resolved), ownAfterResolve],
+      [entry('res-named', resolved), { ...ownAfterResolve, mentionedMe: true, newCount: 1 }],
+      [entry('res-approval', resolved), { ...ownAfterResolve, pendingApproval: approvalRecord }],
     ]);
     expect(rows).toEqual([]);
   });
@@ -335,122 +355,58 @@ describe('buildActivityRows', () => {
         },
       ],
     ]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      key: 'chat',
-      kind: 'reply',
-      unread: false,
-      actorIds: ['@tom:x'],
-      ts: otherTs,
-      signals: { lastOtherReply: tomReply },
-    });
-  });
-
-  it("does not resurface an old thread when only the user's reply is recent", () => {
-    const staleTs = NOW - ACTIVITY_READ_WINDOW_MS - DAY;
-    const { rows } = build([
-      [
-        entry('stale', { lastActivityTs: NOW }),
-        {
-          newsTs: NOW,
-          otherNewsTs: staleTs,
-          lastReply: reply('@alice:x', NOW),
-          lastOtherReply: reply('@tom:x', staleTs),
-        },
-      ],
+    expect(rows).toMatchObject([
+      {
+        key: 'chat',
+        kind: 'reply',
+        unread: false,
+        actorIds: ['@tom:x'],
+        ts: otherTs,
+        signals: { lastOtherReply: tomReply },
+      },
     ]);
-    expect(rows).toEqual([]);
-  });
-
-  it('does not resurface a resolved thread when only the user replied after', () => {
-    const resolved = { isResolved: true, resolvedTs: NOW - 60_000, lastActivityTs: NOW };
-    const ownAfterResolve = {
-      newsTs: NOW,
-      otherNewsTs: NOW - 120_000,
-      lastReply: reply('@alice:x', NOW),
-      lastOtherReply: reply('@tom:x', NOW - 120_000),
-    };
-    const { rows } = build([
-      [entry('reply', resolved), ownAfterResolve],
-      [entry('named', resolved), { ...ownAfterResolve, mentionedMe: true, newCount: 1 }],
-      [entry('approval', resolved), { ...ownAfterResolve, pendingApproval: approvalRecord }],
-    ]);
-    expect(rows).toEqual([]);
   });
 
   it('keeps an agent outcome after the user replies until another sender replies', () => {
     const outcomeTs = NOW - 3600_000;
-    const finished = {
-      kind: 'finished' as const,
-      senderId: '@mindroom_code:x',
-      ts: outcomeTs,
-      durationMs: 90_000,
-    };
-    const stopped = {
-      kind: 'stopped' as const,
-      senderId: '@mindroom_code:x',
-      ts: outcomeTs,
-      durationMs: 1000,
+    const now = { lastActivityTs: NOW };
+    const base = { senderId: '@mindroom_code:x', ts: outcomeTs, durationMs: 90_000 };
+    const afterOwn = {
+      newsTs: NOW,
+      otherNewsTs: outcomeTs,
+      lastReply: reply('@alice:x', NOW),
+      lastOtherReply: reply('@mindroom_code:x', outcomeTs),
     };
     const { rows } = build([
+      [entry('fin', now), { ...afterOwn, outcome: { ...base, kind: 'finished' } }],
+      [entry('stop', now), { ...afterOwn, outcome: { ...base, kind: 'stopped' } }],
       [
-        entry('fin', { lastActivityTs: NOW }),
-        {
-          newsTs: NOW,
-          otherNewsTs: outcomeTs,
-          lastReply: reply('@alice:x', NOW),
-          lastOtherReply: reply('@mindroom_code:x', outcomeTs),
-          outcome: finished,
-        },
-      ],
-      [
-        entry('stop', { lastActivityTs: NOW }),
-        {
-          newsTs: NOW,
-          otherNewsTs: outcomeTs,
-          lastReply: reply('@alice:x', NOW),
-          lastOtherReply: reply('@mindroom_code:x', outcomeTs),
-          outcome: stopped,
-        },
-      ],
-      [
-        entry('after', { lastActivityTs: NOW }),
+        entry('after', now),
         {
           newsTs: NOW,
           otherNewsTs: NOW,
           lastReply: reply('@tom:x', NOW),
           lastOtherReply: reply('@tom:x', NOW),
-          outcome: finished,
+          outcome: { ...base, kind: 'finished' },
         },
       ],
     ]);
     expect(kinds(rows)).toEqual(['after:reply', 'fin:finished', 'stop:stopped']);
   });
 
-  it('uses rootTs for a root mention without other replies and 0 for highlight-only', () => {
+  it('timestamps mentions with no other reply by root, index activity, or 0 for own-only', () => {
     const rootTs = NOW - 5 * 3600_000;
+    const loaded = { rootTs, lastActivityTs: NOW };
+    const ownOnly = { lastReply: reply('@alice:x', NOW), lastOtherReply: undefined };
     const { rows } = build([
-      [
-        entry('root', { rootTs, lastActivityTs: NOW }),
-        {
-          mentionedMe: true,
-          mentionedBy: '@maya:x',
-          lastReply: reply('@alice:x', NOW),
-          lastOtherReply: undefined,
-        },
-      ],
-      [
-        entry('hl', { rootTs, lastActivityTs: NOW }),
-        {
-          mentionedMe: true,
-          lastReply: reply('@alice:x', NOW),
-          lastOtherReply: undefined,
-        },
-      ],
+      [entry('root', loaded), { mentionedMe: true, mentionedBy: '@maya:x', ...ownOnly }],
+      [entry('hl-unloaded', loaded), { mentionedMe: true, lastOtherReply: undefined }],
+      [entry('hl-own', loaded), { mentionedMe: true, ...ownOnly }],
     ]);
     expect(rows.map((row) => [row.key, row.kind, row.ts])).toEqual([
+      ['hl-unloaded', 'mention', NOW],
       ['root', 'mention', rootTs],
-      ['hl', 'mention', 0],
+      ['hl-own', 'mention', 0],
     ]);
   });
 });

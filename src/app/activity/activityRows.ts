@@ -147,7 +147,13 @@ export const buildActivityRows = ({
     // A reply row says who replied; without a counted reply from others, there is nothing to tell.
     if (kind === 'reply' && !threadSignals.lastOtherReply && threadSignals.newCount === 0) continue;
     const actorIds = actorsOf(kind, threadSignals);
-    const ts = otherActivityTs || (threadSignals.mentionedBy ? (entry.rootTs ?? 0) : 0);
+    const ts =
+      otherActivityTs ||
+      (threadSignals.mentionedBy
+        ? (entry.rootTs ?? entry.lastActivityTs)
+        : threadSignals.lastReply
+          ? 0
+          : entry.lastActivityTs);
     rows.push({
       type: 'thread',
       key: entry.key,

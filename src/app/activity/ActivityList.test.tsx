@@ -585,31 +585,45 @@ describe('ActivityList', () => {
     expect(screen.queryByText('My own follow-up')).toBeNull();
   });
 
-  it('does not fall back to the indexed reply preview when no other reply exists', () => {
-    const row = threadRow(
-      'root-mention',
-      'mention',
-      {
-        mentionedMe: true,
-        mentionedBy: '@maya:x',
-        lastReply: {
-          eventId: '$mine',
-          senderId: '@alice:x',
-          ts: NOW,
-          preview: { kind: 'text', text: 'My own note' },
-          event: { sender: '@alice:x', content: {} },
-        },
-        lastOtherReply: undefined,
-      },
-      { actorIds: ['@maya:x'] }
-    );
-    if (row.type === 'thread') {
-      row.entry.threadRecord.presentation.latestReplyPreviewText = 'Indexed own reply';
-    }
-    renderList({ rows: [row], hiddenAutomations: 0 });
-    const item = rowByTitle('Thread root-mention');
-    expect(within(item).getByText('Maya Chen mentioned you')).toBeTruthy();
-    expect(screen.queryByText('Indexed own reply')).toBeNull();
+  it('uses the indexed reply preview only when no reply is loaded and another user sent it', () => {
+    const indexedRow = (
+      key: string,
+      lastSenderId: string | undefined,
+      signals: Partial<ThreadSignals> = {}
+    ) => {
+      const row = threadRow(
+        key,
+        'mention',
+        { mentionedMe: true, mentionedBy: '@maya:x', lastOtherReply: undefined, ...signals },
+        { actorIds: ['@maya:x'] }
+      );
+      if (row.type === 'thread') {
+        row.entry.threadRecord.presentation.latestReplyPreviewText = `Indexed ${key}`;
+        row.entry.threadRecord.presentation.lastSenderId = lastSenderId;
+      }
+      return row;
+    };
+    renderList({
+      rows: [
+        indexedRow('other', '@tom:x'),
+        indexedRow('viewer', '@alice:x'),
+        indexedRow('unknown', undefined),
+        indexedRow('loaded', '@tom:x', {
+          lastReply: {
+            eventId: '$mine',
+            senderId: '@alice:x',
+            ts: NOW,
+            preview: { kind: 'text', text: 'My own note' },
+            event: { sender: '@alice:x', content: {} },
+          },
+        }),
+      ],
+      hiddenAutomations: 0,
+    });
+    expect(within(rowByTitle('Thread other')).getByText('Indexed other')).toBeTruthy();
+    expect(within(rowByTitle('Thread viewer')).queryByText('Indexed viewer')).toBeNull();
+    expect(within(rowByTitle('Thread unknown')).queryByText('Indexed unknown')).toBeNull();
+    expect(within(rowByTitle('Thread loaded')).queryByText('Indexed loaded')).toBeNull();
     expect(screen.queryByText('My own note')).toBeNull();
   });
 

@@ -17,6 +17,7 @@ import { useMessagePreview } from '../plugins/messageRenderers';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
+  threadIndexReplyPreview,
   threadPreviewText,
   threadTitleText,
 } from '../threads/cross-room/threadText';
@@ -321,6 +322,9 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     preview = revealDirectionControls(row.signals.pendingQuestion.text);
   } else if (row.signals.lastOtherReply) {
     preview = replyPreview ?? threadPreviewText(t, row.signals.lastOtherReply.preview);
+  } else if (!row.signals.lastReply) {
+    const indexed = threadIndexReplyPreview(row.entry);
+    if (indexed?.senderId && indexed.senderId !== viewerId) preview = indexed.text;
   }
   const context =
     row.type === 'thread'
