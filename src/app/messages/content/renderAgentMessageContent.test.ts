@@ -17,7 +17,12 @@ const toolTraceParserOptionsMock = vi.hoisted(() =>
 );
 
 vi.mock('../canvas/InlineCanvasFrame', () => ({
-  InlineCanvasFrame: () => React.createElement('div', { 'data-inline-canvas': true }),
+  InlineCanvasFrame: ({ fallback, readOnly }: { fallback?: React.ReactNode; readOnly?: boolean }) =>
+    React.createElement(
+      'div',
+      { 'data-inline-canvas': true, 'data-read-only': readOnly ? 'true' : undefined },
+      fallback
+    ),
 }));
 
 vi.mock('./MsgTypeRenderers', () => ({
@@ -821,6 +826,35 @@ describe('renderAgentMessageContent', () => {
     expect(readOnlyRow).not.toContain('data-ui-action');
     // An inline page is display-only, so a read-only row still shows it.
     expect(readOnlyRow).toContain('data-inline-canvas');
+    expect(readOnlyRow).toContain('"data-read-only":"true"');
+  });
+
+  it('hands canvas notices to InlineCanvasFrame with the fallback notice inside it', async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Open MindRoom Chat to see the canvas.',
+      [CHAT_UI_ACTION_KEY]: {
+        version: 1,
+        action: 'show_canvas',
+        inline: true,
+        canvas: { title: 'Budget summary', html: '<p>Draft</p>' },
+      },
+    };
+    const tree = (
+      await renderNode({
+        fromMindroomAgent: true,
+        msgType: 'm.notice',
+        content,
+        mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+      })
+    ).toJSON() as { props?: Record<string, unknown>; children?: unknown[] };
+
+    expect(tree.props?.['data-inline-canvas']).toBe(true);
+    const serialized = JSON.stringify(tree.children);
+    expect(serialized).toContain('data-canvas-notice-title');
+    expect(serialized).toContain('Budget summary');
+    expect(serialized).toContain('data-ui-action');
   });
 
   it('renders extras for MindRoom long-text text paths', async () => {
