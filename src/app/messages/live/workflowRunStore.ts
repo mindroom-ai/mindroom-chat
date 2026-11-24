@@ -46,6 +46,7 @@ export const selectWorkflowRun = (
   if (!live && !record) return undefined;
   const liveActive = live ? isLiveWorkflowRunStatus(live.meta.status) : false;
   const cardActive = record ? isLiveWorkflowRunStatus(record.card.status) : false;
+  const sameAttempt = !!live && !!record && live.meta.attempt === record.card.attempt;
   const liveWins =
     !record ||
     (!!live &&
@@ -54,10 +55,23 @@ export const selectWorkflowRun = (
         : liveActive !== cardActive
         ? !liveActive
         : liveActive
-        ? !live.stale
+        ? !live.stale || record.receivedAt <= live.lastFrameAt
         : live.meta.endedAt !== null &&
           (record.card.endedAt === null || live.meta.endedAt > record.card.endedAt)));
   const summary = liveWins ? live!.meta : record.card;
+  const sameTerminal =
+    sameAttempt &&
+    !liveActive &&
+    !cardActive &&
+    live.meta.status === record.card.status &&
+    live.meta.endedAt === record.card.endedAt;
+  const graph = liveWins
+    ? live!.graph
+    : sameTerminal && live.graph.nodes.length >= (record.card.graph?.nodes.length ?? 0)
+    ? live.graph
+    : sameAttempt
+    ? record.card.graph ?? live?.graph
+    : record.card.graph;
   return {
     ...summary,
     run: record?.card.run ?? live!.run,
@@ -65,7 +79,7 @@ export const selectWorkflowRun = (
     threadId: live?.meta.threadId ?? record?.threadId ?? null,
     error: liveWins ? null : record.card.error,
     requester: record?.card.requester ?? live?.meta.requester,
-    graph: liveWins ? live!.graph : record.card.graph ?? live?.graph,
+    graph,
     stale: !!live?.stale && isLiveWorkflowRunStatus(summary.status),
     lastFrameAt: live?.lastFrameAt ?? record!.receivedAt,
     live,
@@ -131,6 +145,7 @@ export class WorkflowRunStore {
     if (
       held &&
       (held.card.attempt > card.attempt ||
+        (held.card.attempt === card.attempt && held.receivedAt > receivedAt) ||
         (held.card === card && held.sender === sender && held.threadId === threadId))
     )
       return;

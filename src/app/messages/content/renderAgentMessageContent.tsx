@@ -528,7 +528,15 @@ export const renderAgentMessageContent = ({
       readOnly,
     };
     const runCard = parseWorkflowRunCard(content);
-    if (runCard) return <WorkflowRunCard card={runCard} sender={mEvent?.getSender()} {...common} />;
+    if (runCard)
+      return (
+        <WorkflowRunCard
+          card={runCard}
+          sender={mEvent?.getSender()}
+          updatedAt={mEvent?.replacingEvent()?.getTs() ?? mEvent?.getTs()}
+          {...common}
+        />
+      );
     const question = parseWorkflowRunQuestion(content);
     if (question) return <WorkflowQuestionCard question={question} {...common} />;
   }

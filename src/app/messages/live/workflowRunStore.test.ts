@@ -198,4 +198,157 @@ describe('WorkflowRunStore', () => {
     expect(view?.graph?.nodes).toHaveLength(2);
     expect(view?.stale).toBe(true);
   });
+
+  it('keeps a richer terminal live graph on a same-attempt terminal tie while keeping card error/requester', () => {
+    const store = new WorkflowRunStore();
+    const baseNode = (id: string) => ({
+      id,
+      kind: 'agent',
+      label: `Task ${id}`,
+      name: id,
+      phase: 0,
+      group: null,
+      status: 'completed',
+      waiting_on: null,
+      agent: 'panels',
+      model: null,
+      run: null,
+      job: null,
+      session: null,
+      turns: 1,
+      started_at: 1795389736,
+      ended_at: 1795389811,
+      cached: false,
+      error: null,
+    });
+    store.ingest(
+      ROOM,
+      AGENT,
+      parse({
+        ...firstFrame,
+        meta: { ...firstFrame.meta, status: 'failed', attempt: 1, ended_at: 1795389811 },
+        snapshot: {
+          ...firstFrame.snapshot,
+          nodes: [baseNode('n1'), baseNode('n2'), baseNode('n3'), baseNode('n4')],
+        },
+      }),
+      1000
+    );
+    const finalCard = parseWorkflowRunCard({
+      [WORKFLOW_RUN_CONTENT_KEY]: {
+        run: RUN,
+        job_id: 'job-1',
+        requester: '@alex:example.org',
+        title: 'Audit the sample module',
+        status: 'failed',
+        counts: {
+          queued: 0,
+          running: 0,
+          waiting: 0,
+          completed: 3,
+          failed: 1,
+          indeterminate: 0,
+          cached: 0,
+        },
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 100,
+          tool_calls: 2,
+          cost_usd: '0.05',
+          cost_unknown: false,
+        },
+        phases: ['Audit'],
+        attempt: 1,
+        started_at: 1795389735,
+        ended_at: 1795389811,
+        error: 'Budget exceeded',
+        large: false,
+        graph: {
+          phases: ['Audit'],
+          groups: [],
+          nodes: [baseNode('n1')],
+          edges: [],
+          omitted: {
+            queued: 0,
+            running: 0,
+            waiting: 0,
+            completed: 3,
+            failed: 0,
+            edges: 0,
+            groups: 0,
+            phases: 0,
+            log: 0,
+          },
+          log: [],
+        },
+      },
+    })!;
+    store.showCard(ROOM, AGENT, finalCard, 2000);
+    const view = store.getView(ROOM, RUN);
+    expect(view?.error).toBe('Budget exceeded');
+    expect(view?.requester).toBe('@alex:example.org');
+    expect(view?.graph?.nodes).toHaveLength(4);
+  });
+
+  it('does not revert progress to an older running card when live frames go stale', () => {
+    vi.useFakeTimers();
+    const store = new WorkflowRunStore();
+    const oldCard = parseWorkflowRunCard({
+      [WORKFLOW_RUN_CONTENT_KEY]: {
+        run: RUN,
+        job_id: 'job-1',
+        requester: '@alex:example.org',
+        title: 'Audit the sample module',
+        status: 'running',
+        counts: {
+          queued: 50,
+          running: 1,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
+        usage: {
+          input_tokens: 100,
+          output_tokens: 10,
+          tool_calls: 0,
+          cost_usd: '0.00',
+          cost_unknown: false,
+        },
+        phases: ['Audit'],
+        attempt: 1,
+        started_at: 1795389735,
+        ended_at: null,
+        error: null,
+        large: false,
+      },
+    })!;
+    store.showCard(ROOM, AGENT, oldCard, 1000);
+    store.ingest(
+      ROOM,
+      AGENT,
+      parse({
+        ...firstFrame,
+        meta: {
+          ...firstFrame.meta,
+          status: 'running',
+          counts: {
+            queued: 5,
+            running: 1,
+            waiting: 0,
+            completed: 45,
+            failed: 0,
+            indeterminate: 0,
+            cached: 0,
+          },
+        },
+      }),
+      5000
+    );
+    vi.advanceTimersByTime(WORKFLOW_RUN_FRESHNESS_MS);
+    const view = store.getView(ROOM, RUN);
+    expect(view?.counts.completed).toBe(45);
+    expect(view?.stale).toBe(true);
+  });
 });

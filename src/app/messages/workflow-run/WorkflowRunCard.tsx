@@ -24,7 +24,16 @@ export type WorkflowRunCardProps = {
   threadId?: string | null;
   eventId?: string;
   sender?: string;
+  updatedAt?: number;
   readOnly?: boolean;
+};
+
+const cardObservedAtMap = new WeakMap<WorkflowRunCardData, number>();
+const cardTimestamp = (card: WorkflowRunCardData, updatedAt?: number): number => {
+  if (updatedAt && updatedAt > 0) return updatedAt;
+  let ts = cardObservedAtMap.get(card);
+  if (ts === undefined) cardObservedAtMap.set(card, (ts = Date.now()));
+  return ts;
 };
 
 /** Renders a workflow run's durable notice card, overlaid with live ephemeral frames when newer. */
@@ -33,6 +42,7 @@ export function WorkflowRunCard({
   roomId,
   threadId = null,
   sender,
+  updatedAt,
   readOnly = false,
 }: WorkflowRunCardProps) {
   const { t } = useTranslation();
@@ -40,15 +50,16 @@ export function WorkflowRunCard({
   const jotaiStore = useStore();
   const room = mx.getRoom(roomId);
   const stored = useWorkflowRun(roomId, card.run);
+  const cardObservedAt = cardTimestamp(card, updatedAt);
 
   useEffect(() => {
-    getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
-  }, [card, mx, roomId, sender, threadId]);
+    getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, cardObservedAt, threadId);
+  }, [card, cardObservedAt, mx, roomId, sender, threadId]);
 
   const view = selectWorkflowRun(stored?.live, {
     sender: sender ?? '',
     card,
-    receivedAt: 0,
+    receivedAt: cardObservedAt,
     threadId,
   })!;
   const isLive = isLiveWorkflowRunStatus(view.status);

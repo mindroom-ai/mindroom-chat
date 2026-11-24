@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'node:events';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MatrixEvent, type IContent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -509,5 +509,97 @@ describe('WorkflowRunCard', () => {
     const cardEl = document.querySelector(`[data-workflow-run-card="${RUN}"]`);
     expect(cardEl?.getAttribute('data-workflow-run-status')).toBe('waiting');
     expect(screen.getByRole('button', { name: 'Graph' })).toBeTruthy();
+  });
+
+  it('keeps newer live progress instead of reverting to an older running card on timeout', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const { mx } = makeClient();
+    const store = getWorkflowRunStore(mx);
+    const oldCard = makeCard({
+      status: 'running',
+      counts: {
+        queued: 50,
+        running: 1,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+    });
+    render(
+      <JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <WorkflowRunCard
+            card={oldCard}
+            roomId={ROOM_ID}
+            threadId={THREAD_ID}
+            sender={AGENT}
+            updatedAt={1000}
+          />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    act(() => {
+      store.ingest(
+        ROOM_ID,
+        AGENT,
+        {
+          run: RUN,
+          sid: '1795389735000-a1b2c3d4',
+          seq: 2,
+          meta: {
+            agent: 'panels',
+            threadId: THREAD_ID,
+            title: 'Audit the sample module',
+            status: 'running',
+            attempt: 1,
+            startedAt: 1795389735,
+            endedAt: null,
+            large: false,
+            counts: {
+              queued: 5,
+              running: 1,
+              waiting: 0,
+              completed: 45,
+              failed: 0,
+              indeterminate: 0,
+              cached: 0,
+            },
+            usage: {
+              inputTokens: 2000,
+              outputTokens: 200,
+              toolCalls: 4,
+              costUsd: 0.05,
+              costUnknown: false,
+            },
+          },
+          snapshot: {
+            phases: ['Audit'],
+            groups: [],
+            nodes: [],
+            edges: [],
+            omitted: {
+              queued: 0,
+              running: 0,
+              waiting: 0,
+              completed: 0,
+              failed: 0,
+              edges: 0,
+              groups: 0,
+              phases: 0,
+              log: 0,
+            },
+            log: [],
+          },
+        },
+        5000
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(screen.getByText('45 done, 1 running, 0 waiting')).toBeTruthy();
   });
 });
