@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { clientSessions } from '../../computer/clientSessions';
@@ -29,8 +29,11 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const requestPending = useAtomValue(pauseRequestAtom) !== undefined;
 
   const transcriberRef = useRef<CallTranscriber>(undefined);
-  const latest = useRef({ track, requestPending });
-  latest.current = { track, requestPending };
+  const startTranscriber = useEffectEvent((transcriber: CallTranscriber) => {
+    transcriber.setMicrophone(track);
+    transcriber.setRequestPending(requestPending);
+    transcriber.start();
+  });
 
   useEffect(() => {
     if (!apiUrl) return undefined;
@@ -56,9 +59,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
           },
         });
         transcriberRef.current = transcriber;
-        transcriber.setMicrophone(latest.current.track);
-        transcriber.setRequestPending(latest.current.requestPending);
-        transcriber.start();
+        startTranscriber(transcriber);
       },
       () => {
         // Without its part (offline after a deployment) the call goes on untranscribed.

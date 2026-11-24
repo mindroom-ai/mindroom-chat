@@ -6,7 +6,7 @@ import {
   type RoomMember,
   type RoomState,
 } from 'matrix-js-sdk';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useEffectEvent, useMemo } from 'react';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { getPowersLevelFromMatrixEvent } from '../hooks/usePowerLevels';
 import { getRoomCreators } from '../hooks/useRoomCreators';
@@ -154,43 +154,39 @@ const useAgentRoomStateEvents = (
     void version;
     return room ? agentRoomState(room, eventType, { includeTrustedRoster }) : [];
   }, [room, eventType, includeTrustedRoster, version]);
-  const renderedEvents = useRef(events);
-  // Synchronously with the commit, so an event that lands before passive effects compares with what is shown.
-  useLayoutEffect(() => {
-    renderedEvents.current = events;
-  }, [events]);
+  // Sync hands an agent's member event over again with every batch it sends in, unchanged, so
+  // render again only when a membership change adds or drops state.
+  const onMember = useEffectEvent((_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
+    if (!room) return;
+    const { userId } = member;
+    if (
+      !isMindroomAgentUserIdForViewer(userId, room.myUserId) &&
+      !events.some((e) => e.getSender() === userId) &&
+      !(includeTrustedRoster && roomTrustedAgents(room).has(userId))
+    )
+      return;
+    if (!sameEvents(agentRoomState(room, eventType, { includeTrustedRoster }), events)) refresh();
+  });
+  const syncInitial = useEffectEvent((targetRoom: Room, type: string, includeTrusted: boolean) => {
+    if (
+      !sameEvents(
+        agentRoomState(targetRoom, type, { includeTrustedRoster: includeTrusted }),
+        events
+      )
+    )
+      refresh();
+  });
   useEffect(() => {
     if (!room) return undefined;
     const onState = (event: MatrixEvent) => {
       const type = event.getType();
       if (type === eventType || (includeTrustedRoster && isAgentTrustStateEvent(type))) refresh();
     };
-    // Sync hands an agent's member event over again with every batch it sends in, unchanged, so
-    // render again only when a membership change adds or drops state.
-    const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      const { userId } = member;
-      if (
-        !isMindroomAgentUserIdForViewer(userId, room.myUserId) &&
-        !renderedEvents.current.some((e) => e.getSender() === userId) &&
-        !(includeTrustedRoster && roomTrustedAgents(room).has(userId))
-      )
-        return;
-      if (
-        !sameEvents(
-          agentRoomState(room, eventType, { includeTrustedRoster }),
-          renderedEvents.current
-        )
-      )
-        refresh();
-    };
     room.on(RoomStateEvent.Events, onState);
     room.on(RoomStateEvent.Members, onMember);
     room.on(RoomEvent.CurrentStateUpdated, refresh);
     // Catch state or membership updates that landed between render and passive effect attachment.
-    if (
-      !sameEvents(agentRoomState(room, eventType, { includeTrustedRoster }), renderedEvents.current)
-    )
-      refresh();
+    syncInitial(room, eventType, includeTrustedRoster);
     return () => {
       room.removeListener(RoomStateEvent.Events, onState);
       room.removeListener(RoomStateEvent.Members, onMember);

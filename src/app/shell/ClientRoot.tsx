@@ -1,4 +1,12 @@
-import React, { ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from 'react';
 import {
   Box,
   Button,
@@ -426,7 +434,6 @@ const clientsLeavingAfterLogout = new WeakSet<MatrixClient>();
  * account's tree in the same render; credential rotations keep the client.
  */
 function ClientSession({ session, children }: ClientSessionProps) {
-  const latestSession = useRef(session);
   const [attempt, setAttempt] = useState(0);
   const [startup, setStartup] = useState<StartupState>({ status: 'loading' });
   const [engine, setEngine] = useState<SyncEngine>();
@@ -435,10 +442,12 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
   const { mx } = startup;
-
-  useEffect(() => {
-    latestSession.current = session;
-  }, [session]);
+  const initSessionClient = useEffectEvent((markStartup: ReturnType<typeof claimClientStartup>) =>
+    initClient(session, markStartup)
+  );
+  const removeLoggedOutSession = useEffectEvent((client: MatrixClient) =>
+    removeCurrentClientSessionAndReload(client, session)
+  );
 
   // Account teardown: keys unlocked for this account and its cached queries go with it. What its
   // pages kept in the app-wide store goes when they unmount (`ClientBindAtoms`, `accountState.ts`).
@@ -457,7 +466,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     setStartup({ status: 'loading' });
     setSync(NO_SYNC_YET);
     const markStartup = claimClientStartup(() => !abandoned);
-    initClient(latestSession.current, markStartup).then(
+    initSessionClient(markStartup).then(
       (client) => {
         if (abandoned) {
           closeClient(client);
@@ -508,7 +517,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
       clientsLeavingAfterLogout.add(mx);
       // A failure that throws before its promise exists is shown the same way.
       Promise.resolve()
-        .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
+        .then(() => removeLoggedOutSession(mx))
         .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
     };
     noteSync(mx.getSyncState());

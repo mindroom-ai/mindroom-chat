@@ -8,7 +8,7 @@ import {
   type RoomState,
 } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -100,11 +100,9 @@ export const useAgentServerUrls = (): string[] => {
     void version;
     return bindsTokens ? joinedRoomServerUrls(mx, trusted) : [];
   }, [mx, bindsTokens, trusted, version]);
-  const renderedUrls = useRef(urls);
-  // Synchronously with the commit, so a check that runs before passive effects compares with what is shown.
-  useLayoutEffect(() => {
-    renderedUrls.current = urls;
-  }, [urls]);
+  const checkServers = useEffectEvent((client: MatrixClient, origins: Set<string> | undefined) => {
+    if (!sameUrls(joinedRoomServerUrls(client, origins), urls)) refresh();
+  });
   useEffect(() => {
     const viewer = mx.getUserId() ?? undefined;
     const onState = (event: MatrixEvent) => {
@@ -115,13 +113,12 @@ export const useAgentServerUrls = (): string[] => {
     // only when the servers change. A batch can carry many member events, and reading the
     // servers walks every room, so read them once after the batch.
     let check: ReturnType<typeof setTimeout> | undefined;
-    const checkServers = () => {
-      check = undefined;
-      if (!sameUrls(joinedRoomServerUrls(mx, trusted), renderedUrls.current)) refresh();
-    };
     const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
       if (!bindsTokens || !isMindroomAgentUserIdForViewer(member.userId, viewer)) return;
-      check ??= setTimeout(checkServers, 0);
+      check ??= setTimeout(() => {
+        check = undefined;
+        checkServers(mx, trusted);
+      }, 0);
     };
     mx.on(RoomStateEvent.Events, onState);
     mx.on(RoomStateEvent.Members, onMember);

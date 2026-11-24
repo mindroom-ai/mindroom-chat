@@ -4,6 +4,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -161,9 +162,6 @@ export function ComputerPanel({
   // Automatic reconnect attempts since a stream last stayed connected.
   const reconnectAttemptsRef = useRef(0);
   const recoverOnRestartRef = useRef(false);
-  // Lets the session effect hand a replacement session's failed first connect to the retry policy.
-  const reconnectAutomaticallyRef =
-    useRef<(session: ComputerSessionClient, message?: string) => Promise<void>>(undefined);
 
   const chosenAgent = useMemo(
     () => agents.find((agent) => agent.userId === chosenAgentId),
@@ -342,7 +340,7 @@ export function ComputerPanel({
             throw connectError;
           }
           // A replacement session's first connect counts against the remaining reconnect attempts.
-          void reconnectAutomaticallyRef.current?.(createdSession, getErrorMessage(connectError));
+          void onReconnectAutomatically(createdSession, getErrorMessage(connectError));
         }
       } catch (sessionError) {
         if (lifecycleRef.current !== lifecycle) return;
@@ -565,7 +563,8 @@ export function ComputerPanel({
     onClose();
   };
 
-  reconnectAutomaticallyRef.current = reconnectAutomatically;
+  // Lets the session effect hand a replacement session's failed first connect to the retry policy.
+  const onReconnectAutomatically = useEffectEvent(reconnectAutomatically);
 
   const handleDisconnected = (streamTicket: string, message?: string) => {
     if (activeStreamTicketRef.current !== streamTicket) return;

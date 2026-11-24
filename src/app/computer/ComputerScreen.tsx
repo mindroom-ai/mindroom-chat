@@ -2,6 +2,7 @@ import {
   type ForwardedRef,
   forwardRef,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -75,17 +76,17 @@ function ComputerScreenWithHandle(
   const rfbRef = useRef<RfbClient>(undefined);
   const holdingFrameRef = useRef(false);
   const defaultBackgroundRef = useRef('');
-  const connectedCallbackRef = useRef(onConnected);
-  const disconnectedCallbackRef = useRef(onDisconnected);
-  const pasteCallbackRef = useRef(onPaste);
-  const keyboardCallbackRef = useRef(onKeyboardChange);
+  const handleConnected = useEffectEvent(onConnected);
+  const handleDisconnected = useEffectEvent(onDisconnected);
+  const handlePaste = useEffectEvent((result: PasteResult) => {
+    onPaste?.(result);
+  });
+  const handleKeyboardChange = useEffectEvent((open: boolean) => {
+    onKeyboardChange?.(open);
+  });
   const modeRef = useRef(mode);
   const showTouchpadPointerRef = useRef<() => void>(undefined);
 
-  connectedCallbackRef.current = onConnected;
-  disconnectedCallbackRef.current = onDisconnected;
-  pasteCallbackRef.current = onPaste;
-  keyboardCallbackRef.current = onKeyboardChange;
   modeRef.current = mode;
   const binaryProtocol = protocols[0];
   const ticketProtocol = protocols[1];
@@ -150,17 +151,16 @@ function ComputerScreenWithHandle(
 
     const handleConnect = () => {
       // noVNC sizes the framebuffer before connect, even if it hasn't painted yet.
-      connectedCallbackRef.current(canvas?.width ?? 0, canvas?.height ?? 0);
+      handleConnected(canvas?.width ?? 0, canvas?.height ?? 0);
       touchpad.showPointer();
     };
     const handleDisconnect = (event: Event) => {
       const detail = (event as CustomEvent<{ clean?: boolean }>).detail;
-      disconnectedCallbackRef.current(
+      handleDisconnected(
         detail?.clean === false ? 'The computer connection was interrupted.' : undefined
       );
     };
-    const handleSecurityFailure = () =>
-      disconnectedCallbackRef.current('The computer connection was denied.');
+    const handleSecurityFailure = () => handleDisconnected('The computer connection was denied.');
     const keepInputInsideComputer = (event: Event) => event.stopPropagation();
     // onPointerDown puts focus on the canvas, where noVNC's keyboard listens. A press in the
     // letterbox margin would then move it back to the screen element, so in control it is
@@ -178,7 +178,7 @@ function ComputerScreenWithHandle(
     target.addEventListener('mousedown', keepPressFocusOnCanvas);
     const detachClipboard = attachComputerClipboard(target, rfb, {
       isControlling,
-      onPaste: (result) => pasteCallbackRef.current?.(result),
+      onPaste: (result) => handlePaste(result),
     });
 
     const detachSoftKeyboard = attachComputerSoftKeyboard(keyboardInput, rfb, { isControlling });
@@ -186,7 +186,7 @@ function ComputerScreenWithHandle(
       // While the keyboard is open, noVNC must not take focus to its canvas on the touchpad's
       // press, which would close the keyboard, as noVNC's own app does for its keyboard.
       rfb.focusOnClick = !open;
-      keyboardCallbackRef.current?.(open);
+      handleKeyboardChange(open);
     };
     // From focus, so the keyboard's own Done or dismiss gesture closes it here too.
     const handleKeyboardFocus = () => reportKeyboard(true);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
@@ -99,8 +99,18 @@ function RingAlerts({
   const [hiddenOnIOS, setHiddenOnIOS] = useState(
     () => isNativeIOS() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
   );
-  const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
-  latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
+  const createRingNotification = useEffectEvent(
+    (SystemNotification: typeof window.Notification, tag: string) =>
+      new SystemNotification(t('sharedUi.callEmbedProvider.incomingCall'), {
+        body: line,
+        icon: MINDROOM_FAVICON_SRC,
+        tag,
+        requireInteraction: true,
+        // The ringtone is the sound; the system adds none of its own.
+        silent: true,
+      })
+  );
+  const onOpenRing = useEffectEvent(onOpen);
 
   useEffect(() => {
     if (!isNativeIOS() || typeof document === 'undefined') return undefined;
@@ -131,21 +141,17 @@ function RingAlerts({
     ) {
       return undefined;
     }
-    const note = new SystemNotification(latest.current.title, {
-      body: latest.current.line,
-      icon: MINDROOM_FAVICON_SRC,
-      tag: isDesktopApp() ? `call-ring-${ring.roomId}:${ring.eventId}` : `call-ring-${ring.roomId}`,
-      requireInteraction: true,
-      // The ringtone is the sound; the system adds none of its own.
-      silent: true,
-    });
+    const tag = isDesktopApp()
+      ? `call-ring-${ring.roomId}:${ring.eventId}`
+      : `call-ring-${ring.roomId}`;
+    const note = createRingNotification(SystemNotification, tag);
     note.onclick = () => {
       void desktopBridge()
         ?.showMainWindow()
         ?.catch(() => undefined);
       window.focus();
       note.close();
-      latest.current.onOpen();
+      onOpenRing();
     };
     return () => note.close();
   }, [muted, notify, desktop, ring.eventId, ring.roomId]);

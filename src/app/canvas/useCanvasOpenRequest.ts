@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { loadCanvasEvent } from './canvasIndex';
 
@@ -28,10 +28,7 @@ export function useCanvasOpenRequest(
   enabled: boolean,
   open: (event: MatrixEvent) => void
 ): void {
-  const latestOpen = useRef(open);
-  useLayoutEffect(() => {
-    latestOpen.current = open;
-  }, [open]);
+  const onOpen = useEffectEvent(open);
   useEffect(() => {
     const asked = request;
     if (!enabled || asked?.roomId !== room.roomId) return undefined;
@@ -43,7 +40,7 @@ export function useCanvasOpenRequest(
     void loadCanvasEvent(mx, room, asked.canvasId).then((event) => {
       if (!alive || request !== asked) return;
       request = undefined;
-      if (event) latestOpen.current(event);
+      if (event) onOpen(event);
     });
     return () => {
       alive = false;
