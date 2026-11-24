@@ -238,6 +238,13 @@ export const useThreadScrollRestObserver = ({
       owner.pendingFacts.push({ kind: 'status-bar-top' });
       owner.bumpCommitTick();
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Home' || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (latestRef.current.hasMoreHistory || owner.committedHeadroomPx <= 0) return;
+      owner.bottomPinned = false;
+      owner.pendingFacts.push({ kind: 'status-bar-top' });
+      owner.bumpCommitTick();
+    };
 
     armIdleRef.current = () => {
       if (!needsIdleWork()) return;
@@ -287,6 +294,7 @@ export const useThreadScrollRestObserver = ({
     scrollElement.addEventListener('scrollend', onScrollEnd, { passive: true });
     scrollElement.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
     scrollElement.addEventListener('touchmove', onTouchMove, { passive: true, capture: true });
+    scrollElement.addEventListener('keydown', onKeyDown, { passive: true, capture: true });
     scrollElement.addEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
     window.addEventListener('touchend', onTouchOrPointerEnd, { passive: true, capture: true });
     window.addEventListener('touchcancel', onTouchOrPointerEnd, { passive: true, capture: true });
@@ -303,6 +311,7 @@ export const useThreadScrollRestObserver = ({
       scrollElement.removeEventListener('scrollend', onScrollEnd);
       scrollElement.removeEventListener('touchstart', onTouchStart, true);
       scrollElement.removeEventListener('touchmove', onTouchMove, true);
+      scrollElement.removeEventListener('keydown', onKeyDown, true);
       scrollElement.removeEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
       window.removeEventListener('touchend', onTouchOrPointerEnd, true);
       window.removeEventListener('touchcancel', onTouchOrPointerEnd, true);
