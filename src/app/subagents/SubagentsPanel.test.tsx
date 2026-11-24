@@ -463,7 +463,11 @@ describe('SubagentsPanel', () => {
 
     open('a');
     const tasks = [...(view()?.querySelectorAll('[data-subagent-task]') ?? [])];
-    expect(tasks.map((task) => task.textContent?.trim())).toEqual(['Turn 1.', 'Turn 2.', 'Turn 3.']);
+    expect(tasks.map((task) => task.textContent?.trim())).toEqual([
+      'Turn 1.',
+      'Turn 2.',
+      'Turn 3.',
+    ]);
     const answers = [...(view()?.querySelectorAll('[data-subagent-transcript]') ?? [])];
     expect(answers.map((answer) => answer.textContent?.trim())).toEqual([
       'Answer 1 of a.',
@@ -532,7 +536,9 @@ describe('SubagentsPanel', () => {
     expect(container.querySelector('[data-subagent-now]')?.textContent).toContain(
       'run_shell_command command=git tag'
     );
-    expect(view()?.querySelector('[data-subagent-task]')?.textContent?.trim()).toBe('Find the tags.');
+    expect(view()?.querySelector('[data-subagent-task]')?.textContent?.trim()).toBe(
+      'Find the tags.'
+    );
     // The caller's message, then the run's.
     const [asked, answer] = [...(view()?.querySelectorAll('[data-subagent-message]') ?? [])];
     expect(asked?.textContent).toContain('Lead');
@@ -579,7 +585,9 @@ describe('SubagentsPanel', () => {
 
   it('sanitizes HTML in a task and keeps quoted tool markers literal', () => {
     const taskText =
-      'Inspect this output:\n\n<script>alert(1)</script><iframe src="https://example.org"></iframe>\n\n' +
+      'Inspect this output:\n\n' +
+      '<script>alert(1)</script><iframe src="https://example.org"></iframe>\n' +
+      '<a href="javascript:alert(1)">bad</a> <span onclick="alert(1)">safe</span>\n\n' +
       '🔧 `run_shell_command` [1] ⏳';
     ingest('run', meta('running', { task: taskText }), docs('Checking.'));
     render();
@@ -587,6 +595,9 @@ describe('SubagentsPanel', () => {
 
     const task = view()?.querySelector<HTMLElement>('[data-subagent-task]');
     expect(task?.querySelector('script, iframe')).toBeNull();
+    expect(task?.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(task?.querySelector('[onclick]')).toBeNull();
+    expect(task?.textContent).toContain('safe');
     expect(task?.querySelector('[data-message-disclosure], [data-tool-index]')).toBeNull();
     expect(task?.textContent).toContain('🔧 run_shell_command [1] ⏳');
   });
