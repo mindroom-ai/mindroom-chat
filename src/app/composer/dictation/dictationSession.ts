@@ -12,11 +12,16 @@ import {
 import {
   appendSegmentToGroups,
   canAffordRefinement,
-  pruneUploadHistory,
+  createDictationRateBudget,
+  isRecordCoveredByRefinement,
+  recordDictationUpload,
   sealRefinementGroup,
+  selectNextUpload,
   stitchRefinedSegments,
+  summarizeSessionRecords,
+  type DictationRateBudget,
   type RefinementGroup,
-  type UploadHistoryEntry,
+  type SessionRecordSummary,
 } from './dictationRefinement';
 import { DictationSegmenter, type DictationSegment } from './dictationSegmenter';
 import { loadSileroVad, type SileroVadInstance } from './sileroVad';
@@ -58,6 +63,7 @@ export type DictationFinishResult =
   | { status: 'cancelled' };
 
 export type DictationTranscriber = {
+  readonly rateBudget?: DictationRateBudget;
   transcribe: (
     wav: Blob,
     opts?: { prompt?: string; roomId?: string },
@@ -67,6 +73,7 @@ export type DictationTranscriber = {
 
 export type DictationSessionOptions = DictationAudioCaptureOptions & {
   client: DictationTranscriber;
+  rateBudget?: DictationRateBudget;
   roomId?: string;
   loadVad?: (signal?: AbortSignal) => Promise<SileroVadInstance>;
   captureFactory?: DictationCaptureFactory;
@@ -97,12 +104,7 @@ type SegmentRecord = {
   autoRetried: boolean;
 };
 
-type SegmentStats = Pick<
-  DictationSnapshot,
-  'pendingUploads' | 'failedSegments' | 'completedSegments' | 'hasPartialText' | 'previewText'
->;
-
-const EMPTY_STATS: SegmentStats = {
+const EMPTY_STATS: SessionRecordSummary = {
   pendingUploads: 0,
   failedSegments: 0,
   completedSegments: 0,
@@ -155,12 +157,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     finishPolishTimeoutMs = DEFAULT_FINISH_POLISH_TIMEOUT_MS,
   } = options;
   const captureFactory = options.captureFactory ?? createBrowserCaptureFactory(options);
+  const rateBudget = options.rateBudget ?? client.rateBudget ?? createDictationRateBudget();
 
   const listeners = new Set<() => void>();
-  const uploadHistory: UploadHistoryEntry[] = [];
   let snapshot: DictationSnapshot = idleSnapshot();
   let generation = 0;
   let sessionAbort: AbortController | undefined;
+  let finishPolishAbort: AbortController | undefined;
   let segmenter: DictationSegmenter | undefined;
   let vadInstance: SileroVadInstance | undefined;
   let vadLoading = false;
@@ -173,36 +176,23 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   let waveformSamples: number[] = [];
   let records: SegmentRecord[] = [];
   let groups: RefinementGroup[] = [];
-  let segmentStats: SegmentStats = EMPTY_STATS;
-  let retryNotBeforeMs = 0;
+  let segmentStats: SessionRecordSummary = EMPTY_STATS;
   let queuePromise: Promise<void> | undefined;
   let deferQueuePumpDepth = 0;
-  let armActivePolishTimeout: (() => void) | undefined;
 
   const emit = () => listeners.forEach((listener) => listener());
   const isStale = (activeGen: number) =>
     generation !== activeGen || Boolean(sessionAbort?.signal.aborted);
-
-  const findGroupForRecord = (index: number): RefinementGroup | undefined =>
-    groups.find((group) => index >= group.startIndex && index <= group.endIndex);
-
-  const isRecordCovered = (index: number): boolean =>
-    findGroupForRecord(index)?.state === 'refined';
-
   const stitchCompleted = (limit = records.length): string =>
     stitchRefinedSegments(records, groups, limit);
-
-  const recordUpload = (seconds: number) => {
-    const atMs = now();
-    pruneUploadHistory(uploadHistory, atMs);
-    uploadHistory.push({ atMs, seconds });
-  };
+  const promptBefore = (index: number): string | undefined =>
+    index === 0 ? undefined : buildTrailingPrompt(stitchCompleted(index), 200);
 
   const applyRetryAfter = (error: unknown): number | undefined => {
     const retryAfterMs =
       error instanceof DictationApiError && error.status === 429 ? error.retryAfterMs : undefined;
     if (retryAfterMs !== undefined) {
-      retryNotBeforeMs = Math.max(retryNotBeforeMs, now() + retryAfterMs);
+      rateBudget.retryNotBeforeMs = Math.max(rateBudget.retryNotBeforeMs, now() + retryAfterMs);
     }
     return retryAfterMs;
   };
@@ -218,33 +208,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   };
 
   const publishRecords = (patch: Partial<DictationSnapshot> = {}) => {
-    let pendingUploads = 0;
-    let failedSegments = 0;
-    let completedSegments = 0;
-    for (const group of groups) {
-      if (group.state === 'refined') {
-        completedSegments += group.endIndex - group.startIndex + 1;
-        continue;
-      }
-      const refining = group.state === 'queued' || group.state === 'uploading';
-      if (refining) pendingUploads += 1;
-      for (let i = group.startIndex; i <= group.endIndex; i += 1) {
-        const record = records[i];
-        if (!record) continue;
-        if (record.status === 'uploading' || (!refining && record.status === 'queued')) {
-          pendingUploads += 1;
-        } else if (record.status === 'failed') failedSegments += 1;
-        else if (record.status === 'completed') completedSegments += 1;
-      }
-    }
-    const previewText = stitchCompleted();
-    segmentStats = {
-      pendingUploads,
-      failedSegments,
-      completedSegments,
-      hasPartialText: previewText.length > 0,
-      previewText,
-    };
+    segmentStats = summarizeSessionRecords(records, groups);
     publish(patch);
   };
 
@@ -282,16 +246,16 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     records = [];
     groups = [];
     segmentStats = EMPTY_STATS;
-    retryNotBeforeMs = 0;
     queuePromise = undefined;
     deferQueuePumpDepth = 0;
-    armActivePolishTimeout = undefined;
   };
 
   const releaseAll = (errorMessage?: string) => {
     generation += 1;
     sessionAbort?.abort();
+    finishPolishAbort?.abort();
     sessionAbort = undefined;
+    finishPolishAbort = undefined;
     disposeActiveCapture();
     segmenter?.clear();
     segmenter = undefined;
@@ -339,32 +303,22 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     return !isStale(activeGen);
   };
 
-  const sealOpenGroup = () => {
-    const lastGroup = groups[groups.length - 1];
-    if (lastGroup) {
-      sealRefinementGroup(
-        lastGroup,
-        records.map((item) => item.segment)
-      );
-    }
+  const sealOpenGroup = (): boolean => {
+    const last = groups[groups.length - 1];
+    return last ? sealRefinementGroup(last, records) : false;
   };
 
   const uploadOne = async (record: SegmentRecord, index: number, activeGen: number) => {
     const signal = sessionAbort?.signal;
     if (!signal || isStale(activeGen)) return;
-    if (
-      retryNotBeforeMs > now() &&
-      !(await waitUntil(retryNotBeforeMs - now(), signal, activeGen))
-    ) {
-      return;
-    }
+    if (!(await waitUntil(rateBudget.retryNotBeforeMs - now(), signal, activeGen))) return;
     record.status = 'uploading';
     publishRecords();
 
     for (;;) {
-      const prompt = index === 0 ? undefined : buildTrailingPrompt(stitchCompleted(index), 200);
+      const prompt = promptBefore(index);
       try {
-        recordUpload(record.segment.seconds);
+        recordDictationUpload(rateBudget, now(), record.segment.seconds);
         const result = await client.transcribe(record.segment.wav, { prompt, roomId }, signal);
         if (isStale(activeGen)) return;
         record.text = result.text;
@@ -384,7 +338,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
           record.autoRetried = true;
           const delay =
             retryAfterMs !== undefined
-              ? Math.max(0, retryNotBeforeMs - now())
+              ? Math.max(0, rateBudget.retryNotBeforeMs - now())
               : DEFAULT_RETRY_DELAY_MS;
           if (!(await waitUntil(delay, signal, activeGen))) return;
           continue;
@@ -400,7 +354,6 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const uploadRefinement = async (group: RefinementGroup, activeGen: number) => {
     const signal = sessionAbort?.signal;
     const mergedWav = group.mergedWav;
-    const mergedSeconds = group.mergedSeconds ?? 0;
     if (!signal || isStale(activeGen)) return;
 
     const failOpen = () => {
@@ -409,75 +362,40 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       group.state = 'fallback';
       publishRecords();
     };
-    if (!mergedWav) {
+    const allCompleted = records
+      .slice(group.startIndex, group.endIndex + 1)
+      .every((item) => item.status === 'completed');
+    const requestSignal = allCompleted ? finishPolishAbort?.signal ?? signal : signal;
+    if (
+      !mergedWav ||
+      requestSignal.aborted ||
+      !canAffordRefinement(rateBudget.uploadHistory, now(), group.mergedSeconds ?? 0)
+    ) {
       failOpen();
       return;
     }
 
-    const allCompleted = records
-      .slice(group.startIndex, group.endIndex + 1)
-      .every((item) => item.status === 'completed');
-
-    let requestSignal: AbortSignal = signal;
-    let cleanupSignal: (() => void) | undefined;
-    if (allCompleted) {
-      const requestAbort = new AbortController();
-      const onSessionAbort = () => requestAbort.abort();
-      signal.addEventListener('abort', onSessionAbort, { once: true });
-      requestSignal = requestAbort.signal;
-
-      let timeoutAbort: AbortController | undefined;
-      const startPolishTimer = () => {
-        if (timeoutAbort || requestAbort.signal.aborted) return;
-        timeoutAbort = new AbortController();
-        void sleep(finishPolishTimeoutMs, timeoutAbort.signal).then(
-          () => requestAbort.abort(),
-          () => undefined
-        );
-      };
-      if (snapshot.phase === 'finishing') startPolishTimer();
-      armActivePolishTimeout = startPolishTimer;
-      cleanupSignal = () => {
-        if (armActivePolishTimeout === startPolishTimer) armActivePolishTimeout = undefined;
-        timeoutAbort?.abort();
-        signal.removeEventListener('abort', onSessionAbort);
-      };
-    }
-
     try {
-      if (
-        retryNotBeforeMs > now() &&
-        !(await waitUntil(retryNotBeforeMs - now(), requestSignal, activeGen))
-      ) {
+      if (!(await waitUntil(rateBudget.retryNotBeforeMs - now(), requestSignal, activeGen))) {
         failOpen();
         return;
       }
       group.state = 'uploading';
       publishRecords();
 
-      const prompt =
-        group.startIndex === 0
-          ? undefined
-          : buildTrailingPrompt(stitchCompleted(group.startIndex), 200);
-      recordUpload(mergedSeconds);
-
+      const prompt = promptBefore(group.startIndex);
+      recordDictationUpload(rateBudget, now(), group.mergedSeconds ?? 0);
       const result = await client.transcribe(mergedWav, { prompt, roomId }, requestSignal);
       if (isStale(activeGen)) return;
       group.mergedWav = undefined;
       const cleaned = result.text.trim();
-      if (cleaned.length > 0) {
-        group.refinedText = cleaned;
-        group.state = 'refined';
-      } else {
-        group.state = 'fallback';
-      }
+      group.refinedText = cleaned || undefined;
+      group.state = cleaned ? 'refined' : 'fallback';
       publishRecords();
     } catch (error) {
       if (isStale(activeGen)) return;
       applyRetryAfter(error);
       failOpen();
-    } finally {
-      cleanupSignal?.();
     }
   };
 
@@ -487,32 +405,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     const run = async () => {
       try {
         while (!isStale(activeGen)) {
-          const nextGroup = groups.find((group) => group.state === 'queued');
-          if (nextGroup) {
-            if (!canAffordRefinement(uploadHistory, now(), nextGroup.mergedSeconds ?? 0)) {
-              nextGroup.state = 'fallback';
-              nextGroup.mergedWav = undefined;
-              publishRecords();
-              continue;
-            }
-            await uploadRefinement(nextGroup, activeGen);
-            continue;
+          const next = selectNextUpload(records, groups, deferQueuePumpDepth > 0);
+          if (!next) break;
+          if (next.kind === 'refinement') {
+            await uploadRefinement(next.group, activeGen);
+          } else {
+            const record = records[next.index];
+            if (record) await uploadOne(record, next.index, activeGen);
           }
-
-          const nextIndex = records.findIndex((item, index) => {
-            if (item.status !== 'queued') return false;
-            const state = findGroupForRecord(index)?.state;
-            return (
-              state !== 'queued' &&
-              state !== 'uploading' &&
-              state !== 'refined' &&
-              !(deferQueuePumpDepth > 0 && state === 'open')
-            );
-          });
-          if (nextIndex === -1) break;
-          const nextRecord = records[nextIndex];
-          if (!nextRecord) break;
-          await uploadOne(nextRecord, nextIndex, activeGen);
         }
       } finally {
         done = true;
@@ -527,10 +427,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const enqueueSegment = (segment: DictationSegment, activeGen: number) => {
     if (isStale(activeGen)) return;
     records.push({ segment, status: 'queued', retryable: true, autoRetried: false });
-    appendSegmentToGroups(
-      groups,
-      records.map((item) => item.segment)
-    );
+    appendSegmentToGroups(groups, records);
     publishRecords();
     if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
   };
@@ -633,9 +530,8 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     for (let i = 0; i < records.length; i += 1) {
       const record = records[i];
       if (
-        record &&
-        record.status === 'failed' &&
-        !isRecordCovered(i) &&
+        record?.status === 'failed' &&
+        !isRecordCoveredByRefinement(groups, i) &&
         (!onlyRetryable || record.retryable)
       ) {
         record.status = 'queued';
@@ -649,7 +545,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     await pumpQueue(activeGen);
     if (isStale(activeGen)) return { status: 'cancelled' };
     const failed = records.filter(
-      (item, index) => item.status === 'failed' && !isRecordCovered(index)
+      (item, index) => item.status === 'failed' && !isRecordCoveredByRefinement(groups, index)
     );
     if (failed.length === 0) {
       const text = stitchCompleted();
@@ -680,17 +576,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       generation += 1;
       const activeGen = generation;
       sessionAbort = new AbortController();
+      finishPolishAbort = new AbortController();
       resetRunState();
       segmenter = new DictationSegmenter({
         onSegment: (segment) => enqueueSegment(segment, activeGen),
         onLongSilence: () => {
-          if (isStale(activeGen)) return;
-          const last = groups[groups.length - 1];
-          if (last?.state === 'open' && last.endIndex - last.startIndex + 1 >= 2) {
-            sealOpenGroup();
-            publishRecords();
-            if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
-          }
+          if (isStale(activeGen) || !sealOpenGroup()) return;
+          publishRecords();
+          if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
         },
         onCapReached: () => {
           void pauseWithReason('capReached');
@@ -721,12 +614,20 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       accumulatedMs = currentElapsedMs();
       recordingStartedAt = undefined;
       publish({ phase: 'finishing', elapsedMs: accumulatedMs, errorMessage: undefined });
-      armActivePolishTimeout?.();
-      if (!(await flushAndSeal(activeGen))) return { status: 'cancelled' };
-      await pumpQueue(activeGen);
-      if (isStale(activeGen)) return { status: 'cancelled' };
-      requeueFailedSegments(true);
-      return settleFinishOrRetry(activeGen);
+
+      const polishAbort = finishPolishAbort;
+      const polishTimer = polishAbort
+        ? setTimeout(() => polishAbort.abort(), finishPolishTimeoutMs)
+        : undefined;
+      try {
+        if (!(await flushAndSeal(activeGen))) return { status: 'cancelled' };
+        await pumpQueue(activeGen);
+        if (isStale(activeGen)) return { status: 'cancelled' };
+        requeueFailedSegments(true);
+        return await settleFinishOrRetry(activeGen);
+      } finally {
+        if (polishTimer !== undefined) clearTimeout(polishTimer);
+      }
     },
     retryFailed: () => {
       if (snapshot.phase !== 'failed') return Promise.resolve({ status: 'cancelled' });

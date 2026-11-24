@@ -358,18 +358,18 @@ describe('DictationSegmenter', () => {
     await pushAndDrain(90, 0.001);
     expect(onLongSilence).not.toHaveBeenCalled();
 
-    // Emit one natural segment, then 82 quiet frames (just shy of 83) -> still not fired.
+    // Emit one natural segment (8 redemption frames), then 74 idle frames (79 total shy of 8 s) -> not fired.
     await pushAndDrain(3, 0.3);
-    await pushAndDrain(8 + 82, 0.001);
+    await pushAndDrain(8 + 74, 0.001);
     expect(onLongSilence).not.toHaveBeenCalled();
 
-    // 83rd frame triggers once; further quiet frames do not re-fire.
+    // 75th idle frame (83 total = ~8.0 s silence after speech) triggers once; further frames do not re-fire.
     await pushAndDrain(20, 0.001);
     expect(onLongSilence).toHaveBeenCalledTimes(1);
 
     // Another emitted segment re-arms onLongSilence.
     await pushAndDrain(3, 0.3);
-    await pushAndDrain(8 + 83, 0.001);
+    await pushAndDrain(8 + 75, 0.001);
     expect(onLongSilence).toHaveBeenCalledTimes(2);
 
     // flush() resets the idle-silence trigger until a new post-flush segment is emitted.

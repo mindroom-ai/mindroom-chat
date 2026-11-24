@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DictationApiError } from './api';
+import type { ClientSessions } from '../../computer/clientSessions';
+import { DictationApiError, DictationClient } from './api';
+import { createDictationRateBudget } from './dictationRefinement';
 import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE } from './dictationSegmenter';
 import { createDictationSession, type DictationCaptureFactory } from './dictationSession';
 
@@ -594,8 +596,8 @@ describe('createDictationSession', () => {
     await flushMicrotasks(80);
     expect(session.getSnapshot().previewText).toBe('Go back. And re-transcribe.');
 
-    // ~8 s idle silence (83 quiet frames) seals [0..1] and replaces previewText atomically.
-    for (let i = 0; i < 83; i += 1) rig.pushFrame(makeFrame(0.001));
+    // ~8 s total silence (8 redemption + 75 idle frames) seals [0..1] and replaces previewText atomically.
+    for (let i = 0; i < 75; i += 1) rig.pushFrame(makeFrame(0.001));
     await flushMicrotasks(120);
     expect(session.getSnapshot().previewText).toBe('Go back and re-transcribe');
     expect(calls[2]!.prompt).toBeUndefined();
@@ -833,5 +835,116 @@ describe('createDictationSession', () => {
       text: 'Clip 23. Clip 24.',
     });
     expect(transcribe).toHaveBeenCalledTimes(24);
+  });
+
+  it('seals a singleton group on ~8 s idle silence so speech after a long pause does not merge across it', async () => {
+    const responses = ['First thought.', 'Later thought.'];
+    const transcribe = vi.fn(async () => ({ text: responses.shift() ?? '', seconds: 1.0 }));
+    const { rig, session } = await startTestSession(transcribe);
+
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    // 75 idle frames (~8 s total silence after speech) seals [0..0] as fallback with 0 extra calls.
+    for (let i = 0; i < 75; i += 1) rig.pushFrame(makeFrame(0.001));
+    await flushMicrotasks(110);
+
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'First thought. Later thought.',
+    });
+    // Zero refinement calls: neither singleton merged across the 8 s silence boundary.
+    expect(transcribe).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares rolling rate budget across replacement DictationClient/DictationSession instances', async () => {
+    let callCount = 0;
+    const send = vi.fn(async () => {
+      callCount += 1;
+      return Response.json({ text: `Turn ${callCount}.`, seconds: 1.0 });
+    });
+    const sharedSessions = { send } as unknown as ClientSessions;
+
+    // 22 replacement sessions (as Finish & Send creates fresh DictationClient + DictationSession).
+    for (let i = 0; i < 22; i += 1) {
+      const rig = createFakeCaptureRig();
+      const session = createDictationSession({
+        client: new DictationClient(sharedSessions),
+        loadVad: async () => makeVad(),
+        captureFactory: rig.captureFactory,
+        now: () => 50_000,
+      });
+      await session.start();
+      await flushMicrotasks();
+      pushSpeechAndPause(rig.pushFrame);
+      await flushMicrotasks(25);
+      await session.finish();
+    }
+    expect(send).toHaveBeenCalledTimes(22);
+
+    // Next replacement session makes 2 primary uploads (hitting 24 RPM); optional refinement is skipped.
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: new DictationClient(sharedSessions),
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      now: () => 50_000,
+    });
+    await session.start();
+    await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Turn 23. Turn 24.',
+    });
+    expect(send).toHaveBeenCalledTimes(24);
+  });
+
+  it('carries 429 Retry-After from a Finish refinement into the next replacement session', async () => {
+    const rateBudget = createDictationRateBudget();
+    let clock = 20_000;
+    const sleepDelays: number[] = [];
+    const sleep = async (ms: number) => {
+      sleepDelays.push(ms);
+      clock += ms;
+    };
+
+    // Session 1: both primaries succeed, Finish refinement hits 429 with Retry-After: 3000 ms.
+    let s1Calls = 0;
+    const { rig: rig1, session: session1 } = await startTestSession(
+      async () => {
+        s1Calls += 1;
+        if (s1Calls === 1) return { text: 'First.', seconds: 1.0 };
+        if (s1Calls === 2) return { text: 'Second.', seconds: 1.0 };
+        throw new DictationApiError('Rate limited', 429, 'too-many-requests', 3000);
+      },
+      { rateBudget, now: () => clock, sleep }
+    );
+    pushSpeechAndPause(rig1.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rig1.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session1.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'First. Second.',
+    });
+    expect(sleepDelays).toEqual([]);
+
+    // Replacement Session 2 starts immediately; its first primary waits the remaining 3000 ms cooldown.
+    const { rig: rig2, session: session2 } = await startTestSession(
+      async () => ({ text: 'Next turn.', seconds: 1.0 }),
+      { rateBudget, now: () => clock, sleep }
+    );
+    pushSpeechAndPause(rig2.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session2.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Next turn.',
+    });
+    expect(sleepDelays).toEqual([3000]);
   });
 });
