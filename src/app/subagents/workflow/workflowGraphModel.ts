@@ -35,24 +35,24 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): { bands: Workfl
   type Entry = {
     id: string;
     phase: number | null;
-    parent: string | null;
+    parents: (string | null)[];
     node?: WorkflowRunNode;
     group?: WorkflowRunGroup;
   };
   const byId = new Map<string, Entry>([
     ...graph.nodes.map((node): [string, Entry] => [
       node.id,
-      { id: node.id, phase: node.phase, parent: node.session ?? node.group, node },
+      { id: node.id, phase: node.phase, parents: [node.session, node.group], node },
     ]),
     ...graph.groups.map((group): [string, Entry] => [
       group.id,
-      { id: group.id, phase: group.phase, parent: group.parent, group },
+      { id: group.id, phase: group.phase, parents: [group.parent], group },
     ]),
   ]);
   const childrenOf = new Map<string, Entry[]>();
   const roots: Entry[] = [];
   for (const e of byId.values()) {
-    const p = e.parent && e.parent !== e.id && byId.has(e.parent) ? e.parent : null;
+    const p = e.parents.find((id): id is string => !!id && id !== e.id && byId.has(id)) ?? null;
     if (p) (childrenOf.get(p) ?? childrenOf.set(p, []).get(p)!).push(e);
     else roots.push(e);
   }

@@ -235,4 +235,32 @@ describe('workflowGraphModel', () => {
     const longResult = 'x'.repeat(400);
     expect(nodeResultPreview(makeSubagent(longResult, ''))).toHaveLength(300);
   });
+
+  it('attaches a session turn to its emitted group when its parent session node was omitted', () => {
+    const layout = layoutWorkflowRunGraph({
+      phases: ['Audit'],
+      groups: [
+        { id: 'g1', kind: 'foreach', phase: 0, parent: null, total: 50, done: 49, failed: 0 },
+      ],
+      nodes: [
+        makeNode('n2', {
+          kind: 'session_turn',
+          session: 's1-omitted',
+          group: 'g1',
+          status: 'running',
+        }),
+      ],
+      edges: [],
+      omitted: emptyOmitted,
+      log: [],
+    });
+    expect(layout.bands).toHaveLength(1);
+    expect(layout.bands[0]?.items).toHaveLength(1);
+    const groupItem = layout.bands[0]?.items[0];
+    expect(groupItem?.type).toBe('group');
+    if (groupItem?.type === 'group') {
+      expect(groupItem.items).toHaveLength(1);
+      expect(groupItem.items[0]?.type === 'node' ? groupItem.items[0].node.id : null).toBe('n2');
+    }
+  });
 });
