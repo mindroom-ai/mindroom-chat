@@ -125,23 +125,28 @@ const buildThreadEvents = ({
 
   getPendingThreadEvents(room, threadId).forEach((event) => addThreadEvent(event));
 
-  // The parent's messages belong to the parent's thread; they sort before the fork's root.
-  const prefixIds = new Set(prefixEvents.map((mEvent) => mEvent.getId()));
-  if (collectedEvents.length > 0) prefixEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
-
   const resolveConfirmedId = buildResolveConfirmedEventId(room, collectedEvents);
-  const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
-  const ownEvents =
-    prefixIds.size === 0
-      ? sortedEvents
-      : sortedEvents.filter((mEvent) => !prefixIds.has(mEvent.getId()));
+  const ownEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
+  // Keep parent prefix segments in their resolved order before the thread's own events so clock
+  // skew across homeservers never interleaves child messages ahead of parent prefix rows.
+  const ownIds = new Set(ownEvents.map((mEvent) => mEvent.getId()).filter(Boolean));
+  const prefixIds = new Set<string>();
+  const prefix: MatrixEvent[] = [];
+  if (ownEvents.length > 0) {
+    for (const mEvent of prefixEvents) {
+      const eventId = mEvent.getId();
+      if (!eventId || ownIds.has(eventId) || prefixIds.has(eventId)) continue;
+      prefixIds.add(eventId);
+      prefix.push(mEvent);
+    }
+  }
+  const combinedEvents = prefix.length === 0 ? ownEvents : [...prefix, ...ownEvents];
   // A fork draft shows the thread up to its fork point, one of its own events, and nothing after.
-  const cut =
-    forkAt === undefined || prefixIds.has(forkAt)
-      ? -1
-      : sortedEvents.findIndex((mEvent) => mEvent.getId() === forkAt);
-  const forkPointIndex = cut === -1 ? undefined : cut;
-  const events = forkPointIndex === undefined ? sortedEvents : sortedEvents.slice(0, cut + 1);
+  const ownCut =
+    forkAt === undefined ? -1 : ownEvents.findIndex((mEvent) => mEvent.getId() === forkAt);
+  const forkPointIndex = ownCut === -1 ? undefined : prefix.length + ownCut;
+  const events =
+    forkPointIndex === undefined ? combinedEvents : combinedEvents.slice(0, forkPointIndex + 1);
 
   const indexMap = new Map<string, number>();
   events.forEach((mEvent, index) => {

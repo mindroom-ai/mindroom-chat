@@ -181,6 +181,11 @@ export const getSearchResultPreviewText = (
           previewBody
         );
       case MsgType.File:
+        if (shouldUseLongTextSearchResultBody(content)) {
+          return (
+            previewBody ?? t?.('mindroomUi.message-search.searchResultPreview.message') ?? 'Message'
+          );
+        }
         return withBody(
           t?.('mindroomUi.message-search.searchResultPreview.file') ?? 'File',
           previewBody

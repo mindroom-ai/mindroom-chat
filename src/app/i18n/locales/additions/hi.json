@@ -1749,7 +1749,17 @@
     "forking": "{{title}} की शाखा बनाई जा रही है",
     "continueInNewThread": "नए थ्रेड में जारी रखें",
     "forkCount_one": "{{count}} शाखा",
-    "forkCount_other": "{{count}} शाखाएँ"
+    "forkCount_other": "{{count}} शाखाएँ",
+    "forkedFromInRoom": "{{room}} में {{title}} से शाखा बनाई गई",
+    "forkedFromAnotherRoom": "किसी अन्य रूम से शाखा बनाई गई",
+    "forkingIntoRoom": "{{title}} की शाखा {{room}} में बनाई जा रही है",
+    "forkToRoom": "रूम में शाखा बनाएँ…",
+    "forkToRoomTitle": "रूम में शाखा बनाएँ",
+    "forkToRoomSearchPlaceholder": "रूम खोजें…",
+    "forkToRoomEmpty": "कोई मेल खाने वाला रूम नहीं",
+    "forkToRoomAgentWarning": "इस रूम के एजेंट {{room}} में नहीं हैं और मूल थ्रेड नहीं देख पाएंगे",
+    "forkingFromRoom": "{{room}} से शाखा बनाई जा रही है",
+    "forkDraftAgentWarning": "यहाँ के एजेंट {{room}} में नहीं हैं और मूल थ्रेड नहीं देख पाएंगे"
   },
   "activity": {
     "title": "गतिविधि",

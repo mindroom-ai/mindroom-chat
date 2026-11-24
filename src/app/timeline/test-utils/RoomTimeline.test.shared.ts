@@ -40,8 +40,11 @@ const {
   timeDayMonthYearMock,
   isMembershipChangedMock,
   matrixClientMock,
+  mentionClickMock,
+  navigatePathMock,
   navigateRoomMock,
   navigateRoomThreadMock,
+  openUserRoomProfileMock,
   threadRenderStateMock,
   threadLastActivityTsMapMock,
   threadStreamingStateMock,
@@ -99,8 +102,11 @@ const {
     removeListener: vi.fn(),
     relations: vi.fn(),
   },
+  mentionClickMock: vi.fn(),
+  navigatePathMock: vi.fn(),
   navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
+  openUserRoomProfileMock: vi.fn(),
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [] as unknown[],
@@ -144,6 +150,8 @@ const {
   settingsState: {
     prefetchDepth: 300,
     showHiddenEvents: false,
+    urlPreview: false,
+    encUrlPreview: false,
   },
   // What a row draws as its message content, by its event ID; nothing by default.
   messageContentMock: {
@@ -282,6 +290,10 @@ vi.mock('../../preferences/useSetting', () => ({
         return [settingsState.prefetchDepth];
       case 'showHiddenEvents':
         return [settingsState.showHiddenEvents];
+      case 'urlPreview':
+        return [settingsState.urlPreview];
+      case 'encUrlPreview':
+        return [settingsState.encUrlPreview];
       default:
         return [false];
     }
@@ -347,17 +359,20 @@ vi.mock('../../matrix/state/useUnread', () => ({
 
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
+    navigatePath: navigatePathMock,
     navigateRoom: navigateRoomMock,
     navigateRoomThread: navigateRoomThreadMock,
+    roomPath: (roomId: string, eventId?: string) =>
+      eventId ? `/home/${roomId}/${eventId}` : `/home/${roomId}`,
   }),
 }));
 
 vi.mock('../../messages/useMentionClickHandler', () => ({
-  useMentionClickHandler: () => vi.fn(),
+  useMentionClickHandler: () => mentionClickMock,
 }));
 
 vi.mock('../../navigation/useUserRoomProfileState', () => ({
-  useOpenUserRoomProfile: () => vi.fn(),
+  useOpenUserRoomProfile: () => openUserRoomProfileMock,
 }));
 
 vi.mock('../../matrix/hooks/useSpace', () => ({
@@ -605,10 +620,18 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('../../messages/html/react-custom-html-parser', () => ({
   LINKIFY_OPTS: {},
-  factoryRenderLinkifyWithMention: () => vi.fn(),
-  getReactCustomHtmlParser: () => ({}),
-  makeMentionCustomProps: () => ({}),
-  renderMatrixMention: () => null,
+  factoryRenderLinkifyWithMention: (renderMention: (href: string) => unknown) => renderMention,
+  getReactCustomHtmlParser: (
+    _client: unknown,
+    roomId: string,
+    params: Record<string, unknown>
+  ) => ({ roomId, ...params }),
+  makeMentionCustomProps: (onClick: unknown) => ({ onClick }),
+  renderMatrixMention: (_client: unknown, roomId: string, href: string, customProps: unknown) => ({
+    roomId,
+    href,
+    customProps,
+  }),
 }));
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
@@ -648,7 +671,17 @@ vi.mock('../../matrix/room', () => ({
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEditStreamFinishTs: (edit: { getTs: () => number }) => edit.getTs(),
-  getEventReactions: () => undefined,
+  getEventReactions: (
+    timelineSet?: {
+      relations?: {
+        getChildEventsForEvent?: (eventId: string, relType: string, eventType: string) => unknown;
+      };
+    },
+    eventId?: string
+  ) =>
+    eventId
+      ? timelineSet?.relations?.getChildEventsForEvent?.(eventId, 'm.annotation', 'm.reaction')
+      : undefined,
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
     editedEvent?: { getContent?: () => Record<string, unknown> | undefined }
@@ -1215,6 +1248,15 @@ vi.stubGlobal('window', {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   })),
+  history: {
+    state: {},
+    replaceState: vi.fn(),
+  },
+  location: {
+    pathname: '/',
+    search: '',
+    hash: '',
+  },
   navigator: {
     platform: 'MacIntel',
   },
@@ -1240,6 +1282,7 @@ vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '0px' }));
 const makeEvent = (
   eventId: string,
   opts: {
+    roomId?: string;
     sender?: string;
     ts?: number;
     type?: string;
@@ -1275,7 +1318,7 @@ const makeEvent = (
     getRelation: () => opts.relation,
     replyEventId: opts.replyTo,
     getRedactionEvent: () => undefined,
-    getRoomId: () => '!room:example.org',
+    getRoomId: () => opts.roomId ?? '!room:example.org',
     getSender: () => opts.sender ?? '@alice:example.org',
     getServerAggregatedRelation: () => undefined,
     getStateKey: () => opts.stateKey,
@@ -1333,6 +1376,7 @@ const makeTimeline = (
 };
 
 const makeRoom = ({
+  roomId = '!room:example.org',
   joinedMembers = [],
   liveEvents = [],
   liveTimeline,
@@ -1340,6 +1384,7 @@ const makeRoom = ({
   findEventById,
   threads = [],
 }: {
+  roomId?: string;
   liveEvents?: ReturnType<typeof makeEvent>[];
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
@@ -1442,7 +1487,7 @@ const makeRoom = ({
       currentLiveEvents.push(...events);
     }),
     createThread,
-    roomId: '!room:example.org',
+    roomId,
     client: {
       getUserId: () => '@alice:example.org',
     },
@@ -1503,6 +1548,8 @@ beforeEach(() => {
   pluginRowHiddenMock.test = undefined;
   messageContentMock.render = undefined;
   settingsState.showHiddenEvents = false;
+  settingsState.urlPreview = false;
+  settingsState.encUrlPreview = false;
   threadLastActivityTsMapMock.clear();
   threadStreamingStateMock.clear();
   threadResolutionMapMock.clear();
@@ -1554,8 +1601,11 @@ beforeEach(() => {
     chunk: [],
     next_batch: null,
   });
+  mentionClickMock.mockReset();
+  navigatePathMock.mockReset();
   navigateRoomMock.mockReset();
   navigateRoomThreadMock.mockReset();
+  openUserRoomProfileMock.mockReset();
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
   matrixClientMock.fetchRoomEvent.mockReset();
   matrixClientMock.fetchRoomEvent.mockResolvedValue({});
@@ -1862,7 +1912,11 @@ export {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  mentionClickMock,
+  navigatePathMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
+  openUserRoomProfileMock,
   reactionOrEditEventMock,
   inSameDayMock,
   timeDayMonthYearMock,

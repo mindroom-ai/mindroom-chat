@@ -182,6 +182,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
       homeserver: HOMESERVER,
       username: world.reader.username,
       password: PASSWORD,
+      developerTools: true,
     });
     await check(page, world, engine);
     expect(pageErrors, `uncaught errors in ${engine}`).toEqual([]);

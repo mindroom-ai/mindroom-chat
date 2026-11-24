@@ -1804,7 +1804,17 @@
     "continueInNewThread": "Continuar em um novo tópico",
     "forkCount_one": "{{count}} bifurcação",
     "forkCount_many": "{{count}} bifurcações",
-    "forkCount_other": "{{count}} bifurcações"
+    "forkCount_other": "{{count}} bifurcações",
+    "forkedFromInRoom": "Bifurcado de {{title}} em {{room}}",
+    "forkedFromAnotherRoom": "Bifurcado de outra sala",
+    "forkingIntoRoom": "Bifurcando {{title}} para {{room}}",
+    "forkToRoom": "Bifurcar para sala…",
+    "forkToRoomTitle": "Bifurcar para sala",
+    "forkToRoomSearchPlaceholder": "Pesquisar salas…",
+    "forkToRoomEmpty": "Nenhuma sala encontrada",
+    "forkToRoomAgentWarning": "Os agentes nesta sala não estão em {{room}} e não verão o tópico original",
+    "forkingFromRoom": "Bifurcando de {{room}}",
+    "forkDraftAgentWarning": "Os agentes aqui não estão em {{room}} e não verão o tópico original"
   },
   "activity": {
     "title": "Atividade",

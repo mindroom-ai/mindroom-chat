@@ -1749,7 +1749,17 @@
     "forking": "{{title}} konusundan ayrılıyor",
     "continueInNewThread": "Yeni bir konuda devam et",
     "forkCount_one": "{{count}} ayrım",
-    "forkCount_other": "{{count}} ayrım"
+    "forkCount_other": "{{count}} ayrım",
+    "forkedFromInRoom": "{{room}} odasındaki {{title}} konusundan ayrıldı",
+    "forkedFromAnotherRoom": "Başka bir odadan ayrıldı",
+    "forkingIntoRoom": "{{title}} konusu {{room}} odasına ayrılıyor",
+    "forkToRoom": "Odaya ayır…",
+    "forkToRoomTitle": "Odaya ayır",
+    "forkToRoomSearchPlaceholder": "Odaları ara…",
+    "forkToRoomEmpty": "Eşleşen oda yok",
+    "forkToRoomAgentWarning": "Bu odadaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
+    "forkingFromRoom": "{{room}} odasından ayrılıyor",
+    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez"
   },
   "activity": {
     "title": "Etkinlik",

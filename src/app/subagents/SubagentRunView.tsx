@@ -20,16 +20,23 @@ import {
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
+import { RenderBody } from '../messages/content/RenderBody';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
-import { MessageBase, ModernLayout, UsernameBold } from '../messages/layout/layout';
-import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
+import {
+  MessageBase,
+  MessageTextBody,
+  ModernLayout,
+  UsernameBold,
+} from '../messages/layout/layout';
+import { renderLiveMarkdown, useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { Time } from '../messages/Time';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { settingsAtom } from '../preferences/settings';
 import { useHour24Clock } from '../preferences/useHour24Clock';
 import { useSettingValue } from '../preferences/useSettingValue';
+import { textDirection } from '../ui/directional';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
@@ -83,8 +90,7 @@ function RunMessage({
 }
 
 /** The documents as a reply's content, for `RenderMessageContent`: Markdown once its renderer is in. */
-const useDocsContent = (docs: LiveDocs) => {
-  const markdownReady = useLiveMarkdownReady();
+const useDocsContent = (docs: LiveDocs, markdownReady: boolean) => {
   const content = useMemo(() => liveDocsContent(docs, markdownReady), [docs, markdownReady]);
   return useCallback(() => content, [content]) as <T>() => T;
 };
@@ -139,25 +145,37 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
       ? { ...run.docs, md: meta.result, status, tools }
       : { ...run.docs, status, tools };
   }, [didNotComplete, ended, failed, meta.result, run.docs, working]);
-  const getContent = useDocsContent(docs);
+  const markdownReady = useLiveMarkdownReady();
+  const { task } = meta;
+  const taskHtml = useMemo(
+    () => (task && markdownReady ? renderLiveMarkdown(task) : undefined),
+    [markdownReady, task]
+  );
+  const taskDirection = useMemo(() => (task ? textDirection(task) : undefined), [task]);
+  const getContent = useDocsContent(docs, markdownReady);
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
   const wrote = docs.md !== '' || docs.tools.length > 0 || working;
 
   return (
     <>
-      {meta.task && (
+      {task && (
         <RunMessage sender={caller} ts={meta.startedAt * 1000}>
-          <Text
-            as="p"
-            size="T400"
+          <MessageTextBody
             priority="300"
+            preWrap={!taskHtml}
             className={css.Task}
+            dir={taskDirection ?? 'auto'}
+            data-body-direction={taskDirection}
             data-subagent-turn={run.run}
-            dir="auto"
             data-subagent-task=""
           >
-            {meta.task}
-          </Text>
+            <RenderBody
+              body={task}
+              customBody={taskHtml}
+              htmlReactParserOptions={parserOptions}
+              linkifyOpts={LINKIFY_OPTS}
+            />
+          </MessageTextBody>
         </RunMessage>
       )}
       {nested.length > 0 && (

@@ -1,7 +1,7 @@
 import { HttpApiEvent, createClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-// The patch (patches/matrix-js-sdk+45.1.0.patch) lets a client that was given a
+// The patch (patches/matrix-js-sdk+45.2.0.patch) lets a client that was given a
 // `tokenRefreshFunction` refresh through it, which is how MindRoom Chat refreshes
 // (sessionTokenRefreshParity.test.ts). A client without one must refresh as the SDK does itself.
 
