@@ -2050,15 +2050,11 @@
       "roomsFiltered": "{{active}} van {{total}} kamers"
     },
     "roomFilter": {
-      "aria": "Filteren op kamer",
-      "all": "Alle",
-      "only": "Alleen",
-      "onlyRoomAria": "Alleen {{room}} tonen",
-      "roomsButton": "Kamers {{active}}/{{total}}",
-      "pickerAria": "Kamers filteren",
-      "searchPlaceholder": "Kamers zoeken",
-      "noMatch": "Geen overeenkomende kamers",
-      "showAll": "Alle {{count}} tonen"
+      "label": "Kamers",
+      "ariaLabel": "Threads filteren op kamer",
+      "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "search": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers"
     },
     "composer": {
       "postTo": "Plaatsen in:",

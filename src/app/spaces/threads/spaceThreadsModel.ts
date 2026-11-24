@@ -114,24 +114,25 @@ export const resolveActiveSpaceRoomIds = (
   return pruned ? allRoomIds.filter((roomId) => pruned.has(roomId)) : [...allRoomIds];
 };
 
-/** Toggles a room in or out of selection; unchecking the last active room resets to All. */
+/**
+ * Toggles a room in or out of selection (matching People/Tags dropdown semantics):
+ * clicking a room while showing all rooms downselects to that 1 room; unchecking the
+ * last chosen room or checking every room resets to undefined (all rooms).
+ */
 export const toggleSpaceRoomSelection = (
   selectedRoomIds: ReadonlySet<string> | undefined,
   roomId: string,
   allRoomIds: readonly string[]
 ): Set<string> | undefined => {
   if (allRoomIds.length <= 1) return undefined;
-  const active = new Set(resolveActiveSpaceRoomIds(allRoomIds, selectedRoomIds));
-  if (active.has(roomId)) active.delete(roomId);
-  else if (allRoomIds.includes(roomId)) active.add(roomId);
-  return pruneSpaceRoomSelection(active, allRoomIds);
+  const current = pruneSpaceRoomSelection(selectedRoomIds, allRoomIds);
+  if (!allRoomIds.includes(roomId)) return current;
+  if (!current) return new Set([roomId]);
+  const next = new Set(current);
+  if (next.has(roomId)) next.delete(roomId);
+  else next.add(roomId);
+  return pruneSpaceRoomSelection(next, allRoomIds);
 };
-
-/** Downselects to 1 room (`undefined` when the Space only has 1 room). */
-export const selectOnlySpaceRoom = (
-  roomId: string,
-  allRoomIds: readonly string[]
-): Set<string> | undefined => (allRoomIds.length <= 1 ? undefined : new Set([roomId]));
 
 export type FilterAndSortSpaceThreadsOptions = {
   entries: Iterable<CrossRoomThreadIndexEntry>;

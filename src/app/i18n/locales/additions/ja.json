@@ -1988,15 +1988,11 @@
       "roomsFiltered": "{{total}}件中{{active}}件のルーム"
     },
     "roomFilter": {
-      "aria": "ルームで絞り込む",
-      "all": "すべて",
-      "only": "のみ",
-      "onlyRoomAria": "{{room}}のみを表示",
-      "roomsButton": "ルーム {{active}}/{{total}}",
-      "pickerAria": "ルームを絞り込む",
-      "searchPlaceholder": "ルームを検索",
-      "noMatch": "一致するルームがありません",
-      "showAll": "全{{count}}件を表示"
+      "label": "ルーム",
+      "ariaLabel": "ルームでスレッドを絞り込む",
+      "ariaLabelActive": "ルームでスレッドを絞り込む（{{number}} 件を選択中）",
+      "search": "ルームを検索",
+      "noMatch": "一致するルームがありません"
     },
     "composer": {
       "postTo": "投稿先:",

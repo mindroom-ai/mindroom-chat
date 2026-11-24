@@ -16,7 +16,6 @@ import {
   pruneSpaceRoomSelection,
   resolveActiveSpaceRoomIds,
   resolveComposerTargetRoom,
-  selectOnlySpaceRoom,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
 
@@ -303,17 +302,27 @@ describe('spaceThreadsModel', () => {
     ).toBeUndefined();
     expect(pruneSpaceRoomSelection(new Set([ROOM_A, ROOM_B]), [ROOM_A, ROOM_B])).toBeUndefined();
 
-    // From All, toggling Room A excludes Room A.
-    const withoutA = toggleSpaceRoomSelection(undefined, ROOM_A, rooms);
-    expect([...(withoutA ?? [])]).toEqual([ROOM_B, '!gamma:example.org']);
+    // From All (undefined), toggling Room A downselects to Room A.
+    const onlyA = toggleSpaceRoomSelection(undefined, ROOM_A, rooms);
+    expect([...(onlyA ?? [])]).toEqual([ROOM_A]);
 
-    // Re-adding Room A normalizes back to All (undefined).
-    expect(toggleSpaceRoomSelection(withoutA, ROOM_A, rooms)).toBeUndefined();
+    // Toggling Room B adds it to the selection.
+    const aAndB = toggleSpaceRoomSelection(onlyA, ROOM_B, rooms);
+    expect([...(aAndB ?? [])]).toEqual([ROOM_A, ROOM_B]);
 
-    // Downselecting to 1 room then unchecking that last room resets to All (never 0 rooms).
-    const onlyB = selectOnlySpaceRoom(ROOM_B, rooms);
+    // Selecting the remaining room normalizes back to All (undefined).
+    expect(toggleSpaceRoomSelection(aAndB, '!gamma:example.org', rooms)).toBeUndefined();
+
+    // Unchecking Room A leaves Room B; unchecking the last room resets to All (never 0 rooms).
+    const onlyB = toggleSpaceRoomSelection(aAndB, ROOM_A, rooms);
     expect([...(onlyB ?? [])]).toEqual([ROOM_B]);
     expect(toggleSpaceRoomSelection(onlyB, ROOM_B, rooms)).toBeUndefined();
+
+    // Unknown room IDs keep the current selection intact, and 1-room spaces stay undefined.
+    expect([...(toggleSpaceRoomSelection(onlyB, '!unknown:example.org', rooms) ?? [])]).toEqual([
+      ROOM_B,
+    ]);
+    expect(toggleSpaceRoomSelection(undefined, ROOM_A, [ROOM_A])).toBeUndefined();
   });
 
   it('enforces resolveComposerTargetRoom draft-safety invariant and fallback order', () => {

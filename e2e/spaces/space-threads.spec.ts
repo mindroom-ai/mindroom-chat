@@ -180,7 +180,7 @@ test.describe.serial('Space Threads overview', () => {
     workspace = await seedWorkspace();
   });
 
-  test('merges space threads, filters with Only/All, and starts a new thread in a chosen room', async ({
+  test('merges space threads, filters via Rooms dropdown, and starts a new thread in a chosen room', async ({
     browser,
   }) => {
     const { context, page } = await openInContext(browser, DESKTOP, 'dark-theme', workspace.user);
@@ -195,7 +195,7 @@ test.describe.serial('Space Threads overview', () => {
       await page.getByRole('link', { name: 'All threads' }).click();
       await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
 
-      // All 3 rooms' threads appear with room badges.
+      // All 3 rooms' threads appear with room badges and the Rooms dropdown in the toolbar.
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
         timeout: 20_000,
       });
@@ -207,11 +207,22 @@ test.describe.serial('Space Threads overview', () => {
       });
       await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('3 rooms');
       await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(5);
+      const roomsTrigger = page.locator('[data-room-filter-button]');
+      await expect(roomsTrigger).toHaveText('Rooms');
       await saveShot(page, 'after-space-threads-dark.png');
 
-      // Clicking Only downselects to web-client, hides room badges, and retargets the composer.
+      // Open the Rooms dropdown to verify checkboxes, colored dots, and counts.
+      await roomsTrigger.click();
+      await expect(page.locator('[data-room-filter-panel]')).toBeVisible();
+      await expect(page.locator('[data-room-option]')).toHaveCount(3);
+      await saveShot(page, 'after-space-threads-dropdown.png');
+
+      // Checking web-client downselects to 1 room, hides room badges, and retargets the composer.
       const webRoomId = workspace.rooms['web-client'];
-      await page.locator(`[data-space-room-only="${webRoomId}"]`).click();
+      await page.locator(`[data-room-option="${webRoomId}"]`).click();
+      await roomsTrigger.click();
+      await expect(page.locator('[data-room-filter-panel]')).toBeHidden();
+      await expect(roomsTrigger).toHaveText('web-client');
       await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 3 rooms');
       await expect(page.getByText('Keyboard navigation for command menu')).toBeVisible();
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
@@ -223,8 +234,11 @@ test.describe.serial('Space Threads overview', () => {
       );
       await saveShot(page, 'after-space-threads-only.png');
 
-      // Clicking All restores all 3 rooms and room badges.
-      await page.locator('[data-space-room-filter-all="true"]').click();
+      // Opening the Rooms dropdown and clicking Clear restores all 3 rooms and room badges.
+      await roomsTrigger.click();
+      await page.locator('[data-room-filter-clear]').click();
+      await roomsTrigger.click();
+      await expect(roomsTrigger).toHaveText('Rooms');
       await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('3 rooms');
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible();
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();

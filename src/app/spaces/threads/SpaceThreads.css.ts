@@ -1,17 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, color, config, toRem } from 'folds';
-import { motion } from '../../ui/styles/Motion.css';
-import { transition } from '../../ui/styles/transition';
-
-const CONTROL_HEIGHT = toRem(32);
-const FOCUS_RING = { outline: `${toRem(2)} solid ${color.Primary.Main}`, outlineOffset: toRem(1) };
-const HOVER_BG = {
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
-    },
-  },
-} as const;
+import { color, config, toRem } from 'folds';
 
 export const PageBody = style({
   display: 'flex',
@@ -20,6 +8,12 @@ export const PageBody = style({
   minBlockSize: 0,
   minInlineSize: 0,
   overflow: 'hidden',
+});
+
+export const OverviewSlot = style({
+  flexShrink: 0,
+  position: 'relative',
+  zIndex: 5,
 });
 
 export const HeaderBadge = style({
@@ -36,103 +30,12 @@ export const HeaderBadge = style({
   fontVariantNumeric: 'tabular-nums',
 });
 
-export const RoomFilterBar = style({
-  display: 'flex',
-  alignItems: 'center',
-  columnGap: config.space.S200,
-  paddingBlockStart: config.space.S200,
-  paddingBlockEnd: config.space.S100,
-  paddingInline: config.space.S300,
-  minInlineSize: 0,
-  flexShrink: 0,
-  position: 'relative',
-  zIndex: 2,
-});
-
-export const RoomChipStrip = style({
-  display: 'flex',
-  alignItems: 'center',
-  columnGap: config.space.S100,
-  flex: '1 1 auto',
-  minInlineSize: 0,
-  overflowX: 'auto',
-  overflowY: 'hidden',
-  scrollbarWidth: 'none',
-  selectors: { '&::-webkit-scrollbar': { display: 'none' } },
-});
-
-export const RoomChipGroup = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  blockSize: CONTROL_HEIGHT,
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  transition: transition(['background-color', 'border-color'], motion.duration.Normal),
-});
-
-export const RoomChipGroupActive = style({
-  backgroundColor: color.Primary.Container,
-  borderColor: color.Primary.ContainerLine,
-  color: color.Primary.OnContainer,
-});
-
-export const RoomChipButton = style([
-  DefaultReset,
-  HOVER_BG,
-  {
-    display: 'inline-flex',
-    alignItems: 'center',
-    columnGap: config.space.S100,
-    blockSize: '100%',
-    paddingInline: config.space.S200,
-    borderRadius: config.radii.R400,
-    color: 'inherit',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    minInlineSize: 0,
-    selectors: { '&:focus-visible': FOCUS_RING },
-  },
-]);
-
 export const RoomChipName = style({
   maxInlineSize: '11rem',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
-
-export const RoomChipCount = style({
-  opacity: config.opacity.P400,
-  fontVariantNumeric: 'tabular-nums',
-});
-
-export const RoomChipOnlyButton = style([
-  DefaultReset,
-  {
-    display: 'inline-flex',
-    alignItems: 'center',
-    blockSize: '100%',
-    paddingInline: config.space.S200,
-    borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-    color: 'inherit',
-    opacity: config.opacity.P400,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    fontSize: toRem(12),
-    borderRadius: config.radii.R300,
-    '@media': {
-      '(hover: hover)': {
-        selectors: {
-          '&:hover': { opacity: '1', backgroundColor: color.SurfaceVariant.ContainerHover },
-        },
-      },
-    },
-    selectors: { '&:focus-visible': { ...FOCUS_RING, opacity: '1' } },
-  },
-]);
 
 export const RoomDot = style({
   display: 'inline-block',

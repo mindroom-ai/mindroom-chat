@@ -2174,15 +2174,11 @@
       "roomsFiltered": "{{active}} из {{total}} комнат"
     },
     "roomFilter": {
-      "aria": "Фильтр по комнатам",
-      "all": "Все",
-      "only": "Только",
-      "onlyRoomAria": "Показать только {{room}}",
-      "roomsButton": "Комнаты {{active}}/{{total}}",
-      "pickerAria": "Фильтровать комнаты",
-      "searchPlaceholder": "Поиск комнат",
-      "noMatch": "Подходящих комнат нет",
-      "showAll": "Показать все {{count}}"
+      "label": "Комнаты",
+      "ariaLabel": "Фильтровать ветки по комнатам",
+      "ariaLabelActive": "Фильтровать ветки по комнатам (выбрано: {{number}})",
+      "search": "Поиск комнат",
+      "noMatch": "Подходящих комнат нет"
     },
     "composer": {
       "postTo": "Отправить в:",

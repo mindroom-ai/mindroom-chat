@@ -1988,15 +1988,11 @@
       "roomsFiltered": "방 {{total}}개 중 {{active}}개"
     },
     "roomFilter": {
-      "aria": "방별 필터",
-      "all": "전체",
-      "only": "만",
-      "onlyRoomAria": "{{room}}만 보기",
-      "roomsButton": "방 {{active}}/{{total}}",
-      "pickerAria": "방 필터",
-      "searchPlaceholder": "방 검색",
-      "noMatch": "일치하는 방이 없습니다",
-      "showAll": "전체 {{count}}개 보기"
+      "label": "방",
+      "ariaLabel": "방으로 스레드 필터링",
+      "ariaLabelActive": "방으로 스레드 필터링 ({{number}}개 선택됨)",
+      "search": "방 검색",
+      "noMatch": "일치하는 방이 없습니다"
     },
     "composer": {
       "postTo": "게시 대상:",

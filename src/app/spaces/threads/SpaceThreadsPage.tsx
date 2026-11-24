@@ -41,7 +41,7 @@ import { roomThreadFilterAtomFamily } from '../../threads/overview/roomThreadFil
 import { RoomThreadOverview } from '../../threads/overview/RoomThreadOverview';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { Page } from '../../ui/page/Page';
-import { SpaceRoomFilterBar } from './SpaceRoomFilterBar';
+import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadComposer } from './SpaceThreadComposer';
 import { SpaceThreadsHeader } from './SpaceThreadsHeader';
 import { SpaceThreadsList, type SpaceThreadsEmptyKey } from './SpaceThreadsList';
@@ -50,7 +50,6 @@ import {
   filterAndSortSpaceThreads,
   pruneSpaceRoomSelection,
   resolveActiveSpaceRoomIds,
-  selectOnlySpaceRoom,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
 import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
@@ -206,76 +205,81 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       />
 
       <div className={css.PageBody}>
-        <SpaceRoomFilterBar
-          rooms={roomMeta.composerRooms.map(({ room, name, accentColor }) => ({
-            roomId: room.roomId,
-            name,
-            count: result.roomCounts.get(room.roomId) ?? 0,
-            accentColor,
-          }))}
-          totalCount={allSpaceEntries.length}
-          selectedRoomIds={effectiveSelectedRoomIds}
-          onSelectAll={() => setSelectedRoomIds(undefined)}
-          onToggleRoom={(id) =>
-            setSelectedRoomIds(
-              toggleSpaceRoomSelection(effectiveSelectedRoomIds, id, roomMeta.orderedIds)
-            )
-          }
-          onSelectOnlyRoom={(id) =>
-            setSelectedRoomIds(selectOnlySpaceRoom(id, roomMeta.orderedIds))
-          }
-        />
-
         {spaceRooms.length > 0 && (
-          <RoomThreadOverview
-            roomId={space.roomId}
-            hasMindroomAgents={hasMindroomAgents}
-            threadCount={displayEntries.length}
-            totalThreadCount={result.scopedTotalCount}
-            statusCounts={result.statusCounts}
-            bucketCounts={result.bucketCounts}
-            countsSettled={indexSnapshot.bootstrapped && threadListsSettled}
-            onSelectTab={(tab) => updateFilter((prev) => selectThreadWorkflowTab(prev, tab))}
-            tagCounts={result.tagCounts}
-            state={result.effectiveFilterState}
-            availableTags={result.availableTags}
-            isThreadSortFrozen={Boolean(effectiveFrozenKeys)}
-            onSortDirectionChange={() => {
-              setFrozenKeys(null);
-              updateFilter((prev) => ({
-                ...prev,
-                sortBy: 'lastReply',
-                sortDirection: prev.sortDirection === 'desc' ? 'asc' : 'desc',
-              }));
-            }}
-            onToggleThreadSortFreeze={() =>
-              setFrozenKeys((cur) => (cur ? null : result.entries.map((entry) => entry.key)))
-            }
-            onToggleUnresolvedOnly={() =>
-              updateFilter((prev) => ({
-                ...prev,
-                resolved: prev.resolved === 'exclude' ? 'any' : 'exclude',
-              }))
-            }
-            onToggleForMe={() => updateFilter((prev) => ({ ...prev, forMe: !prev.forMe }))}
-            onReset={() => setFilterState(resetThreadFilterState())}
-            onAddTag={(tag) => updateFilter((prev) => addTagFilter(prev, tag))}
-            onRemoveTag={(tag) => updateFilter((prev) => removeTagFilter(prev, tag))}
-            onClearTags={() => updateFilter((prev) => ({ ...prev, tags: new Map() }))}
-            onSearchQueryChange={(query) =>
-              updateFilter((prev) =>
+          <div className={css.OverviewSlot}>
+            <RoomThreadOverview
+              roomsFilter={
+                spaceRooms.length > 1 ? (
+                  <SpaceRoomFilter
+                    rooms={roomMeta.composerRooms.map(({ room, name, accentColor }) => ({
+                      roomId: room.roomId,
+                      name,
+                      count: result.roomCounts.get(room.roomId) ?? 0,
+                      accentColor,
+                    }))}
+                    selectedRoomIds={effectiveSelectedRoomIds}
+                    onSelectAll={() => setSelectedRoomIds(undefined)}
+                    onToggleRoom={(id) =>
+                      setSelectedRoomIds(
+                        toggleSpaceRoomSelection(effectiveSelectedRoomIds, id, roomMeta.orderedIds)
+                      )
+                    }
+                  />
+                ) : undefined
+              }
+              roomId={space.roomId}
+              hasMindroomAgents={hasMindroomAgents}
+              threadCount={displayEntries.length}
+              totalThreadCount={result.scopedTotalCount}
+              statusCounts={result.statusCounts}
+              bucketCounts={result.bucketCounts}
+              countsSettled={indexSnapshot.bootstrapped && threadListsSettled}
+              onSelectTab={(tab) => updateFilter((prev) => selectThreadWorkflowTab(prev, tab))}
+              tagCounts={result.tagCounts}
+              state={result.effectiveFilterState}
+              availableTags={result.availableTags}
+              isThreadSortFrozen={Boolean(effectiveFrozenKeys)}
+              onSortDirectionChange={() => {
+                setFrozenKeys(null);
+                updateFilter((prev) => ({
+                  ...prev,
+                  sortBy: 'lastReply',
+                  sortDirection: prev.sortDirection === 'desc' ? 'asc' : 'desc',
+                }));
+              }}
+              onToggleThreadSortFreeze={() =>
+                setFrozenKeys((cur) => (cur ? null : result.entries.map((entry) => entry.key)))
+              }
+              onToggleUnresolvedOnly={() =>
+                updateFilter((prev) => ({
+                  ...prev,
+                  resolved: prev.resolved === 'exclude' ? 'any' : 'exclude',
+                }))
+              }
+              onToggleForMe={() => updateFilter((prev) => ({ ...prev, forMe: !prev.forMe }))}
+              onReset={() => setFilterState(resetThreadFilterState())}
+              onAddTag={(tag) => updateFilter((prev) => addTagFilter(prev, tag))}
+              onRemoveTag={(tag) => updateFilter((prev) => removeTagFilter(prev, tag))}
+              onClearTags={() => updateFilter((prev) => ({ ...prev, tags: new Map() }))}
+              onSearchQueryChange={(query) =>
+                updateFilter((prev) =>
+                  hasMindroomAgents
+                    ? applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(query))
+                    : {
+                        ...prev,
+                        freeText: normalizeOverviewSearchText(query),
+                        unsupportedQuery: '',
+                      }
+                )
+              }
+              threadSections={sectionsEnabled}
+              onToggleThreadSections={
                 hasMindroomAgents
-                  ? applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(query))
-                  : { ...prev, freeText: normalizeOverviewSearchText(query), unsupportedQuery: '' }
-              )
-            }
-            threadSections={sectionsEnabled}
-            onToggleThreadSections={
-              hasMindroomAgents
-                ? () => updateCompactSections({ type: 'SET_ON', on: !compactSections.on })
-                : undefined
-            }
-          />
+                  ? () => updateCompactSections({ type: 'SET_ON', on: !compactSections.on })
+                  : undefined
+              }
+            />
+          </div>
         )}
 
         <SpaceThreadsList

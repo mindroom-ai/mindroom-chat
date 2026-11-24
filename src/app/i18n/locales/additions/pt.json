@@ -2112,15 +2112,11 @@
       "roomsFiltered": "{{active}} de {{total}} salas"
     },
     "roomFilter": {
-      "aria": "Filtrar por sala",
-      "all": "Todas",
-      "only": "Somente",
-      "onlyRoomAria": "Mostrar somente {{room}}",
-      "roomsButton": "Salas {{active}}/{{total}}",
-      "pickerAria": "Filtrar salas",
-      "searchPlaceholder": "Pesquisar salas",
-      "noMatch": "Nenhuma sala encontrada",
-      "showAll": "Mostrar todas as {{count}}"
+      "label": "Salas",
+      "ariaLabel": "Filtrar tópicos por sala",
+      "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "search": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada"
     },
     "composer": {
       "postTo": "Enviar para:",

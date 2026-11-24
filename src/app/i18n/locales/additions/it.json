@@ -2112,15 +2112,11 @@
       "roomsFiltered": "{{active}} di {{total}} stanze"
     },
     "roomFilter": {
-      "aria": "Filtra per stanza",
-      "all": "Tutte",
-      "only": "Solo",
-      "onlyRoomAria": "Mostra solo {{room}}",
-      "roomsButton": "Stanze {{active}}/{{total}}",
-      "pickerAria": "Filtra stanze",
-      "searchPlaceholder": "Cerca stanze",
-      "noMatch": "Nessuna stanza corrispondente",
-      "showAll": "Mostra tutte le {{count}}"
+      "label": "Stanze",
+      "ariaLabel": "Filtra i thread per stanza",
+      "ariaLabelActive": "Filtra i thread per stanza (selezionate: {{number}})",
+      "search": "Cerca stanze",
+      "noMatch": "Nessuna stanza corrispondente"
     },
     "composer": {
       "postTo": "Pubblica in:",

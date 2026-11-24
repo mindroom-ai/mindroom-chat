@@ -1988,15 +1988,11 @@
       "roomsFiltered": "{{active}} dari {{total}} ruang"
     },
     "roomFilter": {
-      "aria": "Filter menurut ruang",
-      "all": "Semua",
-      "only": "Hanya",
-      "onlyRoomAria": "Tampilkan hanya {{room}}",
-      "roomsButton": "Ruang {{active}}/{{total}}",
-      "pickerAria": "Filter ruang",
-      "searchPlaceholder": "Cari ruang",
-      "noMatch": "Tidak ada ruang yang cocok",
-      "showAll": "Tampilkan semua {{count}}"
+      "label": "Ruang",
+      "ariaLabel": "Filter utas menurut ruang",
+      "ariaLabelActive": "Filter utas menurut ruang ({{number}} dipilih)",
+      "search": "Cari ruang",
+      "noMatch": "Tidak ada ruang yang cocok"
     },
     "composer": {
       "postTo": "Kirim ke:",

@@ -1988,15 +1988,11 @@
       "roomsFiltered": "{{active}}/{{total}} 個房間"
     },
     "roomFilter": {
-      "aria": "依房間篩選",
-      "all": "全部",
-      "only": "僅看",
-      "onlyRoomAria": "僅顯示 {{room}}",
-      "roomsButton": "房間 {{active}}/{{total}}",
-      "pickerAria": "篩選房間",
-      "searchPlaceholder": "搜尋房間",
-      "noMatch": "沒有相符的房間",
-      "showAll": "顯示全部 {{count}} 個"
+      "label": "房間",
+      "ariaLabel": "依房間篩選討論串",
+      "ariaLabelActive": "依房間篩選討論串（已選 {{number}} 個）",
+      "search": "搜尋房間",
+      "noMatch": "沒有相符的房間"
     },
     "composer": {
       "postTo": "傳送到：",

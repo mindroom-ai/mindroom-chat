@@ -2050,15 +2050,11 @@
       "roomsFiltered": "{{total}} odadan {{active}} tanesi"
     },
     "roomFilter": {
-      "aria": "Odaya göre filtrele",
-      "all": "Tümü",
-      "only": "Yalnızca",
-      "onlyRoomAria": "Yalnızca {{room}} göster",
-      "roomsButton": "Odalar {{active}}/{{total}}",
-      "pickerAria": "Odaları filtrele",
-      "searchPlaceholder": "Odaları ara",
-      "noMatch": "Eşleşen oda yok",
-      "showAll": "Tüm {{count}} odayı göster"
+      "label": "Odalar",
+      "ariaLabel": "Konuları odaya göre filtrele",
+      "ariaLabelActive": "Konuları odaya göre filtrele ({{number}} seçili)",
+      "search": "Odaları ara",
+      "noMatch": "Eşleşen oda yok"
     },
     "composer": {
       "postTo": "Gönder:",

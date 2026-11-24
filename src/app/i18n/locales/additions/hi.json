@@ -2050,15 +2050,11 @@
       "roomsFiltered": "{{total}} में से {{active}} रूम"
     },
     "roomFilter": {
-      "aria": "रूम के अनुसार फ़िल्टर करें",
-      "all": "सभी",
-      "only": "केवल",
-      "onlyRoomAria": "केवल {{room}} दिखाएं",
-      "roomsButton": "रूम {{active}}/{{total}}",
-      "pickerAria": "रूम फ़िल्टर करें",
-      "searchPlaceholder": "रूम खोजें",
-      "noMatch": "कोई मेल खाता रूम नहीं",
-      "showAll": "सभी {{count}} दिखाएं"
+      "label": "रूम",
+      "ariaLabel": "रूम के अनुसार थ्रेड फ़िल्टर करें",
+      "ariaLabelActive": "रूम के अनुसार थ्रेड फ़िल्टर करें (चुने गए: {{number}})",
+      "search": "रूम खोजें",
+      "noMatch": "कोई मेल खाता रूम नहीं"
     },
     "composer": {
       "postTo": "यहाँ पोस्ट करें:",

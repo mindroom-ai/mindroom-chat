@@ -2050,15 +2050,11 @@
       "roomsFiltered": "{{total}}টির মধ্যে {{active}}টি রুম"
     },
     "roomFilter": {
-      "aria": "রুম অনুযায়ী ফিল্টার করুন",
-      "all": "সব",
-      "only": "শুধু",
-      "onlyRoomAria": "শুধুমাত্র {{room}} দেখান",
-      "roomsButton": "রুম {{active}}/{{total}}",
-      "pickerAria": "রুম ফিল্টার করুন",
-      "searchPlaceholder": "রুম খুঁজুন",
-      "noMatch": "কোনো মিল থাকা রুম নেই",
-      "showAll": "সব {{count}}টি দেখান"
+      "label": "রুম",
+      "ariaLabel": "রুম অনুযায়ী থ্রেড ফিল্টার করুন",
+      "ariaLabelActive": "রুম অনুযায়ী থ্রেড ফিল্টার করুন (নির্বাচিত: {{number}})",
+      "search": "রুম খুঁজুন",
+      "noMatch": "কোনো মিল থাকা রুম নেই"
     },
     "composer": {
       "postTo": "পোস্ট করুন:",

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter } from 'react-router-dom';
 import {
@@ -346,43 +346,88 @@ afterEach(() => {
   localStorage.clear();
 });
 
+const openRoomsDropdown = (container: HTMLElement) => {
+  if (!container.querySelector('[data-room-filter-panel]')) {
+    fireEvent.click(container.querySelector('[data-room-filter-button]')!);
+  }
+};
+
+const toggleRoomOption = (container: HTMLElement, roomId: string) => {
+  openRoomsDropdown(container);
+  const row = container.querySelector<HTMLElement>(`[data-room-option="${roomId}"]`)!;
+  fireEvent.click(within(row).getByRole('checkbox'));
+};
+
 describe('SpaceThreadsPage', () => {
-  it('shows room badges in multi-room view, hides them on Only downselect, updates composer, and restores on All', () => {
+  it('filters via the Rooms dropdown (1 room, 2 rooms, search, Clear), updates badges and composer', () => {
     const rooms = [
       makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
       makeRoom(ROOM_DES, 'Design', { hasAgent: true }),
+      makeRoom(ROOM_OPS, 'Ops', { hasAgent: true }),
     ];
     const entries = [
       makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
       makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
+      makeEntry(ROOM_OPS, 'Ops', '$t-ops', 'Cluster upgrade', NOW - 2000),
     ];
 
     const { container } = renderSpaceThreads({ rooms, entries });
 
-    expect(mocks.threadListCalls.at(-1)).toEqual({ allPages: true, roomIds: [ROOM_ENG, ROOM_DES] });
+    expect(mocks.threadListCalls.at(-1)).toEqual({
+      allPages: true,
+      roomIds: [ROOM_ENG, ROOM_DES, ROOM_OPS],
+    });
     expect(screen.getByText('Build failure')).toBeTruthy();
     expect(screen.getByText('New button spec')).toBeTruthy();
-    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(2);
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(3);
     expect(
       container.querySelector('[data-thread-root-id="$t-eng"]')?.getAttribute('aria-label')
     ).toContain('Engineering');
-    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('2 rooms');
+    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('3 rooms');
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
 
-    fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
+    // Open Rooms dropdown, test search, then downselect to Design (1 room).
+    openRoomsDropdown(container);
+    const search = container.querySelector<HTMLInputElement>('[data-room-filter-search]')!;
+    fireEvent.change(search, { target: { value: 'des' } });
+    expect(container.querySelectorAll('[data-room-option]').length).toBe(1);
+    fireEvent.change(search, { target: { value: '' } });
+    expect(container.querySelectorAll('[data-room-option]').length).toBe(3);
+
+    toggleRoomOption(container, ROOM_DES);
     expect(screen.queryByText('Build failure')).toBeNull();
     expect(screen.getByText('New button spec')).toBeTruthy();
+    expect(screen.queryByText('Cluster upgrade')).toBeNull();
     expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(0);
-    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 of 2 rooms');
+    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 of 3 rooms');
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Design');
+    expect(
+      container.querySelector('[data-room-filter-button]')?.getAttribute('data-room-filter-count')
+    ).toBe('1');
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
 
     fireEvent.click(screen.getByTestId('mock-send-message'));
     expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '$sent-root');
 
-    fireEvent.click(container.querySelector('[data-space-room-filter-all="true"]')!);
+    // Check a 2nd room: room badges reappear and trigger shows "Rooms 2".
+    toggleRoomOption(container, ROOM_OPS);
+    expect(screen.queryByText('Build failure')).toBeNull();
+    expect(screen.getByText('New button spec')).toBeTruthy();
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(2);
+    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('2 of 3 rooms');
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms2');
+
+    // Click Clear inside the dropdown: restores all 3 rooms and resets trigger to "Rooms".
+    fireEvent.click(container.querySelector('[data-room-filter-clear]')!);
     expect(screen.getByText('Build failure')).toBeTruthy();
     expect(screen.getByText('New button spec')).toBeTruthy();
-    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(2);
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(3);
+    expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('3 rooms');
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
 
     fireEvent.click(container.querySelector('[data-thread-root-id="$t-eng"]')!);
     expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng');
@@ -424,9 +469,8 @@ describe('SpaceThreadsPage', () => {
     });
     expect(screen.getByText('Allowed thread')).toBeTruthy();
     expect(screen.queryByText('Spam thread')).toBeNull();
-    expect(container.querySelector('[data-space-room-filter-all="true"]')?.textContent).toContain(
-      '1'
-    );
+    expect(container.querySelector('[data-room-filter-button]')).toBeNull();
+    expect(container.querySelector('[data-thread-count="true"]')?.textContent).toContain('1');
 
     // Unblocking brings it back; blocking again removes it immediately.
     act(() => setIgnoredUsers([]));
@@ -452,7 +496,7 @@ describe('SpaceThreadsPage', () => {
     const { container } = renderSpaceThreads({ rooms, entries, store });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
 
-    fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
+    toggleRoomOption(container, ROOM_DES);
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
     const note = container.querySelector(`[data-space-composer-draft-pinned="${ROOM_ENG}"]`);
     expect(note?.textContent).toContain('Engineering');
@@ -464,7 +508,7 @@ describe('SpaceThreadsPage', () => {
       item: { file: {} as File, originalFile: { name: 'spec.png' } as File, metadata: {} } as never,
     });
     const { container: c2 } = renderSpaceThreads({ rooms, entries, store: uploadStore });
-    fireEvent.click(c2.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
+    toggleRoomOption(c2, ROOM_DES);
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
   });
 
@@ -473,7 +517,7 @@ describe('SpaceThreadsPage', () => {
       makeRoom(`!room${i}:example.org`, `Room ${i}`)
     );
     const { container } = renderSpaceThreads({ rooms: sevenRooms, entries: [] });
-    expect(container.querySelector('[data-space-room-filter-button]')).toBeTruthy();
+    expect(container.querySelector('[data-room-filter-button]')).toBeTruthy();
 
     const trigger = container.querySelector<HTMLButtonElement>(
       '[data-space-composer-picker="true"] button'
@@ -490,7 +534,16 @@ describe('SpaceThreadsPage', () => {
       '!room3:example.org'
     );
 
-    fireEvent.click(container.querySelector('[data-space-room-chip="!room0:example.org"]')!);
+    // Filter to 5 rooms (Room 1..Room 5) so composer keeps its picker menu while excluding Room 0.
+    for (const id of [
+      '!room1:example.org',
+      '!room2:example.org',
+      '!room3:example.org',
+      '!room4:example.org',
+      '!room5:example.org',
+    ]) {
+      toggleRoomOption(container, id);
+    }
     fireEvent.click(
       container.querySelector<HTMLButtonElement>('[data-space-composer-picker="true"] button')!
     );
@@ -644,16 +697,18 @@ describe('SpaceThreadsPage', () => {
     act(() => {
       store.set(archivedRoomsAtom, new Set([ROOM_OPS]));
     });
-    expect(container.querySelector(`[data-space-room-chip="${ROOM_OPS}"]`)).toBeNull();
+    openRoomsDropdown(container);
+    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeNull();
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('2 rooms');
 
-    fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
+    toggleRoomOption(container, ROOM_DES);
     expect(screen.queryByText('Build failure')).toBeNull();
     act(() => {
       store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ROOM_ENG] });
     });
     expect(screen.getByText('Build failure')).toBeTruthy();
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 room');
+    expect(container.querySelector('[data-room-filter-button]')).toBeNull();
 
     expect(container.querySelector('[data-thread-count="true"]')).toBeNull();
     act(() => {
@@ -662,9 +717,9 @@ describe('SpaceThreadsPage', () => {
       eng.setMembers([{ userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' }]);
       eng.emit(RoomStateEvent.Members);
     });
-    expect(container.querySelector(`[data-space-room-chip="${ROOM_ENG}"]`)?.textContent).toContain(
-      'Platform'
-    );
+    expect(
+      container.querySelector(`[data-space-composer-target="${ROOM_ENG}"]`)?.textContent
+    ).toContain('Platform');
     expect(container.querySelector('[data-thread-count="true"]')).toBeTruthy();
   });
 
@@ -674,7 +729,7 @@ describe('SpaceThreadsPage', () => {
     const entries = [makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW)];
 
     const { container } = renderSpaceThreads({ rooms: [eng, des], entries });
-    fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
+    toggleRoomOption(container, ROOM_DES);
     expect(container.querySelector('[data-space-threads-empty="no-matching"]')).toBeTruthy();
 
     // Unsettled thread lists keep loading visible instead of flashing "No threads in this space yet."

@@ -2050,15 +2050,11 @@
       "roomsFiltered": "{{active}} of {{total}} rooms"
     },
     "roomFilter": {
-      "aria": "Filter by room",
-      "all": "All",
-      "only": "Only",
-      "onlyRoomAria": "Show only {{room}}",
-      "roomsButton": "Rooms {{active}}/{{total}}",
-      "pickerAria": "Filter rooms",
-      "searchPlaceholder": "Search rooms",
-      "noMatch": "No matching rooms",
-      "showAll": "Show all {{count}}"
+      "label": "Rooms",
+      "ariaLabel": "Filter threads by room",
+      "ariaLabelActive": "Filter threads by room ({{number}} selected)",
+      "search": "Search rooms",
+      "noMatch": "No matching rooms"
     },
     "composer": {
       "postTo": "Post to:",

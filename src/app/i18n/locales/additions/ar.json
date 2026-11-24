@@ -2298,15 +2298,11 @@
       "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة"
     },
     "roomFilter": {
-      "aria": "تصفية حسب الغرفة",
-      "all": "الكل",
-      "only": "فقط",
-      "onlyRoomAria": "عرض ⁨{{room}}⁩ فقط",
-      "roomsButton": "الغرف ⁨{{active}}⁩/⁨{{total}}⁩",
-      "pickerAria": "تصفية الغرف",
-      "searchPlaceholder": "البحث في الغرف",
-      "noMatch": "لا توجد غرف مطابقة",
-      "showAll": "عرض الكل (⁨{{count}}⁩)"
+      "label": "الغرف",
+      "ariaLabel": "تصفية سلاسل المحادثات حسب الغرفة",
+      "ariaLabelActive": "تصفية سلاسل المحادثات حسب الغرفة (المحدد: ⁨{{number}}⁩)",
+      "search": "البحث في الغرف",
+      "noMatch": "لا توجد غرف مطابقة"
     },
     "composer": {
       "postTo": "النشر في:",

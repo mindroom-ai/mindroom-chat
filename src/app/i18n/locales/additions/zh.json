@@ -1988,15 +1988,11 @@
       "roomsFiltered": "{{active}}/{{total}} 个房间"
     },
     "roomFilter": {
-      "aria": "按房间筛选",
-      "all": "全部",
-      "only": "仅看",
-      "onlyRoomAria": "仅显示 {{room}}",
-      "roomsButton": "房间 {{active}}/{{total}}",
-      "pickerAria": "筛选房间",
-      "searchPlaceholder": "搜索房间",
-      "noMatch": "没有匹配的房间",
-      "showAll": "显示全部 {{count}} 个"
+      "label": "房间",
+      "ariaLabel": "按房间过滤讨论串",
+      "ariaLabelActive": "按房间过滤讨论串（已选 {{number}} 个）",
+      "search": "搜索房间",
+      "noMatch": "没有匹配的房间"
     },
     "composer": {
       "postTo": "发送到：",

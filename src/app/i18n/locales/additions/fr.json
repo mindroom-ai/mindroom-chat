@@ -2112,15 +2112,11 @@
       "roomsFiltered": "{{active}} sur {{total}} salons"
     },
     "roomFilter": {
-      "aria": "Filtrer par salon",
-      "all": "Tous",
-      "only": "Uniquement",
-      "onlyRoomAria": "Afficher uniquement {{room}}",
-      "roomsButton": "Salons {{active}}/{{total}}",
-      "pickerAria": "Filtrer les salons",
-      "searchPlaceholder": "Rechercher des salons",
-      "noMatch": "Aucun salon correspondant",
-      "showAll": "Afficher les {{count}}"
+      "label": "Salons",
+      "ariaLabel": "Filtrer les fils par salon",
+      "ariaLabelActive": "Filtrer les fils par salon (sélection : {{number}})",
+      "search": "Rechercher des salons",
+      "noMatch": "Aucun salon correspondant"
     },
     "composer": {
       "postTo": "Publier dans :",
