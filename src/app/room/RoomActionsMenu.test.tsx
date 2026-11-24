@@ -17,19 +17,32 @@ import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
-const state = vi.hoisted(() => ({
-  canInvite: true,
-  canListRooms: true,
-  encrypted: false,
-  navigate: vi.fn(),
-  openSettings: vi.fn(),
-  sendStateEvent: vi.fn(() => Promise.resolve({})),
-  removeSpaceChild: vi.fn(() => Promise.resolve()),
+const state = vi.hoisted(() => {
+  const sendStateEvent = vi.fn(() => Promise.resolve({}));
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-  rooms: {} as Record<string, unknown>,
-  plugins: [] as RegisteredPlugin[],
-  reportBoundaryError: vi.fn(),
-}));
+  const rooms = {} as Record<string, unknown>;
+  const makeClient = () => ({
+    getSafeUserId: () => '@me:example.org',
+    getRoom: (roomId: string) => rooms[roomId] ?? null,
+    sendStateEvent,
+  });
+  return {
+    canInvite: true,
+    canListRooms: true,
+    encrypted: false,
+    navigate: vi.fn(),
+    openSettings: vi.fn(),
+    sendStateEvent,
+    removeSpaceChild: vi.fn(() => Promise.resolve()),
+    rooms,
+    client: makeClient(),
+    resetClient() {
+      this.client = makeClient();
+    },
+    plugins: [] as RegisteredPlugin[],
+    reportBoundaryError: vi.fn(),
+  };
+});
 
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
@@ -39,11 +52,7 @@ vi.mock('../spaces/lobby/spaceChildren', () => ({
   removeSpaceChild: state.removeSpaceChild,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    getSafeUserId: () => '@me:example.org',
-    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
-    sendStateEvent: state.sendStateEvent,
-  }),
+  useMatrixClient: () => state.client,
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
@@ -195,7 +204,10 @@ afterEach(() => {
   state.canInvite = true;
   state.canListRooms = true;
   state.encrypted = false;
-  state.rooms = {};
+  Object.keys(state.rooms).forEach((roomId) => {
+    delete state.rooms[roomId];
+  });
+  state.resetClient();
   state.plugins.length = 0;
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
   getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
@@ -359,6 +371,82 @@ describe('the shared room actions', () => {
       />
     );
     expect(rows()).not.toContain('MindRoom Settings');
+  });
+
+  it('loads lazy room members while the menu is open so MindRoom Settings appears, and skips loading when unnecessary', async () => {
+    let loaded = false;
+    let resolveLoad!: (value: boolean) => void;
+    const members: Array<{ userId: string; membership: string }> = [];
+    const currentState = {};
+    const loadMembersIfNeeded = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveLoad = resolve;
+        })
+    );
+    const lazyRoom = {
+      roomId: '!lazy:example.org',
+      name: 'Archive Desk',
+      isSpaceRoom: () => false,
+      currentState,
+      membersLoaded: () => loaded,
+      getMembers: () => members,
+      loadMembersIfNeeded,
+    };
+    state.rooms[lazyRoom.roomId] = lazyRoom;
+
+    render(
+      <RoomActionsMenu
+        room={lazyRoom as unknown as Room}
+        submenuSide="Right"
+        close={vi.fn()}
+        showDialog={vi.fn()}
+      />
+    );
+    expect(loadMembersIfNeeded).toHaveBeenCalledOnce();
+    expect(rows()).not.toContain('MindRoom Settings');
+
+    // Resolve with the same currentState object and no membership event, matching lazy-load hydration.
+    members.push({ userId: '@mindroom_helper:example.org', membership: 'join' });
+    loaded = true;
+    resolveLoad(true);
+
+    await screen.findByRole('menuitem', { name: 'MindRoom Settings' });
+    const allRows = rows();
+    expect(allRows.indexOf('MindRoom Settings')).toBe(allRows.indexOf('Room Settings') + 1);
+    expect(loadMembersIfNeeded).toHaveBeenCalledOnce();
+
+    // Never loads when members are already loaded, an agent is already known, or the room is a space.
+    for (const [id, isSpace, membersLoaded, initialMembers] of [
+      ['!loaded:example.org', false, true, []],
+      [
+        '!known-agent:example.org',
+        false,
+        false,
+        [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+      ],
+      ['!lazy-space:example.org', true, false, []],
+    ] as const) {
+      cleanup();
+      const skipLoad = vi.fn(() => Promise.resolve(true));
+      const candidate = {
+        roomId: id,
+        isSpaceRoom: () => isSpace,
+        membersLoaded: () => membersLoaded,
+        getMembers: () => [...initialMembers],
+        loadMembersIfNeeded: skipLoad,
+      };
+      state.rooms[id] = candidate;
+      render(
+        <RoomActionsMenu
+          room={candidate as unknown as Room}
+          submenuSide="Right"
+          close={vi.fn()}
+          showDialog={vi.fn()}
+        />
+      );
+      expect(skipLoad).not.toHaveBeenCalled();
+    }
   });
 
   it('has no New Sub-room in the menu of a direct chat, whose partner could not find it', () => {

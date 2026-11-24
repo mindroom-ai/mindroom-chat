@@ -58,6 +58,17 @@ const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () 
   };
 };
 
+/**
+ * Drops the cached MindRoom-agent lookup for `roomId` and notifies subscribers, e.g. after
+ * `room.loadMembersIfNeeded()` populates `room.currentState` without emitting a membership event.
+ */
+export const invalidateRoomMindroomAgent = (mx: MatrixClient, roomId: string): void => {
+  const watch = membershipWatches.get(mx);
+  if (!watch) return;
+  watch.agents.delete(roomId);
+  watch.listeners.get(roomId)?.forEach((listener) => listener());
+};
+
 const getDirectAccountData = (mx: MatrixClient) =>
   typeof mx.getAccountData === 'function' ? getAccountData(mx, AccountDataEvent.Direct) : undefined;
 

@@ -240,6 +240,7 @@ vi.mock('../../canvas/CanvasHeaderButton', () => ({
 }));
 
 vi.mock('../../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
   useRoomHasMindroomAgent: () => hasMindroomAgentState.value,
   useRoomViewMode: () => ({ availableViewModes: [], setViewMode: vi.fn(), viewMode: 'threaded' }),
 }));

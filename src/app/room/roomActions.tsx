@@ -1,8 +1,9 @@
-import { lazy, type ComponentType, type ReactNode } from 'react';
+import { lazy, useEffect, type ComponentType, type ReactNode } from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -26,7 +27,10 @@ import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
-import { useRoomHasMindroomAgent } from '../navigation/useRoomViewMode';
+import {
+  invalidateRoomMindroomAgent,
+  useRoomHasMindroomAgent,
+} from '../navigation/useRoomViewMode';
 import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
@@ -307,9 +311,36 @@ function SettingsEntry({ room, close }: RoomActionProps) {
 
 function MindroomSettingsEntry({ room, close }: RoomActionProps) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
   const openRoomSettings = useOpenRoomSettings();
   const space = room.isSpaceRoom();
   const hasMindroomAgent = useRoomHasMindroomAgent(room.roomId, !space);
+
+  useEffect(() => {
+    if (
+      space ||
+      hasMindroomAgent ||
+      room.membersLoaded?.() ||
+      typeof room.loadMembersIfNeeded !== 'function'
+    ) {
+      return undefined;
+    }
+    let disposed = false;
+    void room
+      .loadMembersIfNeeded()
+      .then(() => {
+        if (!disposed) invalidateRoomMindroomAgent(client, room.roomId);
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          logger.warn('[MindroomSettingsEntry] Failed to load room members', error);
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [client, hasMindroomAgent, room, space]);
+
   if (space || !hasMindroomAgent) return null;
   return (
     <MenuEntry
