@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from 'react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,9 +9,9 @@ import { UserRoomProfileRenderer } from './UserRoomProfileRenderer';
 
 // The real trap; jsdom lays nothing out, so every element counts as shown.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

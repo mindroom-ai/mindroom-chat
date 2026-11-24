@@ -1,5 +1,8 @@
 import { type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
+import {
+  isFailedLocalEchoEvent,
+  isPendingLocalEchoEvent,
+} from '../../matrix/protocol/pendingLocalEcho';
 
 // Chronological SDK rooms keep unsent thread replies outside their timelines.
 // Retain the original SDK objects so status changes, retry, and cancellation

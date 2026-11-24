@@ -32,7 +32,7 @@ vi.mock('folds', async () => {
     Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   };
 });
-vi.mock('focus-trap-react', () => ({ default: passThrough }));
+vi.mock('focus-trap-react', () => ({ FocusTrap: passThrough }));
 vi.mock('../../ui/glass/GlassPrimitives', () => ({
   Header: ({ children }: { children?: React.ReactNode }) => <header>{children}</header>,
   IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (

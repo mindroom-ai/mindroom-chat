@@ -9,11 +9,7 @@ import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
-import {
-  IReplyDraft,
-  roomUploadAtomFamily,
-  threadViewVoiceComposersAtom,
-} from './roomInputDrafts';
+import { IReplyDraft, roomUploadAtomFamily, threadViewVoiceComposersAtom } from './roomInputDrafts';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
@@ -67,7 +63,8 @@ const createDeferred = <T>() => {
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file: not encrypted, not a voice message, not a text paste.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
   },
@@ -77,7 +74,8 @@ const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => (
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file that also carries the marker of a pasted text.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
     mindroomPasteAttachment: {
@@ -514,7 +512,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
+    ]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -525,7 +525,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(room.current().joinedSendPending).toBe(true);
   });
 
-  it("takes a send parked for its thread over once its own send is done", async () => {
+  it('takes a send parked for its thread over once its own send is done', async () => {
     const store = getDefaultStore();
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
@@ -533,7 +533,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
+    ]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];
@@ -544,7 +546,10 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     store.set(threadViewVoiceComposersAtom, []);
     expect(thread.current().joinedSendPending).toBe(false);
 
-    thread.api.uploadsRef.current = [successUpload(own, 'mxc://mindroom/own'), loadingUpload(child)];
+    thread.api.uploadsRef.current = [
+      successUpload(own, 'mxc://mindroom/own'),
+      loadingUpload(child),
+    ];
     await act(async () => {
       store.set(roomUploadAtomFamily(own), { mxc: 'mxc://mindroom/own' });
       await Promise.resolve();
@@ -1929,11 +1934,7 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     expect(api.hasActiveSendSession()).toBe(false);
 
     const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
-    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual([
-      'steer',
-      'steer',
-      'queue',
-    ]);
+    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual(['steer', 'steer', 'queue']);
   });
 });
 
@@ -2665,7 +2666,9 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
       getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/post-unmount.png' });
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['post-unmount.png', 'dictated caption']));
+    await vi.waitFor(() =>
+      expect(sentBodies(mx)).toEqual(['post-unmount.png', 'dictated caption'])
+    );
   });
 
   it('excludes already-enrolled files when starting a non-batch send on the same composer', async () => {
@@ -2678,7 +2681,9 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
 
     changeThread('$threadB');
     await act(async () => {
-      await current().startSendSession({ textContent: { msgtype: 'm.text', body: 'thread B only' } });
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'thread B only' },
+      });
     });
     expect(sentBodies(mx)).toEqual(['thread B only']);
   });
@@ -2746,5 +2751,111 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
     });
     expect(sentBodies(mx)).toEqual(['dictated only']);
     expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([laterFile]);
+  });
+
+  it('invokes onTextConsumed only when text is handed off to Matrix, restored to fallback, or an attachment-only send completes', async () => {
+    const { api, mx, restoreComposerFallbackForRoom } = renderHarness();
+
+    // 1. Pending attachment: startSendSession resolves while upload is loading; onTextConsumed waits until text sends.
+    const file = createFile('pending.png');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    const onConsumedDelivered = vi.fn();
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption after upload' },
+        batch: { fileItems: [item] },
+        composerFallback: [
+          { type: 'paragraph', children: [{ text: 'caption after upload' }] },
+        ] as never,
+        composerAlreadyReset: true,
+        onTextConsumed: onConsumedDelivered,
+      });
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+    expect(onConsumedDelivered).not.toHaveBeenCalled();
+
+    // 2. Queued send behind the active upload: startSendSession resolves immediately; onTextConsumed waits too.
+    const onConsumedQueued = vi.fn();
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'queued behind upload' },
+        batch: { fileItems: [] },
+        composerFallback: [
+          { type: 'paragraph', children: [{ text: 'queued behind upload' }] },
+        ] as never,
+        composerAlreadyReset: true,
+        onTextConsumed: onConsumedQueued,
+      });
+    });
+    expect(onConsumedQueued).not.toHaveBeenCalled();
+
+    // Complete upload -> both the caption and the queued text deliver, invoking each callback once.
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/pending.png' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() =>
+      expect(sentBodies(mx)).toEqual([
+        'pending.png',
+        'caption after upload',
+        'queued behind upload',
+      ])
+    );
+    expect(onConsumedDelivered).toHaveBeenCalledTimes(1);
+    expect(onConsumedQueued).toHaveBeenCalledTimes(1);
+
+    // 3. Refused beforeSend restores composerFallback and invokes onTextConsumed once.
+    const blockedFile = createFile('refused.png');
+    const blockedItem = createUploadItem(blockedFile);
+    api.selectedFilesRef.current = [blockedItem];
+    api.uploadsRef.current = [loadingUpload(blockedFile)];
+    const onConsumedFallback = vi.fn();
+    const fallbackDoc = [{ type: 'paragraph', children: [{ text: 'restored caption' }] }] as never;
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'restored caption' },
+        batch: { fileItems: [blockedItem] },
+        composerFallback: fallbackDoc,
+        composerAlreadyReset: true,
+        beforeSend: () => false,
+        onTextConsumed: onConsumedFallback,
+      });
+    });
+    expect(onConsumedFallback).not.toHaveBeenCalled();
+    api.uploadsRef.current = [successUpload(blockedFile)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(blockedFile), {
+        mxc: 'mxc://mindroom/refused.png',
+      });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(onConsumedFallback).toHaveBeenCalledTimes(1));
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(expect.anything(), fallbackDoc);
+    expect(restoreComposerFallbackForRoom).not.toHaveBeenCalled();
+
+    // 4. Attachment-only send (textContent undefined): invokes onTextConsumed once the upload finishes.
+    const fileOnly = createFile('only.png');
+    const itemOnly = createUploadItem(fileOnly);
+    api.selectedFilesRef.current = [itemOnly];
+    api.uploadsRef.current = [loadingUpload(fileOnly)];
+    const onConsumedNoText = vi.fn();
+    await act(async () => {
+      await api.startSendSession({
+        textContent: undefined,
+        batch: { fileItems: [itemOnly] },
+        composerAlreadyReset: true,
+        onTextConsumed: onConsumedNoText,
+      });
+    });
+    expect(onConsumedNoText).not.toHaveBeenCalled();
+    api.uploadsRef.current = [successUpload(fileOnly)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(fileOnly), { mxc: 'mxc://mindroom/only.png' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(onConsumedNoText).toHaveBeenCalledTimes(1));
   });
 });

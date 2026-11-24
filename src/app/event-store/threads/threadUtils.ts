@@ -120,8 +120,8 @@ export const getPreferredVisibleThreadReplyEvents = (
   const replyEvents = thread?.events?.length
     ? thread.events
     : thread?.timeline?.length
-    ? thread.timeline
-    : thread?.events ?? thread?.timeline ?? [];
+      ? thread.timeline
+      : (thread?.events ?? thread?.timeline ?? []);
   return replyEvents.filter(isVisibleThreadReplyEvent);
 };
 

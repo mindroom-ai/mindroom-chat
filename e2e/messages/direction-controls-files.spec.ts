@@ -76,7 +76,7 @@ const upload = async (accessToken: string, body: Buffer, type: string): Promise<
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': type },
-    body,
+    body: new Uint8Array(body),
   });
   expect(response.ok).toBe(true);
   return ((await response.json()) as { content_uri: string }).content_uri;
@@ -223,10 +223,13 @@ const openRoom = async (page: Page, world: World) => {
     viewMode: 'threaded',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.evaluate((route) => {
-    window.history.pushState(null, '', route);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(world.roomId)}/`);
+  await page.evaluate(
+    (route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(world.roomId)}/`
+  );
   await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
     timeout: 60_000,
   });

@@ -22,7 +22,7 @@ const record = (
     threadRootId: rootId,
     status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: oldestTs === undefined ? {} : { oldestTs },
-  } as ThreadRecord);
+  }) as ThreadRecord;
 
 const recordsOf = (...records: ThreadRecord[]) =>
   new Map(records.map((item) => [item.threadRootId, item] as const));

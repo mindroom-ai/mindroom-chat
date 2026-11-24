@@ -195,10 +195,13 @@ const banner = (page: Page) => page.locator('[data-thread-context-banner]');
 const scroller = (page: Page) => page.locator('[data-thread-count]').locator('xpath=../..');
 
 const openThread = async (page: Page, world: World, threadId: string, lastText: string) => {
-  await page.evaluate((route) => {
-    window.history.pushState(null, '', route);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(threadId)}`);
+  await page.evaluate(
+    (route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(threadId)}`
+  );
   await expect(banner(page)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(lastText).first()).toBeVisible({ timeout: 60_000 });
   // The "Catching up" pill over the room comes and goes with syncs; hide it from the checks.

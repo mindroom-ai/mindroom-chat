@@ -85,7 +85,7 @@ vi.mock('./MembersDrawer.css', () => ({
   JoinRequestMessage: 'JoinRequestMessage',
 }));
 
-const createRoom = (): Room => ({ roomId: '!room:example.org' } as Room);
+const createRoom = (): Room => ({ roomId: '!room:example.org' }) as Room;
 
 const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMember =>
   ({
@@ -99,7 +99,7 @@ const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMe
         getTs: () => 123,
       },
     },
-  } as unknown as RoomMember);
+  }) as unknown as RoomMember;
 
 const renderItem = (
   options: { canApprove?: boolean; canDecline?: boolean; reason?: unknown } = {}

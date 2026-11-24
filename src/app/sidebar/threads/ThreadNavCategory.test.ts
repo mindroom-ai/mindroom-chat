@@ -115,7 +115,7 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     isResolved: false,
     summaryText: threadRootId,
     threadRecord: { status: { isStreaming: false }, cache: {} },
-  } as unknown as CrossRoomThreadIndexEntry);
+  }) as unknown as CrossRoomThreadIndexEntry;
 
 const older = makeEntry('!room:example.org', '$older', 10);
 const newer = makeEntry('!newer-room:example.org', '$newer', 20);

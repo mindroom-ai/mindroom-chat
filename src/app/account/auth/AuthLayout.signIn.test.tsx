@@ -15,7 +15,7 @@ import { followRouterSignalsInNode } from '../../../test/utils/nodeSignalRequest
 import { getLoginPath } from '../../routes/pathUtils';
 import { LOGIN_PATH } from '../../routes/paths';
 import { AuthLayout } from './AuthLayout';
-import { liveVoiceRecordingAtom } from '../../composer/voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../../composer/capture/liveCapture';
 import { startLiveVoiceRecording } from '../../composer/voice/startLiveVoiceRecording';
 import {
   pendingVoiceSendDraftAtom,
@@ -175,7 +175,7 @@ it('parks a live voice recording, which no sign-in page shows, as a recovered on
 
   // The microphone is released, and the audio waits for the way back to the signed-in pages.
   expect(track.stop).toHaveBeenCalledOnce();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
   const parked = store.get(pendingVoiceSendDraftAtom);
   expect(parked).toMatchObject({ recovered: true, context });
   expect(parked?.file.size).toBe('voice'.length);

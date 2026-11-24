@@ -707,7 +707,18 @@
       "manage": "प्रबंधित करें"
     },
     "roomOrder": {
-      "sortByName": "रूम A से Z क्रम में लगाएँ"
+      "sortRooms": "रूम क्रमबद्ध करें",
+      "sortHeading": "रूम क्रमबद्ध करें",
+      "displayHeading": "प्रदर्शन",
+      "recentActivity": "हाल की गतिविधि",
+      "aToZ": "A से Z",
+      "customOrder": "कस्टम क्रम",
+      "saved": "सहेजा गया",
+      "showActivityTimes": "गतिविधि का समय दिखाएँ",
+      "matchSpace": "स्पेस के अनुसार ({{mode}})",
+      "shortRecent": "हाल का",
+      "shortName": "A से Z",
+      "shortManual": "कस्टम"
     },
     "roomActions": {
       "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",
@@ -1491,7 +1502,20 @@
       "capReached": "5:00 सीमा पूरी हो गई",
       "micInterrupted": "माइक्रोफ़ोन डिस्कनेक्ट हो गया। फिर से शुरू करें या समाप्त करें।",
       "failedSummary_one": "{{count}} खंड का ट्रांसक्रिप्शन नहीं हो सका।",
-      "failedSummary_other": "{{count}} खंडों का ट्रांसक्रिप्शन नहीं हो सका।"
+      "failedSummary_other": "{{count}} खंडों का ट्रांसक्रिप्शन नहीं हो सका।",
+      "discardDictation": "डिक्टेशन छोड़ें",
+      "discardConfirmTitle": "डिक्टेशन छोड़ें?",
+      "discardConfirmBody": "यह डिक्टेशन अभी जोड़ा या भेजा नहीं गया है। इसे स्थायी रूप से छोड़ें?",
+      "errorTitle": "डिक्टेशन त्रुटि",
+      "statusRecovered": "पुनर्प्राप्त डिक्टेशन",
+      "recoveredDuration": "पुनर्प्राप्त · {{time}}",
+      "indicator": {
+        "recording": "डिक्टेट हो रहा है {{time}}",
+        "paused": "डिक्टेशन रुका हुआ है {{time}}",
+        "recovered": "पुनर्प्राप्त डिक्टेशन {{time}}",
+        "finishing": "डिक्टेशन समाप्त हो रहा है...",
+        "failed": "डिक्टेशन पर ध्यान आवश्यक है"
+      }
     }
   },
   "commandPalette": {

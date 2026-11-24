@@ -34,10 +34,12 @@
 ### Task 1: Protocol readers and live frames
 
 **Files:**
+
 - Create: `src/app/matrix/protocol/compactions.ts`, `src/app/matrix/protocol/compactions.test.ts`
 - Modify: `src/app/matrix/protocol/liveFrame.ts` (+ test), `src/app/messages/live/useLiveReplyContent.ts` (live key), `src/app/matrix/protocol/untrustedContent.ts` (list the new live key beside `io.mindroom.live_reasoning_segments`)
 
 **Interfaces:**
+
 - Produces:
   - `export const COMPACTIONS_CONTENT_KEY = 'io.mindroom.compactions'`, `export const COMPACTION_NOTICE_CONTENT_KEY = 'io.mindroom.compaction'`
   - `export type CompactionStatus = 'running' | 'success' | 'failed' | 'timeout'`
@@ -55,10 +57,12 @@
 ### Task 2: `CompactionSeam` row and card
 
 **Files:**
+
 - Create: `src/app/messages/agent-run/CompactionSeam.tsx`, `CompactionSeam.css.ts`, `CompactionSeam.test.tsx`, `compactionCopy.ts` (+ test) for formatting
 - Modify: `src/app/i18n/locales/additions/*.json`
 
 **Interfaces:**
+
 - Consumes: Task 1's `ReplyCompaction` (`phase: 'pre_turn' | 'mid_turn' | 'manual' | 'notice'`, `beforeTokens?: number`).
 - Copy additions (controller rulings): `phase 'notice'` (an old automatic notice) uses the mid-turn rest label "Compacted context · …" and its card shows no tag and no subtitle; with no `beforeTokens` the History row, Saved row, gauge and its label are left out and the rest label drops the token part ("Compaction failed" already has none; a success without tokens reads just "Compacted context").
 - Produces: `export function CompactionSeam(props: { compaction: ReplyCompaction; interrupted?: boolean }): JSX.Element` with root `data-compaction-seam` and `data-state` (`running|success|failed|timeout|interrupted`) attributes (e2e selects on these). Pure helpers in `compactionCopy.ts`: `formatTokensShort(n)` (`367k`, `6k`, `950`), `formatSeconds(ms)` (`8.4 s` under 10 s, else whole `120 s`), `percentOf(n, budget)` (rounded).
@@ -72,10 +76,12 @@
 ### Task 3: Place seams inside the reply
 
 **Files:**
+
 - Modify: `src/app/messages/agent-run/Reasoning.tsx` (`withReasoning` placement), `src/app/messages/html/HtmlBlocks.tsx` (run split at a seam), `src/app/messages/agent-run/finishedWorkSplit.ts` (seams fold with their block), `src/app/messages/content/renderAgentMessageContent.tsx` (pass event or live compactions and the interrupted flag)
 - Test: `renderAgentMessageContent.compactions.test.tsx` (new, beside `renderAgentMessageContent.finishedWork.test.tsx`), `finishedWorkSplit.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 readers and `LIVE_COMPACTIONS_KEY`; Task 2 `CompactionSeam`.
 - Placement rule (spec "Placement"): after the greatest rendered tool marker index `<= afterTool`, else at the top below the reasoning header line; seam before a thinking segment at the same spot; interrupted = entry `running` while the reply's `io.mindroom.stream_status` is terminal (`TERMINAL_STREAM_STATUSES`).
 
@@ -88,6 +94,7 @@
 ### Task 4: Old/manual notice row, quiet marker, e2e screenshots
 
 **Files:**
+
 - Modify: `src/app/timeline/message-rendering/useTimelineMessageFeature.tsx` (`readQuietMarker`: a MindRoom agent's notice with `io.mindroom.compaction` renders `CompactionSeam` from `readCompactionNotice`), plus the room-timeline path if the notice renders there too (check how `SkillReviewMarker` handles the room timeline)
 - Test: `TimelineMessageFeature.test.tsx` (marker row, quiet for the reply fold, not for a human sender)
 - Create: `e2e/messages/compaction-seam.spec.ts` (copy the fixture approach of `e2e/messages/skill-review-marker.spec.ts` / `inline-thinking.spec.ts`)

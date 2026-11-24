@@ -5,7 +5,7 @@ import { deviceSignedByOwner } from './matrix-crypto';
 const cryptoReporting = (status: Record<string, unknown> | null): CryptoApi =>
   ({
     getDeviceVerificationStatus: async () => status,
-  } as unknown as CryptoApi);
+  }) as unknown as CryptoApi;
 
 describe('deviceSignedByOwner', () => {
   it('reports the signedByOwner flag, independent of crossSigningVerified', async () => {

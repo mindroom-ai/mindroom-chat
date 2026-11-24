@@ -3,7 +3,7 @@ import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachm
 import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
 import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
-import { clearVoiceRecordings } from '../../composer/voice/voiceRecordingJournal';
+import { clearCaptureJournal } from '../../composer/capture/captureJournal';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentRoomsStore } from '../../navigation/recentRooms';
@@ -104,7 +104,7 @@ export const clearUserUiState = async (userId: string): Promise<void> => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
   void clearSavedVoiceDraft(userId);
-  const journalCleanup = clearVoiceRecordings(userId);
+  const journalCleanup = clearCaptureJournal(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);

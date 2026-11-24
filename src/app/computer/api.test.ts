@@ -14,7 +14,7 @@ const response = (status: number, body?: unknown): Response =>
     ok: status >= 200 && status < 300,
     status,
     json: vi.fn().mockResolvedValue(body),
-  } as unknown as Response);
+  }) as unknown as Response;
 
 describe('computer api URL', () => {
   it.each([

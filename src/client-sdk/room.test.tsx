@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { getDefaultStore, Provider as StoreProvider } from 'jotai';
 import {
   createClient,
@@ -41,9 +41,9 @@ import {
 
 // jsdom lays nothing out, so every element counts as shown for the floating card's focus trap.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

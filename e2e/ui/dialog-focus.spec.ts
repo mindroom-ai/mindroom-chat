@@ -74,7 +74,7 @@ const sendImage = async (sender: Account, roomId: string) => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=${IMAGE}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${sender.accessToken}`, 'Content-Type': 'image/png' },
-    body: png,
+    body: new Uint8Array(png),
   });
   const { content_uri: url } = (await response.json()) as { content_uri: string };
   await matrixFetch(

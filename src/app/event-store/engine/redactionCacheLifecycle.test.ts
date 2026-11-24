@@ -26,7 +26,7 @@ const makeEvent = ({
     getRelation: () => undefined,
     threadRootId,
     isThreadRoot: false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const makeRoom = (
   eventsById: Record<string, MatrixEvent>,
@@ -242,7 +242,7 @@ describe('planRedactionCacheCleanup', () => {
 
 describe('removeAggregatedReactionByEventId', () => {
   const makeAggregatedReaction = (eventId: string): MatrixEvent =>
-    ({ getId: () => eventId } as unknown as MatrixEvent);
+    ({ getId: () => eventId }) as unknown as MatrixEvent;
 
   const makeTimelineSet = (relationsByParent: Record<string, MatrixEvent[]>) => {
     const removeEvent = vi.fn();

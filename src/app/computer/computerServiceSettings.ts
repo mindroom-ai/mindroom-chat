@@ -20,7 +20,7 @@ export const loadComputerServicePreference = (
       getStorageItemSafe(storage, COMPUTER_SERVICE_STORAGE_KEY) ?? 'null'
     );
     if (value === '') return '';
-    return typeof value === 'string' ? resolveComputerApiUrl(value) ?? null : null;
+    return typeof value === 'string' ? (resolveComputerApiUrl(value) ?? null) : null;
   } catch {
     return null;
   }

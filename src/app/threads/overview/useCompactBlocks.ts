@@ -117,7 +117,7 @@ export function useCompactBlocks(options: Options) {
   const held = [...(follows ? survivors : []), ...(moved && state.order ? geometry.visible : [])];
   // Beside them stay the target's block and, for End, the blocks that fill the last screen.
   const wanted = targetReady ? [...reader, targetSlot!] : [...reader];
-  const screen = state.end ? scrollRef.current?.clientHeight ?? 0 : 0;
+  const screen = state.end ? (scrollRef.current?.clientHeight ?? 0) : 0;
   for (let slot = blocks.length - 1, room = screen; slot >= 0 && room > 0; slot -= 1) {
     wanted.push(slot);
     for (const id of blocks[slot]!) room -= (heights.get(id) ?? 0) + gap;
@@ -342,5 +342,21 @@ export function useCompactBlocks(options: Options) {
     flushSync(render);
     state.wake?.();
   };
-  return { rows, liveIds, extentComplete, placeReady, targetReady, prepareEnd, progress: state };
+  // Retires a waiting Back with a real state update so React commits `placeReady` before any
+  // bailed-out render can observe the mutated progress flags without running layout effects.
+  const retireBack = () => {
+    const waiting = back;
+    state.placed = state.left = true;
+    if (waiting) render();
+  };
+  return {
+    rows,
+    liveIds,
+    extentComplete,
+    placeReady,
+    targetReady,
+    prepareEnd,
+    retireBack,
+    progress: state,
+  };
 }

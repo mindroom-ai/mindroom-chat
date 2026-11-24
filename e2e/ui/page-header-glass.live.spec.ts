@@ -159,9 +159,12 @@ for (const [themeId, width] of [
         expect((await interior.boundingBox())!.y).toBeGreaterThanOrEqual(top.y + top.height - 1);
         // Put real room text behind the material, not just somewhere above the viewport.
         const text = (await content.boundingBox())!;
-        await scroller.evaluate((element, delta) => {
-          element.scrollTop += delta;
-        }, text.y - top.y - top.height / 2);
+        await scroller.evaluate(
+          (element, delta) => {
+            element.scrollTop += delta;
+          },
+          text.y - top.y - top.height / 2
+        );
         const behind = (await content.boundingBox())!;
         expect(behind.y).toBeLessThan(top.y + top.height);
         expect(behind.y + behind.height).toBeGreaterThan(top.y);
@@ -173,7 +176,9 @@ for (const [themeId, width] of [
       };
 
       await page.getByRole('button', { name: /^MindRoom(,|$)/ }).click({ timeout: 15000 });
-      await page.getByRole('link', { name: 'Space overview', exact: true }).click({ timeout: 15000 });
+      await page
+        .getByRole('link', { name: 'Space overview', exact: true })
+        .click({ timeout: 15000 });
       const lobbyHeader = page
         .locator('header')
         .filter({ has: page.getByRole('button', { name: 'Members', exact: true }) });

@@ -844,9 +844,11 @@ describe('eventRepository latest room cache hydration snapshots', () => {
   // A limited sync leaves a hole in the cache: runs of newer events around missing ones.
   const mapByIdAndTs = (rawEvent: Partial<IEvent>) =>
     makeEvent(rawEvent.event_id ?? '$missing', { ts: rawEvent.origin_server_ts });
-  const gapBefore = (...eventIds: string[]) => async () => ({
-    beforeGapEventIds: new Set(eventIds),
-  });
+  const gapBefore =
+    (...eventIds: string[]) =>
+    async () => ({
+      beforeGapEventIds: new Set(eventIds),
+    });
 
   it('adds no cached events around a hole the cache has not filled', async () => {
     const snapshot = await loadLatestRoomCacheHydrationSnapshot({

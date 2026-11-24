@@ -1,6 +1,6 @@
 import { type MouseEvent, type ReactNode, useCallback, useRef, useState } from 'react';
 import { Icon, IconButton, Icons, toRem, type IconSrc, type RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
 import * as scrollableMenuCss from '../ScrollableMenu.css';
@@ -14,6 +14,10 @@ type NavOptionsMenuProps = {
   icon?: IconSrc;
   /** The menu's width in pixels. */
   width?: number;
+  /** Highlights the trigger button with a soft Primary fill when non-default state is active. */
+  active?: boolean;
+  /** Explicit ARIA role on the menu container (labels it with `label` when set). */
+  menuRole?: string;
   /** Touch-target or layout class on the trigger button; defaults to `LoneTouchTarget`. */
   buttonClassName?: string;
   /** The menu's groups; `close` dismisses the menu, for entries that act. */
@@ -28,6 +32,8 @@ export function NavOptionsMenu({
   label,
   icon = Icons.VerticalDots,
   width = 160,
+  active = false,
+  menuRole,
   buttonClassName = LoneTouchTarget,
   children,
 }: NavOptionsMenuProps) {
@@ -63,6 +69,8 @@ export function NavOptionsMenu({
       }}
     >
       <Menu
+        role={menuRole}
+        aria-label={menuRole ? label : undefined}
         className={scrollableMenuCss.ScrollableMenu}
         style={{ width: '100vw', maxWidth: toRem(width) }}
       >
@@ -75,11 +83,13 @@ export function NavOptionsMenu({
     <>
       <IconButton
         ref={buttonRef}
-        variant="Background"
+        variant={active ? 'Primary' : 'Background'}
+        fill={active ? 'Soft' : undefined}
         className={buttonClassName}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={Boolean(anchor)}
+        data-active={active ? 'true' : undefined}
         onClick={open}
       >
         <Icon size="200" src={icon} />

@@ -32,7 +32,7 @@ vi.mock('../ui/glass/GlassPrimitives', () => ({
   MenuItem: 'div',
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
   HttpApiEvent: { SessionLoggedOut: 'Session.logged_out' },

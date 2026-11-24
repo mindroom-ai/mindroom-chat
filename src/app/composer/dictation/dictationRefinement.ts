@@ -34,7 +34,10 @@ export type DictationRateBudget = {
   uploadHistory: DictationUploadSample[];
   retryNotBeforeMs: number;
 };
-export type DictationSegmentMeta = Omit<DictationSegment, 'wav'>;
+export type DictationSegmentMeta = Omit<
+  DictationSegment,
+  'wav' | 'wavBuffer' | 'consumedThroughFramePos'
+>;
 export type RefinementGroup = {
   startIndex: number;
   endIndex: number;
@@ -131,10 +134,10 @@ const planMergedGroup = (segments: readonly SliceableSegment[]) => {
       segments.length === 1
         ? 'only'
         : i === 0
-        ? 'first'
-        : i === segments.length - 1
-        ? 'last'
-        : 'middle'
+          ? 'first'
+          : i === segments.length - 1
+            ? 'last'
+            : 'middle'
     )
   );
   let totalFrames = 0;
@@ -266,26 +269,34 @@ export const buildGroupMergedWav = (
   return segments ? buildMergedGroupWav(segments) : null;
 };
 
-/** Releases WAV blobs for locked segments while retaining uncovered queued/uploading/failed WAVs. */
+/**
+ * Releases WAV blobs for locked segments while retaining uncovered queued/uploading/failed WAVs.
+ * Returns the exact segment indices whose `.wav` was newly cleared so callers can prune matching
+ * journal rows atomically.
+ */
 export const releaseGroupWavs = (
   group: RefinementGroup,
   records: readonly Pick<RefinementSegmentRecord, 'wav' | 'status'>[]
-): void => {
-  if (group.state !== 'refined' && group.state !== 'fallback') return;
+): number[] => {
+  if (group.state !== 'refined' && group.state !== 'fallback') return [];
+  const pruned: number[] = [];
   const coveredEnd = groupCoveredEnd(group);
   for (let i = group.startIndex; i <= group.endIndex; i += 1) {
     const record = records[i];
-    if (!record) continue;
+    if (!record || record.wav === undefined) continue;
     if (group.state === 'refined' || record.status === 'completed' || i <= coveredEnd) {
       record.wav = undefined;
+      pruned.push(i);
     }
   }
+  return pruned;
 };
 
 /** Seals an open refinement group into uploading, refined, queued (merged WAV), or fallback. */
 export const sealRefinementGroup = (
   group: RefinementGroup,
-  records: readonly RefinementSegmentRecord[]
+  records: readonly RefinementSegmentRecord[],
+  prunedOut?: number[]
 ): boolean => {
   if (group.state !== 'open') return false;
   if (group.uploadingEndIndex !== undefined) {
@@ -296,13 +307,15 @@ export const sealRefinementGroup = (
     group.mergedWav = undefined;
     group.mergedSeconds = undefined;
     group.state = 'refined';
-    releaseGroupWavs(group, records);
+    const pruned = releaseGroupWavs(group, records);
+    if (prunedOut && pruned.length > 0) prunedOut.push(...pruned);
     return true;
   }
   const merged = buildGroupMergedWav(records, group.startIndex, group.endIndex);
   if (!merged) {
     group.state = 'fallback';
-    releaseGroupWavs(group, records);
+    const pruned = releaseGroupWavs(group, records);
+    if (prunedOut && pruned.length > 0) prunedOut.push(...pruned);
     return true;
   }
   group.mergedWav = merged.wav;
@@ -314,7 +327,8 @@ export const sealRefinementGroup = (
 /** Appends the newest record (at `records.length - 1`) into `groups`, sealing on cap or cut bounds. */
 export const appendSegmentToGroups = (
   groups: RefinementGroup[],
-  records: readonly RefinementSegmentRecord[]
+  records: readonly RefinementSegmentRecord[],
+  prunedOut?: number[]
 ): void => {
   const idx = records.length - 1;
   const record = records[idx];
@@ -338,13 +352,13 @@ export const appendSegmentToGroups = (
   }
 
   if (!appended) {
-    if (open) sealRefinementGroup(open, records);
+    if (open) sealRefinementGroup(open, records, prunedOut);
     groups.push({ startIndex: idx, endIndex: idx, state: 'open' });
   }
 
   if (record.segment.cutReason === 'hard') {
     const current = groups[groups.length - 1];
-    if (current) sealRefinementGroup(current, records);
+    if (current) sealRefinementGroup(current, records, prunedOut);
   }
 };
 

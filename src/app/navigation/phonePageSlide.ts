@@ -850,7 +850,7 @@ export const createThreadForwardSwipeScene = ({
       })();
   if (matchedThread) over.setAttribute(SWIPE_PREVIEW, 'over');
   const overShadowTarget = matchedThread
-    ? over.querySelector<HTMLElement>(`[${PHONE_PAGE}]`) ?? over
+    ? (over.querySelector<HTMLElement>(`[${PHONE_PAGE}]`) ?? over)
     : over;
   over.setAttribute('data-swiping', '');
   overShadowTarget.setAttribute('data-swipe-shadow', '');

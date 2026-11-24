@@ -34,7 +34,7 @@ export class RoomKeyExportError extends Error {
 const encoder = new TextEncoder();
 
 /** AES key K and HMAC key K' from the first and last 256 of 512 derived bits. */
-const deriveKeys = async (passphrase: string, salt: Uint8Array, rounds: number) => {
+const deriveKeys = async (passphrase: string, salt: Uint8Array<ArrayBuffer>, rounds: number) => {
   const { subtle } = globalThis.crypto;
   const material = await subtle.importKey('raw', encoder.encode(passphrase), 'PBKDF2', false, [
     'deriveBits',
@@ -64,7 +64,7 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-const fromBase64 = (text: string): Uint8Array => {
+const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
@@ -81,7 +81,7 @@ export const encryptRoomKeyExport = async (
   const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT_BYTES));
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
   // The low 64 bits count blocks; clearing their top bit keeps the counter from wrapping.
-  iv[8] &= 0x7f;
+  iv[8] = (iv[8] ?? 0) & 0x7f;
   const { aesKey, macKey } = await deriveKeys(passphrase, salt, rounds);
   const ciphertext = new Uint8Array(
     await subtle.encrypt({ name: 'AES-CTR', counter: iv, length: 64 }, aesKey, encoder.encode(json))
@@ -106,7 +106,7 @@ export const encryptRoomKeyExport = async (
 };
 
 /** The binary payload between the armor lines of a key export file. */
-const readArmoredPayload = (file: string): Uint8Array => {
+const readArmoredPayload = (file: string): Uint8Array<ArrayBuffer> => {
   const lines = file.split(/\r?\n/).map((line) => line.trim());
   const begin = lines.indexOf(ARMOR_BEGIN);
   const end = lines.indexOf(ARMOR_END, begin + 1);

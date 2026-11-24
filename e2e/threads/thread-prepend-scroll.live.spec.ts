@@ -460,7 +460,6 @@ test.describe('ISSUE-070: thread prepend pagination preserves scroll anchor', ()
     let unrouteAbort: (() => Promise<void>) | undefined;
     let continuationBarrier: Awaited<ReturnType<typeof holdNextRelationsContinuation>> | undefined;
     let samplerStarted = false;
-    let samples: AnchorSample[] = [];
 
     try {
       // Abort continuation pages before login so room overview work cannot
@@ -558,7 +557,7 @@ test.describe('ISSUE-070: thread prepend pagination preserves scroll anchor', ()
             window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
           })
       );
-      samples = await stopAnchorSampler(page);
+      const samples = await stopAnchorSampler(page);
       samplerStarted = false;
 
       expect(samples.length).toBeGreaterThan(0);
@@ -645,7 +644,7 @@ test.describe('ISSUE-070: thread prepend pagination preserves scroll anchor', ()
           {
             name: 'anchor sampler',
             run: async () => {
-              if (samplerStarted) samples = await stopAnchorSampler(page);
+              if (samplerStarted) await stopAnchorSampler(page);
             },
           },
           {

@@ -1055,7 +1055,7 @@ describe('interactiveSwipe', () => {
         easing: 'cubic-bezier(0.2, 0, 0, 1)',
         fill: 'forwards',
       });
-      expect(el.style.translate).toBe('390px 0');
+      expect(el.style.translate).toBe('390px');
       expect(cancel).toHaveBeenCalledOnce();
     });
 

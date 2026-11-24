@@ -24,10 +24,18 @@
  * counters, the corresponding test fails at the counter assertion.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeEvent, makeRoom, makeTimeline } from '../../../timeline/test-utils/RoomTimeline.test.shared';
+import {
+  makeEvent,
+  makeRoom,
+  makeTimeline,
+} from '../../../timeline/test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from '../../../event-store/cache/threadCacheCoverage';
 import { runThreadOpenCacheFirst } from '../threadOpenCacheFirst';
-import { getCacheProbeSnapshot, resetCacheProbe, type CacheProbeCounters } from '../../../event-store/cache/cacheProbe';
+import {
+  getCacheProbeSnapshot,
+  resetCacheProbe,
+  type CacheProbeCounters,
+} from '../../../event-store/cache/cacheProbe';
 
 const CHOKE_POINT_OUTCOME_KEYS = [
   'threadOpenScheduledCacheFirst',

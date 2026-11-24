@@ -38,10 +38,10 @@ export const normalizeFlightRecorderBuildVersion = (value: string): string =>
     .replace(/[^A-Za-z0-9._+-]/g, '_')
     .slice(0, 128) || 'unknown';
 const FLIGHT_RECORDER_BUILD_VERSION = normalizeFlightRecorderBuildVersion(APP_BUILD_VERSION);
-type RouteClass = typeof routes[number];
-export type VoiceCaptureState = typeof voices[number];
-export type FlightRecorderActionKind = typeof actionKinds[number];
-export type FlightRecorderActionSurface = typeof actionSurfaces[number];
+type RouteClass = (typeof routes)[number];
+export type VoiceCaptureState = (typeof voices)[number];
+export type FlightRecorderActionKind = (typeof actionKinds)[number];
+export type FlightRecorderActionSurface = (typeof actionSurfaces)[number];
 export type FlightRecorderLastAction = {
   at: number;
   kind: FlightRecorderActionKind;
@@ -99,10 +99,10 @@ const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction =>
   const action = value as Partial<FlightRecorderLastAction> | null;
   return Boolean(
     action &&
-      Object.keys(action).length === 3 &&
-      number(action.at) &&
-      actionKinds.includes(action.kind as FlightRecorderActionKind) &&
-      storedActionSurfaces.includes(action.surface as typeof storedActionSurfaces[number])
+    Object.keys(action).length === 3 &&
+    number(action.at) &&
+    actionKinds.includes(action.kind as FlightRecorderActionKind) &&
+    storedActionSurfaces.includes(action.surface as (typeof storedActionSurfaces)[number])
   );
 };
 const eventIsValid = (value: unknown): value is FlightEvent => {
@@ -134,24 +134,24 @@ const sessionIsValid = (value: unknown): value is FlightRecorderSession => {
   const keyCount = item ? Object.keys(item).length : 0;
   return Boolean(
     item &&
-      (keyCount === 12 || (keyCount === 13 && lastActionIsValid(item.lastAction))) &&
-      item.schemaVersion === FLIGHT_RECORDER_SCHEMA_VERSION &&
-      typeof item.buildVersion === 'string' &&
-      /^[A-Za-z0-9._+-]{1,128}$/.test(item.buildVersion) &&
-      typeof item.sessionId === 'string' &&
-      /^[a-z0-9-]{1,64}$/.test(item.sessionId) &&
-      number(item.startedAt) &&
-      number(item.lastBeatAt) &&
-      (item.visibility === 'visible' || item.visibility === 'hidden') &&
-      routes.includes(item.route as RouteClass) &&
-      typeof item.hasThreadId === 'boolean' &&
-      voices.includes(item.voiceCapture as VoiceCaptureState) &&
-      (item.expectedEndAt === null || number(item.expectedEndAt)) &&
-      (item.endReason === null || item.endReason === 'hidden' || item.endReason === 'pagehide') &&
-      (item.expectedEndAt === null) === (item.endReason === null) &&
-      Array.isArray(item.events) &&
-      item.events.length <= FLIGHT_RECORDER_MAX_EVENTS &&
-      item.events.every(eventIsValid)
+    (keyCount === 12 || (keyCount === 13 && lastActionIsValid(item.lastAction))) &&
+    item.schemaVersion === FLIGHT_RECORDER_SCHEMA_VERSION &&
+    typeof item.buildVersion === 'string' &&
+    /^[A-Za-z0-9._+-]{1,128}$/.test(item.buildVersion) &&
+    typeof item.sessionId === 'string' &&
+    /^[a-z0-9-]{1,64}$/.test(item.sessionId) &&
+    number(item.startedAt) &&
+    number(item.lastBeatAt) &&
+    (item.visibility === 'visible' || item.visibility === 'hidden') &&
+    routes.includes(item.route as RouteClass) &&
+    typeof item.hasThreadId === 'boolean' &&
+    voices.includes(item.voiceCapture as VoiceCaptureState) &&
+    (item.expectedEndAt === null || number(item.expectedEndAt)) &&
+    (item.endReason === null || item.endReason === 'hidden' || item.endReason === 'pagehide') &&
+    (item.expectedEndAt === null) === (item.endReason === null) &&
+    Array.isArray(item.events) &&
+    item.events.length <= FLIGHT_RECORDER_MAX_EVENTS &&
+    item.events.every(eventIsValid)
   );
 };
 const parse = (raw: string | null): FlightRecorderSession | undefined => {

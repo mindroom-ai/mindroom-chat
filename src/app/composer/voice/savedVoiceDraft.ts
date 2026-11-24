@@ -11,11 +11,7 @@ import {
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
-import {
-  holdVoiceRecording,
-  recoverVoiceRecording,
-  releaseVoiceRecording,
-} from './voiceRecordingJournal';
+import { holdCapture, recoverVoiceRecording, releaseCapture } from '../capture/captureJournal';
 
 /**
  * A voice message whose send failed stays parked with Retry and Discard until it is sent or
@@ -56,12 +52,12 @@ const openDraftDb = (): Promise<IDBPDatabase<VoiceDraftDb>> =>
 
 // Storage that fails (private mode, full disk) leaves the recording in memory, as before.
 const withDraftDb = async <T>(
-  use: (db: IDBPDatabase<VoiceDraftDb>) => Promise<T>
+  run: (db: IDBPDatabase<VoiceDraftDb>) => Promise<T>
 ): Promise<T | undefined> => {
   try {
     const db = await openDraftDb();
     try {
-      return await use(db);
+      return await run(db);
     } finally {
       db.close();
     }
@@ -142,13 +138,9 @@ export const useSavedVoiceDraft = (
         const savedRoom = saved && mx.getRoom(saved.roomId);
         const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
         const id = saved?.recordingId;
-        if (
-          saved &&
-          room &&
-          (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
-        ) {
+        if (saved && room && (!id || !globalThis.navigator?.locks || (await holdCapture(id)))) {
           if (slotTaken()) {
-            if (id) releaseVoiceRecording(id);
+            if (id) releaseCapture(id);
             return;
           }
           store.set(pendingVoiceSendDraftAtom, {

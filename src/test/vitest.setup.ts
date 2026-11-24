@@ -229,3 +229,13 @@ if (typeof window !== 'undefined' && typeof window.localStorage?.clear !== 'func
     value: createStorageMock(),
   });
 }
+
+// jsdom 31 exposes WebkitAnimation in CSSStyleDeclaration without window.AnimationEvent,
+// making React listen for webkitAnimationEnd instead of standard animationend.
+if (typeof window !== 'undefined' && typeof window.AnimationEvent !== 'function') {
+  Object.defineProperty(window, 'AnimationEvent', {
+    configurable: true,
+    writable: true,
+    value: window.Event,
+  });
+}

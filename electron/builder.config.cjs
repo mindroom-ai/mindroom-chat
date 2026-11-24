@@ -1,4 +1,3 @@
-/* eslint-env node */
 const pkg = require('../package.json');
 
 const marketingVersion = (process.env.MARKETING_VERSION || '').trim();

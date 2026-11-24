@@ -69,13 +69,13 @@ const makeEvent = (
             }),
           } as never)
         : undefined,
-  } as never);
+  }) as never;
 
 const makeThread = (id: string, rootEvent?: ReturnType<typeof makeEvent>) =>
   ({
     id,
     rootEvent,
-  } as never);
+  }) as never;
 
 describe('buildCompactThreadRootData', () => {
   const makeRoom = (eventsById?: Record<string, ReturnType<typeof makeEvent>>) =>
@@ -87,8 +87,8 @@ describe('buildCompactThreadRootData', () => {
           relations: {
             getChildEventsForEvent: () => undefined,
           },
-        } as never),
-    } as never);
+        }) as never,
+    }) as never;
 
   it('keeps room-surface thread roots first and appends unseen thread-list roots', () => {
     const data = buildCompactThreadRootData({

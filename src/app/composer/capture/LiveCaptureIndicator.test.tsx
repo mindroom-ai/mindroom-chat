@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
 import { NoticeSlot } from '../../ui/noticeSlots';
 import { BottomSheet } from '../../ui/BottomSheet';
@@ -14,10 +15,12 @@ import { LogoutDialog } from '../../account/LogoutDialog';
 import { CommandPaletteRenderer } from '../../command-palette/CommandPaletteRenderer';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
-import { LiveVoiceRecordingIndicator } from './LiveVoiceRecordingIndicator';
-import { liveVoiceRecordingAtom, liveVoiceRecordingErrorAtom } from './liveVoiceRecording';
-import { VoiceRecorderComposer } from './VoiceRecorderDialog';
-import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voiceCaptureSession';
+import type { DictationSession, DictationSnapshot } from '../dictation/dictationSession';
+import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
+import type { VoiceCaptureSession, VoiceCaptureSnapshot } from '../voice/voiceCaptureSession';
+import { LiveCaptureIndicator } from './LiveCaptureIndicator';
+import { liveCaptureAtom, liveCaptureErrorAtom } from './liveCapture';
+import { useLiveCaptureCapsuleVisible } from './useLiveCaptureCapsuleVisible';
 
 vi.unmock('../../ui/glass/GlassPrimitives');
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
@@ -44,7 +47,7 @@ vi.mock('../../command-palette/useCommandPalettePeople', () => ({
   useCommandPalettePeople: () => ({ status: 'idle', items: [] }),
 }));
 
-/** A recording that is running, as the capture session reports it. */
+/** A voice recording that is running, as the capture session reports it. */
 const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
   const snapshot: VoiceCaptureSnapshot = {
     phase: 'recording',
@@ -55,7 +58,6 @@ const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
     errorMessage: undefined,
     ...changes,
   };
-  // Discard ends the recording at once, and deletes its disk copy.
   const discard = vi.fn<() => Promise<void>>(async () => undefined);
   const session = {
     getSnapshot: () => snapshot,
@@ -63,7 +65,34 @@ const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
     canStop: () => true,
     discard,
   } as unknown as VoiceCaptureSession;
-  return { session, discard };
+  return { entry: { kind: 'voice' as const, session }, session, discard };
+};
+
+const dictationSession = (changes: Partial<DictationSnapshot> = {}) => {
+  const snapshot: DictationSnapshot = {
+    phase: 'recording',
+    elapsedMs: 45_000,
+    waveform: [0, 256],
+    sampleCount: 2,
+    pendingUploads: 0,
+    failedSegments: 0,
+    completedSegments: 1,
+    hasPartialText: true,
+    previewText: 'Hello world',
+    capReached: false,
+    interrupted: false,
+    recovered: false,
+    hasClient: true,
+    errorMessage: undefined,
+    ...changes,
+  };
+  const discard = vi.fn<() => Promise<void>>(async () => undefined);
+  const session = {
+    getSnapshot: () => snapshot,
+    subscribe: () => () => undefined,
+    discard,
+  } as unknown as DictationSession;
+  return { entry: { kind: 'dictation' as const, session }, session, discard };
 };
 
 const ROOM_ID = '!example:example.org';
@@ -84,10 +113,9 @@ const composer = () => (
     getSendContext={sendContext}
   />
 );
-const pill = () => screen.queryByTestId('live-voice-recording-indicator');
-/** The question every Discard asks first. */
-const question = () => screen.queryByRole('dialog', { name: 'Discard voice recording?' });
-/** A whole press, as a pointer makes it: a dialog under it must not take it for a press outside. */
+const voicePill = () => screen.queryByTestId('live-voice-recording-indicator');
+const dictationPill = () => screen.queryByTestId('live-dictation-indicator');
+const question = (name = 'Discard voice recording?') => screen.queryByRole('dialog', { name });
 const press = (element: HTMLElement) => {
   fireEvent.pointerDown(element, { button: 0, pointerId: 1, pointerType: 'mouse' });
   fireEvent.mouseDown(element, { button: 0 });
@@ -95,24 +123,21 @@ const press = (element: HTMLElement) => {
   fireEvent.mouseUp(element, { button: 0 });
   fireEvent.click(element);
 };
-/** The question, once its focus trap has moved the focus in, shortly after it opens. */
-const openedQuestion = async () => {
-  await waitFor(() => expect(question()?.contains(document.activeElement)).toBe(true));
-  return question()!;
+const openedQuestion = async (name = 'Discard voice recording?') => {
+  await waitFor(() => expect(question(name)?.contains(document.activeElement)).toBe(true));
+  return question(name)!;
 };
-const expectFocusOnCancel = async () =>
-  expect(within(await openedQuestion()).getByRole('button', { name: 'Cancel' })).toBe(
+const expectFocusOnCancel = async (name = 'Discard voice recording?') =>
+  expect(within(await openedQuestion(name)).getByRole('button', { name: 'Cancel' })).toBe(
     document.activeElement
   );
-/** Treats attached elements as laid out, so the real focus trap finds its controls in jsdom. */
 const layOut = () =>
-  vi
-    .spyOn(HTMLElement.prototype, 'getClientRects')
-    .mockImplementation(function rects(this: HTMLElement) {
-      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
-    });
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+    this: HTMLElement
+  ) {
+    return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+  });
 
-// As in Settings: the shared large dialog opens a separate, focus-trapped log-out prompt.
 function SettingsWithLogout() {
   const [confirming, setConfirming] = useState(false);
   const dismiss = () => setConfirming(false);
@@ -135,7 +160,12 @@ function SettingsWithLogout() {
   );
 }
 
-describe('LiveVoiceRecordingIndicator', () => {
+function VisibleCapsuleProbe({ showingLive }: { showingLive: boolean }) {
+  useLiveCaptureCapsuleVisible(showingLive);
+  return <div data-testid="capsule-probe" />;
+}
+
+describe('LiveCaptureIndicator', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
@@ -143,21 +173,21 @@ describe('LiveVoiceRecordingIndicator', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows the recording and its time where no composer shows it, with Discard and no Send', async () => {
+  it('shows a voice recording and its time where no composer shows it, with confirmed Discard and no Send', async () => {
     layOut();
     const store = createStore();
-    const { session, discard } = recordingSession();
+    const { entry, discard } = recordingSession();
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
 
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
     expect(screen.queryByText('Voice Recording Error')).toBeNull();
-    act(() => store.set(liveVoiceRecordingAtom, session));
-    expect(pill()?.textContent).toBe('Recording 0:32');
+    act(() => store.set(liveCaptureAtom, entry));
+    expect(voicePill()?.textContent).toBe('Recording 0:32');
     expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
 
     // Discard asks first, with the focus on Cancel; Escape and Cancel keep the recording.
@@ -170,10 +200,9 @@ describe('LiveVoiceRecordingIndicator', () => {
     fireEvent.click(within(question()!).getByRole('button', { name: 'Cancel' }));
     expect(question()).toBeNull();
     expect(discard).not.toHaveBeenCalled();
-    expect(pill()?.textContent).toBe('Recording 0:32');
+    expect(voicePill()?.textContent).toBe('Recording 0:32');
 
-    // Confirmed, the recording ends at once. The question stays, busy, until the disk copy is
-    // gone too: a reload cannot offer the discarded audio again.
+    // Confirmed, the recording ends at once. The question stays, busy, until the disk copy is gone.
     let removed!: () => void;
     discard.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -183,8 +212,8 @@ describe('LiveVoiceRecordingIndicator', () => {
     fireEvent.click(discardButton);
     fireEvent.click(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(pill()).toBeNull();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(voicePill()).toBeNull();
     await act(async () => undefined);
     fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
     expect(question()).not.toBeNull();
@@ -192,19 +221,103 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(question()).toBeNull();
   });
 
-  it('says the recording is starting while the microphone is requested', () => {
+  it('shows dictation states (requesting, recording, paused, recovered, finishing, failed) and confirms dictation discard', async () => {
+    layOut();
     const store = createStore();
-    store.set(
-      liveVoiceRecordingAtom,
-      recordingSession({ phase: 'requesting', elapsedMs: 0 }).session
-    );
+    const { entry, discard } = dictationSession({ phase: 'requesting', elapsedMs: 0 });
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
-    expect(pill()?.textContent).toBe('Starting voice recording');
+
+    act(() => store.set(liveCaptureAtom, entry));
+    expect(dictationPill()?.textContent).toBe('Starting dictation');
+    expect(screen.getByRole('status').textContent).toBe('Starting dictation');
+
+    act(() =>
+      store.set(liveCaptureAtom, dictationSession({ phase: 'recording', elapsedMs: 45_000 }).entry)
+    );
+    expect(dictationPill()?.textContent).toBe('Dictating 0:45');
+    expect(screen.getByRole('status').textContent).toBe('Dictating');
+
+    act(() =>
+      store.set(liveCaptureAtom, dictationSession({ phase: 'paused', elapsedMs: 45_000 }).entry)
+    );
+    expect(dictationPill()?.textContent).toBe('Dictation paused 0:45');
+    expect(screen.getByRole('status').textContent).toBe('Dictation paused');
+
+    act(() =>
+      store.set(
+        liveCaptureAtom,
+        dictationSession({ phase: 'paused', recovered: true, elapsedMs: 65_000 }).entry
+      )
+    );
+    expect(dictationPill()?.textContent).toBe('Recovered dictation 1:05');
+    expect(screen.getByRole('status').textContent).toBe('Recovered dictation');
+
+    act(() => store.set(liveCaptureAtom, dictationSession({ phase: 'finishing' }).entry));
+    expect(dictationPill()?.textContent).toBe('Finishing dictation...');
+
+    const failed = dictationSession({ phase: 'failed' });
+    act(() => store.set(liveCaptureAtom, failed.entry));
+    expect(dictationPill()?.textContent).toBe('Dictation needs attention');
+
+    let removed!: () => void;
+    failed.discard.mockReturnValue(
+      new Promise<void>((resolve) => {
+        removed = resolve;
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Discard dictation' }));
+    await expectFocusOnCancel('Discard dictation?');
+    fireEvent.click(
+      within(question('Discard dictation?')!).getByRole('button', { name: 'Discard' })
+    );
+    expect(failed.discard).toHaveBeenCalledOnce();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(dictationPill()).toBeNull();
+    // Keeps dictation confirmation title while awaiting disk deletion.
+    expect(question('Discard dictation?')).not.toBeNull();
+    await act(async () => removed());
+    expect(question('Discard dictation?')).toBeNull();
+    expect(discard).not.toHaveBeenCalled();
+  });
+
+  it('treats HOME_ASK_VIEW as in sight unless the phone nav drawer covers it', () => {
+    const store = createStore();
+    store.set(liveCaptureAtom, dictationSession().entry);
+    render(
+      <Provider store={store}>
+        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+          <VisibleCapsuleProbe showingLive />
+        </ConversationViewContext.Provider>
+        <NoticeSlot place="page" />
+        <LiveCaptureIndicator />
+      </Provider>
+    );
+
+    // Home ask capsule is in sight, so the shell floating pill stays hidden.
+    expect(dictationPill()).toBeNull();
+
+    // Opening the phone nav drawer covers Home ask, so the floating pill stands in.
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    expect(dictationPill()?.textContent).toBe('Dictating 0:45');
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    expect(dictationPill()).toBeNull();
+  });
+
+  it('says the voice recording is starting while the microphone is requested', () => {
+    const store = createStore();
+    store.set(liveCaptureAtom, recordingSession({ phase: 'requesting', elapsedMs: 0 }).entry);
+    render(
+      <Provider store={store}>
+        <NoticeSlot place="page" />
+        <LiveCaptureIndicator />
+      </Provider>
+    );
+    expect(voicePill()?.textContent).toBe('Starting voice recording');
     expect(screen.getByRole('status').textContent).toBe('Starting voice recording');
   });
 
@@ -213,35 +326,33 @@ describe('LiveVoiceRecordingIndicator', () => {
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
-    // The region is there before the pill, so what comes into it is read out.
     const status = screen.getByRole('status');
     expect(status.textContent).toBe('');
 
-    act(() => store.set(liveVoiceRecordingAtom, recordingSession().session));
+    act(() => store.set(liveCaptureAtom, recordingSession().entry));
     expect(status.textContent).toBe('Voice recording active');
-    // The pill, whose time changes every second, keeps out of its place's live region.
-    expect(pill()?.getAttribute('aria-live')).toBe('off');
-    expect(pill()?.hasAttribute('aria-label')).toBe(false);
-    expect(pill()?.contains(status)).toBe(false);
+    expect(voicePill()?.getAttribute('aria-live')).toBe('off');
+    expect(voicePill()?.hasAttribute('aria-label')).toBe(false);
+    expect(voicePill()?.contains(status)).toBe(false);
 
-    act(() => store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session));
-    expect(pill()?.textContent).toBe('Paused 0:32');
+    act(() => store.set(liveCaptureAtom, recordingSession({ phase: 'paused' }).entry));
+    expect(voicePill()?.textContent).toBe('Paused 0:32');
     expect(status.textContent).toBe('Voice recording paused');
-    act(() => store.set(liveVoiceRecordingAtom, undefined));
+    act(() => store.set(liveCaptureAtom, undefined));
     expect(status.textContent).toBe('');
   });
 
   it('announces recording state once for two capsules without announcing their timer ticks', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(liveCaptureAtom, recordingSession().entry);
     const { container } = render(
       <Provider store={store}>
         {composer()}
         {composer()}
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     const status = screen.getByRole('status');
@@ -249,27 +360,27 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(0);
     expect(screen.getAllByText('0:32')).toHaveLength(2);
 
-    act(() => store.set(liveVoiceRecordingAtom, recordingSession({ elapsedMs: 33_000 }).session));
+    act(() => store.set(liveCaptureAtom, recordingSession({ elapsedMs: 33_000 }).entry));
     expect(screen.getAllByText('0:33')).toHaveLength(2);
     expect(status.textContent).toBe('Voice recording active');
-    act(() => store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session));
+    act(() => store.set(liveCaptureAtom, recordingSession({ phase: 'paused' }).entry));
     expect(screen.getByRole('status')).toBe(status);
     expect(status.textContent).toBe('Voice recording paused');
-    act(() => store.set(liveVoiceRecordingAtom, recordingSession().session));
+    act(() => store.set(liveCaptureAtom, recordingSession().entry));
     expect(status.textContent).toBe('Voice recording active');
   });
 
   it('moves Discard into the log-out confirmation and back to Settings when it closes', async () => {
     layOut();
     const store = createStore();
-    const { session, discard } = recordingSession();
-    store.set(liveVoiceRecordingAtom, session);
+    const { entry, discard } = recordingSession();
+    store.set(liveCaptureAtom, entry);
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
         {composer()}
         <SettingsWithLogout />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     const settings = screen.getByRole('dialog', { name: 'Settings' });
@@ -279,22 +390,20 @@ describe('LiveVoiceRecordingIndicator', () => {
       });
     };
     const discardLabel = 'Discard voice recording';
-    expect(settings.contains(pill())).toBe(true);
+    expect(settings.contains(voicePill())).toBe(true);
 
     await openLogout();
     const confirmation = screen.getByRole('dialog', { name: 'Logout' });
-    expect(confirmation.contains(pill())).toBe(true);
+    expect(confirmation.contains(voicePill())).toBe(true);
     fireEvent.click(within(confirmation).getByText('Cancel'));
     expect(screen.queryByRole('dialog', { name: 'Logout' })).toBeNull();
-    expect(settings.contains(pill())).toBe(true);
+    expect(settings.contains(voicePill())).toBe(true);
 
     await openLogout();
     const reopened = screen.getByRole('dialog', { name: 'Logout' });
     fireEvent.click(within(reopened).getByRole('button', { name: discardLabel }));
-    // The question stays out of the dialogs under it: the pill keeps its place, and Escape
-    // closes the question alone.
     await expectFocusOnCancel();
-    expect(reopened.contains(pill())).toBe(true);
+    expect(reopened.contains(voicePill())).toBe(true);
     fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
     expect(question()).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Logout' })).toBe(reopened);
@@ -304,13 +413,13 @@ describe('LiveVoiceRecordingIndicator', () => {
     fireEvent.click(within(reopened).getByRole('button', { name: discardLabel }));
     press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Logout' })).toBe(reopened);
   });
 
   it('shows inside what covers the page, where the focus held there reaches it', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(liveCaptureAtom, recordingSession().entry);
     const page = (phoneLayer?: 'drawer' | 'sheet') => (
       <Provider store={store}>
         <div data-testid="page">
@@ -322,23 +431,19 @@ describe('LiveVoiceRecordingIndicator', () => {
             <NoticeSlot place={phoneLayer} />
           </div>
         )}
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     const { rerender } = render(page());
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
 
-    // A phone's drawer or members sheet, out over the page, offers its own place: the composer
-    // is out of sight for as long as it does.
     rerender(page('drawer'));
-    expect(screen.getByTestId('drawer').contains(pill())).toBe(true);
-    // Marked as a notice that moves there: a rail-only drawer opens on release for it
-    // (sidebar/PhoneNavDrawer.tsx).
-    expect(pill()?.hasAttribute('data-cover-notice')).toBe(true);
+    expect(screen.getByTestId('drawer').contains(voicePill())).toBe(true);
+    expect(voicePill()?.hasAttribute('data-cover-notice')).toBe(true);
     rerender(page('sheet'));
-    expect(screen.getByTestId('sheet').contains(pill())).toBe(true);
+    expect(screen.getByTestId('sheet').contains(voicePill())).toBe(true);
     rerender(page());
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
   });
 
   it('lets you discard a live recording from a bottom sheet covering its composer', async () => {
@@ -352,8 +457,8 @@ describe('LiveVoiceRecordingIndicator', () => {
       }
     );
     const store = createStore();
-    const { session, discard } = recordingSession();
-    store.set(liveVoiceRecordingAtom, session);
+    const { entry, discard } = recordingSession();
+    store.set(liveCaptureAtom, entry);
     render(
       <Provider store={store}>
         <main>
@@ -363,43 +468,39 @@ describe('LiveVoiceRecordingIndicator', () => {
         <BottomSheet title="Activity" closeLabel="Close" requestClose={requestClose}>
           <p>Example activity</p>
         </BottomSheet>
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Activity' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
     expect(discard).not.toHaveBeenCalled();
-    // The question is over the sheet, not outside it: it is not hidden as the page is, and
-    // neither Escape nor a press in it closes the sheet.
     await expectFocusOnCancel();
     fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
     expect(question()).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
     press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(requestClose).not.toHaveBeenCalled();
   });
 
   it('reaches Discard by Tab from the command palette search field', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(liveCaptureAtom, recordingSession().entry);
     store.set(commandPaletteOpenAtom, 'all');
     render(
       <Provider store={store}>
         {composer()}
         <CommandPaletteRenderer />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     const search = screen.getByRole('combobox', { name: 'Command palette' });
     expect(document.activeElement).toBe(search);
-    // From All, Shift+Tab wraps to the last category as before.
     fireEvent.keyDown(search, { key: 'Tab', shiftKey: true });
     expect(screen.getByRole('tab', { name: 'Actions', selected: true })).toBeTruthy();
     fireEvent.keyDown(search, { key: 'Tab' });
-    // The palette's glass shell holds the dialog and, beside it, the notice slot.
     const shell = screen.getByRole('dialog', { name: 'Command palette' }).parentElement!;
     expect(document.activeElement).toBe(
       within(shell).getByRole('button', { name: 'Discard voice recording' })
@@ -410,15 +511,15 @@ describe('LiveVoiceRecordingIndicator', () => {
   it('discards a live recording without closing the command palette', async () => {
     layOut();
     const store = createStore();
-    const { session, discard } = recordingSession();
-    store.set(liveVoiceRecordingAtom, session);
+    const { entry, discard } = recordingSession();
+    store.set(liveCaptureAtom, entry);
     store.set(commandPaletteOpenAtom, 'all');
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
         {composer()}
         <CommandPaletteRenderer />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
 
@@ -429,7 +530,6 @@ describe('LiveVoiceRecordingIndicator', () => {
     press(button);
     expect(store.get(commandPaletteOpenAtom)).toBe('all');
     expect(discard).not.toHaveBeenCalled();
-    // Escape closes the question alone, and so does Cancel.
     await expectFocusOnCancel();
     fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
     expect(question()).toBeNull();
@@ -443,66 +543,79 @@ describe('LiveVoiceRecordingIndicator', () => {
     press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(store.get(commandPaletteOpenAtom)).toBe('all');
     expect(discard).toHaveBeenCalledOnce();
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Command palette' })).toBe(dialog);
   });
 
   it('stands down while a composer shows the capsule, and back up when it goes or is covered', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(liveCaptureAtom, recordingSession().entry);
     const page = (withComposer: boolean) => (
       <Provider store={store}>
         {withComposer && composer()}
         <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     const { rerender } = render(page(true));
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
     expect(screen.getAllByText('0:32')).toHaveLength(1);
 
-    // A phone's drawer slides over the room: its composer is out of sight.
     act(() => store.set(phoneNavDrawerOpenAtom, true));
-    expect(pill()).not.toBeNull();
+    expect(voicePill()).not.toBeNull();
     act(() => store.set(phoneNavDrawerOpenAtom, false));
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
 
-    // On to a page with no composer.
     rerender(page(false));
-    expect(pill()?.textContent).toBe('Recording 0:32');
+    expect(voicePill()?.textContent).toBe('Recording 0:32');
     rerender(page(true));
-    expect(pill()).toBeNull();
+    expect(voicePill()).toBeNull();
   });
 
-  it('shows why a recording could not be captured once, however many composers are mounted', () => {
+  it('shows voice and dictation capture errors once and lets the user dismiss them', () => {
     layOut();
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(liveCaptureAtom, recordingSession().entry);
     render(
       <Provider store={store}>
         {composer()}
         {composer()}
         <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
     expect(screen.queryByText('Voice Recording Error')).toBeNull();
 
     act(() => {
-      store.set(liveVoiceRecordingAtom, undefined);
-      store.set(liveVoiceRecordingErrorAtom, 'No audio data was captured.');
+      store.set(liveCaptureAtom, undefined);
+      store.set(liveCaptureErrorAtom, {
+        kind: 'voice',
+        message: 'No audio data was captured.',
+      });
     });
 
     expect(screen.getAllByText('Voice Recording Error')).toHaveLength(1);
     expect(screen.getAllByText('No audio data was captured.')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     expect(screen.queryByText('Voice Recording Error')).toBeNull();
+
+    act(() => {
+      store.set(liveCaptureErrorAtom, {
+        kind: 'dictation',
+        message: 'No microphone was found on this device.',
+      });
+    });
+    expect(screen.getByText('Dictation Error')).toBeTruthy();
+    expect(screen.getByText('No microphone was found on this device.')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
+    expect(screen.queryByText('Dictation Error')).toBeNull();
   });
 
-  it('lets you dismiss why a recording could not be captured over an open bottom sheet', async () => {
+  it('lets you dismiss why a capture failed over an open bottom sheet', async () => {
     layOut();
     const requestClose = vi.fn();
     vi.stubGlobal(
@@ -521,17 +634,20 @@ describe('LiveVoiceRecordingIndicator', () => {
         <BottomSheet title="Activity" closeLabel="Close" requestClose={requestClose}>
           <p>Example activity</p>
         </BottomSheet>
-        <LiveVoiceRecordingIndicator />
+        <LiveCaptureIndicator />
       </Provider>
     );
-    act(() => store.set(liveVoiceRecordingErrorAtom, 'No audio data was captured.'));
+    act(() =>
+      store.set(liveCaptureErrorAtom, {
+        kind: 'voice',
+        message: 'No audio data was captured.',
+      })
+    );
 
-    // The error is over the sheet, not outside it: OK is not hidden as the page is, and a press
-    // on it does not close the sheet.
     const ok = await screen.findByRole('button', { name: 'OK' });
     await waitFor(() => expect(ok).toBe(document.activeElement));
     press(ok);
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(liveCaptureErrorAtom)).toBeUndefined();
     expect(screen.queryByText('Voice Recording Error')).toBeNull();
     expect(requestClose).not.toHaveBeenCalled();
   });

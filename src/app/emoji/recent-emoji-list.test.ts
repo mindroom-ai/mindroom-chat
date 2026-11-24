@@ -9,7 +9,7 @@ const clientWithRecent = (recentEmoji: Array<[string, number]>) =>
   ({
     getAccountData: () =>
       new MatrixEvent({ type: 'io.element.recent_emoji', content: { recent_emoji: recentEmoji } }),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const pack = new ImagePack(
   '@alice:example.org',

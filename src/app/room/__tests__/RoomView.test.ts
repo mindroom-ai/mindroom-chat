@@ -1837,8 +1837,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       create(React.createElement(RoomView, { room: room as never }));
     });
     const keyDown = useKeyDownMock.mock.calls[0]?.[1] as
-      | ((event: KeyboardEvent) => void)
-      | undefined;
+      ((event: KeyboardEvent) => void) | undefined;
     const computerSurface = {
       closest: (selector: string) =>
         selector === '[data-mindroom-computer-input]' ? computerSurface : null,

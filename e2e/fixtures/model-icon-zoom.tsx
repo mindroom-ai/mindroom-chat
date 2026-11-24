@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { createClient, MemoryStore } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';

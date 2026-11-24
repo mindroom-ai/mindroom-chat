@@ -106,10 +106,10 @@ export const getThreadScheduledLabel = (
       count: scheduledTaskCount,
     }) ?? `${scheduledTaskCount} pending scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
   return hasScheduleDetail && scheduledDisplayText
-    ? t?.('mindroomUi.threads.compactThreadCardUtils.scheduledTasksWithDetail', {
+    ? (t?.('mindroomUi.threads.compactThreadCardUtils.scheduledTasksWithDetail', {
         tasks: taskCopy,
         detail: scheduledDisplayText,
-      }) ?? `${taskCopy}, ${scheduledDisplayText}`
+      }) ?? `${taskCopy}, ${scheduledDisplayText}`)
     : taskCopy;
 };
 

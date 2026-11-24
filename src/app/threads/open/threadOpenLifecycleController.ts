@@ -1,9 +1,5 @@
 import { useEffect } from 'react';
-import type {
-  ThreadOpenRuntime,
-  ThreadRoute,
-  ThreadSessionCommands,
-} from './threadSessionTypes';
+import type { ThreadOpenRuntime, ThreadRoute, ThreadSessionCommands } from './threadSessionTypes';
 
 /** Install after route opening and before focus consumers, independently of snapshot updates. */
 export const useThreadOpenLifecycleController = ({

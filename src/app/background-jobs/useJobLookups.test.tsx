@@ -85,7 +85,7 @@ const roomOf = (threads: Record<string, MatrixEvent[]>) => {
   });
   return {
     roomId: ROOM,
-    getThread: (id: string) => (threads[id] ? thread(threads[id]!) : null),
+    getThread: (id: string) => (threads[id] ? thread(threads[id]) : null),
     getUnfilteredTimelineSet: () => ({ relations }),
     getLiveTimeline: () => ({ getEvents: () => [] }),
   } as unknown as Room;

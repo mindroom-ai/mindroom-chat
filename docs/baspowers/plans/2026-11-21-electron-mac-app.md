@@ -40,20 +40,20 @@
 
 ## Phases
 
-| | Pull request | Lines | Ships |
-|---|---|---:|---|
-| P1 | Web seam: `nativeShell`, `--app-inset-top`, device name, media URLs | 160 | nothing visible |
-| P2 | Shell: bundled page, hidden title bar, guards, IPC, CI | 275 | runs from a checkout |
-| P2b | Script policy and the canvas frame | 180 | bundled scripts only; canvases run |
-| P2c | Media authorization in the main process | 85 | authenticated media loads |
-| P3 | Sign-in through a loopback return; external opens | 235 | |
-| P4 | Menus, zoom, history buttons, window state, close, screen share | 205 | usable daily from a checkout |
-| P5 | Signed, notarized DMG on every release, final names; the Catalyst Mac release stops | 190 | the Mac app is Electron |
-| P6 | Updates | 150 | the app updates itself |
-| P7 | Quick Capture: window and shortcut | 170 | |
-| P8 | Quick Capture: screenshot, the helper | 200 | |
-| P9 | Notifications, Dock badge | 95 | feature parity |
-| P14 | Retire the Catalyst Mac code, Sparkle included | about -3,000 | |
+|     | Pull request                                                                        |        Lines | Ships                              |
+| --- | ----------------------------------------------------------------------------------- | -----------: | ---------------------------------- |
+| P1  | Web seam: `nativeShell`, `--app-inset-top`, device name, media URLs                 |          160 | nothing visible                    |
+| P2  | Shell: bundled page, hidden title bar, guards, IPC, CI                              |          275 | runs from a checkout               |
+| P2b | Script policy and the canvas frame                                                  |          180 | bundled scripts only; canvases run |
+| P2c | Media authorization in the main process                                             |           85 | authenticated media loads          |
+| P3  | Sign-in through a loopback return; external opens                                   |          235 |                                    |
+| P4  | Menus, zoom, history buttons, window state, close, screen share                     |          205 | usable daily from a checkout       |
+| P5  | Signed, notarized DMG on every release, final names; the Catalyst Mac release stops |          190 | the Mac app is Electron            |
+| P6  | Updates                                                                             |          150 | the app updates itself             |
+| P7  | Quick Capture: window and shortcut                                                  |          170 |                                    |
+| P8  | Quick Capture: screenshot, the helper                                               |          200 |                                    |
+| P9  | Notifications, Dock badge                                                           |           95 | feature parity                     |
+| P14 | Retire the Catalyst Mac code, Sparkle included                                      | about -3,000 |                                    |
 
 P10 (notice in the Catalyst app, rollback DMG), P11 (move card) and P13 (Sparkle cutover) are dropped: the Catalyst Mac app has no users (Bas, 2026-11-22). About 2,040 new production lines planned; P1 to P3 came in at 1,637 against 935 planned. There is no P12: `/connect` as a universal link is in the spec's "Later", and Cloudflare Access is a separate decision. P7 to P9 may run beside P5 and P6. Packaged checks (P8) need P5. P14 may run as soon as Bas has installed the P5 DMG.
 

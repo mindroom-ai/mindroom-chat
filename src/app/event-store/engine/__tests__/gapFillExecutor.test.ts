@@ -67,7 +67,7 @@ const makeRoomStub = (roomId: string, encrypted = false): Room =>
     getThread: () => null,
     hasEncryptionStateEvent: () => encrypted,
     getLastActiveTimestamp: () => 0,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;

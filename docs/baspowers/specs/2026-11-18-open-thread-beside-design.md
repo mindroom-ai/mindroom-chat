@@ -21,7 +21,7 @@ another room; Close (or opening another side panel) removes it.
   notification "shown" state (`useShownConversationView`); the example plugin already shows one in
   a side panel.
 - `threads/ThreadActionsMenu.tsx` is the menu of both a Compact card (`threads/overview/
-  CompactRoomView.tsx`) and the open thread's banner (`threads/ThreadContextBanner.tsx`).
+CompactRoomView.tsx`) and the open thread's banner (`threads/ThreadContextBanner.tsx`).
 
 ## Approaches
 
@@ -41,12 +41,12 @@ B is a side panel beside the conversation box, default 480px (the thread column'
 least `CONVERSATION_MIN_WIDTH` left to the conversation, resizable, width kept per account
 (`secondThreadWidthStorageKey`). The conversation box then lays out as today:
 
-| Room area left of B | Result |
-|---|---|
-| room for messages + A (`>= 2 * CONVERSATION_MIN_WIDTH`) and the stored layout is beside | messages \| A \| B |
-| less, or the stored layout is full | A \| B, messages hidden under A (today's fill rule) |
-| no thread open | messages \| B |
-| phone (`ScreenSize.Mobile`) | not offered; a remembered B does not show |
+| Room area left of B                                                                     | Result                                              |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| room for messages + A (`>= 2 * CONVERSATION_MIN_WIDTH`) and the stored layout is beside | messages \| A \| B                                  |
+| less, or the stored layout is full                                                      | A \| B, messages hidden under A (today's fill rule) |
+| no thread open                                                                          | messages \| B                                       |
+| phone (`ScreenSize.Mobile`)                                                             | not offered; a remembered B does not show           |
 
 No new width rule: `useThreadLayout` measures the page, which B already narrows. B never fills the
 room (no Expand, no fold).

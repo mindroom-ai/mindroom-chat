@@ -15,10 +15,7 @@ export type SampleSender = 'you' | 'ana' | 'writer' | 'analyst';
 
 /** A text of the sample room: `tour.sample.<key>` in the catalogs. */
 export type SampleTextKey =
-  | 'typed'
-  | `${SampleThreadId}Title`
-  | `${SampleThreadId}Reply`
-  | 'vendorNewReply';
+  'typed' | `${SampleThreadId}Title` | `${SampleThreadId}Reply` | 'vendorNewReply';
 
 /** What a sample thread's card shows besides its thread; every part is off unless set. */
 export type SampleCardState = {
@@ -91,8 +88,11 @@ export const sampleRootMessage = (id: SampleThreadId): SampleMessage => ({
 });
 
 /** When a sample thread last had a message, counted back from `now`. */
-export const sampleActivityTs = (id: SampleThreadId, state: SampleCardState, now: number): number =>
-  state.replied || state.noReplies || state.streaming ? now : now - THREADS[id].age;
+export const sampleActivityTs = (
+  id: SampleThreadId,
+  state: SampleCardState,
+  now: number
+): number => (state.replied || state.noReplies || state.streaming ? now : now - THREADS[id].age);
 
 /** The key of a thread's last reply in a state. */
 const replyKey = (id: SampleThreadId, state: SampleCardState): SampleTextKey =>

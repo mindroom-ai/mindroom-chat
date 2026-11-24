@@ -100,7 +100,9 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
           if (rowBox && stop && !captured) {
             captured = true;
             // Start the optional screenshot in the same frame as the reply first appears.
-            void (window as unknown as { typingReplyShown: () => Promise<void> }).typingReplyShown();
+            void (
+              window as unknown as { typingReplyShown: () => Promise<void> }
+            ).typingReplyShown();
           }
           const clipping: Frame['clipping'] = [];
           for (let parent = row?.parentElement; parent; parent = parent.parentElement) {
@@ -149,7 +151,10 @@ test.describe('on a phone', () => {
       const recording = recordFrames(page, streaming.event_id, 10_000);
       await showThread(page, stack, rootId);
       await expect(
-        messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop reply', exact: true })
+        messageRow(page, streaming.event_id).getByRole('button', {
+          name: 'Stop reply',
+          exact: true,
+        })
       ).toBeVisible({ timeout: 30_000 });
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 

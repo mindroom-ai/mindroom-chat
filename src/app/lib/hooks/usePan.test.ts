@@ -16,7 +16,7 @@ describe('usePan', () => {
       button,
       currentTarget: target,
       preventDefault: vi.fn(),
-    } as unknown as PointerEvent<HTMLElement>);
+    }) as unknown as PointerEvent<HTMLElement>;
 
   function Harness({ active, suspended }: { active: boolean; suspended?: boolean }) {
     state = usePan(active, suspended);

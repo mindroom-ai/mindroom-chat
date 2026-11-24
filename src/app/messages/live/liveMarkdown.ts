@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import type MarkdownIt from 'markdown-it';
-import type { StateBlock, StateInline } from 'markdown-it';
+import type MarkdownItDefault from 'markdown-it';
+import type { MarkdownIt, StateBlock, StateInline } from 'markdown-it';
 
 // Renders live reply Markdown the way the MindRoom runtime renders the durable edit
 // (`markdown_to_html` in `src/mindroom/matrix/message_builder.py`), so the overlay and the
@@ -182,6 +182,8 @@ const mathInline =
     return true;
   };
 
+const mathUnclosedByEnv = new WeakMap<object, Map<number, number>>();
+
 /** `$$` blocks, which may span blank lines, as the runtime parses them. */
 const mathBlock = (state: StateBlock, startLine: number, endLine: number): boolean => {
   if (state.sCount[startLine]! - state.blkIndent >= 4) return false;
@@ -198,8 +200,11 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
   if (closed) end = closingEnd(end, lineText);
   // An opener with no closing line before `endLine` means no later opener has one either, so each render
   // scans to `endLine` once instead of once per unclosed opener.
-  state.env.mathUnclosedFrom ??= new Map<number, number>();
-  const unclosedFrom: Map<number, number> = state.env.mathUnclosedFrom;
+  let unclosedFrom = mathUnclosedByEnv.get(state.env);
+  if (!unclosedFrom) {
+    unclosedFrom = new Map<number, number>();
+    mathUnclosedByEnv.set(state.env, unclosedFrom);
+  }
   if (!closed && startLine >= (unclosedFrom.get(endLine) ?? Infinity)) return false;
   while (!closed) {
     nextLine += 1;
@@ -221,7 +226,7 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
   return true;
 };
 
-const buildRenderer = (MarkdownItConstructor: typeof MarkdownIt): MarkdownIt => {
+const buildRenderer = (MarkdownItConstructor: typeof MarkdownItDefault): MarkdownIt => {
   // The runtime's sanitizer writes void tags without a closing slash.
   const md = new MarkdownItConstructor('commonmark', { breaks: true, xhtmlOut: false });
   md.enable(['table', 'strikethrough']);

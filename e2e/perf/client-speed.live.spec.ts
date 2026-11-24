@@ -266,7 +266,11 @@ const seedBigRoom = async (
       name,
       lastRootId: last.rootId,
       lastReplyId: last.lastReplyId,
-      threads: threads.map(({ rootId, lastReplyId, replies }) => ({ rootId, lastReplyId, replies })),
+      threads: threads.map(({ rootId, lastReplyId, replies }) => ({
+        rootId,
+        lastReplyId,
+        replies,
+      })),
       probes: probes
         .reverse()
         .map(({ rootId, lastReplyId, replies }) => ({ rootId, lastReplyId, replies })),
@@ -311,8 +315,10 @@ const seedAccount = async (): Promise<Manifest> => {
   const big = await Promise.all(
     bigNames.map((name, index) => seedBigRoom(tokens, agent.userId, name, index === 0))
   );
-  const smallNames = Array.from({ length: SPACES * ROOMS_PER_SPACE + HOME_SMALL_ROOMS }, (_, index) =>
-    `${pick(['Ops', 'Team', 'Project', 'Design', 'Finance', 'Travel'])} ${pick(WORDS)} ${index + 1}`
+  const smallNames = Array.from(
+    { length: SPACES * ROOMS_PER_SPACE + HOME_SMALL_ROOMS },
+    (_, index) =>
+      `${pick(['Ops', 'Team', 'Project', 'Design', 'Finance', 'Travel'])} ${pick(WORDS)} ${index + 1}`
   );
   const small = await pool(
     smallNames.map((name) => () => seedSmallRoom(tokens, agent.userId, name)),
@@ -376,20 +382,32 @@ const installProbe = () => {
     }).observe({ type: 'longtask', buffered: true });
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries())
-        perf.events.push({ name: entry.name, start: abs(entry.startTime), duration: entry.duration });
+        perf.events.push({
+          name: entry.name,
+          start: abs(entry.startTime),
+          duration: entry.duration,
+        });
     }).observe({ type: 'event', buffered: true, durationThreshold: 16 } as PerformanceObserverInit);
   } catch {
     // WebKit has neither entry type.
   }
-  document.addEventListener('pointerdown', (event) => {
-    perf.lastPointerDown = abs(event.timeStamp);
-    sessionStorage.setItem('perf:pointerdown', String(perf.lastPointerDown));
-  }, true);
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      perf.lastPointerDown = abs(event.timeStamp);
+      sessionStorage.setItem('perf:pointerdown', String(perf.lastPointerDown));
+    },
+    true
+  );
   // Each keystroke: from the key event to the start of the next frame, which paints its result.
-  document.addEventListener('keydown', (event) => {
-    const start = event.timeStamp;
-    requestAnimationFrame(() => perf.keys.push(performance.now() - start));
-  }, true);
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      const start = event.timeStamp;
+      requestAnimationFrame(() => perf.keys.push(performance.now() - start));
+    },
+    true
+  );
   const visible = (element: Element) => {
     const rect = element.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return false;
@@ -415,7 +433,8 @@ const installProbe = () => {
       if (perf.marks[name] !== undefined || performance.now() > deadline) return;
       const done =
         minRows !== undefined
-          ? Array.from(document.querySelectorAll('[data-room-id]')).filter(visible).length >= minRows
+          ? Array.from(document.querySelectorAll('[data-room-id]')).filter(visible).length >=
+            minRows
           : shown(ids);
       if (done) perf.marks[name] = abs(performance.now());
       else requestAnimationFrame(tick);
@@ -455,7 +474,10 @@ const stats = (values: number[]) => {
 const report = (name: string, data: Record<string, unknown>) => {
   mkdirSync(OUT_DIR, { recursive: true });
   const record = { name, cpuThrottle: CPU_THROTTLE, runs: RUNS, ...data };
-  writeFileSync(`${OUT_DIR}/${name}${CPU_THROTTLE > 1 ? `-x${CPU_THROTTLE}` : ''}.json`, `${JSON.stringify(record, null, 2)}\n`);
+  writeFileSync(
+    `${OUT_DIR}/${name}${CPU_THROTTLE > 1 ? `-x${CPU_THROTTLE}` : ''}.json`,
+    `${JSON.stringify(record, null, 2)}\n`
+  );
   // eslint-disable-next-line no-console
   console.log(`PERF ${JSON.stringify(record)}`);
 };
@@ -463,10 +485,13 @@ const report = (name: string, data: Record<string, unknown>) => {
 const readPerf = (page: Page) => page.evaluate(() => (window as unknown as PerfWindow).__perf);
 const waitMark = async (page: Page, name: string, timeout = 60_000) => {
   await expect
-    .poll(() => page.evaluate((mark) => (window as unknown as PerfWindow).__perf.marks[mark], name), {
-      timeout,
-      intervals: [50],
-    })
+    .poll(
+      () => page.evaluate((mark) => (window as unknown as PerfWindow).__perf.marks[mark], name),
+      {
+        timeout,
+        intervals: [50],
+      }
+    )
     .toBeDefined();
   const time = await page.evaluate(
     (mark) => (window as unknown as PerfWindow).__perf.marks[mark],
@@ -516,7 +541,12 @@ const profiled = async <T>(page: Page, name: string, action: () => Promise<T>): 
     // A Chrome trace instead: style, layout, paint and script time on the page's main thread.
     const browser = page.context().browser()!;
     await browser.startTracing(page, {
-      categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute', 'blink'],
+      categories: [
+        'devtools.timeline',
+        'disabled-by-default-devtools.timeline',
+        'v8.execute',
+        'blink',
+      ],
     });
     const result = await action();
     const trace = await browser.stopTracing();
@@ -539,8 +569,9 @@ const profiled = async <T>(page: Page, name: string, action: () => Promise<T>): 
 const signIn = async (context: BrowserContext) => {
   const page = await context.newPage();
   await loginWithPassword(page, { homeserver, username: manifest.username, password: PASSWORD });
-  await expect(page.getByRole('navigation', { name: 'Home', exact: true }).locator('[data-room-id]'))
-    .toHaveCount(homeRows(), { timeout: 60_000 });
+  await expect(
+    page.getByRole('navigation', { name: 'Home', exact: true }).locator('[data-room-id]')
+  ).toHaveCount(homeRows(), { timeout: 60_000 });
   return page;
 };
 const skipProfile = <T>(_page: Page, _name: string, action: () => Promise<T>) => action();
@@ -581,14 +612,17 @@ const homeRow = (page: Page, roomId: string) =>
   page.getByRole('navigation', { name: 'Home', exact: true }).locator(`[data-room-id="${roomId}"]`);
 /** Clicks a room in the Home list; resolves with the time from pointerdown to its painted timeline. */
 const switchTo = async (page: Page, room: RoomFixture, mark: string) => {
-  await page.evaluate(
-    ({ name, ids }) => (window as unknown as PerfWindow).__perfWatch(name, ids),
-    { name: mark, ids: [room.lastRootId, room.lastReplyId] }
-  );
+  await page.evaluate(({ name, ids }) => (window as unknown as PerfWindow).__perfWatch(name, ids), {
+    name: mark,
+    ids: [room.lastRootId, room.lastReplyId],
+  });
   await homeRow(page, room.roomId).click();
   const end = await waitMark(page, mark);
   const perf = await readPerf(page);
-  return { ms: end - perf.lastPointerDown, longTasks: longTasksBetween(perf, perf.lastPointerDown, end) };
+  return {
+    ms: end - perf.lastPointerDown,
+    longTasks: longTasksBetween(perf, perf.lastPointerDown, end),
+  };
 };
 
 test.use({
@@ -793,7 +827,9 @@ test.describe('PERF: client speed with a realistic account', () => {
         .locator('[data-thread-context-banner]')
         .getByRole('button', { name: 'Back', exact: true })
         .click();
-      await expect(page.locator(`main [data-thread-root-id="${thread.rootId}"]`).first()).toBeVisible();
+      await expect(
+        page.locator(`main [data-thread-root-id="${thread.rootId}"]`).first()
+      ).toBeVisible();
       await page.waitForTimeout(1_000);
       return ms;
     };
@@ -887,7 +923,9 @@ test.describe('PERF: client speed with a realistic account', () => {
       page.off('request', countPage);
       const work = workSince(workBefore, await readWork());
       const scrolled = (await scroller.evaluate(fromBottom)) - startDistance;
-      await page.screenshot({ path: `${OUT_DIR}/scroll-${name}-${results[name]?.frames.length ?? 0}.png` });
+      await page.screenshot({
+        path: `${OUT_DIR}/scroll-${name}-${results[name]?.frames.length ?? 0}.png`,
+      });
       const perf = await page.evaluate(() => {
         const perfWindow = window as unknown as PerfWindow & { __perfSeen: Set<string> };
         const state = perfWindow.__perf;
@@ -959,7 +997,9 @@ test.describe('PERF: client speed with a realistic account', () => {
         {
           frameMs: { ...stats(data.frames), ...percentiles(data.frames) },
           droppedFramePercent:
-            Math.round((data.frames.filter((frame) => frame > 34).length / data.frames.length) * 1000) / 10,
+            Math.round(
+              (data.frames.filter((frame) => frame > 34).length / data.frames.length) * 1000
+            ) / 10,
           longTasksPerRun: stats(data.longTasks),
           blockingMsPerRun: stats(data.blocking),
           messagesPassed: stats(data.loaded),
@@ -973,7 +1013,10 @@ test.describe('PERF: client speed with a realistic account', () => {
       note: '24 flicks of 8 wheel notches of 320 px (40 ms apart, 300 ms rest); frames over 34 ms count as dropped',
       ...summary,
       raw: Object.fromEntries(
-        Object.entries(results).map(([name, data]) => [name, { ...data, frames: undefined, work: undefined }])
+        Object.entries(results).map(([name, data]) => [
+          name,
+          { ...data, frames: undefined, work: undefined },
+        ])
       ),
     });
     await context.close();

@@ -158,13 +158,13 @@ file of at most a few megabytes to drop it costs less than a second stop method.
 on Capacitor's bridge queue, in order). At most one recording is live; it has an ID (a UUID) and
 its own file. Every method but `start` takes `{ id }` and acts only on the recording of that ID.
 
-| Method | Does | Resolves or rejects |
-|---|---|---|
-| `start` | asks for the microphone, discards a live recording left over, records into a new file | `{ id }`; `PERMISSION_DENIED`, `NO_MICROPHONE`, `START_FAILED` |
-| `pause` | `AVAudioRecorder.pause()` | nothing; `NOT_RECORDING` when `id` is not live |
-| `resume` | `AVAudioRecorder.record()`; when it answers `false`, discards the recording | nothing; `NOT_RECORDING` |
-| `stop` | stops, keeps the file | `{ path }`; `NOT_RECORDING` when `id` is not live |
-| `cancel` | stops the recording when `id` is live; deletes the file of `id` | nothing |
+| Method   | Does                                                                                  | Resolves or rejects                                            |
+| -------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `start`  | asks for the microphone, discards a live recording left over, records into a new file | `{ id }`; `PERMISSION_DENIED`, `NO_MICROPHONE`, `START_FAILED` |
+| `pause`  | `AVAudioRecorder.pause()`                                                             | nothing; `NOT_RECORDING` when `id` is not live                 |
+| `resume` | `AVAudioRecorder.record()`; when it answers `false`, discards the recording           | nothing; `NOT_RECORDING`                                       |
+| `stop`   | stops, keeps the file                                                                 | `{ path }`; `NOT_RECORDING` when `id` is not live              |
+| `cancel` | stops the recording when `id` is live; deletes the file of `id`                       | nothing                                                        |
 
 Event `level`: `{ level }`, every 80 ms while recording and not paused (12.5 a second, the
 session's sample interval): `updateMeters()`, then `pow(10, averagePower(forChannel: 0) / 20)`,

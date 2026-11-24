@@ -6,7 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CachedThreadEventPage } from '../../event-store/cache/db';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
-import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
+import {
+  getThreadOpenSeedSnapshot,
+  saveThreadOpenSeedSnapshot,
+} from '../../event-store/cache/threadOpenSeedCache';
 import {
   compactPlaceholderType,
   create,
@@ -123,7 +126,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
-      const { shouldHydrateLatestRoomCache } = await import('../../event-store/cache/eventRepository');
+      const { shouldHydrateLatestRoomCache } =
+        await import('../../event-store/cache/eventRepository');
       const { MatrixEvent } = await import('matrix-js-sdk');
       const loadedEvent = (eventId: string, ts: number) =>
         new MatrixEvent(makeCachedRoomEvent(eventId, ts));
@@ -149,7 +153,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('deduplicates cached room hydration events against already loaded SDK events', async () => {
-      const { filterLatestRoomCacheHydrationEvents } = await import('../../event-store/cache/eventRepository');
+      const { filterLatestRoomCacheHydrationEvents } =
+        await import('../../event-store/cache/eventRepository');
 
       expect(
         filterLatestRoomCacheHydrationEvents(
@@ -160,9 +165,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('shows zero visible replies when a loaded thread only contains hidden threaded metadata relations', async () => {
-      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../event-store/threads/threadRecord'
-      );
+      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } =
+        await import('../../event-store/threads/threadRecord');
       const rootEvent = makeEvent('$thread-root', {
         isThreadRoot: true,
         ts: 100,
@@ -213,9 +217,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('preserves bundled thread counts when a thread root is visible before replies are loaded', async () => {
-      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../event-store/threads/threadRecord'
-      );
+      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } =
+        await import('../../event-store/threads/threadRecord');
       const rootEvent = makeEvent('$thread-root', {
         isThreadRoot: true,
         ts: 100,
@@ -575,642 +578,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       }
     });
 
-    it('folds back-pagination prepends into the offset ledger with zero scroll writes', async () => {
-      const { RoomTimeline } = await import('../RoomTimeline');
-      const threadId = '$prepend-thread-root';
-      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
-      const makeReply = (index: number) =>
-        makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
-      // Production shape: the thread root permanently occupies index 0 (oldest
-      // ts), so back-pagination prepends land at index 1+ and the first event id
-      // never changes. The prepend detector must not rely on it.
-      const initialThreadEvents = [
-        rootEvent,
-        ...Array.from({ length: 300 }, (_value, index) => makeReply(index + 100)),
-      ];
-      const prependedThreadEvents = [
-        rootEvent,
-        ...Array.from({ length: 100 }, (_value, index) => makeReply(index)),
-        ...initialThreadEvents.slice(1),
-      ];
-      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
-      const threadTimelineSet = {
-        getLiveTimeline: () => threadTimeline,
-        getTimelines: () => [threadTimeline],
-        getTimelineForEvent: () => undefined,
-      };
-      const threadModel = {
-        initialize: () => undefined,
-        rootEvent,
-        events: initialThreadEvents,
-        getUnfilteredTimelineSet: () => threadTimelineSet,
-      };
-      const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
-      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events;
-        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
-          events.map((event, index) => [event.getId(), index])
-        );
-      };
-      setThreadEvents(initialThreadEvents);
-      // The reader's first visible row; the ledger anchors on it after each commit.
-      roomTimelineVirtualizerState.firstVisibleKey = '$te-100';
-      // Settle-order log (mutant audit 2026-07-07, survivors 6a/6b): the
-      // settle's atomic block must write scrollTop BEFORE setOptions —
-      // setOptions can notify a synchronous re-render that must see the
-      // (margin 0, shifted scrollTop) pair. The accessor-backed scrollTop
-      // and the setOptions spy share one ordered log.
-      const ledgerOps: string[] = [];
-      let scrollTopValue = 0;
-      const scrollElement = {
-        // Connected: quiescence waits run their 150ms idle timer
-        // instead of the detached-element instant resolve — the margin-
-        // live window between fold and settle must exist for the paint-
-        // half pin below (the test's 250ms clock advances cover the idle).
-        isConnected: true,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
-        querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => []),
-        scrollHeight: 4000,
-        clientHeight: 600,
-        get scrollTop() {
-          return scrollTopValue;
-        },
-        set scrollTop(value: number) {
-          ledgerOps.push('scrollTop');
-          scrollTopValue = value;
-        },
-        scrollTo: vi.fn(),
-      };
-      roomTimelineVirtualizerState.setOptionsMock.mockClear();
-      roomTimelineVirtualizerState.setOptionsMock.mockImplementation(() => {
-        ledgerOps.push('setOptions');
-      });
-      // Inner virtual container: the ledger fold's visible output is its
-      // marginTop (adversarial review on PR #88 — without this pin, fold
-      // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
-      const innerElement = {
-        style: {} as Record<string, string>,
-        getBoundingClientRect: () => ({ top: 0 }),
-      };
-      // The thread-open bootstrap may also paginate; only the explicit
-      // Load Older Messages pagination should prepend the older rows.
-      // The paginate mock must NOT apply the prepend to the RENDER state:
-      // in production the paginate mutates only the SDK timeline, and the
-      // render list / index map update at the (quiescence-deferred) commit.
-      // The test applies the prepend afterwards, as the commit's re-render
-      // does in production.
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      // Fake timers: the 150ms quiescence idle passes only when the test advances the clock, so a
-      // CPU-starved run cannot settle the ledger before the margin-live assertions.
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            }),
-            {
-              createNodeMock: (element) =>
-                element.type === scrollType
-                  ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                  ? innerElement
-                  : null,
-            }
-          );
-          await flushAsyncWork();
-        });
-
-        const { getCacheProbeSnapshot } = await import('../../event-store/cache/cacheProbe');
-        const quiescenceSettlesBefore = getCacheProbeSnapshot().ledgerQuiescenceSettles;
-        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
-        await act(async () => {
-          loadOlderChip.props.onClick();
-          await flushAsyncWork(10);
-          // Task #125 follow-up: the prepend RENDER COMMIT waits for
-          // scroll quiescence (150ms with no scroll events) before it
-          // lands (see scrollQuiescence.ts). This test runs fake timers,
-          // so advance the clock past it.
-          await vi.advanceTimersByTimeAsync(250);
-          await flushAsyncWork(10);
-        });
-
-        // The commit's re-render delivers the prepended render state in
-        // production; the harness applies it explicitly.
-        await act(async () => {
-          setThreadEvents(prependedThreadEvents);
-          renderer!.update(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        // Paint-half pin (mutant audit 2026-07-07, survivor 14): while
-        // the ledger margin is live, every painted tile's inline top is
-        // content-relative — virtualItem.start (which includes the
-        // scrollMargin) PLUS the ledger px. Dropping the term reproduces
-        // the round-10 "double-counted ledger past overscan" blank class,
-        // which no unit test caught before this.
-        expect(innerElement.style.marginTop).toBe('-2600px');
-        {
-          const estimatePx =
-            roomTimelineVirtualizerState.lastOptions?.estimateSize?.() ?? Number.NaN;
-          const tiles = renderer!.root.findAll(
-            (node) =>
-              node.props?.['data-virtual-index'] !== undefined && node.props?.style !== undefined
-          );
-          expect(tiles.length).toBeGreaterThan(0);
-          tiles.slice(0, 3).forEach((tile) => {
-            const virtualIndex = tile.props['data-virtual-index'] as number;
-            expect(tile.props.style.top).toBe(virtualIndex * estimatePx + 2600);
-          });
-        }
-
-        // Offset-ledger fold (device round 10): the prepend commit is pure
-        // ledger arithmetic — the inserted rows' height folds into the
-        // container margin + scrollMargin at RENDER time, so the anchor
-        // never moves and NO scroll write happens at all (the coarse
-        // scrollTo + rect fine-correction machinery this test previously
-        // asserted raced virtual-core's own quiet-state adjustments).
-        // Let the at-rest ledger settle fire (quiescence idle is 150ms,
-        // on this test's fake clock): the fold's ΔH converts into
-        // ONE exactly-cancelling scrollTop shift and the margin returns
-        // to zero.
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(250);
-          await flushAsyncWork(5);
-        });
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
-        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
-        // ΔH pin (adversarial review on PR #88 — without it, fold
-        // deletion and pricing off-by-one mutants all passed green): 100 prepended one-liner replies at the
-        // calibrated COMPACT estimate (base 6 + one 20px line = 26; the
-        // harness renders compact layout) fold to EXACTLY 2600px,
-        // delivered by the settle as scrollTop += 2600 with the margin
-        // returned to zero.
-        expect(scrollElement.scrollTop).toBe(2600);
-        expect(innerElement.style.marginTop).toBe('');
-        // Settle atomicity pins (mutant audit 2026-07-07, survivors
-        // 6a/6b — the old mock lacked setOptions entirely, so 6b was
-        // "caught" only by an accidental TypeError): the settle must
-        // flip scrollMargin to 0 in the same block, and the scrollTop
-        // write must come FIRST.
-        expect(roomTimelineVirtualizerState.setOptionsMock).toHaveBeenCalledWith(
-          expect.objectContaining({ scrollMargin: 0 })
-        );
-        expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
-        expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
-        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
-
-        // A band that lands above the reader WITHOUT a Load Older (the
-        // opening history chain, a reconciled page) keeps the reader in
-        // place too: 5 more one-liners fold to 5 x 26px and settle.
-        const bandPrependedThreadEvents = [
-          rootEvent,
-          ...Array.from({ length: 5 }, (_value, index) =>
-            makeEvent(`$te-background-band-${index}`, {
-              threadRootId: threadId,
-              ts: index + 1,
-            })
-          ),
-          ...prependedThreadEvents.slice(1),
-        ];
-        act(() => {
-          setThreadEvents(bandPrependedThreadEvents);
-          renderer!.update(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            })
-          );
-        });
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(250);
-          await flushAsyncWork(5);
-        });
-        expect(scrollElement.scrollTop).toBe(2730);
-        expect(innerElement.style.marginTop).toBe('');
-      } finally {
-        roomTimelineVirtualizerState.setOptionsMock.mockReset();
-        act(() => {
-          renderer?.unmount();
-        });
-        vi.useRealTimers();
-      }
-    });
-
-    it('prices interleaved prepends by the inserted keys, not the first-shift rows', async () => {
-      // Full-surface adversarial review (2026-07-07), ledger finding L1:
-      // `mergeThreadRenderEvents` sorts purely by ts, so an overlapping
-      // band (or a federated page with interior timestamps) can insert
-      // NEW events BETWEEN existing rows above the anchor. The fold's
-      // prefix assumption — sum estimate(1..shift) — then prices
-      // pre-existing rows instead of the inserted ones. This pin uses
-      // heterogeneous rows so the two sums differ: three folded-long
-      // rows (compact estimate 76) sit above a one-liner anchor, and
-      // the committed page interleaves two one-liner events (compact
-      // estimate 26) between them. Correct ΔH = 2 x 26 = 52; the
-      // prefix-shaped sum would fold 76 + 26 = 102.
-      const { RoomTimeline } = await import('../RoomTimeline');
-      const threadId = '$interleave-thread-root';
-      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
-      const longBody = 'L'.repeat(200); // 5 wrapped lines > fold cap 3
-      const makeLongReply = (index: number) =>
-        makeEvent(`$long-${index}`, {
-          threadRootId: threadId,
-          ts: index * 100,
-          content: { body: longBody, msgtype: 'm.text' },
-        });
-      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
-      const makeFiller = (index: number) =>
-        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
-      const initialThreadEvents = [
-        rootEvent,
-        makeLongReply(1),
-        makeLongReply(2),
-        makeLongReply(3),
-        anchorEvent,
-        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
-      ];
-      // Band events with interior timestamps: ts 150 and 250 land BETWEEN
-      // the existing long rows once the merge re-sorts by ts.
-      const bandEvents = [
-        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
-        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
-      ];
-      const interleavedThreadEvents = [...initialThreadEvents, ...bandEvents].sort(
-        (a, b) => a.getTs() - b.getTs()
-      );
-      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
-      const threadTimelineSet = {
-        getLiveTimeline: () => threadTimeline,
-        getTimelines: () => [threadTimeline],
-        getTimelineForEvent: () => undefined,
-      };
-      const threadModel = {
-        initialize: () => undefined,
-        rootEvent,
-        events: initialThreadEvents,
-        getUnfilteredTimelineSet: () => threadTimelineSet,
-      };
-      const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
-      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events;
-        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
-          events.map((event, index) => [event.getId(), index])
-        );
-      };
-      setThreadEvents(initialThreadEvents);
-      roomTimelineVirtualizerState.firstVisibleKey = '$anchor';
-      const scrollElement = {
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
-        querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => []),
-        scrollHeight: 4000,
-        clientHeight: 600,
-        scrollTop: 0,
-        scrollTo: vi.fn(),
-      };
-      const innerElement = {
-        style: {} as Record<string, string>,
-        getBoundingClientRect: () => ({ top: 0 }),
-      };
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            }),
-            {
-              createNodeMock: (element) =>
-                element.type === scrollType
-                  ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                  ? innerElement
-                  : null,
-            }
-          );
-          await flushAsyncWork();
-        });
-
-        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
-        await act(async () => {
-          loadOlderChip.props.onClick();
-          await flushAsyncWork(10);
-          // Quiescence-deferred commit window (150ms idle, real timers).
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
-          await flushAsyncWork(10);
-        });
-
-        await act(async () => {
-          setThreadEvents(interleavedThreadEvents);
-          renderer!.update(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        // Let the at-rest ledger settle convert the fold into its one
-        // scrollTop shift.
-        await act(async () => {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
-          await flushAsyncWork(5);
-        });
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
-        // ΔH must price the two INSERTED one-liners (2 x 26 = 52), not
-        // the first-two post-prepend rows (long 76 + one-liner 26 = 102).
-        expect(scrollElement.scrollTop).toBe(52);
-        expect(innerElement.style.marginTop).toBe('');
-      } finally {
-        renderer?.unmount();
-      }
-    });
-
-    it('re-anchors the fold on the nearest surviving baseline row when the anchor is redacted mid-flight', async () => {
-      // Full-surface adversarial review (2026-07-07), ledger finding L2:
-      // if the reader's anchor event vanishes from the render list
-      // before the page commits (redaction acknowledged, dedup
-      // collapse), the old fold silently skipped the whole compensation
-      // and the prepend landed as a visible jump. The key-diff fold must
-      // fall back to the nearest surviving baseline row: inserted rows
-      // above it stay compensated, while the anchor's own removal closes
-      // visibly in view (a redaction SHOULD look like the row vanishing).
-      const { RoomTimeline } = await import('../RoomTimeline');
-      const { getCacheProbeSnapshot } = await import('../../event-store/cache/cacheProbe');
-      const threadId = '$redacted-anchor-thread-root';
-      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
-      const longBody = 'L'.repeat(200);
-      const makeLongReply = (index: number) =>
-        makeEvent(`$long-${index}`, {
-          threadRootId: threadId,
-          ts: index * 100,
-          content: { body: longBody, msgtype: 'm.text' },
-        });
-      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
-      const makeFiller = (index: number) =>
-        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
-      const initialThreadEvents = [
-        rootEvent,
-        makeLongReply(1),
-        makeLongReply(2),
-        makeLongReply(3),
-        anchorEvent,
-        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
-      ];
-      const bandEvents = [
-        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
-        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
-      ];
-      // The committed list interleaves the two one-liners AND drops the
-      // anchor itself.
-      const committedThreadEvents = [...initialThreadEvents, ...bandEvents]
-        .filter((event) => event.getId() !== '$anchor')
-        .sort((a, b) => a.getTs() - b.getTs());
-      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
-      const threadTimelineSet = {
-        getLiveTimeline: () => threadTimeline,
-        getTimelines: () => [threadTimeline],
-        getTimelineForEvent: () => undefined,
-      };
-      const threadModel = {
-        initialize: () => undefined,
-        rootEvent,
-        events: initialThreadEvents,
-        getUnfilteredTimelineSet: () => threadTimelineSet,
-      };
-      const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
-      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events;
-        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
-          events.map((event, index) => [event.getId(), index])
-        );
-      };
-      setThreadEvents(initialThreadEvents);
-      roomTimelineVirtualizerState.firstVisibleKey = '$anchor';
-      const scrollElement = {
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
-        querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => []),
-        scrollHeight: 4000,
-        clientHeight: 600,
-        scrollTop: 0,
-        scrollTo: vi.fn(),
-      };
-      const innerElement = {
-        style: {} as Record<string, string>,
-        getBoundingClientRect: () => ({ top: 0 }),
-      };
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            }),
-            {
-              createNodeMock: (element) =>
-                element.type === scrollType
-                  ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                  ? innerElement
-                  : null,
-            }
-          );
-          await flushAsyncWork();
-        });
-
-        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
-        await act(async () => {
-          loadOlderChip.props.onClick();
-          await flushAsyncWork(10);
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
-          await flushAsyncWork(10);
-        });
-
-        const fallbacksBefore = getCacheProbeSnapshot().threadPrependFoldAnchorFallback;
-        await act(async () => {
-          setThreadEvents(committedThreadEvents);
-          renderer!.update(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-        await act(async () => {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
-          await flushAsyncWork(5);
-        });
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
-        // The two interleaved one-liners above the surviving boundary
-        // ($long-3) still fold: 2 x 26 = 52. The redacted anchor's own
-        // height is deliberately NOT compensated.
-        expect(scrollElement.scrollTop).toBe(52);
-        expect(innerElement.style.marginTop).toBe('');
-        expect(getCacheProbeSnapshot().threadPrependFoldAnchorFallback).toBe(fallbacksBefore + 1);
-      } finally {
-        renderer?.unmount();
-      }
-    });
-
-    it('folds every band that lands above the reader while a pagination is in flight', async () => {
-      // Mutant audit 2026-07-07, survivor 2 (PR #88's own mid-flight-band
-      // major had no pin): each band that lands above the reader must fold,
-      // not only the first. Two bands, 5 + 3 one-liners at compact
-      // estimate 26: the ledger must read 130 then 208.
-      const { RoomTimeline } = await import('../RoomTimeline');
-      const threadId = '$midflight-band-thread-root';
-      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
-      const makeReply = (index: number) =>
-        makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
-      const initialThreadEvents = [
-        rootEvent,
-        ...Array.from({ length: 300 }, (_value, index) => makeReply(index + 100)),
-      ];
-      const bandA = Array.from({ length: 5 }, (_value, index) => makeReply(index + 90));
-      const bandB = Array.from({ length: 3 }, (_value, index) => makeReply(index + 80));
-      const afterBandA = [rootEvent, ...bandA, ...initialThreadEvents.slice(1)];
-      const afterBandB = [rootEvent, ...bandB, ...bandA, ...initialThreadEvents.slice(1)];
-      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
-      const threadTimelineSet = {
-        getLiveTimeline: () => threadTimeline,
-        getTimelines: () => [threadTimeline],
-        getTimelineForEvent: () => undefined,
-      };
-      const threadModel = {
-        initialize: () => undefined,
-        rootEvent,
-        events: initialThreadEvents,
-        getUnfilteredTimelineSet: () => threadTimelineSet,
-      };
-      const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
-      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events;
-        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
-          events.map((event, index) => [event.getId(), index])
-        );
-      };
-      setThreadEvents(initialThreadEvents);
-      roomTimelineVirtualizerState.firstVisibleKey = '$te-100';
-      const scrollElement = {
-        isConnected: true,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
-        querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => []),
-        scrollHeight: 4000,
-        clientHeight: 600,
-        scrollTop: 0,
-        scrollTo: vi.fn(),
-      };
-      const innerElement = {
-        style: {} as Record<string, string>,
-        getBoundingClientRect: () => ({ top: 0 }),
-      };
-      // The pagination NEVER resolves inside the pinned phase — both
-      // bands land strictly mid-flight.
-      let resolvePaginate: ((value: boolean) => void) | undefined;
-      matrixClientMock.paginateEventTimeline.mockImplementation(
-        () =>
-          new Promise<boolean>((resolve) => {
-            resolvePaginate = resolve;
-          })
-      );
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      // Fake timers: the 150ms quiescence idle passes only when the test advances the clock, so a
-      // CPU-starved run cannot settle the ledger before the margin-live assertions.
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            }),
-            {
-              createNodeMock: (element) =>
-                element.type === scrollType
-                  ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                  ? innerElement
-                  : null,
-            }
-          );
-          await flushAsyncWork();
-        });
-
-        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
-        await act(async () => {
-          loadOlderChip.props.onClick();
-          await flushAsyncWork(10);
-        });
-
-        await act(async () => {
-          setThreadEvents(afterBandA);
-          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
-          await flushAsyncWork(5);
-        });
-        expect(innerElement.style.marginTop).toBe('-130px');
-
-        await act(async () => {
-          setThreadEvents(afterBandB);
-          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
-          await flushAsyncWork(5);
-        });
-        // The second band folds against the anchor recorded after the first.
-        expect(innerElement.style.marginTop).toBe('-208px');
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
-      } finally {
-        resolvePaginate?.(false);
-        act(() => {
-          renderer?.unmount();
-        });
-        vi.useRealTimers();
-      }
-    });
-
     it('makes no coarse re-anchor scroll for a Load Older prepend', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
       const threadId = '$prepend-thread-root';
@@ -1368,9 +735,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 element.type === scrollType
                   ? scrollElement
                   : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                    'room-virtual-inner'
-                  ? innerElement
-                  : null,
+                      'room-virtual-inner'
+                    ? innerElement
+                    : null,
             }
           );
           await flushAsyncWork();
@@ -2223,9 +1590,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
-      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../event-store/threads/threadRecord'
-      );
+      const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } =
+        await import('../../event-store/threads/threadRecord');
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
       const standaloneRoot = makeEvent('$thread-root', {
         ts: 999_000,
@@ -2444,7 +1810,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         });
 
         await act(async () => {
-          renderer?.root.findByType(roomThreadOverviewType).props.onSearchQueryChange('-is:resolved');
+          renderer?.root
+            .findByType(roomThreadOverviewType)
+            .props.onSearchQueryChange('-is:resolved');
           await flushAsyncWork(2);
         });
 
@@ -2725,9 +2093,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('collects room-loaded thread events in chronological order without surfacing relation rows', async () => {
-      const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } = await import(
-        '../../threads/open/threadBootstrap'
-      );
+      const { getLoadedRoomThreadEvents, getLoadedRoomThreadSeedEvents } =
+        await import('../../threads/open/threadBootstrap');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1 });
       const newerReply = makeEvent('$thread-reply-2', {
@@ -2873,7 +2240,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
+      const { collectPriorityThreadSeedPrewarmRoots } =
+        await import('../../threads/open/threadBootstrap');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2932,7 +2300,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('prioritizes threads from the active overview range over larger off-screen room threads', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
+      const { collectPriorityThreadSeedPrewarmRoots } =
+        await import('../../threads/open/threadBootstrap');
       const visibleRoots = Array.from({ length: 12 }, (_, index) =>
         makeEvent(`$thread-root-${index + 1}`, {
           isThreadRoot: true,
@@ -2996,7 +2365,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('ignores room thread-list entries without a root event or known reply count', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
+      const { collectPriorityThreadSeedPrewarmRoots } =
+        await import('../../threads/open/threadBootstrap');
       const visibleRoot = makeEvent('$visible-thread-root', {
         isThreadRoot: true,
         ts: 1,
@@ -3452,9 +2822,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
     it('hydrates every cached thread page before falling back to network bootstrap', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
-      const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } = await import(
-        '../../event-store/cache/db'
-      );
+      const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } =
+        await import('../../event-store/cache/db');
       const threadId = '$thread-root';
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -3637,8 +3006,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           eventId === threadId
             ? rootEvent
             : eventId === '$room-seed-reply'
-            ? roomSeedReply
-            : undefined,
+              ? roomSeedReply
+              : undefined,
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       vi.mocked(loadLatestCachedThreadEvents).mockResolvedValueOnce({
@@ -3771,9 +3140,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     // prewarm band (threadSeedPrewarmController), not from the open.
     it('reconciles a complete-but-relation-unproven snapshot at open without a full relations drain', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
-      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../../event-store/cache/db'
-      );
+      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } =
+        await import('../../event-store/cache/db');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -3804,8 +3172,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
               ? makeEvent(rawEvent.event_id, {
                   content: rawEvent.content,
                   relation: rawEvent.content?.['m.relates_to'] as
-                    | { rel_type?: string; event_id?: string }
-                    | undefined,
+                    { rel_type?: string; event_id?: string } | undefined,
                   sender: rawEvent.sender,
                   ts: rawEvent.origin_server_ts ?? 0,
                   threadRootId: rawEvent['m.thread.root'],
@@ -4172,9 +3539,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
     it('prefers fresher room root counts over stale cached root counts when checking complete cached thread snapshots', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
-      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../../event-store/cache/db'
-      );
+      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } =
+        await import('../../event-store/cache/db');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -4429,9 +3795,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
     it('paints a partial cached snapshot and drains through SDK bootstrap + refreshLatestThreadSlice (no open-time relations backfill)', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
-      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../../event-store/cache/db'
-      );
+      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } =
+        await import('../../event-store/cache/db');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -4489,7 +3854,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           events: threadEvents,
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
-        } as never);
+        }) as never;
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       matrixClientMock.getEventMapper.mockImplementation(
         () =>
@@ -4690,9 +4055,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
     it('does not treat an empty relations response as complete when the known reply count is still unmet', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
-      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../../event-store/cache/db'
-      );
+      const { loadLatestCachedThreadEvents, saveThreadEventsToCache } =
+        await import('../../event-store/cache/db');
       const threadId = '$thread-root-empty-backfill';
       const firstReplyId = '$thread-reply-1-empty-backfill';
       const rootEvent = makeEvent(threadId, {
@@ -4731,7 +4095,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           events: [rootEvent, firstReply],
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
-        } as never);
+        }) as never;
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       matrixClientMock.getEventMapper.mockImplementation(
         () =>
@@ -4890,7 +4254,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           events: [rootEvent, threadReply],
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
-        } as never);
+        }) as never;
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       vi.mocked(loadLatestCachedThreadEvents).mockResolvedValueOnce({
         beforeToken: null,

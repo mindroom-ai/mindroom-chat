@@ -12,7 +12,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => cl
 vi.mock('./recoveryState', () => ({ useRecoveryState: () => ({ kind: 'none' }) }));
 // jsdom has no layout, so the real trap finds nothing tabbable; this stand-in renders through.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('../devices/serverEncryptionSetup', () => ({ hasServerEncryptionSetup: vi.fn() }));
 vi.mock('./recoveryPassword', async (importActual) => ({

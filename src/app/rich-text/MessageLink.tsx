@@ -73,7 +73,8 @@ function SiteIcon({ src }: { src: string }) {
         failedIcons.delete(src);
         failedIcons.set(src, Date.now() + FAILURE_BACKOFF_MS);
         if (failedIcons.size > MAX_FAILED_ICONS) {
-          failedIcons.delete(failedIcons.keys().next().value);
+          const oldest = failedIcons.keys().next().value;
+          if (oldest !== undefined) failedIcons.delete(oldest);
         }
         setFailed(true);
       }}

@@ -19,7 +19,7 @@ import plugin from './index';
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
 // runs in the browser (e2e/plugins/ui.spec.ts).
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  FocusTrap: ({ children }: { children: ReactNode }) => children,
 }));
 
 // The room's panel place around the card and the screen size, which the app provides; outside it
@@ -84,7 +84,7 @@ const dragEvent = (type: string, data: Map<string, string>): Event => {
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       types: [...data.keys()],
-      getData: (format: string) => (type === 'drop' ? data.get(format) ?? '' : ''),
+      getData: (format: string) => (type === 'drop' ? (data.get(format) ?? '') : ''),
       setData: (format: string, text: string) => data.set(format, text),
     },
   });

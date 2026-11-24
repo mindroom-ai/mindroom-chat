@@ -8,13 +8,15 @@ import {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { Icon, IconButton, Icons, toRem, type RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { Icon, IconButton, Icons, Line, toRem, type RectCords } from 'folds';
+import { FocusTrap } from 'focus-trap-react';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
+import { RoomSortMenuContent } from '../room-nav/RoomSortMenu';
+import type { RoomSortMode } from '../room-nav/roomOrder';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
@@ -156,6 +158,17 @@ const isTouchOrNoHover = (event: MouseEvent): boolean =>
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(hover: none)').matches);
 
+export type SubspaceSortOptions = {
+  mode: RoomSortMode;
+  inheritedMode: RoomSortMode;
+  overridden: boolean;
+  showTimes: boolean;
+  hasSavedOrder: boolean;
+  onModeChange: (mode: RoomSortMode) => void;
+  onShowTimesChange: (show: boolean) => void;
+  onResetOverride: () => void;
+};
+
 export type SpaceSectionHeaderProps = {
   /** The space this section lists (root space or joined descendant sub-space). */
   space: Room;
@@ -168,6 +181,8 @@ export type SpaceSectionHeaderProps = {
   shownRoomIds: readonly string[];
   selectedRoomId: string | undefined;
   onCategoryClick: MouseEventHandler<HTMLElement>;
+  /** Per-sub-space sort controls shown inside the sub-space options menu. */
+  sort?: SubspaceSortOptions;
 };
 
 /**
@@ -184,6 +199,7 @@ export function SpaceSectionHeader({
   shownRoomIds,
   selectedRoomId,
   onCategoryClick,
+  sort,
 }: SpaceSectionHeaderProps) {
   const { t } = useTranslation();
   const spaceName = revealDirectionControls(useRoomName(space));
@@ -360,24 +376,52 @@ export function SpaceSectionHeader({
                         onAddSpaces={dialogs.openAddSpaces}
                       />
                     </MenuGroup>
-                  ) : parentSpace ? (
-                    <SubspaceOptionsWithParent
-                      subspace={space}
-                      parentSpace={parentSpace}
-                      permissions={permissions}
-                      dialogs={dialogs}
-                      showAdd={menu.kind === 'context'}
-                      onClose={closeMenu}
-                    />
                   ) : (
-                    <SpaceMenuGroups
-                      space={space}
-                      permissions={permissions}
-                      dialogs={dialogs}
-                      onClose={closeMenu}
-                      showAdd={menu.kind === 'context'}
-                      pinMode="toggle"
-                    />
+                    <>
+                      {sort && (
+                        <>
+                          <RoomSortMenuContent
+                            mode={sort.mode}
+                            showTimes={sort.showTimes}
+                            hasSavedOrder={sort.hasSavedOrder}
+                            inherit={{
+                              mode: sort.inheritedMode,
+                              overridden: sort.overridden,
+                              onReset: () => {
+                                sort.onResetOverride();
+                                closeMenu();
+                              },
+                            }}
+                            onModeChange={(nextMode) => {
+                              sort.onModeChange(nextMode);
+                              closeMenu();
+                            }}
+                            onShowTimesChange={sort.onShowTimesChange}
+                            inlineDisplay
+                          />
+                          <Line size="300" />
+                        </>
+                      )}
+                      {parentSpace ? (
+                        <SubspaceOptionsWithParent
+                          subspace={space}
+                          parentSpace={parentSpace}
+                          permissions={permissions}
+                          dialogs={dialogs}
+                          showAdd={menu.kind === 'context'}
+                          onClose={closeMenu}
+                        />
+                      ) : (
+                        <SpaceMenuGroups
+                          space={space}
+                          permissions={permissions}
+                          dialogs={dialogs}
+                          onClose={closeMenu}
+                          showAdd={menu.kind === 'context'}
+                          pinMode="toggle"
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               </Menu>
