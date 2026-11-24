@@ -1182,14 +1182,20 @@ describe('useRoomInputDictation', () => {
     expect(session.discard).toHaveBeenCalledTimes(1);
     expect(focusSpy).toHaveBeenCalledWith(editor);
 
-    // Starting unfocused again and finishing inserts text and restores focus.
+    // Starting unfocused again with null selection pins end-of-draft RangeRef so selecting text
+    // mid-dictation still appends at the end and restores focus on Finish.
     (document.activeElement as HTMLElement | null)?.blur();
+    editor.selection = null;
     expect(document.activeElement).toBe(document.body);
     focusSpy.mockClear();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
     });
     expect(focusSpy).toHaveBeenCalledTimes(1);
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 0 },
+      focus: { path: [0, 0], offset: 5 },
+    });
     focusSpy.mockClear();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
@@ -1288,7 +1294,7 @@ describe('useRoomInputDictation', () => {
     expect(focusSpy).toHaveBeenLastCalledWith(threadEditor);
   });
 
-  it('does not prevent default or focus editor for unfocused Mod+Shift+D when unconfirmed, blocked, in computer focus, or over an overlay', () => {
+  it('guards unfocused Mod+Shift+D when unconfirmed, blocked, in computer focus, or over an overlay', () => {
     const editor = makeSlateEditor('Draft');
     const store = createStore();
     const { session } = createMockSession();
@@ -1325,11 +1331,12 @@ describe('useRoomInputDictation', () => {
       store.set(liveCaptureAtom, undefined);
     });
 
-    // Blocked inside start() while a voice auto-send is pending.
+    // Blocked inside start() while a voice auto-send is pending: key is swallowed for a confirmed
+    // composer so the browser shortcut does not fire, without starting or focusing.
     act(() => {
       store.set(voiceAutoSendPendingAtom, true);
     });
-    expect(dispatchDictate().defaultPrevented).toBe(false);
+    expect(dispatchDictate().defaultPrevented).toBe(true);
     act(() => {
       store.set(voiceAutoSendPendingAtom, false);
     });

@@ -823,6 +823,21 @@ it('sends typing, paste, and Escape inside the beside thread column to Reply, wh
   expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
   expect(document.activeElement).toBe(reply);
 
+  const separator = screen.getByRole('separator', { name: 'Resize the thread' });
+  separator.focus();
+  fireEvent.keyDown(separator, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(reply);
+
+  separator.focus();
+  const separatorEscape = new KeyboardEvent('keydown', {
+    key: 'Escape',
+    bubbles: true,
+    cancelable: true,
+  });
+  fireEvent(separator, separatorEscape);
+  expect(runShortcut('focusComposer', separatorEscape)).toBe(true);
+  expect(document.activeElement).toBe(reply);
+
   const bodyCases: Array<() => void> = [
     () => fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' }),
     () => fireEvent.keyDown(document.body, { key: 'v', code: 'KeyV', metaKey: true }),

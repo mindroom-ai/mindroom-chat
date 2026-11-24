@@ -202,8 +202,8 @@ const onDictationShortcutCapture = (event: KeyboardEvent): void => {
 
   const winner = pickComposerTarget(visible, focused);
   if (!winner || !winner.confirmed()) return;
-  if (!winner.startFromShortcut()) return;
   event.preventDefault();
+  winner.startFromShortcut();
 };
 
 const registerDictationComposer = (entry: DictationComposerEntry): (() => void) => {
@@ -217,6 +217,13 @@ const registerDictationComposer = (entry: DictationComposerEntry): (() => void) 
       window.removeEventListener('keydown', onDictationShortcutCapture, true);
     }
   };
+};
+
+const selectEndIfUnselected = (editor: Editor): void => {
+  if (editor.selection) return;
+  const pendingMarks = editor.marks;
+  Transforms.select(editor, SlateEditor.end(editor, []));
+  if (pendingMarks) editor.marks = pendingMarks;
 };
 
 const isEditorFocused = (editor: Editor, rootRef: RefObject<HTMLElement | null>): boolean => {
@@ -315,11 +322,7 @@ export const useRoomInputDictation = ({
 
   const focusEditor = useCallback(() => {
     try {
-      if (!editor.selection) {
-        const pendingMarks = editor.marks;
-        Transforms.select(editor, SlateEditor.end(editor, []));
-        if (pendingMarks) editor.marks = pendingMarks;
-      }
+      selectEndIfUnselected(editor);
       ReactEditor.focus(editor);
     } catch {
       // Editor may not be attached to a DOM tree in headless unit tests.
@@ -408,63 +411,77 @@ export const useRoomInputDictation = ({
     };
   }, [callbacksRef, clearSelectionRef, consumeSelectionRef, editor, rootRef, sendKey, store]);
 
-  const start = useCallback((): boolean => {
-    const pendingFocus = pendingButtonFocusRef.current;
-    pendingButtonFocusRef.current = undefined;
-    if (!confirmed || !sessions) return false;
-    if (
-      store.get(liveCaptureAtom) !== undefined ||
-      store.get(voiceAutoSendPendingAtom) ||
-      store.get(detachedDictationSendsAtom).has(sendKey) ||
-      restoresPending(store.get(dictationRestoresAtom), store.get(voiceDraftRestoresAtom))
-    ) {
-      return false;
-    }
-    setLocalNotice(undefined);
-    clearSelectionRef();
-    const initialSelection = editor.selection;
-    shouldRestoreFocusRef.current = pendingFocus ?? isEditorFocused(editor, rootRef);
-    const startPromise = startLiveDictation(store, {
-      client: new DictationClient(sessions),
+  const start = useCallback(
+    ({ fromShortcut = false }: { fromShortcut?: boolean } = {}): boolean => {
+      const pendingFocus = pendingButtonFocusRef.current;
+      pendingButtonFocusRef.current = undefined;
+      if (!confirmed || !sessions) return false;
+      if (
+        store.get(liveCaptureAtom) !== undefined ||
+        store.get(voiceAutoSendPendingAtom) ||
+        store.get(detachedDictationSendsAtom).has(sendKey) ||
+        restoresPending(store.get(dictationRestoresAtom), store.get(voiceDraftRestoresAtom))
+      ) {
+        return false;
+      }
+      setLocalNotice(undefined);
+      clearSelectionRef();
+      if (fromShortcut) {
+        try {
+          selectEndIfUnselected(editor);
+        } catch {
+          // Editor may have an uninitialized tree in headless unit tests.
+        }
+      }
+      const initialSelection = editor.selection;
+      shouldRestoreFocusRef.current = fromShortcut
+        ? true
+        : (pendingFocus ?? isEditorFocused(editor, rootRef));
+      const startPromise = startLiveDictation(store, {
+        client: new DictationClient(sessions),
+        roomId,
+        originApiUrl: apiUrl,
+        sessionId,
+        createSession: callbacksRef.current.createSession,
+      });
+      const startedCapture = store.get(liveCaptureAtom);
+      const startedSession =
+        startedCapture?.kind === 'dictation' ? startedCapture.session : undefined;
+      if (startedSession && initialSelection) {
+        selectionRef.current = {
+          session: startedSession,
+          rangeRef: SlateEditor.rangeRef(editor, initialSelection),
+        };
+      }
+      if (fromShortcut) focusEditor();
+      void startPromise.then((started) => {
+        if (started) return;
+        if (!startedSession || selectionRef.current?.session === startedSession) {
+          clearSelectionRef();
+        }
+        const current = store.get(liveCaptureAtom);
+        if (!current || current.session === startedSession) {
+          shouldRestoreFocusRef.current = false;
+        }
+      });
+      return true;
+    },
+    [
+      apiUrl,
+      callbacksRef,
+      clearSelectionRef,
+      confirmed,
+      editor,
+      focusEditor,
+      restoresPending,
       roomId,
-      originApiUrl: apiUrl,
+      rootRef,
+      sendKey,
       sessionId,
-      createSession: callbacksRef.current.createSession,
-    });
-    const startedCapture = store.get(liveCaptureAtom);
-    const startedSession =
-      startedCapture?.kind === 'dictation' ? startedCapture.session : undefined;
-    if (startedSession && initialSelection) {
-      selectionRef.current = {
-        session: startedSession,
-        rangeRef: SlateEditor.rangeRef(editor, initialSelection),
-      };
-    }
-    void startPromise.then((started) => {
-      if (started) return;
-      if (!startedSession || selectionRef.current?.session === startedSession) {
-        clearSelectionRef();
-      }
-      const current = store.get(liveCaptureAtom);
-      if (!current || current.session === startedSession) {
-        shouldRestoreFocusRef.current = false;
-      }
-    });
-    return true;
-  }, [
-    apiUrl,
-    callbacksRef,
-    clearSelectionRef,
-    confirmed,
-    editor,
-    restoresPending,
-    roomId,
-    rootRef,
-    sendKey,
-    sessionId,
-    sessions,
-    store,
-  ]);
+      sessions,
+      store,
+    ]
+  );
 
   const getLiveStatus = useCallback((): 'idle' | 'sendable' | 'blocked' => {
     const currentDetached = store.get(detachedDictationSendsAtom).get(sendKey);
@@ -673,12 +690,7 @@ export const useRoomInputDictation = ({
     showingLive: () =>
       !store.get(detachedDictationSendsAtom).has(sendKey) &&
       store.get(liveCaptureAtom)?.kind === 'dictation',
-    startFromShortcut: () => {
-      pendingButtonFocusRef.current = true;
-      if (!start()) return false;
-      focusEditor();
-      return true;
-    },
+    startFromShortcut: () => start({ fromShortcut: true }),
     finish: handleFinish,
   });
 

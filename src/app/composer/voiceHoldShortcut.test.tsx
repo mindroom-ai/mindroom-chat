@@ -226,6 +226,52 @@ describe('resolveVoiceComposer', () => {
 
     [room, thread].forEach((view) => view.unmount());
   });
+
+  it('blocks fallback to the room when a disabled fork draft owns focus or no composer is focused', () => {
+    const roomContainer = document.createElement('div');
+    const roomTimeline = document.createElement('button');
+    roomContainer.append(roomTimeline);
+    document.body.append(roomContainer);
+    const roomRoot = shownRoot(roomContainer);
+
+    const forkContainer = document.createElement('div');
+    const forkTimeline = document.createElement('button');
+    forkContainer.append(forkTimeline);
+    document.body.append(forkContainer);
+    const forkRoot = shownRoot(forkContainer);
+
+    const room = renderHook(() =>
+      useVoiceComposer({
+        root: () => roomRoot,
+        container: () => roomContainer,
+        thread: false,
+        active: () => false,
+        offersFailed: () => false,
+        phase: () => 'none',
+        hasContent: () => false,
+        start: () => false,
+        send: () => undefined,
+        focus: () => undefined,
+      })
+    );
+    const fork = renderHook(() =>
+      useVoiceComposer({
+        root: () => forkRoot,
+        container: () => forkContainer,
+        thread: true,
+        disabled: true,
+      })
+    );
+
+    const roomTarget = resolveVoiceComposer(roomRoot);
+    expect(roomTarget).toBeDefined();
+    expect(resolveVoiceComposer(roomTimeline)).toBe(roomTarget);
+    expect(resolveVoiceComposer(forkRoot)).toBeUndefined();
+    expect(resolveVoiceComposer(forkTimeline)).toBeUndefined();
+    expect(resolveVoiceComposer(document.body)).toBeUndefined();
+
+    [room, fork].forEach((view) => view.unmount());
+  });
 });
 
 describe('useVoiceHoldShortcut', () => {

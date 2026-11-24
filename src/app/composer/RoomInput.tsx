@@ -946,7 +946,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             },
             focus: () => ReactEditor.focus(editor),
           }
-        : undefined
+        : forkFrom
+          ? {
+              root: () => rootRef.current,
+              container: () => fileDropContainerRef?.current ?? null,
+              thread: true,
+              disabled: true,
+            }
+          : undefined
     );
     const expanded = isComposerExpanded({
       phone,

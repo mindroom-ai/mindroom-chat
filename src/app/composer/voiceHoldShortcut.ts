@@ -20,10 +20,23 @@ export type VoiceComposer = VoiceHoldTarget & {
   thread: boolean;
   /** A recording whose send failed waits here, in this composer alone. */
   offersFailed: () => boolean;
+  disabled?: false;
 };
 
+/**
+ * A visible composer that records no voice (a fork draft's), blocking fallback to another composer.
+ */
+export type DisabledVoiceComposer = {
+  root: () => HTMLElement | null;
+  container?: () => HTMLElement | null;
+  thread: boolean;
+  disabled: true;
+};
+
+export type VoiceComposerRegistration = VoiceComposer | DisabledVoiceComposer;
+
 /** One mounted composer: `current` is its latest render, `target` acts on that while mounted. */
-type Entry = { current?: VoiceComposer; target: VoiceHoldTarget };
+type Entry = { current?: VoiceComposerRegistration; target: VoiceHoldTarget };
 
 // In mount order, like the shortcut handlers.
 const entries = new Set<Entry>();
@@ -32,8 +45,13 @@ const entries = new Set<Entry>();
 // away or out of sight since (the test a press picks its composer by) does nothing: a recording
 // that runs stays the account's.
 const createEntry = (): Entry => {
-  const live = () =>
-    entries.has(entry) && isComposerShown(entry.current?.root()) ? entry.current : undefined;
+  const live = (): VoiceComposer | undefined =>
+    entries.has(entry) &&
+    entry.current &&
+    !entry.current.disabled &&
+    isComposerShown(entry.current.root())
+      ? entry.current
+      : undefined;
   const entry: Entry = {
     target: {
       active: () => live()?.active() ?? false,
@@ -48,10 +66,10 @@ const createEntry = (): Entry => {
 };
 
 /**
- * Lets the voice key act in the calling composer while it is mounted; `undefined` for one that
- * records no voice (a fork draft's).
+ * Lets the voice key act in the calling composer while it is mounted; pass `disabled: true` to
+ * block fallback to another composer (a fork draft's), or `undefined` to opt out (Home's ask).
  */
-export const useVoiceComposer = (composer: VoiceComposer | undefined): void => {
+export const useVoiceComposer = (composer: VoiceComposerRegistration | undefined): void => {
   const [entry] = useState(createEntry);
   entry.current = composer;
   const enabled = composer !== undefined;
@@ -78,12 +96,21 @@ export const resolveVoiceComposer = (
     .reverse()
     .flatMap((entry) =>
       entry.current && isComposerShown(entry.current.root())
-        ? [{ ...entry.current, target: entry.target }]
+        ? [
+            {
+              composer: entry.current,
+              root: entry.current.root,
+              container: entry.current.container,
+              thread: entry.current.thread,
+              target: entry.target,
+            },
+          ]
         : []
     );
-  return (
-    live.find((candidate) => candidate.offersFailed()) ?? pickComposerTarget(live, focused)
-  )?.target;
+  const winner =
+    live.find((candidate) => !candidate.composer.disabled && candidate.composer.offersFailed()) ??
+    pickComposerTarget(live, focused);
+  return winner && !winner.composer.disabled ? winner.target : undefined;
 };
 
 /**
