@@ -78,10 +78,10 @@ folds
   listed under "Modified dependencies".
 
 Inter
-  The Inter typeface, Copyright 2020 The Inter Project Authors
+  The Inter typeface, Copyright 2016 The Inter Project Authors
   (https://github.com/rsms/inter), SIL Open Font License 1.1, packaged as
-  @fontsource/inter 4.5.14 (MIT). The web bundle includes its font files
-  unmodified. License text: licenses/Inter-OFL-1.1.txt.
+  @fontsource-variable/inter 5.3.0 (OFL-1.1). The web bundle includes its font
+  files unmodified. License text: licenses/Inter-OFL-1.1.txt.
 
 KaTeX fonts
   The math renderer, katex 0.19.1 (MIT, Copyright (c) 2013-2020 Khan Academy
