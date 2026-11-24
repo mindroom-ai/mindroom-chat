@@ -150,6 +150,9 @@ describe('native Universal Links', () => {
       ],
       [`/home/${R}?forkRoom=%21alpha%3Aexample.org&forkAt=$point`, paths.getHomeRoomPath(R)],
       [`/home/${R}?forkRoom=bad&forkThread=$root&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=$r&forkAt=%24`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=%24&forkAt=$p`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?threadId=&forkRoom=%21a:ex&forkThread=$r&forkAt=$p`, paths.getHomeRoomPath(R)],
       [
         `/home/${R}?threadId=$t&forkRoom=%21alpha%3Aexample.org&forkThread=$root&forkAt=$point`,
         q(paths.getHomeRoomPath(R), { threadId: '$t' }),

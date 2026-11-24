@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
@@ -138,8 +146,15 @@ export function ForkToRoomDialog({
     setActiveIndex(0);
   }, [query]);
 
-  const activeOptionId =
-    clampedIndex >= 0 ? `${listId}-option-${clampedIndex}` : undefined;
+  const optionId = (index: number) => `${listId}-option-${index}`;
+  const activeOptionId = clampedIndex >= 0 ? optionId(clampedIndex) : undefined;
+
+  // The search input keeps focus, so the browser scrolls nothing on arrow/Home/End navigation:
+  // bring the active option into view so Enter never picks a room scrolled out of sight.
+  useLayoutEffect(() => {
+    if (!activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeOptionId]);
 
   const handleKeyDown = (evt: KeyboardEvent<HTMLInputElement>) => {
     if (filtered.length === 0) return;
@@ -196,7 +211,7 @@ export function ForkToRoomDialog({
             return (
               <button
                 key={item.room.roomId}
-                id={`${listId}-option-${index}`}
+                id={optionId(index)}
                 type="button"
                 role="option"
                 aria-selected={active}

@@ -40,6 +40,8 @@ const {
   timeDayMonthYearMock,
   isMembershipChangedMock,
   matrixClientMock,
+  mentionClickMock,
+  navigatePathMock,
   navigateRoomMock,
   navigateRoomThreadMock,
   openUserRoomProfileMock,
@@ -100,6 +102,8 @@ const {
     removeListener: vi.fn(),
     relations: vi.fn(),
   },
+  mentionClickMock: vi.fn(),
+  navigatePathMock: vi.fn(),
   navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   openUserRoomProfileMock: vi.fn(),
@@ -354,13 +358,16 @@ vi.mock('../../matrix/state/useUnread', () => ({
 
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
+    navigatePath: navigatePathMock,
     navigateRoom: navigateRoomMock,
     navigateRoomThread: navigateRoomThreadMock,
+    roomPath: (roomId: string, eventId?: string) =>
+      eventId ? `/home/${roomId}/${eventId}` : `/home/${roomId}`,
   }),
 }));
 
 vi.mock('../../messages/useMentionClickHandler', () => ({
-  useMentionClickHandler: () => vi.fn(),
+  useMentionClickHandler: () => mentionClickMock,
 }));
 
 vi.mock('../../navigation/useUserRoomProfileState', () => ({
@@ -599,10 +606,18 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('../../messages/html/react-custom-html-parser', () => ({
   LINKIFY_OPTS: {},
-  factoryRenderLinkifyWithMention: () => vi.fn(),
-  getReactCustomHtmlParser: () => ({}),
-  makeMentionCustomProps: () => ({}),
-  renderMatrixMention: () => null,
+  factoryRenderLinkifyWithMention: (renderMention: (href: string) => unknown) => renderMention,
+  getReactCustomHtmlParser: (
+    _client: unknown,
+    roomId: string,
+    params: Record<string, unknown>
+  ) => ({ roomId, ...params }),
+  makeMentionCustomProps: (onClick: unknown) => ({ onClick }),
+  renderMatrixMention: (_client: unknown, roomId: string, href: string, customProps: unknown) => ({
+    roomId,
+    href,
+    customProps,
+  }),
 }));
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
@@ -642,7 +657,17 @@ vi.mock('../../matrix/room', () => ({
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEditStreamFinishTs: (edit: { getTs: () => number }) => edit.getTs(),
-  getEventReactions: () => undefined,
+  getEventReactions: (
+    timelineSet?: {
+      relations?: {
+        getChildEventsForEvent?: (eventId: string, relType: string, eventType: string) => unknown;
+      };
+    },
+    eventId?: string
+  ) =>
+    eventId
+      ? timelineSet?.relations?.getChildEventsForEvent?.(eventId, 'm.annotation', 'm.reaction')
+      : undefined,
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
     editedEvent?: { getContent?: () => Record<string, unknown> | undefined }
@@ -1210,6 +1235,15 @@ vi.stubGlobal('window', {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   })),
+  history: {
+    state: {},
+    replaceState: vi.fn(),
+  },
+  location: {
+    pathname: '/',
+    search: '',
+    hash: '',
+  },
   navigator: {
     platform: 'MacIntel',
   },
@@ -1553,6 +1587,8 @@ beforeEach(() => {
     chunk: [],
     next_batch: null,
   });
+  mentionClickMock.mockReset();
+  navigatePathMock.mockReset();
   navigateRoomMock.mockReset();
   navigateRoomThreadMock.mockReset();
   openUserRoomProfileMock.mockReset();
@@ -1862,6 +1898,9 @@ export {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  mentionClickMock,
+  navigatePathMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   openUserRoomProfileMock,
   reactionOrEditEventMock,

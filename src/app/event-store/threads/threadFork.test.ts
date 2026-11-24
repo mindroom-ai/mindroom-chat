@@ -10,6 +10,7 @@ import {
   keepThreadForkRef,
   latestForkPoint,
   ownThreadId,
+  parseCrossRoomForkParams,
   parseThreadForkRef,
   threadForkContent,
   threadForkDraftId,
@@ -281,5 +282,43 @@ describe('keepThreadForkRef', () => {
   it('leaves the edit of any other message as it is', () => {
     const edited = { msgtype: 'm.text', body: 'new' };
     expect(keepThreadForkRef({ body: 'old' }, edited)).toBe(edited);
+  });
+});
+
+describe('parseCrossRoomForkParams', () => {
+  it('accepts a valid cross-room fork draft query tuple', () => {
+    expect(
+      parseCrossRoomForkParams({ forkRoom: '!a:ex', forkThread: '$r', forkAt: '$p' }, '!b:ex')
+    ).toEqual({ sourceRoomId: '!a:ex', threadId: '$r', forkAt: '$p' });
+  });
+
+  it('rejects bare "$" and whitespace in forkThread or forkAt', () => {
+    expect(
+      parseCrossRoomForkParams({ forkRoom: '!a:ex', forkThread: '$r', forkAt: '$' }, '!b:ex')
+    ).toBeUndefined();
+    expect(
+      parseCrossRoomForkParams({ forkRoom: '!a:ex', forkThread: '$', forkAt: '$p' }, '!b:ex')
+    ).toBeUndefined();
+    expect(
+      parseCrossRoomForkParams({ forkRoom: '!a:ex', forkThread: '$r x', forkAt: '$p' }, '!b:ex')
+    ).toBeUndefined();
+    expect(
+      parseCrossRoomForkParams({ forkRoom: '!a:ex', forkThread: '$r', forkAt: '$p\t' }, '!b:ex')
+    ).toBeUndefined();
+  });
+
+  it('rejects when threadId query param is present even if empty', () => {
+    expect(
+      parseCrossRoomForkParams(
+        { hasThreadId: true, threadId: '', forkRoom: '!a:ex', forkThread: '$r', forkAt: '$p' },
+        '!b:ex'
+      )
+    ).toBeUndefined();
+    expect(
+      parseCrossRoomForkParams(
+        { threadId: '', forkRoom: '!a:ex', forkThread: '$r', forkAt: '$p' },
+        '!b:ex'
+      )
+    ).toBeUndefined();
   });
 });

@@ -9,6 +9,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
+  navigatePathMock,
   roomTimelineVirtualizerState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -308,6 +309,82 @@ describe('a fork draft', () => {
       expect(messages).toHaveLength(2);
       messages.forEach(({ props }) => expect(props.onReplyClick).toBeUndefined());
       expect(renderer!.root.findAllByType(FailedSendActions)).toEqual([]);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('keeps the selected destination room when clicking "Fork from here" inside an Alpha -> Beta draft', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { Message } = await import('../../messages/Message');
+    const root = makeEvent('$parent', {
+      roomId: '!alpha:example.org',
+      isThreadRoot: true,
+      ts: 1_000,
+    });
+    const a = makeEvent('$a', { roomId: '!alpha:example.org', threadRootId: '$parent', ts: 2_000 });
+    const b = makeEvent('$b', { roomId: '!alpha:example.org', threadRootId: '$parent', ts: 3_000 });
+    forkPrefix.value = { events: [], parent: undefined };
+    const rows = [root, a, b];
+    const timeline = makeTimeline(rows, { backwardToken: null });
+    const alphaRoom = Object.assign(
+      makeRoom({ roomId: '!alpha:example.org', liveEvents: [root] }),
+      {
+        name: 'Project Alpha',
+      }
+    );
+    alphaRoom.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [a, b],
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => timeline,
+          getTimelineForEvent: () => undefined,
+        }),
+      } as never);
+    const betaRoom = Object.assign(makeRoom({ roomId: '!beta:example.org' }), {
+      name: 'Project Beta',
+    });
+    threadRenderStateMock.threadEvents = rows;
+    threadRenderStateMock.ownThreadEvents = rows;
+    threadRenderStateMock.forkPointIndex = 2;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      rows.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = rows.map((_, index) => index);
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room: alphaRoom,
+            threadId: '$parent',
+            forkAt: '$b',
+            extraProps: { forkTargetRoom: betaRoom },
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      const divider = renderer!.root.find((node) => (node.type as unknown) === 'fork-divider');
+      expect(divider.props.targetRoomName).toBe('Project Beta');
+
+      const messages = renderer!.root.findAllByType(Message);
+      expect(messages).toHaveLength(3);
+      act(() => {
+        messages[1]!.props.onForkClick?.('$a');
+      });
+
+      expect(navigatePathMock).toHaveBeenCalledTimes(1);
+      const [navPath] = navigatePathMock.mock.calls[0]!;
+      const url = new URL(navPath, 'https://chat.example.org');
+      expect(url.pathname).toBe('/home/!beta:example.org');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        forkRoom: '!alpha:example.org',
+        forkThread: '$parent',
+        forkAt: '$a',
+      });
     } finally {
       act(() => renderer?.unmount());
     }

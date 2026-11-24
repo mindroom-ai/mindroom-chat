@@ -474,6 +474,9 @@ describe('Room', { timeout: 30_000 }, () => {
       '?forkRoom=%21room%3Aexample.org&forkThread=%24parent&forkAt=%24point',
       '?forkRoom=%21unjoined%3Aexample.org&forkThread=%24parent&forkAt=%24point',
       '?threadId=%24t&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?threadId=&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24&forkAt=%24point',
     ];
     for (const search of invalidSearches) {
       roomState.search = search;

@@ -282,8 +282,8 @@ export type RoomTimelineProps = {
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
    */
   forkAt?: string;
-  /** In a cross-room fork draft, the destination room's name shown in the "Forking … into <room>" divider. */
-  forkTargetRoomName?: string;
+  /** In a cross-room fork draft, the destination room that "Fork from here" and the divider target. */
+  forkTargetRoom?: Room;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -350,8 +350,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadHeader,
     threadHeaderGapAbove = false,
     forkAt,
-    forkTargetRoomName,
+    forkTargetRoom,
   } = props;
+  const crossRoomForkTarget =
+    forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
+  const forkTargetRoomName = crossRoomForkTarget
+    ? crossRoomForkTarget.name || crossRoomForkTarget.roomId
+    : undefined;
   const mx = useMatrixClient();
   const alive = useAlive();
   const engine = useSyncEngine();
@@ -774,6 +779,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   const feature = useTimelineMessageFeature({
     room,
+    forkTargetRoom: crossRoomForkTarget,
     editor,
     threadId,
     scrollRef,

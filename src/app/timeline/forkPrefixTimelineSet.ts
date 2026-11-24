@@ -30,13 +30,16 @@ export const rowEventRoom = (
 };
 
 /**
- * The set a row reads its edits from: a fork prefix's row its parent thread's (in `eventRoom`),
- * every other row its own (`rowTimelineSet`).
+ * The set a row reads its edits and reactions from: a fork prefix's row reads its parent thread's
+ * set in `eventRoom` (falling back to `eventRoom`'s unfiltered room timeline set when no SDK
+ * `Thread` exists), and every other row reads its own (`rowTimelineSet`).
  */
 export const rowEditTimelineSet = (
   eventRoom: Room,
   prefixThreadId: string | undefined,
   rowTimelineSet: EventTimelineSet
 ): EventTimelineSet =>
-  (prefixThreadId ? eventRoom.getThread(prefixThreadId)?.getUnfilteredTimelineSet() : undefined) ??
-  rowTimelineSet;
+  (prefixThreadId
+    ? eventRoom.getThread(prefixThreadId)?.getUnfilteredTimelineSet() ??
+      eventRoom.getUnfilteredTimelineSet?.()
+    : undefined) ?? rowTimelineSet;

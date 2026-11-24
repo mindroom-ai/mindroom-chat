@@ -79,6 +79,7 @@ import {
   isThreadRouteReady,
 } from '../event-store/threads/threadRouteUtils';
 import { parseCrossRoomForkParams } from '../event-store/threads/threadFork';
+import { isEventId } from '../lib/matrixIds';
 import { isJoinedRoom } from '../navigation/routeVisibility';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
@@ -197,11 +198,14 @@ const useRoomRoute = () => {
   const location = useLocation();
   return {
     eventId,
+    hasThreadId: search.has('threadId'),
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
     entryKey: location.key,
     entryPushed: useNavigationType() === NavigationType.Push,
     entryReturned: isReturnToRoom(location.state),
+    hasForkRoom: search.has('forkRoom'),
+    hasForkThread: search.has('forkThread'),
     forkRoom: search.get('forkRoom') ?? undefined,
     forkThread: search.get('forkThread') ?? undefined,
     forkAt: search.get('forkAt') ?? undefined,
@@ -225,11 +229,14 @@ function RoomContent() {
   const room = useRoom();
   const {
     eventId,
+    hasThreadId,
     routedThreadId,
     focusEventInRoom,
     entryKey,
     entryPushed,
     entryReturned,
+    hasForkRoom,
+    hasForkThread,
     forkRoom,
     forkThread,
     forkAt,
@@ -258,8 +265,12 @@ function RoomContent() {
     availableViewModes,
   } = useRoomViewMode(roomId, hasMindroomAgents);
   const rawCrossRoomFork = useMemo(
-    () => parseCrossRoomForkParams({ threadId: routedThreadId, forkRoom, forkThread, forkAt }, roomId),
-    [forkAt, forkRoom, forkThread, roomId, routedThreadId]
+    () =>
+      parseCrossRoomForkParams(
+        { hasThreadId, threadId: routedThreadId, forkRoom, forkThread, forkAt },
+        roomId
+      ),
+    [forkAt, forkRoom, forkThread, hasThreadId, roomId, routedThreadId]
   );
   const [forkSourceVersion, setForkSourceVersion] = useState(0);
   useEffect(() => {
@@ -290,9 +301,7 @@ function RoomContent() {
     };
   }, [client, forkSourceVersion, rawCrossRoomFork, room]);
   const sameRoomForkAt =
-    routedThreadId && !forkRoom && !forkThread && isConfirmedMatrixEventId(forkAt)
-      ? forkAt
-      : undefined;
+    routedThreadId && !hasForkRoom && !hasForkThread && isEventId(forkAt) ? forkAt : undefined;
   const isForkDraft = !!sameRoomForkAt || !!crossRoomFork;
 
   // The Full view shows no thread routes, so a link to a thread brings the threads back, as an

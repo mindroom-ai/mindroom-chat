@@ -49,10 +49,6 @@ const readCache = async <T>(read: () => Promise<T | undefined>): Promise<T | und
   }
 };
 
-/**
- * Load an event that is not in the room timeline: the thread cache first (when the event is
- * known to sit in a thread), then the room cache, then the homeserver.
- */
 /** Loads an event for `roomId`: thread cache, then room cache, then homeserver. */
 export const fetchRoomEventFor = async (
   mx: MatrixClient,

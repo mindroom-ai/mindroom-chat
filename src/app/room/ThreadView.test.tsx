@@ -133,7 +133,13 @@ vi.mock('../composer/RoomInput', () => ({
     onRoomMessageSent?: (eventId: string) => boolean | void;
     fileDropContainerRef: RefObject<HTMLElement | null>;
   }) => {
-    state.composer = { room: inputRoom, roomId: inputRoomId, threadId, forkFrom, onRoomMessageSent };
+    state.composer = {
+      room: inputRoom,
+      roomId: inputRoomId,
+      threadId,
+      forkFrom,
+      onRoomMessageSent,
+    };
     const view = useContext(ConversationViewContext);
     useEffect(() => {
       state.dropTarget = fileDropContainerRef.current;
@@ -541,13 +547,13 @@ describe('a fork draft', () => {
       />
     );
 
-    // Timeline reads from sourceRoom with sourcePowerLevels and shows "Forking … into Project Beta".
+    // Timeline reads from sourceRoom with sourcePowerLevels and targets Project Beta for forks and divider.
     expect(state.timeline).toMatchObject({
       room: sourceRoom,
       threadId: THREAD,
       eventId: '$point',
       forkAt: '$point',
-      forkTargetRoomName: 'Project Beta',
+      forkTargetRoom: room,
     });
     expect(state.timelineLevels).toBe(SOURCE_LEVELS);
 

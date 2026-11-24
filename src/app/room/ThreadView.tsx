@@ -14,10 +14,10 @@ import { ReactEditor } from 'slate-react';
 import { RoomInput } from '../composer/RoomInput';
 import { useEditor } from '../editor/Editor';
 import {
-  isConfirmedMatrixEventId,
   isLocalEchoEventId,
   resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
+import { isEventId } from '../lib/matrixIds';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../matrix/hooks/usePowerLevels';
@@ -162,7 +162,7 @@ export function ThreadView({
   // starts the fork, then opens it in the draft's place. A point that is not among the thread's
   // messages makes a fork without its parent's messages, as a missing reference does.
   const { navigateRoomThread } = useRoomNavigate();
-  const draftForkAt = isConfirmedMatrixEventId(forkAt) ? forkAt : undefined;
+  const draftForkAt = isEventId(forkAt) ? forkAt : undefined;
   const forkFrom = useMemo(
     () =>
       draftForkAt
@@ -238,7 +238,7 @@ export function ThreadView({
                   threadId={threadId}
                   eventId={isCrossRoomDraft ? draftForkAt : eventId}
                   forkAt={draftForkAt}
-                  forkTargetRoomName={isCrossRoomDraft ? room.name || room.roomId : undefined}
+                  forkTargetRoom={isCrossRoomDraft ? room : undefined}
                   threadHeader={resolvedHeader}
                   threadHeaderGapAbove={!roomHeader}
                   onThreadLoadError={onThreadLoadError}

@@ -1,5 +1,5 @@
 import type { createBrowserRouter } from 'react-router-dom';
-import { isRoomAlias, isRoomId } from '../lib/matrixIds';
+import { isEventId, isRoomAlias, isRoomId } from '../lib/matrixIds';
 import { OPENED_FROM_OUTSIDE_STATE } from '../routes/historyStack';
 import {
   getActivityRoomPath,
@@ -127,8 +127,6 @@ const decodeSegment = (segment: string): string | undefined => {
 };
 
 const isRoomOrAlias = (value: string): boolean => isRoomId(value) || isRoomAlias(value);
-const isEventId = (value: string): boolean =>
-  !ASCII_CONTROL_CHARS.test(value) && /^\$\S+$/.test(value);
 
 const readSafeViaServers = (params: URLSearchParams): string[] => {
   const raw = [
@@ -199,32 +197,34 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
   if (!route) return undefined;
 
   const viaServers = readSafeViaServers(url.searchParams);
+  const hasThreadId = url.searchParams.has('threadId');
   const rawThreadId = url.searchParams.get('threadId');
-  const threadId =
-    !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const threadId = !route.isLobby && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const hasForkRoom = url.searchParams.has('forkRoom');
+  const hasForkThread = url.searchParams.has('forkThread');
   const rawForkRoom = url.searchParams.get('forkRoom');
   const rawForkThread = url.searchParams.get('forkThread');
   const rawForkAt = url.searchParams.get('forkAt');
-  const validCrossRoomFork =
+  const crossRoomFork =
     !route.isLobby &&
-    !rawThreadId &&
-    !!rawForkRoom &&
+    !hasThreadId &&
+    rawForkRoom &&
     !ASCII_CONTROL_CHARS.test(rawForkRoom) &&
     isRoomId(rawForkRoom) &&
-    !!rawForkThread &&
     isEventId(rawForkThread) &&
-    !!rawForkAt &&
-    isEventId(rawForkAt);
-  const forkAt = validCrossRoomFork
-    ? rawForkAt
-    : threadId && !rawForkRoom && !rawForkThread && rawForkAt && isEventId(rawForkAt)
+    isEventId(rawForkAt)
+      ? { forkRoom: rawForkRoom, forkThread: rawForkThread, forkAt: rawForkAt }
+      : undefined;
+  const forkAt = crossRoomFork
+    ? crossRoomFork.forkAt
+    : threadId && !hasForkRoom && !hasForkThread && isEventId(rawForkAt)
     ? rawForkAt
     : undefined;
   return withSearchParam(route.basePath, {
     viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
     threadId,
-    forkRoom: validCrossRoomFork ? rawForkRoom : undefined,
-    forkThread: validCrossRoomFork ? rawForkThread : undefined,
+    forkRoom: crossRoomFork?.forkRoom,
+    forkThread: crossRoomFork?.forkThread,
     forkAt,
     focusEvent: !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
   });

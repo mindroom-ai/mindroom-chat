@@ -53,7 +53,9 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from '../../messages/html/react-custom-html-parser';
+import { isUserId } from '../../lib/matrixIds';
 import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
+import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { MessageLayout, settingsAtom, type Settings } from '../../preferences/settings';
@@ -123,6 +125,8 @@ type TimelineSettings = Pick<Settings, 'messageLayout' | 'messageSpacing' | 'hid
 
 type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
+  /** In a cross-room fork draft, the destination room that "Fork from here" targets. */
+  forkTargetRoom?: Room;
   editor: Editor;
   threadId?: string;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -388,6 +392,7 @@ const readQuietMarker = (
  */
 export const useTimelineMessageFeature = ({
   room,
+  forkTargetRoom,
   editor,
   threadId,
   scrollRef,
@@ -505,14 +510,15 @@ export const useTimelineMessageFeature = ({
 
   const view = useContext(ConversationViewContext);
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
-  const { navigateRoomThread } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const startFork = useStartThreadFork(room);
+  const forkDestRoom = forkTargetRoom ?? room;
   const [forkToRoomTarget, setForkToRoomTarget] = useState<{
     sourceRoom: Room;
     ref: ThreadForkRef;
   }>();
   // Where agents answer in the room, they answer a fork there too, and it stays empty.
-  const forksAnswered = useRoomThreadMode(room.roomId, !!threadId) !== 'room';
+  const forksAnswered = useRoomThreadMode(forkDestRoom.roomId, !!threadId) !== 'room';
   const forksByPoint = useThreadForks(room, threadId);
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
@@ -728,6 +734,22 @@ export const useTimelineMessageFeature = ({
       const eventShowLinkFavicons = isCrossRoomRow
         ? shouldShowLinkFavicons({ mediaAutoLoad, urlPreview }, eventEncrypted)
         : showLinkFavicons;
+      const rowHandleMentionClick: React.MouseEventHandler<HTMLElement> = isCrossRoomRow
+        ? (evt) => {
+            const mentionId = evt.currentTarget.getAttribute('data-mention-id');
+            if (mentionId && isUserId(mentionId)) {
+              evt.preventDefault();
+              openUserProfile(
+                eventRoom.roomId,
+                spaceRoomId,
+                mentionId,
+                evt.currentTarget.getBoundingClientRect()
+              );
+              return;
+            }
+            handleMentionClick(evt);
+          }
+        : handleMentionClick;
       const rowLinkifyOpts = isCrossRoomRow
         ? {
             ...LINKIFY_OPTS,
@@ -737,7 +759,7 @@ export const useTimelineMessageFeature = ({
                   client,
                   eventRoom.roomId,
                   href,
-                  makeMentionCustomProps(handleMentionClick)
+                  makeMentionCustomProps(rowHandleMentionClick)
                 ),
               eventShowLinkFavicons
             ),
@@ -746,7 +768,7 @@ export const useTimelineMessageFeature = ({
       const rowHtmlReactParserOptions = isCrossRoomRow
         ? getReactCustomHtmlParser(client, eventRoom.roomId, {
             linkifyOpts: rowLinkifyOpts,
-            handleMentionClick,
+            handleMentionClick: rowHandleMentionClick,
             useAuthentication,
             showLinkFavicons: eventShowLinkFavicons,
           })
@@ -816,14 +838,14 @@ export const useTimelineMessageFeature = ({
         (event.getSender() === userId || canRedactOthers);
       const canSendReaction = !readOnly && kind !== 'sticker';
       // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
-      // forks its own thread. Never downgrade an encrypted source into an unencrypted current room.
-      const canForkIntoCurrentRoom =
-        !isCrossRoomRow || !eventEncrypted || !!room.hasEncryptionStateEvent?.();
+      // forks its own thread. Never downgrade an encrypted source into an unencrypted destination.
+      const canForkIntoDestRoom =
+        eventRoom.roomId === forkDestRoom.roomId ||
+        !eventEncrypted ||
+        !!forkDestRoom.hasEncryptionStateEvent?.();
       const messageForkTarget = threadId ? forkTargetFor(event, room.roomId) : undefined;
       const forkTarget =
-        messageForkTarget && forksAnswered && canForkIntoCurrentRoom
-          ? messageForkTarget
-          : undefined;
+        messageForkTarget && forksAnswered && canForkIntoDestRoom ? messageForkTarget : undefined;
       const openSenderProfile = isCrossRoomRow
         ? (evt: React.MouseEvent<HTMLElement>) => {
             const senderId = evt.currentTarget.getAttribute('data-user-id');
@@ -882,12 +904,18 @@ export const useTimelineMessageFeature = ({
                   data-event-id={replyEventId}
                   onClick={
                     isCrossRoomRow && !data.forkPrefixEventIds?.has(replyEventId)
-                      ? () =>
-                          navigateRoomThread(
-                            eventRoom.roomId,
-                            prefixThreadId ?? event.threadRootId ?? replyEventId,
-                            replyEventId
-                          )
+                      ? () => {
+                          const target = getRoomEventThreadOpenTarget({
+                            eventId: replyEventId,
+                            room: eventRoom,
+                            linkedTimelines: timelineSet.getTimelines?.(),
+                          });
+                          if (target) {
+                            navigateRoomThread(eventRoom.roomId, target.threadId, target.eventId);
+                            return;
+                          }
+                          navigateRoom(eventRoom.roomId, replyEventId);
+                        }
                       : data.handleOpenReply
                   }
                 />
@@ -930,7 +958,14 @@ export const useTimelineMessageFeature = ({
                 ? () => navigateRoomThread(eventRoom.roomId, prefixThreadId, eventId)
                 : undefined
             }
-            onForkClick={forkTarget ? () => startFork(forkTarget) : undefined}
+            onForkClick={
+              forkTarget
+                ? () =>
+                    forkTargetRoom
+                      ? startFork(forkTarget, forkTargetRoom.roomId)
+                      : startFork(forkTarget)
+                : undefined
+            }
             onForkToRoomClick={
               messageForkTarget
                 ? () => setForkToRoomTarget({ sourceRoom: eventRoom, ref: messageForkTarget })
@@ -1007,6 +1042,8 @@ export const useTimelineMessageFeature = ({
       consumeLiveExpansion,
       dateFormatString,
       editingEventId,
+      forkDestRoom,
+      forkTargetRoom,
       forksAnswered,
       forksByPoint,
       handleOpenThread,
@@ -1021,6 +1058,7 @@ export const useTimelineMessageFeature = ({
       mediaAutoLoad,
       messageLayout,
       messageSpacing,
+      navigateRoom,
       navigateRoomThread,
       openTitleSettings,
       reactionFailedEventId,

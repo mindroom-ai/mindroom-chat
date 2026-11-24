@@ -72,7 +72,10 @@ const makeRoom = ({
   lastActiveTs = 1000,
   members = [{ userId: MY_USER, membership: KnownMembership.Join }],
 }: MockRoomOpts): Room => {
-  const stateEvents: Record<string, { getContent: () => Record<string, unknown>; getSender?: () => string }> = {
+  const stateEvents: Record<
+    string,
+    { getContent: () => Record<string, unknown>; getSender?: () => string }
+  > = {
     [StateEvent.RoomPowerLevels]: {
       getContent: () => ({
         events_default: eventsDefaultPower,
@@ -82,7 +85,9 @@ const makeRoom = ({
     },
   };
   if (tombstoned) {
-    stateEvents[StateEvent.RoomTombstone] = { getContent: () => ({ replacement_room: '!new:example.org' }) };
+    stateEvents[StateEvent.RoomTombstone] = {
+      getContent: () => ({ replacement_room: '!new:example.org' }),
+    };
   }
   if (threadMode) {
     stateEvents[ROOM_THREAD_MODE_EVENT] = { getContent: () => ({ mode: threadMode }) };
@@ -172,11 +177,20 @@ describe('ForkToRoomDialog', () => {
   };
 
   it('excludes spaces, source room, tombstoned, unwritable, room-thread-mode, and unencrypted rooms when source is encrypted', () => {
-    const source = makeRoom({ roomId: '!alpha:example.org', name: 'Project Alpha', encrypted: true });
+    const source = makeRoom({
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      encrypted: true,
+    });
     const rooms = [
       source,
       makeRoom({ roomId: '!space:example.org', name: 'Eng Space', space: true, encrypted: true }),
-      makeRoom({ roomId: '!tomb:example.org', name: 'Old Room', tombstoned: true, encrypted: true }),
+      makeRoom({
+        roomId: '!tomb:example.org',
+        name: 'Old Room',
+        tombstoned: true,
+        encrypted: true,
+      }),
       makeRoom({
         roomId: '!readonly:example.org',
         name: 'Announcements',
@@ -230,9 +244,9 @@ describe('ForkToRoomDialog', () => {
     });
 
     // Recent visits first (!beta, !delta), then unvisited (!gamma).
-    expect(
-      screen.getAllByRole('option').map((el) => el.getAttribute('data-fork-room-id'))
-    ).toEqual(['!beta:example.org', '!delta:example.org', '!gamma:example.org']);
+    expect(screen.getAllByRole('option').map((el) => el.getAttribute('data-fork-room-id'))).toEqual(
+      ['!beta:example.org', '!delta:example.org', '!gamma:example.org']
+    );
 
     const search = screen.getByRole('combobox');
     fireEvent.keyDown(search, { key: 'ArrowDown' });
@@ -240,9 +254,9 @@ describe('ForkToRoomDialog', () => {
     expect(onSelect).toHaveBeenCalledWith('!delta:example.org');
 
     fireEvent.change(search, { target: { value: 'gamma' } });
-    expect(
-      screen.getAllByRole('option').map((el) => el.getAttribute('data-fork-room-id'))
-    ).toEqual(['!gamma:example.org']);
+    expect(screen.getAllByRole('option').map((el) => el.getAttribute('data-fork-room-id'))).toEqual(
+      ['!gamma:example.org']
+    );
 
     fireEvent.change(search, { target: { value: 'does-not-exist' } });
     expect(screen.queryAllByRole('option')).toHaveLength(0);
@@ -289,5 +303,39 @@ describe('ForkToRoomDialog', () => {
     expect(unsharedRow?.querySelector('[data-fork-room-agent-warning]')?.textContent).toContain(
       'Project Alpha'
     );
+  });
+
+  it('scrolls the active option into view on ArrowDown and End keyboard navigation', () => {
+    const scrollIntoView = vi.fn();
+    const hadOwn = Object.prototype.hasOwnProperty.call(Element.prototype, 'scrollIntoView');
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const source = makeRoom({ roomId: '!alpha:example.org', name: 'Project Alpha' });
+      const rooms = [
+        source,
+        makeRoom({ roomId: '!beta:example.org', name: 'Project Beta', lastActiveTs: 300 }),
+        makeRoom({ roomId: '!gamma:example.org', name: 'Project Gamma', lastActiveTs: 200 }),
+        makeRoom({ roomId: '!delta:example.org', name: 'Project Delta', lastActiveTs: 100 }),
+      ];
+
+      renderDialog({ sourceRoom: source, rooms });
+      const options = screen.getAllByRole('option');
+      const search = screen.getByRole('combobox');
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(search, { key: 'ArrowDown' });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(options[1]);
+
+      fireEvent.keyDown(search, { key: 'End' });
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(options[2]);
+    } finally {
+      if (hadOwn) Element.prototype.scrollIntoView = original;
+      else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
   });
 });

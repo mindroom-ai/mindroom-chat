@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { isRoomId } from '../../lib/matrixIds';
+import { isEventId, isRoomId } from '../../lib/matrixIds';
 import { THREAD_FORK_KEY } from '../../matrix/protocol/threadFork';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { getThreadTimelineEvents } from '../timeline/linkedTimelines';
@@ -23,7 +23,7 @@ export const parseThreadForkRef = (content: unknown): ThreadForkRef | undefined 
     event_id: eventId,
   } = raw as Record<string, unknown>;
   if (roomId !== undefined && (typeof roomId !== 'string' || !isRoomId(roomId))) return undefined;
-  if (!isConfirmedMatrixEventId(threadId) || !isConfirmedMatrixEventId(eventId)) return undefined;
+  if (!isEventId(threadId) || !isEventId(eventId)) return undefined;
   return roomId !== undefined ? { roomId, threadId, eventId } : { threadId, eventId };
 };
 
@@ -121,6 +121,7 @@ export type CrossRoomForkDraftParams = {
  */
 export const parseCrossRoomForkParams = (
   params: {
+    hasThreadId?: boolean;
     threadId?: string | null;
     forkRoom?: string | null;
     forkThread?: string | null;
@@ -128,10 +129,12 @@ export const parseCrossRoomForkParams = (
   },
   targetRoomId?: string
 ): CrossRoomForkDraftParams | undefined => {
-  if (params.threadId) return undefined;
+  if (params.hasThreadId || (params.threadId !== undefined && params.threadId !== null)) {
+    return undefined;
+  }
   const { forkRoom, forkThread, forkAt } = params;
   if (!forkRoom || !isRoomId(forkRoom)) return undefined;
   if (targetRoomId && forkRoom === targetRoomId) return undefined;
-  if (!isConfirmedMatrixEventId(forkThread) || !isConfirmedMatrixEventId(forkAt)) return undefined;
+  if (!isEventId(forkThread) || !isEventId(forkAt)) return undefined;
   return { sourceRoomId: forkRoom, threadId: forkThread, forkAt };
 };

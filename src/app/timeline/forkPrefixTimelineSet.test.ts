@@ -9,10 +9,12 @@ const reply = (id: string, threadRootId?: string) => {
 };
 
 const parentSet = { name: 'parent' } as unknown as EventTimelineSet;
+const roomSet = { name: 'room' } as unknown as EventTimelineSet;
 const rowSet = { name: 'row' } as unknown as EventTimelineSet;
 const room = {
   getThread: (id: string) =>
     id === '$parent' ? { getUnfilteredTimelineSet: () => parentSet } : null,
+  getUnfilteredTimelineSet: () => roomSet,
 } as unknown as Room;
 
 describe('forkPrefixThreadId', () => {
@@ -26,10 +28,20 @@ describe('forkPrefixThreadId', () => {
 });
 
 describe('rowEditTimelineSet', () => {
-  it("reads a prefix row's edits from its parent thread, and others' from the row's set", () => {
+  it("reads a prefix row's edits/reactions from its parent thread, falling back to eventRoom's room set when no SDK Thread exists", () => {
     expect(rowEditTimelineSet(room, '$parent', rowSet)).toBe(parentSet);
     expect(rowEditTimelineSet(room, undefined, rowSet)).toBe(rowSet);
-    expect(rowEditTimelineSet(room, '$unknown', rowSet)).toBe(rowSet);
+    expect(rowEditTimelineSet(room, '$unknown', rowSet)).toBe(roomSet);
+  });
+
+  it('uses sourceRoom.getUnfilteredTimelineSet() rather than targetRoom rowTimelineSet for a cross-room prefix without an SDK Thread', () => {
+    const sourceRoomSet = { name: 'source-room' } as unknown as EventTimelineSet;
+    const sourceWithoutThread = {
+      roomId: '!alpha:example.org',
+      getThread: () => null,
+      getUnfilteredTimelineSet: () => sourceRoomSet,
+    } as unknown as Room;
+    expect(rowEditTimelineSet(sourceWithoutThread, '$parent', rowSet)).toBe(sourceRoomSet);
   });
 });
 
