@@ -310,10 +310,18 @@ export function useSpaceRoomSections(
       if (sourceSpaceId === targetSpaceId) return false;
       if (movingRoomIdsRef.current.has(roomId)) return false;
       const parents = roomToParents.get(roomId);
-      if (!parents?.has(sourceSpaceId) || parents.has(targetSpaceId)) return false;
+      if (!parents?.has(sourceSpaceId)) return false;
+      // The room must show in the target after the move, and a room a sub-space lists is left
+      // out of the spaces above it. So a target that links the room already takes it only from
+      // a sub-space below it, and no other sub-space below the target may still link it.
+      const below = new Set(
+        getDescendantSubspaces(client, targetSpaceId, joinedRoomIds, roomToParents)
+      );
+      if (parents.has(targetSpaceId) && !below.has(sourceSpaceId)) return false;
+      if ([...parents].some((id) => id !== sourceSpaceId && below.has(id))) return false;
       return canEditSpace(sourceSpaceId) && canEditSpace(targetSpaceId);
     },
-    [roomToParents, canEditSpace]
+    [client, joinedRoomIds, roomToParents, canEditSpace]
   );
 
   const onMoveRoom = useCallback(

@@ -1658,7 +1658,17 @@
     "forking": "Forking {{title}}",
     "continueInNewThread": "Continue in a new thread",
     "forkCount_one": "{{count}} fork",
-    "forkCount_other": "{{count}} forks"
+    "forkCount_other": "{{count}} forks",
+    "forkedFromInRoom": "Forked from {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Forked from another room",
+    "forkingIntoRoom": "Forking {{title}} into {{room}}",
+    "forkToRoom": "Fork to room…",
+    "forkToRoomTitle": "Fork to room",
+    "forkToRoomSearchPlaceholder": "Search rooms…",
+    "forkToRoomEmpty": "No matching rooms",
+    "forkToRoomAgentWarning": "Agents in this room are not in {{room}} and won't see the original thread",
+    "forkingFromRoom": "Forking from {{room}}",
+    "forkDraftAgentWarning": "Agents here are not in {{room}} and won't see the original thread"
   },
   "activity": {
     "title": "Activity",

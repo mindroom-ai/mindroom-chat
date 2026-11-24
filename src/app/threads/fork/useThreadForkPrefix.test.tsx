@@ -6,6 +6,7 @@ import {
   createClient,
   MatrixEvent,
   Room,
+  RoomEvent,
   type IEvent,
   type MatrixClient,
   type Thread,
@@ -26,12 +27,16 @@ vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () =>
 // The event cache: the whole parent thread when `events` is set.
 const cache = vi.hoisted(() => ({
   events: undefined as MatrixEvent[] | undefined,
+  byRoom: new Map<string, MatrixEvent[]>(),
   load: vi.fn(),
 }));
 vi.mock('../../event-store/cache/eventRepository', async (original) => ({
   ...(await original<typeof import('../../event-store/cache/eventRepository')>()),
-  loadThreadCachedSnapshot: cache.load.mockImplementation(async () =>
-    cache.events ? { events: cache.events } : undefined
+  loadThreadCachedSnapshot: cache.load.mockImplementation(
+    async ({ roomId: reqRoomId }: { roomId: string }) => {
+      const list = cache.byRoom.get(reqRoomId) ?? cache.events;
+      return list ? { events: list } : undefined;
+    }
   ),
 }));
 vi.mock('../../event-store/cache/threadCacheSnapshot', () => ({
@@ -98,6 +103,7 @@ const cacheParent = (events: MatrixEvent[]) => {
 afterEach(() => {
   session.value = undefined;
   cache.events = undefined;
+  cache.byRoom.clear();
 });
 
 const newClient = () => createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
@@ -390,6 +396,129 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
     expect(mainTimeline(room)).toEqual([]);
     expect(cache.load).toHaveBeenCalledTimes(2);
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
+    await view.unmount();
+  });
+});
+
+describe('useThreadForkPrefix for cross-room forks', () => {
+  const sourceRoomId = '!alpha:example.org';
+  const targetRoomId = '!beta:example.org';
+  const makeMsg = (rId: string, eventId: string, ts: number, threadRoot?: string, content = {}) =>
+    new MatrixEvent({
+      event_id: eventId,
+      room_id: rId,
+      sender: bob,
+      type: 'm.room.message',
+      origin_server_ts: ts,
+      unsigned: {},
+      content: {
+        msgtype: 'm.text',
+        body: eventId,
+        ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
+        ...content,
+      },
+    });
+
+  const makeMockRoom = (rId: string, events: MatrixEvent[], membership = 'join') => {
+    let currentMembership = membership;
+    const room = {
+      roomId: rId,
+      getMyMembership: () => currentMembership,
+      setMembership: (next: string) => {
+        currentMembership = next;
+      },
+      getThread: () => null,
+      findEventById: (id: string) => events.find((e) => e.getId() === id),
+    } as unknown as Room & { setMembership: (next: string) => void };
+    return room;
+  };
+
+  it('loads prefix from the source room without touching target room cache, and follows source room edits', async () => {
+    session.value = { sessionId: 'session' };
+    cache.load.mockClear();
+    const sourceEvents = [
+      makeMsg(sourceRoomId, '$p', 1),
+      makeMsg(sourceRoomId, '$a', 2, '$p'),
+      makeMsg(sourceRoomId, '$b', 3, '$p'),
+    ];
+    cache.byRoom.set(sourceRoomId, sourceEvents);
+    const sourceRoom = makeMockRoom(sourceRoomId, sourceEvents);
+    const targetRoom = makeMockRoom(targetRoomId, []);
+    const mx = newClient();
+    vi.spyOn(mx, 'getRoom').mockImplementation((id) =>
+      id === sourceRoomId ? sourceRoom : id === targetRoomId ? targetRoom : null
+    );
+    const crossRoot = makeMsg(
+      targetRoomId,
+      '$f',
+      10,
+      undefined,
+      threadForkContent({ roomId: sourceRoomId, threadId: '$p', eventId: '$b' })
+    );
+
+    const view = await renderPrefix(targetRoom, mx, {} as BackfillScheduler, crossRoot);
+    const loaded = view.results.at(-1)!;
+    expect(ids(loaded.events)).toEqual(['$p', '$a', '$b']);
+    expect(loaded.parent).toEqual({ roomId: sourceRoomId, threadId: '$p', eventId: '$b' });
+    expect(cache.load).toHaveBeenCalledWith(expect.objectContaining({ roomId: sourceRoomId }));
+    expect(cache.load).not.toHaveBeenCalledWith(expect.objectContaining({ roomId: targetRoomId }));
+
+    // Edit in source room updates the prefix event.
+    const edit = makeMsg(sourceRoomId, '$edit', 20, undefined, {
+      body: '* updated',
+      'm.new_content': { msgtype: 'm.text', body: 'updated' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$a' },
+    });
+    await act(async () => {
+      mx.emit(ClientEvent.Event, edit);
+    });
+    expect(view.results.at(-1)!.events[1]!.getContent().body).toBe('updated');
+    await view.unmount();
+  });
+
+  it('returns empty events for an unjoined source room, reloads when joined, and clears when left', async () => {
+    session.value = { sessionId: 'session' };
+    cache.load.mockClear();
+    const sourceEvents = [makeMsg(sourceRoomId, '$p', 1), makeMsg(sourceRoomId, '$a', 2, '$p')];
+    cache.byRoom.set(sourceRoomId, sourceEvents);
+    const sourceRoom = makeMockRoom(sourceRoomId, sourceEvents, 'leave');
+    const targetRoom = makeMockRoom(targetRoomId, []);
+    const mx = newClient();
+    let joined = false;
+    vi.spyOn(mx, 'getRoom').mockImplementation((id) => {
+      if (id === targetRoomId) return targetRoom;
+      if (id === sourceRoomId) return joined ? sourceRoom : null;
+      return null;
+    });
+    const crossRoot = makeMsg(
+      targetRoomId,
+      '$f',
+      10,
+      undefined,
+      threadForkContent({ roomId: sourceRoomId, threadId: '$p', eventId: '$a' })
+    );
+
+    const view = await renderPrefix(targetRoom, mx, {} as BackfillScheduler, crossRoot);
+    expect(view.results.at(-1)!).toEqual({
+      events: [],
+      parent: { roomId: sourceRoomId, threadId: '$p', eventId: '$a' },
+    });
+    expect(cache.load).not.toHaveBeenCalled();
+
+    // Join the source room -> reloads prefix.
+    joined = true;
+    sourceRoom.setMembership('join');
+    await act(async () => {
+      mx.emit(RoomEvent.MyMembership, sourceRoom, 'join', 'leave');
+    });
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a']);
+
+    // Leave the source room -> clears prefix immediately.
+    sourceRoom.setMembership('leave');
+    await act(async () => {
+      mx.emit(RoomEvent.MyMembership, sourceRoom, 'leave', 'join');
+    });
+    expect(view.results.at(-1)!.events).toEqual([]);
     await view.unmount();
   });
 });

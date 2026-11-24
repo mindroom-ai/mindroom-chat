@@ -109,10 +109,11 @@ const belongsToSpaceSection = (
 
 /**
  * Flat ordered room sections for a Space sidebar: the active space's Rooms section first, followed
- * by joined descendant sub-spaces in pre-order DFS. Empty sub-spaces are kept only when
- * `canEditSpace` allows adding rooms to them (non-editable empty organizers are skipped without
- * hiding their populated descendants); an empty root Rooms section is kept when no sub-space
- * sections are shown or when `canEditSpace(rootSpaceId)` is true.
+ * by joined descendant sub-spaces in pre-order DFS. A room listed in a sub-space is left out of
+ * every space above it, so a room in both the space and its sub-space shows once. Empty sub-spaces
+ * are kept only when `canEditSpace` allows adding rooms to them (non-editable empty organizers are
+ * skipped without hiding their populated descendants); an empty root Rooms section is kept when no
+ * sub-space sections are shown or when `canEditSpace(rootSpaceId)` is true.
  */
 export const getSpaceRoomSections = (
   mx: MatrixClient,
@@ -153,18 +154,36 @@ export const getSpaceRoomSections = (
     };
   };
 
-  const subspaceSections = getDescendantSubspaceEntries(
+  const builtRoot = buildSection(rootSpaceId, true, undefined, []);
+  const builtSubspaces = getDescendantSubspaceEntries(
     mx,
     rootSpaceId,
     joinedRoomIds,
     roomToParents
-  )
-    .map(({ spaceId, parentSpaceId, ancestorSpaceIds }) =>
-      buildSection(spaceId, false, parentSpaceId, ancestorSpaceIds)
-    )
+  ).map(({ spaceId, parentSpaceId, ancestorSpaceIds }) =>
+    buildSection(spaceId, false, parentSpaceId, ancestorSpaceIds)
+  );
+  // A room that a sub-space lists shows there only, not again in the spaces above it.
+  const withoutRoomsListedBelow = (section: SpaceRoomSection): SpaceRoomSection => {
+    const listedBelow = new Set(
+      builtSubspaces
+        .filter((other) => other.ancestorSpaceIds.includes(section.spaceId))
+        .flatMap((other) => other.scopeRoomsByName)
+    );
+    if (listedBelow.size === 0) return section;
+    const scopeRoomsByName = section.scopeRoomsByName.filter((id) => !listedBelow.has(id));
+    return {
+      ...section,
+      isEmpty: scopeRoomsByName.length === 0,
+      ownRoomsByName: section.ownRoomsByName.filter((id) => !listedBelow.has(id)),
+      scopeRoomsByName,
+    };
+  };
+  const rootSection = withoutRoomsListedBelow(builtRoot);
+  const subspaceSections = builtSubspaces
+    .map(withoutRoomsListedBelow)
     .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
 
-  const rootSection = buildSection(rootSpaceId, true, undefined, []);
   if (rootSection.isEmpty && subspaceSections.length > 0 && !canEditSpace(rootSpaceId)) {
     return subspaceSections;
   }

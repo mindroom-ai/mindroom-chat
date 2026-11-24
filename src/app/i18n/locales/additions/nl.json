@@ -1658,7 +1658,17 @@
     "forking": "{{title}} afsplitsen",
     "continueInNewThread": "Verdergaan in een nieuwe thread",
     "forkCount_one": "{{count}} afsplitsing",
-    "forkCount_other": "{{count}} afsplitsingen"
+    "forkCount_other": "{{count}} afsplitsingen",
+    "forkedFromInRoom": "Afgesplitst van {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Afgesplitst uit een andere kamer",
+    "forkingIntoRoom": "{{title}} afsplitsen naar {{room}}",
+    "forkToRoom": "Afsplitsen naar kamer…",
+    "forkToRoomTitle": "Afsplitsen naar kamer",
+    "forkToRoomSearchPlaceholder": "Kamers zoeken…",
+    "forkToRoomEmpty": "Geen overeenkomende kamers",
+    "forkToRoomAgentWarning": "Agenten in deze kamer zitten niet in {{room}} en zien de oorspronkelijke thread niet",
+    "forkingFromRoom": "Afsplitsen uit {{room}}",
+    "forkDraftAgentWarning": "Agenten hier zitten niet in {{room}} en zien de oorspronkelijke thread niet"
   },
   "activity": {
     "title": "Activiteit",

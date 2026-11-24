@@ -3,6 +3,7 @@ import { app, BrowserWindow, clipboard, Menu, screen } from 'electron';
 import { APP_ORIGIN } from './bundleProtocol';
 import { buildContextMenu } from './menu';
 import { guardWebContents } from './security';
+import { attachTrackpadSwipe } from './trackpadSwipe';
 import {
   MIN_HEIGHT,
   MIN_WIDTH,
@@ -189,6 +190,7 @@ export const showMainWindow = (): BrowserWindow => {
   });
 
   attachContextMenu(win);
+  attachTrackpadSwipe(win);
 
   win.webContents.on('will-prevent-unload', () => {
     quitting = false;

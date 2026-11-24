@@ -736,6 +736,72 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     expect(signals.newsTs).toBe(2000 + FINISHED_AFTER_MS + 60_000);
   });
 
+  it('previews long-text m.file replies as text while keeping regular files as file', async () => {
+    const longTextMeta = { version: 2, encoding: 'matrix_event_content_json' };
+    const { room: direct } = await setup(ME, [
+      event({
+        id: '$long',
+        ts: 2000,
+        sender: AGENT,
+        content: {
+          msgtype: 'm.file',
+          body: '🔧 `read_file` [1]\nDetailed **summary** ready.',
+          url: 'mxc://example.org/sidecar-1',
+          'io.mindroom.long_text': longTextMeta,
+        },
+      }),
+    ]);
+    expect(readThreadSignals(direct, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'text',
+      text: expect.stringContaining('Detailed summary ready.'),
+      localization: { kind: 'tools', count: 1, prose: 'Detailed summary ready.' },
+    });
+
+    const { room: edited } = await setup(
+      ME,
+      [
+        event({ id: '$stream', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } }),
+        edit('$stream-final', '$stream', 3000, {
+          msgtype: 'm.file',
+          body: 'Final edited long reply.',
+          url: 'mxc://example.org/sidecar-2',
+          'io.mindroom.long_text': longTextMeta,
+        }),
+      ],
+      { opened: true }
+    );
+    expect(readThreadSignals(edited, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'text',
+      text: 'Final edited long reply.',
+    });
+
+    const { room: blank } = await setup(ME, [
+      event({
+        id: '$blank-long',
+        ts: 2000,
+        sender: AGENT,
+        content: {
+          msgtype: 'm.file',
+          body: '   ',
+          url: 'mxc://example.org/sidecar-3',
+          'io.mindroom.long_text': longTextMeta,
+        },
+      }),
+    ]);
+    expect(readThreadSignals(blank, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'text',
+      text: 'File',
+      localization: { kind: 'file' },
+    });
+
+    const { room: plainFile } = await setup(ME, [
+      event({ id: '$plain-file', ts: 2000, content: { msgtype: 'm.file', body: 'notes.pdf' } }),
+    ]);
+    expect(readThreadSignals(plainFile, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'file',
+    });
+  });
+
   it('hands the last reply to plugins as the timeline does, its newest edit included', async () => {
     const card = { 'com.example.greeting': { text: 'Hello' } };
     const { room } = await setup(
