@@ -317,6 +317,50 @@ describe('installDesktopHistorySwipe', () => {
     }
   });
 
+  it('preserves early-wheel scroller rejection when matching begin IPC arrives 5ms later', () => {
+    const scroller = document.createElement('div');
+    const child = document.createElement('span');
+    scroller.appendChild(child);
+    document.body.appendChild(scroller);
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 800 });
+    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 300 });
+    mockComputedStyles(
+      new Map<Element, Partial<CSSStyleDeclaration>>([
+        [scroller, { overflowX: 'auto', direction: 'ltr' }],
+      ])
+    );
+
+    let clock = 1000;
+    const stop = installDesktopHistorySwipe(window, {
+      isMac: () => true,
+      allowUntrusted: true,
+      now: () => clock,
+    });
+    try {
+      // Wheel #1 crosses 12px before begin IPC while scroller is at scrollLeft = 5 and scrolls to 0
+      scroller.scrollLeft = 5;
+      fireWheel({ deltaX: -16 }, child);
+      scroller.scrollLeft = 0;
+
+      // Matching begin arrives 5ms later: must confirm rejection rather than resetting to idle
+      clock += 5;
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      fireWheel({ deltaX: -40 }, child);
+      fireWheel({ deltaX: -40 }, child);
+      fireWheel({ deltaX: -40 }, child);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(indicatorEl()).toBeNull();
+      expect(backSpy).not.toHaveBeenCalled();
+
+      // A separate fresh stroke starting at scrollLeft = 0 after end navigates Back
+      clock += 20;
+      runSwipe(BACK_SWIPE, { target: child });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      stop();
+    }
+  });
+
   it('blocks overscroll-behavior-x: contain while allowing overscroll-behavior-y: contain', () => {
     const blocked = document.createElement('div');
     const allowed = document.createElement('div');

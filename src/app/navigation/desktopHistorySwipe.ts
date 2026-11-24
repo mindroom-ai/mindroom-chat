@@ -228,9 +228,16 @@ export const installDesktopHistorySwipe = (
   };
 
   const reset = (phase: 'idle' | 'ignored' | 'committed' = 'idle'): void => {
+    const unconfirmedIgnored =
+      phase === 'ignored' && ((isActive() && !g.hasBegin) || (g.phase === 'idle' && !pendingBegin));
+    const startedAt = unconfirmedIgnored ? (isActive() ? g.startedAt : now()) : 0;
     clearTimer();
     pendingBegin = false;
-    g = emptyGesture(phase);
+    g = {
+      ...emptyGesture(phase),
+      hasBegin: phase === 'ignored' ? !unconfirmedIgnored : false,
+      startedAt,
+    };
     indicator.hide();
     if (phase !== 'idle') armTimer(STALE_CLEANUP_MS);
   };
@@ -293,10 +300,18 @@ export const installDesktopHistorySwipe = (
     if (event.type !== 'scroll-gesture') return;
 
     if (event.phase === 'begin') {
-      if (isActive() && !g.hasBegin && now() - g.startedAt < BEGIN_RACE_MS) {
+      if (
+        (isActive() || g.phase === 'ignored') &&
+        !g.hasBegin &&
+        now() - g.startedAt < BEGIN_RACE_MS
+      ) {
         g.hasBegin = true;
-        clearTimer();
-        renderIndicator();
+        if (isActive()) {
+          clearTimer();
+          renderIndicator();
+        } else {
+          armTimer(STALE_CLEANUP_MS);
+        }
       } else {
         reset('idle');
         if (swipeTrackingEnabled) {
