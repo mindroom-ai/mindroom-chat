@@ -858,4 +858,100 @@ describe('WorkflowPanel', () => {
       'txn-wf-panel'
     );
   });
+
+  it('remeasures SVG edges when folded group membership changes even with unchanged edges and size', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const id = this.dataset?.workflowChipId;
+        const n = id ? Number(id.slice(1)) : 0;
+        return {
+          x: n * 10,
+          y: n * 40,
+          top: n * 40,
+          left: n * 10,
+          right: n * 10 + 100,
+          bottom: n * 40 + 30,
+          width: 100,
+          height: 30,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    try {
+      const nodes = Array.from({ length: 25 }, (_, i) =>
+        makeNode(`n${String(i + 1).padStart(2, '0')}`, {
+          group: 'g1',
+          status: 'running',
+          startedAt: 1795389740 + i,
+        })
+      );
+      const edges = [{ from: 'n01', to: 'n02', count: 2 }];
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame({
+          phases: ['Audit'],
+          groups: [
+            { id: 'g1', kind: 'foreach', phase: 0, parent: null, total: 25, done: 0, failed: 0 },
+          ],
+          nodes,
+          edges,
+        }),
+        Date.now()
+      );
+
+      render(
+        <JotaiProvider store={store}>
+          <MatrixClientProvider value={mx}>
+            <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+          </MatrixClientProvider>
+        </JotaiProvider>
+      );
+      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
+      const edgePaths = () =>
+        document.querySelectorAll('[data-testid="workflow-panel"] > div svg path');
+      expect(edgePaths()).toHaveLength(1);
+
+      // Completing n01 pushes it out of the 24 running visible chips while edges remain identical.
+      act(() => {
+        wfStore.ingest(
+          ROOM_ID,
+          AGENT,
+          {
+            run: RUN,
+            sid: '1795389735000-a1b2c3d4',
+            seq: 2,
+            meta: makeMeta(),
+            delta: {
+              nodes: [{ ...nodes[0]!, status: 'completed', endedAt: 1795389800 }],
+              groups: [
+                {
+                  id: 'g1',
+                  kind: 'foreach',
+                  phase: 0,
+                  parent: null,
+                  total: 25,
+                  done: 1,
+                  failed: 0,
+                },
+              ],
+            },
+          },
+          Date.now()
+        );
+      });
+      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeNull();
+      expect(edgePaths()).toHaveLength(0);
+
+      // Expanding the group brings n01 back and restores the measured SVG edge.
+      fireEvent.click(screen.getByRole('button', { name: 'Show 1 more' }));
+      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
+      expect(edgePaths()).toHaveLength(1);
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
 });

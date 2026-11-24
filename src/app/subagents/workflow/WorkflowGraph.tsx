@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -50,8 +50,9 @@ type RenderCtx = {
   t: TFunction;
   language: string;
   onSelect: (id: string) => void;
+  onLayoutChange: () => void;
 };
-type ChipProps = Omit<RenderCtx, 'subagentsByRun' | 'selectedId'> & {
+type ChipProps = Omit<RenderCtx, 'subagentsByRun' | 'selectedId' | 'onLayoutChange'> & {
   node: WorkflowRunNode;
   subagentRun?: SubagentRun;
   selected: boolean;
@@ -174,7 +175,10 @@ function WorkflowGroupBox({
             size="300"
             variant="Secondary"
             fill="Soft"
-            onClick={() => setExpanded(true)}
+            onClick={() => {
+              setExpanded(true);
+              ctx.onLayoutChange();
+            }}
           >
             <Text size="B300">
               {ctx.t('mindroomUi.workflowRun.panel.showMore', { count: more })}
@@ -227,7 +231,7 @@ export function WorkflowGraphCanvas({
   bands,
   edges,
   ...rest
-}: Omit<RenderCtx, 't' | 'language'> & {
+}: Omit<RenderCtx, 't' | 'language' | 'onLayoutChange'> & {
   bands: readonly WorkflowGraphBand[];
   edges: readonly WorkflowRunEdge[];
 }) {
@@ -236,42 +240,48 @@ export function WorkflowGraphCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const edgesRef = useRef(edges);
   edgesRef.current = edges;
-  const edgesKey = useMemo(
-    () => edges.map((e) => `${e.from}>${e.to}:${e.count}`).join(','),
-    [edges]
-  );
+  const [layoutTick, setLayoutTick] = useState(0);
+  const onLayoutChange = useCallback(() => setLayoutTick((n) => n + 1), []);
   const [paths, setPaths] = useState<{ key: string; d: string }[]>([]);
 
-  useLayoutEffect(() => {
-    const measure = () => {
-      const canvas = canvasRef.current;
-      if (!canvas || !edgesRef.current.length) return setPaths((p) => (p.length ? [] : p));
-      const root = canvas.getBoundingClientRect();
-      const boxes = new Map<string, Box>();
-      canvas.querySelectorAll<HTMLElement>('[data-workflow-chip-id]').forEach((el) => {
-        const id = el.dataset.workflowChipId;
-        if (!id) return;
-        const r = el.getBoundingClientRect();
-        boxes.set(id, {
-          x: r.left - root.left,
-          y: r.top - root.top,
-          width: r.width,
-          height: r.height,
-        });
-      });
-      const next = edgesRef.current.flatMap((e) => {
-        const [a, b] = [boxes.get(e.from), boxes.get(e.to)];
-        return a && b ? [{ key: `${e.from}->${e.to}`, d: edgePath(a, b) }] : [];
-      });
-      return setPaths((p) =>
-        p.length === next.length && p.every((x, i) => x.key === next[i]?.key && x.d === next[i]?.d)
-          ? p
-          : next
-      );
-    };
-    measure();
+  const measure = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !edgesKey || typeof ResizeObserver === 'undefined') return undefined;
+    if (!canvas || !edgesRef.current.length) return setPaths((p) => (p.length ? [] : p));
+    const root = canvas.getBoundingClientRect();
+    const boxes = new Map<string, Box>();
+    canvas.querySelectorAll<HTMLElement>('[data-workflow-chip-id]').forEach((el) => {
+      const id = el.dataset.workflowChipId;
+      if (!id) return;
+      const r = el.getBoundingClientRect();
+      boxes.set(id, {
+        x: r.left - root.left,
+        y: r.top - root.top,
+        width: r.width,
+        height: r.height,
+      });
+    });
+    const next = edgesRef.current.flatMap((e) => {
+      const [a, b] = [boxes.get(e.from), boxes.get(e.to)];
+      return a && b ? [{ key: `${e.from}->${e.to}`, d: edgePath(a, b) }] : [];
+    });
+    return setPaths((p) =>
+      p.length === next.length && p.every((x, i) => x.key === next[i]?.key && x.d === next[i]?.d)
+        ? p
+        : next
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    void bands;
+    void edges;
+    void layoutTick;
+    measure();
+  }, [bands, edges, layoutTick, measure]);
+
+  const hasEdges = edges.length > 0;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasEdges || typeof ResizeObserver === 'undefined') return undefined;
     let rafId = 0;
     const observer = new ResizeObserver(() => {
       if (!rafId)
@@ -285,9 +295,9 @@ export function WorkflowGraphCanvas({
       observer.disconnect();
       if (rafId) window.cancelAnimationFrame(rafId);
     };
-  }, [edgesKey]);
+  }, [hasEdges, measure]);
 
-  const ctx: RenderCtx = { ...rest, t, language };
+  const ctx: RenderCtx = { ...rest, t, language, onLayoutChange };
   return (
     <div ref={canvasRef} className={css.GraphCanvas}>
       {paths.length > 0 && (
