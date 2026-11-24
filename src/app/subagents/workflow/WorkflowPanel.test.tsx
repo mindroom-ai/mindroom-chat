@@ -108,7 +108,11 @@ const makeSnapshotFrame = (
 
 const makeClient = ({
   sendEvent = vi.fn(async () => ({ event_id: '$sent-1' })),
-}: { sendEvent?: ReturnType<typeof vi.fn> } = {}) => {
+  jobs = [],
+}: {
+  sendEvent?: ReturnType<typeof vi.fn>;
+  jobs?: Array<Record<string, unknown>>;
+} = {}) => {
   const powerLevelsEvent = new MatrixEvent({
     type: 'm.room.power_levels',
     state_key: '',
@@ -131,7 +135,19 @@ const makeClient = ({
     getStateEvents: (type: string, stateKey?: string) => {
       if (type === 'm.room.power_levels') return powerLevelsEvent;
       if (type === 'm.room.create') return createEvent;
-      if (type === 'io.mindroom.background_jobs' && stateKey === undefined) return [];
+      if (type === 'io.mindroom.background_jobs' && stateKey === undefined) {
+        return jobs.length > 0
+          ? [
+              new MatrixEvent({
+                type: 'io.mindroom.background_jobs',
+                state_key: AGENT,
+                room_id: ROOM_ID,
+                sender: AGENT,
+                content: { jobs },
+              }),
+            ]
+          : [];
+      }
       return null;
     },
     on: vi.fn(),
@@ -140,6 +156,7 @@ const makeClient = ({
   };
   const room = Object.assign(new EventEmitter(), {
     roomId: ROOM_ID,
+    myUserId: VIEWER,
     currentState,
     getLiveTimeline: () => ({ getState: () => currentState }),
     getMember: (id: string) => ({
@@ -1128,13 +1145,12 @@ describe('WorkflowPanel', () => {
     const { mx, room } = makeClient({
       jobs: [
         {
-          jobId: 'job-wf-1',
-          agentId: AGENT,
-          threadId: null,
+          job_id: 'job-wf-1',
+          thread_id: null,
           kind: 'workflow',
           tool: 'workflow',
           status: 'running',
-          startedAt: '2026-11-23T00:00:00Z',
+          started_at: '2026-11-23T00:00:00Z',
           workflow: RUN,
         },
       ],
@@ -1152,16 +1168,25 @@ describe('WorkflowPanel', () => {
       Date.now()
     );
 
-    render(
+    const { rerender } = render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Audit auth\/session\.py/ }));
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop agent' })).toBeTruthy();
+
+    rerender(
       <JotaiProvider store={store}>
         <MatrixClientProvider value={mx}>
           <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} readOnly />
         </MatrixClientProvider>
       </JotaiProvider>
     );
-
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Audit auth\/session\.py/ }));
-    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Stop agent' })).toBeNull();
   });
 });

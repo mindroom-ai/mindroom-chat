@@ -556,7 +556,7 @@ describe('Room', { timeout: 30_000 }, () => {
       await act(async () => {
         draftRenderer?.unmount();
         threadRenderer?.unmount();
-        closeWorkflowRunPanel(store);
+        closeWorkflowRunPanel(store, '!room:example.org');
       });
     }
   });
