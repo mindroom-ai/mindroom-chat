@@ -19,25 +19,61 @@ import {
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { serveBuild } from '../helpers/staticBuildServer';
 
-// Production build with the example client plugin (plus any directories in MINDROOM_CLIENT_PLUGINS
-// if set), served against the disposable homeserver. Verifies Settings -> Plugins toggles a plugin
-// off immediately without reload, persists across reloads via io.mindroom.settings, keeps Settings
-// -> Plugins visible while disabled, and restores the plugin when toggled back on.
+// Production build with the default-on example client plugin and a temporary default-off opt-in
+// fixture plugin (plus any directories in MINDROOM_CLIENT_PLUGINS if set), served against the
+// disposable homeserver. Verifies Settings -> Plugins toggles both immediately without reload,
+// persists across reloads via io.mindroom.settings, keeps Settings -> Plugins visible, and
+// restores both when toggled back.
 // Set PLUGIN_SETTINGS_SHOTS=<dir> to save dark and light screenshots of Settings -> Plugins.
 const EXAMPLE_PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const GREETING = 'Good morning, orchard';
 const PLAIN = 'Which trees need pruning?';
 
-const resolveBuildPlugins = (): string => {
+const createOptInPlugin = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'mindroom-opt-in-plugin-'));
+  writeFileSync(
+    join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'opt-in-client-plugin',
+      version: '1.0.0',
+      private: true,
+      description: 'Default-off fixture plugin for Settings -> Plugins E2E.',
+      mindroomClientPlugin: {
+        id: 'opt-in',
+        name: 'Opt-in',
+        apiVersion: 67,
+        defaultEnabled: false,
+        entry: './index.tsx',
+      },
+    })
+  );
+  writeFileSync(
+    join(dir, 'index.tsx'),
+    [
+      "import type { ClientPlugin, ThreadCardBadgeProps } from '@mindroom/client-sdk/core';",
+      'function OptInBadge({ room, threadId }: ThreadCardBadgeProps) {',
+      '  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);',
+      "  const greeting = root?.getContent()?.['com.example.greeting'];",
+      "  if (typeof greeting !== 'object' || greeting === null) return null;",
+      '  return <span data-opt-in-plugin-badge>Opt-in</span>;',
+      '}',
+      'const plugin: ClientPlugin = { threadCardBadges: [{ Component: OptInBadge }] };',
+      'export default plugin;',
+    ].join('\n')
+  );
+  return dir;
+};
+
+const resolveBuildPlugins = (optInDir: string): string => {
   const configured = (process.env.MINDROOM_CLIENT_PLUGINS ?? '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-  if (configured.some((dir) => resolve(dir) === EXAMPLE_PLUGIN)) {
-    return configured.join(',');
-  }
-  return [...configured, EXAMPLE_PLUGIN].join(',');
+  const withExample = configured.some((dir) => resolve(dir) === EXAMPLE_PLUGIN)
+    ? configured
+    : [...configured, EXAMPLE_PLUGIN];
+  return [...withExample, optInDir].join(',');
 };
 
 test.use({ viewport: { width: 1440, height: 900 }, video: 'off' });
@@ -46,15 +82,17 @@ test.describe.configure({ mode: 'serial' });
 type Seed = { person: DisposableUser; roomId: string; greetingRoot: string; plainRoot: string };
 
 let build: string | undefined;
+let optInPlugin: string | undefined;
 let shippedConfig: Record<string, unknown> = {};
 let seeded: Seed | undefined;
 
 test.beforeAll(async () => {
   if (!(await disposableHomeserverIsUp())) return;
   test.setTimeout(10 * 60_000);
+  optInPlugin = createOptInPlugin();
   build = mkdtempSync(join(tmpdir(), 'mindroom-plugin-settings-build-'));
   const result = spawnSync('npx', ['vite', 'build', '--outDir', build, '--emptyOutDir'], {
-    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: resolveBuildPlugins() },
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: resolveBuildPlugins(optInPlugin) },
     encoding: 'utf8',
     timeout: 9 * 60_000,
   });
@@ -112,6 +150,7 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   if (build) rmSync(build, { recursive: true, force: true });
+  if (optInPlugin) rmSync(optInPlugin, { recursive: true, force: true });
 });
 
 test.beforeEach(async () => {
@@ -142,8 +181,11 @@ const onBuild = async (
 const card = (page: Page, rootId: string) =>
   page.locator(`[data-compact-room-view] button[data-thread-root-id="${rootId}"]`);
 
-const badgeOf = (page: Page, rootId: string) =>
+const exampleBadgeOf = (page: Page, rootId: string) =>
   card(page, rootId).locator('[data-compact-card-metadata] [data-example-plugin-badge]');
+
+const optInBadgeOf = (page: Page, rootId: string) =>
+  card(page, rootId).locator('[data-compact-card-metadata] [data-opt-in-plugin-badge]');
 
 const openPluginsSettings = async (page: Page) => {
   await chooseFromAccountMenu(page, 'Settings');
@@ -155,16 +197,19 @@ const openPluginsSettings = async (page: Page) => {
   return dialog;
 };
 
-test('Settings -> Plugins toggles a bundled plugin off immediately, persists across reload, and turns it back on', ({
+test('Settings -> Plugins toggles default-on and default-off plugins immediately, persists across reload, and restores both', ({
   browser,
 }) =>
   onBuild(browser, {}, async (page, { greetingRoot, plainRoot }) => {
     await expect(card(page, plainRoot)).toBeVisible({ timeout: 60_000 });
-    await expect(badgeOf(page, greetingRoot)).toHaveText('Greeting', { timeout: 60_000 });
+    await expect(exampleBadgeOf(page, greetingRoot)).toHaveText('Greeting', { timeout: 60_000 });
+    await expect(optInBadgeOf(page, greetingRoot)).toHaveCount(0);
 
     const dialog = await openPluginsSettings(page);
     const exampleSwitch = dialog.getByRole('switch', { name: 'Example', exact: true });
+    const optInSwitch = dialog.getByRole('switch', { name: 'Opt-in', exact: true });
     await expect(exampleSwitch).toBeChecked();
+    await expect(optInSwitch).not.toBeChecked();
 
     const shotsDir = process.env.PLUGIN_SETTINGS_SHOTS?.trim();
     if (shotsDir) {
@@ -179,22 +224,31 @@ test('Settings -> Plugins toggles a bundled plugin off immediately, persists acr
 
     await exampleSwitch.click();
     await expect(exampleSwitch).not.toBeChecked();
+    await optInSwitch.click();
+    await expect(optInSwitch).toBeChecked();
 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(badgeOf(page, greetingRoot)).toHaveCount(0, { timeout: 15_000 });
+    await expect(exampleBadgeOf(page, greetingRoot)).toHaveCount(0, { timeout: 15_000 });
+    await expect(optInBadgeOf(page, greetingRoot)).toHaveText('Opt-in', { timeout: 15_000 });
 
     await page.reload();
     await expect(card(page, greetingRoot)).toBeVisible({ timeout: 60_000 });
-    await expect(badgeOf(page, greetingRoot)).toHaveCount(0);
+    await expect(exampleBadgeOf(page, greetingRoot)).toHaveCount(0);
+    await expect(optInBadgeOf(page, greetingRoot)).toHaveText('Opt-in', { timeout: 60_000 });
 
     const reopened = await openPluginsSettings(page);
-    const persistedSwitch = reopened.getByRole('switch', { name: 'Example', exact: true });
-    await expect(persistedSwitch).not.toBeChecked();
-    await persistedSwitch.click();
-    await expect(persistedSwitch).toBeChecked();
+    const persistedExample = reopened.getByRole('switch', { name: 'Example', exact: true });
+    const persistedOptIn = reopened.getByRole('switch', { name: 'Opt-in', exact: true });
+    await expect(persistedExample).not.toBeChecked();
+    await expect(persistedOptIn).toBeChecked();
+    await persistedExample.click();
+    await expect(persistedExample).toBeChecked();
+    await persistedOptIn.click();
+    await expect(persistedOptIn).not.toBeChecked();
 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(badgeOf(page, greetingRoot)).toHaveText('Greeting', { timeout: 60_000 });
+    await expect(exampleBadgeOf(page, greetingRoot)).toHaveText('Greeting', { timeout: 60_000 });
+    await expect(optInBadgeOf(page, greetingRoot)).toHaveCount(0, { timeout: 15_000 });
   }));

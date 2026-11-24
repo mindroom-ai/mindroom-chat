@@ -22,6 +22,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   id,
   tag: `${id}@1.0.0`,
   displayName: id,
+  defaultEnabled: true,
   messageRenderers,
   pages: [],
   roomHeaderSlot: [],

@@ -26,6 +26,7 @@ const plugins = vi.hoisted(() => [] as RegisteredPlugin[]);
 const previewPlugin = {
   id: 'cards',
   tag: 'cards@1.0.0',
+  defaultEnabled: true,
   messageRenderers: [{ match: () => true, Component: () => null, preview: () => 'Card' }],
 } as unknown as RegisteredPlugin;
 plugins.push(previewPlugin);

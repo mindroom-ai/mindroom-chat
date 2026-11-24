@@ -272,6 +272,7 @@ const greetingPlugin = (preview: (text: string) => string = (text) => `Greeting:
   ({
     id: 'example',
     tag: 'example@1.0.0',
+    defaultEnabled: true,
     messageRenderers: [
       {
         match: (event: { content: Record<string, unknown> }) =>

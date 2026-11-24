@@ -368,6 +368,7 @@ describe("plugins' entries", () => {
       id: 'example',
       tag: 'example@1.0.0',
       displayName: 'Example',
+      defaultEnabled: true,
       conversationCovers: [],
       messageRenderers: [],
       pages: [],

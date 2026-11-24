@@ -2,21 +2,23 @@ import { useMemo } from 'react';
 import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
 import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
+import type { PluginPreferences } from '../preferences/accountSettings';
+import { registeredPlugins, type RegisteredPlugin } from './registry';
+
+export { isPluginEnabled, usePluginConfig } from './pluginDeploymentConfig';
 
 /**
- * `plugins.<id>` of config.json: `enabled` and the settings the plugin documents. `ClientConfig`
- * does not type the section, whose keys each plugin defines.
+ * Whether an account's preferences leave `plugin` on (independent of deployment `config.json`):
+ * `disabledPlugins` takes precedence over `enabledPlugins`, which takes precedence over
+ * `plugin.defaultEnabled`.
  */
-const pluginSection = (config: ClientConfig | undefined, pluginId: string): unknown => {
-  const sections: Readonly<Record<string, unknown>> | undefined = config;
-  const plugins = sections?.plugins;
-  return isRecord(plugins) && Object.hasOwn(plugins, pluginId) ? plugins[pluginId] : undefined;
-};
-
-/** Whether config.json leaves a plugin on: anything but `plugins.<id>.enabled: false` does. */
-export const isPluginEnabled = (config: ClientConfig | undefined, pluginId: string): boolean => {
-  const section = pluginSection(config, pluginId);
-  return !isRecord(section) || section.enabled !== false;
+export const isPluginPreferredEnabled = (
+  plugin: Pick<RegisteredPlugin, 'id' | 'defaultEnabled'>,
+  preferences: PluginPreferences
+): boolean => {
+  if (preferences.disabledPlugins.includes(plugin.id)) return false;
+  if (preferences.enabledPlugins.includes(plugin.id)) return true;
+  return plugin.defaultEnabled;
 };
 
 /**
@@ -44,18 +46,34 @@ export const withDisabledPlugins = (
 };
 
 /**
- * The effective client configuration for plugin surfaces: deployment `config.json` overlaid with
- * the signed-in account's `disabledPlugins` from `io.mindroom.settings`.
+ * Returns `config` overlaid with `enabled: false` for every plugin turned off by `preferences`
+ * or by `defaultEnabled: false` without an opt-in in `preferences.enabledPlugins`. Never overrides
+ * deployment `plugins.<id>.enabled: false`, and returns `config` unchanged when none are disabled.
  */
-export const usePluginClientConfig = (): ClientConfig | undefined => {
-  const config = useOptionalClientConfig();
-  const { disabledPlugins } = useAccountSettings();
-  return useMemo(() => withDisabledPlugins(config, disabledPlugins), [config, disabledPlugins]);
+export const withPluginPreferences = (
+  config: ClientConfig | undefined,
+  plugins: readonly Pick<RegisteredPlugin, 'id' | 'defaultEnabled'>[],
+  preferences: PluginPreferences
+): ClientConfig | undefined => {
+  const disabledIds = new Set<string>(preferences.disabledPlugins);
+  for (const plugin of plugins) {
+    if (!isPluginPreferredEnabled(plugin, preferences)) {
+      disabledIds.add(plugin.id);
+    }
+  }
+  return withDisabledPlugins(config, [...disabledIds]);
 };
 
 /**
- * A plugin's own section of the config.json the app shows, read while rendering, so a refreshed
- * configuration reaches the plugin. Unchecked: the plugin checks its settings itself.
+ * The effective client configuration for plugin surfaces: deployment `config.json` overlaid with
+ * each plugin's `defaultEnabled` and the signed-in account's `disabledPlugins` / `enabledPlugins`
+ * from `io.mindroom.settings`.
  */
-export const usePluginConfig = (pluginId: string): unknown =>
-  pluginSection(useOptionalClientConfig(), pluginId);
+export const usePluginClientConfig = (): ClientConfig | undefined => {
+  const config = useOptionalClientConfig();
+  const { disabledPlugins, enabledPlugins } = useAccountSettings();
+  return useMemo(
+    () => withPluginPreferences(config, registeredPlugins, { disabledPlugins, enabledPlugins }),
+    [config, disabledPlugins, enabledPlugins]
+  );
+};
