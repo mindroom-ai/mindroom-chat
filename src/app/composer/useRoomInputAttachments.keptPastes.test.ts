@@ -193,7 +193,11 @@ describe('large pastes in a draft restored after a reload', () => {
     editor.children = [
       {
         type: 'paragraph',
-        children: [{ text: 'Copied: ' }, createRoomInputPasteMarkerElement(marker), { text: '' }],
+        children: [
+          { text: 'Copied: ' },
+          createRoomInputPasteMarkerElement({ ...marker, raw: createPasteMarker(marker) }),
+          { text: '' },
+        ],
       } as unknown as Descendant,
     ];
     const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };

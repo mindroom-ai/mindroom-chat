@@ -98,8 +98,13 @@ const makeDoc = (text = ''): Descendant[] => [
 ];
 const readEditorText = (editor: Editor): string =>
   editor.children.map((n) => Node.string(n)).join('\n');
-const makeRoom = (roomId = '!room:example.org', name = 'General'): Room =>
-  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] }) as unknown as Room;
+const makeRoom = (roomId = '!room:example.org', name = 'General', encrypted = false): Room =>
+  ({
+    roomId,
+    name,
+    hasEncryptionStateEvent: () => encrypted,
+    getMembers: () => [],
+  }) as unknown as Room;
 
 const makeMockSession = (
   initialPhase: DictationSnapshot['phase'] = 'recording',
@@ -793,7 +798,8 @@ describe('dictationSendHandoff', () => {
       encInfo: { v: 'v2' } as never,
       metadata: { markedAsSpoiler: false },
     };
-    const encRoom = makeRoom({ hasEncryptionStateEvent: () => true });
+    const encRoom = makeRoom('!enc:example.org', 'Encrypted', true);
+    expect(encRoom.hasEncryptionStateEvent()).toBe(true);
     const { access: askAttachments, getEnrolled: getAskEnrolled } = makeAttachmentAccess([askItem]);
     const uploadAskItem = vi.fn(async () => 'mxc://example.org/enc-note');
     const prepareAttachmentsForSend = vi.fn(async (_r: Room, _items: TUploadItem[]) => {
@@ -851,6 +857,7 @@ describe('dictationSendHandoff', () => {
       '@mindroom_helper:example.org'
     );
     expect(startSendSession.mock.calls[0]![0]!.batch?.fileItems).toEqual([encAskItem]);
+    expect(startSendSession.mock.calls[0]![0]!.completeWithinCall).toBe(true);
     expect(dismissLostNotices).toHaveBeenCalledTimes(1);
     expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', encRoom);
     expect(onSendingChange).toHaveBeenCalledWith(false);

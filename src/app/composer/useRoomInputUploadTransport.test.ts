@@ -135,16 +135,16 @@ describe('useRoomInputUploadTransport voice sends', () => {
     });
 
     const originalPdf = new File(['secret pdf'], 'report.pdf', { type: 'application/pdf' });
-    const encryptedBlob = new Blob(['ciphertext']);
+    const encryptedFile = new File(['ciphertext'], 'report.pdf', { type: '' });
     await transport.uploadItem({
-      file: encryptedBlob,
+      file: encryptedFile,
       originalFile: originalPdf,
       encInfo: { v: 'v2' } as never,
       metadata: { markedAsSpoiler: false },
     });
     expect(mx.uploadContent).toHaveBeenNthCalledWith(
       1,
-      encryptedBlob,
+      encryptedFile,
       expect.objectContaining({
         type: 'application/octet-stream',
         includeFilename: false,

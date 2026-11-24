@@ -8,7 +8,7 @@ import { type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
-import { Transforms } from 'slate';
+import { Transforms, type Descendant } from 'slate';
 import * as idb from 'idb';
 import * as keptPastes from '../keptPastes';
 import { RoomInput } from '../RoomInput';
@@ -5310,7 +5310,9 @@ describe("RoomInput as Home's ask field", () => {
   it('accepts drops, pastes, paste chips, and attach button, uses inline board, and sends mentioned attachments without touching room state', async () => {
     const store = createStore();
     const roomFile = createUploadItem(new File(['room'], 'room-file.txt', { type: 'text/plain' }));
-    const savedRoomDraft = [{ type: 'paragraph', children: [{ text: 'Room draft' }] }];
+    const savedRoomDraft: Descendant[] = [
+      { type: 'paragraph', children: [{ text: 'Room draft' }] },
+    ];
     store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: [roomFile] });
     store.set(roomDraft(ROOM_ID), savedRoomDraft);
 
@@ -5613,6 +5615,118 @@ describe("RoomInput as Home's ask field", () => {
     mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/paste-retry' });
     await act(async () => getPrimarySendButton(renderer).props.onClick());
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('re-encrypts and sends to the new room and agent when retrying a failed Home attachment send after switching rooms', async () => {
+    const OTHER_AGENT = '@mindroom_other:example.org';
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      roomId: ROOM_ID,
+      encryptedRoom: false,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ agentUserId: HELPER, onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    stageComposerText('');
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['secret'], 'brief.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/plain-brief' });
+    mxState.sendMessage.mockRejectedValueOnce(new Error('room A send failed'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0]![0]).toBe(ROOM_ID);
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    // Switch Home destination to encrypted room B with a different agent and retry Send.
+    await updateRoomInput(renderer, store, {
+      roomId: OTHER_ROOM_ID,
+      encryptedRoom: true,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ agentUserId: OTHER_AGENT, onSendingChange }),
+    });
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/enc-brief' });
+    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$sent-room-b' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.uploadContent.mock.calls[1]![1]).toMatchObject({
+      includeFilename: false,
+      type: 'application/octet-stream',
+    });
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[1]![0]).toBe(OTHER_ROOM_ID);
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
+      msgtype: 'm.file',
+      body: 'brief.pdf',
+      'm.mentions': { user_ids: [OTHER_AGENT] },
+      file: expect.objectContaining({ url: 'mxc://mindroom/enc-brief' }),
+    });
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('does not send a dangling paste caption when the paste file sendMessage fails, and restores the draft', async () => {
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(createTextPasteEvent('stack trace\n'.repeat(4000)));
+      await Promise.resolve();
+    });
+    const pasteNode = editorMocks.insertNode.mock.calls[0]?.[0] as { marker: string };
+    expect(pasteNode?.marker).toBeTruthy();
+
+    const draftWithChip = [{ type: 'paragraph', children: [pasteNode, { text: ' explain this' }] }];
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    editorOutputState.plainText = `${pasteNode.marker} explain this`;
+    editorOutputState.customHtml = editorOutputState.plainText;
+    editorOutputState.htmlEqualsPlainText = true;
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+      customEditorState.props!.onChange?.();
+    });
+
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/paste-uploaded' });
+    mxState.sendMessage.mockRejectedValueOnce(new Error('paste sendMessage failed'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    // Paste file uploaded, its sendMessage rejected -> caption was NOT sent and draft was restored.
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(
+      customEditorState.editor,
+      draftWithChip
+    );
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    // Retry reuses the already-uploaded paste file and sends both attachment and caption.
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    resetEditorOnNextSend();
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$paste-root' })
+      .mockResolvedValueOnce({ event_id: '$paste-caption' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(3);
     expect(store.get(homeUploadsAtom)).toHaveLength(0);
     renderer.unmount();
   });

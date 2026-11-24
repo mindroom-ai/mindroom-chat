@@ -509,6 +509,7 @@ export const startDetachedDictationSend = (
         explicitMidTurnMode: input.explicitMidTurnMode,
         rootModel: effectiveRootModel ?? null,
         batch: { fileItems: sendStaged },
+        completeWithinCall: Boolean(ask && sendStaged.length > 0),
         context: {
           ...sendContext,
           room: liveRoom,
