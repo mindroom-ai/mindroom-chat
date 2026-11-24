@@ -21,8 +21,10 @@ export const useInConversationView = (): boolean =>
   useContext(ConversationViewContext) !== undefined;
 
 /**
- * Each other view on screen now, with the room and thread it shows: notifications count those as
- * on screen. A view lists itself while it shows (room/ThreadView.tsx).
+ * Each other view on screen now, with the room and thread it shows when it represents a live
+ * conversation in a room: notifications and read shortcuts count those as on screen. A view lists
+ * itself while it shows (room/ThreadView.tsx), and may omit `roomId` (such as a cross-room fork
+ * draft) so its composer stays active without claiming a room or thread.
  */
 export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: string })[]>([]);
 
@@ -32,17 +34,21 @@ export const ROOM_MESSAGES_VIEW = 'room-messages';
 /** Home's ask field (shell/HomeAsk.tsx): a composer with no conversation, shown with Home. */
 export const HOME_ASK_VIEW = 'home-ask';
 
-/** Lists the view `view`, which shows `roomId` (and `threadId`), while `shown` holds. */
+/** Lists the view `view`, optionally with `roomId` (and `threadId`), while `shown` holds. */
 export const useShownConversationView = (
   shown: boolean,
   view: string,
-  roomId: string,
+  roomId?: string,
   threadId?: string
 ): void => {
   const setShownViews = useSetAtom(shownConversationViewsAtom);
   useEffect(() => {
     if (!shown) return undefined;
-    const place = { view, roomId, threadId };
+    const place: ViewedPlace & { view: string } = {
+      view,
+      ...(roomId !== undefined ? { roomId } : {}),
+      ...(threadId !== undefined ? { threadId } : {}),
+    };
     setShownViews((views) => [...views, place]);
     return () => setShownViews((views) => views.filter((other) => other !== place));
   }, [roomId, setShownViews, shown, threadId, view]);

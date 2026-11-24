@@ -138,9 +138,16 @@ export function ThreadView({
 
   // The view shows, for read receipts and notifications, while it is mounted, but not while the
   // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
+  // A cross-room fork draft still registers its view so its composer and menus stay active,
+  // without claiming that `threadId` belongs to `roomId`.
   const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
   const { roomId } = room;
-  useShownConversationView(!outOfSight && !isCrossRoomDraft, view, roomId, threadId);
+  useShownConversationView(
+    !outOfSight,
+    view,
+    isCrossRoomDraft ? undefined : roomId,
+    isCrossRoomDraft ? undefined : threadId
+  );
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
   // later view finds them. Until then they stay, as a send under way may still use them.

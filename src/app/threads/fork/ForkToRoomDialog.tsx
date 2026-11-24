@@ -11,6 +11,7 @@ import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
 import { EventTimeline, KnownMembership, type Room, type RoomMember } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import classNames from 'classnames';
 import { RoomIcon } from '../../avatars/RoomAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -62,10 +63,16 @@ const canMessageInRoom = (room: Room, userId: string): boolean => {
   return getRoomPermissionsAPI(creators, levels).event('m.room.message', userId);
 };
 
-type CandidateRoom = {
+/** Maximum number of displayed candidate rooms to lazy-load members for at a time. */
+export const MAX_MEMBER_LOAD_CANDIDATES = 20;
+
+type EligibleCandidateRoom = {
   room: Room;
   name: string;
   alias: string;
+};
+
+type CandidateRoom = EligibleCandidateRoom & {
   agentWarning: boolean;
 };
 
@@ -95,13 +102,15 @@ export function ForkToRoomDialog({
 
   const sourceRoomName = sourceRoom.name || sourceRoom.roomId;
 
-  const candidates = useMemo<CandidateRoom[]>(() => {
+  const [memberRevision, setMemberRevision] = useState(0);
+  const loadedMemberRoomsRef = useRef(new WeakSet<Room>());
+
+  const candidates = useMemo<EligibleCandidateRoom[]>(() => {
     const sourceEncrypted = !!sourceRoom.hasEncryptionStateEvent?.();
-    const sourceMembers = sourceRoom.getMembers?.() ?? [];
     const recentOrder = new Map<string, number>();
     recentRooms.forEach((entry, index) => recentOrder.set(entry.roomId, index));
 
-    const eligible: CandidateRoom[] = [];
+    const eligible: EligibleCandidateRoom[] = [];
     for (const roomId of navRoomIds) {
       if (roomId === sourceRoom.roomId) continue;
       const room = mx.getRoom(roomId);
@@ -109,12 +118,10 @@ export function ForkToRoomDialog({
       if (!canMessageInRoom(room, myUserId)) continue;
       if (getRoomThreadMode(room) === 'room') continue;
       if (sourceEncrypted && !room.hasEncryptionStateEvent?.()) continue;
-      const targetMembers = room.getMembers?.() ?? [];
       eligible.push({
         room,
         name: room.name || room.roomId,
         alias: room.getCanonicalAlias?.() ?? '',
-        agentWarning: targetHasUnsharedAgents(sourceMembers, targetMembers),
       });
     }
 
@@ -131,7 +138,7 @@ export function ForkToRoomDialog({
     return eligible;
   }, [mx, myUserId, navRoomIds, recentRooms, sourceRoom]);
 
-  const filtered = useMemo(() => {
+  const filteredCandidates = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
     if (!trimmed) return candidates;
     return candidates.filter(
@@ -140,7 +147,61 @@ export function ForkToRoomDialog({
     );
   }, [candidates, query]);
 
-  const clampedIndex = filtered.length > 0 ? Math.min(activeIndex, filtered.length - 1) : -1;
+  const clampedIndex =
+    filteredCandidates.length > 0 ? Math.min(activeIndex, filteredCandidates.length - 1) : -1;
+
+  // Lazy-load full membership for the source room and the top visible candidates (plus an active
+  // candidate scrolled beyond the cap) so agent warnings reflect agents in unvisited rooms.
+  const extraActiveRoom =
+    clampedIndex >= MAX_MEMBER_LOAD_CANDIDATES ? filteredCandidates[clampedIndex]?.room : undefined;
+  const roomsToLoad = useMemo(() => {
+    const rooms: Room[] = [sourceRoom];
+    const seen = new Set<string>([sourceRoom.roomId]);
+    for (const candidate of filteredCandidates.slice(0, MAX_MEMBER_LOAD_CANDIDATES)) {
+      if (!seen.has(candidate.room.roomId)) {
+        seen.add(candidate.room.roomId);
+        rooms.push(candidate.room);
+      }
+    }
+    if (extraActiveRoom && !seen.has(extraActiveRoom.roomId)) {
+      rooms.push(extraActiveRoom);
+    }
+    return rooms;
+  }, [extraActiveRoom, filteredCandidates, sourceRoom]);
+
+  useEffect(() => {
+    let disposed = false;
+    const loaded = loadedMemberRoomsRef.current;
+    for (const room of roomsToLoad) {
+      if (loaded.has(room) || room.membersLoaded?.()) continue;
+      const loadMembers = room.loadMembersIfNeeded;
+      if (typeof loadMembers !== 'function') continue;
+      void (async () => {
+        try {
+          await loadMembers.call(room);
+          if (disposed) return;
+          loaded.add(room);
+          setMemberRevision((count) => count + 1);
+        } catch (error: unknown) {
+          if (!disposed) {
+            logger.warn('[ForkToRoomDialog] Failed to load room members', error);
+          }
+        }
+      })();
+    }
+    return () => {
+      disposed = true;
+    };
+  }, [roomsToLoad]);
+
+  const filtered = useMemo<CandidateRoom[]>(() => {
+    void memberRevision;
+    const sourceMembers = sourceRoom.getMembers?.() ?? [];
+    return filteredCandidates.map((candidate) => ({
+      ...candidate,
+      agentWarning: targetHasUnsharedAgents(sourceMembers, candidate.room.getMembers?.() ?? []),
+    }));
+  }, [filteredCandidates, memberRevision, sourceRoom]);
 
   useEffect(() => {
     setActiveIndex(0);

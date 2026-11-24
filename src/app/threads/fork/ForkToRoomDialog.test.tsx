@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room, type RoomMember } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +8,11 @@ import { allRoomsAtom } from '../../matrix/state/roomList';
 import { clearRecentRoomsStore, getRecentRoomsAtom } from '../../navigation/recentRooms';
 import { ROOM_THREAD_MODE_EVENT } from '../../matrix/protocol/roomThreadMode';
 import { StateEvent } from '../../matrix/types/room';
-import { ForkToRoomDialog, targetHasUnsharedAgents } from './ForkToRoomDialog';
+import {
+  ForkToRoomDialog,
+  MAX_MEMBER_LOAD_CANDIDATES,
+  targetHasUnsharedAgents,
+} from './ForkToRoomDialog';
 
 vi.mock('../../ui/ActionDialog', () => ({
   ActionDialog: ({
@@ -56,6 +60,8 @@ type MockRoomOpts = {
   userPower?: number;
   lastActiveTs?: number;
   members?: Array<{ userId: string; membership: string }>;
+  membersLoaded?: () => boolean;
+  loadMembersIfNeeded?: () => Promise<boolean>;
 };
 
 const makeRoom = ({
@@ -71,6 +77,8 @@ const makeRoom = ({
   userPower = 0,
   lastActiveTs = 1000,
   members = [{ userId: MY_USER, membership: KnownMembership.Join }],
+  membersLoaded,
+  loadMembersIfNeeded,
 }: MockRoomOpts): Room => {
   const stateEvents: Record<
     string,
@@ -105,6 +113,8 @@ const makeRoom = ({
     getJoinRule: () => 'invite',
     getLastActiveTimestamp: () => lastActiveTs,
     getMembers: () => members as unknown as RoomMember[],
+    ...(membersLoaded ? { membersLoaded } : {}),
+    ...(loadMembersIfNeeded ? { loadMembersIfNeeded } : {}),
     currentState: state,
     getLiveTimeline: () => ({ getState: () => state }),
   } as unknown as Room;
@@ -337,5 +347,137 @@ describe('ForkToRoomDialog', () => {
       if (hadOwn) Element.prototype.scrollIntoView = original;
       else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
     }
+  });
+
+  it('loads lazy-loaded candidate membership and reveals the unshared-agent warning once resolved', async () => {
+    const human = { userId: MY_USER, membership: KnownMembership.Join };
+    const unsharedAgent = {
+      userId: '@mindroom_writer:example.org',
+      membership: KnownMembership.Join,
+    };
+
+    const source = makeRoom({
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      members: [human],
+      membersLoaded: () => true,
+    });
+
+    // Simulate a room on a fresh login before it has been visited: members are incomplete until
+    // loadMembersIfNeeded() resolves.
+    const lazyMembers: Array<{ userId: string; membership: string }> = [];
+    let isLoaded = false;
+    let resolveLoad!: (value: boolean) => void;
+    const loadMembersIfNeeded = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveLoad = (value) => {
+            lazyMembers.push(human, unsharedAgent);
+            isLoaded = true;
+            resolve(value);
+          };
+        })
+    );
+    const lazyTarget = makeRoom({
+      roomId: '!lazy:example.org',
+      name: 'Unvisited Agent Room',
+      members: lazyMembers,
+      membersLoaded: () => isLoaded,
+      loadMembersIfNeeded,
+    });
+
+    renderDialog({
+      sourceRoom: source,
+      rooms: [source, lazyTarget],
+    });
+
+    // Initially empty members -> no warning yet, but lazy load was triggered.
+    expect(loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(document.querySelectorAll('[data-fork-room-agent-warning]')).toHaveLength(0);
+
+    await act(async () => {
+      resolveLoad(true);
+      await Promise.resolve();
+    });
+
+    const row = document.querySelector('[data-fork-room-id="!lazy:example.org"]');
+    expect(row?.querySelector('[data-fork-room-agent-warning]')?.textContent).toContain(
+      'Project Alpha'
+    );
+  });
+
+  it('bounds lazy member loading to the top displayed candidates, loads newly matched rooms on search, and cleans up on unmount', async () => {
+    const human = { userId: MY_USER, membership: KnownMembership.Join };
+    const unsharedAgent = {
+      userId: '@mindroom_writer:example.org',
+      membership: KnownMembership.Join,
+    };
+
+    const source = makeRoom({
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      members: [human],
+      membersLoaded: () => true,
+    });
+
+    const loaders = new Map<string, ReturnType<typeof vi.fn<() => Promise<boolean>>>>();
+    let resolvePending!: (value: boolean) => void;
+    const extraCount = MAX_MEMBER_LOAD_CANDIDATES + 2;
+    const candidates = Array.from({ length: extraCount }, (_, index) => {
+      const roomId = `!room-${index}:example.org`;
+      const isLast = index === extraCount - 1;
+      const roomMembers: Array<{ userId: string; membership: string }> = [human];
+      let loaded = false;
+      const load = vi.fn<() => Promise<boolean>>(() => {
+        if (index === 0) {
+          return new Promise<boolean>((resolve) => {
+            resolvePending = resolve;
+          });
+        }
+        if (isLast) roomMembers.push(unsharedAgent);
+        loaded = true;
+        return Promise.resolve(true);
+      });
+      loaders.set(roomId, load);
+      return makeRoom({
+        roomId,
+        name: isLast ? 'Zeta Hidden Agent Room' : `Room ${String(index).padStart(2, '0')}`,
+        lastActiveTs: 1000 - index,
+        members: roomMembers,
+        membersLoaded: () => loaded,
+        loadMembersIfNeeded: load,
+      });
+    });
+
+    const { unmount } = renderDialog({
+      sourceRoom: source,
+      rooms: [source, ...candidates],
+    });
+
+    // Only the top MAX_MEMBER_LOAD_CANDIDATES rooms are loaded initially.
+    for (let i = 0; i < MAX_MEMBER_LOAD_CANDIDATES; i += 1) {
+      expect(loaders.get(`!room-${i}:example.org`)).toHaveBeenCalledTimes(1);
+    }
+    const lastId = `!room-${extraCount - 1}:example.org`;
+    expect(loaders.get(lastId)).not.toHaveBeenCalled();
+
+    // Filtering brings the tail room into the displayed slice and loads its members.
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Zeta' } });
+      await Promise.resolve();
+    });
+    expect(loaders.get(lastId)).toHaveBeenCalledTimes(1);
+    expect(
+      document
+        .querySelector(`[data-fork-room-id="${lastId}"]`)
+        ?.querySelector('[data-fork-room-agent-warning]')?.textContent
+    ).toContain('Project Alpha');
+
+    // Resolving an in-flight load after unmount does not throw or update unmounted state.
+    unmount();
+    await act(async () => {
+      resolvePending(true);
+      await Promise.resolve();
+    });
   });
 });

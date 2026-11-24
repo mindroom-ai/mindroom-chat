@@ -13,11 +13,13 @@ import type { Editor } from 'slate';
 import { Editable, ReactEditor, Slate } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
+import { ComposerActionsMenu } from '../composer/ComposerActionsMenu';
 import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import {
   ConversationViewContext,
   shownConversationViewsAtom,
+  useConversationHidden,
 } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
@@ -40,6 +42,8 @@ const state = vi.hoisted(() => ({
   timelineLevels: undefined as unknown,
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
+  composerHidden: undefined as boolean | undefined,
+  showActionsMenu: false,
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
   composer: undefined as
     | {
@@ -53,6 +57,10 @@ const state = vi.hoisted(() => ({
   navigateRoomThread: vi.fn(),
 }));
 
+// jsdom lays nothing out, so the menu's focus trap would find no control to hold.
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children?: unknown }) => children,
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: state.navigateRoomThread }),
@@ -141,14 +149,28 @@ vi.mock('../composer/RoomInput', () => ({
       onRoomMessageSent,
     };
     const view = useContext(ConversationViewContext);
+    const hidden = useConversationHidden();
     useEffect(() => {
       state.dropTarget = fileDropContainerRef.current;
       state.composerViews.push(view);
+      state.composerHidden = hidden;
     });
+    const noop = () => undefined;
     return (
-      <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-        <Editable aria-label={`Reply in ${threadId ?? 'the room'}`} />
-      </Slate>
+      <>
+        {state.showActionsMenu && (
+          <ComposerActionsMenu
+            formattingOpen={false}
+            onAttach={noop}
+            onAttachAppLogs={noop}
+            onToggleFormatting={noop}
+            onEmoji={noop}
+          />
+        )}
+        <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
+          <Editable aria-label={`Reply in ${threadId ?? 'the room'}`} />
+        </Slate>
+      </>
     );
   },
 }));
@@ -162,6 +184,8 @@ beforeEach(() => {
   state.timelineLevels = undefined;
   state.dropTarget = undefined;
   state.composerViews = [];
+  state.composerHidden = undefined;
+  state.showActionsMenu = false;
   state.approvals = undefined;
   state.composer = undefined;
   state.navigateRoomThread.mockReset();
@@ -581,5 +605,35 @@ describe('a fork draft', () => {
     expect(state.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$newFork', undefined, {
       replace: true,
     });
+  });
+
+  it('registers a visible cross-room fork draft under its view without claiming targetRoom/threadId and keeps composer menus open', () => {
+    const store = getDefaultStore();
+    const sourceRoom = new Room('!alpha:example.org', mx, '@alice:example.org');
+    sourceRoom.name = 'Project Alpha';
+    state.showActionsMenu = true;
+
+    const { rerender } = render(
+      <ThreadView room={room} sourceRoom={sourceRoom} threadId={THREAD} forkAt="$point" />
+    );
+
+    const view = state.composerViews.at(-1);
+    expect(view).toBeDefined();
+    // Registered by view only: neither roomId nor threadId is claimed on targetRoom or sourceRoom.
+    expect(store.get(shownConversationViewsAtom)).toStrictEqual([{ view }]);
+    expect(state.composerHidden).toBe(false);
+
+    // Mobile More actions menu (Attach files, Formatting, Emoji) opens and stays open.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('menu')).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: 'Attach files' })).toBeDefined();
+
+    // Hiding the draft unregisters the view and closes the open composer menu.
+    rerender(
+      <ThreadView room={room} sourceRoom={sourceRoom} threadId={THREAD} forkAt="$point" hidden />
+    );
+    expect(store.get(shownConversationViewsAtom)).toEqual([]);
+    expect(state.composerHidden).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
