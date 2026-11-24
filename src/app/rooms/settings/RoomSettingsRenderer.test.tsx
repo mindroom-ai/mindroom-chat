@@ -6,6 +6,7 @@ import { createStore, Provider } from 'jotai';
 import { MatrixClient, MatrixEvent, MemoryStore, Room } from 'matrix-js-sdk';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
+import { MINDROOM_FAVICON_SRC } from '../../ui/branding/branding';
 import { RoomSettingsRenderer } from './RoomSettingsRenderer';
 
 const ME = '@me:test';
@@ -152,15 +153,17 @@ describe('room and space settings dialog', () => {
       'Emojis & Stickers',
       'Developer Tools',
     ]);
-    // Inactive MindRoom tab renders the outline icon; selecting it switches to the filled cutout.
     const mindroomButton = menuEntry('MindRoom');
-    expect(mindroomButton.querySelector('svg g[stroke="currentColor"]')).not.toBeNull();
-    expect(mindroomButton.querySelector('svg path[fill-rule="evenodd"]')).toBeNull();
+    expect(mindroomButton.querySelector('svg image')?.getAttribute('href')).toBe(
+      MINDROOM_FAVICON_SRC
+    );
 
     act(() => mindroomButton.click());
 
     expect(parts()).toEqual({ mindroom: 'false' });
-    expect(menuEntry('MindRoom').querySelector('svg path[fill-rule="evenodd"]')).not.toBeNull();
+    expect(menuEntry('MindRoom').querySelector('svg image')?.getAttribute('href')).toBe(
+      MINDROOM_FAVICON_SRC
+    );
   });
 
   it('leaves the MindRoom page out of a space, which opens on General when asked for it', () => {
