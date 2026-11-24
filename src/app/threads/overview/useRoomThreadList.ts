@@ -55,7 +55,7 @@ const getSavedRootRevisions = (
 const isRoomEventRedacted = (room: Room, eventId: string | undefined): boolean =>
   Boolean(
     eventId &&
-      (room.redactedBundledEdits?.has(eventId) || room.findEventById?.(eventId)?.isRedacted())
+    (room.redactedBundledEdits?.has(eventId) || room.findEventById?.(eventId)?.isRedacted())
   );
 
 /**
