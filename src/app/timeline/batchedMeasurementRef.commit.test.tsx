@@ -79,8 +79,7 @@ it('commits corrected offsets for rows mounted during a scroll before the next t
   const harness: Harness = {};
   root = createRoot(container);
   flushSync(() => root?.render(<List harness={harness} />));
-  // New rows measure once in the batched microtask before paint, even at rest.
-  await Promise.resolve();
+  // The first row mounted at rest, where virtual-core measures it itself.
   expect(harness.virtualizer?.itemSizeCache.get(0)).toBe(ROW_HEIGHT);
 
   harness.virtualizer!.isScrolling = true;

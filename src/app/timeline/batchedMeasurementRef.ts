@@ -32,6 +32,8 @@ type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolea
 type ResizeBatch = { notify?: boolean; sync: boolean };
 type BatchedResizeVirtualizer = {
   _resizeBatch?: ResizeBatch | null;
+  _holdOffset?: number;
+  _wheelLive?: boolean;
   observer?: { observe: (el: Element) => void; unobserve: (el: Element) => void };
   notify?: (sync: boolean) => void;
   _noteClampMax?: () => void;
@@ -142,10 +144,17 @@ export const createScrollMountMeasurement = <T extends Element>(
       virtualizer.measureElement(node);
       return;
     }
-    // Register with virtual-core's elementsCache and ResizeObserver without an unbatched
-    // synchronous resizeItem per row; measureAttached measures all new rows once in _resizeBatch.
+    // During a live wheel gesture or held prepend, isScrolling can time out to false while
+    // scrollTop sits at 0. Register with elementsCache and ResizeObserver without an unbatched
+    // synchronous resizeItem per row so measureAttached measures all new rows once in _resizeBatch.
+    // At rest (and during scrollToEnd), let virtual-core measure synchronously in the ref so
+    // opening pins and layout effects see measured heights before the microtask runs.
     const internal = virtualizer as unknown as BatchedResizeVirtualizer;
-    if (internal.observer && index < virtualizer.options.count) {
+    if (
+      (internal._holdOffset || internal._wheelLive) &&
+      internal.observer &&
+      index < virtualizer.options.count
+    ) {
       const key = virtualizer.options.getItemKey(index);
       const prevNode = virtualizer.elementsCache.get(key);
       if (prevNode !== node) {
