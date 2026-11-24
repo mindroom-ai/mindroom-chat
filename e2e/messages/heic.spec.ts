@@ -141,35 +141,17 @@ test('HEIC m.image renders inline, opens in viewer, downloads original, and fall
   const row = page.locator(`[data-message-id="${eventId}"]`);
   await expect(row).toBeVisible({ timeout: 60_000 });
 
-  // Wait for the row to settle either as a decoded <img> (fixed) or as a file row (origin/main).
-  await expect
-    .poll(
-      async () => {
-        const img = row.locator('img[alt="placeholder.heic"]');
-        if ((await img.count()) > 0) {
-          const size = await naturalSize(img.first());
-          if (size.complete && size.width > 0) return 'image';
-        }
-        const downloadButton = row.getByRole('button', { name: /download/i });
-        if ((await downloadButton.count()) > 0 && (await downloadButton.first().isVisible())) {
-          return 'file';
-        }
-        return 'pending';
-      },
-      { timeout: 60_000 }
-    )
-    .not.toBe('pending');
-
   if (shotsDir) {
     mkdirSync(shotsDir, { recursive: true });
     await row.screenshot({ path: join(shotsDir, 'heic-timeline.png') });
   }
 
   const timelineImg = row.locator('img[alt="placeholder.heic"]');
-  await expect(timelineImg).toBeVisible();
+  await expect(timelineImg).toBeVisible({ timeout: 60_000 });
   await expect
-    .poll(() => naturalSize(timelineImg))
+    .poll(() => naturalSize(timelineImg), { timeout: 60_000 })
     .toEqual({ complete: true, width: 600, height: 400 });
+  if (shotsDir) await row.screenshot({ path: join(shotsDir, 'heic-timeline.png') });
 
   await timelineImg.click();
   const viewer = page.locator('[data-image-viewer]');

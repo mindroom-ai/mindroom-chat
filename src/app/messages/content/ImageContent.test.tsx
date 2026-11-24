@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
+import type { IImageInfo } from '../../matrix/types/common';
 import { ImageContent } from './ImageContent';
 import { ImageGallery } from './ImageGallery';
 
@@ -138,9 +139,11 @@ describe('ImageContent', () => {
 
   const renderImageContent = ({
     mimeType,
+    info = { w: 4, h: 3 },
     onFallbackToFile,
   }: {
     mimeType?: string;
+    info?: IImageInfo;
     onFallbackToFile?: () => void;
   }) => {
     act(() => {
@@ -149,7 +152,7 @@ describe('ImageContent', () => {
           body: 'Test image',
           mimeType,
           url: 'mxc://mindroom/image',
-          info: { w: 4, h: 3 },
+          info,
           encInfo: FILE,
           owner: OWNER,
           onFallbackToFile,
@@ -231,12 +234,26 @@ describe('ImageContent', () => {
     expect(tree.root.findAllByType(ImageGallery)).toHaveLength(1);
   });
 
-  it('falls back to a file row on HEIC budget/decode failure but keeps Retry on network errors', async () => {
+  it('ignores HEIC thumbnails, falls back on budget/decode failure, and keeps Retry on network errors', async () => {
     const onFallbackToFile = vi.fn();
-    renderImageContent({ mimeType: 'image/heic', onFallbackToFile });
+    renderImageContent({
+      mimeType: 'image/heic',
+      info: {
+        w: 4,
+        h: 3,
+        thumbnail_url: 'mxc://mindroom/heic-thumb',
+        thumbnail_info: { mimetype: 'image/heic' },
+      },
+      onFallbackToFile,
+    });
 
     mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('offline'));
     await expect(mocks.loadSrcCallback?.()).rejects.toThrow('offline');
+    expect(mocks.downloadCachedAttachment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mxcUri: 'mxc://mindroom/image' }),
+      expect.objectContaining({ maxBytes: expect.any(Number), signal: expect.any(AbortSignal) })
+    );
     expect(onFallbackToFile).not.toHaveBeenCalled();
 
     mocks.downloadCachedAttachment.mockRejectedValueOnce(

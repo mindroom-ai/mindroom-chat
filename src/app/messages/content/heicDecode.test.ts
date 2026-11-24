@@ -1,11 +1,9 @@
-// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeHeicBlob } from './heicDecode';
 
 class FakeWorker {
   static instances: FakeWorker[] = [];
   onmessage: ((event: MessageEvent) => void) | null = null;
-  onerror: ((event: ErrorEvent) => void) | null = null;
   terminated = false;
   posted: ArrayBuffer[] = [];
 
@@ -27,12 +25,7 @@ class FakeWorker {
 }
 
 const OriginalWorker = globalThis.Worker;
-const makeBlob = (tag: number): Blob => {
-  const bytes = new Uint8Array([tag]);
-  const blob = new Blob([bytes], { type: 'image/heic' });
-  blob.arrayBuffer = async () => bytes.buffer.slice(0);
-  return blob;
-};
+const makeBlob = (tag: number) => new Blob([new Uint8Array([tag])], { type: 'image/heic' });
 
 describe('heicDecode', () => {
   beforeEach(() => {
@@ -45,45 +38,34 @@ describe('heicDecode', () => {
     globalThis.Worker = OriginalWorker;
   });
 
-  it('serializes decodes LIFO, drops aborted queued jobs, and terminates each worker', async () => {
+  it('serializes LIFO, drops aborted queued jobs, and terminates workers on finish or timeout', async () => {
+    vi.useFakeTimers();
     const abortMiddle = new AbortController();
     const order: string[] = [];
 
     const first = decodeHeicBlob(makeBlob(1)).then(() => order.push('first'));
     const middle = decodeHeicBlob(makeBlob(2), abortMiddle.signal);
-    const newest = decodeHeicBlob(makeBlob(3)).then(() => order.push('newest'));
+    const stalled = decodeHeicBlob(makeBlob(3)).catch((error: unknown) => error);
+    const newest = decodeHeicBlob(makeBlob(4)).then(() => order.push('newest'));
 
-    // First job owns the only active worker; middle is dropped before it ever spawns one.
-    await vi.waitFor(() => expect(FakeWorker.instances).toHaveLength(1));
+    await vi.advanceTimersByTimeAsync(0);
     abortMiddle.abort();
     await expect(middle).rejects.toThrow(/aborted/i);
 
-    const w1 = FakeWorker.instances[0]!;
-    w1.reply(new Blob(['1'], { type: 'image/jpeg' }));
+    FakeWorker.instances[0]!.reply(new Blob(['1'], { type: 'image/jpeg' }));
     await first;
-    expect(w1.terminated).toBe(true);
-
-    // LIFO picks newest (tag 3) next; middle never spawned a worker.
-    await vi.waitFor(() => expect(FakeWorker.instances).toHaveLength(2));
-    const w2 = FakeWorker.instances[1]!;
-    expect(new Uint8Array(w2.posted[0]!)[0]).toBe(3);
-    w2.reply(new Blob(['3'], { type: 'image/jpeg' }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(FakeWorker.instances).toHaveLength(2);
+    expect(new Uint8Array(FakeWorker.instances[1]!.posted[0]!)[0]).toBe(4);
+    FakeWorker.instances[1]!.reply(new Blob(['4'], { type: 'image/jpeg' }));
     await newest;
-    expect(w2.terminated).toBe(true);
     expect(order).toEqual(['first', 'newest']);
-  });
 
-  it('terminates a stalled worker after the 20 s watchdog', async () => {
-    vi.useFakeTimers();
-    const promise = decodeHeicBlob(makeBlob(9));
-    // Attach rejection handler before advancing timers to avoid unhandled rejection notices.
-    const caught = promise.catch((error: unknown) => error);
-    await vi.waitFor(() => expect(FakeWorker.instances).toHaveLength(1));
-
-    vi.advanceTimersByTime(20_000);
-    const error = await caught;
-    expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toMatch(/timed out/i);
-    expect(FakeWorker.instances[0]?.terminated).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(FakeWorker.instances).toHaveLength(3);
+    expect(new Uint8Array(FakeWorker.instances[2]!.posted[0]!)[0]).toBe(3);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(await stalled).toMatchObject({ message: expect.stringMatching(/timed out/i) });
+    expect(FakeWorker.instances.every((w) => w.terminated)).toBe(true);
   });
 });
