@@ -1509,6 +1509,7 @@
         "foreach": "لكل عنصر",
         "parallel": "متوازٍ",
         "run": "سير عمل محفوظ",
+        "workflow": "سير عمل متداخل",
         "progress": "⁨{{done}}⁩ من ⁨{{total}}⁩",
         "failed": "فشل: ⁨{{count}}⁩"
       },
@@ -1532,6 +1533,7 @@
         "messages": "الرسائل",
         "messagesTo": "رسائل إلى ⁨{{name}}⁩: ⁨{{count}}⁩",
         "open": "فتح",
+        "detailsUnavailable": "لم تعد التفاصيل متاحة بعد إعادة التحميل.",
         "stop": "إيقاف الوكيل"
       }
     },

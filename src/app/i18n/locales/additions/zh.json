@@ -1279,6 +1279,7 @@
         "foreach": "遍历",
         "parallel": "并行",
         "run": "已保存的工作流",
+        "workflow": "嵌套工作流",
         "progress": "{{done}} / {{total}}",
         "failed": "失败：{{count}}"
       },
@@ -1297,6 +1298,7 @@
         "messages": "消息",
         "messagesTo": "发送给 {{name}} 的消息：{{count}}",
         "open": "打开",
+        "detailsUnavailable": "重新加载后详情已不可用。",
         "stop": "停止智能体"
       }
     },

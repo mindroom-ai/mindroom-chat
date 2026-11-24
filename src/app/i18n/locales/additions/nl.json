@@ -1325,6 +1325,7 @@
         "foreach": "Voor elk",
         "parallel": "Parallel",
         "run": "Opgeslagen workflow",
+        "workflow": "Geneste workflow",
         "progress": "{{done}} van {{total}}",
         "failed": "Mislukt: {{count}}"
       },
@@ -1344,6 +1345,7 @@
         "messages": "Berichten",
         "messagesTo": "Berichten naar {{name}}: {{count}}",
         "open": "Openen",
+        "detailsUnavailable": "Details zijn na herladen niet meer beschikbaar.",
         "stop": "Agent stoppen"
       }
     },

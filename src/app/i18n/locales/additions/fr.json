@@ -1371,6 +1371,7 @@
         "foreach": "Pour chaque",
         "parallel": "Parallèle",
         "run": "Flux enregistré",
+        "workflow": "Flux imbriqué",
         "progress": "{{done}} sur {{total}}",
         "failed": "Échoués : {{count}}"
       },
@@ -1391,6 +1392,7 @@
         "messages": "Messages",
         "messagesTo": "Messages vers {{name}} : {{count}}",
         "open": "Ouvrir",
+        "detailsUnavailable": "Les détails ne sont plus disponibles après rechargement.",
         "stop": "Arrêter l'agent"
       }
     },

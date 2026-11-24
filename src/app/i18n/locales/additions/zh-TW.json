@@ -1279,6 +1279,7 @@
         "foreach": "逐一執行",
         "parallel": "平行",
         "run": "已儲存的工作流程",
+        "workflow": "巢狀工作流程",
         "progress": "{{done}} / {{total}}",
         "failed": "失敗：{{count}}"
       },
@@ -1297,6 +1298,7 @@
         "messages": "訊息",
         "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
         "open": "開啟",
+        "detailsUnavailable": "重新載入後已無法查看詳細資料。",
         "stop": "停止代理"
       }
     },

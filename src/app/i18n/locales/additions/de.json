@@ -1325,6 +1325,7 @@
         "foreach": "Für jedes",
         "parallel": "Parallel",
         "run": "Gespeicherter Workflow",
+        "workflow": "Verschachtelter Workflow",
         "progress": "{{done}} von {{total}}",
         "failed": "Fehlgeschlagen: {{count}}"
       },
@@ -1344,6 +1345,7 @@
         "messages": "Nachrichten",
         "messagesTo": "Nachrichten an {{name}}: {{count}}",
         "open": "Öffnen",
+        "detailsUnavailable": "Details sind nach dem Neuladen nicht mehr verfügbar.",
         "stop": "Agent stoppen"
       }
     },

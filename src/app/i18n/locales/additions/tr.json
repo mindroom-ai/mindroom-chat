@@ -1325,6 +1325,7 @@
         "foreach": "Her biri için",
         "parallel": "Paralel",
         "run": "Kayıtlı iş akışı",
+        "workflow": "İç içe iş akışı",
         "progress": "{{done}} / {{total}}",
         "failed": "Başarısız: {{count}}"
       },
@@ -1344,6 +1345,7 @@
         "messages": "Mesajlar",
         "messagesTo": "{{name}} için mesajlar: {{count}}",
         "open": "Aç",
+        "detailsUnavailable": "Yeniden yüklemeden sonra ayrıntılar artık kullanılamıyor.",
         "stop": "Ajanı durdur"
       }
     },

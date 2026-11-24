@@ -1279,6 +1279,7 @@
         "foreach": "繰り返し",
         "parallel": "並列",
         "run": "保存済みワークフロー",
+        "workflow": "入れ子ワークフロー",
         "progress": "{{done}} / {{total}}",
         "failed": "失敗: {{count}}"
       },
@@ -1297,6 +1298,7 @@
         "messages": "メッセージ",
         "messagesTo": "{{name}} へのメッセージ: {{count}}",
         "open": "開く",
+        "detailsUnavailable": "再読み込み後は詳細を表示できません。",
         "stop": "エージェントを停止"
       }
     },

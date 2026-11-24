@@ -15,7 +15,9 @@ import type {
 import type { WorkflowRunCard } from '../../matrix/protocol/workflowRunContent';
 import { getSubagentRunStore } from '../../messages/live/subagentRunStore';
 import { getWorkflowRunStore } from '../../messages/live/workflowRunStore';
+import { keepCancelsOf } from '../../matrix/state/sentCancels';
 import { subagentsPanelAtom } from '../../navigation/subagentsPanel';
+import * as AgentAvatarModule from '../AgentAvatar';
 import { WorkflowPanel } from './WorkflowPanel';
 
 const ROOM_ID = '!room:example.org';
@@ -181,6 +183,7 @@ const makeClient = ({
 describe('WorkflowPanel', () => {
   afterEach(() => {
     cleanup();
+    keepCancelsOf(ROOM_ID, new Set());
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -353,6 +356,36 @@ describe('WorkflowPanel', () => {
     const { mx, room } = makeClient({ sendEvent });
     const store = createStore();
     const wfStore = getWorkflowRunStore(mx);
+    getSubagentRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: 'delegation-1',
+        sid: '1795389735000-b1c2d3e4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          subagent: 'delegation-1',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          threadId: null,
+          source: 'workflow',
+          status: 'running',
+          startedAt: 1795389740,
+          endedAt: null,
+        },
+        snapshot: {
+          md: 'Reviewing backend.',
+          reasoning: '',
+          tools: [],
+          status: 'streaming',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
     wfStore.ingest(
       ROOM_ID,
       AGENT,
@@ -406,13 +439,17 @@ describe('WorkflowPanel', () => {
     const { mx, room } = makeClient();
     const store = createStore();
     const wfStore = getWorkflowRunStore(mx);
-    const renderCounts = new Map<string, number>();
-    const onChipRender = (id: string) => {
-      renderCounts.set(id, (renderCounts.get(id) ?? 0) + 1);
-    };
+    const spy = vi.spyOn(AgentAvatarModule, 'useAgentProfile');
+    const rendersFor = (agentName: string) =>
+      spy.mock.calls.filter(([, name]) => name === agentName).length;
 
-    const node4 = makeNode('n4', { label: 'Node Four', status: 'running' });
-    const node5 = makeNode('n5', { label: 'Node Five', status: 'completed', endedAt: 1795389790 });
+    const node4 = makeNode('n4', { label: 'Node Four', agent: 'alpha', status: 'running' });
+    const node5 = makeNode('n5', {
+      label: 'Node Five',
+      agent: 'beta',
+      status: 'completed',
+      endedAt: 1795389790,
+    });
     wfStore.ingest(
       ROOM_ID,
       AGENT,
@@ -423,18 +460,12 @@ describe('WorkflowPanel', () => {
     render(
       <JotaiProvider store={store}>
         <MatrixClientProvider value={mx}>
-          <WorkflowPanel
-            room={room}
-            run={RUN}
-            threadId={null}
-            onClose={() => undefined}
-            onChipRender={onChipRender}
-          />
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
         </MatrixClientProvider>
       </JotaiProvider>
     );
-    expect(renderCounts.get('n4')).toBe(1);
-    expect(renderCounts.get('n5')).toBe(1);
+    expect(rendersFor('alpha')).toBe(1);
+    expect(rendersFor('beta')).toBe(1);
 
     act(() => {
       wfStore.ingest(
@@ -463,8 +494,8 @@ describe('WorkflowPanel', () => {
       );
     });
 
-    expect(renderCounts.get('n4')).toBe(2);
-    expect(renderCounts.get('n5')).toBe(1);
+    expect(rendersFor('alpha')).toBe(2);
+    expect(rendersFor('beta')).toBe(1);
   });
 
   it('says why a chip waits, marks indeterminate calls, and groups session turns under their session', () => {
@@ -659,5 +690,131 @@ describe('WorkflowPanel', () => {
     });
 
     expect(screen.getByText(/Not updating\. Last update/)).toBeTruthy();
+  });
+
+  it('updates a live turn under a completed session with clock and joined sub-agent usage', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1795389750 * 1000);
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Review'],
+        nodes: [
+          makeNode('n1', {
+            kind: 'session',
+            label: 'Session root',
+            status: 'completed',
+            endedAt: 1795389742,
+            turns: 1,
+          }),
+          makeNode('n2', {
+            kind: 'turn',
+            label: 'Active turn',
+            session: 'n1',
+            status: 'running',
+            run: 'turn-run-1',
+            startedAt: 1795389745,
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const turnChip = () => screen.getByRole('button', { name: /Active turn/ });
+    expect(within(turnChip()).getByText('5s')).toBeTruthy();
+
+    act(() => {
+      getSubagentRunStore(mx).ingest(
+        ROOM_ID,
+        AGENT,
+        {
+          run: 'turn-run-1',
+          sid: '1795389750000-a1b2c3d4',
+          seq: 1,
+          meta: {
+            agent: 'panels',
+            subagent: 'turn-run-1',
+            caller: 'panels',
+            root: 'panels',
+            parent: null,
+            threadId: null,
+            source: 'workflow',
+            status: 'running',
+            startedAt: 1795389745,
+            endedAt: null,
+            usage: { inputTokens: 1200, outputTokens: 300, toolCalls: 2, costUsd: 0.99 },
+          },
+          snapshot: {
+            md: '',
+            reasoning: '',
+            tools: [],
+            status: 'streaming',
+            activity: '',
+            segments: [],
+          },
+        },
+        Date.now()
+      );
+    });
+    expect(within(turnChip()).getByText('$0.99')).toBeTruthy();
+  });
+
+  it('renders nested workflow groups under their caller, translates inspector status, and disables unavailable Open', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame(
+        {
+          phases: ['Audit'],
+          groups: [
+            { id: 'n2', kind: 'workflow', phase: 0, parent: 'n1', total: 1, done: 0, failed: 0 },
+          ],
+          nodes: [
+            makeNode('n1', { label: 'Outer caller', status: 'completed', endedAt: 1795389760 }),
+            makeNode('n3', {
+              label: 'Inner check',
+              group: 'n2',
+              status: 'indeterminate',
+              run: 'stale-del',
+            }),
+          ],
+        },
+        { status: 'completed', endedAt: 1795389800 }
+      ),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Run again' })).toBeNull();
+    expect(screen.getByText('Nested workflow')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Inner check/ }));
+    const details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
+    expect(within(details).getByText('May have run')).toBeTruthy();
+    expect(within(details).queryByText('indeterminate')).toBeNull();
+    expect(within(details).getByRole<HTMLButtonElement>('button', { name: 'Open' }).disabled).toBe(
+      true
+    );
+    expect(within(details).getByText('Details are no longer available after reload.')).toBeTruthy();
   });
 });

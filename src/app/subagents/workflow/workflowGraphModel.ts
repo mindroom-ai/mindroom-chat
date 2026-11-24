@@ -1,5 +1,4 @@
 import type {
-  WorkflowRunEdge,
   WorkflowRunGraph,
   WorkflowRunGroup,
   WorkflowRunNode,
@@ -149,12 +148,6 @@ export const foldGroupItems = (
   });
   return { shown: ordered.slice(0, limit), more: ordered.length - limit };
 };
-
-/** Keeps only message edges whose endpoints are both currently rendered. */
-export const shownEdges = (
-  edges: readonly WorkflowRunEdge[],
-  shownNodeIds: ReadonlySet<string>
-): WorkflowRunEdge[] => edges.filter((e) => shownNodeIds.has(e.from) && shownNodeIds.has(e.to));
 
 /** Cubic Bezier SVG path between two chip boxes (vertical when stacked, horizontal otherwise). */
 export const edgePath = (from: Box, to: Box): string => {

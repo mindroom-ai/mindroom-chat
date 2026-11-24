@@ -1371,6 +1371,7 @@
         "foreach": "Para cada",
         "parallel": "Paralelo",
         "run": "Fluxo salvo",
+        "workflow": "Fluxo aninhado",
         "progress": "{{done}} de {{total}}",
         "failed": "Falharam: {{count}}"
       },
@@ -1391,6 +1392,7 @@
         "messages": "Mensagens",
         "messagesTo": "Mensagens para {{name}}: {{count}}",
         "open": "Abrir",
+        "detailsUnavailable": "Os detalhes não estão mais disponíveis após recarregar.",
         "stop": "Parar agente"
       }
     },

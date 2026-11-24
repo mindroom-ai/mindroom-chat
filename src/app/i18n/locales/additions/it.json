@@ -1371,6 +1371,7 @@
         "foreach": "Per ciascuno",
         "parallel": "Parallelo",
         "run": "Flusso salvato",
+        "workflow": "Flusso annidato",
         "progress": "{{done}} di {{total}}",
         "failed": "Non riusciti: {{count}}"
       },
@@ -1391,6 +1392,7 @@
         "messages": "Messaggi",
         "messagesTo": "Messaggi a {{name}}: {{count}}",
         "open": "Apri",
+        "detailsUnavailable": "I dettagli non sono più disponibili dopo il ricaricamento.",
         "stop": "Ferma agente"
       }
     },

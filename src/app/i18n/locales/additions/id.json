@@ -1279,6 +1279,7 @@
         "foreach": "Untuk setiap",
         "parallel": "Paralel",
         "run": "Alur kerja tersimpan",
+        "workflow": "Alur kerja bersarang",
         "progress": "{{done}} dari {{total}}",
         "failed": "Gagal: {{count}}"
       },
@@ -1297,6 +1298,7 @@
         "messages": "Pesan",
         "messagesTo": "Pesan ke {{name}}: {{count}}",
         "open": "Buka",
+        "detailsUnavailable": "Detail tidak lagi tersedia setelah muat ulang.",
         "stop": "Hentikan agen"
       }
     },

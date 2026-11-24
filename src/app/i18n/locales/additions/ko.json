@@ -1279,6 +1279,7 @@
         "foreach": "각 항목별",
         "parallel": "병렬",
         "run": "저장된 워크플로",
+        "workflow": "중첩 워크플로",
         "progress": "{{total}} 중 {{done}}",
         "failed": "실패: {{count}}"
       },
@@ -1297,6 +1298,7 @@
         "messages": "메시지",
         "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
         "open": "열기",
+        "detailsUnavailable": "새로고침 후에는 세부 정보를 볼 수 없습니다.",
         "stop": "에이전트 중지"
       }
     },

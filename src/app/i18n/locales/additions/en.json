@@ -1325,6 +1325,7 @@
         "foreach": "For each",
         "parallel": "Parallel",
         "run": "Saved workflow",
+        "workflow": "Nested workflow",
         "progress": "{{done}} of {{total}}",
         "failed": "Failed: {{count}}"
       },
@@ -1344,6 +1345,7 @@
         "messages": "Messages",
         "messagesTo": "Messages to {{name}}: {{count}}",
         "open": "Open",
+        "detailsUnavailable": "Details are no longer available after reload.",
         "stop": "Stop agent"
       }
     },

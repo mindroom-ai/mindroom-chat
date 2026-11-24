@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type {
-  WorkflowRunEdge,
   WorkflowRunGraph,
   WorkflowRunGroup,
   WorkflowRunNode,
@@ -11,7 +10,6 @@ import {
   foldGroupItems,
   layoutWorkflowRunGraph,
   nodeResultPreview,
-  shownEdges,
   type WorkflowGraphItem,
 } from './workflowGraphModel';
 
@@ -54,12 +52,6 @@ const makeGroup = (id: string, overrides: Partial<WorkflowRunGroup> = {}): Workf
   done: 2,
   failed: 0,
   ...overrides,
-});
-
-const makeEdge = (from: string, to: string, count = 1): WorkflowRunEdge => ({
-  from,
-  to,
-  count,
 });
 
 const makeGraph = (overrides: Partial<WorkflowRunGraph> = {}): WorkflowRunGraph => ({
@@ -196,11 +188,6 @@ describe('workflowGraphModel', () => {
       'n277',
     ]);
     expect(more).toBe(276);
-  });
-
-  it('draws only edges between shown chips', () => {
-    const edges = [makeEdge('n1', 'n2', 2), makeEdge('script', 'n2', 1), makeEdge('n1', 'n8', 3)];
-    expect(shownEdges(edges, new Set(['n1', 'n2']))).toEqual([makeEdge('n1', 'n2', 2)]);
   });
 
   it('curves from the bottom of one chip to the top of the one below, and between facing sides otherwise', () => {
