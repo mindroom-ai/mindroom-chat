@@ -841,7 +841,7 @@ export function CompactRoomView({
               filterState={emptyState.filterState}
               now={emptyState.now}
               canCompose={emptyState.canCompose}
-              indexPending={indexPending}
+              indexPending={indexPending && !unreachable}
               canToggle={canToggle}
               updatingThreadRootIds={updatingThreadRootIds}
               onThreadClick={onThreadClick}

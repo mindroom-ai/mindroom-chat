@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useId, useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { IconArrowDown, IconCheck, IconFilter } from '@tabler/icons-react';
 import classNames from 'classnames';
 import { Button, Spinner, Text } from 'folds';
@@ -13,6 +13,7 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ownDirectionLine } from '../../ui/directional';
 import { motionAllowed } from '../../ui/listMotion';
+import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
 import * as css from './CompactRoomEmptyState.css';
 import {
   COMPACT_THREAD_TITLE_LIMIT,
@@ -80,10 +81,22 @@ const isKeyboardActivated = (event: React.MouseEvent<HTMLButtonElement>): boolea
   }
 };
 
+const readRoomTagSnapshots = (room: Room): ReadonlyMap<string, ThreadTagSnapshot> | undefined =>
+  room.getLiveTimeline?.() ? getRoomThreadTagSnapshotMap(room) : undefined;
+
+const getRecentlyResolvedTs = (
+  record: ThreadRecord,
+  tagSnapshots?: ReadonlyMap<string, Pick<ThreadTagSnapshot, 'resolvedTs'>>
+): number | undefined =>
+  tagSnapshots?.get(record.threadRootId)?.resolvedTs ??
+  record.status.lastActivityTs ??
+  record.cache.oldestTs;
+
 export const classifyCompactRoomEmptyState = (
   threadRecordMap: ReadonlyMap<string, ThreadRecord>,
   filterState: ThreadFilterState,
-  now: number
+  now: number,
+  tagSnapshots?: ReadonlyMap<string, Pick<ThreadTagSnapshot, 'resolvedTs'>>
 ): CompactRoomEmptyStateModel => {
   let resolvedCount = 0;
   let snoozedCount = 0;
@@ -99,6 +112,10 @@ export const classifyCompactRoomEmptyState = (
   });
 
   resolvedRecords.sort((a, b) => {
+    const primaryDiff =
+      (getRecentlyResolvedTs(b, tagSnapshots) ?? 0) -
+      (getRecentlyResolvedTs(a, tagSnapshots) ?? 0);
+    if (primaryDiff !== 0) return primaryDiff;
     const activityDiff = (b.status.lastActivityTs ?? 0) - (a.status.lastActivityTs ?? 0);
     if (activityDiff !== 0) return activityDiff;
     const rootDiff = (b.cache.oldestTs ?? 0) - (a.cache.oldestTs ?? 0);
@@ -129,6 +146,7 @@ export const classifyCompactRoomEmptyState = (
 type RecentlyResolvedRowProps = {
   room: Room;
   record: ThreadRecord;
+  resolvedDisplayTs: number | undefined;
   canToggle: boolean;
   updating: boolean;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
@@ -139,6 +157,7 @@ type RecentlyResolvedRowProps = {
 function RecentlyResolvedRow({
   room,
   record,
+  resolvedDisplayTs,
   canToggle,
   updating,
   onThreadClick,
@@ -151,10 +170,11 @@ function RecentlyResolvedRow({
     getCompactThreadTitleText(room, record.presentation, t),
     COMPACT_THREAD_TITLE_LIMIT
   );
-  const lastActivityTs = record.status.lastActivityTs;
-  const relativeTime = useRelativeTime(lastActivityTs, 'compact');
-  const lastActivityTitle =
-    lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString(language) : undefined;
+  const relativeTime = useRelativeTime(resolvedDisplayTs, 'compact');
+  const resolvedTimeTitle =
+    resolvedDisplayTs !== undefined
+      ? new Date(resolvedDisplayTs).toLocaleString(language)
+      : undefined;
   const reopenLabel = t('threadActions.reopen');
   const reopenDisabled = updating || !isConfirmedMatrixEventId(record.threadRootId);
 
@@ -179,7 +199,7 @@ function RecentlyResolvedRow({
             size="T200"
             priority="400"
             className={css.PeekTime}
-            title={lastActivityTitle}
+            title={resolvedTimeTitle}
           >
             {relativeTime}
           </Text>
@@ -232,9 +252,20 @@ export function CompactRoomEmptyState({
 }: CompactRoomEmptyStateProps) {
   const { t } = useTranslation();
   const recentlyResolvedHeadingId = useId();
+  const tagSnapshots = readRoomTagSnapshots(room);
+  const [loadState, setLoadState] = useState(() => ({
+    roomId: room.roomId,
+    settled: !indexPending,
+  }));
+  const settled =
+    loadState.roomId === room.roomId ? loadState.settled || !indexPending : !indexPending;
+  if (loadState.roomId !== room.roomId || loadState.settled !== settled) {
+    setLoadState({ roomId: room.roomId, settled });
+  }
+  const initialPending = indexPending && !settled;
   const model = useMemo(
-    () => classifyCompactRoomEmptyState(threadRecordMap, filterState, now),
-    [threadRecordMap, filterState, now]
+    () => classifyCompactRoomEmptyState(threadRecordMap, filterState, now, tagSnapshots),
+    [threadRecordMap, filterState, now, tagSnapshots]
   );
 
   const activateWithFocusRestore = (
@@ -245,20 +276,30 @@ export function CompactRoomEmptyState({
     action();
   };
 
-  if (indexPending) {
-    return (
-      <div key="loading" className={css.Root} data-compact-room-empty-state="loading" role="status">
-        <div className={css.LoadingState}>
-          <Spinner size="400" variant="Secondary" />
-          <Text as="span" size="T200" priority="400">
-            {t('sharedUi.threadsView.loadingThreads')}
-          </Text>
-        </div>
-      </div>
-    );
-  }
-
   if (model.kind === 'inboxZero') {
+    if (initialPending) {
+      return (
+        <div key="loading" className={css.Root} data-compact-room-empty-state="loading">
+          <div className={css.LoadingState} role="status">
+            <Spinner size="400" variant="Secondary" />
+            <Text as="span" size="T200" priority="400">
+              {t('sharedUi.threadsView.loadingThreads')}
+            </Text>
+          </div>
+          {model.totalCount > 0 && (
+            <div className={css.SummaryRow}>
+              <button
+                type="button"
+                className={css.InlineLink}
+                onClick={(event) => activateWithFocusRestore(event, onReset)}
+              >
+                {t('mindroomUi.threads.compactRoomEmptyState.showAll')}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
     const animateRing = motionAllowed();
     const summaryParts: string[] = [];
     if (model.resolvedCount > 0) {
@@ -341,6 +382,7 @@ export function CompactRoomEmptyState({
                   key={record.threadRootId}
                   room={room}
                   record={record}
+                  resolvedDisplayTs={getRecentlyResolvedTs(record, tagSnapshots)}
                   canToggle={canToggle}
                   updating={updatingThreadRootIds.has(record.threadRootId)}
                   onThreadClick={onThreadClick}

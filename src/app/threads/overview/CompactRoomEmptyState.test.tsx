@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk';
 import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +9,11 @@ import {
   selectThreadWorkflowTab,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
+import {
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+  buildPerTagStateKey,
+} from '../../event-store/threads/threadTags';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import {
   CompactRoomEmptyState,
@@ -65,11 +71,28 @@ const makeRecord = (
   absoluteIndex: 0,
 });
 
-const makeRoom = (): Room =>
-  ({
-    roomId: '!room:example.org',
+const makeResolvedTagEvent = (threadRootId: string, resolvedTs: number): MatrixEvent =>
+  new MatrixEvent({
+    content: { set_by: '@alice:example.org', set_at: new Date(resolvedTs).toISOString() },
+    event_id: `$tag-${threadRootId}-${resolvedTs}`,
+    origin_server_ts: resolvedTs,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    state_key: buildPerTagStateKey(threadRootId, RESOLVED_TAG),
+    type: MINDROOM_THREAD_TAGS_EVENT,
+  });
+
+const makeRoom = (roomId = '!room:example.org', tagEvents: MatrixEvent[] = []): Room => {
+  const roomState = {
+    getStateEvents: (eventType: string) =>
+      eventType === MINDROOM_THREAD_TAGS_EVENT ? [...tagEvents] : [],
+  };
+  return {
+    roomId,
     getMember: () => null,
-  }) as unknown as Room;
+    getLiveTimeline: () => ({ getState: () => roomState }),
+  } as unknown as Room;
+};
 
 const unresolvedFilter = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   ...createDefaultThreadFilterState(),
@@ -127,6 +150,7 @@ const renderEmptyState = (overrides: Partial<CompactRoomEmptyStateProps> = {}) =
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   setReducedMotion(false);
 });
 
@@ -338,38 +362,27 @@ describe('CompactRoomEmptyState', () => {
     ).toBe(true);
   });
 
-  it('shows a neutral loading state while indexPending is true and mounts Inbox Zero only once settled', () => {
+  it('gates only initial Inbox Zero on indexPending, offers Show all while loading, and keeps All caught up mounted on background refresh', () => {
     setReducedMotion(false);
     const partialResolved = new Map<string, ThreadRecord>([
       ['$r1', makeRecord('$r1', { isResolved: true, lastActivityTs: NOW - 1_000 })],
     ]);
-    const baseProps: CompactRoomEmptyStateProps = {
-      room: makeRoom(),
-      threadRecordMap: partialResolved,
-      filterState: unresolvedFilter(),
-      now: NOW,
-      canCompose: true,
-      indexPending: true,
-      canToggle: true,
-      updatingThreadRootIds: new Set(),
-      onThreadClick: vi.fn(),
-      onSetResolved: vi.fn(),
-      onReset: vi.fn(),
-      onShowSnoozed: vi.fn(),
-    };
 
-    const { container, rerender } = render(<CompactRoomEmptyState {...baseProps} />);
+    // Initial pending Inbox Zero: shows Loading threads + Show all without celebrating All caught up.
+    const initial = renderEmptyState({ threadRecordMap: partialResolved, indexPending: true });
     expect(screen.getByRole('status').textContent).toContain('Loading threads');
     expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
+    expect(initial.props.onReset).toHaveBeenCalledTimes(1);
 
     // An open thread arrives as loading finishes: never celebrated Inbox Zero.
     const withOpenArrived = new Map<string, ThreadRecord>([
       ...partialResolved,
       ['$open-1', makeRecord('$open-1', { summaryText: 'Arrived open thread' })],
     ]);
-    rerender(
+    initial.rerender(
       <CompactRoomEmptyState
-        {...baseProps}
+        {...initial.props}
         threadRecordMap={withOpenArrived}
         indexPending={false}
       />
@@ -377,14 +390,52 @@ describe('CompactRoomEmptyState', () => {
     expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'No threads match your filters' })).toBeTruthy();
 
-    // Settling with 0 open threads mounts Inbox Zero fresh with bloom animation.
-    rerender(<CompactRoomEmptyState {...baseProps} indexPending={true} />);
-    expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
-    rerender(<CompactRoomEmptyState {...baseProps} indexPending={false} />);
+    // Fresh room settling with 0 open threads mounts Inbox Zero with bloom animation, then
+    // flipping indexPending back to true on background refresh keeps All caught up mounted.
+    cleanup();
+    const settled = renderEmptyState({ threadRecordMap: partialResolved, indexPending: true });
+    expect(screen.getByRole('status').textContent).toContain('Loading threads');
+    settled.rerender(<CompactRoomEmptyState {...settled.props} indexPending={false} />);
     expect(screen.getByRole('heading', { name: 'All caught up' })).toBeTruthy();
-    expect(container.querySelector('[data-empty-state-ring="success"]')?.className).toContain(
-      css.IconRingSuccessAnimated
+    const ringBefore = settled.container.querySelector('[data-empty-state-ring="success"]');
+    expect(ringBefore?.className).toContain(css.IconRingSuccessAnimated);
+
+    settled.rerender(<CompactRoomEmptyState {...settled.props} indexPending={true} />);
+    expect(screen.getByRole('heading', { name: 'All caught up' })).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(settled.container.querySelector('[data-empty-state-ring="success"]')).toBe(ringBefore);
+
+    // Switching to another room resets the settled guard while its initial index is still pending.
+    settled.rerender(
+      <CompactRoomEmptyState
+        {...settled.props}
+        room={makeRoom('!other:example.org')}
+        indexPending={true}
+      />
     );
+    expect(screen.getByRole('status').textContent).toContain('Loading threads');
+    expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
+
+    // Filtered empty state stays interactive immediately while indexPending is true.
+    cleanup();
+    const pendingForMe = renderEmptyState({
+      threadRecordMap: withOpenArrived,
+      filterState: unresolvedFilter({ forMe: true }),
+      indexPending: true,
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off For me' }));
+    expect(pendingForMe.props.onToggleForMe).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    const pendingFiltered = renderEmptyState({
+      threadRecordMap: withOpenArrived,
+      filterState: unresolvedFilter({ freeText: 'missing' }),
+      indexPending: true,
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(pendingFiltered.props.onReset).toHaveBeenCalledTimes(1);
 
     cleanup();
     setReducedMotion(true);
@@ -392,6 +443,63 @@ describe('CompactRoomEmptyState', () => {
     expect(
       reduced.container.querySelector('[data-empty-state-ring="success"]')?.className
     ).not.toContain(css.IconRingSuccessAnimated);
+  });
+
+  it('sorts Recently resolved by resolvedTs first and uses resolvedTs for row timestamps', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const newestResolvedTs = NOW - 2 * 60_000;
+    const midResolvedTs = NOW - 20 * 60_000;
+    const oldestResolvedTs = NOW - 4 * 3_600_000;
+
+    const records = new Map<string, ThreadRecord>([
+      [
+        '$older-activity',
+        makeRecord('$older-activity', {
+          summaryText: 'Legacy migration',
+          isResolved: true,
+          lastActivityTs: NOW - 3 * 86_400_000,
+        }),
+      ],
+      [
+        '$mid-resolved',
+        makeRecord('$mid-resolved', {
+          summaryText: 'Billing audit',
+          isResolved: true,
+          lastActivityTs: NOW - 10 * 60_000,
+        }),
+      ],
+      [
+        '$newest-activity',
+        makeRecord('$newest-activity', {
+          summaryText: 'Daily standup',
+          isResolved: true,
+          lastActivityTs: NOW - 60_000,
+        }),
+      ],
+    ]);
+
+    const room = makeRoom('!room:example.org', [
+      makeResolvedTagEvent('$older-activity', newestResolvedTs),
+      makeResolvedTagEvent('$mid-resolved', midResolvedTs),
+      makeResolvedTagEvent('$newest-activity', oldestResolvedTs),
+    ]);
+
+    const { container } = renderEmptyState({ room, threadRecordMap: records });
+    const rows = Array.from(container.querySelectorAll('[data-recent-resolved-row]'));
+    expect(rows.map((row) => row.getAttribute('data-recent-resolved-row'))).toEqual([
+      '$older-activity',
+      '$mid-resolved',
+    ]);
+    expect(screen.queryByText('Daily standup')).toBeNull();
+
+    const firstTime = rows[0]?.querySelector('[title]');
+    expect(firstTime?.textContent).toBe('2m');
+    expect(firstTime?.getAttribute('title')).toBe(new Date(newestResolvedTs).toLocaleString('en'));
+
+    const secondTime = rows[1]?.querySelector('[title]');
+    expect(secondTime?.textContent).toBe('20m');
+    expect(secondTime?.getAttribute('title')).toBe(new Date(midResolvedTs).toLocaleString('en'));
   });
 
   it('distinguishes For me alone from combined filters and Done/Later tabs without invalid button markup', () => {

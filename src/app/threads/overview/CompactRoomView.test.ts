@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { bindHomeserverReachability } from '../../matrix/client/homeserverReachability';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
@@ -471,6 +472,66 @@ describe('CompactRoomView', () => {
       )
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(0);
+    renderer.unmount();
+
+    // Reachable indexPending shows loading, while unreachable suppresses indexPending so it does not spin forever.
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: [],
+          threadRecordMap,
+          indexPending: true,
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+          emptyState: {
+            filterState: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+            now: 1_700_000_060_000,
+            canCompose: true,
+            onReset: vi.fn(),
+            onShowSnoozed: vi.fn(),
+          },
+        })
+      );
+    });
+    expect(
+      renderer.root.findAll((node) => node.props['data-compact-room-empty-state'] === 'loading')
+    ).toHaveLength(1);
+    renderer.unmount();
+
+    const unreachableClient = {} as MatrixClient;
+    bindHomeserverReachability(unreachableClient, {
+      fetchFn: vi.fn(),
+      isUnreachable: () => true,
+      subscribe: () => () => undefined,
+    });
+    const offlineRoom = { ...makeRoom(), client: unreachableClient } as unknown as Room;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: offlineRoom,
+          threadRootIds: [],
+          threadRecordMap,
+          indexPending: true,
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+          emptyState: {
+            filterState: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+            now: 1_700_000_060_000,
+            canCompose: true,
+            onReset: vi.fn(),
+            onShowSnoozed: vi.fn(),
+          },
+        })
+      );
+    });
+    expect(
+      renderer.root.findAll((node) => node.props['data-compact-room-empty-state'] === 'inboxZero')
+    ).toHaveLength(1);
+    expect(
+      renderer.root.findAll((node) => node.props['data-compact-room-empty-state'] === 'loading')
+    ).toHaveLength(0);
+    renderer.unmount();
   });
 
   it('builds compact card view models through the shared MindRoom selector', () => {
