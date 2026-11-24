@@ -182,8 +182,10 @@ describe('useCompactThreadSections', () => {
   });
 
   it('re-evaluates Quiet when room unread counts change', () => {
+    vi.useFakeTimers();
     const store = createStore();
     const base = 10 * QUIET_AFTER_MS;
+    vi.setSystemTime(base);
     const entry = {
       key: getCrossRoomThreadIndexKey(ROOM_ID, '$mentioned'),
       roomId: ROOM_ID,
@@ -219,5 +221,131 @@ describe('useCompactThreadSections', () => {
     mentioned = false;
     act(() => store.set(roomToUnreadAtom, { type: 'DELETE', roomId: ROOM_ID }));
     expect(result.current).toEqual([{ id: 'quiet', rootIds: ['$mentioned'] }]);
+  });
+
+  it('folds already-due threads on the first render when Sections turns on after wall time passes, preserving snooze parity', () => {
+    vi.useFakeTimers();
+    const openedAt = 10 * QUIET_AFTER_MS;
+    const minute = 60 * 1_000;
+    const hour = 60 * minute;
+    vi.setSystemTime(openedAt);
+    const { room: delayedRoom } = room();
+    const records = recordsOf(
+      record('$due', { lastActivityTs: openedAt + hour - QUIET_AFTER_MS }),
+      record('$snoozed', { snoozedUntilTs: openedAt + 30 * minute })
+    );
+
+    const { result, rerender } = renderHook(
+      ({ now }: { now: number | undefined }) =>
+        useCompactThreadSections({
+          room: delayedRoom,
+          now,
+          threadRootIds: ['$due', '$snoozed'],
+          threadRecordMap: records,
+          pinnedRootIds: [],
+        }),
+      { wrapper: wrapperOf(createStore()), initialProps: { now: undefined as number | undefined } }
+    );
+    expect(result.current).toBeUndefined();
+
+    // Wall time advances 70 minutes past room open; Sections turns on with the stale snooze clock.
+    vi.setSystemTime(openedAt + 70 * minute);
+    rerender({ now: openedAt });
+    expect(result.current).toEqual([
+      { id: 'later', rootIds: ['$snoozed'] },
+      { id: 'quiet', rootIds: ['$due'] },
+    ]);
+
+    // Once the snooze clock catches up, the snoozed thread leaves Later for Needs you.
+    rerender({ now: openedAt + 70 * minute });
+    expect(result.current).toEqual([
+      { id: 'needsYou', rootIds: ['$snoozed'] },
+      { id: 'quiet', rootIds: ['$due'] },
+    ]);
+  });
+
+  it('arms the Quiet timer against wall time when Sections turns on with a stale snooze clock', () => {
+    vi.useFakeTimers();
+    const openedAt = 10 * QUIET_AFTER_MS;
+    const minute = 60 * 1_000;
+    const hour = 60 * minute;
+    vi.setSystemTime(openedAt);
+    const { room: timedRoom } = room();
+    const records = recordsOf(
+      record('$due', { lastActivityTs: openedAt + hour - QUIET_AFTER_MS })
+    );
+
+    const { result, rerender } = renderHook(
+      ({ now }: { now: number | undefined }) =>
+        useCompactThreadSections({
+          room: timedRoom,
+          now,
+          threadRootIds: ['$due'],
+          threadRecordMap: records,
+          pinnedRootIds: [],
+        }),
+      { wrapper: wrapperOf(createStore()), initialProps: { now: undefined as number | undefined } }
+    );
+    expect(result.current).toBeUndefined();
+
+    // Enable Sections 30 minutes after room open with the stale 11:00 snooze clock; due at 12:00.
+    vi.setSystemTime(openedAt + 30 * minute);
+    rerender({ now: openedAt });
+    expect(result.current).toEqual([{ id: 'needsYou', rootIds: ['$due'] }]);
+
+    act(() => {
+      vi.advanceTimersByTime(30 * minute - 1);
+    });
+    expect(result.current).toEqual([{ id: 'needsYou', rootIds: ['$due'] }]);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toEqual([{ id: 'quiet', rootIds: ['$due'] }]);
+  });
+
+  it('folds a past-due thread arriving while Sections is open immediately without looping', () => {
+    vi.useFakeTimers();
+    const openedAt = 10 * QUIET_AFTER_MS;
+    const minute = 60 * 1_000;
+    const hour = 60 * minute;
+    vi.setSystemTime(openedAt);
+    const { room: openRoom } = room();
+
+    const { result, rerender } = renderHook(
+      ({
+        threadRootIds,
+        threadRecordMap,
+      }: {
+        threadRootIds: string[];
+        threadRecordMap: ReadonlyMap<string, ThreadRecord>;
+      }) =>
+        useCompactThreadSections({
+          room: openRoom,
+          now: openedAt,
+          threadRootIds,
+          threadRecordMap,
+          pinnedRootIds: [],
+        }),
+      {
+        wrapper: wrapperOf(createStore()),
+        initialProps: { threadRootIds: [] as string[], threadRecordMap: recordsOf() },
+      }
+    );
+    expect(result.current).toEqual([]);
+
+    vi.setSystemTime(openedAt + 70 * minute);
+    rerender({
+      threadRootIds: ['$due'],
+      threadRecordMap: recordsOf(
+        record('$due', { lastActivityTs: openedAt + hour - QUIET_AFTER_MS })
+      ),
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(result.current).toEqual([{ id: 'quiet', rootIds: ['$due'] }]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

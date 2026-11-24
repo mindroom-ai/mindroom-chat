@@ -11,7 +11,7 @@ import {
 } from '../cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
 import {
-  buildCompactThreadSectionsResult,
+  buildCompactThreadSections,
   type CompactThreadSection,
 } from './compactThreadSections';
 
@@ -54,10 +54,11 @@ const roomEntriesAtom = (roomId: string): Atom<RoomEntries> => {
 };
 
 /**
- * The Compact room's listed cards in sections (`buildCompactThreadSectionsResult`) while `now` is
- * set, else undefined. `now` is the snooze clock the list was filtered at (`useThreadIndex`), so a
+ * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `now` is set,
+ * else undefined. `now` is the snooze clock the list was filtered at (`useThreadIndex`), so a
  * thread the selected tab admits when its snooze ends is classified as the tab did; Quiet uses a
- * separate timer clock so read, inactive threads fold automatically without shifting snooze parity.
+ * separate wall-clock timer so read, inactive threads fold automatically without shifting snooze
+ * parity.
  */
 export const useCompactThreadSections = ({
   room,
@@ -86,14 +87,17 @@ export const useCompactThreadSections = ({
       [enabled, room.roomId]
     )
   );
-  const [quietTick, setQuietTick] = useState(0);
-  const quietNow = now !== undefined ? Math.max(now, quietTick) : undefined;
+  const [quietClock, setQuietClock] = useState(() => ({ enabled, now: Date.now() }));
+  if (quietClock.enabled !== enabled) {
+    setQuietClock({ enabled, now: enabled ? Date.now() : quietClock.now });
+  }
+  const quietNow = now !== undefined ? Math.max(now, quietClock.now) : undefined;
 
   const result = useMemo(() => {
     if (now === undefined || quietNow === undefined) return undefined;
     // The client's shared signals cache, which Activity and the sidebar keep filled.
     const reader = getThreadSignalsReader(room.client);
-    return buildCompactThreadSectionsResult({
+    return buildCompactThreadSections({
       threadRootIds,
       recordMap: threadRecordMap,
       entryOf: (rootId) => entries.get(rootId),
@@ -108,14 +112,15 @@ export const useCompactThreadSections = ({
 
   const nextQuietWakeTs = result?.nextQuietWakeTs;
   useEffect(() => {
-    if (!enabled || quietNow === undefined || nextQuietWakeTs === undefined) return undefined;
+    if (!enabled || nextQuietWakeTs === undefined) return undefined;
     const timer = setTimeout(
-      () => setQuietTick(Date.now()),
-      Math.max(0, Math.min(nextQuietWakeTs - quietNow, MAX_TIMEOUT_MS))
+      () => setQuietClock({ enabled: true, now: Date.now() }),
+      Math.max(0, Math.min(nextQuietWakeTs - Date.now(), MAX_TIMEOUT_MS))
     );
     return () => clearTimeout(timer);
-    // quietNow is a dependency so a capped timer re-arms for the rest of a long wait.
-  }, [enabled, nextQuietWakeTs, quietNow]);
+    // quietClock.now is a dependency so a capped timer re-arms for the rest of a long wait.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, nextQuietWakeTs, quietClock.now]);
 
   return result?.sections;
 };

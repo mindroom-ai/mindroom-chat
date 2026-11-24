@@ -11,10 +11,7 @@ import {
 } from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
-import {
-  buildCompactThreadSections,
-  buildCompactThreadSectionsResult,
-} from './compactThreadSections';
+import { buildCompactThreadSections } from './compactThreadSections';
 
 const NOW = 1_000;
 
@@ -53,7 +50,7 @@ const build = ({
     signalsOf: (entry) => signals.get(entry.threadRootId) as ThreadSignals | undefined,
     pinnedRootIds,
     now: NOW,
-  }).map(({ id, rootIds }) => [id, rootIds]);
+  }).sections.map(({ id, rootIds }) => [id, rootIds]);
 
 /** One thread of each kind the workflow classifier tells apart. */
 const everyKind = recordsOf(
@@ -258,7 +255,7 @@ describe('buildCompactThreadSections', () => {
     );
     const entries = new Map([['$waiting-old', { threadRootId: '$waiting-old' }]]);
     let signalReads = 0;
-    const result = buildCompactThreadSectionsResult({
+    const result = buildCompactThreadSections({
       threadRootIds: [...records.keys()],
       recordMap: records,
       entryOf: (rootId) => entries.get(rootId) as CrossRoomThreadIndexEntry | undefined,

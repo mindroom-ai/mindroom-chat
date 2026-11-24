@@ -42,7 +42,7 @@ type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
  * sections omitted. Needs you and Quiet sort by `threadQuietActivityTs` (reading `signalsOf` once
  * per Needs you candidate); pinned threads lead their section.
  */
-export const buildCompactThreadSectionsResult = ({
+export const buildCompactThreadSections = ({
   threadRootIds,
   recordMap,
   entryOf,
@@ -140,7 +140,3 @@ export const buildCompactThreadSectionsResult = ({
   );
   return nextQuietWakeTs !== undefined ? { sections, nextQuietWakeTs } : { sections };
 };
-
-export const buildCompactThreadSections = (
-  input: BuildCompactThreadSectionsInput
-): CompactThreadSection[] => buildCompactThreadSectionsResult(input).sections;
