@@ -1,5 +1,5 @@
 import { KeyboardEvent } from 'react';
-import isHotkey from 'is-hotkey';
+import { isHotkey } from 'is-hotkey';
 import { Editor } from 'slate';
 import { MarkType } from './types';
 
