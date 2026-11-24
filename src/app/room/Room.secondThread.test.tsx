@@ -14,6 +14,7 @@ import {
   THREAD_DRAG_TYPE,
 } from '../navigation/secondThread';
 import { secondThreadStorageKey } from '../preferences/accountStorageKeys';
+import { runShortcut } from '../shortcuts/useShortcut';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -324,6 +325,27 @@ describe('the second thread beside the open one', () => {
     const menu = screen.getByTestId('b-menu');
     menu.focus();
     fireEvent.keyDown(menu, { code: 'KeyA', key: 'a' });
+    expect(state.focusComposer).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape (focusComposer) while focus is inside B's column focuses B's composer", async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    const timeline = screen.getByTestId('b-timeline');
+    timeline.focus();
+    expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
+      true
+    );
+    expect(state.focusComposer).toHaveBeenCalledTimes(1);
+
+    screen.getByTestId('b-menu').focus();
+    expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
+      false
+    );
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+    expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
+      false
+    );
     expect(state.focusComposer).toHaveBeenCalledTimes(1);
   });
 

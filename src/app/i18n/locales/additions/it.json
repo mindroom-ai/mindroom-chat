@@ -1751,8 +1751,7 @@
       "replyAndOthers_many": "{{name}} e altri {{count}} hanno risposto",
       "replyAndOthers_other": "{{name}} e altri {{count}} hanno risposto",
       "finished": "{{name}} ha finito",
-      "stopped": "{{name}} si è fermato",
-      "youReplied": "Hai risposto"
+      "stopped": "{{name}} si è fermato"
     },
     "newCount_one": "{{count}} nuovo",
     "newCount_many": "{{count}} nuovi",
@@ -2178,5 +2177,36 @@
   },
   "nav": {
     "usage": "Utilizzo"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} stanza",
+      "roomsCount_many": "{{count}} stanze",
+      "roomsCount_other": "{{count}} stanze",
+      "roomsFiltered": "{{active}} di {{total}} stanze"
+    },
+    "roomFilter": {
+      "label": "Stanze",
+      "ariaLabel": "Filtra i thread per stanza",
+      "ariaLabelActive": "Filtra i thread per stanza (selezionate: {{number}})",
+      "ariaLabelOne": "Stanze: {{room}}",
+      "search": "Cerca stanze",
+      "noMatch": "Nessuna stanza corrispondente"
+    },
+    "composer": {
+      "postTo": "Pubblica in:",
+      "postToRoom": "Pubblica in #{{room}}",
+      "chooseRoomAria": "Scegli la stanza in cui pubblicare",
+      "draftPinned": "Bozza per #{{room}}",
+      "readOnly": "Nessuna stanza di questo spazio consente la pubblicazione."
+    },
+    "loading": "Caricamento discussioni...",
+    "empty": {
+      "noRooms": "Unisciti a una stanza in questo spazio per vedere le discussioni qui.",
+      "noThreads": "Non ci sono ancora discussioni in questo spazio."
+    },
+    "error": {
+      "title": "Impossibile caricare le discussioni dello spazio"
+    }
   }
 }

@@ -31,3 +31,14 @@ export const readTopInset = (scroller: Element): number => {
   );
   return top + (Number.isFinite(banner) ? banner : 0);
 };
+
+/**
+ * Scroll padding covering the top (header and thread banner) and bottom (floating composer) bands
+ * of a scroller, in px.
+ */
+export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: number } => {
+  if (typeof getComputedStyle !== 'function') return { top: 0, bottom: 0 };
+  const style = getComputedStyle(scrollElement);
+  const bottom = Number.parseFloat(style.scrollPaddingBottom ?? '');
+  return { top: readTopInset(scrollElement), bottom: Number.isFinite(bottom) ? bottom : 0 };
+};

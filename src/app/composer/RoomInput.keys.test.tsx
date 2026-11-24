@@ -157,7 +157,11 @@ vi.mock('./ComposerSendButton', () => ({ ComposerSendButton: () => null }));
 vi.mock('../event-store/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
-vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
+vi.mock('../lib/user-agent', () => ({
+  mobileOrTablet: () => false,
+  isMacOS: () => false,
+  isIOS: () => false,
+}));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
 }));

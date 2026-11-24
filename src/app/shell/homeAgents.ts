@@ -11,9 +11,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { MINDROOM_SERVER_EVENT } from '../computer/agentServer';
-import { getPowersLevelFromMatrixEvent } from '../matrix/hooks/usePowerLevels';
-import { getRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { getRoomPermissionsAPI } from '../matrix/hooks/useRoomPermissions';
+
 import { createDirectRoom } from '../matrix/createRoom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useStateEventCallback } from '../matrix/hooks/useStateEventCallback';
@@ -23,11 +21,10 @@ import { addRoomIdToMDirect, getMxIdLocalPart } from '../matrix/matrix';
 import { agentRoomState } from '../matrix/protocol/agentRoomState';
 import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../matrix/protocol/agentIdentity';
 import { isThreadSummaryEvent } from '../matrix/protocol/threadSummary';
-import { getMemberAvatarMxc, getMemberRawDisplayName, getStateEvent } from '../matrix/room';
+import { canSendMessageInRoom, getMemberAvatarMxc, getMemberRawDisplayName } from '../matrix/room';
 import { navigationRoomsAtom } from '../matrix/state/archivedRooms';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import type { MDirectContent } from '../matrix/types/accountData';
-import { StateEvent } from '../matrix/types/room';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -44,17 +41,8 @@ export type HomeAgent = {
   lastUsedTs: number;
 };
 
-const canSendIn = (room: Room): boolean => {
-  if (room.getMyMembership() !== 'join' || getStateEvent(room, StateEvent.RoomTombstone)) {
-    return false;
-  }
-  const create = getStateEvent(room, StateEvent.RoomCreate);
-  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
-  return getRoomPermissionsAPI(create ? getRoomCreators(create) : new Set(), levels).event(
-    'm.room.message',
-    room.myUserId
-  );
-};
+const canSendIn = (room: Room): boolean =>
+  room.getMyMembership() === 'join' && canSendMessageInRoom(room, room.myUserId);
 
 /** Whether the account can send a question to `agentId` in `room`. */
 export const canAskIn = (room: Room, agentId: string): boolean => {

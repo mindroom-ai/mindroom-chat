@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
+import { readChatUiAction, type ChatUiAction } from '../../matrix/protocol/chatUiProtocol';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../preferences/settings';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { makeUiEvent, makeUiRoom } from '../../ui-actions/testUtils';
 import { InlineCanvasFrame, inlineCanvasScale } from './InlineCanvasFrame';
@@ -56,11 +59,31 @@ let container: HTMLDivElement;
 let fixture: ReturnType<typeof makeUiRoom>;
 const canvas = { title: 'A mockup', html: '<p>Preview</p>' };
 const event = () => makeUiEvent({ action: 'show_canvas', inline: true, canvas });
+const store = getDefaultStore();
+const setZoom = (pageZoom: number) =>
+  act(() => {
+    store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom });
+  });
+
 const render = (
   request = event(),
   enabled = true,
   remoteAssets = false,
-  { readOnly = false, openCanvasId }: { readOnly?: boolean; openCanvasId?: string } = {}
+  {
+    readOnly = false,
+    openCanvasId,
+    fallback,
+    read = () => undefined,
+    unavailable = () => undefined,
+    activate = () => undefined,
+  }: {
+    readOnly?: boolean;
+    openCanvasId?: string;
+    fallback?: ReactNode;
+    read?: (e: MatrixEvent) => ChatUiAction | undefined;
+    unavailable?: (action: ChatUiAction) => string | undefined;
+    activate?: (e: MatrixEvent) => void;
+  } = {}
 ) =>
   act(() =>
     root.render(
@@ -68,13 +91,13 @@ const render = (
         <ClientConfigProvider value={{ mindroom: { canvas: { enabled, remoteAssets } } }}>
           <ChatUiActionContext
             value={{
-              read: () => undefined,
-              unavailable: () => undefined,
-              activate: () => undefined,
+              read,
+              unavailable,
+              activate,
               openCanvasId,
             }}
           >
-            <InlineCanvasFrame event={request} readOnly={readOnly} />
+            <InlineCanvasFrame event={request} readOnly={readOnly} fallback={fallback} />
           </ChatUiActionContext>
         </ClientConfigProvider>
       </MatrixClientProvider>
@@ -104,6 +127,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom: PAGE_ZOOM_DEFAULT });
   vi.restoreAllMocks();
 });
 
@@ -388,11 +412,186 @@ describe('InlineCanvasFrame', () => {
     expect(frame()).toBe(first);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
-  it('shrinks a wide page to its column and never enlarges a narrow one', () => {
+  it('shrinks a wide page to its column and follows page zoom without overflowing', () => {
     expect(inlineCanvasScale(720, 1440)).toBe(0.5);
     expect(inlineCanvasScale(720, 390)).toBe(1);
     expect(inlineCanvasScale(720, undefined)).toBe(1);
     expect(inlineCanvasScale(0, 1440)).toBe(1);
+    expect(inlineCanvasScale(720, undefined, 0.5)).toBe(0.5);
+    expect(inlineCanvasScale(720, undefined, 1.5)).toBe(1.5);
+    expect(inlineCanvasScale(720, 390, 0.5)).toBe(0.5);
+    expect(inlineCanvasScale(720, 390, 1.5)).toBe(1.5);
+    expect(inlineCanvasScale(500, 390, 1.5)).toBeCloseTo(500 / 390, 6);
+    expect(inlineCanvasScale(720, 1440, 1.5)).toBe(0.5);
+    expect(inlineCanvasScale(0, 1440, 0.5)).toBe(0.5);
+  });
+
+  it('scales responsive and explicit-width inline canvases with pageZoom', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observed.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const column = (width: number) =>
+      act(() =>
+        observed.forEach((callback) =>
+          callback([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver)
+        )
+      );
+    const boxHeight = () => (frame().parentElement as HTMLElement).style.height;
+
+    try {
+      // Responsive themed page: default 100%, zoom out 50%, zoom in 125%.
+      render();
+      post({ type: 'mindroom.canvas.size', version: 1, height: 400 });
+      expect(frame().style.width).toBe('100%');
+      expect(frame().style.transform).toBe('');
+      expect(boxHeight()).toBe('400px');
+
+      setZoom(50);
+      expect(frame().style.width).toBe('200%');
+      expect(frame().style.height).toBe('400px');
+      expect(frame().style.transform).toBe('scale(0.5)');
+      expect(frame().style.transformOrigin).toBe('left top');
+      expect(boxHeight()).toBe('200px');
+
+      setZoom(125);
+      expect(frame().style.width).toBe('80%');
+      expect(frame().style.height).toBe('400px');
+      expect(frame().style.transform).toBe('scale(1.25)');
+      expect(boxHeight()).toBe('500px');
+
+      // Responsive raw preview uses logical width (column / zoom) for its 16:10 window.
+      setZoom(50);
+      act(() => root.render(<></>));
+      render(
+        makeUiEvent({ action: 'show_canvas', inline: true, canvas: { ...canvas, raw: true } })
+      );
+      column(720);
+      expect(frame().style.width).toBe('200%');
+      expect(frame().style.height).toBe('900px');
+      expect(frame().style.transform).toBe('scale(0.5)');
+      expect(boxHeight()).toBe('450px');
+      post({ type: 'mindroom.canvas.size', version: 1, height: 600 });
+      expect(boxHeight()).toBe('300px');
+
+      // Explicit narrow width scales with zoom when it fits the column.
+      act(() => root.render(<></>));
+      render(
+        makeUiEvent({ action: 'show_canvas', inline: true, canvas: { ...canvas, width: 390 } })
+      );
+      column(720);
+      expect(frame().style.width).toBe('390px');
+      expect(frame().style.transform).toBe('scale(0.5)');
+      expect(boxHeight()).toBe('284px');
+
+      setZoom(150);
+      expect(frame().style.width).toBe('390px');
+      expect(frame().style.transform).toBe('scale(1.5)');
+      expect(boxHeight()).toBe('852px');
+
+      // Explicit wide width stays clamped to the column even when zoomed in.
+      act(() => root.render(<></>));
+      render(
+        makeUiEvent({ action: 'show_canvas', inline: true, canvas: { ...canvas, width: 1440 } })
+      );
+      column(720);
+      expect(frame().style.width).toBe('1440px');
+      expect(frame().style.transform).toBe('scale(0.5)');
+      expect(boxHeight()).toBe('450px');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('frames an active inline canvas with its title, header action, and unavailable note', () => {
+    const request = event();
+    const activate = vi.fn();
+    const read = (e: MatrixEvent) => readChatUiAction(e, fixture.mx.getSafeUserId(), fixture.room);
+    render(request, true, false, { read, activate });
+
+    const titleWrap = container.querySelector('[data-canvas-notice-title]')!;
+    expect(titleWrap.textContent).toBe(canvas.title);
+    const titleSpan = titleWrap.querySelector('[data-own-direction]')!;
+    expect(titleSpan.getAttribute('dir')).toBe('auto');
+
+    const open = [...container.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === 'Open canvas'
+    )!;
+    expect(open).toBeDefined();
+    expect(open.closest('[data-canvas-actions]')).not.toBeNull();
+    // Both title and Open canvas sit in the header above the iframe.
+    expect(
+      titleWrap.compareDocumentPosition(frame()) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(open.compareDocumentPosition(frame()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    act(() => open.click());
+    expect(activate).toHaveBeenCalledWith(request);
+
+    // When unavailable, the header button disables and the reason sits in a sub-row above the body.
+    render(request, true, false, {
+      read,
+      activate,
+      unavailable: () => 'End the call to open interactive panels.',
+    });
+    const disabledOpen = [...container.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === 'Open canvas'
+    )!;
+    expect(disabledOpen.disabled).toBe(true);
+    const note = container.querySelector('[role="note"]')!;
+    expect(note.textContent).toBe('End the call to open interactive panels.');
+    expect(
+      disabledOpen.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(note.compareDocumentPosition(frame()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Read-only rows keep the framed title and hide the Open canvas button and note.
+    render(request, true, false, {
+      readOnly: true,
+      read,
+      activate,
+      unavailable: () => 'End the call to open interactive panels.',
+    });
+    expect(container.querySelector('[data-canvas-notice-title]')?.textContent).toBe(canvas.title);
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.querySelector('[role="note"]')).toBeNull();
+  });
+
+  it('renders the fallback notice when canvases are off, non-inline, or for another member', () => {
+    const fallback = <div data-fallback>Plain notice fallback</div>;
+
+    render(event(), false, false, { fallback });
+    expect(container.querySelector('[data-fallback]')?.textContent).toBe('Plain notice fallback');
+    expect(container.querySelector('iframe')).toBeNull();
+
+    render(makeUiEvent({ action: 'show_canvas', canvas }), true, false, { fallback });
+    expect(container.querySelector('[data-fallback]')?.textContent).toBe('Plain notice fallback');
+    expect(container.querySelector('iframe')).toBeNull();
+
+    render(
+      makeUiEvent({
+        action: 'show_canvas',
+        inline: true,
+        canvas,
+        requester_id: '@bob:example.org',
+      }),
+      true,
+      false,
+      { fallback }
+    );
+    expect(container.querySelector('[data-fallback]')?.textContent).toBe('Plain notice fallback');
+    expect(container.querySelector('iframe')).toBeNull();
+
+    // Active inline canvas replaces the fallback with its framed card.
+    render(event(), true, false, { fallback });
+    expect(container.querySelector('[data-fallback]')).toBeNull();
+    expect(container.querySelector('iframe')).not.toBeNull();
   });
 });
 

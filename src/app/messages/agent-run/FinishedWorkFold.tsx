@@ -15,6 +15,7 @@ import {
 } from '../manualExpansionState';
 import { formatWorkDuration } from '../../lib/time';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import { useRevealOnOpen } from '../../ui/disclosureReveal';
 import { motionAllowed } from '../../ui/listMotion';
 import { Outline } from './OutlineComet.css';
 import * as reasoningCss from './Reasoning.css';
@@ -67,6 +68,14 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   const [moving, setMoving] = useState<'opening' | 'closing'>();
   // Each click sheds a ring off the clock: the count keys it, so a new one starts at once.
   const [rings, setRings] = useState(0);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const workRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(
+    open && !!folded,
+    toggleRef,
+    workRef,
+    moving === 'opening' ? workRef : undefined
+  );
 
   // As CollapsibleMessage: expand all opens the work and collapse all folds it, unless the reader
   // chose for this reply since.
@@ -86,6 +95,7 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
 
   const toggle = () => {
     const next = !open;
+    if (next) armReveal();
     if (manualExpansionState) rememberManualExpansionState(manualExpansionState, foldKey, next);
     setOpen(next);
     setMoving(motionAllowed() ? (next ? 'opening' : 'closing') : undefined);
@@ -104,6 +114,7 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
     <>
       <div className={reasoningCss.Reasoning}>
         <button
+          ref={toggleRef}
           type="button"
           className={`${reasoningCss.Toggle} ${css.Row}`}
           data-work-fold=""
@@ -136,7 +147,7 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
           />
         </button>
         {(open || moving === 'closing') && (
-          <div className={css.Work} data-motion={moving} onAnimationEnd={settle}>
+          <div ref={workRef} className={css.Work} data-motion={moving} onAnimationEnd={settle}>
             <div className={css.WorkInner}>{folded.work}</div>
           </div>
         )}

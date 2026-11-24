@@ -12,6 +12,7 @@ import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text, type IconSrc } from 'folds';
 import { isRecord } from '../lib/isRecord';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
+import { useDetailsRevealOnOpen } from '../ui/disclosureReveal';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { formatLifetime } from '../lib/time';
 import {
@@ -588,6 +589,7 @@ export function SecretRequestCard({
   const language = useAppLanguageCode();
   const card = useRef<HTMLDivElement>(null);
   const summary = useRef<HTMLElement>(null);
+  const detailsRevealRef = useDetailsRevealOnOpen();
   const glassRef = useGlassHighlight<HTMLDivElement>(card);
   const viewerId = useMatrixClient().getUserId();
   const room = useApprovalRoom(roomId);
@@ -760,7 +762,7 @@ export function SecretRequestCard({
         <div className={sectionCss.SectionHeader}>{header}</div>
       ) : (
         // Done, the card folds to its row, which opens it again.
-        <details className={css.Fold}>
+        <details ref={detailsRevealRef} className={css.Fold}>
           <summary ref={summary} className={css.FoldRow}>
             {header}
             <Icon

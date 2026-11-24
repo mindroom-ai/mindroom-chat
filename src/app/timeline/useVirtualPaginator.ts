@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useIntersectionObserver } from '../lib/hooks/useIntersectionObserver';
-import { readTopInset } from '../ui/styles/threadHeaderInset';
+import { readScrollPadding } from '../ui/styles/threadHeaderInset';
+
+export { readScrollPadding };
 
 /** A window of item indices: `start` inclusive, `end` exclusive. */
 export type ItemRange = {
@@ -92,16 +94,6 @@ const BACK_ANCHOR = 'B';
 const FRONT_ANCHOR = 'F';
 
 const anchorSelector = (direction: string) => `[${PAGINATOR_ANCHOR_ATTRIBUTE}="${direction}"]`;
-
-export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: number } => {
-  if (typeof getComputedStyle !== 'function') return { top: 0, bottom: 0 };
-  const style = getComputedStyle(scrollElement);
-  const toPixels = (value: string | undefined) => {
-    const pixels = Number.parseFloat(value ?? '');
-    return Number.isFinite(pixels) ? pixels : 0;
-  };
-  return { top: readTopInset(scrollElement), bottom: toPixels(style.scrollPaddingBottom) };
-};
 
 /**
  * Pagination that reads ahead keeps a screen of items loaded beyond the scroll area on either side:

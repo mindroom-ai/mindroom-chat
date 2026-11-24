@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, window */
 // How long inserting message rows takes under the app's style sheets, in WebKit and Chromium.
 //
 // WebKit spent ~0.2 ms per inserted row in the app's document against ~0.001 ms in Chromium or in

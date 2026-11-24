@@ -49,24 +49,18 @@ import {
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
+  applyThreadSearchQuery,
   createDefaultThreadFilterState,
   cycleSortMode,
-  normalizeThreadSearchText,
+  projectThreadFilterState,
   removeTagFilter,
   resetThreadFilterState,
-  simplifyAgentlessSimpleThreadFilterState,
-  simplifyAgentlessThreadFilterState,
-  simplifyThreadFilterState,
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
 import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from '../event-store/threads/threadFilterDsl';
 import { useRoomThreadSummaryState } from '../event-store/threads/useRoomThreadSummaryState';
 import { toggleThreadPerson } from '../event-store/threads/threadPeopleFilter';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
@@ -163,18 +157,10 @@ export const useRoomViewThreadState = ({
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
   // become available again.
-  const effectiveThreadFilterState = useMemo(() => {
-    if (simpleMode) {
-      return hasMindroomAgents
-        ? simplifyThreadFilterState(threadFilterState)
-        : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
-    }
-    return hasMindroomAgents
-      ? threadFilterState.tab
-        ? selectThreadWorkflowTab(threadFilterState, threadFilterState.tab)
-        : threadFilterState
-      : simplifyAgentlessThreadFilterState(threadFilterState);
-  }, [hasMindroomAgents, simpleMode, threadFilterState]);
+  const effectiveThreadFilterState = useMemo(
+    () => projectThreadFilterState(threadFilterState, simpleMode, hasMindroomAgents),
+    [hasMindroomAgents, simpleMode, threadFilterState]
+  );
   const [compactSections, updateCompactSections] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
   );
@@ -397,19 +383,11 @@ export const useRoomViewThreadState = ({
     const pendingQuery = pendingSearchQueryRef.current;
     pendingSearchQueryRef.current = undefined;
     if (pendingQuery === undefined) return threadFilterStateRef.current;
-    const applied = hasMindroomAgentsRef.current
-      ? applyParsedThreadFilterQuery(
-          threadFilterStateRef.current,
-          parseThreadFilterQuery(pendingQuery)
-        )
-      : {
-          ...threadFilterStateRef.current,
-          // With agent controls hidden, the retained search field is plain
-          // text. Preserve agent filters in storage and treat is:/tag: tokens
-          // literally instead of mutating invisible filter dimensions.
-          freeText: normalizeThreadSearchText(pendingQuery),
-          unsupportedQuery: '',
-        };
+    const applied = applyThreadSearchQuery(
+      threadFilterStateRef.current,
+      pendingQuery,
+      hasMindroomAgentsRef.current
+    );
     threadFilterStateRef.current = applied;
     setThreadFilterState(applied);
     return applied;

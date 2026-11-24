@@ -28,6 +28,7 @@ import {
   type ReplyCompaction,
 } from '../../matrix/protocol/compactions';
 import { revealDirectionControls } from '../../ui/directional';
+import { useRevealOnOpen, useRevealTargets } from '../../ui/disclosureReveal';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
 import {
@@ -237,6 +238,8 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // and the comet say it thinks.
   const [open, setOpen] = useState(false);
   const bulbRef = useRef<HTMLButtonElement>(null);
+  const { register: registerSegment, getTargets } = useRevealTargets();
+  const armReveal = useRevealOnOpen(open, bulbRef, getTargets);
   // Long replies put the bulb far above: a segment's rail and end button hide the thinking from
   // where the reader is, and give the focus to the bulb, which scrolls into view if it is off
   // screen.
@@ -307,8 +310,19 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
       htmlReactParserOptions,
       compactionsAt,
       replyEnded,
+      registerSegment,
     }),
-    [segments, placement, open, hide, liveIndex, htmlReactParserOptions, compactionsAt, replyEnded]
+    [
+      segments,
+      placement,
+      open,
+      hide,
+      liveIndex,
+      htmlReactParserOptions,
+      compactionsAt,
+      replyEnded,
+      registerSegment,
+    ]
   );
 
   let label: string | undefined;
@@ -330,7 +344,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
         label={label}
         open={open}
         thinking={thinking}
-        onToggle={() => setOpen(!open)}
+        onToggle={() => {
+          if (!open) armReveal();
+          setOpen(!open);
+        }}
         bulbRef={bulbRef}
       />
       {children}

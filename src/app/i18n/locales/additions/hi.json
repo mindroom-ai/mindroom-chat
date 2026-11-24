@@ -1702,8 +1702,7 @@
       "replyAndOthers_one": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "replyAndOthers_other": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "finished": "{{name}} ने काम पूरा किया",
-      "stopped": "{{name}} का काम रुक गया",
-      "youReplied": "आपने जवाब दिया"
+      "stopped": "{{name}} का काम रुक गया"
     },
     "newCount_one": "{{count}} नया",
     "newCount_other": "{{count}} नए",
@@ -2113,5 +2112,35 @@
   },
   "nav": {
     "usage": "उपयोग"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} रूम",
+      "roomsCount_other": "{{count}} रूम",
+      "roomsFiltered": "{{total}} में से {{active}} रूम"
+    },
+    "roomFilter": {
+      "label": "रूम",
+      "ariaLabel": "रूम के अनुसार थ्रेड फ़िल्टर करें",
+      "ariaLabelActive": "रूम के अनुसार थ्रेड फ़िल्टर करें (चुने गए: {{number}})",
+      "ariaLabelOne": "रूम: {{room}}",
+      "search": "रूम खोजें",
+      "noMatch": "कोई मेल खाता रूम नहीं"
+    },
+    "composer": {
+      "postTo": "यहाँ पोस्ट करें:",
+      "postToRoom": "#{{room}} में पोस्ट करें",
+      "chooseRoomAria": "पोस्ट करने के लिए रूम चुनें",
+      "draftPinned": "#{{room}} के लिए ड्राफ़्ट",
+      "readOnly": "इस स्पेस के किसी भी रूम में पोस्ट करने की अनुमति नहीं है।"
+    },
+    "loading": "थ्रेड लोड हो रहे हैं...",
+    "empty": {
+      "noRooms": "यहाँ थ्रेड देखने के लिए इस स्पेस के किसी रूम में शामिल हों।",
+      "noThreads": "इस स्पेस में अभी तक कोई थ्रेड नहीं है।"
+    },
+    "error": {
+      "title": "स्पेस के थ्रेड लोड नहीं हो सके"
+    }
   }
 }

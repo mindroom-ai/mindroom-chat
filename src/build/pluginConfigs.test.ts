@@ -205,6 +205,42 @@ describe('eslint.config.plugin.mjs', () => {
       'no-restricted-syntax',
     ]);
   });
+
+  it('scopes browser, AudioWorklet, Node and TS globals by runtime', async () => {
+    expect(
+      await lint('export const Panel = () => <span>{window.location.href}</span>;\n', 'index.jsx')
+    ).toEqual([]);
+    expect(await lint('export const page = () => document.title;\n', 'public/frame.js')).toEqual(
+      []
+    );
+    expect(await lint('export const page = () => document.title;\n', 'compat/widget.js')).toEqual(
+      []
+    );
+    expect(
+      (await lint('export const env = () => process.env;\n', 'public/frame.js')).map(
+        ({ ruleId }) => ruleId
+      )
+    ).toEqual(['no-undef']);
+    expect(
+      (await lint('console.log(model);\n', 'public/frame.js')).map(({ ruleId }) => ruleId)
+    ).toEqual(['no-undef']);
+    expect(
+      await lint(
+        'export const info = () => [AudioWorkletProcessor, registerProcessor, sampleRate];\n',
+        'src/captureWorklet.js'
+      )
+    ).toEqual([]);
+    expect(
+      (await lint('console.log(window);\n', 'src/captureWorklet.js')).map(({ ruleId }) => ruleId)
+    ).toEqual(['no-undef']);
+    expect(
+      (await lint('console.log(model);\n', 'scripts/x.mjs')).map(({ ruleId }) => ruleId)
+    ).toEqual(['no-undef']);
+    expect(await lint('console.log(process.pid);\n', 'build.mjs')).toEqual([]);
+    expect((await lint('window = 1;\n', 'src/panel.tsx')).map(({ ruleId }) => ruleId)).toEqual([
+      'no-global-assign',
+    ]);
+  });
 });
 
 describe("a listed plugin's unit tests", () => {

@@ -36,7 +36,7 @@ import {
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
-import { SPACE_LOBBY_PATH } from '../../routes/paths';
+import { SPACE_LOBBY_PATH, SPACE_THREADS_PATH } from '../../routes/paths';
 import {
   getDirectRoomPath,
   getHomePath,
@@ -45,6 +45,8 @@ import {
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
+  getSpaceThreadsPath,
+  isRoomIdOrAliasSegment,
   withSearchParam,
 } from '../../routes/pathUtils';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
@@ -67,9 +69,6 @@ const readViaServers = (searchParams: URLSearchParams): string[] | undefined => 
   ].filter(Boolean);
   return via.length > 0 ? via : undefined;
 };
-
-/** Room IDs start with `!` and aliases with `#`; any other first segment is no space. */
-const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /**
  * The `/:spaceIdOrAlias/` routes: the joined space as context for its pages.
@@ -269,6 +268,7 @@ export function Space() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
+  const threadsSelected = useMatch(SPACE_THREADS_PATH) !== null;
 
   const parents = useJoinedParentSpaces(space.roomId).flatMap(
     (roomId) => client.getRoom(roomId) ?? []
@@ -298,6 +298,12 @@ export function Space() {
               label={t('sharedUi.space.overview')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
               selected={lobbySelected}
+            />
+            <SpacePageLink
+              icon={Icons.Thread}
+              label={t('home.recent.allThreads')}
+              to={getSpaceThreadsPath(spaceIdOrAlias)}
+              selected={threadsSelected}
             />
           </NavCategory>
           <SortableRoomGroup canMoveRoom={canMoveRoom} onMoveRoom={onMoveRoom}>

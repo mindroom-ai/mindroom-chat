@@ -41,8 +41,14 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => cl
 
 const answers: boolean[] = [];
 
-function Probe({ allPages = false }: { allPages?: boolean }) {
-  answers.push(useJoinedRoomThreadLists(allPages));
+function Probe({
+  allPages = false,
+  explicitRoomIds,
+}: {
+  allPages?: boolean;
+  explicitRoomIds?: readonly string[];
+}) {
+  answers.push(useJoinedRoomThreadLists(allPages, explicitRoomIds));
   return null;
 }
 
@@ -65,12 +71,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const mount = (roomIds: string[], allPages = false) => {
+const mount = (roomIds: string[], allPages = false, explicitRoomIds?: readonly string[]) => {
   store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: roomIds });
   act(() =>
     root.render(
       <Provider store={store}>
-        <Probe allPages={allPages} />
+        <Probe allPages={allPages} explicitRoomIds={explicitRoomIds} />
       </Provider>
     )
   );
@@ -143,5 +149,27 @@ it('with all pages, stays until each list ends and says whether every list is co
     });
   });
   // Spaces and invites have no list of their own to wait for.
+  expect(answers.at(-1)).toBe(true);
+});
+
+it('loads and checks completion only for explicit roomIds when provided', async () => {
+  mount(Object.keys(rooms), true, ['!a', '!d']);
+  expect(loads.map((load) => load.roomId)).toEqual(['!a', '!d']);
+  expect(answers.at(-1)).toBe(false);
+
+  // Re-rendering with a fresh array of the same IDs does not abort or restart in-flight loads.
+  mount(Object.keys(rooms), true, ['!a', '!d']);
+  expect(loads.map((load) => load.roomId)).toEqual(['!a', '!d']);
+  expect(loads.every((load) => !load.signal?.aborted)).toBe(true);
+
+  completeRooms.add('!a');
+  completeRooms.add('!d');
+  await act(async () => {
+    loads.forEach((load) => {
+      load.onProgress?.();
+      load.finish();
+    });
+  });
+  // Unrelated joined rooms (!b, !c) remain incomplete, yet the explicit subset is settled.
   expect(answers.at(-1)).toBe(true);
 });

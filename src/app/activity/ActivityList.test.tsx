@@ -160,7 +160,7 @@ const ROWS: ActivityRow[] = [
       mentionedMe: true,
       mentionedBy: '@maya:x',
       newCount: 2,
-      lastReply: {
+      lastOtherReply: {
         eventId: '$r',
         senderId: '@tom:x',
         ts: NOW,
@@ -174,7 +174,7 @@ const ROWS: ActivityRow[] = [
     'read',
     'reply',
     {
-      lastReply: {
+      lastOtherReply: {
         eventId: '$x',
         senderId: '@mindroom_mind:x',
         ts: NOW,
@@ -288,7 +288,7 @@ const greetingPlugin = (preview: (text: string) => string = (text) => `Greeting:
 const greetingRow = (key: string, sender: string) =>
   threadRow(key, 'reply', {
     newCount: 1,
-    lastReply: {
+    lastOtherReply: {
       eventId: `$${key}-reply`,
       senderId: sender,
       ts: NOW,
@@ -489,7 +489,7 @@ describe('ActivityList', () => {
       rows: [
         threadRow('tools', 'reply', {
           newCount: 1,
-          lastReply: {
+          lastOtherReply: {
             eventId: '$t',
             senderId: '@mindroom_mind:x',
             ts: NOW,
@@ -551,12 +551,80 @@ describe('ActivityList', () => {
     expect(row.textContent).not.toContain('Mind mentioned you');
   });
 
-  it('says You replied when the user wrote last', () => {
+  it("previews the other sender's reply and omits You replied when the user wrote last", () => {
     renderList({
-      rows: [threadRow('own', 'reply', {}, { unread: false, actorIds: ['@alice:x'] })],
+      rows: [
+        threadRow(
+          'own',
+          'reply',
+          {
+            lastReply: {
+              eventId: '$mine',
+              senderId: '@alice:x',
+              ts: NOW,
+              preview: { kind: 'text', text: 'My own follow-up' },
+              event: { sender: '@alice:x', content: {} },
+            },
+            lastOtherReply: {
+              eventId: '$tom',
+              senderId: '@tom:x',
+              ts: NOW - 60_000,
+              preview: { kind: 'text', text: 'Tom left an update' },
+              event: { sender: '@tom:x', content: {} },
+            },
+          },
+          { unread: false, actorIds: ['@tom:x'] }
+        ),
+      ],
       hiddenAutomations: 0,
     });
-    expect(screen.getByText('You replied')).toBeTruthy();
+    const row = rowByTitle('Thread own');
+    expect(within(row).getByText('Tom Becker replied')).toBeTruthy();
+    expect(within(row).getByText('Tom left an update')).toBeTruthy();
+    expect(screen.queryByText('You replied')).toBeNull();
+    expect(screen.queryByText('My own follow-up')).toBeNull();
+  });
+
+  it('uses the indexed reply preview only when no reply is loaded and another user sent it', () => {
+    const indexedRow = (
+      key: string,
+      lastSenderId: string | undefined,
+      signals: Partial<ThreadSignals> = {}
+    ) => {
+      const row = threadRow(
+        key,
+        'mention',
+        { mentionedMe: true, mentionedBy: '@maya:x', lastOtherReply: undefined, ...signals },
+        { actorIds: ['@maya:x'] }
+      );
+      if (row.type === 'thread') {
+        row.entry.threadRecord.presentation.latestReplyPreviewText = `Indexed ${key}`;
+        row.entry.threadRecord.presentation.lastSenderId = lastSenderId;
+      }
+      return row;
+    };
+    renderList({
+      rows: [
+        indexedRow('other', '@tom:x'),
+        indexedRow('viewer', '@alice:x'),
+        indexedRow('unknown', undefined),
+        indexedRow('loaded', '@tom:x', {
+          lastReply: {
+            eventId: '$mine',
+            senderId: '@alice:x',
+            ts: NOW,
+            preview: { kind: 'text', text: 'My own note' },
+            event: { sender: '@alice:x', content: {} },
+          },
+        }),
+      ],
+      hiddenAutomations: 0,
+    });
+    expect(within(rowByTitle('Thread other')).getByText('Indexed other')).toBeTruthy();
+    expect(within(rowByTitle('Thread viewer')).queryByText('Indexed viewer')).toBeNull();
+    expect(within(rowByTitle('Thread unknown')).queryByText('Indexed unknown')).toBeNull();
+    expect(within(rowByTitle('Thread loaded')).queryByText('Indexed loaded')).toBeNull();
+    expect(screen.queryByText('My own note')).toBeNull();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
@@ -564,7 +632,7 @@ describe('ActivityList', () => {
       'bidi',
       'reply',
       {
-        lastReply: {
+        lastOtherReply: {
           eventId: '$b',
           senderId: '@tom:x',
           ts: NOW,

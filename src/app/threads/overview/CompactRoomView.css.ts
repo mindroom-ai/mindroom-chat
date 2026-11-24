@@ -376,7 +376,7 @@ export const Chips = style({
 
 // Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
 // edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
-globalStyle(`${CardShell} ${MetadataRow}`, {
+globalStyle(`${CardShell}:has(${CardAction}) ${MetadataRow}`, {
   '@media': {
     [touchActions]: {
       paddingInlineEnd: toRem(36),
