@@ -79,8 +79,8 @@
 - Consumes: `CrossRoomThreadIndexEntry`, `crossRoomThreadIndexAtom`, `archivedRoomsAtom`, `useSelectedRoom`, `useServerSyncApplied`, `useAccountData`, `useSetAccountSettings`, `tourAtom`, `dismissedTipsSessionAtom`.
 - Produces in `src/app/tour/contextualTips.ts`:
   - `export const RESOLVE_TIP_ID = 'resolve_threads';`
-  - `export const RESOLVE_TIP_MIN_OPEN = 5;`
-  - `export const RESOLVE_TIP_MIN_OLD = 3;`
+  - `export const RESOLVE_TIP_MIN_OPEN = 8;`
+  - `export const RESOLVE_TIP_MIN_OLD = 5;`
   - `export const RESOLVE_TIP_OLD_AGE_MS = 24 * 60 * 60 * 1000;`
   - `export type ContextualTipId = typeof RESOLVE_TIP_ID;`
   - `export type ContextualTip = { id: ContextualTipId; tourStep: TourStepId; scope: 'room' | 'all'; openCount: number };`
@@ -89,7 +89,7 @@
   - `export type ContextualTipState = { tip: ContextualTip | undefined; dismissTip: (tipId: ContextualTipId) => void; openTipTour: (tip: ContextualTip) => void };`
   - `export function useContextualTip(): ContextualTipState`
 
-- [ ] **Step 1: Write failing tests in `src/app/tour/contextualTips.test.ts` covering all boundaries (4 vs 5 open, 2 vs 3 old at 24h, any resolved suppresses, snoozed excluded, archived rooms excluded, dismissed tip suppressed, room vs all scope).**
+- [ ] **Step 1: Write failing tests in `src/app/tour/contextualTips.test.ts` covering all boundaries (7 vs 8 open, 4 vs 5 old at 24h, any resolved suppresses, snoozed excluded, archived rooms excluded, dismissed tip suppressed, room vs all scope).**
 - [ ] **Step 2: Run test to verify failure.**
 - [ ] **Step 3: Implement `contextualTips.ts` and `useContextualTip.ts` (gating `tip` on `synced && index.bootstrapped`, persisting `dismissedTips` safely after sync, updating `dismissedTipsSessionAtom` immediately per `sessionId`).**
 - [ ] **Step 4: Run `contextualTips.test.ts` and verify pass.**
