@@ -75,7 +75,8 @@ const renderRow = (
   overlayLeft = 900,
   senderRight?: number,
   codeActionsAt?: number,
-  actionsAttribute = 'data-code-block-actions'
+  actionsAttribute = 'data-code-block-actions',
+  rowHeight = 80
 ) => {
   unmountRow();
   const seen: Array<number | undefined> = [];
@@ -101,7 +102,7 @@ const renderRow = (
   const rects: Record<string, Rect> = {
     scroller: { top: 0, bottom: 800, left: 0, right: 1000 },
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
-    row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
+    row: { top: rowTop, bottom: rowTop + rowHeight, left: 0, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
     sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
     code: { top: codeTop, bottom: codeTop + 24, left: 900, right: 980 },
@@ -172,6 +173,14 @@ describe('useToolbarClearance', () => {
   it('stays over the sender line where the buttons of a file card are under it', () => {
     // A file card right under the sender line has its View and Download buttons at its end.
     expect(renderRow(140, 900, 1000, 46, 'data-file-actions')).toBe(-2);
+  });
+
+  it('moves below a canvas update action when a scrolled row puts it under the sticky header', () => {
+    // Scrolled tall row: visible rows start at y=100 (offset 109 into rowTop=-9), and the canvas
+    // Load update button sits at 111 to 135 into the row; the toolbar clears it at 135 + 8 = 143.
+    expect(renderRow(-9, 100, undefined, 111, 'data-canvas-actions', 495)).toBe(143);
+    // Below the sender line it also keeps clear of a canvas action.
+    expect(renderRow(140, 900, 1000, 46, 'data-canvas-actions')).toBe(-2);
   });
 
   it('places the toolbar again when the sender line changes size', () => {

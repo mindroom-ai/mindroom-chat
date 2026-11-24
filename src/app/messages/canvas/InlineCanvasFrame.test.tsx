@@ -535,6 +535,7 @@ describe('InlineCanvasFrame as a host', () => {
     expect(container.textContent).toContain('updated this page.');
     // The staged answer was for the page before the update.
     expect(sendButton()).toBeNull();
+    expect(buttonNamed('Load update')?.hasAttribute('data-canvas-actions')).toBe(true);
     act(() => buttonNamed('Load update')!.click());
     expect(frame()).not.toBe(shown);
     expect(frame().srcdoc).toContain('Latest');
