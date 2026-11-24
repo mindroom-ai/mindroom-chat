@@ -1,5 +1,5 @@
 import { fallbackVar, style } from '@vanilla-extract/css';
-import { DefaultReset, color, config, toRem } from 'folds';
+import { DefaultReset, color, toRem } from 'folds';
 import { phoneChromeHeight, phoneTopBarHeight } from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 
@@ -58,10 +58,8 @@ export const Scrim = style([
 /**
  * The drawer: the rail and the section's list side by side, as wide as the screen leaves room for
  * beside a strip of the scrim, or as wide as the rail when the page has no list. A sheet over the
- * page, it rounds its one free lower corner to 28 px and draws a hairline (`ContainerLine`) along
- * the edge facing the page so it separates cleanly from the dimmed page: the top meets the bar and
- * the other edges meet the screen. Off screen past the start edge while closed, and hidden once it
- * got there.
+ * page, it rounds its one free lower corner to 28 px: the top meets the bar and the other edges
+ * meet the screen. Off screen past the start edge while closed, and hidden once it got there.
  */
 export const Panel = style([
   DefaultReset,
@@ -71,7 +69,6 @@ export const Panel = style([
     display: 'flex',
     inlineSize: 'min(calc(100% - 56px), 420px)',
     backgroundColor: color.Background.Container,
-    borderInlineEnd: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
     // Cast the shadow to the side only, never upward onto the top bar.
     clipPath: 'inset(0 -48px)',
