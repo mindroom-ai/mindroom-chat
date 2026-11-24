@@ -99,6 +99,8 @@ just e2e-slot 3 down                                                        # st
 - `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` (Linux only: it reads `/proc/loadavg`) runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average, and the tests skipped for a missing service, fixture, account or setting, which the summary names). The call specs get their slot's call service. `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs but those of plugin directories, and `--resume <run directory>` finishes an interrupted run. Specs that import `/src/` modules run on the dev server even without `--dev`, so they get no production-build coverage. Playwright options default to `--retries 1`.
 - `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs; `e2e-slot --rtc` starts it before the slot's homeserver, which announces it, and stops it after the command.
 
+[`perf-and-testing.md`](perf-and-testing.md) documents all performance scripts (`scripts/perf/`, including the real-activity replay harness) and the testing and verification scripts under `scripts/`.
+
 ## Native shells
 
 `capacitor.config.ts` (app ID `chat.mindroom.app`; Android's `android/app/build.gradle` uses `com.mindroom_ai.app`) points both shells at `dist/`.

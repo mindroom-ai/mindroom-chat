@@ -120,16 +120,17 @@ On the Mac, Control+Option+Space opens Quick Capture over any app: a small windo
 
 ## Documentation
 
-| Page                                               | Covers                                                                                   |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`docs/development.md`](docs/development.md)       | setup, checks, end-to-end specs, native shells                                           |
-| [`docs/deployment.md`](docs/deployment.md)         | the build, serving it, homeserver and MindRoom backend                                   |
-| [`docs/configuration.md`](docs/configuration.md)   | `config.json`, `runtime-config.js` and build variables                                   |
-| [`docs/architecture.md`](docs/architecture.md)     | folders, layers, and the MindRoom event formats                                          |
-| [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
-| [`docs/ios-release.md`](docs/ios-release.md)       | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
-| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with                                                 |
-| [`AGENTS.md`](AGENTS.md)                           | rules for changing code, and the `just` recipes                                          |
+| Page                                                   | Covers                                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [`docs/development.md`](docs/development.md)           | setup, checks, end-to-end specs, native shells                                           |
+| [`docs/perf-and-testing.md`](docs/perf-and-testing.md) | performance benchmarks, real-activity replay harness, and testing/verification scripts   |
+| [`docs/deployment.md`](docs/deployment.md)             | the build, serving it, homeserver and MindRoom backend                                   |
+| [`docs/configuration.md`](docs/configuration.md)       | `config.json`, `runtime-config.js` and build variables                                   |
+| [`docs/architecture.md`](docs/architecture.md)         | folders, layers, and the MindRoom event formats                                          |
+| [`docs/client-plugins.md`](docs/client-plugins.md)     | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
+| [`docs/ios-release.md`](docs/ios-release.md)           | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
+| [`docs/design/reference/`](docs/design/reference/)     | the screenshots the app is compared with                                                 |
+| [`AGENTS.md`](AGENTS.md)                               | rules for changing code, and the `just` recipes                                          |
 
 ## License
 
