@@ -221,6 +221,7 @@ const TERMINAL_AI_RUN_STATUSES = new Set([
 ]);
 
 export const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
+export const SUPPRESS_PUSH_KEY = 'io.mindroom.suppress_push';
 // 'pending' counts as active so callers driving spinners (e.g. thread streaming
 // state) treat a not-yet-started run as still in flight.
 export const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
