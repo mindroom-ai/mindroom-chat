@@ -140,12 +140,17 @@ export function useCanvasHost({
   const [sendError, setSendError] = useState(false);
   // An answer too large for one event is uploaded before its event exists.
   const [uploading, setUploading] = useState(false);
-  const [pageErrors, setPageErrors] = useState(NO_PAGE_ERRORS);
+  // Scoped to `frameKey` so a new page clears the previous alert on the same commit as the iframe
+  // instead of waiting for a passive effect that can race with early errors from the new frame.
+  const [pageErrorsState, setPageErrorsState] = useState<{ frameKey: string; value: PageErrors }>(
+    () => ({ frameKey, value: NO_PAGE_ERRORS })
+  );
+  const pageErrors = pageErrorsState.frameKey === frameKey ? pageErrorsState.value : NO_PAGE_ERRORS;
   // The listed errors as of the last message, read by the message handler.
-  const pageErrorsNow = useRef(pageErrors);
-  pageErrorsNow.current = pageErrors;
+  const pageErrorsNow = useRef({ frameKey, value: pageErrors });
+  pageErrorsNow.current = { frameKey, value: pageErrors };
   // Every error this page reported, so one already sent is not offered again.
-  const seenErrors = useRef(new Set<string>());
+  const seenErrors = useRef({ frameKey, errors: new Set<string>() });
   // The answer being uploaded; Discard clears it, which cancels sending it.
   const uploadingSubmission = useRef<CanvasSubmission>(undefined);
   const stagedNow = useRef(staged);
@@ -187,8 +192,13 @@ export function useCanvasHost({
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     // An update held behind Load update stays held when the same page starts again.
-    setPageErrors(NO_PAGE_ERRORS);
-    seenErrors.current = new Set();
+    // Drop a previous frame's error state without wiping errors the new frame already reported.
+    setPageErrorsState((current) =>
+      current.frameKey === frameKey ? current : { frameKey, value: NO_PAGE_ERRORS }
+    );
+    if (seenErrors.current.frameKey !== frameKey) {
+      seenErrors.current = { frameKey, errors: new Set() };
+    }
   }, [frameKey, shownRevisionId]);
 
   // An update loads at once unless it would discard work the user has not sent.
@@ -254,7 +264,12 @@ export function useCanvasHost({
       }
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
-        const listed = pageErrorsNow.current;
+        const key = currentFrameKey.current;
+        const listed =
+          pageErrorsNow.current.frameKey === key ? pageErrorsNow.current.value : NO_PAGE_ERRORS;
+        if (seenErrors.current.frameKey !== key) {
+          seenErrors.current = { frameKey: key, errors: new Set() };
+        }
         // A report still sending or failed may return to the list, so its errors count toward the five.
         const { report } = listed;
         const held =
@@ -262,11 +277,12 @@ export function useCanvasHost({
             ? report.errors.length
             : 0;
         // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
-        if (seenErrors.current.has(error) || listed.errors.length + held >= MAX_PAGE_ERRORS) return;
-        seenErrors.current.add(error);
+        if (seenErrors.current.errors.has(error) || listed.errors.length + held >= MAX_PAGE_ERRORS)
+          return;
+        seenErrors.current.errors.add(error);
         const next = { ...listed, errors: [...listed.errors, error] };
-        pageErrorsNow.current = next;
-        setPageErrors(next);
+        pageErrorsNow.current = { frameKey: key, value: next };
+        setPageErrorsState({ frameKey: key, value: next });
         return;
       }
       // Size reports and other messages leave the snapshot budget alone.
@@ -402,11 +418,18 @@ export function useCanvasHost({
   useEffect(() => {
     // A report the user deleted after it failed was never sent, so its errors are offered again.
     if (reportState === 'cancelled') {
-      setPageErrors((current) => ({
-        errors: [...(current.report?.errors ?? []), ...current.errors],
-      }));
+      setPageErrorsState((current) =>
+        current.frameKey !== frameKey
+          ? current
+          : {
+              frameKey,
+              value: {
+                errors: [...(current.value.report?.errors ?? []), ...current.value.errors],
+              },
+            }
+      );
     }
-  }, [reportState]);
+  }, [frameKey, reportState]);
 
   // The user sees the errors before choosing to send them, as with an answer.
   const handleReport = useCallback(() => {
@@ -430,11 +453,17 @@ export function useCanvasHost({
       return;
     }
     const echo = room.getEventForTxnId(txnId) ?? undefined;
-    setPageErrors((current) => ({
-      errors: current.errors.filter((error) => !sent.includes(error)),
-      report: { echo, errors: sent },
-    }));
-  }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
+    setPageErrorsState((current) => {
+      const base = current.frameKey === frameKey ? current.value : NO_PAGE_ERRORS;
+      return {
+        frameKey,
+        value: {
+          errors: base.errors.filter((error) => !sent.includes(error)),
+          report: { echo, errors: sent },
+        },
+      };
+    });
+  }, [agentName, displayed, frameKey, mx, pageErrors, reportOpen, room]);
 
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
