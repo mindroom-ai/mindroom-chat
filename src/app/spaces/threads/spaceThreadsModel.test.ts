@@ -4,11 +4,8 @@ import {
   createDefaultThreadFilterState,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
-import {
-  getCrossRoomThreadIndexKey,
-  normalizeThreadSearchText,
-  type CrossRoomThreadIndexEntry,
-} from '../../threads/cross-room/crossRoomThreadIndex';
+import { QUIET_AFTER_MS } from '../../event-store/threads/threadWorkflow';
+import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import {
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
@@ -17,92 +14,11 @@ import {
   resolveComposerTargetRoom,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
+import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 
 const ROOM_A = '!alpha:example.org';
 const ROOM_B = '!beta:example.org';
 const ROOM_OUTSIDE = '!outside:example.org';
-const NOW = 1_700_000_000_000;
-
-type EntryOpts = Partial<CrossRoomThreadIndexEntry> & {
-  roomId: string;
-  threadRootId: string;
-  replyCount?: number;
-  isStreaming?: boolean;
-  scheduledTaskCount?: number;
-  nextScheduledTs?: number;
-  participantIds?: string[];
-};
-
-const makeEntry = (opts: EntryOpts): CrossRoomThreadIndexEntry => {
-  const {
-    roomId,
-    threadRootId,
-    replyCount = 1,
-    isStreaming = false,
-    scheduledTaskCount = 0,
-  } = opts;
-  const participantIds = opts.participantIds ?? ['@alice:example.org'];
-  const isResolved = opts.isResolved ?? false;
-  const isUnread = opts.isUnread ?? false;
-  const lastActivityTs = opts.lastActivityTs ?? NOW;
-  const tags = opts.tags ?? [];
-  const summaryText = opts.summaryText ?? `Summary ${threadRootId}`;
-  const rootPreviewText = opts.rootPreviewText ?? `Root ${threadRootId}`;
-  return {
-    key: getCrossRoomThreadIndexKey(roomId, threadRootId),
-    roomId,
-    roomName: opts.roomName ?? roomId,
-    threadRootId,
-    indexedEventIds: [threadRootId],
-    threadRecord: {
-      roomId,
-      threadRootId,
-      rootEventId: threadRootId,
-      absoluteIndex: 0,
-      presentation: {
-        summaryInfo: undefined,
-        summaryText,
-        primarySummaryText: summaryText,
-        recentThreadSummaryText: summaryText,
-        rootPreviewText,
-        latestReplyPreviewText: undefined,
-        lastSenderId: participantIds[0],
-        lastSenderDisplayName: undefined,
-        messageCount: replyCount,
-        participantIds,
-        replyParticipantIds: participantIds,
-        peopleIds: participantIds,
-      },
-      status: {
-        isKnownThreadRoot: true,
-        replyCount,
-        lastActivityTs,
-        isUnread,
-        isResolved,
-        snoozedUntilTs: opts.snoozedUntilTs,
-        isStreaming,
-        scheduledTaskCount,
-        nextScheduledTs: opts.nextScheduledTs,
-        tags,
-      },
-      cache: { eventCount: replyCount + 1, relationSnapshotComplete: true, tailLoaded: true },
-    },
-    rootSenderId: opts.rootSenderId ?? '@alice:example.org',
-    lastActivityTs,
-    isUnread,
-    isResolved,
-    snoozedUntilTs: opts.snoozedUntilTs,
-    hasAttention: !isResolved && (isUnread || isStreaming || scheduledTaskCount > 0),
-    isInvolved: opts.isInvolved ?? true,
-    isForUser: opts.isForUser ?? false,
-    summaryText,
-    rootPreviewText,
-    searchableText:
-      opts.searchableText ?? normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),
-    tags,
-    generation: 1,
-  };
-};
 
 const roomsById = new Map([
   [ROOM_A, { name: 'Engineering' }],
@@ -133,12 +49,53 @@ const runFilter = (
 const rootIdsOf = (result: ReturnType<typeof runFilter>) =>
   result.orderedKeys.map((key) => result.entryByKey.get(key)?.threadRootId);
 
+const makeEvent = (id: string, body: string, sender = '@alice:example.org') => ({
+  getId: () => id,
+  getType: () => 'm.room.message',
+  getContent: () => ({ msgtype: 'm.text', body }),
+  getSender: () => sender,
+  getTs: () => NOW,
+  getRelation: () => undefined,
+  getUnsigned: () => ({}),
+  replacingEvent: () => null,
+  isRedacted: () => false,
+});
+
+const makeFakeRoom = (roomId: string, name: string, events: unknown[]): Room =>
+  ({
+    roomId,
+    name,
+    getLiveTimeline: () => ({
+      getEvents: () => events,
+      getState: () => undefined,
+    }),
+    getThread: () => undefined,
+    findEventById: () => undefined,
+    getUnfilteredTimelineSet: () => undefined,
+    currentState: { getStateEvents: () => [] },
+  }) as unknown as Room;
+
 describe('spaceThreadsModel', () => {
   it('keeps 0-reply roots, counts rooms, and supports 1-room downselect', () => {
     const entries = [
-      makeEntry({ roomId: ROOM_A, threadRootId: '$a1', replyCount: 0, lastActivityTs: NOW - 10 }),
-      makeEntry({ roomId: ROOM_A, threadRootId: '$a2', replyCount: 3, lastActivityTs: NOW - 30 }),
-      makeEntry({ roomId: ROOM_B, threadRootId: '$b1', replyCount: 2, lastActivityTs: NOW - 20 }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$a1',
+        replyCount: 0,
+        lastActivityTs: NOW - 10,
+      }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$a2',
+        replyCount: 3,
+        lastActivityTs: NOW - 30,
+      }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_B,
+        threadRootId: '$b1',
+        replyCount: 2,
+        lastActivityTs: NOW - 20,
+      }),
     ];
 
     const all = runFilter(entries);
@@ -156,7 +113,7 @@ describe('spaceThreadsModel', () => {
 
   it('filters by workflow tab, tags, forMe, people, and search across text and room name', () => {
     const entries = [
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_A,
         threadRootId: '$needs',
         summaryText: 'Fix CI pipeline',
@@ -166,7 +123,7 @@ describe('spaceThreadsModel', () => {
         participantIds: ['@alice:example.org'],
         lastActivityTs: NOW - 5,
       }),
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_A,
         threadRootId: '$working',
         summaryText: 'Generate release notes',
@@ -176,7 +133,7 @@ describe('spaceThreadsModel', () => {
         participantIds: ['@bob:example.org'],
         lastActivityTs: NOW - 15,
       }),
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_B,
         threadRootId: '$later',
         summaryText: 'Logo review',
@@ -185,7 +142,7 @@ describe('spaceThreadsModel', () => {
         participantIds: ['@carol:example.org'],
         lastActivityTs: NOW - 25,
       }),
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_B,
         threadRootId: '$done',
         summaryText: 'Icon export',
@@ -226,28 +183,44 @@ describe('spaceThreadsModel', () => {
     ).toEqual(['$done']);
   });
 
-  it('groups via buildCompactThreadSections and orders Later by soonest return time', () => {
+  it('groups via buildCompactThreadSections (including Quiet) and orders Later by soonest return time', () => {
     const entries = [
-      makeEntry({ roomId: ROOM_A, threadRootId: '$done', isResolved: true, lastActivityTs: NOW }),
-      makeEntry({
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$done',
+        isResolved: true,
+        lastActivityTs: NOW,
+      }),
+      makeSpaceThreadEntry({
         roomId: ROOM_A,
         threadRootId: '$laterFar',
         snoozedUntilTs: NOW + 120_000,
         lastActivityTs: NOW - 1,
       }),
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_B,
         threadRootId: '$laterSoon',
         snoozedUntilTs: NOW + 30_000,
         lastActivityTs: NOW - 50,
       }),
-      makeEntry({
+      makeSpaceThreadEntry({
         roomId: ROOM_B,
         threadRootId: '$working',
         isStreaming: true,
         lastActivityTs: NOW - 2,
       }),
-      makeEntry({ roomId: ROOM_A, threadRootId: '$needs', lastActivityTs: NOW - 3 }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$needs',
+        replyCount: 0,
+        lastActivityTs: NOW - 3,
+      }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_B,
+        threadRootId: '$quiet',
+        replyCount: 0,
+        lastActivityTs: NOW - QUIET_AFTER_MS - 1_000,
+      }),
     ];
 
     const grouped = runFilter(entries, { groupSections: true });
@@ -255,30 +228,42 @@ describe('spaceThreadsModel', () => {
       'needsYou',
       'working',
       'later',
+      'quiet',
       'done',
     ]);
     expect(
       grouped.sections[2]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
     ).toEqual(['$laterSoon', '$laterFar']);
+    expect(
+      grouped.sections[3]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
+    ).toEqual(['$quiet']);
+    expect(grouped.nextQuietWakeTs).toBe(NOW - 3 + QUIET_AFTER_MS);
   });
 
-  it('sorts ascending and respects simple-mode projection', () => {
+  it('sorts ascending across multiple surviving entries and respects simple-mode projection', () => {
     const entries = [
-      makeEntry({ roomId: ROOM_A, threadRootId: '$old', lastActivityTs: NOW - 100 }),
-      makeEntry({ roomId: ROOM_B, threadRootId: '$new', lastActivityTs: NOW, isResolved: true }),
+      makeSpaceThreadEntry({ roomId: ROOM_A, threadRootId: '$newer', lastActivityTs: NOW - 50 }),
+      makeSpaceThreadEntry({ roomId: ROOM_B, threadRootId: '$older', lastActivityTs: NOW - 200 }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_B,
+        threadRootId: '$resolved',
+        lastActivityTs: NOW,
+        isResolved: true,
+      }),
     ];
 
     const asc = runFilter(entries, {
       simpleMode: true,
       filterState: { sortDirection: 'asc', tab: 'done', resolved: 'exclude' },
     });
-    // Simple mode drops the workflow tab and keeps resolved=exclude and sortDirection.
-    expect(rootIdsOf(asc)).toEqual(['$old']);
+    // Simple mode drops the workflow tab and keeps resolved=exclude and ascending sortDirection.
+    expect(rootIdsOf(asc)).toEqual(['$older', '$newer']);
     expect(asc.effectiveFilterState.tab).toBeUndefined();
   });
 
   it('prunes and toggles room selection without ever yielding 0 active rooms', () => {
     const rooms = [ROOM_A, ROOM_B, '!gamma:example.org'];
+
     // Pruning drops departed rooms and normalizes empty or full sets back to All (undefined).
     expect(
       pruneSpaceRoomSelection(new Set([ROOM_B, '!gone:example.org']), [ROOM_A, ROOM_B])
@@ -380,39 +365,17 @@ describe('spaceThreadsModel', () => {
     ).toEqual({ targetRoomId: undefined, destinationRoomIds: [] });
   });
 
-  it('returns deterministic accent colors and merges 0-reply live timeline roots once', () => {
+  it('returns deterministic accent colors, scopes to space rooms, and merges 0-reply live roots once', () => {
     expect(getRoomAccentColor(ROOM_A)).toBe(getRoomAccentColor(ROOM_A));
     expect(getRoomAccentColor(ROOM_A)).toMatch(/^#[0-9a-f]{6}$/i);
 
-    const indexedEntry = makeEntry({ roomId: ROOM_A, threadRootId: '$existing' });
-    const makeEvent = (id: string, body: string) => ({
-      getId: () => id,
-      getType: () => 'm.room.message',
-      getContent: () => ({ msgtype: 'm.text', body }),
-      getSender: () => '@alice:example.org',
-      getTs: () => NOW,
-      getRelation: () => undefined,
-      getUnsigned: () => ({}),
-      replacingEvent: () => null,
-      isRedacted: () => false,
-    });
-    const fakeRoom = {
-      roomId: ROOM_A,
-      name: 'Engineering',
-      getLiveTimeline: () => ({
-        getEvents: () => [
-          makeEvent('$existing', 'Already indexed'),
-          makeEvent('$fresh', 'Brand new'),
-        ],
-        getState: () => undefined,
-      }),
-      getThread: () => undefined,
-      findEventById: () => undefined,
-      getUnfilteredTimelineSet: () => undefined,
-      currentState: { getStateEvents: () => [] },
-    } as unknown as Room;
+    const indexedEntry = makeSpaceThreadEntry({ roomId: ROOM_A, threadRootId: '$existing' });
+    const outsideEntry = makeSpaceThreadEntry({ roomId: ROOM_OUTSIDE, threadRootId: '$x1' });
+    const fakeRoom = makeFakeRoom(ROOM_A, 'Engineering', [
+      makeEvent('$existing', 'Already indexed'),
+      makeEvent('$fresh', 'Brand new'),
+    ]);
 
-    const outsideEntry = makeEntry({ roomId: ROOM_OUTSIDE, threadRootId: '$x1' });
     const merged = collectSpaceThreadEntries(
       new Map([
         [indexedEntry.key, indexedEntry],
@@ -425,42 +388,20 @@ describe('spaceThreadsModel', () => {
   });
 
   it('filters out ignored users from indexed entries and standalone live roots', () => {
-    const allowedIndexed = makeEntry({
+    const allowedIndexed = makeSpaceThreadEntry({
       roomId: ROOM_A,
       threadRootId: '$ok-indexed',
       rootSenderId: '@alice:example.org',
     });
-    const blockedIndexed = makeEntry({
+    const blockedIndexed = makeSpaceThreadEntry({
       roomId: ROOM_A,
       threadRootId: '$blocked-indexed',
       rootSenderId: '@spam:example.org',
     });
-    const makeEvent = (id: string, sender: string, body: string) => ({
-      getId: () => id,
-      getType: () => 'm.room.message',
-      getContent: () => ({ msgtype: 'm.text', body }),
-      getSender: () => sender,
-      getTs: () => NOW,
-      getRelation: () => undefined,
-      getUnsigned: () => ({}),
-      replacingEvent: () => null,
-      isRedacted: () => false,
-    });
-    const fakeRoom = {
-      roomId: ROOM_A,
-      name: 'Engineering',
-      getLiveTimeline: () => ({
-        getEvents: () => [
-          makeEvent('$ok-root', '@alice:example.org', 'Visible root'),
-          makeEvent('$blocked-root', '@spam:example.org', 'Blocked root'),
-        ],
-        getState: () => undefined,
-      }),
-      getThread: () => undefined,
-      findEventById: () => undefined,
-      getUnfilteredTimelineSet: () => undefined,
-      currentState: { getStateEvents: () => [] },
-    } as unknown as Room;
+    const fakeRoom = makeFakeRoom(ROOM_A, 'Engineering', [
+      makeEvent('$ok-root', 'Visible root', '@alice:example.org'),
+      makeEvent('$blocked-root', 'Blocked root', '@spam:example.org'),
+    ]);
 
     const merged = collectSpaceThreadEntries(
       new Map([

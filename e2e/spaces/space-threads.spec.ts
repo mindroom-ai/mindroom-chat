@@ -19,14 +19,14 @@ import {
   addRoomToSpace,
   createPrivateSpace,
   createThreadFixture,
-  sendRoomMessage,
+  sendThreadInRoom,
 } from '../helpers/matrix';
 
 const PASSWORD = 'space-threads-e2e-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS_DIR =
   process.env.CAPTURE_SHOTS === '1'
-    ? process.env.SPACE_THREADS_SHOTS ?? path.resolve(process.cwd(), 'tmp/space-threads-shots')
+    ? (process.env.SPACE_THREADS_SHOTS ?? path.resolve(process.cwd(), 'tmp/space-threads-shots'))
     : undefined;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -44,37 +44,6 @@ type SeededWorkspace = {
   rooms: Record<'backend-api' | 'web-client' | 'infra-ops', string>;
 };
 
-const addSecondThread = async (
-  accessToken: string,
-  roomId: string,
-  rootBody: string,
-  replyBody: string
-) => {
-  const rootId = await sendRoomMessage(
-    HOMESERVER,
-    accessToken,
-    roomId,
-    { msgtype: 'm.text', body: rootBody },
-    'space-threads'
-  );
-  await sendRoomMessage(
-    HOMESERVER,
-    accessToken,
-    roomId,
-    {
-      msgtype: 'm.text',
-      body: replyBody,
-      'm.relates_to': {
-        rel_type: 'm.thread',
-        event_id: rootId,
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: rootId },
-      },
-    },
-    'space-threads'
-  );
-};
-
 const seedWorkspace = async (): Promise<SeededWorkspace> => {
   const user = await registerDisposableUser(`spthreads_${RUN}`, PASSWORD);
   const spaceId = await createPrivateSpace(HOMESERVER, user.accessToken, {
@@ -89,12 +58,11 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     replyBody: 'Benchmark shows 35% lower p99 latency on staging.',
     txnPrefix: 'space-threads',
   });
-  await addSecondThread(
-    user.accessToken,
-    backend.roomId,
-    'Rate limit middleware retry headers',
-    'Added Retry-After header and unit tests.'
-  );
+  await sendThreadInRoom(HOMESERVER, user.accessToken, backend.roomId, {
+    rootBody: 'Rate limit middleware retry headers',
+    replyBody: 'Added Retry-After header and unit tests.',
+    txnPrefix: 'space-threads',
+  });
   await addRoomToSpace(HOMESERVER, user.accessToken, spaceId, backend.roomId);
 
   const web = await createThreadFixture(HOMESERVER, user.accessToken, {
@@ -104,12 +72,11 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     replyBody: 'Arrow keys and Escape focus return are wired up.',
     txnPrefix: 'space-threads',
   });
-  await addSecondThread(
-    user.accessToken,
-    web.roomId,
-    'Compact card spacing audit',
-    'Aligned chip heights across dark and light themes.'
-  );
+  await sendThreadInRoom(HOMESERVER, user.accessToken, web.roomId, {
+    rootBody: 'Compact card spacing audit',
+    replyBody: 'Aligned chip heights across dark and light themes.',
+    txnPrefix: 'space-threads',
+  });
   await addRoomToSpace(HOMESERVER, user.accessToken, spaceId, web.roomId);
 
   const infra = await createThreadFixture(HOMESERVER, user.accessToken, {

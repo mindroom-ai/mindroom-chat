@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ClientEvent,
   MatrixEventEvent,
@@ -27,20 +27,28 @@ import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { AccountDataEvent } from '../../matrix/types/accountData';
+import { QUIET_AFTER_MS } from '../../event-store/threads/threadWorkflow';
 import { settingsAtom } from '../../preferences/settings';
+import { useHistoryStackRecorder } from '../../routes/historyStack';
 import {
   crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
   normalizeThreadSearchText,
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
+import {
+  clearCompactRoomSectionsStore,
+  getCompactRoomSectionsAtom,
+} from '../../threads/overview/compactRoomSections';
 import { SpaceThreadsPage } from './SpaceThreadsPage';
+import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 
 const mocks = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
   threadListsSettled: true,
   threadListCalls: [] as Array<{ allPages: boolean; roomIds?: readonly string[] }>,
+  threadCardBadgesCalls: [] as string[],
 }));
 
 vi.mock('focus-trap-react', () => ({
@@ -83,7 +91,10 @@ vi.mock('../../composer/RoomInput', () => ({
 }));
 
 vi.mock('../../threads/overview/ThreadCardBadges', () => ({
-  ThreadCardBadges: () => null,
+  ThreadCardBadges: (props: { threadId: string }) => {
+    mocks.threadCardBadgesCalls.push(props.threadId);
+    return null;
+  },
 }));
 
 const ME = '@me:example.org';
@@ -92,7 +103,6 @@ const SPACE_ID = '!space:example.org';
 const ROOM_ENG = '!eng:example.org';
 const ROOM_DES = '!des:example.org';
 const ROOM_OPS = '!ops:example.org';
-const NOW = 1_700_000_000_000;
 
 type Listener = (...args: unknown[]) => void;
 
@@ -129,6 +139,7 @@ const makeRoom = (
     isSpace?: boolean;
     canSend?: boolean;
     hasAgent?: boolean;
+    canonicalAlias?: string | null;
     threadMode?: RoomThreadMode;
     timelineEvents?: unknown[];
   } = {}
@@ -159,7 +170,7 @@ const makeRoom = (
     isSpaceRoom: () => opts.isSpace === true,
     getType: () => (opts.isSpace ? 'm.space' : undefined),
     getMyMembership: () => 'join',
-    getCanonicalAlias: () => null,
+    getCanonicalAlias: () => opts.canonicalAlias ?? null,
     membersLoaded: () => true,
     loadMembersIfNeeded: () => Promise.resolve(true),
     getMembers: () => members,
@@ -168,6 +179,8 @@ const makeRoom = (
     findEventById: (eventId: string) =>
       (timelineEvents as Array<{ getId?: () => string }>).find((e) => e.getId?.() === eventId),
     getOldestThreadedReceiptTs: () => 0,
+    getThreadUnreadNotificationCount: () => 0,
+    getEventReadUpTo: () => null,
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     currentState: {
       getStateEvents: (type?: string, stateKey?: string) => {
@@ -205,57 +218,23 @@ const makeEntry = (
   threadRootId: string,
   summaryText: string,
   lastActivityTs: number,
-  rootSenderId = ME
-): CrossRoomThreadIndexEntry => ({
-  key: getCrossRoomThreadIndexKey(roomId, threadRootId),
-  roomId,
-  roomName,
-  threadRootId,
-  indexedEventIds: [threadRootId],
-  threadRecord: {
+  rootSenderId = ME,
+  replyCount = 1
+): CrossRoomThreadIndexEntry =>
+  makeSpaceThreadEntry({
     roomId,
+    roomName,
     threadRootId,
-    rootEventId: threadRootId,
-    absoluteIndex: 0,
-    presentation: {
-      summaryInfo: undefined,
-      summaryText,
-      primarySummaryText: summaryText,
-      recentThreadSummaryText: summaryText,
-      rootPreviewText: `Root: ${summaryText}`,
-      latestReplyPreviewText: `Reply: ${summaryText}`,
-      lastSenderId: rootSenderId,
-      lastSenderDisplayName: 'Me',
-      messageCount: 1,
-      participantIds: [rootSenderId],
-      replyParticipantIds: [rootSenderId],
-      peopleIds: [rootSenderId],
-    },
-    status: {
-      isKnownThreadRoot: true,
-      replyCount: 1,
-      lastActivityTs,
-      isUnread: false,
-      isResolved: false,
-      isStreaming: false,
-      scheduledTaskCount: 0,
-      tags: [],
-    },
-    cache: { eventCount: 2, relationSnapshotComplete: true, tailLoaded: true },
-  },
-  rootSenderId,
-  lastActivityTs,
-  isUnread: false,
-  isResolved: false,
-  hasAttention: false,
-  isInvolved: true,
-  isForUser: true,
-  summaryText,
-  rootPreviewText: summaryText,
-  searchableText: normalizeThreadSearchText(summaryText),
-  tags: [],
-  generation: 1,
-});
+    summaryText,
+    rootPreviewText: `Root: ${summaryText}`,
+    latestReplyPreviewText: `Reply: ${summaryText}`,
+    lastSenderDisplayName: 'Me',
+    lastActivityTs,
+    rootSenderId,
+    replyCount,
+    isForUser: true,
+    searchableText: normalizeThreadSearchText(summaryText),
+  });
 
 const makeIgnoredAccountDataEvent = (userIds: string[]) => ({
   getType: () => AccountDataEvent.IgnoredUserList,
@@ -343,6 +322,8 @@ afterEach(() => {
   mocks.navigateRoomThread.mockReset();
   mocks.threadListsSettled = true;
   mocks.threadListCalls.length = 0;
+  mocks.threadCardBadgesCalls.length = 0;
+  clearCompactRoomSectionsStore(ME);
   localStorage.clear();
 });
 
@@ -711,6 +692,9 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 room');
     expect(container.querySelector('[data-room-filter-button]')).toBeNull();
 
+    const timelineOnCountBefore = (eng.on as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([eventName]) => eventName === RoomEvent.Timeline
+    ).length;
     expect(container.querySelector('[data-thread-count="true"]')).toBeNull();
     act(() => {
       eng.setName('Platform');
@@ -722,6 +706,10 @@ describe('SpaceThreadsPage', () => {
       container.querySelector(`[data-space-composer-target="${ROOM_ENG}"]`)?.textContent
     ).toContain('Platform');
     expect(container.querySelector('[data-thread-count="true"]')).toBeTruthy();
+    const timelineOnCountAfter = (eng.on as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([eventName]) => eventName === RoomEvent.Timeline
+    ).length;
+    expect(timelineOnCountAfter).toBe(timelineOnCountBefore);
   });
 
   it('shows empty states for filtered-out threads, loading while unsettled, and read-only spaces', () => {
@@ -757,5 +745,153 @@ describe('SpaceThreadsPage', () => {
     renderSpaceThreads({ rooms: readOnlyRooms, entries: [] });
     expect(screen.queryByTestId('mock-room-input')).toBeNull();
     expect(screen.getByText('No rooms in this space allow posting.')).toBeTruthy();
+  });
+
+  it('keeps loading visible when downselecting to an empty room while thread lists are still settling', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
+    const entries = [makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW)];
+
+    const { container } = renderSpaceThreads({
+      rooms: [eng, des],
+      entries,
+      bootstrapped: true,
+      threadListsSettled: false,
+    });
+    expect(screen.getByText('Build failure')).toBeTruthy();
+    expect(container.querySelector('[data-space-threads-loading="true"]')).toBeNull();
+
+    // Selecting Design (0 entries yet) while lists are unsettled shows loading, not empty-match.
+    toggleRoomOption(container, ROOM_DES);
+    expect(container.querySelector('[data-space-threads-loading="true"]')).toBeTruthy();
+    expect(container.querySelector('[data-space-threads-empty]')).toBeNull();
+  });
+
+  it('renders local-echo root cards and room badges without passing unconfirmed IDs to ThreadCardBadges', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '~local-root', 'Unsent local root', NOW),
+      makeEntry(ROOM_DES, 'Design', '$confirmed-root', 'Confirmed thread', NOW - 1000),
+    ];
+
+    const { container } = renderSpaceThreads({ rooms: [eng, des], entries });
+    expect(screen.getByText('Unsent local root')).toBeTruthy();
+    expect(screen.getByText('Confirmed thread')).toBeTruthy();
+    expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(2);
+    expect(mocks.threadCardBadgesCalls).toContain('$confirmed-root');
+    expect(mocks.threadCardBadgesCalls).not.toContain('~local-root');
+  });
+
+  it('folds inactive read Needs you threads into a collapsible Quiet section when Sections are enabled', () => {
+    const now = Date.now();
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$fresh', 'Fresh thread', now - 10_000, ME, 0),
+      makeEntry(
+        ROOM_ENG,
+        'Engineering',
+        '$stale',
+        'Quiet thread',
+        now - QUIET_AFTER_MS - 60_000,
+        ME,
+        0
+      ),
+    ];
+    const store = createStore();
+    store.set(getCompactRoomSectionsAtom(ME), { type: 'SET_ON', on: true });
+
+    const { container } = renderSpaceThreads({ rooms: [eng], entries, store });
+    expect(container.querySelector('[data-compact-section="needsYou"]')).toBeTruthy();
+    const quietSection = container.querySelector('[data-compact-section="quiet"]');
+    expect(quietSection).toBeTruthy();
+    expect(screen.getByText('Fresh thread')).toBeTruthy();
+    // Quiet starts collapsed by default.
+    expect(screen.queryByText('Quiet thread')).toBeNull();
+
+    fireEvent.click(within(quietSection as HTMLElement).getByRole('button'));
+    expect(screen.getByText('Quiet thread')).toBeTruthy();
+  });
+
+  it('steps back on mobile when opened from the room-ID lobby path for a space with a canonical alias', () => {
+    const alias = '#product:example.org';
+    const space = makeRoom(SPACE_ID, 'Product', { isSpace: true, canonicalAlias: alias });
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    const roomMap = new Map<string, FakeRoom>([
+      [SPACE_ID, space],
+      [ROOM_ENG, eng],
+    ]);
+    const clientEmitter = createEmitter();
+    const client = {
+      getSafeUserId: () => ME,
+      getUserId: () => ME,
+      getRoom: (id: string) => roomMap.get(id) ?? null,
+      getRooms: () => [...roomMap.values()],
+      getAccountData: () => undefined,
+      on: clientEmitter.on,
+      off: clientEmitter.off,
+      removeListener: clientEmitter.removeListener,
+      mxcUrlToHttp: () => null,
+    } as unknown as MatrixClient;
+
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ROOM_ENG] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([[ROOM_ENG, new Set([SPACE_ID])]]),
+    });
+    store.set(crossRoomThreadIndexAtom, {
+      entries: new Map(),
+      eventIdToThreadRoots: new Map(),
+      version: 1,
+      bootstrapped: true,
+    });
+
+    const roomIdLobbyPath = `/${encodeURIComponent(SPACE_ID)}/lobby`;
+    const aliasThreadsPath = `/${encodeURIComponent(alias)}/threads`;
+
+    function Harness() {
+      useHistoryStackRecorder('phone-back-test');
+      const location = useLocation();
+      const navigate = useNavigate();
+      return (
+        <>
+          <div data-testid="current-pathname">{location.pathname}</div>
+          <Routes>
+            <Route
+              path="/:spaceIdOrAlias/lobby"
+              element={
+                <button type="button" onClick={() => void navigate(aliasThreadsPath)}>
+                  Open threads
+                </button>
+              }
+            />
+            <Route path="/:spaceIdOrAlias/threads" element={<SpaceThreadsPage />} />
+            <Route path="/:spaceIdOrAlias/*" element={<div data-testid="fallback-space" />} />
+          </Routes>
+        </>
+      );
+    }
+
+    render(
+      <Provider store={store}>
+        <ScreenSizeProvider value={ScreenSize.Mobile}>
+          <MatrixClientProvider value={client}>
+            <MemoryRouter initialEntries={[roomIdLobbyPath]}>
+              <SpaceProvider value={space}>
+                <Harness />
+              </SpaceProvider>
+            </MemoryRouter>
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open threads' }));
+    expect(screen.getByTestId('current-pathname').textContent).toBe(aliasThreadsPath);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('current-pathname').textContent).toBe(roomIdLobbyPath);
   });
 });
