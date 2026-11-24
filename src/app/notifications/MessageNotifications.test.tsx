@@ -51,6 +51,8 @@ class FakeNotification {
 
   onclick: (() => void) | null = null;
 
+  onshow: (() => void) | null = null;
+
   onclose: (() => void) | null = null;
 
   close = vi.fn();
@@ -648,6 +650,12 @@ describe('MessageNotificationsFeature', () => {
       expect(firstNote.options.tag).toBe(`${ROOM}:${first.getId()}`);
       expect(secondNote.options.tag).toBe(`${ROOM}:${second.getId()}`);
       expect(firstNote.close).toHaveBeenCalledTimes(1);
+      expect(secondNote.close).not.toHaveBeenCalled();
+
+      // If close() ran while firstNote was still loading its icon, onshow closes the superseded banner.
+      firstNote.onshow?.();
+      secondNote.onshow?.();
+      expect(firstNote.close).toHaveBeenCalledTimes(2);
       expect(secondNote.close).not.toHaveBeenCalled();
 
       // A delayed onclose from the closed first notification must not clear the second.

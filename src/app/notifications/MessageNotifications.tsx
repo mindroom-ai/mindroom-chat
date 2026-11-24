@@ -143,6 +143,9 @@ const showNotice = (
     });
     if (desktop) {
       activeByRoom.set(notice.roomId, note);
+      note.onshow = () => {
+        if (activeByRoom.get(notice.roomId) !== note) note.close();
+      };
       note.onclose = () => {
         if (activeByRoom.get(notice.roomId) === note) activeByRoom.delete(notice.roomId);
       };
