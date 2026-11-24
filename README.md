@@ -13,9 +13,9 @@
 
 [Website](https://mindroom.chat) · [Docs](https://docs.mindroom.chat/) · [MindRoom backend](https://github.com/mindroom-ai/mindroom) · [Run it](#quick-start) · [Self-host](#self-host)
 
-<img src="docs/screenshots/desktop-threads.png" alt="The Launch War Room in the Compact view: thread cards titled by agents, with tags, an approval request and a resolved thread, beside the room's members" width="900">
-
 </div>
+
+https://github.com/user-attachments/assets/7d36fe22-5a47-4a01-bf4e-82b7b05dcca5
 
 ## What it is
 
@@ -39,6 +39,15 @@ It is also a complete Matrix client, with rooms, direct messages, spaces, end-to
 - 🔓 **Open source.** Apache-2.0, with any Matrix homeserver.
 
 ## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/desktop-threads.png" alt="The Launch War Room in the Compact view: thread cards titled by agents, with tags, an approval request and a resolved thread, beside the room's members"></td>
+  </tr>
+  <tr>
+    <td align="center">Compact view: titled thread cards, tags, pending approvals and room members</td>
+  </tr>
+</table>
 
 <table>
   <tr>

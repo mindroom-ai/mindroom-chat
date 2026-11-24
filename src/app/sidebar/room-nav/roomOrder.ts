@@ -5,21 +5,38 @@ import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 
 /**
- * Room lists the person ordered by hand, in the `io.mindroom.room_order` account data, so the
- * order follows the account to every device: `{ "lists": { "<list>": ["<room ID>", ...] } }`. A
- * list is `home` (the rooms outside spaces) or a space's room ID (that space's Rooms section). A
- * list without an entry keeps the A to Z order.
+ * Per-list sidebar room sort preferences and hand-ordered room lists in `io.mindroom.room_order`:
+ * `{ lists, modes, showTimes }`. A list is `home` or a space's room ID. Legacy accounts with only
+ * `lists` resolve saved lists to `'manual'`.
  */
 
 /** The list of the Home page's Rooms section; a space's list is the space's room ID. */
 export const HOME_ROOM_LIST = 'home';
 
+export type RoomSortMode = 'recent' | 'name' | 'manual';
+/** Stored mode value; `'inherit'` lets a sub-space with a saved list inherit from its parent. */
+export type StoredRoomSortMode = RoomSortMode | 'inherit';
 export type RoomOrderLists = Record<string, string[]>;
+export type RoomOrderData = {
+  lists: RoomOrderLists;
+  modes: Record<string, StoredRoomSortMode>;
+  showTimes: Record<string, boolean>;
+};
+export type RoomOrderChanges = {
+  lists?: Readonly<Record<string, readonly string[] | undefined>>;
+  modes?: Readonly<Record<string, StoredRoomSortMode | undefined>>;
+  showTimes?: Readonly<Record<string, boolean | undefined>>;
+};
 
+const VALID_MODES = new Set<string>(['recent', 'name', 'manual', 'inherit']);
+const hasOwn = (record: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(record, key);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-/** The strings of `value` once each, in order; anything else is dropped. */
+const isStoredMode = (value: unknown): value is StoredRoomSortMode =>
+  typeof value === 'string' && VALID_MODES.has(value);
+const isConcreteMode = (value: StoredRoomSortMode | undefined): value is RoomSortMode =>
+  value === 'recent' || value === 'name' || value === 'manual';
 const uniqueStrings = (value: unknown): string[] =>
   Array.isArray(value)
     ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))]
@@ -37,10 +54,27 @@ export const parseRoomOrderLists = (content: unknown): RoomOrderLists => {
   return parsed;
 };
 
-/**
- * The rooms of a list in the saved order: the saved rooms still in `roomIds` first, then the rest
- * in the order `roomIds` has them (A to Z), so a room joined later shows at the end.
- */
+/** Parses `lists`, `modes`, and `showTimes` from `io.mindroom.room_order`, dropping invalid entries. */
+export const parseRoomOrderData = (content: unknown): RoomOrderData => {
+  const lists = parseRoomOrderLists(content);
+  const modes: Record<string, StoredRoomSortMode> = {};
+  const showTimes: Record<string, boolean> = {};
+  if (isRecord(content)) {
+    if (isRecord(content.modes)) {
+      Object.entries(content.modes).forEach(([id, mode]) => {
+        if (isStoredMode(mode)) modes[id] = mode;
+      });
+    }
+    if (isRecord(content.showTimes)) {
+      Object.entries(content.showTimes).forEach(([id, show]) => {
+        if (typeof show === 'boolean') showTimes[id] = show;
+      });
+    }
+  }
+  return { lists, modes, showTimes };
+};
+
+/** Saved rooms still in `roomIds` first, then the rest in A to Z order. */
 export const applyRoomOrder = (roomIds: readonly string[], saved?: readonly string[]): string[] => {
   if (!saved || saved.length === 0) return [...roomIds];
   const present = new Set(roomIds);
@@ -49,7 +83,7 @@ export const applyRoomOrder = (roomIds: readonly string[], saved?: readonly stri
   return [...ordered, ...roomIds.filter((roomId) => !placed.has(roomId))];
 };
 
-/** `order` with `roomId` taken out and put at `toIndex`; unchanged when it holds no such room. */
+/** `order` with `roomId` moved to `toIndex`; unchanged when absent. */
 export const moveRoom = (order: readonly string[], roomId: string, toIndex: number): string[] => {
   const from = order.indexOf(roomId);
   if (from < 0) return [...order];
@@ -58,11 +92,7 @@ export const moveRoom = (order: readonly string[], roomId: string, toIndex: numb
   return next;
 };
 
-/**
- * Appends `roomId` to a saved manual order while preserving all saved room IDs (including hidden
- * or archived ones) in their saved order, followed by any visible rooms not yet in `saved`, then
- * `roomId` once at the end.
- */
+/** Appends `roomId` to a saved manual order, keeping archived saved IDs and unsaved visible rooms. */
 export const appendRoomOrder = (
   saved: readonly string[],
   visibleRoomIds: readonly string[],
@@ -72,113 +102,224 @@ export const appendRoomOrder = (
   roomId,
 ];
 
-/**
- * The account data content with each entry of `changes` applied: a room ID list sets that list's
- * order, and `undefined` removes it (back to A to Z). Other lists and unknown keys stay as they
- * are.
- */
-export const withRoomOrders = (
-  content: unknown,
-  changes: Readonly<Record<string, readonly string[] | undefined>>
+const patchSection = <T>(
+  base: unknown,
+  changes: Readonly<Record<string, T | undefined>>,
+  clone: (value: T) => unknown
 ): Record<string, unknown> => {
-  const current = isRecord(content) ? content : {};
-  const lists = { ...(isRecord(current.lists) ? current.lists : {}) };
-  Object.entries(changes).forEach(([listId, order]) => {
-    if (order) lists[listId] = [...order];
-    else delete lists[listId];
+  const next = { ...(isRecord(base) ? base : {}) };
+  Object.entries(changes).forEach(([id, value]) => {
+    if (value !== undefined) next[id] = clone(value);
+    else delete next[id];
   });
-  return { ...current, lists };
+  return next;
 };
 
-/** Applies all `changes` to `io.mindroom.room_order` in one account-data write. */
-export const saveRoomOrders = async (
+/** Applies `changes` (`lists`, `modes`, `showTimes`) while preserving unknown top-level keys. */
+export const withRoomOrderChanges = (
+  content: unknown,
+  changes: RoomOrderChanges
+): Record<string, unknown> => {
+  const current = isRecord(content) ? content : {};
+  const next: Record<string, unknown> = { ...current };
+  if (changes.lists) next.lists = patchSection(current.lists, changes.lists, (order) => [...order]);
+  if (changes.modes) {
+    const modes = patchSection(current.modes, changes.modes, (mode) => mode);
+    if (Object.keys(modes).length > 0) next.modes = modes;
+    else delete next.modes;
+  }
+  if (changes.showTimes) {
+    const showTimes = patchSection(current.showTimes, changes.showTimes, (show) => show);
+    if (Object.keys(showTimes).length > 0) next.showTimes = showTimes;
+    else delete next.showTimes;
+  }
+  return next;
+};
+
+/** Applies `changes` to `io.mindroom.room_order` in one account-data write. */
+export const saveRoomOrderChanges = async (
   client: MatrixClient,
-  changes: Readonly<Record<string, readonly string[] | undefined>>
+  changes: RoomOrderChanges
 ): Promise<void> => {
   const current = client.getAccountData(AccountDataEvent.MindroomRoomOrder as never)?.getContent();
   await client.setAccountData(
     AccountDataEvent.MindroomRoomOrder as never,
-    withRoomOrders(current, changes) as never
+    withRoomOrderChanges(current, changes) as never
   );
 };
 
-/** Changes not echoed by the server yet, made while `event` was the stored account data. */
-type PendingOrders = {
+type PendingChanges = {
   event: MatrixEvent | undefined;
-  changes: Record<string, string[] | undefined>;
+  lists: Record<string, string[] | undefined>;
+  modes: Record<string, StoredRoomSortMode | undefined>;
+  showTimes: Record<string, boolean | undefined>;
 };
 
 export type RoomOrders = {
-  /** `roomIds` (sorted A to Z) in the saved order for `listId`, if any. */
   orderOf: (listId: string, roomIds: readonly string[]) => string[];
-  /** Whether `listId` is ordered by hand. */
-  isManual: (listId: string) => boolean;
-  /** Saves `order` as `listId`'s order. */
+  modeOf: (listId: string, inheritFrom?: readonly string[]) => RoomSortMode;
+  hasExplicitMode: (listId: string) => boolean;
+  showTimesOf: (listId: string, inheritFrom?: readonly string[]) => boolean;
+  hasSavedOrder: (listId: string) => boolean;
   save: (listId: string, order: string[]) => void;
-  /**
-   * Appends `roomId` to `listId` only when `listId` is already ordered by hand, preserving hidden
-   * or archived saved room IDs plus any unsaved visible rooms before `roomId`.
-   */
-  appendRoom: (listId: string, visibleRoomIds: readonly string[], roomId: string) => void;
-  /** Forgets the saved order of every list in `listIds` in one account-data write. */
-  reset: (listIds: readonly string[]) => void;
+  setMode: (
+    listId: string,
+    mode: RoomSortMode,
+    currentOrder?: readonly string[],
+    inheritedOrders?: Readonly<Record<string, readonly string[]>>
+  ) => void;
+  setShowTimes: (listId: string, show: boolean, inheritFrom?: readonly string[]) => void;
+  resetSubspaceOverride: (subspaceId: string) => void;
+  appendRoom: (
+    listId: string,
+    visibleRoomIds: readonly string[],
+    roomId: string,
+    inheritFrom?: readonly string[]
+  ) => void;
 };
 
 export type RoomOrder = {
-  /** The list's rooms as the section shows them. */
-  roomIds: string[];
-  /** Whether the person ordered the list by hand. */
-  manual: boolean;
-  /** Saves `order` as the list's order. */
+  mode: RoomSortMode;
+  showTimes: boolean;
+  hasSavedOrder: boolean;
   save: (order: string[]) => void;
-  /** Forgets the list's order, so it shows A to Z again. */
-  reset: () => void;
+  setMode: (mode: RoomSortMode) => void;
+  setShowTimes: (show: boolean) => void;
+};
+
+const mergeMap = <T, R>(
+  base: Record<string, R | undefined> | undefined,
+  patch: Readonly<Record<string, T | undefined>> | undefined,
+  map: (value: T) => R
+): Record<string, R | undefined> => {
+  const merged = { ...base };
+  if (patch) {
+    Object.entries(patch).forEach(([id, val]) => {
+      merged[id] = val !== undefined ? map(val) : undefined;
+    });
+  }
+  return merged;
 };
 
 /**
- * All hand-ordered room lists from one `io.mindroom.room_order` subscription. Changes show at once
- * and hold until the server echoes the account data; a failed save reverts to the stored order.
+ * All sidebar room sort preferences and hand-ordered lists from one `io.mindroom.room_order`
+ * subscription, with optimistic updates that revert if `setAccountData` rejects.
  */
 export const useRoomOrders = (): RoomOrders => {
   const client = useMatrixClient();
   const event = useAccountData(AccountDataEvent.MindroomRoomOrder);
-  const [pending, setPending] = useState<PendingOrders>();
-  const savedLists = useMemo(() => parseRoomOrderLists(event?.getContent()), [event]);
-  // Any newer account data, the echo or another device's change, replaces pending changes.
-  const activeChanges = pending && pending.event === event ? pending.changes : undefined;
+  const [pending, setPending] = useState<PendingChanges>();
+  const saved = useMemo(() => parseRoomOrderData(event?.getContent()), [event]);
+  const active = pending && pending.event === event ? pending : undefined;
 
   return useMemo(() => {
-    const savedOf = (listId: string): readonly string[] | undefined =>
-      activeChanges && Object.prototype.hasOwnProperty.call(activeChanges, listId)
-        ? activeChanges[listId]
-        : savedLists[listId];
+    const read = <K extends keyof RoomOrderData>(
+      field: K,
+      id: string
+    ): RoomOrderData[K][string] | undefined => {
+      const pendingMap = active?.[field] as
+        Record<string, RoomOrderData[K][string] | undefined> | undefined;
+      if (pendingMap && hasOwn(pendingMap, id)) return pendingMap[id];
+      return (saved[field] as Record<string, RoomOrderData[K][string] | undefined>)[id];
+    };
 
-    const write = (changes: Record<string, string[] | undefined>) => {
-      if (Object.keys(changes).length === 0) return;
-      const merged = { ...activeChanges, ...changes };
-      const change: PendingOrders = { event, changes: merged };
-      setPending(change);
-      saveRoomOrders(client, merged).catch(() => {
-        setPending((latest) => (latest === change ? undefined : latest));
+    const hasSavedOrder = (id: string): boolean => (read('lists', id)?.length ?? 0) > 0;
+
+    const explicitModeOf = (id: string): RoomSortMode | undefined => {
+      const stored = read('modes', id);
+      if (isConcreteMode(stored)) return stored;
+      if (stored === 'inherit') return undefined;
+      return hasSavedOrder(id) ? 'manual' : undefined;
+    };
+
+    const modeOf = (id: string, inheritFrom?: readonly string[]): RoomSortMode => {
+      for (const candidate of inheritFrom ? [id, ...inheritFrom] : [id]) {
+        const mode = explicitModeOf(candidate);
+        if (mode) return mode;
+      }
+      return 'name';
+    };
+
+    const showTimesOf = (id: string, inheritFrom?: readonly string[]): boolean => {
+      for (const candidate of inheritFrom ? [id, ...inheritFrom] : [id]) {
+        const show = read('showTimes', candidate);
+        if (show !== undefined) return show;
+      }
+      return false;
+    };
+
+    const write = (changes: RoomOrderChanges) => {
+      const lists = mergeMap(active?.lists, changes.lists, (order) => [...order]);
+      const modes = mergeMap(active?.modes, changes.modes, (mode) => mode);
+      const showTimes = mergeMap(active?.showTimes, changes.showTimes, (show) => show);
+      const nextChanges: RoomOrderChanges = {
+        ...(Object.keys(lists).length > 0 ? { lists } : undefined),
+        ...(Object.keys(modes).length > 0 ? { modes } : undefined),
+        ...(Object.keys(showTimes).length > 0 ? { showTimes } : undefined),
+      };
+      if (!nextChanges.lists && !nextChanges.modes && !nextChanges.showTimes) return;
+      const nextPending: PendingChanges = { event, lists, modes, showTimes };
+      setPending(nextPending);
+      saveRoomOrderChanges(client, nextChanges).catch(() => {
+        setPending((latest) => (latest === nextPending ? undefined : latest));
       });
     };
 
     return {
-      orderOf: (listId, roomIds) => applyRoomOrder(roomIds, savedOf(listId)),
-      isManual: (listId) => savedOf(listId) !== undefined,
-      save: (listId, order) => write({ [listId]: order }),
-      appendRoom: (listId, visibleRoomIds, roomId) => {
-        const saved = savedOf(listId);
-        if (!saved) return;
-        write({ [listId]: appendRoomOrder(saved, visibleRoomIds, roomId) });
-      },
-      reset: (listIds) => {
-        const changes: Record<string, undefined> = {};
-        listIds.forEach((listId) => {
-          changes[listId] = undefined;
+      orderOf: (id, roomIds) => applyRoomOrder(roomIds, read('lists', id)),
+      modeOf,
+      hasExplicitMode: (id) => explicitModeOf(id) !== undefined,
+      showTimesOf,
+      hasSavedOrder,
+      save: (id, order) => write({ lists: { [id]: order }, modes: { [id]: 'manual' } }),
+      setMode: (id, mode, currentOrder, inheritedOrders) => {
+        const lists: Record<string, readonly string[]> = {};
+        const modes: Record<string, StoredRoomSortMode> = { [id]: mode };
+        if (mode === 'manual') {
+          if (!hasSavedOrder(id) && currentOrder && currentOrder.length > 0) {
+            lists[id] = currentOrder;
+          }
+          if (inheritedOrders) {
+            Object.entries(inheritedOrders).forEach(([subId, order]) => {
+              if (subId === id || order.length === 0) return;
+              if (explicitModeOf(subId) !== undefined || hasSavedOrder(subId)) return;
+              lists[subId] = order;
+              modes[subId] = 'inherit';
+            });
+          }
+        }
+        write({
+          modes,
+          ...(Object.keys(lists).length > 0 ? { lists } : undefined),
         });
-        write(changes);
+      },
+      setShowTimes: (id, show, inheritFrom) => {
+        if (show) {
+          write({ showTimes: { [id]: true } });
+          return;
+        }
+        const parentShows =
+          Boolean(inheritFrom?.length) && showTimesOf(inheritFrom![0]!, inheritFrom!.slice(1));
+        if (parentShows) write({ showTimes: { [id]: false } });
+        else if (read('showTimes', id) !== undefined) write({ showTimes: { [id]: undefined } });
+      },
+      resetSubspaceOverride: (id) => {
+        const nextMode: StoredRoomSortMode | undefined = hasSavedOrder(id) ? 'inherit' : undefined;
+        const curMode = read('modes', id);
+        const curShow = read('showTimes', id);
+        if (curMode === nextMode && curShow === undefined) return;
+        write({
+          ...(curMode !== nextMode ? { modes: { [id]: nextMode } } : undefined),
+          ...(curShow !== undefined ? { showTimes: { [id]: undefined } } : undefined),
+        });
+      },
+      appendRoom: (id, visibleRoomIds, roomId, inheritFrom) => {
+        if (modeOf(id, inheritFrom) !== 'manual') return;
+        const savedList = read('lists', id);
+        if (savedList) {
+          write({ lists: { [id]: appendRoomOrder(savedList, visibleRoomIds, roomId) } });
+        }
       },
     };
-  }, [client, event, savedLists, activeChanges]);
+  }, [client, event, saved, active]);
 };

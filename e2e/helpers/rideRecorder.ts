@@ -210,7 +210,9 @@ export const positionThreadForPrepend = async (page: Page) => {
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   const readPosition = () =>
     page.locator('[data-e2e-scroller="1"]').evaluate((scroller) => {
-      const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-index]'));
+      const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-index]')).filter(
+        (row) => row.querySelector('[data-message-id]') !== null
+      );
       return {
         top: scroller.scrollTop,
         height: scroller.clientHeight,

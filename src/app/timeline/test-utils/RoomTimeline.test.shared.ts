@@ -191,7 +191,9 @@ const {
     // the drop-path pins call the component-installed
     // shouldAdjustScrollPositionOnItemSizeChange hook directly).
     lastInstance: undefined as Record<string, unknown> | undefined,
+    cancelScrollMock: vi.fn(),
     measureElementMock: vi.fn(),
+    scrollToEndMock: vi.fn(),
     scrollToIndexMock: vi.fn(),
     scrollToOffsetMock: vi.fn(),
     getOffsetForIndexMock: vi.fn(),
@@ -439,6 +441,10 @@ vi.mock('@tanstack/react-virtual', () => {
       count: number;
       estimateSize?: (index?: number) => number;
       getItemKey?: (index: number) => unknown;
+      getScrollElement?: () => {
+        scrollTo?: (opts: ScrollToOptions) => void;
+        scrollHeight?: number;
+      } | null;
       scrollMargin?: number;
     }) => {
       roomTimelineVirtualizerState.lastOptions = options;
@@ -526,6 +532,16 @@ vi.mock('@tanstack/react-virtual', () => {
           const value = node.getAttribute?.('data-index');
           const index = value == null ? Number.NaN : Number(value);
           return Number.isInteger(index) ? index : -1;
+        },
+        cancelScroll: (...args: unknown[]) =>
+          roomTimelineVirtualizerState.cancelScrollMock(...args),
+        scrollToEnd: (opts?: { behavior?: 'auto' | 'smooth' }) => {
+          roomTimelineVirtualizerState.scrollToEndMock(opts);
+          const el = optionsRef.current.getScrollElement?.();
+          el?.scrollTo?.({
+            top: el.scrollHeight ?? 0,
+            behavior: opts?.behavior === 'smooth' ? 'smooth' : 'instant',
+          });
         },
         scrollToIndex: (...args: unknown[]) =>
           roomTimelineVirtualizerState.scrollToIndexMock(...args),
@@ -1526,7 +1542,9 @@ beforeEach(() => {
   roomTimelineVirtualizerState.virtualIndexes = undefined;
   roomTimelineVirtualizerState.totalSize = undefined;
   roomTimelineVirtualizerState.firstVisibleKey = undefined;
+  roomTimelineVirtualizerState.cancelScrollMock.mockClear();
   roomTimelineVirtualizerState.measureElementMock.mockClear();
+  roomTimelineVirtualizerState.scrollToEndMock.mockClear();
   roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
   isTimelineAtLiveEndMock.mockReturnValue(true);

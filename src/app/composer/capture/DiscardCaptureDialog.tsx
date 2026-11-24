@@ -4,32 +4,41 @@ import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, config } from 'folds';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { ModalLayer } from '../../ui/ModalLayer';
-import { voiceDiscardsInFlightAtom } from './liveVoiceRecording';
+import { captureDiscardsInFlightAtom, type LiveCaptureKind } from './liveCapture';
 
-type DiscardVoiceRecordingDialogProps = {
+type DiscardCaptureDialogProps = {
+  kind: LiveCaptureKind;
   open: boolean;
   onCancel: () => void;
-  /** Confirmed: only now does the recording go. Resolves once its disk copy is gone. */
+  /** Confirmed: only now does the capture go. Resolves once its disk copy is gone. */
   onDiscard: () => Promise<void>;
 };
 
 /**
- * Asks before a voice recording is discarded, live or parked: every Discard goes through it.
- * Focus starts on Cancel and stays inside; Escape or a press outside cancels. It stays, busy,
- * until the confirmed recording is gone from disk too: a reload cannot offer it again. It offers
- * no notice place, or the recording it asks about would move into it
- * (LiveVoiceRecordingIndicator.tsx).
+ * Asks before a voice recording or dictation is discarded, live or parked: every Discard goes
+ * through it. Focus starts on Cancel and stays inside; Escape or a press outside cancels. It
+ * stays, busy, until the confirmed capture is gone from disk too: a reload cannot offer it again.
+ * It offers no notice place, or the capture it asks about would move into it
+ * (`LiveCaptureIndicator.tsx`).
  */
-export function DiscardVoiceRecordingDialog({
+export function DiscardCaptureDialog({
+  kind,
   open,
   onCancel,
   onDiscard,
-}: DiscardVoiceRecordingDialogProps) {
+}: DiscardCaptureDialogProps) {
   const { t } = useTranslation();
-  const title = t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording');
+  const title =
+    kind === 'voice'
+      ? t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')
+      : t('composer.dictation.discardConfirmTitle');
+  const body =
+    kind === 'voice'
+      ? t('mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently')
+      : t('composer.dictation.discardConfirmBody');
   const [busy, setBusy] = useState(false);
   // Counted for the app too: a composer keeps this question up, and a reload still asks.
-  const setInFlight = useSetAtom(voiceDiscardsInFlightAtom);
+  const setInFlight = useSetAtom(captureDiscardsInFlightAtom);
   // The buttons stay enabled, so the focus kept inside always has a place.
   const discard = () => {
     if (busy) return;
@@ -51,11 +60,7 @@ export function DiscardVoiceRecordingDialog({
       >
         <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
           <Text size="H5">{title}</Text>
-          <Text size="T300">
-            {t(
-              'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
-            )}
-          </Text>
+          <Text size="T300">{body}</Text>
           <Box justifyContent="End" gap="200">
             <Button variant="Secondary" onClick={onCancel} fill="Soft" outlined radii="300">
               {t('mindroomUi.voice.voiceRecorderDialog.cancel')}

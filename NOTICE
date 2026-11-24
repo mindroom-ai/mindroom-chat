@@ -256,3 +256,7 @@ Modified dependencies
   scheduler 0.28.0 (MIT), patches/scheduler+0.28.0.patch modifies:
     cjs/scheduler.development.js, cjs/scheduler.production.js, and adds
     cjs/mindroom-wakeup.js.
+
+  @tanstack/virtual-core 3.17.3 (MIT),
+  patches/@tanstack+virtual-core+3.17.3.patch modifies:
+    dist/cjs/index.cjs, dist/esm/index.js.

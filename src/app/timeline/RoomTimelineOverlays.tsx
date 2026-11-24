@@ -234,19 +234,47 @@ export const EXPAND_ALL_START_COLUMN = `calc(${config.space.S400} + ${toRem(68)}
   config.space.S200
 })`;
 
-/** What a thread shows above its rows while they load: a failure, Load older, or a spinner. */
-export function ThreadLoadingLines({
-  loadError,
-  showLoadOlder,
+/** The Load Older Messages chip, rendered as a leading virtual item inside the thread list. */
+export function ThreadLoadOlderLine({
   paginatingBack,
-  loading,
   onLoadOlder,
 }: {
-  loadError: boolean;
-  showLoadOlder: boolean;
   paginatingBack: boolean;
-  loading: boolean;
   onLoadOlder: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Box justifyContent="Center" style={{ padding: config.space.S200 }}>
+      <Chip
+        variant="SurfaceVariant"
+        radii="Pill"
+        outlined
+        before={
+          paginatingBack ? (
+            <Spinner size="50" variant="Secondary" />
+          ) : (
+            <Icon size="50" src={Icons.ArrowTop} />
+          )
+        }
+        onClick={onLoadOlder}
+      >
+        <Text size="L400">
+          {paginatingBack
+            ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
+            : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+        </Text>
+      </Chip>
+    </Box>
+  );
+}
+
+/** What a thread shows before rows exist: a failure or an initial spinner. */
+export function ThreadLoadingLines({
+  loadError,
+  loading,
+}: {
+  loadError: boolean;
+  loading: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -256,29 +284,6 @@ export function ThreadLoadingLines({
           <Text size="T300" priority="300">
             {t('mindroomUi.threads.mindroomRoomTimeline.failedToLoadThisThread')}
           </Text>
-        </Box>
-      )}
-      {showLoadOlder && (
-        <Box justifyContent="Center" style={{ padding: config.space.S200 }}>
-          <Chip
-            variant="SurfaceVariant"
-            radii="Pill"
-            outlined
-            before={
-              paginatingBack ? (
-                <Spinner size="50" variant="Secondary" />
-              ) : (
-                <Icon size="50" src={Icons.ArrowTop} />
-              )
-            }
-            onClick={onLoadOlder}
-          >
-            <Text size="L400">
-              {paginatingBack
-                ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
-                : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
-            </Text>
-          </Chip>
         </Box>
       )}
       {loading && (

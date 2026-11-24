@@ -43,9 +43,10 @@ describe('ClientInitStorageAtom collapsed categories', () => {
     localStorage.clear();
   });
 
-  it('starts THREADS, its Resolved section and Recently Opened collapsed for a new account', () => {
+  it('starts THREADS, its Quiet and Resolved sections and Recently Opened collapsed for a new account', () => {
     const closed = createStore().get(mountAtom());
     expect(closed.has(THREAD_NAV_CATEGORY_ID)).toBe(true);
+    expect(closed.has(threadNavSectionCategoryId('quiet'))).toBe(true);
     expect(closed.has(threadNavSectionCategoryId('resolved'))).toBe(true);
     expect(closed.has(threadNavSectionCategoryId('idle'))).toBe(false);
     expect(closed.has(RECENTLY_OPENED_NAV_CATEGORY_ID)).toBe(true);
@@ -66,6 +67,7 @@ describe('ClientInitStorageAtom collapsed categories', () => {
         'home|room',
         RECENTLY_OPENED_NAV_CATEGORY_ID,
         THREAD_NAV_CATEGORY_ID,
+        threadNavSectionCategoryId('quiet'),
         threadNavSectionCategoryId('resolved'),
       ])
     );

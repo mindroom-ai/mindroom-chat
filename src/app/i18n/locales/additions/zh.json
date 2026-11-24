@@ -690,7 +690,18 @@
       "manage": "管理"
     },
     "roomOrder": {
-      "sortByName": "按 A 到 Z 排序房间"
+      "sortRooms": "排序房间",
+      "sortHeading": "排序房间",
+      "displayHeading": "显示",
+      "recentActivity": "最近活跃",
+      "aToZ": "A 到 Z",
+      "customOrder": "自定义顺序",
+      "saved": "已保存",
+      "showActivityTimes": "显示活跃时间",
+      "matchSpace": "跟随空间（{{mode}}）",
+      "shortRecent": "活跃",
+      "shortName": "A 到 Z",
+      "shortManual": "自定义"
     },
     "roomActions": {
       "noInvitePermission": "您没有邀请权限",
@@ -1444,7 +1455,20 @@
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
-      "failedSummary_other": "无法转写 {{count}} 个片段。"
+      "failedSummary_other": "无法转写 {{count}} 个片段。",
+      "discardDictation": "丢弃听写",
+      "discardConfirmTitle": "丢弃听写？",
+      "discardConfirmBody": "此听写尚未插入或发送。要永久丢弃吗？",
+      "errorTitle": "听写错误",
+      "statusRecovered": "已恢复的听写",
+      "recoveredDuration": "已恢复 · {{time}}",
+      "indicator": {
+        "recording": "正在听写 {{time}}",
+        "paused": "听写已暂停 {{time}}",
+        "recovered": "已恢复的听写 {{time}}",
+        "finishing": "正在完成听写...",
+        "failed": "听写需要注意"
+      }
     }
   },
   "commandPalette": {
@@ -1550,6 +1574,7 @@
       "needsYou": "需要你处理",
       "working": "处理中",
       "later": "稍后",
+      "quiet": "安静",
       "done": "已完成",
       "all": "全部",
       "description": {
@@ -1891,6 +1916,7 @@
       "working": "进行中",
       "later": "稍后",
       "idle": "空闲",
+      "quiet": "安静",
       "resolved": "已解决"
     },
     "live": {

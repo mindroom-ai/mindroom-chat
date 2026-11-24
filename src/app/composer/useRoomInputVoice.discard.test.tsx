@@ -5,7 +5,10 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { composersHoldUnsavedWork } from './roomInputDrafts';
 import { useRoomInputVoice } from './useRoomInputVoice';
-import { liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
+import { liveCaptureAtom } from './capture/liveCapture';
+import { createSessionId } from '../matrix/session/sessions';
+import { dictationRestoresAtom } from './dictation/startLiveDictation';
+import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
 
 // A composer's own Discard, through the real recorder and question: confirmed, the recording ends
@@ -16,8 +19,10 @@ vi.mock('../matrix/hooks/useMediaConfig', () => ({ useMediaConfig: () => ({}) })
 
 const ROOM_ID = '!example:example.org';
 const room = { roomId: ROOM_ID, name: 'Example room' } as unknown as Room;
+const HOMESERVER = 'https://example.org';
 const mx = {
   getUserId: () => '@me:example.org',
+  getHomeserverUrl: () => HOMESERVER,
   getRoom: () => room,
 } as unknown as MatrixClient;
 
@@ -41,7 +46,12 @@ function Composer() {
     transport: {} as never,
     sessions: {} as never,
   });
-  return <>{voice.renderRecorder(vi.fn())}</>;
+  return (
+    <>
+      {voice.renderRecorder(vi.fn())}
+      {voice.microphone}
+    </>
+  );
 }
 
 const question = () => screen.queryByRole('dialog', { name: 'Discard voice recording?' });
@@ -74,12 +84,15 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
       })
   );
   const store = createStore();
-  store.set(liveVoiceRecordingAtom, {
-    getSnapshot: () => snapshot,
-    subscribe: () => () => undefined,
-    canStop: () => true,
-    discard,
-  } as unknown as VoiceCaptureSession);
+  store.set(liveCaptureAtom, {
+    kind: 'voice',
+    session: {
+      getSnapshot: () => snapshot,
+      subscribe: () => () => undefined,
+      canStop: () => true,
+      discard,
+    } as unknown as VoiceCaptureSession,
+  });
   render(
     <Provider store={store}>
       <Composer />
@@ -90,7 +103,7 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
   await waitFor(() => expect(question()?.contains(document.activeElement)).toBe(true));
   fireEvent.click(within(question()!).getByRole('button', { name: 'Discard' }));
   expect(discard).toHaveBeenCalledOnce();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
 
   // The recording is gone from the account; its disk copy is not yet. A reload would offer it
   // again, so the question stays and the app still holds unsaved work.
@@ -102,4 +115,26 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
   expect(question()).toBeNull();
   expect(screen.queryByRole('button', { name: 'Discard voice recording' })).toBeNull();
   expect(composersHoldUnsavedWork(store)).toBe(false);
+});
+
+it('keeps voice microphone disabled while dictationRestoresAtom is still in flight', () => {
+  const store = createStore();
+  const userId = '@me:example.org';
+  const sessionId = createSessionId(HOMESERVER, userId);
+  store.set(voiceDraftRestoresAtom, new Map([[userId, null]]));
+  store.set(dictationRestoresAtom, new Map([[sessionId, new Promise<void>(() => undefined)]]));
+
+  render(
+    <Provider store={store}>
+      <Composer />
+    </Provider>
+  );
+
+  const mic = screen.getByRole<HTMLButtonElement>('button', { name: 'Record voice message' });
+  expect(mic.disabled).toBe(true);
+
+  act(() => {
+    store.set(dictationRestoresAtom, new Map([[sessionId, null]]));
+  });
+  expect(mic.disabled).toBe(false);
 });

@@ -67,9 +67,6 @@ const mount = (area: ReturnType<typeof scrollArea>) => {
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     return <div ref={controller.virtualInnerRef} />;
   }

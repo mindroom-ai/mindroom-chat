@@ -457,6 +457,7 @@ export const useThreadAutoPaginateBack = ({
   paginatingBack: boolean;
   showLoadOlder: boolean;
   hasUserScrollIntent: boolean;
+  leadingOffset?: number;
   paginateBack: () => Promise<unknown>;
 }) => {
   const { threadId } = state;
@@ -465,9 +466,13 @@ export const useThreadAutoPaginateBack = ({
     if (!scrollElement || !threadId) return undefined;
     const checkTop = () => {
       const current = autoPaginateRef.current;
+      const offset = current.leadingOffset ?? 0;
+      const firstEventItem = virtualizerRef.current
+        .getVirtualItems()
+        .find((item) => item.index >= offset);
       const shouldPaginate = shouldAutoPaginateThreadBack({
         threadId: current.threadId,
-        firstRenderedIndex: virtualizerRef.current.getVirtualItems()[0]?.index,
+        firstRenderedIndex: firstEventItem ? firstEventItem.index - offset : undefined,
         paginatingBack: current.paginatingBack,
         showLoadOlder: current.showLoadOlder,
         hasUserScrollIntent: current.hasUserScrollIntent,

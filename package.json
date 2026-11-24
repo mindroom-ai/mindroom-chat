@@ -152,6 +152,7 @@
   },
   "overrides": {
     "scheduler": "0.28.0",
+    "@tanstack/virtual-core": "3.19.13",
     "mermaid": {
       "katex": "$katex"
     },

@@ -396,4 +396,61 @@ describe('dictationRefinement', () => {
       endIndex: 3,
     });
   });
+
+  it('returns exact newly-pruned indices from releaseGroupWavs and sealRefinementGroup', () => {
+    const mkRec = (
+      index: number,
+      status: RefinementSegmentRecord['status'],
+      withWav = true
+    ): RefinementSegmentRecord => {
+      const { wav, ...meta } = makeSegment({ voiced: 4 });
+      return { segment: { ...meta, index }, wav: withWav ? wav : undefined, status };
+    };
+
+    // Open and queued groups prune nothing.
+    const openRecs = [mkRec(0, 'completed'), mkRec(1, 'queued')];
+    expect(releaseGroupWavs({ startIndex: 0, endIndex: 1, state: 'open' }, openRecs)).toEqual([]);
+    expect(releaseGroupWavs({ startIndex: 0, endIndex: 1, state: 'queued' }, openRecs)).toEqual([]);
+    expect(openRecs[0]?.wav).toBeDefined();
+
+    // Fallback prunes completed + covered indices, preserves uncovered failed/queued WAVs,
+    // and reports only newly cleared indices on subsequent calls.
+    const fallbackGroup: RefinementGroup = {
+      startIndex: 0,
+      endIndex: 3,
+      state: 'fallback',
+      refinedText: 'Zero and one.',
+      refinedEndIndex: 1,
+    };
+    const fallbackRecs = [
+      mkRec(0, 'completed', false), // already pruned -> must not be re-reported
+      mkRec(1, 'queued', true), // covered by refinedEndIndex -> newly pruned
+      mkRec(2, 'completed', true), // completed -> newly pruned
+      mkRec(3, 'failed', true), // uncovered failed -> retained
+    ];
+    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([1, 2]);
+    expect(fallbackRecs[1]?.wav).toBeUndefined();
+    expect(fallbackRecs[2]?.wav).toBeUndefined();
+    expect(fallbackRecs[3]?.wav).toBeDefined();
+    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([]);
+
+    // Once seg 3 completes, calling releaseGroupWavs returns only [3].
+    fallbackRecs[3]!.status = 'completed';
+    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([3]);
+    expect(fallbackRecs[3]?.wav).toBeUndefined();
+
+    // sealRefinementGroup and appendSegmentToGroups report newly pruned indices via prunedOut.
+    const sealedRecs = [mkRec(0, 'completed'), mkRec(1, 'completed')];
+    const sealedGroup: RefinementGroup = {
+      startIndex: 0,
+      endIndex: 1,
+      state: 'open',
+      refinedText: 'Zero and one.',
+      refinedEndIndex: 1,
+    };
+    const prunedOnSeal: number[] = [];
+    expect(sealRefinementGroup(sealedGroup, sealedRecs, prunedOnSeal)).toBe(true);
+    expect(sealedGroup.state).toBe('refined');
+    expect(prunedOnSeal).toEqual([0, 1]);
+  });
 });

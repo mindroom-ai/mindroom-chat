@@ -5,8 +5,8 @@ export const DICTATION_FRAME_SAMPLES = 1_536;
 export const DICTATION_FRAME_MS = (DICTATION_FRAME_SAMPLES / DICTATION_SAMPLE_RATE) * 1000;
 export const DICTATION_WAV_HEADER_BYTES = 44;
 export const DICTATION_MAX_SEGMENT_BYTES = 1_000_000;
-
-const MAX_ACTIVE_FRAMES = Math.floor((5 * 60 * 1000) / DICTATION_FRAME_MS);
+/** Hard 5-minute active capture cap in 96 ms dictation frames. */
+export const DICTATION_MAX_ACTIVE_FRAMES = Math.floor((5 * 60 * 1000) / DICTATION_FRAME_MS);
 
 const POSITIVE_SPEECH_THRESHOLD = 0.5;
 const NEGATIVE_SPEECH_THRESHOLD = 0.35;
@@ -15,12 +15,12 @@ const REDEMPTION_FRAMES = 8;
 const DEFAULT_LONG_SILENCE_FRAMES = Math.round(8_000 / DICTATION_FRAME_MS) - REDEMPTION_FRAMES;
 const SOFT_CUT_FRAMES = Math.round(15_000 / DICTATION_FRAME_MS);
 const SOFT_CUT_QUIET_FRAMES = 2;
-const HARD_CUT_FRAMES = Math.round(25_000 / DICTATION_FRAME_MS);
+export const DICTATION_HARD_CUT_FRAMES = Math.round(25_000 / DICTATION_FRAME_MS);
 const HARD_CUT_SEARCH_FRAMES = Math.round(1_000 / DICTATION_FRAME_MS);
-const HARD_CUT_OVERLAP_FRAMES = 6;
+export const DICTATION_HARD_CUT_OVERLAP_FRAMES = 6;
 /** Minimum voiced frames (~192 ms) accepted on both natural pauses and Finish. */
 const MIN_SPEECH_FRAMES = 2;
-const SILENCE_RMS_FLOOR = 0.004;
+export const SILENCE_RMS_FLOOR = 0.004;
 const FALLBACK_RMS_THRESHOLD = 0.015;
 
 export type DictationSegmentCutReason = 'natural' | 'soft' | 'hard' | 'flush';
@@ -28,12 +28,16 @@ export type DictationSegmentCutReason = 'natural' | 'soft' | 'hard' | 'flush';
 export type DictationSegment = {
   index: number;
   wav: Blob;
+  /** Contiguous WAV bytes matching `wav`, exposed synchronously for journal checkpointing. */
+  wavBuffer?: ArrayBuffer;
   seconds: number;
   overlapped: boolean;
   cutReason: DictationSegmentCutReason;
   leadingQuietFrames: number;
   trailingQuietFrames: number;
   pauseBeforeMs: number;
+  /** Half-open frame boundary: all pushed frames strictly before this position are fully consumed. */
+  consumedThroughFramePos?: number;
 };
 
 export type VadScorer = {
@@ -46,6 +50,14 @@ export type DictationSegmenterOptions = {
   onCapReached?: () => void;
   maxActiveFrames?: number;
   longSilenceFrames?: number;
+  initialSegmentIndex?: number;
+  initialActiveFrames?: number;
+  initialOverlapped?: boolean;
+};
+
+type PendingFrame = {
+  frame: Float32Array;
+  pos: number;
 };
 
 type ScoredFrame = {
@@ -56,7 +68,7 @@ type ScoredFrame = {
 };
 
 /** Computes root-mean-square amplitude for a PCM float frame in [-1, 1]. */
-const computeFrameRms = (frame: Float32Array): number => {
+export const computeFrameRms = (frame: Float32Array): number => {
   if (frame.length === 0) return 0;
   let sum = 0;
   for (let i = 0; i < frame.length; i += 1) {
@@ -98,16 +110,12 @@ export const buildPcm16WavHeader = (
   return buffer;
 };
 
-/** Encodes 16 kHz mono float PCM frames into a standard 16-bit PCM WAV Blob. */
-export const encodePcm16Wav = (
-  frames: readonly Float32Array[],
-  sampleRate = DICTATION_SAMPLE_RATE
-): Blob => {
+/** Encodes mono float PCM frames in [-1, 1] into little-endian signed 16-bit PCM bytes. */
+export const encodePcm16Frames = (frames: readonly Float32Array[]): ArrayBuffer => {
   let totalSamples = 0;
   for (const frame of frames) totalSamples += frame.length;
 
-  const dataBytes = totalSamples * 2;
-  const pcmBuffer = new ArrayBuffer(dataBytes);
+  const pcmBuffer = new ArrayBuffer(totalSamples * 2);
   const view = new DataView(pcmBuffer);
 
   let offset = 0;
@@ -118,8 +126,47 @@ export const encodePcm16Wav = (
       offset += 2;
     }
   }
-  return new Blob([buildPcm16WavHeader(dataBytes, sampleRate), pcmBuffer], { type: 'audio/wav' });
+  return pcmBuffer;
 };
+
+/** Decodes little-endian signed 16-bit PCM bytes back into float PCM frames in [-1, 1]. */
+export const decodePcm16Frames = (
+  buffer: ArrayBuffer,
+  frameSamples = DICTATION_FRAME_SAMPLES
+): Float32Array[] => {
+  const view = new DataView(buffer);
+  const totalSamples = Math.floor(buffer.byteLength / 2);
+  const frames: Float32Array[] = [];
+  for (let sampleOffset = 0; sampleOffset < totalSamples; sampleOffset += frameSamples) {
+    const len = Math.min(frameSamples, totalSamples - sampleOffset);
+    const frame = new Float32Array(len);
+    for (let i = 0; i < len; i += 1) {
+      const sample = view.getInt16((sampleOffset + i) * 2, true);
+      frame[i] = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
+    }
+    frames.push(frame);
+  }
+  return frames;
+};
+
+/** Encodes 16 kHz mono float PCM frames into a contiguous 16-bit PCM WAV ArrayBuffer. */
+export const encodePcm16WavBuffer = (
+  frames: readonly Float32Array[],
+  sampleRate = DICTATION_SAMPLE_RATE
+): ArrayBuffer => {
+  const pcmBuffer = encodePcm16Frames(frames);
+  const header = buildPcm16WavHeader(pcmBuffer.byteLength, sampleRate);
+  const combined = new Uint8Array(header.byteLength + pcmBuffer.byteLength);
+  combined.set(new Uint8Array(header), 0);
+  combined.set(new Uint8Array(pcmBuffer), header.byteLength);
+  return combined.buffer;
+};
+
+/** Encodes 16 kHz mono float PCM frames into a standard 16-bit PCM WAV Blob. */
+export const encodePcm16Wav = (
+  frames: readonly Float32Array[],
+  sampleRate = DICTATION_SAMPLE_RATE
+): Blob => new Blob([encodePcm16WavBuffer(frames, sampleRate)], { type: 'audio/wav' });
 
 /**
  * Segments 16 kHz mono dictation PCM frames into WAV chunks <= 25 s using a single VAD state
@@ -134,7 +181,7 @@ export class DictationSegmenter {
   private readonly longSilenceFrames: number;
 
   private scorer: VadScorer | null = null;
-  private pendingFrames: Float32Array[] = [];
+  private pendingFrames: PendingFrame[] = [];
   private drainPromise: Promise<void> | null = null;
 
   private preSpeechPad: ScoredFrame[] = [];
@@ -143,10 +190,11 @@ export class DictationSegmenter {
   private quietFrames = 0;
   private nextSegmentOverlapped = false;
 
-  private activeFrames = 0;
-  private scoredFramePos = 0;
-  private capReached = false;
-  private segmentIndex = 0;
+  private activeFrames: number;
+  private pushedFramePos: number;
+  private scoredFramePos: number;
+  private capReached: boolean;
+  private segmentIndex: number;
   private silenceSinceLastSegmentFrames = 0;
   private longSilenceFired = false;
   private lastEmittedVoicedFramePos: number | null = null;
@@ -156,21 +204,41 @@ export class DictationSegmenter {
     this.onSegment = options.onSegment;
     this.onLongSilence = options.onLongSilence;
     this.onCapReached = options.onCapReached;
-    this.maxActiveFrames = options.maxActiveFrames ?? MAX_ACTIVE_FRAMES;
+    this.maxActiveFrames = options.maxActiveFrames ?? DICTATION_MAX_ACTIVE_FRAMES;
     this.longSilenceFrames = Math.max(1, options.longSilenceFrames ?? DEFAULT_LONG_SILENCE_FRAMES);
+    this.segmentIndex = Math.max(0, options.initialSegmentIndex ?? 0);
+    this.activeFrames = Math.max(0, options.initialActiveFrames ?? 0);
+    this.pushedFramePos = this.activeFrames;
+    this.scoredFramePos = this.activeFrames;
+    this.capReached = this.activeFrames >= this.maxActiveFrames;
+    this.nextSegmentOverlapped = Boolean(options.initialOverlapped);
   }
 
-  pushFrame(frame: Float32Array): void {
-    if (this.cleared || this.capReached) return;
+  /** Pushes one PCM frame and returns its monotonic frame position, or null when ignored. */
+  pushFrame(frame: Float32Array): number | null {
+    if (this.cleared || this.capReached) return null;
 
+    const pos = this.pushedFramePos;
+    this.pushedFramePos += 1;
     this.activeFrames += 1;
+    this.pendingFrames.push({ frame, pos });
     if (this.activeFrames >= this.maxActiveFrames) {
       this.capReached = true;
       this.onCapReached?.();
     }
+    if (this.cleared) return null;
 
-    this.pendingFrames.push(frame);
     if (this.scorer) void this.scheduleDrain();
+    return pos;
+  }
+
+  /** Earliest pushed frame position still buffered, overlapping, or awaiting scoring. */
+  getUnconsumedStartFramePos(): number {
+    const firstSegmentPos = this.segmentFrames[0]?.pos;
+    if (firstSegmentPos !== undefined) return firstSegmentPos;
+    const firstPadPos = this.preSpeechPad[0]?.pos;
+    if (firstPadPos !== undefined) return firstPadPos;
+    return this.scoredFramePos;
   }
 
   attachVad(scorer: VadScorer): Promise<void> {
@@ -193,9 +261,13 @@ export class DictationSegmenter {
     if (this.cleared) return;
 
     if (this.speaking && this.segmentFrames.length > 0) {
-      this.emitSegment(this.segmentFrames, this.nextSegmentOverlapped, 'flush');
+      const frames = this.segmentFrames;
+      const overlapped = this.nextSegmentOverlapped;
+      this.resetState();
+      this.emitSegment(frames, overlapped, 'flush');
+    } else {
+      this.resetState();
     }
-    this.resetState();
     this.resetFlushBoundary();
   }
 
@@ -217,8 +289,9 @@ export class DictationSegmenter {
 
   private async drainLoop(): Promise<void> {
     while (!this.cleared && this.scorer && this.pendingFrames.length > 0) {
-      const frame = this.pendingFrames.shift();
-      if (!frame) break;
+      const next = this.pendingFrames.shift();
+      if (!next) break;
+      const { frame, pos } = next;
       const rms = computeFrameRms(frame);
       let prob: number;
       try {
@@ -228,8 +301,7 @@ export class DictationSegmenter {
         prob = await this.scorer.score(frame);
       }
       if (this.cleared) return;
-      const pos = this.scoredFramePos;
-      this.scoredFramePos += 1;
+      this.scoredFramePos = pos + 1;
       this.consumeScoredFrame({ frame, prob, rms, pos });
     }
   }
@@ -277,18 +349,22 @@ export class DictationSegmenter {
     this.quietFrames = item.prob < NEGATIVE_SPEECH_THRESHOLD ? this.quietFrames + 1 : 0;
 
     if (this.quietFrames >= REDEMPTION_FRAMES) {
-      this.emitSegment(this.segmentFrames, this.nextSegmentOverlapped, 'natural');
+      const frames = this.segmentFrames;
+      const overlapped = this.nextSegmentOverlapped;
       this.resetState();
+      this.emitSegment(frames, overlapped, 'natural');
       return;
     }
 
     if (this.segmentFrames.length >= SOFT_CUT_FRAMES && this.quietFrames >= SOFT_CUT_QUIET_FRAMES) {
-      this.emitSegment(this.segmentFrames, this.nextSegmentOverlapped, 'soft');
+      const frames = this.segmentFrames;
+      const overlapped = this.nextSegmentOverlapped;
       this.resetState();
+      this.emitSegment(frames, overlapped, 'soft');
       return;
     }
 
-    if (this.segmentFrames.length >= HARD_CUT_FRAMES) {
+    if (this.segmentFrames.length >= DICTATION_HARD_CUT_FRAMES) {
       this.hardCut();
     }
   }
@@ -313,9 +389,9 @@ export class DictationSegmenter {
       }
     }
 
-    this.emitSegment(frames.slice(0, cutIndex + 1), this.nextSegmentOverlapped, 'hard');
-
-    const overlapStart = Math.max(0, cutIndex + 1 - HARD_CUT_OVERLAP_FRAMES);
+    const emittedFrames = frames.slice(0, cutIndex + 1);
+    const overlapped = this.nextSegmentOverlapped;
+    const overlapStart = Math.max(0, cutIndex + 1 - DICTATION_HARD_CUT_OVERLAP_FRAMES);
     this.segmentFrames = frames.slice(overlapStart);
     this.nextSegmentOverlapped = true;
     this.speaking = true;
@@ -326,6 +402,8 @@ export class DictationSegmenter {
       else break;
     }
     this.quietFrames = quiet;
+
+    this.emitSegment(emittedFrames, overlapped, 'hard');
   }
 
   private emitSegment(
@@ -370,15 +448,18 @@ export class DictationSegmenter {
         ? Infinity
         : Math.max(0, firstVoicedPos - this.lastEmittedVoicedFramePos - 1) * DICTATION_FRAME_MS;
 
+    const wavBuffer = encodePcm16WavBuffer(rawFrames, DICTATION_SAMPLE_RATE);
     const segment: DictationSegment = {
       index: this.segmentIndex,
-      wav: encodePcm16Wav(rawFrames, DICTATION_SAMPLE_RATE),
+      wav: new Blob([wavBuffer], { type: 'audio/wav' }),
+      wavBuffer,
       seconds,
       overlapped,
       cutReason,
       leadingQuietFrames: firstVoicedIndex,
       trailingQuietFrames: frames.length - 1 - lastVoicedIndex,
       pauseBeforeMs,
+      consumedThroughFramePos: this.getUnconsumedStartFramePos(),
     };
     this.segmentIndex += 1;
     this.silenceSinceLastSegmentFrames = 0;

@@ -126,7 +126,7 @@ function OpenThread({
   useLatestRowPin({
     surface: followsLatest && readerScrolledRef.current.value ? 'thread' : undefined,
     itemCount: rows,
-    virtualizer: { scrollToIndex: ignoreRowIndex },
+    virtualizer: { scrollToIndex: ignoreRowIndex, cancelScroll: ignoreRowIndex },
     opensAtLatest: true,
     roomId: '!room',
     scrollElement: scroller as unknown as HTMLElement,
@@ -330,7 +330,7 @@ function RoomRows({
   useLatestRowPin({
     surface: 'room',
     itemCount: rows,
-    virtualizer: { scrollToIndex },
+    virtualizer: { scrollToIndex, cancelScroll: () => undefined },
     opensAtLatest: true,
     latestAtTop,
     roomId: '!room',
@@ -427,6 +427,9 @@ describe('useLatestRowPin and the virtual list', () => {
       scrollToIndex: (index: number) => {
         list.scrollState = { index };
       },
+      cancelScroll: () => {
+        list.scrollState = null;
+      },
     };
     function Pin() {
       useLatestRowPin({
@@ -510,7 +513,10 @@ describe('useLatestRowPin and the virtual list', () => {
     let listHeightHeld = false;
     const pins: number[] = [];
     const { element } = fakeRoomScroller();
-    const list = { scrollToIndex: (index: number) => pins.push(index) };
+    const list = {
+      scrollToIndex: (index: number) => pins.push(index),
+      cancelScroll: () => undefined,
+    };
     function Pin() {
       useLatestRowPin({
         surface: 'room',
@@ -822,12 +828,19 @@ describe('useTimelineRowJumps', () => {
     };
     const element = (index: number) =>
       ({ getBoundingClientRect: () => box(state.rowTop.get(index) ?? 0) }) as HTMLElement;
-    // The scroll it still reconciles stands in virtual-core's private `scrollState`.
-    const virtualList: { scrollState: unknown; scrollToIndex: (index: number) => void } = {
+    // The scroll it still reconciles, cleared via virtual-core's public `cancelScroll()`.
+    const virtualList: {
+      scrollState: unknown;
+      scrollToIndex: (index: number) => void;
+      cancelScroll: () => void;
+    } = {
       scrollState: null,
       scrollToIndex: (index) => {
         virtualList.scrollState = { index };
         steps.push(`virtual list row ${index}`);
+      },
+      cancelScroll: () => {
+        virtualList.scrollState = null;
       },
     };
     let jumps: ReturnType<typeof useTimelineRowJumps> | undefined;
