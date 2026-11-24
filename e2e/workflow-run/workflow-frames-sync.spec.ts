@@ -160,7 +160,8 @@ const expectWorkflowDeltaReceived = async (page: Page) => {
   await expect(page.getByText('Audit the sample module', { exact: true })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByText('1 done, 0 running, 0 waiting')).toBeVisible({ timeout: 15_000 });
+  // The folded jobs bar keeps the counts preview in the DOM but hides it; its presence proves the delta arrived.
+  await expect(page.getByText('1 done, 0 running, 0 waiting')).toBeAttached({ timeout: 15_000 });
 };
 
 test.describe('workflow ephemeral frame sync', () => {
