@@ -433,7 +433,9 @@
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır.",
         "usage": "Kullanımı kenar çubuğunda göster",
-        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın."
+        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın.",
+        "help": "Yardım ve rehberleri kenar çubuğunda göster",
+        "helpDescription": "Hızlı rehberler, tur ve klavye kısayolları. Gizlendiğinde, turu Ayarlar'da Hakkında altından veya komut paletinden ({{shortcut}}), kısayolları ise {{helpShortcut}} ile açın."
       },
       "plugins": {
         "title": "Eklentiler",

@@ -446,7 +446,9 @@
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale.",
         "usage": "Mostra Utilizzo nella barra laterale",
-        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli."
+        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli.",
+        "help": "Mostra Aiuto e guide nella barra laterale",
+        "helpDescription": "Guide rapide, tour e scorciatoie da tastiera. Se nascosto, apri il tour nelle Impostazioni, in Informazioni, o dalla tavolozza dei comandi ({{shortcut}}), e le scorciatoie con {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugin",

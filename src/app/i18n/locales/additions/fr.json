@@ -446,7 +446,9 @@
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
         "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local.",
         "usage": "Afficher Utilisation dans la barre latérale",
-        "usageDescription": "Limites d’utilisation des fournisseurs et consommation de jetons sur 7 jours, dès qu’un environnement les signale. Lorsqu’il est masqué, ouvrez Utilisation depuis le menu ⋮ dans Accueil ou le sélecteur de modèle."
+        "usageDescription": "Limites d’utilisation des fournisseurs et consommation de jetons sur 7 jours, dès qu’un environnement les signale. Lorsqu’il est masqué, ouvrez Utilisation depuis le menu ⋮ dans Accueil ou le sélecteur de modèle.",
+        "help": "Afficher Aide et guides dans la barre latérale",
+        "helpDescription": "Guides rapides, visite guidée et raccourcis clavier. Masqué, ouvrez la visite guidée depuis les paramètres, sous À propos, ou la palette de commandes ({{shortcut}}), et les raccourcis avec {{helpShortcut}}."
       },
       "plugins": {
         "title": "Extensions",

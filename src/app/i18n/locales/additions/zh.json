@@ -420,7 +420,9 @@
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。",
         "usage": "在侧边栏显示用量",
-        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。"
+        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。",
+        "help": "在侧边栏显示帮助与指南",
+        "helpDescription": "快速指南、导览和键盘快捷键。隐藏后，可从设置中的“关于”或命令面板（{{shortcut}}）打开导览，并可按 {{helpShortcut}} 打开快捷键。"
       },
       "plugins": {
         "title": "插件",

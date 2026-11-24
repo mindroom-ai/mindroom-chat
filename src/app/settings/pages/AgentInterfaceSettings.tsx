@@ -5,6 +5,7 @@ import { SequenceCard } from '../../ui/SequenceCard';
 import { SettingTile } from '../../ui/SettingTile';
 import { RAIL_BUTTON_SETTING, type RailButton, useOfferedRailButtons } from '../railButtons';
 import { getCommandPaletteShortcutLabel } from '../../shortcuts/paletteShortcut';
+import { formatShortcut } from '../../shortcuts/shortcuts';
 import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
 import type { BooleanAccountSetting } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';
@@ -74,6 +75,7 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
   const { t } = useTranslation();
   const offered = useOfferedRailButtons();
   const shortcut = getCommandPaletteShortcutLabel();
+  const helpShortcut = formatShortcut('help');
   const switches: Array<[RailButton, string, string]> = [
     [
       'threads',
@@ -109,6 +111,11 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
       'localMindroom',
       t('featureUi.settings.sidebar.localMindroom'),
       t('featureUi.settings.sidebar.localMindroomDescription'),
+    ],
+    [
+      'help',
+      t('featureUi.settings.sidebar.help'),
+      t('featureUi.settings.sidebar.helpDescription', { shortcut, helpShortcut }),
     ],
   ];
 

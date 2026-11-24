@@ -24,6 +24,14 @@ describe('sidebar button switches in io.mindroom.settings', () => {
     expect(sanitizeAccountSettings({ [key]: 'on' })[key]).toBe(false);
   });
 
+  it('shows showHelpInSidebar by default and keeps a stored boolean', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showHelpInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({}).showHelpInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({ showHelpInSidebar: false }).showHelpInSidebar).toBe(false);
+    expect(sanitizeAccountSettings({ showHelpInSidebar: true }).showHelpInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({ showHelpInSidebar: 'off' }).showHelpInSidebar).toBe(true);
+  });
+
   it('turns one button on without touching the others or keys it does not know', () => {
     const stored = { showSearchInSidebar: false, futureKey: [1] };
     const next = mergeAccountSettings(stored, { showThreadsInSidebar: true });

@@ -38,7 +38,7 @@ const CONTEXT: SettingsContext = {
   useSystemTheme: true,
   developerTools: false,
   errorReporting: true,
-  railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  railButtons: { threads: true, explore: true, createSpace: true, search: true, help: true },
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
@@ -49,6 +49,7 @@ const SEARCH_VALUES: SettingsSearchValues = {
   username: 'alice',
   sendKey: 'Ctrl',
   shortcut: 'Ctrl+K',
+  helpShortcut: 'Ctrl+/',
 };
 
 vi.mock('react-i18next', async (importOriginal) => {

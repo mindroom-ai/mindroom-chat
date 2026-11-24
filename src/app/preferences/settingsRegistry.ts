@@ -182,6 +182,7 @@ export const SIDEBAR_SWITCH_SETTINGS = {
   createSpace: 'sidebarCreateSpace',
   search: 'sidebarSearch',
   localMindroom: 'sidebarLocalMindroom',
+  help: 'sidebarHelp',
 } as const;
 
 const sidebarSwitch = (
@@ -632,6 +633,7 @@ export const SETTINGS = [
   sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
   sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
   sidebarSwitch('localMindroom', `${SIDEBAR}.localMindroom`, `${SIDEBAR}.localMindroomDescription`),
+  sidebarSwitch('help', `${SIDEBAR}.help`, `${SIDEBAR}.helpDescription`),
   // This app: Plugins
   {
     id: 'plugins',
