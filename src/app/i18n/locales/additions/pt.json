@@ -576,7 +576,13 @@
         "shareAgain": "Partilhar novamente",
         "microphoneStopped": "O seu microfone parou.",
         "cameraStopped": "A sua câmara parou.",
-        "turnBackOn": "Voltar a ligar"
+        "turnBackOn": "Voltar a ligar",
+        "nativeScreenShareConnecting": "A ligar a partilha de ecrã…",
+        "nativeScreenShareFailed": "Não foi possível partilhar todo o seu ecrã.",
+        "nativeScreenSharePickerTimedOut": "A partilha de ecrã não começou a tempo.",
+        "nativeScreenShareStopped": "A partilha de ecrã parou.",
+        "nativeScreenShareSheetBody": "Tudo no seu ecrã, incluindo notificações e outras aplicações, ficará visível na chamada.",
+        "nativeScreenShareSheetCaption": "Toque no botão acima e depois toque em Iniciar transmissão."
       },
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
@@ -883,7 +889,9 @@
     "call": {
       "controls": {
         "startAppShare": "Partilhar esta aplicação",
-        "stopAppShare": "Parar de partilhar esta aplicação"
+        "stopAppShare": "Parar de partilhar esta aplicação",
+        "startEntireScreenShare": "Partilhar todo o ecrã",
+        "stopEntireScreenShare": "Parar de partilhar todo o ecrã"
       }
     }
   },

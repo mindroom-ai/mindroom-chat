@@ -562,7 +562,13 @@
         "shareAgain": "Tekrar paylaş",
         "microphoneStopped": "Mikrofonunuz durdu.",
         "cameraStopped": "Kameranız durdu.",
-        "turnBackOn": "Tekrar aç"
+        "turnBackOn": "Tekrar aç",
+        "nativeScreenShareConnecting": "Ekran paylaşımı bağlanıyor…",
+        "nativeScreenShareFailed": "Tüm ekranınız paylaşılamadı.",
+        "nativeScreenSharePickerTimedOut": "Ekran paylaşımı zamanında başlamadı.",
+        "nativeScreenShareStopped": "Ekran paylaşımı durdu.",
+        "nativeScreenShareSheetBody": "Bildirimler ve diğer uygulamalar dahil ekranınızdaki her şey aramada görünür olacak.",
+        "nativeScreenShareSheetCaption": "Yukarıdaki düğmeye dokunun, ardından Yayını Başlat’a dokunun."
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
@@ -866,7 +872,9 @@
     "call": {
       "controls": {
         "startAppShare": "Bu uygulamayı paylaş",
-        "stopAppShare": "Bu uygulamayı paylaşmayı durdur"
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur",
+        "startEntireScreenShare": "Tüm ekranı paylaş",
+        "stopEntireScreenShare": "Tüm ekranı paylaşmayı durdur"
       }
     }
   },

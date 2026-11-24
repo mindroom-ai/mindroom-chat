@@ -562,7 +562,13 @@
         "shareAgain": "আবার শেয়ার করুন",
         "microphoneStopped": "আপনার মাইক্রোফোন বন্ধ হয়ে গেছে।",
         "cameraStopped": "আপনার ক্যামেরা বন্ধ হয়ে গেছে।",
-        "turnBackOn": "আবার চালু করুন"
+        "turnBackOn": "আবার চালু করুন",
+        "nativeScreenShareConnecting": "স্ক্রিন শেয়ার সংযোগ করা হচ্ছে…",
+        "nativeScreenShareFailed": "আপনার সম্পূর্ণ স্ক্রিন শেয়ার করা যায়নি।",
+        "nativeScreenSharePickerTimedOut": "সময়মতো স্ক্রিন শেয়ারিং শুরু হয়নি।",
+        "nativeScreenShareStopped": "স্ক্রিন শেয়ারিং বন্ধ হয়ে গেছে।",
+        "nativeScreenShareSheetBody": "বিজ্ঞপ্তি ও অন্যান্য অ্যাপসহ আপনার স্ক্রিনে থাকা সবকিছু কলে দৃশ্যমান হবে।",
+        "nativeScreenShareSheetCaption": "উপরের বোতামে ট্যাপ করুন, তারপর ব্রডকাস্ট শুরু করুন ট্যাপ করুন।"
       },
       "problems": {
         "service": "কল পরিষেবায় পৌঁছানো যায়নি। পরে আবার চেষ্টা করুন।",
@@ -866,7 +872,9 @@
     "call": {
       "controls": {
         "startAppShare": "এই অ্যাপ শেয়ার করুন",
-        "stopAppShare": "এই অ্যাপ শেয়ার করা বন্ধ করুন"
+        "stopAppShare": "এই অ্যাপ শেয়ার করা বন্ধ করুন",
+        "startEntireScreenShare": "সম্পূর্ণ স্ক্রিন শেয়ার করুন",
+        "stopEntireScreenShare": "সম্পূর্ণ স্ক্রিন শেয়ার করা বন্ধ করুন"
       }
     }
   },

@@ -576,7 +576,13 @@
         "shareAgain": "Condividi di nuovo",
         "microphoneStopped": "Il tuo microfono si è interrotto.",
         "cameraStopped": "La tua fotocamera si è interrotta.",
-        "turnBackOn": "Riattiva"
+        "turnBackOn": "Riattiva",
+        "nativeScreenShareConnecting": "Connessione della condivisione schermo in corso…",
+        "nativeScreenShareFailed": "Impossibile condividere l’intero schermo.",
+        "nativeScreenSharePickerTimedOut": "La condivisione dello schermo non è partita in tempo.",
+        "nativeScreenShareStopped": "La condivisione dello schermo si è interrotta.",
+        "nativeScreenShareSheetBody": "Tutto ciò che compare sul tuo schermo, incluse le notifiche e le altre app, sarà visibile nella chiamata.",
+        "nativeScreenShareSheetCaption": "Tocca il pulsante sopra, poi tocca Avvia trasmissione."
       },
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
@@ -883,7 +889,9 @@
     "call": {
       "controls": {
         "startAppShare": "Condividi questa app",
-        "stopAppShare": "Interrompi la condivisione di questa app"
+        "stopAppShare": "Interrompi la condivisione di questa app",
+        "startEntireScreenShare": "Condividi l’intero schermo",
+        "stopEntireScreenShare": "Interrompi la condivisione dell’intero schermo"
       }
     }
   },

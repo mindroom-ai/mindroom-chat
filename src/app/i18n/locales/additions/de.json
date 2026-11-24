@@ -562,7 +562,13 @@
         "shareAgain": "Erneut teilen",
         "microphoneStopped": "Dein Mikrofon wurde gestoppt.",
         "cameraStopped": "Deine Kamera wurde gestoppt.",
-        "turnBackOn": "Wieder einschalten"
+        "turnBackOn": "Wieder einschalten",
+        "nativeScreenShareConnecting": "Bildschirmfreigabe wird verbunden…",
+        "nativeScreenShareFailed": "Dein gesamter Bildschirm konnte nicht geteilt werden.",
+        "nativeScreenSharePickerTimedOut": "Die Bildschirmfreigabe wurde nicht rechtzeitig gestartet.",
+        "nativeScreenShareStopped": "Die Bildschirmfreigabe wurde beendet.",
+        "nativeScreenShareSheetBody": "Alles auf deinem Bildschirm, einschließlich Benachrichtigungen und anderer Apps, ist im Anruf sichtbar.",
+        "nativeScreenShareSheetCaption": "Tippe oben auf die Taste und dann auf „Übertragung starten“."
       },
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",
@@ -866,7 +872,9 @@
     "call": {
       "controls": {
         "startAppShare": "Diese App teilen",
-        "stopAppShare": "Teilen dieser App beenden"
+        "stopAppShare": "Teilen dieser App beenden",
+        "startEntireScreenShare": "Gesamten Bildschirm teilen",
+        "stopEntireScreenShare": "Teilen des gesamten Bildschirms beenden"
       }
     }
   },

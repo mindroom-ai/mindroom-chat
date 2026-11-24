@@ -548,7 +548,13 @@
         "shareAgain": "Bagikan lagi",
         "microphoneStopped": "Mikrofon Anda berhenti.",
         "cameraStopped": "Kamera Anda berhenti.",
-        "turnBackOn": "Nyalakan lagi"
+        "turnBackOn": "Nyalakan lagi",
+        "nativeScreenShareConnecting": "Menghubungkan berbagi layar…",
+        "nativeScreenShareFailed": "Tidak dapat membagikan seluruh layar Anda.",
+        "nativeScreenSharePickerTimedOut": "Berbagi layar tidak dimulai tepat waktu.",
+        "nativeScreenShareStopped": "Berbagi layar berhenti.",
+        "nativeScreenShareSheetBody": "Semua yang ada di layar Anda, termasuk notifikasi dan aplikasi lain, akan terlihat di panggilan.",
+        "nativeScreenShareSheetCaption": "Ketuk tombol di atas, lalu ketuk Mulai Siaran."
       },
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
@@ -849,7 +855,9 @@
     "call": {
       "controls": {
         "startAppShare": "Bagikan aplikasi ini",
-        "stopAppShare": "Berhenti membagikan aplikasi ini"
+        "stopAppShare": "Berhenti membagikan aplikasi ini",
+        "startEntireScreenShare": "Bagikan seluruh layar",
+        "stopEntireScreenShare": "Berhenti membagikan seluruh layar"
       }
     }
   },

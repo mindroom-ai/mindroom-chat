@@ -59,7 +59,7 @@ if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
     const marketingVersion = process.env.MARKETING_VERSION;
     const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
-    const targets = ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService'];
+    const targets = ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService', 'MindRoomBroadcast'];
     let updated = original;
     for (const target of targets) {
       updated = replaceAppTargetBuildSetting(updated, 'MARKETING_VERSION', marketingVersion, target);

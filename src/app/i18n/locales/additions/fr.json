@@ -576,7 +576,13 @@
         "shareAgain": "Partager à nouveau",
         "microphoneStopped": "Votre microphone s’est arrêté.",
         "cameraStopped": "Votre caméra s’est arrêtée.",
-        "turnBackOn": "Réactiver"
+        "turnBackOn": "Réactiver",
+        "nativeScreenShareConnecting": "Connexion du partage d’écran…",
+        "nativeScreenShareFailed": "Impossible de partager tout votre écran.",
+        "nativeScreenSharePickerTimedOut": "Le partage d’écran n’a pas démarré à temps.",
+        "nativeScreenShareStopped": "Le partage d’écran s’est arrêté.",
+        "nativeScreenShareSheetBody": "Tout ce qui s’affiche sur votre écran, y compris les notifications et les autres applications, sera visible pendant l’appel.",
+        "nativeScreenShareSheetCaption": "Touchez le bouton ci-dessus, puis touchez Lancer la diffusion."
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
@@ -883,7 +889,9 @@
     "call": {
       "controls": {
         "startAppShare": "Partager cette application",
-        "stopAppShare": "Arrêter de partager cette application"
+        "stopAppShare": "Arrêter de partager cette application",
+        "startEntireScreenShare": "Partager tout l’écran",
+        "stopEntireScreenShare": "Arrêter de partager tout l’écran"
       }
     }
   },

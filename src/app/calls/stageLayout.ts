@@ -70,7 +70,12 @@ export const byPerson = (participants: CallParticipant[]): CallParticipant[] => 
 };
 
 /** The tile key of the screen a participant shares, beside the key of their camera tile. */
-export const screenKey = (participant: CallParticipant): string => `${participant.key}:screen`;
+export const screenKey = (participant: CallParticipant): string =>
+  `${
+    participant.screenParentDeviceId
+      ? `${participant.userId}:${participant.screenParentDeviceId}`
+      : participant.key
+  }:screen`;
 
 /**
  * The participants who share a screen, in their order but this device's own last (its sharer has

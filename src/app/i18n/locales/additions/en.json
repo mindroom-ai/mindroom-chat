@@ -562,7 +562,13 @@
         "shareAgain": "Share again",
         "microphoneStopped": "Your microphone stopped.",
         "cameraStopped": "Your camera stopped.",
-        "turnBackOn": "Turn back on"
+        "turnBackOn": "Turn back on",
+        "nativeScreenShareConnecting": "Connecting screen share…",
+        "nativeScreenShareFailed": "Could not share your entire screen.",
+        "nativeScreenSharePickerTimedOut": "Screen sharing did not start in time.",
+        "nativeScreenShareStopped": "Screen sharing stopped.",
+        "nativeScreenShareSheetBody": "Everything on your screen, including notifications and other apps, will be visible to the call.",
+        "nativeScreenShareSheetCaption": "Tap the button above, then tap Start Broadcast."
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",
@@ -866,7 +872,9 @@
     "call": {
       "controls": {
         "startAppShare": "Share this app",
-        "stopAppShare": "Stop sharing this app"
+        "stopAppShare": "Stop sharing this app",
+        "startEntireScreenShare": "Share entire screen",
+        "stopEntireScreenShare": "Stop sharing entire screen"
       }
     }
   },

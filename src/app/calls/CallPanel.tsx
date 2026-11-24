@@ -11,7 +11,13 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallParticipant, CallProblem, CallState, RoomCall } from './RoomCall';
+import type {
+  CallParticipant,
+  CallProblem,
+  CallState,
+  NativeScreenShareStatus,
+  RoomCall,
+} from './RoomCall';
 import {
   callHomeRoomId,
   callPanelRoomAtom,
@@ -36,8 +42,9 @@ import {
   screenShareIsInAppOnly,
   useCallSupport,
 } from './callSupport';
+import { isNativeScreenShareAvailable } from './nativeScreenShare';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
-import { CallControl, DeviceControl } from './CallControls';
+import { CallControl, DeviceControl, ScreenShareControl } from './CallControls';
 import { CallMemberAvatar } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo, pickScope, type StageView } from './stageLayout';
@@ -172,6 +179,13 @@ const PROBLEM_KEYS = {
   device: 'featureUi.calls.problems.device',
 } as const satisfies Record<CallProblem, string>;
 
+const NATIVE_SCREEN_SHARE_STATUS_KEYS = {
+  connecting: 'featureUi.calls.panel.nativeScreenShareConnecting',
+  failed: 'featureUi.calls.panel.nativeScreenShareFailed',
+  picker_timeout: 'featureUi.calls.panel.nativeScreenSharePickerTimedOut',
+  stopped: 'featureUi.calls.panel.nativeScreenShareStopped',
+} as const satisfies Record<NativeScreenShareStatus, string>;
+
 /** MindRoom starts its notices with "Voice call error:"; the panel names the error itself. */
 const withoutErrorPrefix = (message: string) => message.replace(/^voice call error:\s*/i, '');
 
@@ -266,9 +280,24 @@ function JoinedCall({
     ? t('featureUi.call.controls.turnOffMicrophone')
     : t('featureUi.call.controls.turnOnMicrophone');
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
+  const webScreenShareAvailable = browserSharesScreens();
+  const nativeScreenShareAvailable = !agentCall && isNativeScreenShareAvailable();
   const screenShareLabel = t(
     SHARE_LABEL_KEYS[screenShareIsInAppOnly() ? 'app' : 'screen'][state.screenShare ? 1 : 0]
   );
+  const startEntireScreenLabel = t('featureUi.call.controls.startEntireScreenShare');
+  const stopEntireScreenLabel = t('featureUi.call.controls.stopEntireScreenShare');
+  const startNativeShare = () =>
+    void call.setNativeScreenShare(true, {
+      title: startEntireScreenLabel,
+      body: t('featureUi.calls.panel.nativeScreenShareSheetBody'),
+      caption: t('featureUi.calls.panel.nativeScreenShareSheetCaption'),
+      cancel: t('threadActions.cancel'),
+    });
+  const stopShare = () => {
+    if (state.nativeScreenShare) void call.setNativeScreenShare(false);
+    else void call.setScreenShare(false);
+  };
   const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
   const leaveLabel = t('featureUi.call.callControls.end');
   const barControlSize = coarsePointer() ? '400' : '300';
@@ -276,6 +305,44 @@ function JoinedCall({
     // The call is over for this device either way; a failed leave leaves nothing to do.
     endCall().catch(() => undefined);
   };
+
+  let screenShareControl: ReactNode = null;
+  if (state.screenShare) {
+    screenShareControl = (
+      <CallControl
+        label={state.nativeScreenShare ? stopEntireScreenLabel : screenShareLabel}
+        icon={Icons.ScreenShare}
+        pressed
+        onClick={stopShare}
+      />
+    );
+  } else if (nativeScreenShareAvailable && webScreenShareAvailable) {
+    screenShareControl = (
+      <ScreenShareControl
+        label={t('featureUi.call.controls.startScreenshare')}
+        entireScreenLabel={startEntireScreenLabel}
+        appShareLabel={screenShareLabel}
+        onShareEntireScreen={startNativeShare}
+        onShareApp={() => void call.setScreenShare(true)}
+      />
+    );
+  } else if (nativeScreenShareAvailable) {
+    screenShareControl = (
+      <CallControl
+        label={startEntireScreenLabel}
+        icon={Icons.ScreenShare}
+        onClick={startNativeShare}
+      />
+    );
+  } else if (webScreenShareAvailable) {
+    screenShareControl = (
+      <CallControl
+        label={screenShareLabel}
+        icon={Icons.ScreenShare}
+        onClick={() => void call.setScreenShare(true)}
+      />
+    );
+  }
 
   const dismissLabel = t('featureUi.calls.panel.dismiss');
   const controls = finished ? (
@@ -306,14 +373,7 @@ function JoinedCall({
           icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
           onClick={() => void call.setCamera(!state.camera)}
         />
-        {browserSharesScreens() && (
-          <CallControl
-            label={screenShareLabel}
-            icon={Icons.ScreenShare}
-            pressed={state.screenShare}
-            onClick={() => void call.setScreenShare(!state.screenShare)}
-          />
-        )}
+        {screenShareControl}
         <CallControl
           label={
             state.sound
@@ -480,6 +540,25 @@ function JoinedCall({
           </Notice>
         );
       })}
+      {state.nativeScreenShareStatus && (
+        <Notice
+          action={
+            state.nativeScreenShareStatus === 'connecting' ? undefined : (
+              <IconButton
+                size="300"
+                radii="300"
+                variant="Warning"
+                aria-label={t('mindroomUi.notices.dismiss')}
+                onClick={() => call.dismissNativeScreenShareStatus()}
+              >
+                <Icon size="100" src={Icons.Cross} />
+              </IconButton>
+            )
+          }
+        >
+          {t(NATIVE_SCREEN_SHARE_STATUS_KEYS[state.nativeScreenShareStatus])}
+        </Notice>
+      )}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

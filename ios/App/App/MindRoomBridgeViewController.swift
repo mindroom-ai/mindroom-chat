@@ -29,6 +29,9 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
         bridge?.registerPluginInstance(MindRoomNotificationsPlugin())
+#if os(iOS) && !targetEnvironment(macCatalyst) && canImport(LiveKit)
+        bridge?.registerPluginInstance(MindRoomScreenSharePlugin())
+#endif
         bridge?.registerPluginInstance(MindRoomWatchPlugin())
     }
 

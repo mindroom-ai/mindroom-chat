@@ -562,7 +562,13 @@
         "shareAgain": "Opnieuw delen",
         "microphoneStopped": "Je microfoon is gestopt.",
         "cameraStopped": "Je camera is gestopt.",
-        "turnBackOn": "Weer inschakelen"
+        "turnBackOn": "Weer inschakelen",
+        "nativeScreenShareConnecting": "Scherm delen verbinden…",
+        "nativeScreenShareFailed": "Kon je hele scherm niet delen.",
+        "nativeScreenSharePickerTimedOut": "Scherm delen is niet op tijd gestart.",
+        "nativeScreenShareStopped": "Scherm delen is gestopt.",
+        "nativeScreenShareSheetBody": "Alles op je scherm, inclusief meldingen en andere apps, is zichtbaar in de oproep.",
+        "nativeScreenShareSheetCaption": "Tik op de knop hierboven en tik daarna op Start uitzending."
       },
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
@@ -866,7 +872,9 @@
     "call": {
       "controls": {
         "startAppShare": "Deze app delen",
-        "stopAppShare": "Stoppen met delen van deze app"
+        "stopAppShare": "Stoppen met delen van deze app",
+        "startEntireScreenShare": "Hele scherm delen",
+        "stopEntireScreenShare": "Stoppen met delen van hele scherm"
       }
     }
   },

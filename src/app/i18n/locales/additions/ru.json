@@ -590,7 +590,13 @@
         "shareAgain": "Поделиться снова",
         "microphoneStopped": "Микрофон остановился.",
         "cameraStopped": "Камера остановилась.",
-        "turnBackOn": "Включить снова"
+        "turnBackOn": "Включить снова",
+        "nativeScreenShareConnecting": "Подключение демонстрации экрана…",
+        "nativeScreenShareFailed": "Не удалось показать весь экран.",
+        "nativeScreenSharePickerTimedOut": "Демонстрация экрана не началась вовремя.",
+        "nativeScreenShareStopped": "Демонстрация экрана остановлена.",
+        "nativeScreenShareSheetBody": "Всё на вашем экране, включая уведомления и другие приложения, будет видно участникам звонка.",
+        "nativeScreenShareSheetCaption": "Нажмите кнопку выше, затем нажмите «Начать вещание»."
       },
       "problems": {
         "service": "Не удалось связаться со службой звонков. Повторите попытку позже.",
@@ -900,7 +906,9 @@
     "call": {
       "controls": {
         "startAppShare": "Поделиться этим приложением",
-        "stopAppShare": "Остановить показ этого приложения"
+        "stopAppShare": "Остановить показ этого приложения",
+        "startEntireScreenShare": "Поделиться всем экраном",
+        "stopEntireScreenShare": "Остановить показ всего экрана"
       }
     }
   },

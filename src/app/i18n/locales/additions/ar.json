@@ -618,7 +618,13 @@
         "shareAgain": "المشاركة مرة أخرى",
         "microphoneStopped": "توقف الميكروفون.",
         "cameraStopped": "توقفت الكاميرا.",
-        "turnBackOn": "تشغيل مرة أخرى"
+        "turnBackOn": "تشغيل مرة أخرى",
+        "nativeScreenShareConnecting": "جارٍ توصيل مشاركة الشاشة…",
+        "nativeScreenShareFailed": "تعذّرت مشاركة الشاشة بالكامل.",
+        "nativeScreenSharePickerTimedOut": "لم تبدأ مشاركة الشاشة في الوقت المحدد.",
+        "nativeScreenShareStopped": "توقفت مشاركة الشاشة.",
+        "nativeScreenShareSheetBody": "سيكون كل ما على شاشتك، بما في ذلك الإشعارات والتطبيقات الأخرى، مرئيًا في المكالمة.",
+        "nativeScreenShareSheetCaption": "اضغط على الزر أعلاه، ثم اضغط على بدء البث."
       },
       "problems": {
         "service": "تعذر الوصول إلى خدمة المكالمات. حاول لاحقًا.",
@@ -934,7 +940,9 @@
     "call": {
       "controls": {
         "startAppShare": "مشاركة هذا التطبيق",
-        "stopAppShare": "إيقاف مشاركة هذا التطبيق"
+        "stopAppShare": "إيقاف مشاركة هذا التطبيق",
+        "startEntireScreenShare": "مشاركة الشاشة بالكامل",
+        "stopEntireScreenShare": "إيقاف مشاركة الشاشة بالكامل"
       }
     }
   },
