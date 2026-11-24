@@ -89,7 +89,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('First');
     expect(getNodeText(renderer.root)).toContain('Second');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('opens only sections that start uncollapsed', () => {
@@ -117,7 +117,7 @@ describe('MessageExtras', () => {
     expect(details[1]!.open).toBe(true);
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
@@ -157,7 +157,7 @@ describe('MessageExtras', () => {
     expect(details?.open).toBe(false);
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
@@ -221,7 +221,7 @@ describe('MessageExtras', () => {
     expect(container.textContent).toContain('final update');
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
@@ -247,7 +247,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
     expect(getNodeText(renderer.root)).toContain('**not bold**');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders text/markdown through sanitized markdown output', () => {
@@ -274,7 +274,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('bold');
     expect(getNodeText(renderer.root)).toContain('const value = 1;');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('escapes raw dangerous markdown input before HTML parsing', () => {
@@ -301,7 +301,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('<details open>');
     expect(getNodeText(renderer.root)).toContain('<script>alert(1)</script>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders titles as escaped React text', () => {
@@ -324,7 +324,7 @@ describe('MessageExtras', () => {
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<img src=x onerror=alert(1)>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders sanitized text/html as elements inside one client-owned details wrapper', () => {
@@ -361,7 +361,7 @@ describe('MessageExtras', () => {
     expect(link.props.target).toBe('_blank');
     expect(link.props.rel).toBe('noreferrer noopener');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders sanitized text/html SVG sections as React SVG elements', () => {
@@ -394,7 +394,7 @@ describe('MessageExtras', () => {
     expect(polyline.props.stroke).toBe('#7d5fff');
     expect(polyline.props.points).toBe('0,30 50,10 100,20 150,5 200,15');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('removes sender-owned disclosure controls from text/html sections', () => {
@@ -425,7 +425,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).not.toContain('sender summary');
     expect(getNodeText(renderer.root)).not.toContain('sender body');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('keeps user-toggled details state when streaming edits change html content', () => {
@@ -470,7 +470,7 @@ describe('MessageExtras', () => {
     expect(container.querySelector('p')?.textContent).toBe('streamed update');
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
@@ -505,7 +505,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('safe');
     expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('does not linkify disallowed plain-text URL schemes inside text/html sections', () => {
@@ -548,7 +548,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('ftp://example.test/file');
     expect(getNodeText(renderer.root)).toContain('https://example.test');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('does not re-parse unchanged sections when re-rendered with equal extras', () => {
@@ -602,7 +602,7 @@ describe('MessageExtras', () => {
     expect(sanitizeExtraHtmlSpy.mock.calls.length).toBe(htmlCallsAfterMount);
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
@@ -634,7 +634,7 @@ describe('MessageExtras', () => {
     expect(container.textContent).toContain('second');
 
     act(() => {
-      root?.unmount();
+      act(() => root?.unmount());
     });
   });
 
