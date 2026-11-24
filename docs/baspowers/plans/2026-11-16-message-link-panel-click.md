@@ -41,11 +41,13 @@ its latest state. The pull request plugin opts in.
 ### Task 1: `PluginPanelControls.showsRequest`
 
 **Files:**
+
 - Modify: `src/app/plugins/sidePanels.ts` (the `PluginPanelControls` type, ~line 118)
 - Modify: `src/app/room/Room.tsx` (`now` ref ~line 513, `pluginPanelControls` memo ~line 588)
 - Test: `src/app/room/Room.sidePanels.test.tsx`
 
 **Interfaces:**
+
 - Produces: `PluginPanelControls.showsRequest: (id: string, request: unknown) => boolean`. Its
   identity stays the same while the room shows (it reads `now.current`). Every other place that
   builds a `PluginPanelControls` (test helpers, `client-sdk` test utilities: `git grep -n "openBesideThread:" src`) gets one.
@@ -62,6 +64,7 @@ its latest state. The pull request plugin opts in.
 ### Task 2: `MessageLink.sidePanel` and the click
 
 **Files:**
+
 - Modify: `src/app/plugins/messageLinks.ts` (`MessageLink`, `isMessageLink`, `MessageLinkCard`, `useMessageLinkMatcher`)
 - Modify: `src/app/room/MessageLinkCards.tsx` (`show`)
 - Modify: `scripts/client-plugins.mjs` (`CLIENT_PLUGIN_API_VERSION = 62`) and whatever the version bump touches (`git grep -n "61" -- scripts docs src/client-sdk` for the API changelog/check tests)
@@ -70,6 +73,7 @@ its latest state. The pull request plugin opts in.
 - Test: `src/app/plugins/messageLinks.test.tsx`, `src/app/room/MessageLinkCards.test.tsx`, `e2e/plugins/message-link.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `PluginPanelControls.showsRequest` and `open` (Task 1).
 - Produces (SDK): `MessageLink.sidePanel?: { id: string; request: (url: URL) => unknown }`.
 - `MessageLinkCard` becomes `{ tag: string; Component; sidePanel?: { id: string; request: (url: URL) => unknown } }` where `id` is already `<pluginId>/<id>`. The matcher also returns the parsed `url` it matched, or `show` parses again: implementer's choice.
@@ -99,11 +103,13 @@ its latest state. The pull request plugin opts in.
 Repo: `mindroom-ai/pull-request-client-plugin`, worktree `~/repos/worktrees/pull-request-client-plugin-link-panel-click` from `origin/main`. Its `.mindroom-chat` host must be a client checkout of the Task 2 branch (`git -C ~/repos/dev/mindroom-chat worktree add --detach ~/repos/worktrees/mindroom-chat-link-panel-click-host feat/message-link-panel-click` + `nix develop -c npm ci`), not a shared one.
 
 **Files:**
+
 - Modify: `src/index.ts` (the `messageLinks` entry)
 - Modify: the plugin's required API version (`git grep -n "61"` in its `package.json`/manifest)
 - Test: `src/index.test.ts(x)` (create if absent, following the repo's test layout)
 
 **Interfaces:**
+
 - Consumes: `MessageLink.sidePanel` (Task 2), `parsePullRequestUrl(url: URL): PullRequestRef | undefined` (`src/github.ts`).
 
 - [ ] **Step 1: Failing test** `"a pull request link opens the pull-request panel with the card's request"`: `plugin.messageLinks[0].sidePanel.id === 'pull-request'`, and for `new URL('https://github.com/mindroom-ai/mindroom-chat/pull/490')` the request deep-equals and JSON-equals `parsePullRequestUrl` of the same URL. That is the value `PullRequestCard` passes to `panel.open`.

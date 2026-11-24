@@ -232,7 +232,7 @@ export function SpaceRoomSection({
   const sectionSpace = client.getRoom(section.spaceId) ?? undefined;
   if (!sectionSpace) return null;
   const parentSpace = section.parentSpaceId
-    ? client.getRoom(section.parentSpaceId) ?? undefined
+    ? (client.getRoom(section.parentSpaceId) ?? undefined)
     : undefined;
 
   // A room's row, the same at top level and under the room it sits under, except that there it

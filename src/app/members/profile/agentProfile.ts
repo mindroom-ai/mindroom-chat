@@ -41,7 +41,7 @@ const parseTool = (value: unknown): AgentTool[] => {
   if (!isRecord(value) || !name) return [];
   const category = text(value.category);
   const known = GROUPS.find(([key]) => key === category && key !== 'mcp')?.[0];
-  const group = text(value.mcp_server) ? 'mcp' : known ?? 'other';
+  const group = text(value.mcp_server) ? 'mcp' : (known ?? 'other');
   const displayName = text(value.display_name) || name;
   return [{ name, displayName, description: text(value.description), group }];
 };

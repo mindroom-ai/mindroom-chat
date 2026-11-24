@@ -41,7 +41,7 @@ vi.mock('../models/useModelPicker', () => ({
 }));
 vi.mock('../matrix/room', () => ({
   getMemberDisplayName: (_room: Room, userId: string) =>
-    ({ '@sam:example.org': 'Sam', '@jo:example.org': 'Jo' }[userId]),
+    ({ '@sam:example.org': 'Sam', '@jo:example.org': 'Jo' })[userId],
 }));
 vi.mock('../preferences/useHour24Clock', () => ({ useHour24Clock: () => [true, () => {}] }));
 vi.mock('../preferences/useSettingValue', () => ({ useSettingValue: () => 'D MMM YYYY' }));

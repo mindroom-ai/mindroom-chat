@@ -28,12 +28,7 @@ export const buildEditContent = async (
   };
   if (contentBytes(edit) <= MAX_EVENT_CONTENT_BYTES) return edit;
 
-  const replacement = await uploadLongTextSidecar(
-    mx,
-    room,
-    edit,
-    buildLongTextPreview(newContent)
-  );
+  const replacement = await uploadLongTextSidecar(mx, room, edit, buildLongTextPreview(newContent));
   return {
     msgtype: newContent.msgtype,
     body: `* ${replacement.body}`,

@@ -64,18 +64,17 @@ const mutedRules = {
 /** The feature in the providers the app gives it; `hasCompletedInitialSync` is the startup flag. */
 const featureFor =
   (client: ReturnType<typeof fakeClient>, store: Store, discovery: Record<string, unknown>) =>
-  (hasCompletedInitialSync = true) =>
-    (
-      <MatrixClientProvider value={client as never}>
-        <AutoDiscoveryInfoProvider value={discovery as never}>
-          <ClientStartupProvider hasCompletedInitialSync={hasCompletedInitialSync}>
-            <Provider store={store}>
-              <ServerEmojiJoinFeature />
-            </Provider>
-          </ClientStartupProvider>
-        </AutoDiscoveryInfoProvider>
-      </MatrixClientProvider>
-    );
+  (hasCompletedInitialSync = true) => (
+    <MatrixClientProvider value={client as never}>
+      <AutoDiscoveryInfoProvider value={discovery as never}>
+        <ClientStartupProvider hasCompletedInitialSync={hasCompletedInitialSync}>
+          <Provider store={store}>
+            <ServerEmojiJoinFeature />
+          </Provider>
+        </ClientStartupProvider>
+      </AutoDiscoveryInfoProvider>
+    </MatrixClientProvider>
+  );
 
 describe('ServerEmojiJoinFeature', () => {
   let renderer: ReturnType<typeof create> | undefined;

@@ -4,7 +4,11 @@ import { useAtomValue } from 'jotai';
 import classNames from 'classnames';
 import { Badge, Box, Chip, Icon, Icons, Spinner, Text, as } from 'folds';
 import { Header } from '../../ui/glass/GlassPrimitives';
-import { type TUploadFamilyObserverAtom, type Upload, UploadStatus } from '../../matrix/state/upload';
+import {
+  type TUploadFamilyObserverAtom,
+  type Upload,
+  UploadStatus,
+} from '../../matrix/state/upload';
 import * as css from './UploadBoard.css';
 
 type UploadBoardProps = {

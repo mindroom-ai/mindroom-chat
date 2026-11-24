@@ -67,7 +67,9 @@ describe('toggleReaction', () => {
   it('drops a reaction the server refused, so no chip only this user sees is left', async () => {
     const { mx, room, keys } = await setup(403);
 
-    await expect(toggleReaction(mx, { room, targetEventId: '$message', key: '👍' })).rejects.toThrow();
+    await expect(
+      toggleReaction(mx, { room, targetEventId: '$message', key: '👍' })
+    ).rejects.toThrow();
 
     expect(keys()).toEqual([]);
     expect(

@@ -17,7 +17,7 @@ const makeRoom = (roomId: string, userIds: string[], space = false) =>
     getJoinedMembers: vi.fn(() =>
       userIds.map((userId) => ({ userId, rawDisplayName: `Name ${userId}` }))
     ),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('collectCommandPaletteUserCandidates', () => {
   it('prioritizes the selected room and direct users while deduplicating self', () => {

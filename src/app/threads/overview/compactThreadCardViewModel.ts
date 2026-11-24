@@ -127,7 +127,7 @@ const getCompactThreadParticipants = ({
       userId,
       displayName,
       avatarUrl: avatarMxc
-        ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 32, 32, 'crop') ?? undefined
+        ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, 32, 32, 'crop') ?? undefined)
         : undefined,
     };
   });
@@ -190,7 +190,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       rootPreviewText ??
       (presentation.messageCount > 0
         ? titleText
-        : t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet')
+        : (t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet'))
   );
   const lastSenderId = presentation.lastSenderId;
   // Without a known reply the card previews the root, so it names the root's sender.
@@ -207,15 +207,15 @@ export const buildCompactThreadCardViewModelFromRecord = ({
         ? presentation.lastSenderDisplayName
         : replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
       : undefined) ??
-    (previewSenderId ? getMxIdLocalPart(previewSenderId) ?? previewSenderId : undefined);
+    (previewSenderId ? (getMxIdLocalPart(previewSenderId) ?? previewSenderId) : undefined);
   // A root nobody answered, which the card titles with its own text, says so rather than repeat it.
   const repeatsTitle =
     presentation.messageCount === 0 && !replyPreviewText && !presentation.summaryText;
   const previewText = repeatsTitle
-    ? t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet'
+    ? (t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet')
     : lastSenderName
-    ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
-    : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
+      ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
+      : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
   const attentionState = getCompactThreadAttentionState({
     ...status,
     now,

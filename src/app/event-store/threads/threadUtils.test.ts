@@ -38,7 +38,7 @@ const makeEvent = (
     isThreadRoot,
     isRedacted: () => false,
     isRedaction: () => false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 describe('eventBelongsToThread', () => {
   it('matches thread root events by event id', () => {
@@ -262,7 +262,7 @@ describe('getVisibleThreadMessageCount', () => {
       timeline: events,
       length,
       initialEventsFetched,
-    } as unknown as Parameters<typeof getVisibleThreadMessageCount>[0]);
+    }) as unknown as Parameters<typeof getVisibleThreadMessageCount>[0];
 
   it('does not let a partly loaded thread hide its total count', () => {
     const replies = [

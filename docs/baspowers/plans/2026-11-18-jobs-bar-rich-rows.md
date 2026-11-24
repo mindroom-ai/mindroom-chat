@@ -82,6 +82,7 @@
 
 **Consumes:** C1 types and `SubagentRun` from `messages/live/subagentRunStore.ts`.
 **Produces:** `BackgroundJobsBarItem` gains:
+
 - `startedAt: number` (ms);
 - `run?: SubagentRun` (that sub-agent's newest turn whose `meta.subagent === job.subagent`);
 - `activity?: { tool: string; preview?: string }`;
@@ -89,10 +90,12 @@
 - `kind: 'subagent' | 'tool'`.
 
 `BackgroundJobsBarModel` gains:
+
 - `groups: { kind: 'subagent' | 'tool'; items: BackgroundJobsBarItem[] }[]`, one per kind present, sub-agents first;
 - `summary?: { subagents: number; tools: number; waiting: number }`, when there are several jobs.
 
 `presentBackgroundJobs` takes two new lookups:
+
 - `runFor: (subagent: string) => SubagentRun | undefined`;
 - `toolCallFor: (toolCallId: string) => { tool: string; preview?: string } | undefined`.
 

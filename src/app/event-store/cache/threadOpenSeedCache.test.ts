@@ -198,8 +198,7 @@ const showReply = (events: MatrixEvent[], compact: boolean): Shown => {
   const reply = seed.find((event) => event.getId() === '$reply');
   if (!reply) throw new Error('the seed lost the reply');
   const content = getEditedEvent('$reply', reply, timelineSet)?.getContent()['m.new_content'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   return {
     body: content ? content.body : reply.getOriginalContent().body,
     toolTrace: content?.[TOOL_TRACE_KEY],

@@ -59,7 +59,11 @@ export function ThreadActivity({
         <span className={css.Title}>
           <IsolatedText text={title} />
         </span>
-        {detail && <span className={css.Detail} {...ownDirectionLine}>{detail}</span>}
+        {detail && (
+          <span className={css.Detail} {...ownDirectionLine}>
+            {detail}
+          </span>
+        )}
         {aside}
         <Icon size="50" className={css.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>

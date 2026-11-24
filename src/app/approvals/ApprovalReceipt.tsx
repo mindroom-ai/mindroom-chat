@@ -33,8 +33,8 @@ export function ApprovalReceipt({
     approval.status === 'expired'
       ? t('mindroomUi.messages.approvalReceipt.statusExpired')
       : approval.status === 'approved'
-      ? t('mindroomUi.messages.approvalReceipt.statusApproved')
-      : t('mindroomUi.messages.approvalReceipt.statusDenied');
+        ? t('mindroomUi.messages.approvalReceipt.statusApproved')
+        : t('mindroomUi.messages.approvalReceipt.statusDenied');
   return (
     <details
       ref={glassRef}
@@ -66,37 +66,41 @@ export function ApprovalReceipt({
         </p>
         <p>
           <IsolatedText
-            text={approval.resolvedBy && approval.resolvedAt
-              ? t('mindroomUi.messages.approvalReceipt.resolvedByAt', {
-                  status: statusLabel,
-                  resolver: person(approval.resolvedBy),
-                  timestamp: new Date(approval.resolvedAt).toLocaleString(language),
-                })
-              : approval.resolvedBy
-              ? t('mindroomUi.messages.approvalReceipt.resolvedBy', {
-                  status: statusLabel,
-                  resolver: person(approval.resolvedBy),
-                })
-              : approval.resolvedAt
-              ? t('mindroomUi.messages.approvalReceipt.resolvedAt', {
-                  status: statusLabel,
-                  timestamp: new Date(approval.resolvedAt).toLocaleString(language),
-                })
-              : statusLabel}
+            text={
+              approval.resolvedBy && approval.resolvedAt
+                ? t('mindroomUi.messages.approvalReceipt.resolvedByAt', {
+                    status: statusLabel,
+                    resolver: person(approval.resolvedBy),
+                    timestamp: new Date(approval.resolvedAt).toLocaleString(language),
+                  })
+                : approval.resolvedBy
+                  ? t('mindroomUi.messages.approvalReceipt.resolvedBy', {
+                      status: statusLabel,
+                      resolver: person(approval.resolvedBy),
+                    })
+                  : approval.resolvedAt
+                    ? t('mindroomUi.messages.approvalReceipt.resolvedAt', {
+                        status: statusLabel,
+                        timestamp: new Date(approval.resolvedAt).toLocaleString(language),
+                      })
+                    : statusLabel
+            }
           />
         </p>
         <ApprovalSchedule approval={approval} />
         {provenance?.kind === 'scheduled_approval' ? (
           <p>
             <IsolatedText
-              text={provenance.approvedAt
-                ? t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledByAt', {
-                    approver: person(provenance.approvedBy),
-                    timestamp: formatApprovalTime(provenance.approvedAt, language),
-                  })
-                : t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledBy', {
-                    approver: person(provenance.approvedBy),
-                  })}
+              text={
+                provenance.approvedAt
+                  ? t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledByAt', {
+                      approver: person(provenance.approvedBy),
+                      timestamp: formatApprovalTime(provenance.approvedAt, language),
+                    })
+                  : t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledBy', {
+                      approver: person(provenance.approvedBy),
+                    })
+              }
             />
             <br />
             {t('mindroomUi.messages.approvalSchedule.scheduledFor', {
@@ -114,14 +118,16 @@ export function ApprovalReceipt({
               : t('mindroomUi.messages.approvalReceipt.timedPermission')}
             <br />
             <IsolatedText
-              text={provenance.grantedAt
-                ? t('mindroomUi.messages.approvalReceipt.grantedByAt', {
-                    grantor: person(provenance.grantedBy),
-                    timestamp: new Date(provenance.grantedAt).toLocaleString(language),
-                  })
-                : t('mindroomUi.messages.approvalReceipt.grantedBy', {
-                    grantor: person(provenance.grantedBy),
-                  })}
+              text={
+                provenance.grantedAt
+                  ? t('mindroomUi.messages.approvalReceipt.grantedByAt', {
+                      grantor: person(provenance.grantedBy),
+                      timestamp: new Date(provenance.grantedAt).toLocaleString(language),
+                    })
+                  : t('mindroomUi.messages.approvalReceipt.grantedBy', {
+                      grantor: person(provenance.grantedBy),
+                    })
+              }
             />
             <br />
             {t('mindroomUi.messages.approvalReceipt.originalFixedExpiry', {

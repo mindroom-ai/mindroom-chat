@@ -28,13 +28,13 @@ The dev server answers `/config.json` with `config/mindroom.json`, so the sign-i
 
 ## Checks
 
-| Command | What it does |
-|---|---|
-| `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint`, `test`, the production build with the `bundle-report` budget and a smoke subset of the end-to-end specs): `typecheck`, `strict`, `lint`, `test`, `script-tests` and `license-check` |
-| `just typecheck` | `tsc` over the app sources without tests, with the flags of `config/tsconfig.strict.json`; must report 0 errors |
-| `just strict` | `tsc` with `config/tsconfig.strict.json` over everything, tests and `e2e/` included; must report 0 errors |
-| `just lint` | ESLint, with type-aware rules for TypeScript |
-| `just test [files]` | Vitest unit tests (next to the code as `*.test.ts(x)`; DOM tests opt in with `// @vitest-environment jsdom`) |
+| Command             | What it does                                                                                                                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just check`        | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint`, `test`, the production build with the `bundle-report` budget and a smoke subset of the end-to-end specs): `typecheck`, `strict`, `lint`, `test`, `script-tests` and `license-check` |
+| `just typecheck`    | `tsc` over the app sources without tests, with the flags of `config/tsconfig.strict.json`; must report 0 errors                                                                                                                                                               |
+| `just strict`       | `tsc` with `config/tsconfig.strict.json` over everything, tests and `e2e/` included; must report 0 errors                                                                                                                                                                     |
+| `just lint`         | ESLint, with type-aware rules for TypeScript                                                                                                                                                                                                                                  |
+| `just test [files]` | Vitest unit tests (next to the code as `*.test.ts(x)`; DOM tests opt in with `// @vitest-environment jsdom`)                                                                                                                                                                  |
 
 ## A client plugin in its own repository
 
@@ -51,6 +51,7 @@ A client plugin ([client-plugins.md](client-plugins.md)) can live in a repositor
   ```
 
   The base has the app's compiler options, `paths` for `@mindroom/client-sdk/*` (`testing` included), for each package the app shares with plugins, for `vitest`, and for the end-to-end specs `@mindroom/e2e/*` (the app's `e2e/helpers/`) and `@playwright/test`, all to the app's copies, and the app's ambient types (`types` `node`, from the app's `typeRoots`; a plugin with global types of its own sets both). A plugin's own `paths` replace the base's rather than adding to them, so a plugin that maps names of its own, such as the package names of its build module's aliases, repeats the base's entries with `./.mindroom-chat/` before each, the two of `@playwright/test` in their order: TypeScript takes its types from the first, and Playwright, which reads these `paths` as it loads the specs, its module from the second. `.mindroom-chat/node_modules/.bin/tsc -p tsconfig.json` checks the plugin and the app modules the SDK reaches, and `tsc -p tsconfig.strict.json` the same with the strict flags, which the app's own files pass in the app's `just strict`.
+
 - **Lint.** The plugin's `eslint.config.mjs` re-exports `eslint.config.plugin.mjs`, the ESLint 10 flat config with the rules of the app's own code without its layers: logical sides in styles, `PopOut` from the SDK rather than folds, the React, hooks and accessibility rules, and the type-aware rules with the types of the plugin's `tsconfig.strict.json`. One more rule refuses an import that reaches the app's `src/` or `e2e/` by its path rather than through `@mindroom/client-sdk/<subpath>`, or in the plugin's specs `@mindroom/e2e/<helper>`. Files in the plugin's `e2e/` are tests, as the app's own specs are: they may use `any` and launch WebKit only through `@mindroom/e2e/webkit`. Flat config resolves its plugins directly from `.mindroom-chat` without `--resolve-plugins-relative-to` or `--ext`:
 
   ```js

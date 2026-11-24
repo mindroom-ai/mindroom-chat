@@ -515,8 +515,8 @@ export const useRoomInputDictation = ({
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
       }
     : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
-    ? { ...displaySnapshot, errorMessage: localNotice }
-    : displaySnapshot;
+      ? { ...displaySnapshot, errorMessage: localNotice }
+      : displaySnapshot;
 
   const capsule =
     capsuleSnapshot.phase !== 'idle' || capsuleSnapshot.errorMessage !== undefined ? (

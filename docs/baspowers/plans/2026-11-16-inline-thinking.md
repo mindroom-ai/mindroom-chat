@@ -39,11 +39,13 @@
 ### Task 1: Record segments in `StreamingResponse`, the final event and live frames
 
 **Files:**
+
 - Modify: `src/mindroom/streaming.py` (`add_reasoning` ~658, `end_reasoning_segment` ~666, `live_state` ~690-710, `_delivery_extra_content` ~1125-1135)
 - Modify: `src/mindroom/live_frames/frames.py` (`LiveDocs`, `to_json`, `live_delta`)
 - Test: `tests/live_frames/test_live_streaming.py`, `tests/live_frames/test_frames.py`
 
 **Interfaces:**
+
 - Produces: `LiveDocs.segments: tuple[dict[str, int], ...] = ()` (each `{"start", "after_tool"}`); final `REASONING_CONTENT_KEY` value `{"text", "duration_ms", "segments": [{"start", "after_tool", "duration_ms"}]}`.
 
 - [ ] **Step 1: Write failing tests.**
@@ -64,11 +66,13 @@
 ### Task 2: Keep segments consistent when reasoning is cut, and document them
 
 **Files:**
+
 - Modify: `src/mindroom/matrix/large_messages.py` (`fit_reasoning_to_ordinary_event` ~623-667)
 - Modify: `docs/streaming.md` (section "Reasoning", ~114-121)
 - Test: `tests/test_response_delivery_gateway.py` (near `test_split_strategy_keeps_a_short_answer_whole_with_its_reasoning_cut`, ~1856), or the existing direct unit tests of `fit_reasoning_to_ordinary_event` if there are any (grep first)
 
 **Interfaces:**
+
 - Consumes: the final `segments` list from Task 1.
 
 - [ ] **Step 1: Write the failing test** `test_cut_reasoning_keeps_only_segments_that_start_in_the_kept_text`. The reasoning is `{"text": "a" * 40000 + "\n\n" + "b" * 40000, "duration_ms": 9, "segments": [{"start": 0, "after_tool": 0, "duration_ms": 4}, {"start": 40002, "after_tool": 2, "duration_ms": 5}]}`, with a size limit that keeps fewer than 40000 characters. Assert the result's segments equal the first segment only. A second case, where everything fits, keeps both segments unchanged.
@@ -85,12 +89,14 @@
 ### Task 3: Carry live segments through frames, the live store and live content
 
 **Files:**
+
 - Modify: `src/app/matrix/protocol/liveFrame.ts` (`LiveDocs`, `LiveDelta`, `parseSnapshot`, `parseDelta`, `applyLiveDelta` ~148)
 - Modify: `src/app/messages/live/useLiveReplyContent.ts` (`getLiveContent` ~56-76, the `waitDocs` path ~205-212; export `LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments'` beside `LIVE_REASONING_KEY`)
 - Modify: `src/app/messages/content/renderAgentMessageContent.tsx` (~223-228, copy the new key wherever `LIVE_REASONING_KEY` is copied)
 - Test: `src/app/matrix/protocol/liveFrame.test.ts`, `src/app/messages/live/useLiveReplyContent.test.tsx`
 
 **Interfaces:**
+
 - Produces: `type LiveReasoningSegment = { start: number; after_tool: number }`; `LiveDocs.segments: LiveReasoningSegment[]` (always present after parsing, `[]` when absent); live content key `io.mindroom.live_reasoning_segments` holding that array.
 
 - [ ] **Step 1: Write failing tests.**
@@ -108,10 +114,12 @@
 ### Task 4: Pure helpers that read and place segments
 
 **Files:**
+
 - Create: `src/app/messages/agent-run/reasoningSegments.ts`
 - Test: `src/app/messages/agent-run/reasoningSegments.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type ReasoningSegment = { text: string; afterTool: number; durationMs?: number }`
   - `readReasoningSegments(text: string, segments: unknown): ReasoningSegment[]`. It slices `text` by UTF-16 `start` (JS string indices are UTF-16) and trims trailing whitespace from each piece. Pieces that are empty after trimming are dropped. Missing, malformed, non-increasing, first-not-0, or past-the-end segments yield `[{ text, afterTool: 0 }]` for non-empty text. Empty text yields `[]`.
@@ -135,6 +143,7 @@
 ### Task 5: Render segments inline, toggled by the bulb
 
 **Files:**
+
 - Modify: `src/app/messages/agent-run/Reasoning.tsx` (`withReasoning`, `ReasoningHeader`, `ReasoningBlock`)
 - Modify: `src/app/messages/agent-run/Reasoning.css.ts` (rail, segment body, ripple, reusing `ToolCallsFold.css.ts`'s ripple keyframes if exportable)
 - Modify: `src/app/messages/agent-run/toolCallStatus.ts` (add `ReasoningSegmentsContext` beside the other contexts) or a new `reasoningSegmentsContext.ts`; follow the layering in `.eslintrc.cjs`
@@ -143,6 +152,7 @@
 - Test: `src/app/messages/agent-run/Reasoning.test.tsx`, `Reasoning.header.test.tsx`, `src/app/messages/html/react-custom-html-parser.test.ts`
 
 **Interfaces:**
+
 - Consumes: `readReasoningSegments` and `placeReasoningSegments` (Task 4), `LIVE_REASONING_SEGMENTS_KEY` (Task 3), `getRenderedToolRefs(html).toolBlocks[].index` (`toolRefDom.ts`).
 - Produces: `ReasoningSegmentsContext` value `{ placement: Map<number, number[]>; segments: ReasoningSegment[]; open: boolean; hide: () => void; liveIndex?: number }`, where `liveIndex` is the last segment while live reasoning grows; a component `ReasoningSegmentsAt({ anchor }: { anchor: number })` that renders the segments placed at `anchor` that should show (when `open`, or the one at `liveIndex`).
 
@@ -169,6 +179,7 @@
 ### Task 6: E2E spec, screenshots and docs
 
 **Files:**
+
 - Create: `e2e/messages/inline-thinking.spec.ts` (follow `e2e/messages/agent-reasoning-header.spec.ts`: register an agent account, send the event with `sendRoomMessage`/`matrixFetch`, honor `E2E_SCREENSHOT_DIR`)
 - Modify: `docs/architecture.md` (where it lists backend event formats: `io.mindroom.reasoning.segments`, live `segments`)
 
@@ -179,6 +190,7 @@
   - (d) Clicking a rail hides all of them, and the bulb is focused.
 
   It takes screenshots of (a), (b) and (c) when `E2E_SCREENSHOT_DIR` is set.
+
 - [ ] **Step 2: Run it.** Check for a free slot first: `ss -ltn | grep :43<n>` must be empty. Then `nix develop -c just hs-up` and `nix develop -c scripts/e2e-slot.sh <n> e2e/messages/inline-thinking.spec.ts` (or `just e2e e2e/messages/inline-thinking.spec.ts` if that is what the repo documents for a slot). Expect PASS. Also run `e2e/messages/agent-reasoning-header.spec.ts` and `e2e/messages/tool-calls-toggle.spec.ts`, expect PASS.
 - [ ] **Step 3: Document** the keys in `docs/architecture.md` in two or three lines.
 - [ ] **Step 4: Commit** `test(e2e): inline thinking timeline`.

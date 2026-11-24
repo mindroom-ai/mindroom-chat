@@ -346,9 +346,7 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
     await expect
       .poll(
         async () =>
-          (
-            await recordedNotes(page)
-          ).findIndex(
+          (await recordedNotes(page)).findIndex(
             (n) =>
               n.tag === hiddenReplyTag &&
               (n.body ?? '').includes('reply while hidden on open thread')

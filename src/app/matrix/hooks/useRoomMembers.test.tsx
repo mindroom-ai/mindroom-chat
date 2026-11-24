@@ -36,12 +36,12 @@ const createMember = (userId: string): RoomMember =>
   ({
     userId,
     membership: 'join',
-  } as RoomMember);
+  }) as RoomMember;
 
 const createMembershipEvent = (roomId: string): MatrixEvent =>
   ({
     getRoomId: () => roomId,
-  } as MatrixEvent);
+  }) as MatrixEvent;
 
 type UseRoomMembersProbeProps = {
   mx: MatrixClient;

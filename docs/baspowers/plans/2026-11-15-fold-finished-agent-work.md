@@ -36,10 +36,12 @@
 ### Task 1: Split and duration helpers
 
 **Files:**
+
 - Create: `src/app/messages/agent-run/finishedWorkSplit.ts`
 - Test: `src/app/messages/agent-run/finishedWorkSplit.test.ts`
 
 **Interfaces:**
+
 - Produces: `splitFinishedWork(html: string): { head: string; tail: string } | undefined`
 - Produces: `formatWorkDuration(ms: number): string`
 
@@ -54,16 +56,24 @@ it('returns undefined when the reply ends in a tool marker', () =>
 it('returns undefined when only whitespace follows', () =>
   expect(splitFinishedWork(`${marker('shell', 1)}\n  `)).toBeUndefined());
 it('splits after the last marker', () =>
-  expect(splitFinishedWork(`<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}<p>done</p>`)).toEqual({
+  expect(
+    splitFinishedWork(`<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}<p>done</p>`)
+  ).toEqual({
     head: `<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}`,
     tail: '<p>done</p>',
   }));
 it('ignores marker-like text inside a code block', () =>
   expect(splitFinishedWork('<pre><code>🔧 `shell` [1]</code></pre><p>x</p>')).toBeUndefined());
 it('treats a pending marker as a marker', () =>
-  expect(splitFinishedWork(`${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail).toBe('<p>x</p>'));
-it.each([[45_000, '45s'], [133_000, '2m 13s'], [3_840_000, '1h 4m'], [400, '0s']])(
-  'formats %d ms as %s', (ms, label) => expect(formatWorkDuration(ms)).toBe(label));
+  expect(splitFinishedWork(`${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail).toBe(
+    '<p>x</p>'
+  ));
+it.each([
+  [45_000, '45s'],
+  [133_000, '2m 13s'],
+  [3_840_000, '1h 4m'],
+  [400, '0s'],
+])('formats %d ms as %s', (ms, label) => expect(formatWorkDuration(ms)).toBe(label));
 ```
 
 - [ ] **Step 2: Run, expect FAIL** `nix develop -c just test src/app/messages/agent-run/finishedWorkSplit.test.ts`
@@ -74,10 +84,12 @@ it.each([[45_000, '45s'], [133_000, '2m 13s'], [3_840_000, '1h 4m'], [400, '0s']
 ### Task 2: `FinishedWorkFold` component and strings
 
 **Files:**
+
 - Create: `src/app/messages/agent-run/FinishedWorkFold.tsx`, `FinishedWorkFold.css.ts`, `FinishedWorkFold.test.tsx`
 - Modify: `src/app/i18n/locales/additions/en.json` and the 16 `locales/additions/<code>.json` overlays (Python script that keeps each file's indent; reuse each language's existing wording for "worked"/duration where one exists)
 
 **Interfaces:**
+
 - Consumes: `formatWorkDuration` (Task 1)
 - Produces: `FinishedWorkFold({ foldKey, durationMs, children }: { foldKey: string; durationMs?: number; children: ReactNode })`. Renders a `<button aria-expanded>` row with a chevron and the label; renders `children` only when open. Reads and writes open state through `ManualExpansionStateContext` with `rememberManualExpansionState`; falls back to local state when the context is absent.
 - Keys: `mindroomUi.messages.finishedWork.workedFor` = `Worked for {{duration}}`, `mindroomUi.messages.finishedWork.worked` = `Worked`.
@@ -91,11 +103,13 @@ it.each([[45_000, '45s'], [133_000, '2m 13s'], [3_840_000, '1h 4m'], [400, '0s']
 ### Task 3: Wire it into agent replies
 
 **Files:**
+
 - Modify: `src/app/messages/content/renderAgentMessageContent.tsx` (`renderBody`, `renderLongTextBody`, and `wrapWithReasoning` use)
 - Modify if needed: `src/app/messages/agent-run/Reasoning.tsx` (`withReasoning`, so the reasoning header and cog can go inside the fold)
 - Test: `src/app/messages/content/renderAgentMessageContent.test.ts` (or a new `renderAgentMessageContent.finishedWork.test.tsx` beside it)
 
 **Interfaces:**
+
 - Consumes: `splitFinishedWork`, `FinishedWorkFold`, `getAiRunInfo(content).status`, `mEvent.replacingEvent()?.getTs()` and `mEvent.getTs()`.
 
 - [ ] **Step 1: Failing tests:** an agent reply with `io.mindroom.ai_run` status `completed`, two markers and a final paragraph renders the final paragraph and a `Worked for …` button, and not the head text; clicking shows the head text and the tool rows. No fold for: status absent or `streaming`, `error`, `cancelled`; a reply without markers; a reply ending in a marker; `fromMindroomAgent=false`. A hydrated long-text reply folds the same way.

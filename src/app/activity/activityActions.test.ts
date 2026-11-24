@@ -17,7 +17,7 @@ const client = () =>
     getSafeUserId: () => ME,
     makeTxnId: () => 'txn1',
     sendEvent: vi.fn(async () => ({ event_id: '$sent' })),
-  } as unknown as MatrixClient & { sendEvent: ReturnType<typeof vi.fn> });
+  }) as unknown as MatrixClient & { sendEvent: ReturnType<typeof vi.fn> };
 
 const record = (approval: Partial<ToolApprovalData>): ThreadApprovalRecord =>
   ({
@@ -32,7 +32,7 @@ const record = (approval: Partial<ToolApprovalData>): ThreadApprovalRecord =>
       expiresAt: '2099-01-01T00:00:00Z',
       ...approval,
     },
-  } as ThreadApprovalRecord);
+  }) as ThreadApprovalRecord;
 
 afterEach(() => vi.clearAllMocks());
 
@@ -74,7 +74,7 @@ describe('markActivityRowsRead', () => {
       kind,
       unread,
       entry: { roomId: `!${key}:x`, threadRootId: `$${key}` },
-    } as unknown as ActivityRow);
+    }) as unknown as ActivityRow;
 
   it('reads the unread threads and leaves what waits for an answer', async () => {
     const mx = client();

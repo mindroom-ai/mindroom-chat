@@ -1,0 +1,6 @@
+dist/
+build/
+test-results/
+playwright-report/
+ios/**/*.xcassets/
+src/app/event-store/threads/__tests__/traces/*.json

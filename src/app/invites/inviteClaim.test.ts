@@ -42,7 +42,7 @@ const start = () => {
 const sentContent = (call: number) => {
   const [type, map] = mx.sendToDevice.mock.calls[call] as unknown as [
     string,
-    Map<string, Map<string, Record<string, unknown>>>
+    Map<string, Map<string, Record<string, unknown>>>,
   ];
   expect(type).toBe(CLAIM_EVENT);
   expect([...map.keys()]).toEqual([ROUTER]);

@@ -29,7 +29,11 @@ export type CaptureSendOptions = { markdown: boolean; linkSchemes?: readonly str
  * started, the thread and how many of its images went out.
  */
 export class CaptureError extends Error {
-  constructor(readonly code: CaptureErrorCode, cause?: unknown, readonly posted?: CapturePosted) {
+  constructor(
+    readonly code: CaptureErrorCode,
+    cause?: unknown,
+    readonly posted?: CapturePosted
+  ) {
     super(`Quick capture failed: ${code}`, { cause });
     this.name = 'CaptureError';
   }

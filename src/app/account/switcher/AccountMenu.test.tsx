@@ -109,7 +109,7 @@ const anchorAt = (top: number, left: number) => {
   const anchor = document.createElement('button');
   const box = { top, left };
   anchor.getBoundingClientRect = () =>
-    ({ ...box, bottom: box.top + 40, right: box.left + 40, width: 40, height: 40 } as DOMRect);
+    ({ ...box, bottom: box.top + 40, right: box.left + 40, width: 40, height: 40 }) as DOMRect;
   document.body.append(anchor);
   return { anchor, box };
 };

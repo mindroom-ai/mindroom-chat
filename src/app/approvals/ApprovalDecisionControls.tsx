@@ -86,8 +86,8 @@ export function ApprovalDecisionControls({
                   {scheduledScopes.length > 0
                     ? t('mindroomUi.messages.approvalDecisionControls.approveExactCall')
                     : durations.length > 0 || offersDurations
-                    ? t('mindroomUi.messages.approvalDecisionControls.approveOnce')
-                    : t('mindroomUi.messages.approvalDecisionControls.approve')}
+                      ? t('mindroomUi.messages.approvalDecisionControls.approveOnce')
+                      : t('mindroomUi.messages.approvalDecisionControls.approve')}
                 </Text>
               </Button>
             )}

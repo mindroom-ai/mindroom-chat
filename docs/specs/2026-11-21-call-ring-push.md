@@ -37,7 +37,7 @@ The server shows only that no ring from the caller landed. It does not show whet
    - the own membership echo and whether it has an event ID (read from `session.memberships`; `activeMemberships()` drops the ID, `callMemberships.ts:10-18`);
    - the ring's local echo status changes (`ENCRYPTING`, `QUEUED`, `SENDING`, `SENT`, `NOT_SENT` with the error) and `DidSendCallNotification`;
    - "no ring echo within 3 s of the own membership while alone", which means the gate skipped it.
-   It goes to the console and the existing deep diagnostics.
+     It goes to the console and the existing deep diagnostics.
 2. **Reproduce** on an iPhone against a throwaway deployment and read the trace. The fix goes where the trace points: the app's `notify` choice, the SDK gate (patch), or the encryption failure (one `resendEvent` of the same local event inside the ring's lifetime). No fix is built blind.
 3. **Two changes the code justifies now:**
    - Deadline and queue isolation: each ring gets its own scheduler queue (`call-ring:<id>`) so an expired ring cannot reject unrelated queued sends or a redial's ring, and retries stop at its `lifetime` (30 s, rejected at expiry), not 60 s (`isPastRetryWindow`). No second retry loop.
@@ -193,11 +193,11 @@ class MindroomApnsPushkin(ApnsPushkin):
 
 ## 7. Work split: three PRs
 
-| # | Repo | Contents | Est. LOC (code + tests) |
-|---|---|---|---|
-| 1 | mindroom-tuwunel | `pusher/ring_rules.rs` (rules, `merged`), the check in `get_actions` that lets a ring rule win, callers of `server_default`, the read paths; tests in `pusher/tests.rs`, `api/client/push/tests.rs`, `main/tests/pusher_notify.rs` | 220 + 320 |
-| 2 | mindroom-chat | Ring trace, retry deadline, `notify` choice, the fix the trace points to, hint in `patches/matrix-js-sdk+45.1.0.patch`, `ring.wav` + script + `project.pbxproj`, 17 strings, tap, iOS hide-stops-ringtone and room mute; unit tests and the extended `calls.spec.ts` | 220 + 300 |
-| 3 | dotfiles | `mindroom_pushkin.py`, its tests, `sygnal.nix`, the source offer in `caddy.nix` | 110 + 130 |
+| #   | Repo             | Contents                                                                                                                                                                                                                                                             | Est. LOC (code + tests) |
+| --- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| 1   | mindroom-tuwunel | `pusher/ring_rules.rs` (rules, `merged`), the check in `get_actions` that lets a ring rule win, callers of `server_default`, the read paths; tests in `pusher/tests.rs`, `api/client/push/tests.rs`, `main/tests/pusher_notify.rs`                                   | 220 + 320               |
+| 2   | mindroom-chat    | Ring trace, retry deadline, `notify` choice, the fix the trace points to, hint in `patches/matrix-js-sdk+45.1.0.patch`, `ring.wav` + script + `project.pbxproj`, 17 strings, tap, iOS hide-stops-ringtone and room mute; unit tests and the extended `calls.spec.ts` | 220 + 300               |
+| 3   | dotfiles         | `mindroom_pushkin.py`, its tests, `sygnal.nix`, the source offer in `caddy.nix`                                                                                                                                                                                      | 110 + 130               |
 
 Tuwunel tests: clear ring and encrypted ring give `sound: ring` in rooms of two and three; four members, an unknown joined count, a case variant of the event type, and ring rules whose actions were emptied or carry a second sound give today's actions; a group `notification` is unchanged; room mute (override and room-kind) and ignore win; a stored old ruleset is merged for evaluation and GET; a ring rule can be disabled before any GET and stays disabled through the legacy repair; a GET stores no missing ring rule.
 

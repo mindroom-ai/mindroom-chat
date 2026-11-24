@@ -370,7 +370,7 @@ describe('the second thread beside the open one', () => {
         playState: 'running',
         cancel: () => undefined,
         finished: new Promise(() => undefined),
-      } as unknown as Animation);
+      }) as unknown as Animation;
     try {
       await renderRoom('$a');
       await openBeside('$b');

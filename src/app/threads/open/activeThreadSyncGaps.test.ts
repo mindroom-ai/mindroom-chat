@@ -23,7 +23,7 @@ const fixture = () => {
   }));
   const threads = [0, 1].map((i) => room.createThread('$root-' + i, undefined, [], false)) as [
     Thread,
-    Thread
+    Thread,
   ];
   return { client, room, threads };
 };

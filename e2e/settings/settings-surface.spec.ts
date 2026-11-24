@@ -117,7 +117,7 @@ const menuInsets = (dialog: Locator) =>
     return [field, ...headings, ...rows].map((part) => {
       const box = part.getBoundingClientRect();
       return {
-        part: part === field ? 'search' : part.textContent ?? '',
+        part: part === field ? 'search' : (part.textContent ?? ''),
         start: box.left - start,
         end: end - box.right,
       };

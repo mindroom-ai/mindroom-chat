@@ -825,8 +825,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
-        ? getAgentCommandQuery(editor, range) ??
-          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES)
+        ? (getAgentCommandQuery(editor, range) ??
+          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES))
         : undefined;
       setAutocompleteQuery(query);
     }, [editor]);

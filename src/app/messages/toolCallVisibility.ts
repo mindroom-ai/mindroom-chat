@@ -69,7 +69,7 @@ export const withToolCallsShown = (
   shown: boolean
 ): ToolCallOverrides => {
   const entry = overrides[roomId] ?? {};
-  const above = threadId === undefined ? fallback : entry.room ?? fallback;
+  const above = threadId === undefined ? fallback : (entry.room ?? fallback);
   const value = shown === above ? undefined : shown;
   const { room, threads = {} } = entry;
   const next =

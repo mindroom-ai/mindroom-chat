@@ -99,28 +99,28 @@ On the Mac, Control+Option+Space opens Quick Capture over any app: a small windo
 
 ## Development
 
-| Command | What it does |
-|---|---|
-| `just dev` | Vite dev server on `http://127.0.0.1:4200` |
-| `just check` | The full local check: types, strict types, lint, unit tests, script tests and licenses |
-| `just test [files]` | Vitest unit tests, next to the code as `*.test.ts(x)` |
-| `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs |
-| `just e2e [specs]` | Playwright end-to-end specs |
+| Command                       | What it does                                                                           |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| `just dev`                    | Vite dev server on `http://127.0.0.1:4200`                                             |
+| `just check`                  | The full local check: types, strict types, lint, unit tests, script tests and licenses |
+| `just test [files]`           | Vitest unit tests, next to the code as `*.test.ts(x)`                                  |
+| `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs               |
+| `just e2e [specs]`            | Playwright end-to-end specs                                                            |
 
 [`docs/development.md`](docs/development.md) covers setup, the checks, the end-to-end specs and their parallel slots, and a real MindRoom backend with a stub model for the agent specs. Read [`AGENTS.md`](AGENTS.md) before you change code: it holds the rules and describes the `just` recipes.
 
 ## Documentation
 
-| Page | Covers |
-|---|---|
-| [`docs/development.md`](docs/development.md) | setup, checks, end-to-end specs, native shells |
-| [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
-| [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
-| [`docs/architecture.md`](docs/architecture.md) | folders, layers, and the MindRoom event formats |
+| Page                                               | Covers                                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`docs/development.md`](docs/development.md)       | setup, checks, end-to-end specs, native shells                                           |
+| [`docs/deployment.md`](docs/deployment.md)         | the build, serving it, homeserver and MindRoom backend                                   |
+| [`docs/configuration.md`](docs/configuration.md)   | `config.json`, `runtime-config.js` and build variables                                   |
+| [`docs/architecture.md`](docs/architecture.md)     | folders, layers, and the MindRoom event formats                                          |
 | [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
-| [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
-| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |
-| [`AGENTS.md`](AGENTS.md) | rules for changing code, and the `just` recipes |
+| [`docs/ios-release.md`](docs/ios-release.md)       | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
+| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with                                                 |
+| [`AGENTS.md`](AGENTS.md)                           | rules for changing code, and the `just` recipes                                          |
 
 ## License
 

@@ -6,7 +6,7 @@ import { getAccountManagementUrl } from './useAccountManagement';
 const scriptUrl = 'javascript:alert(1)//';
 
 const authMetadata = (fields: Partial<ValidatedAuthMetadata>) =>
-  ({ issuer: 'https://auth.example.org/', ...fields } as ValidatedAuthMetadata);
+  ({ issuer: 'https://auth.example.org/', ...fields }) as ValidatedAuthMetadata;
 
 describe('getAccountManagementUrl', () => {
   it('adds the search params to the account management URL', () => {

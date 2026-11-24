@@ -1,9 +1,6 @@
 import { createEditor } from 'slate';
 import { describe, expect, it } from 'vitest';
-import {
-  getAgentCommandQuery,
-  MINDROOM_COMMAND_PREFIX,
-} from './agentCommandQuery';
+import { getAgentCommandQuery, MINDROOM_COMMAND_PREFIX } from './agentCommandQuery';
 
 const createTextEditor = (text: string, anchorOffset = text.length, focusOffset = anchorOffset) => {
   const editor = createEditor();
