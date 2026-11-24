@@ -514,7 +514,7 @@ export function createReplayMultiplier(bundle, options = {}) {
     return buildMergedActiveRunsEvent(roomId, agentId, byCopy, nowMs);
   }
 
-  function processLiveFrame(roomId, ev, ctx, nowMs, emit) {
+  function processLiveFrame(roomId, ev, ctx, nowMs) {
     const c = ev.content;
     if (!isRecord(c) || c.v !== 1 || typeof c.reply !== 'string') return null;
     const reply = ctx.mapEv(c.reply);
@@ -541,7 +541,6 @@ export function createReplayMultiplier(bundle, options = {}) {
     state.docs = isSourceSnapshot
       ? makeLiveDocs(c.snapshot)
       : applyLiveDeltaToDocs(prevDocs, c.delta);
-    if (!emit) return null;
 
     const sendSnapshot = !state.emitted || isSourceSnapshot || !deltaFits;
     const seq = state.seq;
@@ -557,7 +556,7 @@ export function createReplayMultiplier(bundle, options = {}) {
     };
   }
 
-  function processSubagentFrame(roomId, ev, ctx, nowMs, emit) {
+  function processSubagentFrame(roomId, ev, ctx, nowMs) {
     const c = ev.content;
     if (!isRecord(c) || c.v !== 1 || typeof c.run !== 'string' || !isRecord(c.meta)) return null;
     const run = ctx.suffixId(c.run);
@@ -607,8 +606,6 @@ export function createReplayMultiplier(bundle, options = {}) {
       outDelta = shiftedDelta;
       state.docs = applyLiveDeltaToDocs(state.docs, shiftedDelta);
     }
-    if (!emit) return null;
-
     const sendSnapshot = !state.emitted || isSourceSnapshot;
     const seq = state.seq;
     state.seq += 1;
@@ -668,10 +665,23 @@ export function createReplayMultiplier(bundle, options = {}) {
     }
     const tsOpts = stampTs !== undefined ? { stampTs } : undefined;
     if (ev.type === 'm.room.pinned_events') {
-      const set = pinnedByRoom.get(roomId) ?? new Set();
-      for (const id of ev.content?.pinned ?? []) set.add(ctx.mapEv(id));
-      pinnedByRoom.set(roomId, set);
-      return [{ ...remapEvent(ev, ctx, tsOpts), content: { pinned: [...set] } }];
+      let byCopy = pinnedByRoom.get(roomId);
+      if (!byCopy) pinnedByRoom.set(roomId, (byCopy = new Map()));
+      const current = Array.isArray(ev.content?.pinned)
+        ? ev.content.pinned.filter((id) => typeof id === 'string').map((id) => ctx.mapEv(id))
+        : [];
+      byCopy.set(copyKey, current);
+      const merged = [];
+      const seen = new Set();
+      for (const list of byCopy.values()) {
+        for (const id of list) {
+          if (!seen.has(id)) {
+            seen.add(id);
+            merged.push(id);
+          }
+        }
+      }
+      return [{ ...remapEvent(ev, ctx, tsOpts), content: { pinned: merged } }];
     }
     let remapped = remapEvent(ev, ctx, tsOpts);
     if (ev.type === 'm.room.name' && ctx.r > 0 && typeof remapped.content?.name === 'string') {
@@ -693,8 +703,44 @@ export function createReplayMultiplier(bundle, options = {}) {
     return out;
   }
 
-  function applyLiveResponse(response, r, k, gen, nowMs, emit) {
+  function remapEphemeralEvent(roomId, ev, ctx, nowMs) {
+    if (!isRecord(ev)) return null;
+    if (ev.type === 'io.mindroom.live') return processLiveFrame(roomId, ev, ctx, nowMs);
+    if (ev.type === 'io.mindroom.subagents') return processSubagentFrame(roomId, ev, ctx, nowMs);
+    if (ev.type === 'm.receipt') return remapReceipt(ev, ctx, nowMs);
+    return ctx.k === 0 ? ev : null;
+  }
+
+  function remapGlobalAccountDataEvent(acc, gen) {
+    if (!isRecord(acc)) return acc;
+    if (acc.type === 'io.mindroom.pinned_canvases' && Array.isArray(acc.content?.canvases)) {
+      const canvases = [];
+      const seen = new Set();
+      for (const pin of acc.content.canvases) {
+        if (!isRecord(pin)) continue;
+        const isPrimary = pin.room_id === primaryOrigRoomId;
+        const rMax = cloneableNonSpace.has(pin.room_id) ? R : 1;
+        const kMax = isPrimary ? K : 1;
+        for (let r = 0; r < rMax; r += 1) {
+          for (let k = 0; k < kMax; k += 1) {
+            const room_id = mapRoomId(pin.room_id, r);
+            const event_id = mapEventId(pin.event_id, r, k, gen, liveCreatedIds);
+            const key = `${room_id}:${event_id}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              canvases.push({ ...pin, room_id, event_id });
+            }
+          }
+        }
+      }
+      return { ...acc, content: { ...acc.content, canvases } };
+    }
+    return acc;
+  }
+
+  function applyLiveResponse(response, r, k, gen, nowMs) {
     const outRooms = {};
+    const outAccountData = [];
     const deltaMs = nowMs - captureBaseTs;
     const ctx = makeCtx(r, k, gen, deltaMs);
     const copyKey = `${r}:${k}`;
@@ -725,23 +771,21 @@ export function createReplayMultiplier(bundle, options = {}) {
         }
       }
       for (const ev of roomData?.ephemeral?.events ?? []) {
-        if (ev.type === 'io.mindroom.live') {
-          const out = processLiveFrame(roomId, ev, ctx, nowMs, emit);
-          if (out) ephemeralEvents.push(out);
-        } else if (ev.type === 'io.mindroom.subagents') {
-          const out = processSubagentFrame(roomId, ev, ctx, nowMs, emit);
-          if (out) ephemeralEvents.push(out);
-        } else if (ev.type === 'm.receipt') {
-          if (emit) ephemeralEvents.push(remapReceipt(ev, ctx, nowMs));
-        } else if (emit) {
-          ephemeralEvents.push(ev);
-        }
+        const out = remapEphemeralEvent(roomId, ev, ctx, nowMs);
+        if (out) ephemeralEvents.push(out);
       }
       if (stateEvents.length || timelineEvents.length || ephemeralEvents.length) {
         outRooms[roomId] = { stateEvents, timelineEvents, ephemeralEvents };
       }
     }
-    return outRooms;
+    if (r === 0 && k === 0) {
+      for (const acc of response?.account_data?.events ?? []) {
+        if (isRecord(acc) && typeof acc.type === 'string') {
+          outAccountData.push(remapGlobalAccountDataEvent(acc, gen));
+        }
+      }
+    }
+    return { rooms: outRooms, accountData: outAccountData };
   }
 
   // Build initial state across R room copies and K thread copies (inside primary room).
@@ -763,6 +807,7 @@ export function createReplayMultiplier(bundle, options = {}) {
       const threadRelations = {};
       const messagesTail = [];
       const members = [];
+      const initialEphemeral = [];
 
       const putState = (ev) => stateByKey.set(`${ev.type}\0${ev.state_key ?? ''}`, ev);
       const ctxByK = Array.from({ length: threadCopies }, (_, k) =>
@@ -780,6 +825,10 @@ export function createReplayMultiplier(bundle, options = {}) {
           })) {
             putState(stEv);
           }
+        }
+        for (const ev of roomSync?.ephemeral?.events ?? []) {
+          const out = remapEphemeralEvent(roomId, ev, ctx, startNowMs);
+          if (out) initialEphemeral.push(out);
         }
         for (const ev of roomExtra.threads ?? []) threads.push(remapEvent(ev, ctx));
         for (const [rootId, rels] of Object.entries(roomExtra.threadRelations ?? {})) {
@@ -837,22 +886,6 @@ export function createReplayMultiplier(bundle, options = {}) {
       }
       messagesTail.push(...tailChrono.reverse());
 
-      // Warmup live entries at tau <= offsetMs for each staggered copy k > 0.
-      for (let k = 1; k < threadCopies; k += 1) {
-        const offsetMs = copyOffsetMs(k, threadCopies, durationMs);
-        for (const entry of liveEntries) {
-          if (entry.tauMs > offsetMs) break;
-          const warmed = applyLiveResponse(entry.response, r, k, 0, startNowMs, false);
-          const delta = warmed[roomId];
-          if (!delta) continue;
-          for (const ev of delta.stateEvents) putState(ev);
-          for (const ev of delta.timelineEvents) {
-            if (typeof ev?.state_key === 'string') putState(ev);
-          }
-          timeline.push(...delta.timelineEvents);
-        }
-      }
-
       initialRooms[roomId] = {
         roomId,
         origRoomId,
@@ -862,6 +895,7 @@ export function createReplayMultiplier(bundle, options = {}) {
         threadRelations,
         messagesTail,
         members,
+        initialEphemeral,
         accountData: roomSync?.account_data?.events ?? [],
         unreadNotifications: roomSync?.unread_notifications ?? {
           highlight_count: 0,
@@ -873,28 +907,28 @@ export function createReplayMultiplier(bundle, options = {}) {
   }
 
   for (const acc of snapshot.initialSync?.account_data?.events ?? []) {
-    if (acc.type === 'io.mindroom.pinned_canvases' && Array.isArray(acc.content?.canvases)) {
-      const canvases = [];
-      const seen = new Set();
-      for (const pin of acc.content.canvases) {
-        const isPrimary = pin.room_id === primaryOrigRoomId;
-        const rMax = cloneableNonSpace.has(pin.room_id) ? R : 1;
-        const kMax = isPrimary ? K : 1;
-        for (let r = 0; r < rMax; r += 1) {
-          for (let k = 0; k < kMax; k += 1) {
-            const room_id = mapRoomId(pin.room_id, r);
-            const event_id = mapEventId(pin.event_id, r, k, 0, liveCreatedIds);
-            const key = `${room_id}:${event_id}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              canvases.push({ room_id, event_id });
-            }
-          }
-        }
+    globalAccountData.push(remapGlobalAccountDataEvent(acc, 0));
+  }
+
+  // Ordered warmup deltas for staggered copies (k > 0) during [0, offset_k],
+  // including live/subagent ephemeral frames so the server ingests them through the live path.
+  const warmupJobs = [];
+  for (let r = 0; r < R; r += 1) {
+    for (let k = 1; k < K; k += 1) {
+      const offsetMs = copyOffsetMs(k, K, durationMs);
+      for (let idx = 0; idx < liveEntries.length; idx += 1) {
+        const entry = liveEntries[idx];
+        if (entry.tauMs > offsetMs) break;
+        warmupJobs.push({ relMs: entry.tauMs - offsetMs, r, k, idx, entry });
       }
-      globalAccountData.push({ ...acc, content: { canvases } });
-    } else {
-      globalAccountData.push(acc);
+    }
+  }
+  warmupJobs.sort((a, b) => a.relMs - b.relMs || a.r - b.r || a.k - b.k || a.idx - b.idx);
+  const warmupDeltas = [];
+  for (const { r, k, entry } of warmupJobs) {
+    const delta = applyLiveResponse(entry.response, r, k, 0, startNowMs);
+    if (Object.keys(delta.rooms).length || delta.accountData.length) {
+      warmupDeltas.push(delta);
     }
   }
 
@@ -906,21 +940,22 @@ export function createReplayMultiplier(bundle, options = {}) {
     }
   }
 
-  /** Advance replay to `elapsedMs` (relative to start) and return merged room deltas. */
+  /** Advance replay to `elapsedMs` (relative to start) and return merged room & account-data deltas. */
   function advance(elapsedMs, nowMs = startNowMs + elapsedMs) {
-    const merged = {};
+    const rooms = {};
+    const accountData = [];
     const addRoom = (roomId, delta) => {
-      let dest = merged[roomId];
+      let dest = rooms[roomId];
       if (!dest) {
         dest = { stateEvents: [], timelineEvents: [], ephemeralEvents: [] };
-        merged[roomId] = dest;
+        rooms[roomId] = dest;
       }
       dest.stateEvents.push(...delta.stateEvents);
       dest.timelineEvents.push(...delta.timelineEvents);
       dest.ephemeralEvents.push(...delta.ephemeralEvents);
     };
 
-    if (liveEntries.length === 0) return merged;
+    if (liveEntries.length === 0) return { rooms, accountData };
     for (const cursor of cursors) {
       const targetVirtual = Math.max(
         cursor.virtualMs,
@@ -936,22 +971,18 @@ export function createReplayMultiplier(bundle, options = {}) {
         const hi = gen === endGen ? targetVirtual - genStart : durationMs;
         for (const entry of liveEntries) {
           if (entry.tauMs > lo && entry.tauMs <= hi) {
-            const roomDeltas = applyLiveResponse(
-              entry.response,
-              cursor.r,
-              cursor.k,
-              gen,
-              nowMs,
-              true
-            );
-            for (const [roomId, delta] of Object.entries(roomDeltas)) addRoom(roomId, delta);
+            const delta = applyLiveResponse(entry.response, cursor.r, cursor.k, gen, nowMs);
+            for (const [roomId, roomDelta] of Object.entries(delta.rooms)) {
+              addRoom(roomId, roomDelta);
+            }
+            if (delta.accountData.length) accountData.push(...delta.accountData);
           }
         }
       }
       cursor.virtualMs = targetVirtual;
       cursor.started = true;
     }
-    return merged;
+    return { rooms, accountData };
   }
 
   /** Re-stamp all active `io.mindroom.active_runs` state events to `nowMs` so TTL never expires. */
@@ -981,7 +1012,7 @@ export function createReplayMultiplier(bundle, options = {}) {
       speed,
       durationMs,
     },
-    initialState: { rooms: initialRooms, accountData: globalAccountData },
+    initialState: { rooms: initialRooms, accountData: globalAccountData, warmupDeltas },
     advance,
     refreshActiveRuns,
   };

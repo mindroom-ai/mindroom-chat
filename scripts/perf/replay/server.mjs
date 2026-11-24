@@ -83,6 +83,7 @@ function createRoomStore(initRoom, userId) {
   const members = new Map();
   const initialEphemeral = [];
   const activeLiveStreams = new Map();
+  const activeSubagentStreams = new Map();
 
   const indexRelation = (ev) => {
     const rel = ev?.content?.['m.relates_to'];
@@ -317,6 +318,7 @@ function createRoomStore(initRoom, userId) {
     members,
     initialEphemeral,
     activeLiveStreams,
+    activeSubagentStreams,
     unreadNotifications: initRoom.unreadNotifications ?? {
       highlight_count: 0,
       notification_count: 0,
@@ -407,38 +409,53 @@ export async function startReplayServer(options = {}) {
     for (const wake of waiters.splice(0)) wake();
   };
 
-  function initEngine(isReset = false) {
-    startRealMs = Date.now();
-    lastRefreshMs = startRealMs;
-    multiplier = createReplayMultiplier(loaded, {
-      multiplyThreads,
-      multiplyRooms,
-      speed,
-      targetRoomId,
-      startNowMs: startRealMs,
-    });
-    rooms = new Map();
-    for (const [roomId, initRoom] of Object.entries(multiplier.initialState.rooms)) {
-      rooms.set(roomId, createRoomStore(initRoom, multiplier.meta.userId));
+  function recordLiveStream(store, roomId, ev, nowMs) {
+    const c = ev.content;
+    activeReplies.set(c.reply, { roomId, ts: nowMs });
+    const prev = store.activeLiveStreams.get(c.reply);
+    let docs = null;
+    if (isRecord(c.snapshot)) {
+      docs = c.snapshot;
+    } else if (isRecord(c.delta) && prev && prev.sid === c.sid) {
+      docs = applyLiveDeltaToDocs(prev.docs, c.delta);
     }
-    globalAccountData = new Map();
-    for (const acc of multiplier.initialState.accountData) {
-      if (acc?.type) globalAccountData.set(acc.type, acc);
+    if (docs && typeof c.sid === 'string' && Number.isSafeInteger(c.seq)) {
+      store.activeLiveStreams.set(c.reply, {
+        reply: c.reply,
+        sender: ev.sender,
+        sid: c.sid,
+        seq: c.seq,
+        docs,
+        ts: ev.origin_server_ts ?? nowMs,
+      });
     }
-    savedFilters = new Map();
-    // Advance syncSeq monotonically across resets so connected clients' `since` tokens never stall.
-    syncSeq += 1;
-    if (isReset) resetSeq = syncSeq;
-    syncLog = [];
-    activeReplies = new Map();
-    windowStats = { frames: 0, edits: 0, jobs: 0, stuck: 0 };
-    totals = { frames: 0, edits: 0, jobs: 0, events: 0 };
-    windowStartMs = startRealMs;
-    lastTickMs = startRealMs;
-    liveSeconds = 0;
   }
 
-  initEngine(false);
+  function recordSubagentStream(store, ev, nowMs) {
+    const c = ev.content;
+    const prev = store.activeSubagentStreams.get(c.run);
+    let docs = null;
+    if (isRecord(c.snapshot)) {
+      docs = c.snapshot;
+    } else if (isRecord(c.delta) && prev && prev.sid === c.sid) {
+      docs = applyLiveDeltaToDocs(prev.docs, c.delta);
+    }
+    if (docs && typeof c.sid === 'string' && Number.isSafeInteger(c.seq)) {
+      if (typeof c.meta.ended_at === 'number') {
+        store.activeSubagentStreams.delete(c.run);
+      } else {
+        store.activeSubagentStreams.set(c.run, {
+          run: c.run,
+          sender: ev.sender,
+          sid: c.sid,
+          seq: c.seq,
+          meta: c.meta,
+          docs,
+          ts: ev.origin_server_ts ?? nowMs,
+        });
+      }
+    }
+  }
 
   function pruneActiveReplies(nowMs) {
     for (const [replyId, info] of activeReplies.entries()) {
@@ -447,10 +464,20 @@ export async function startReplayServer(options = {}) {
         rooms.get(info.roomId)?.activeLiveStreams.delete(replyId);
       }
     }
+    for (const store of rooms.values()) {
+      for (const [run, stream] of store.activeSubagentStreams.entries()) {
+        if (nowMs - stream.ts > 30_000) store.activeSubagentStreams.delete(run);
+      }
+    }
   }
 
-  function commitDeltas(roomDeltas, accUpdates = [], nowMs = Date.now()) {
+  function applyDelta(roomDeltas, accUpdates = [], { nowMs = Date.now(), recordSync = true } = {}) {
     let any = accUpdates.length > 0;
+    for (const acc of accUpdates) {
+      if (isRecord(acc) && typeof acc.type === 'string') {
+        globalAccountData.set(acc.type, acc);
+      }
+    }
     const logRooms = {};
     for (const [roomId, delta] of Object.entries(roomDeltas)) {
       const store = rooms.get(roomId);
@@ -463,21 +490,27 @@ export async function startReplayServer(options = {}) {
       const completedInBatch = new Set();
       for (const ev of st) {
         store.ingestState(ev);
-        if (ev.type === 'io.mindroom.background_jobs') {
+        if (recordSync && ev.type === 'io.mindroom.background_jobs') {
           windowStats.jobs += 1;
           totals.jobs += 1;
         }
       }
       for (const ev of tl) {
         store.ingestEvent(ev, { addToTimeline: true, isLive: true, applyState: true });
-        totals.events += 1;
-        if (ev.type === 'io.mindroom.background_jobs' && typeof ev.state_key === 'string') {
+        if (recordSync) totals.events += 1;
+        if (
+          recordSync &&
+          ev.type === 'io.mindroom.background_jobs' &&
+          typeof ev.state_key === 'string'
+        ) {
           windowStats.jobs += 1;
           totals.jobs += 1;
         }
         if (ev.content?.['m.relates_to']?.rel_type === 'm.replace') {
-          windowStats.edits += 1;
-          totals.edits += 1;
+          if (recordSync) {
+            windowStats.edits += 1;
+            totals.edits += 1;
+          }
           const status = ev.content?.['m.new_content']?.['io.mindroom.stream_status'];
           if (status === 'completed' || status === 'error') {
             completedInBatch.add(ev.content['m.relates_to'].event_id);
@@ -486,41 +519,90 @@ export async function startReplayServer(options = {}) {
       }
       for (const ev of ep) {
         if (ev.type === 'io.mindroom.live' && typeof ev.content?.reply === 'string') {
-          windowStats.frames += 1;
-          totals.frames += 1;
-          const c = ev.content;
-          activeReplies.set(c.reply, { roomId, ts: nowMs });
-          const prev = store.activeLiveStreams.get(c.reply);
-          let docs = null;
-          if (isRecord(c.snapshot)) {
-            docs = c.snapshot;
-          } else if (isRecord(c.delta) && prev && prev.sid === c.sid) {
-            docs = applyLiveDeltaToDocs(prev.docs, c.delta);
+          if (recordSync) {
+            windowStats.frames += 1;
+            totals.frames += 1;
           }
-          if (docs && typeof c.sid === 'string' && Number.isSafeInteger(c.seq)) {
-            store.activeLiveStreams.set(c.reply, {
-              reply: c.reply,
-              sender: ev.sender,
-              sid: c.sid,
-              seq: c.seq,
-              docs,
-              ts: ev.origin_server_ts ?? nowMs,
-            });
-          }
+          recordLiveStream(store, roomId, ev, nowMs);
+        } else if (
+          ev.type === 'io.mindroom.subagents' &&
+          typeof ev.content?.run === 'string' &&
+          isRecord(ev.content?.meta)
+        ) {
+          recordSubagentStream(store, ev, nowMs);
         }
       }
       for (const replyId of completedInBatch) {
         activeReplies.delete(replyId);
         store.activeLiveStreams.delete(replyId);
       }
-      logRooms[roomId] = { stateEvents: st, timelineEvents: tl, ephemeralEvents: ep };
+      if (recordSync) {
+        logRooms[roomId] = { stateEvents: st, timelineEvents: tl, ephemeralEvents: ep };
+      }
     }
-    if (!any) return;
+    if (!any || !recordSync) return;
     syncSeq += 1;
     syncLog.push({ seq: syncSeq, roomDeltas: logRooms, accountData: accUpdates });
     if (syncLog.length > MAX_SYNC_LOG) syncLog.splice(0, syncLog.length - MAX_SYNC_LOG);
     notifyWaiters();
   }
+
+  const commitDeltas = (roomDeltas, accUpdates = [], nowMs = Date.now()) =>
+    applyDelta(roomDeltas, accUpdates, { nowMs, recordSync: true });
+
+  function initEngine(isReset = false) {
+    startRealMs = Date.now();
+    lastRefreshMs = startRealMs;
+    multiplier = createReplayMultiplier(loaded, {
+      multiplyThreads,
+      multiplyRooms,
+      speed,
+      targetRoomId,
+      startNowMs: startRealMs,
+    });
+    rooms = new Map();
+    globalAccountData = new Map();
+    savedFilters = new Map();
+    // Advance syncSeq monotonically across resets so connected clients' `since` tokens never stall.
+    syncSeq += 1;
+    if (isReset) resetSeq = syncSeq;
+    syncLog = [];
+    activeReplies = new Map();
+    windowStats = { frames: 0, edits: 0, jobs: 0, stuck: 0 };
+    totals = { frames: 0, edits: 0, jobs: 0, events: 0 };
+    windowStartMs = startRealMs;
+    lastTickMs = startRealMs;
+    liveSeconds = 0;
+
+    // 1. Seed pure captured history and initial ephemeral state (including m.receipt).
+    for (const [roomId, initRoom] of Object.entries(multiplier.initialState.rooms)) {
+      const store = createRoomStore(initRoom, multiplier.meta.userId);
+      rooms.set(roomId, store);
+      for (const ev of initRoom.initialEphemeral ?? []) {
+        if (ev.type === 'io.mindroom.live' && typeof ev.content?.reply === 'string') {
+          recordLiveStream(store, roomId, ev, startRealMs);
+        } else if (
+          ev.type === 'io.mindroom.subagents' &&
+          typeof ev.content?.run === 'string' &&
+          isRecord(ev.content?.meta)
+        ) {
+          recordSubagentStream(store, ev, startRealMs);
+        } else {
+          store.initialEphemeral.push(ev);
+        }
+      }
+    }
+    for (const acc of multiplier.initialState.accountData) {
+      if (acc?.type) globalAccountData.set(acc.type, acc);
+    }
+
+    // 2. Run staggered warmup deltas through the single live ingestion path before serving requests.
+    for (const warmup of multiplier.initialState.warmupDeltas ?? []) {
+      applyDelta(warmup.rooms, warmup.accountData, { nowMs: startRealMs, recordSync: false });
+    }
+  }
+
+  initEngine(false);
 
   function flushStatsWindow(nowMs) {
     if (!statsFile) return;
@@ -548,8 +630,8 @@ export async function startReplayServer(options = {}) {
     liveSeconds += activeReplies.size * ((nowMs - lastTickMs) / 1000);
     lastTickMs = nowMs;
 
-    const deltas = multiplier.advance(nowMs - startRealMs, nowMs);
-    commitDeltas(deltas, [], nowMs);
+    const delta = multiplier.advance(nowMs - startRealMs, nowMs);
+    commitDeltas(delta.rooms, delta.accountData, nowMs);
 
     if (nowMs - lastRefreshMs >= ACTIVE_RUN_REFRESH_MS) {
       lastRefreshMs = nowMs;
@@ -595,6 +677,19 @@ export async function startReplayServer(options = {}) {
           snapshot: stream.docs,
         },
       }));
+      const subagentSnapshots = [...store.activeSubagentStreams.values()].map((stream) => ({
+        type: 'io.mindroom.subagents',
+        sender: stream.sender,
+        origin_server_ts: stream.ts,
+        content: {
+          v: 1,
+          run: stream.run,
+          sid: stream.sid,
+          seq: stream.seq,
+          meta: stream.meta,
+          snapshot: stream.docs,
+        },
+      }));
       join[roomId] = {
         state: { events: [...store.stateMap.values()] },
         timeline: {
@@ -602,7 +697,7 @@ export async function startReplayServer(options = {}) {
           limited: start > 0,
           prev_batch: `m${start}`,
         },
-        ephemeral: { events: [...store.initialEphemeral, ...liveSnapshots] },
+        ephemeral: { events: [...store.initialEphemeral, ...liveSnapshots, ...subagentSnapshots] },
         account_data: { events: [...store.accountData.values()] },
         unread_notifications: store.unreadNotifications,
         unread_thread_notifications: store.unreadThreadNotifications,
@@ -864,12 +959,17 @@ export async function startReplayServer(options = {}) {
           res.writeHead(200, {
             ...cors,
             'Content-Type': entry.contentType || 'application/octet-stream',
+            'X-Content-Type-Options': 'nosniff',
           });
           res.end(fs.readFileSync(filePath));
           return;
         }
         if (kind === 'thumbnail') {
-          res.writeHead(200, { ...cors, 'Content-Type': 'image/png' });
+          res.writeHead(200, {
+            ...cors,
+            'Content-Type': 'image/png',
+            'X-Content-Type-Options': 'nosniff',
+          });
           res.end(TINY_PNG);
           return;
         }

@@ -198,11 +198,35 @@ async function paginateGet(
   return items.slice(0, maxItems);
 }
 
+/** Return true if `targetPath` lies inside a git repository or worktree. */
+export function isInsideGitRepo(targetPath) {
+  let cur = path.resolve(targetPath);
+  while (!fs.existsSync(cur)) {
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  let dir = cur;
+  try {
+    if (fs.existsSync(cur)) dir = fs.realpathSync(cur);
+  } catch (_err) {
+    dir = cur;
+  }
+  let prev = '';
+  while (dir !== prev) {
+    if (fs.existsSync(path.join(dir, '.git'))) return true;
+    prev = dir;
+    dir = path.dirname(dir);
+  }
+  return false;
+}
+
 /** Parse CLI arguments for capture.mjs. */
 export function parseCaptureArgs(argv) {
   const opts = {
     homeserver: '',
     tokenFile: '',
+    deviceId: '',
     out: '',
     rooms: [],
     duration: 60,
@@ -216,6 +240,7 @@ export function parseCaptureArgs(argv) {
     const next = argv[++i] ?? '';
     if (arg === '--homeserver') opts.homeserver = next;
     else if (arg === '--token-file') opts.tokenFile = next;
+    else if (arg === '--device-id') opts.deviceId = next;
     else if (arg === '--out') opts.out = next;
     else if (arg === '--rooms') {
       opts.rooms = next
@@ -237,7 +262,9 @@ export async function runCapture(options) {
   const {
     homeserver,
     token,
+    deviceId = '',
     out,
+    allowInRepo = false,
     rooms: requestedRooms = [],
     duration = 60,
     maxThreads = 600,
@@ -249,15 +276,41 @@ export async function runCapture(options) {
   if (!homeserver) throw new Error('Missing --homeserver');
   if (!token) throw new Error('Missing token (--token-file or MINDROOM_CAPTURE_TOKEN)');
   if (!out) throw new Error('Missing --out');
+  if (!allowInRepo && isInsideGitRepo(out)) {
+    throw new Error(
+      `Refusing to write private capture inside a git repository (${path.resolve(out)}). ` +
+        'Choose an --out directory outside any git worktree (e.g. /tmp or ~/.cache).'
+    );
+  }
+  const durationMs = Number.isFinite(duration) ? Math.max(0, Math.floor(duration * 1000)) : 0;
+  if (durationMs > 0 && !deviceId) {
+    throw new Error(
+      'Live capture (--duration > 0) calls GET /sync?since=..., which advances the sync cursor ' +
+        "and acknowledges to-device messages on the access token's device. " +
+        'Pass --device-id <id> matching a fresh, dedicated capture device (from /account/whoami), ' +
+        'or pass --duration 0 for a snapshot-only capture.'
+    );
+  }
+
+  const whoami = await matrixGet(homeserver, token, '/_matrix/client/v3/account/whoami', {
+    fetchFn,
+  });
+  if (durationMs > 0) {
+    const actualDeviceId = typeof whoami.device_id === 'string' ? whoami.device_id : '';
+    if (!actualDeviceId || actualDeviceId !== deviceId) {
+      throw new Error(
+        `--device-id "${deviceId}" does not match token's /account/whoami device_id "${actualDeviceId || '(none)'}". ` +
+          'Live capture (--duration > 0) calls GET /sync?since=..., which acknowledges to-device messages ' +
+          'on that device. Use a fresh, dedicated capture device (or pass --duration 0 for snapshot-only).'
+      );
+    }
+  }
 
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
   fs.chmodSync(out, 0o700);
   const blobsDir = path.join(out, 'blobs');
   fs.mkdirSync(blobsDir, { recursive: true, mode: 0o700 });
 
-  const whoami = await matrixGet(homeserver, token, '/_matrix/client/v3/account/whoami', {
-    fetchFn,
-  });
   const userId = whoami.user_id;
   const viewerDomain = userId.includes(':') ? userId.slice(userId.indexOf(':') + 1) : 'localhost';
   const filterParam = encodeURIComponent(JSON.stringify(buildCaptureSyncFilter(50)));
@@ -333,7 +386,6 @@ export async function runCapture(options) {
   }
 
   const liveEntries = [];
-  const durationMs = Math.max(0, Math.floor(duration * 1000));
   if (durationMs > 0 && initialSync.next_batch) {
     let since = initialSync.next_batch;
     const startMs = Date.now();

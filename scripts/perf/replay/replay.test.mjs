@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 import {
   buildCaptureSyncFilter,
   extractMxcReferences,
+  isInsideGitRepo,
   matrixGet,
+  parseCaptureArgs,
   parseMxcUri,
   runCapture,
 } from './capture.mjs';
@@ -698,7 +700,9 @@ test('runCapture enforces GET-only, set_presence=offline, 0700 perms, and downlo
       res.writeHead(code, { 'Content-Type': ct });
       res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
     };
-    if (u.pathname === '/_matrix/client/v3/account/whoami') return send(200, { user_id: VIEWER });
+    if (u.pathname === '/_matrix/client/v3/account/whoami') {
+      return send(200, { user_id: VIEWER, device_id: 'CAP_DEV_1' });
+    }
     if (u.pathname === '/_matrix/client/v3/sync') {
       syncUrls.push(u.searchParams.get('set_presence'));
       return send(200, {
@@ -752,6 +756,7 @@ test('runCapture enforces GET-only, set_presence=offline, 0700 perms, and downlo
     const manifest = await runCapture({
       homeserver: `http://127.0.0.1:${port}`,
       token: 'fake-token',
+      deviceId: 'CAP_DEV_1',
       out: outDir,
       duration: 0,
     });
@@ -897,7 +902,7 @@ test('multiplier: K=3 threads, R=2 rooms, pointer remapping, merged jobs/active_
   assert.ok(jobsEvents[0].sender.endsWith(`:${mult.meta.viewerDomain}`));
 });
 
-test('multiplier: mid-stream snapshot synthesis, subagents, receipts, and multi-gen unique IDs', () => {
+test('multiplier: warmupDeltas, mid-stream snapshot synthesis, subagents, receipts, and multi-gen unique IDs', () => {
   const bundle = makeFixtureBundle();
   const startNow = BASE_TS + 1_000_000;
   const mult = createReplayMultiplier(bundle, {
@@ -907,12 +912,31 @@ test('multiplier: mid-stream snapshot synthesis, subagents, receipts, and multi-
     startNowMs: startNow,
   });
 
+  // Warmup emits ordered deltas for staggered copies (k=1: tau=1000; k=2: tau=1000 & tau=4000)
+  // WITH live/subagent frames included (not suppressed!).
+  const warmupLive = mult.initialState.warmupDeltas.flatMap((d) =>
+    (d.rooms[ROOM_ID]?.ephemeralEvents ?? []).filter((e) => e.type === 'io.mindroom.live')
+  );
+  const wK1Snap = warmupLive.find((e) => e.content.reply === '$live_reply__r0_k1_g0');
+  const wK2Frames = warmupLive.filter((e) => e.content.reply === '$live_reply__r0_k2_g0');
+  assert.ok(wK1Snap?.content.snapshot);
+  assert.equal(wK1Snap.content.seq, 0);
+  assert.equal(wK1Snap.content.snapshot.md, 'Hello');
+  assert.match(wK1Snap.content.sid, SID_RE);
+  assert.equal(wK2Frames.length, 2);
+  assert.equal(wK2Frames[0].content.seq, 0);
+  assert.equal(wK2Frames[0].content.snapshot.md, 'Hello');
+  assert.equal(wK2Frames[1].content.seq, 1);
+  assert.equal(wK2Frames[1].content.sid, wK2Frames[0].content.sid);
+  const wK2Docs = applyLiveDeltaToDocs(wK2Frames[0].content.snapshot, wK2Frames[1].content.delta);
+  assert.equal(wK2Docs.md, 'Hello world');
+
   // At elapsed = 1500ms:
   // - k=0 (offset 0): virtual=1500 -> tau=1000 fires (snapshot seq 0 + subagents + $live_reply)
-  // - k=1 (offset 3000): virtual=4500 -> tau=4000 fires (WAS warmed at tau=1000 -> MUST emit snapshot seq 0 with "Hello world"!)
-  // - k=2 (offset 6000): virtual=7500 -> tau=7000 fires (WAS warmed at 1000 & 4000 -> MUST emit snapshot seq 0 with "Hello world!"!)
+  // - k=1 (offset 3000): virtual=4500 -> tau=4000 fires (delta seq 1 chaining onto warmup snapshot!)
+  // - k=2 (offset 6000): virtual=7500 -> tau=7000 fires (delta seq 2 chaining onto warmup delta!)
   const d1 = mult.advance(1_500, startNow + 1_500);
-  const live1 = d1[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'io.mindroom.live');
+  const live1 = d1.rooms[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'io.mindroom.live');
   assert.equal(live1.length, 3);
 
   const fK0 = live1.find((e) => e.content.reply === '$live_reply');
@@ -922,49 +946,103 @@ test('multiplier: mid-stream snapshot synthesis, subagents, receipts, and multi-
   assert.equal(fK0.content.snapshot.md, 'Hello');
   assert.match(fK0.content.sid, SID_RE);
 
-  // Mid-stream copies receive valid snapshot frames first, NOT raw deltas!
-  assert.equal(fK1.content.seq, 0);
-  assert.ok(fK1.content.snapshot, 'k=1 mid-stream first frame must be a snapshot');
-  assert.equal(fK1.content.snapshot.md, 'Hello world');
-  assert.match(fK1.content.sid, SID_RE);
+  assert.equal(fK1.content.seq, 1);
+  assert.equal(fK1.content.sid, wK1Snap.content.sid);
+  assert.ok(fK1.content.delta);
+  const k1AfterD1 = applyLiveDeltaToDocs(wK1Snap.content.snapshot, fK1.content.delta);
+  assert.equal(k1AfterD1.md, 'Hello world');
 
-  assert.equal(fK2.content.seq, 0);
-  assert.ok(fK2.content.snapshot, 'k=2 mid-stream first frame must be a snapshot');
-  assert.equal(fK2.content.snapshot.md, 'Hello world!');
+  assert.equal(fK2.content.seq, 2);
+  assert.equal(fK2.content.sid, wK2Frames[0].content.sid);
+  assert.ok(fK2.content.delta);
+  const k2AfterD1 = applyLiveDeltaToDocs(wK2Docs, fK2.content.delta);
+  assert.equal(k2AfterD1.md, 'Hello world!');
 
   // Receipt for k=1 remaps thread_id but preserves "main"
-  const receipts1 = d1[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'm.receipt');
+  const receipts1 = d1.rooms[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'm.receipt');
   assert.equal(receipts1.length, 1);
   const recTarget = receipts1[0].content['$live_reply__r0_k1_g0']['m.read'];
   assert.equal(recTarget[VIEWER].thread_id, '$root1__r0_k1');
   assert.equal(recTarget[AGENT].thread_id, 'main');
 
   // Subagent frame for k=0 shifted Unix seconds and kept valid sid/seq
-  const sub1 = d1[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'io.mindroom.subagents');
+  const sub1 = d1.rooms[ROOM_ID].ephemeralEvents.filter((e) => e.type === 'io.mindroom.subagents');
   assert.equal(sub1.length, 1);
   assert.match(sub1[0].content.sid, SID_RE);
   assert.ok(sub1[0].content.meta.started_at > Math.floor(BASE_TS / 1000));
 
-  // Next step (elapsed = 4500ms): k=1 hits tau=7000 -> emits DELTA with seq=1!
+  // Next step (elapsed = 4500ms): k=1 hits tau=7000 -> emits DELTA with seq=2!
   const d2 = mult.advance(4_500, startNow + 4_500);
-  const fK1Delta = d2[ROOM_ID].ephemeralEvents.find(
+  const fK1Delta = d2.rooms[ROOM_ID].ephemeralEvents.find(
     (e) => e.type === 'io.mindroom.live' && e.content.reply === '$live_reply__r0_k1_g0'
   );
-  assert.equal(fK1Delta.content.seq, 1);
-  assert.equal(fK1Delta.content.sid, fK1.content.sid);
+  assert.equal(fK1Delta.content.seq, 2);
+  assert.equal(fK1Delta.content.sid, wK1Snap.content.sid);
   assert.ok(fK1Delta.content.delta);
-  const applied = applyLiveDeltaToDocs(fK1.content.snapshot, fK1Delta.content.delta);
+  const applied = applyLiveDeltaToDocs(k1AfterD1, fK1Delta.content.delta);
   assert.equal(applied.md, 'Hello world!');
+
+  // Mid-stream capture that begins directly with a delta synthesizes a valid seq=0 snapshot!
+  const midBundle = makeFixtureBundle();
+  midBundle.liveEntries = [
+    {
+      tauMs: 100,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 100,
+                    content: {
+                      v: 1,
+                      reply: '$mid_only',
+                      sid: '1760000000100-aabbccdd',
+                      seq: 5,
+                      delta: { md: { at: 0, del: 0, ins: 'Mid-stream text', len: 15 } },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+  const midMult = createReplayMultiplier(midBundle, {
+    multiplyThreads: 1,
+    multiplyRooms: 1,
+    speed: 1,
+    startNowMs: startNow,
+  });
+  const midDelta = midMult.advance(200, startNow + 200);
+  const synthSnap = midDelta.rooms[ROOM_ID].ephemeralEvents.find(
+    (e) => e.type === 'io.mindroom.live' && e.content.reply === '$mid_only'
+  );
+  assert.equal(synthSnap.content.seq, 0);
+  assert.ok(synthSnap.content.snapshot);
+  assert.equal(synthSnap.content.snapshot.md, 'Mid-stream text');
+  assert.match(synthSnap.content.sid, SID_RE);
 
   // Generation wraparound across 2.5 full loops: ZERO duplicate event_ids!
   const allEventIds = new Set(mult.initialState.rooms[ROOM_ID].timeline.map((e) => e.event_id));
-  for (const ev of [...d1[ROOM_ID].timelineEvents, ...d2[ROOM_ID].timelineEvents]) {
+  for (const w of mult.initialState.warmupDeltas) {
+    for (const ev of w.rooms[ROOM_ID]?.timelineEvents ?? []) {
+      assert.equal(allEventIds.has(ev.event_id), false, `duplicate warmup ${ev.event_id}`);
+      allEventIds.add(ev.event_id);
+    }
+  }
+  for (const ev of [...d1.rooms[ROOM_ID].timelineEvents, ...d2.rooms[ROOM_ID].timelineEvents]) {
     assert.equal(allEventIds.has(ev.event_id), false, `duplicate ${ev.event_id}`);
     allEventIds.add(ev.event_id);
   }
   for (let t = 7_500; t <= 24_000; t += 3_000) {
     const step = mult.advance(t, startNow + t);
-    for (const ev of step[ROOM_ID]?.timelineEvents ?? []) {
+    for (const ev of step.rooms[ROOM_ID]?.timelineEvents ?? []) {
       assert.equal(allEventIds.has(ev.event_id), false, `duplicate across gen: ${ev.event_id}`);
       allEventIds.add(ev.event_id);
     }
@@ -1281,7 +1359,14 @@ test('server security: auth gate, loopback-only CORS, Host header check, and log
       `${srv.baseUrl}/_matrix/client/v1/media/download/example.test/m1?access_token=${encodeURIComponent(srv.accessToken)}`
     );
     assert.equal(queryMedia.status, 200);
+    assert.equal(queryMedia.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(await queryMedia.text(), 'secret-media-payload');
+
+    const thumbMedia = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/media/thumbnail/example.test/missing?access_token=${encodeURIComponent(srv.accessToken)}`
+    );
+    assert.equal(thumbMedia.status, 200);
+    assert.equal(thumbMedia.headers.get('x-content-type-options'), 'nosniff');
 
     const querySync = await fetch(
       `${srv.baseUrl}/_matrix/client/v3/sync?timeout=0&access_token=${encodeURIComponent(srv.accessToken)}`
@@ -1975,5 +2060,570 @@ test('multiplier: chronological Kx interleaving of initialSync.timeline and mess
     );
   } finally {
     await srv.close();
+  }
+});
+
+test('server: K=2 staggered warmup increments /threads count 17->18 and includes live snapshot in initial /sync', async () => {
+  const capturedLatest = {
+    type: 'm.room.message',
+    event_id: '$rep17',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 50_000,
+    content: {
+      msgtype: 'm.text',
+      body: 'Captured 17th reply',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root_old' },
+    },
+  };
+  const capturedTitle = {
+    type: 'm.room.message',
+    event_id: '$title_old',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 60_000,
+    content: {
+      msgtype: 'm.notice',
+      body: 'Captured Thread Title',
+      'io.mindroom.thread_summary': { summary: 'Captured Thread Title', version: 1 },
+    },
+  };
+  const oldRoot = {
+    type: 'm.room.message',
+    event_id: '$root_old',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 200_000,
+    content: { msgtype: 'm.text', body: 'Older thread root' },
+    unsigned: {
+      'm.relations': {
+        'm.thread': {
+          count: 17,
+          current_user_participated: true,
+          latest_event: capturedLatest,
+          'io.mindroom.latest_reply': capturedLatest,
+          'io.mindroom.title': capturedTitle,
+        },
+      },
+    },
+  };
+
+  const bundle = makeFixtureBundle();
+  bundle.manifest.durationMs = 10_000;
+  bundle.snapshot.initialSync.rooms.join[ROOM_ID].timeline.events = [oldRoot, capturedLatest];
+  bundle.snapshot.rooms[ROOM_ID] = {
+    threads: [oldRoot],
+    threadRelations: { $root_old: [capturedLatest] },
+    messagesTail: [],
+    members: bundle.snapshot.rooms[ROOM_ID].members,
+  };
+  // For K=2, copy k=1 has offset=5000ms -> warms up tau=1500 & tau=2500 before first request,
+  // while copy k=0 (offset=0) has not reached tau=1500 yet.
+  bundle.liveEntries = [
+    {
+      tauMs: 1_500,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              timeline: {
+                events: [
+                  {
+                    type: 'm.room.message',
+                    event_id: '$warmup_stream',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 1_000,
+                    content: {
+                      msgtype: 'm.text',
+                      body: 'Warmup stream',
+                      'io.mindroom.stream_status': 'streaming',
+                      'm.relates_to': {
+                        rel_type: 'm.thread',
+                        event_id: '$root_old',
+                        'm.in_reply_to': { event_id: '$rep17' },
+                      },
+                    },
+                  },
+                ],
+              },
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 1_000,
+                    content: {
+                      v: 1,
+                      reply: '$warmup_stream',
+                      sid: '1760000001000-abcdef01',
+                      seq: 0,
+                      snapshot: {
+                        md: 'Warmup stream',
+                        reasoning: '',
+                        tools: [],
+                        status: 'streaming',
+                        activity: 'Working',
+                        segments: [],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      tauMs: 2_500,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 2_000,
+                    content: {
+                      v: 1,
+                      reply: '$warmup_stream',
+                      sid: '1760000001000-abcdef01',
+                      seq: 1,
+                      delta: {
+                        md: { at: 13, del: 0, ins: ' live!', len: 19 },
+                        status: 'streaming',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      tauMs: 5_500,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 5_200,
+                    content: {
+                      v: 1,
+                      reply: '$warmup_stream',
+                      sid: '1760000001000-abcdef01',
+                      seq: 2,
+                      delta: {
+                        md: { at: 19, del: 0, ins: '!!', len: 21 },
+                        status: 'streaming',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 2,
+    multiplyRooms: 1,
+    speed: 1,
+  });
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+
+  try {
+    // Immediately on startup (before k=0 reaches tau=1000):
+    // k=1 warmed up through tau=1000 & tau=2000 -> /threads reports count=18 pointing to $warmup_stream__r0_k1_g0
+    const threadsRes = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/rooms/${encodeURIComponent(ROOM_ID)}/threads?limit=10`,
+      { headers: authHeaders }
+    );
+    assert.equal(threadsRes.status, 200);
+    const chunk = (await threadsRes.json()).chunk;
+    const th0 = chunk.find((ev) => ev.event_id === '$root_old');
+    const th1 = chunk.find((ev) => ev.event_id === '$root_old__r0_k1');
+    assert.ok(th0 && th1);
+
+    const sum0 = th0.unsigned['m.relations']['m.thread'];
+    assert.equal(sum0.count, 17);
+    assert.equal(sum0.latest_event.event_id, '$rep17');
+
+    const sum1 = th1.unsigned['m.relations']['m.thread'];
+    assert.equal(sum1.count, 18);
+    assert.equal(sum1.current_user_participated, true);
+    assert.equal(sum1.latest_event.event_id, '$warmup_stream__r0_k1_g0');
+    assert.equal(sum1['io.mindroom.latest_reply'].event_id, '$warmup_stream__r0_k1_g0');
+    assert.equal(sum1['io.mindroom.title'].event_id, '$title_old__r0_k1');
+
+    // Warmup must not inflate live stats counters
+    assert.equal(srv.getStatus().stats.totalFrames, 0);
+
+    // Initial cold /sync includes valid materialized snapshot for k=1's active warmup stream
+    const initRes = await fetch(`${srv.baseUrl}/_matrix/client/v3/sync?timeout=0`, {
+      headers: authHeaders,
+    });
+    const initBody = await initRes.json();
+    const ephemeral = initBody.rooms.join[ROOM_ID].ephemeral.events;
+    const snap = ephemeral.find(
+      (e) => e.type === 'io.mindroom.live' && e.content?.reply === '$warmup_stream__r0_k1_g0'
+    );
+    assert.ok(snap, 'expected initial /sync to include warmup live snapshot for k=1');
+    assert.equal(snap.content.v, 1);
+    assert.match(snap.content.sid, SID_RE);
+    assert.equal(snap.content.seq, 1);
+    assert.equal(snap.content.snapshot.md, 'Warmup stream live!');
+    assert.equal(snap.content.delta, undefined);
+
+    // Next delta at tau=5500 (500ms past offset=5000) chains seamlessly onto that snapshot
+    let since = initBody.next_batch;
+    let nextDelta = null;
+    for (let i = 0; i < 6 && !nextDelta; i += 1) {
+      const incRes = await fetch(
+        `${srv.baseUrl}/_matrix/client/v3/sync?since=${encodeURIComponent(since)}&timeout=1000`,
+        { headers: authHeaders }
+      );
+      const incBody = await incRes.json();
+      since = incBody.next_batch;
+      nextDelta = (incBody.rooms.join[ROOM_ID]?.ephemeral?.events ?? []).find(
+        (e) =>
+          e.type === 'io.mindroom.live' &&
+          e.content?.reply === '$warmup_stream__r0_k1_g0' &&
+          e.content?.delta
+      );
+    }
+    assert.ok(nextDelta, 'expected incremental /sync delta chaining onto warmup snapshot');
+    assert.equal(nextDelta.content.sid, snap.content.sid);
+    assert.equal(nextDelta.content.seq, snap.content.seq + 1);
+    assert.equal(
+      applyLiveDeltaToDocs(snap.content.snapshot, nextDelta.content.delta).md,
+      'Warmup stream live!!!'
+    );
+  } finally {
+    await srv.close();
+  }
+});
+
+test('server: captured initialSync m.receipt is preserved and remapped for cloned threads in cold /sync', async () => {
+  const bundle = makeFixtureBundle();
+  bundle.liveEntries = [];
+  bundle.snapshot.initialSync.rooms.join[ROOM_ID].ephemeral.events = [
+    {
+      type: 'm.receipt',
+      content: {
+        $rep2: {
+          'm.read': {
+            [VIEWER]: { ts: BASE_TS - 10_000, thread_id: '$root1' },
+            [AGENT]: { ts: BASE_TS - 10_000, thread_id: 'main' },
+          },
+        },
+      },
+    },
+  ];
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 2,
+    multiplyRooms: 1,
+    speed: 1,
+  });
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+
+  try {
+    const res = await fetch(`${srv.baseUrl}/_matrix/client/v3/sync?timeout=0`, {
+      headers: authHeaders,
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const receipts = body.rooms.join[ROOM_ID].ephemeral.events.filter(
+      (ev) => ev.type === 'm.receipt'
+    );
+    assert.equal(receipts.length, 2);
+
+    const r0 = receipts.find((ev) => '$rep2' in ev.content);
+    const r1 = receipts.find((ev) => '$rep2__r0_k1' in ev.content);
+    assert.ok(r0 && r1, 'expected m.receipt for both original and cloned threads');
+    assert.equal(r0.content.$rep2['m.read'][VIEWER].thread_id, '$root1');
+    assert.equal(r0.content.$rep2['m.read'][AGENT].thread_id, 'main');
+    assert.equal(r1.content.$rep2__r0_k1['m.read'][VIEWER].thread_id, '$root1__r0_k1');
+    assert.equal(r1.content.$rep2__r0_k1['m.read'][AGENT].thread_id, 'main');
+    assert.ok(r0.content.$rep2['m.read'][VIEWER].ts > BASE_TS);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('multiplier: unpinning replaces per-copy m.room.pinned_events and io.mindroom.pinned_canvases', () => {
+  const bundle = makeFixtureBundle();
+  bundle.manifest.durationMs = 4_000;
+  bundle.liveEntries = [
+    {
+      tauMs: 100,
+      response: {
+        account_data: {
+          events: [{ type: 'io.mindroom.pinned_canvases', content: { canvases: [] } }],
+        },
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              state: {
+                events: [
+                  {
+                    type: 'm.room.pinned_events',
+                    event_id: '$st_unpin',
+                    room_id: ROOM_ID,
+                    sender: VIEWER,
+                    state_key: '',
+                    origin_server_ts: BASE_TS + 100,
+                    content: { pinned: [] },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  // K=1: starting with $root1 pinned, replaying pinned: [] emits pinned: [] and canvases: []
+  const startNow = BASE_TS + 100_000;
+  const mult1 = createReplayMultiplier(bundle, {
+    multiplyThreads: 1,
+    multiplyRooms: 1,
+    speed: 1,
+    startNowMs: startNow,
+  });
+  const initPins1 = mult1.initialState.rooms[ROOM_ID].state.find(
+    (ev) => ev.type === 'm.room.pinned_events'
+  );
+  assert.deepEqual(initPins1.content.pinned, ['$root1']);
+
+  const delta1 = mult1.advance(200, startNow + 200);
+  const unpin1 = delta1.rooms[ROOM_ID].stateEvents.find((ev) => ev.type === 'm.room.pinned_events');
+  assert.deepEqual(unpin1.content.pinned, []);
+  const unpinCanvas1 = delta1.accountData.find((ev) => ev.type === 'io.mindroom.pinned_canvases');
+  assert.deepEqual(unpinCanvas1.content.canvases, []);
+
+  // K=2: warmup unpins copy k=1 (leaving copy k=0 pinned), then advance unpins copy k=0 -> []
+  const mult2 = createReplayMultiplier(bundle, {
+    multiplyThreads: 2,
+    multiplyRooms: 1,
+    speed: 1,
+    startNowMs: startNow,
+  });
+  const initPins2 = mult2.initialState.rooms[ROOM_ID].state.find(
+    (ev) => ev.type === 'm.room.pinned_events'
+  );
+  assert.deepEqual(initPins2.content.pinned.sort(), ['$root1', '$root1__r0_k1'].sort());
+  const warmupPin = mult2.initialState.warmupDeltas
+    .flatMap((d) => d.rooms[ROOM_ID]?.stateEvents ?? [])
+    .find((ev) => ev.type === 'm.room.pinned_events');
+  assert.deepEqual(warmupPin.content.pinned, ['$root1']);
+  const delta2 = mult2.advance(200, startNow + 200);
+  const unpin2 = delta2.rooms[ROOM_ID].stateEvents.find((ev) => ev.type === 'm.room.pinned_events');
+  assert.deepEqual(unpin2.content.pinned, []);
+});
+
+test('server: captured global account_data update arrives in incremental /sync and updates GET /account_data/{type}', async () => {
+  const bundle = makeFixtureBundle();
+  bundle.manifest.durationMs = 10_000;
+  bundle.snapshot.initialSync.account_data.events.push({
+    type: 'com.mindroom.preferences',
+    content: { theme: 'light' },
+  });
+  bundle.liveEntries = [
+    {
+      tauMs: 300,
+      response: {
+        account_data: {
+          events: [
+            { type: 'com.mindroom.preferences', content: { theme: 'dark', compact: true } },
+            { type: 'io.mindroom.pinned_canvases', content: { canvases: [] } },
+          ],
+        },
+        rooms: { join: {} },
+      },
+    },
+  ];
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 2,
+    multiplyRooms: 2,
+    speed: 1,
+  });
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+  const encUser = encodeURIComponent(VIEWER);
+
+  try {
+    const initRes = await fetch(`${srv.baseUrl}/_matrix/client/v3/sync?timeout=0`, {
+      headers: authHeaders,
+    });
+    const initBody = await initRes.json();
+    const initialPref = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/user/${encUser}/account_data/com.mindroom.preferences`,
+      { headers: authHeaders }
+    );
+    assert.deepEqual(await initialPref.json(), { theme: 'light' });
+
+    let since = initBody.next_batch;
+    const receivedAcc = [];
+    for (let i = 0; i < 6 && receivedAcc.length === 0; i += 1) {
+      const incRes = await fetch(
+        `${srv.baseUrl}/_matrix/client/v3/sync?since=${encodeURIComponent(since)}&timeout=1000`,
+        { headers: authHeaders }
+      );
+      const incBody = await incRes.json();
+      since = incBody.next_batch;
+      receivedAcc.push(...(incBody.account_data?.events ?? []));
+    }
+
+    const prefEvents = receivedAcc.filter((ev) => ev.type === 'com.mindroom.preferences');
+    assert.equal(prefEvents.length, 1, 'expected global account_data emitted once for k=0 only');
+    assert.deepEqual(prefEvents[0].content, { theme: 'dark', compact: true });
+
+    const canvasEvents = receivedAcc.filter((ev) => ev.type === 'io.mindroom.pinned_canvases');
+    assert.equal(canvasEvents.length, 1);
+    assert.deepEqual(canvasEvents[0].content, { canvases: [] });
+
+    // GET /account_data/{type} reflects the live update
+    const getPref = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/user/${encUser}/account_data/com.mindroom.preferences`,
+      { headers: authHeaders }
+    );
+    assert.equal(getPref.status, 200);
+    assert.deepEqual(await getPref.json(), { theme: 'dark', compact: true });
+
+    const getCanvases = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/user/${encUser}/account_data/io.mindroom.pinned_canvases`,
+      { headers: authHeaders }
+    );
+    assert.equal(getCanvases.status, 200);
+    assert.deepEqual(await getCanvases.json(), { canvases: [] });
+  } finally {
+    await srv.close();
+  }
+});
+
+test('capture: requires matching --device-id for live capture and refuses --out inside a git repo', async () => {
+  const parsed = parseCaptureArgs([
+    '--homeserver',
+    'http://127.0.0.1:8008',
+    '--device-id',
+    'DEDICATED_DEV',
+    '--out',
+    '/tmp/cap',
+    '--duration',
+    '10',
+  ]);
+  assert.equal(parsed.deviceId, 'DEDICATED_DEV');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-cap-safety-'));
+  let syncCalls = 0;
+  const srv = http.createServer((req, res) => {
+    const u = new URL(req.url ?? '/', 'http://127.0.0.1');
+    const send = (code, body) => {
+      res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    if (u.pathname === '/_matrix/client/v3/account/whoami') {
+      return send(200, { user_id: VIEWER, device_id: 'DEDICATED_DEV' });
+    }
+    if (u.pathname === '/_matrix/client/v3/sync') {
+      syncCalls += 1;
+      const body = { next_batch: `nb${syncCalls}`, rooms: { join: {} } };
+      if (u.searchParams.has('since')) {
+        setTimeout(() => send(200, body), 25);
+        return;
+      }
+      return send(200, body);
+    }
+    return send(404, { errcode: 'M_NOT_FOUND' });
+  });
+
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const { port } = srv.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. Live capture (duration > 0) without --device-id fails closed before any /sync
+    await assert.rejects(
+      () =>
+        runCapture({
+          homeserver: baseUrl,
+          token: 'tok',
+          out: path.join(dir, 'no-dev'),
+          duration: 0.2,
+        }),
+      /to-device.*--device-id|--device-id.*to-device/i
+    );
+    assert.equal(syncCalls, 0);
+
+    // 2. Live capture (duration > 0) with mismatched --device-id fails closed before any /sync
+    await assert.rejects(
+      () =>
+        runCapture({
+          homeserver: baseUrl,
+          token: 'tok',
+          deviceId: 'WRONG_DEV',
+          out: path.join(dir, 'wrong-dev'),
+          duration: 0.2,
+        }),
+      /does not match.*DEDICATED_DEV/
+    );
+    assert.equal(syncCalls, 0);
+
+    // 3. --out inside a git worktree/repo is refused before any network call or mkdir
+    const fakeRepo = path.join(dir, 'fake-repo');
+    fs.mkdirSync(fakeRepo, { recursive: true });
+    fs.writeFileSync(path.join(fakeRepo, '.git'), 'gitdir: /tmp/somewhere\n');
+    const repoOut = path.join(fakeRepo, 'nested', 'capture');
+    assert.equal(isInsideGitRepo(repoOut), true);
+    assert.equal(isInsideGitRepo(path.join(dir, 'outside')), false);
+    await assert.rejects(
+      () =>
+        runCapture({
+          homeserver: baseUrl,
+          token: 'tok',
+          deviceId: 'DEDICATED_DEV',
+          out: repoOut,
+          duration: 0,
+        }),
+      /git repository/i
+    );
+    assert.equal(fs.existsSync(repoOut), false);
+    assert.equal(syncCalls, 0);
+
+    // 4. Live capture with matching --device-id outside a git repo succeeds
+    const okOut = path.join(dir, 'live-ok');
+    const manifest = await runCapture({
+      homeserver: baseUrl,
+      token: 'tok',
+      deviceId: 'DEDICATED_DEV',
+      out: okOut,
+      duration: 0.08,
+    });
+    assert.equal(manifest.userId, VIEWER);
+    assert.ok(syncCalls >= 2, `expected initial + live /sync calls, got ${syncCalls}`);
+  } finally {
+    await new Promise((r) => srv.close(r));
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -1166,6 +1166,7 @@ type ExternalAccount = {
   homeserver: string;
   username: string;
   password: string;
+  accessToken?: string;
   room: string;
 };
 
@@ -1294,6 +1295,7 @@ const startReplaySession = async (captureDir: string): Promise<ReplaySession> =>
       homeserver: ready.url,
       username: ready.username,
       password: ready.password,
+      accessToken: ready.accessToken,
       room: ready.roomId,
     },
     driver,
@@ -1317,12 +1319,16 @@ const loopbackHomeserver = (homeserver = process.env.PERF_HOMESERVER ?? ''): str
   return homeserver;
 };
 
+const REPLAY_MEDIA_PATH_RE = /^\/_matrix\/(?:client\/v[13]\/media|media\/v[13])\//;
+
 const externalPage = async (
   browser: Browser,
   baseURL: string | undefined,
   account?: ExternalAccount
 ): Promise<Page> => {
   const homeserver = loopbackHomeserver(account?.homeserver);
+  const homeserverOrigin = new URL(homeserver).origin;
+  const replayAccessToken = account?.accessToken;
   // Not the fixtures' context: that one starts the agent stack and signs its tester in.
   const context = await browser.newContext({
     baseURL,
@@ -1336,6 +1342,20 @@ const externalPage = async (
     const url = new URL(route.request().url());
     if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
       await route.abort();
+      return;
+    }
+    if (
+      replayAccessToken &&
+      url.origin === homeserverOrigin &&
+      REPLAY_MEDIA_PATH_RE.test(url.pathname) &&
+      !route.request().headers()['authorization']
+    ) {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          authorization: `Bearer ${replayAccessToken}`,
+        },
+      });
       return;
     }
     if (url.pathname !== '/config.json') {
