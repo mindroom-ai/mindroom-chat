@@ -116,9 +116,7 @@ describe('MessageExtras', () => {
     expect(details[0]!.open).toBe(false);
     expect(details[1]!.open).toBe(true);
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it('does not reset details state on rerender', () => {
@@ -156,9 +154,7 @@ describe('MessageExtras', () => {
 
     expect(details?.open).toBe(false);
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it('keeps user-toggled details state when streaming edits change section content', () => {
@@ -220,9 +216,7 @@ describe('MessageExtras', () => {
     expect(details?.open).toBe(true);
     expect(container.textContent).toContain('final update');
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it('renders text/plain literally without markdown or HTML parsing', () => {
@@ -469,9 +463,7 @@ describe('MessageExtras', () => {
     expect(details?.open).toBe(false);
     expect(container.querySelector('p')?.textContent).toBe('streamed update');
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it('sanitizes malicious html sections while preserving sibling sections', () => {
@@ -601,9 +593,7 @@ describe('MessageExtras', () => {
     expect(sanitizeCustomHtmlSpy.mock.calls.length).toBe(markdownCallsAfterMount);
     expect(sanitizeExtraHtmlSpy.mock.calls.length).toBe(htmlCallsAfterMount);
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it('re-parses a section when its content changes', () => {
@@ -633,9 +623,7 @@ describe('MessageExtras', () => {
     expect(sanitizeExtraHtmlSpy.mock.calls.length).toBeGreaterThan(0);
     expect(container.textContent).toContain('second');
 
-    act(() => {
-      act(() => root?.unmount());
-    });
+    act(() => root?.unmount());
   });
 
   it.each([
