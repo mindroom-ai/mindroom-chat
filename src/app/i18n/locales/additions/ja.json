@@ -262,6 +262,13 @@
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
     },
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
     "deviceVerification": {
       "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     },

@@ -270,6 +270,13 @@
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
     },
+    "callout": {
+      "note": "Not",
+      "tip": "İpucu",
+      "important": "Önemli",
+      "warning": "Uyarı",
+      "caution": "Dikkat"
+    },
     "deviceVerification": {
       "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     },

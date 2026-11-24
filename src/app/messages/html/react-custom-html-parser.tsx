@@ -42,6 +42,7 @@ import {
 } from '../../rich-text/code/codeBlockLanguage';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { Callout, extractCallout } from '../../rich-text/Callout';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
@@ -768,7 +769,22 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </p>
           );
-        case 'blockquote':
+        case 'blockquote': {
+          const callout = extractCallout(children);
+          if (callout) {
+            const calloutProps = attributesToProps(withoutAttribute(attribs, 'cite'));
+            return (
+              <Callout
+                {...calloutProps}
+                type={callout.type}
+                className={classNames(css.MarginSpaced, calloutProps.className)}
+              >
+                {callout.bodyNodes.length > 0
+                  ? domToReact(callout.bodyNodes as DOMNode[], parserOptions)
+                  : undefined}
+              </Callout>
+            );
+          }
           return (
             <blockquote
               {...props}
@@ -777,6 +793,7 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </blockquote>
           );
+        }
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>

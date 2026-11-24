@@ -262,6 +262,13 @@
       "threadIn": "Utas di {{room}}",
       "messageElsewhere": "Pesan di ruang lain"
     },
+    "callout": {
+      "note": "Catatan",
+      "tip": "Tips",
+      "important": "Penting",
+      "warning": "Peringatan",
+      "caution": "Perhatian"
+    },
     "deviceVerification": {
       "acceptStalled": "Sesi lain tidak menjawab. Tutup ini dan mulai verifikasi lagi."
     },
