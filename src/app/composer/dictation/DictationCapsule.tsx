@@ -12,6 +12,7 @@ import type { DictationSnapshot } from './dictationSession';
 
 export type DictationCapsuleProps = {
   snapshot: DictationSnapshot;
+  sending?: boolean;
   onCancel: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -22,15 +23,20 @@ export type DictationCapsuleProps = {
   onDismissError: () => void;
 };
 
-const getScreenReaderStatusKey = (phase: DictationSnapshot['phase']) => {
+const getScreenReaderStatusKey = (phase: DictationSnapshot['phase'], sending: boolean) => {
   if (phase === 'requesting') return 'composer.dictation.statusStarting' as const;
   if (phase === 'paused') return 'composer.dictation.statusPaused' as const;
-  if (phase === 'finishing') return 'composer.dictation.statusFinishing' as const;
+  if (phase === 'finishing') {
+    return sending
+      ? ('composer.dictation.statusSending' as const)
+      : ('composer.dictation.statusFinishing' as const);
+  }
   return 'composer.dictation.statusListening' as const;
 };
 
 export function DictationCapsule({
   snapshot,
+  sending = false,
   onCancel,
   onPause,
   onResume,
@@ -116,7 +122,9 @@ export function DictationCapsule({
             </Text>
             <div className={css.RecoveryActions}>
               <Button size="300" radii="300" variant="Primary" onClick={onRetry}>
-                <Text size="B300">{t('composer.dictation.retry')}</Text>
+                <Text size="B300">
+                  {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
+                </Text>
               </Button>
               {hasPartialText && (
                 <Button
@@ -151,12 +159,15 @@ export function DictationCapsule({
   const paused = phase === 'paused';
   const finishing = phase === 'finishing';
   const requesting = phase === 'requesting';
-  const pauseDisabled = requesting || finishing || capReached;
-  const finishDisabled = requesting || finishing;
+  const cancelDisabled = sending;
+  const pauseDisabled = requesting || finishing || capReached || sending;
+  const finishDisabled = requesting || finishing || sending;
 
   let subtleStatus: string | undefined;
   if (finishing) {
-    subtleStatus = t('composer.dictation.statusFinishing');
+    subtleStatus = sending
+      ? t('composer.dictation.statusSending')
+      : t('composer.dictation.statusFinishing');
   } else if (capReached) {
     subtleStatus = t('composer.dictation.capReached');
   } else if (interrupted) {
@@ -181,6 +192,7 @@ export function DictationCapsule({
                 radii="300"
                 className={voiceCss.Control}
                 onClick={onCancel}
+                disabled={cancelDisabled}
                 aria-label={t('composer.dictation.cancel')}
               >
                 <Icon src={Icons.Cross} size="50" />
@@ -220,7 +232,7 @@ export function DictationCapsule({
             {(triggerRef) => (
               <IconButton
                 ref={triggerRef}
-                variant="Primary"
+                variant="SurfaceVariant"
                 size="300"
                 radii="300"
                 className={voiceCss.Control}
@@ -229,7 +241,7 @@ export function DictationCapsule({
                 aria-label={t('composer.dictation.finish')}
               >
                 {finishing ? (
-                  <Spinner size="50" variant="Primary" />
+                  <Spinner size="50" variant="Secondary" />
                 ) : (
                   <Icon src={Icons.Check} size="50" />
                 )}
@@ -238,7 +250,7 @@ export function DictationCapsule({
           </IconTooltip>
         </div>
         <span className={voiceCss.HiddenStatus} role="status">
-          {subtleStatus ?? t(getScreenReaderStatusKey(phase))}
+          {subtleStatus ?? t(getScreenReaderStatusKey(phase, sending))}
         </span>
       </Box>
       {subtleStatus && (

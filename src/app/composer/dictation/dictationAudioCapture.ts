@@ -187,6 +187,8 @@ export const createBrowserCaptureFactory =
         if (disposed) return;
         detachTrackEnded?.();
         detachTrackEnded = undefined;
+        stream?.getTracks().forEach((track) => track.stop());
+        stream = undefined;
         if (workletNode) {
           await new Promise<void>((resolve) => {
             const finishWait = () => {

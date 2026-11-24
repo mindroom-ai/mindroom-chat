@@ -94,7 +94,8 @@ type TranscribeRecord = {
 const serveDictationApi = async (
   context: BrowserContext,
   user: DisposableUser,
-  onTranscribe: (record: TranscribeRecord) => void
+  onTranscribe: (record: TranscribeRecord) => void,
+  resolveTranscript?: (record: TranscribeRecord) => Promise<string>
 ) => {
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
@@ -137,14 +138,18 @@ const serveDictationApi = async (
     }
     if (url.pathname === '/api/dictation/v1/transcribe') {
       const buf = request.postDataBuffer();
-      onTranscribe({
+      const record: TranscribeRecord = {
         roomId: url.searchParams.get('room_id'),
         contentType: request.headers()['content-type'] ?? '',
         bodyText: buf ? buf.toString('latin1') : '',
-      });
+      };
+      onTranscribe(record);
+      const text = resolveTranscript
+        ? await resolveTranscript(record)
+        : 'Ship the dictation feature today.';
       await route.fulfill({
         headers: CORS,
-        json: { text: 'Ship the dictation feature today.', seconds: 4.3 },
+        json: { text, seconds: 4.3 },
       });
       return;
     }
@@ -196,10 +201,10 @@ test('uploads a speech segment before Finish, inserts editable text, and makes n
     await expect(dictateButton).toBeVisible({ timeout: 30_000 });
     await dictateButton.click();
 
-    const finishButton = page.getByRole('button', { name: 'Finish dictation' });
+    const finishButton = page.getByRole('button', { name: 'Finish into composer' });
     await expect(finishButton).toBeVisible({ timeout: 15_000 });
-    // Send is blocked while dictating.
-    await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    // Direct Finish & Send is enabled on the composer Send button while dictating.
+    await expect(page.getByRole('button', { name: 'Finish and send' })).toBeEnabled();
 
     // Early segment upload must fire after the natural pause BEFORE Finish is clicked.
     await expect.poll(() => transcribeCalls.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
@@ -227,6 +232,83 @@ test('uploads a speech segment before Finish, inserts editable text, and makes n
 
     // Zero Matrix voice uploads occurred.
     expect(matrixMediaUploads).toBe(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('Finish and send survives immediate switch to another room while transcription is in flight', async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+
+  const user = await registerDisposableUser(`dict_send_${RUN}`, PASSWORD);
+  const roomAName = `Dictation A ${RUN}`;
+  const roomBName = `Dictation B ${RUN}`;
+  const roomAId = await createRoom(HOMESERVER, user.accessToken, { name: roomAName });
+  const roomBId = await createRoom(HOMESERVER, user.accessToken, { name: roomBName });
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    serviceWorkers: 'block',
+  });
+  await context.grantPermissions(['microphone']);
+  await context.addInitScript(installSpokenMicrophone, SPEECH_BASE64);
+
+  const transcribeCalls: TranscribeRecord[] = [];
+  let releaseTranscribe!: (text: string) => void;
+  const transcribeGate = new Promise<string>((resolve) => {
+    releaseTranscribe = resolve;
+  });
+
+  try {
+    await serveDictationApi(
+      context,
+      user,
+      (record) => transcribeCalls.push(record),
+      () => transcribeGate
+    );
+    const page = await context.newPage();
+
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: user.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(roomAId)}`);
+
+    const composer = page.locator('[data-editable-name="RoomInput"]');
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+
+    const dictateButton = page.getByRole('button', { name: 'Dictate' });
+    await expect(dictateButton).toBeVisible({ timeout: 30_000 });
+    await dictateButton.click();
+
+    const finishAndSend = page.getByRole('button', { name: 'Finish and send' });
+    await expect(finishAndSend).toBeEnabled({ timeout: 15_000 });
+    // Wait until a speech segment is actively in flight to /transcribe.
+    await expect.poll(() => transcribeCalls.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+
+    // Click Finish and send, then immediately switch to Room B before /transcribe resolves.
+    await finishAndSend.click();
+    await page.getByRole('link', { name: new RegExp(roomBName) }).click();
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(roomBId);
+    // Dictation ownership was released immediately, so Room B can dictate right away.
+    await expect(page.getByRole('button', { name: 'Dictate' })).toBeEnabled({ timeout: 15_000 });
+
+    // Resolve /transcribe now that we are in Room B.
+    const sentText = 'Delivered to room A after switch.';
+    releaseTranscribe(sentText);
+
+    // Room B stays untouched.
+    await page.waitForTimeout(1000);
+    await expect(page.getByText(sentText)).toHaveCount(0);
+    await expect(composer).not.toContainText(sentText);
+
+    // Switch back to Room A and verify the dictated message arrived in Room A.
+    await page.getByRole('link', { name: new RegExp(roomAName) }).click();
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(roomAId);
+    await expect(page.getByText(sentText)).toBeVisible({ timeout: 30_000 });
   } finally {
     await context.close();
   }

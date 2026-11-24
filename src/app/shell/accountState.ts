@@ -62,6 +62,7 @@ import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
 import { detachedGrantErrorAtom } from '../members/invite/moderatorInvite';
+import { detachedDictationErrorAtom } from '../composer/roomInputDrafts';
 import { userDirectoryCacheAtom } from '../members/userDirectoryCache';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
 import { stopVoiceAudioPlayback } from '../messages/content/voice/voiceAudioPlayback';
@@ -120,6 +121,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(subagentsPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(detachedGrantErrorAtom),
+  toInitial(detachedDictationErrorAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),

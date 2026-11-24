@@ -427,12 +427,13 @@ describe('useRoomInputDictation', () => {
     });
     expect(btn.disabled).toBe(false);
 
-    // Starting dictation claims activeDictationAtom and sets blocksSubmit.
+    // Starting dictation claims activeDictationAtom and enables direct Finish & Send.
     await act(async () => {
       fireEvent.click(btn);
     });
     expect(store.get(activeDictationAtom)).toBe('composer-1');
-    expect(getFeature().blocksSubmit).toBe(true);
+    expect(getFeature().canSend).toBe(true);
+    expect(getFeature().blocksSubmit).toBe(false);
 
     // Finishing inserts text atomically and releases activeDictationAtom.
     await act(async () => {
@@ -715,5 +716,74 @@ describe('useRoomInputDictation', () => {
       outside.remove();
       focusSpy.mockRestore();
     }
+  });
+
+  it('gates canSend by phase and local-echo thread and detaches without discarding on unmount', async () => {
+    const editor = makeSlateEditor('Draft');
+    Transforms.select(editor, { path: [0, 0], offset: 5 });
+    const store = createStore();
+    const created = [createMockSession(), createMockSession()];
+    let index = 0;
+    let latest!: RoomInputDictationFeature;
+    function Harness({ threadId }: { threadId?: string }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      latest = useRoomInputDictation({
+        editor,
+        roomId: '!room:example.org',
+        threadId,
+        ownerKey: 'composer-1',
+        rootRef,
+        createSession: () => created[index++]!.session,
+      });
+      return <div ref={rootRef}>{latest.capsule}{latest.button}</div>;
+    }
+    const view = render(
+      <Provider store={store}>
+        <Harness />
+      </Provider>
+    );
+
+    await act(async () => {
+      expect(latest.start()).toBe(true);
+    });
+    expect(latest.canSend).toBe(true);
+    expect(latest.blocksSubmit).toBe(false);
+
+    for (const phase of ['requesting', 'finishing', 'failed'] as const) {
+      act(() => created[0]!.setSnap({ phase }));
+      expect(latest.canSend).toBe(false);
+      expect(latest.blocksSubmit).toBe(true);
+      expect(latest.getLiveStatus()).toBe('blocked');
+    }
+
+    act(() => created[0]!.setSnap({ phase: 'paused' }));
+    expect(latest.canSend).toBe(true);
+    view.rerender(
+      <Provider store={store}>
+        <Harness threadId="~!room:example.org:txn-1" />
+      </Provider>
+    );
+    expect(latest.canSend).toBe(false);
+    expect(latest.blocksSubmit).toBe(true);
+    expect(latest.detachForSend()).toBeUndefined();
+
+    view.rerender(
+      <Provider store={store}>
+        <Harness />
+      </Provider>
+    );
+    let detached: ReturnType<RoomInputDictationFeature['detachForSend']>;
+    act(() => {
+      detached = latest.detachForSend();
+    });
+    expect(detached!.session).toBe(created[0]!.session);
+    expect(detached!.savedSelection).toEqual({
+      anchor: { path: [0, 0], offset: 5 },
+      focus: { path: [0, 0], offset: 5 },
+    });
+    // Second synchronous detach hits the fresh idle replacement session.
+    expect(latest.detachForSend()).toBeUndefined();
+    view.unmount();
+    expect(created[0]!.session.discard).not.toHaveBeenCalled();
   });
 });
