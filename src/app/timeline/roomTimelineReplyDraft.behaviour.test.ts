@@ -20,7 +20,7 @@ const fakeMessage = ({ content, wireContent = {}, sender, threadRootId }: FakeMe
     getContent: () => content,
     getWireContent: () => wireContent,
     getSender: () => sender,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const timelineSet = { relations: {} };
 
@@ -28,7 +28,7 @@ const fakeRoom = (message: MatrixEvent) =>
   ({
     findEventById: (eventId: string) => (eventId === '$message' ? message : undefined),
     getUnfilteredTimelineSet: () => timelineSet,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const canvasNotice = (title?: string) => ({
   msgtype: 'm.notice',

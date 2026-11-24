@@ -26,9 +26,8 @@ describe('MindRoom local settings storage', () => {
   });
 
   it('migrates v1 implicit homeserver scope while preserving explicit all-room opt-in', async () => {
-    const { loadPrefetchSettings, migratePrefetchSettingsStorage } = await import(
-      './prefetchSettingsStorage'
-    );
+    const { loadPrefetchSettings, migratePrefetchSettingsStorage } =
+      await import('./prefetchSettingsStorage');
     values.set(
       'mindroomSettings',
       JSON.stringify({ v: 1, prefetchScope: 'my-server', prefetchDepth: 2000 })

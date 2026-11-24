@@ -63,7 +63,7 @@ const mockStyles = (entries: Array<[Element, Partial<CSSStyleDeclaration>]>) => 
   vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
     const p = map.get(el) as Record<PropertyKey, unknown> | undefined;
     return p
-      ? new Proxy(real(el), { get: (t, k, r) => (k in p ? p[k] : Reflect.get(t, k, r)) })
+      ? new Proxy(real(el), { get: (t, k) => (k in p ? p[k] : Reflect.get(t, k, t)) })
       : real(el);
   });
 };

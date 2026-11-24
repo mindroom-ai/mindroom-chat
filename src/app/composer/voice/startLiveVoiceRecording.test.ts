@@ -5,15 +5,15 @@ import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
 import {
-  discardLiveVoiceRecording,
-  endVoiceRecordingsOfAccount,
-  liveVoiceRecordingAtom,
-  parkLiveVoiceRecording,
-} from './liveVoiceRecording';
+  discardLiveCapture,
+  endLiveCapturesOfAccount,
+  liveCaptureAtom,
+  parkLiveCapture,
+} from '../capture/liveCapture';
 import type { DesktopBridge, DesktopShellEvent } from '../../lib/desktopBridge';
 import { watchDesktopWindowHidden } from '../../native/desktopShellLifecycle';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
-import { clearVoiceRecordings, recoverVoiceRecording } from './voiceRecordingJournal';
+import { clearCaptureJournal, recoverVoiceRecording } from '../capture/captureJournal';
 
 // The account's live recording against the real journal: what each way of ending it leaves on
 // disk. An account switch keeps the record for that account; sign-out and Discard delete it.
@@ -82,7 +82,7 @@ beforeEach(() => {
   vi.stubGlobal('navigator', {
     mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) },
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
         if (held.has(name)) return callback(null);
         held.add(name);
         try {
@@ -96,7 +96,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await clearVoiceRecordings(USER);
+  await clearCaptureJournal(USER);
   vi.unstubAllGlobals();
 });
 
@@ -133,9 +133,9 @@ const recoverable = async (): Promise<File[]> => {
 it('keeps the recording on disk, unlocked, through an account switch; sign-out deletes it', async () => {
   const store = await record();
 
-  endVoiceRecordingsOfAccount(store);
+  endLiveCapturesOfAccount(store);
   expect(track.stop).toHaveBeenCalledOnce();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
   expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
   // The stopped recorder hands over what it still held, then says it stopped.
   MockMediaRecorder.latest.emit(' to its end');
@@ -144,13 +144,13 @@ it('keeps the recording on disk, unlocked, through an account switch; sign-out d
   expect(await (await recoverable())[0]!.text()).toBe('voice to its end');
 
   // What signing out runs (account/lifecycle/sessionCleanup.ts).
-  await clearVoiceRecordings(USER);
+  await clearCaptureJournal(USER);
   expect(await stored()).toEqual({ recordings: 0, chunks: 0 });
 });
 
 it('deletes the disk copy on a confirmed Discard', async () => {
   const store = await record();
-  void discardLiveVoiceRecording(store);
+  void discardLiveCapture(store);
   expect(track.stop).toHaveBeenCalledOnce();
   await vi.waitFor(async () => expect(await stored()).toEqual({ recordings: 0, chunks: 0 }));
 });
@@ -158,7 +158,7 @@ it('deletes the disk copy on a confirmed Discard', async () => {
 it('parks a recording that stops on its own, on disk and locked until it is sent', async () => {
   const store = await record();
   MockMediaRecorder.latest.stopOnItsOwn();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
   const parked = store.get(pendingVoiceSendDraftAtom);
   expect(parked).toMatchObject({ recovered: true, context });
   expect(await parked?.file.text()).toBe('voice');
@@ -173,11 +173,11 @@ it('leaves no recording behind when one still asking for the microphone is parke
   });
   const store = createStore();
   void startLiveVoiceRecording(store, context);
-  expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+  expect(store.get(liveCaptureAtom)).toBeDefined();
 
   // The sign-in pages park it (Add account): no composer is left a capsule of nothing.
-  parkLiveVoiceRecording(store);
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  parkLiveCapture(store);
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
 });
 
 it('parks the live voice recording when the desktop shell emits window-hidden', async () => {
@@ -204,17 +204,17 @@ it('parks the live voice recording when the desktop shell emits window-hidden', 
   Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
 
   const store = createStore();
-  const stop = watchDesktopWindowHidden(() => parkLiveVoiceRecording(store));
+  const stop = watchDesktopWindowHidden(() => parkLiveCapture(store));
   try {
     expect(await startLiveVoiceRecording(store, context)).toBe(true);
     MockMediaRecorder.latest.emit('desktop-hidden-audio');
-    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+    expect(store.get(liveCaptureAtom)).toBeDefined();
 
     shellListener?.({ type: 'window-hidden' });
     MockMediaRecorder.latest.stopOnItsOwn();
 
     expect(track.stop).toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     const parked = store.get(pendingVoiceSendDraftAtom);
     expect(parked).toMatchObject({ recovered: true, context });
     expect(await parked?.file.text()).toBe('desktop-hidden-audio');

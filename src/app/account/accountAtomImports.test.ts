@@ -50,7 +50,7 @@ describe('atoms the account state test follows', () => {
 
   it.each([
     "import { atom } from 'jotai';\n\nexport const a = atom(1);",
-    "import { atomFamily, selectAtom } from 'jotai/utils';\n\nexport const f = atomFamily((id: string) => selectAtom(base(id), (v) => v));\ndeclare const base: (id: string) => never;",
+    "import { atomFamily } from 'jotai-family';\nimport { selectAtom } from 'jotai/utils';\n\nexport const f = atomFamily((id: string) => selectAtom(base(id), (v) => v));\ndeclare const base: (id: string) => never;",
   ])(
     'allows jotai atom, keyed families and derived atoms: %s',
     async (source) => {

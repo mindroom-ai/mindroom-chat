@@ -19,7 +19,7 @@ vi.mock('./RecoveryUnlockDialog', () => ({ RecoveryUnlockDialog: () => <div>unlo
 vi.mock('focus-trap-react', async () => {
   const { Component } = await import('react');
   return {
-    default: class FocusTrap extends Component<{
+    FocusTrap: class FocusTrap extends Component<{
       children: React.ReactNode;
       focusTrapOptions: { onDeactivate: () => void };
     }> {

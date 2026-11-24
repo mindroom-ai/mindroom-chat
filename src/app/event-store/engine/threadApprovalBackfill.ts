@@ -35,8 +35,7 @@ export const enqueueThreadApprovalBackfill = (
       const repairedEventIds: string[] = [];
       let decryptionFailed = false;
       const room = mx.getRoom(roomId);
-      if (!room)
-        return { events: collected, repairedEventIds, error: 'unavailable' };
+      if (!room) return { events: collected, repairedEventIds, error: 'unavailable' };
       const mapEvent = createPreferLiveEventMapper(room, mx.getEventMapper({ decrypt: false }));
       const eventType = room.hasEncryptionStateEvent() ? null : MINDROOM_TOOL_APPROVAL_EVENT;
       const fetchPages = async (target: string, relation: RelationType): Promise<MatrixEvent[]> => {

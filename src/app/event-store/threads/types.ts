@@ -114,11 +114,7 @@ export type ThreadParticipantViewModel = {
 };
 
 export type CompactThreadAttentionState =
-  | 'needs-attention'
-  | 'waiting'
-  | 'streaming'
-  | 'resolved'
-  | 'idle';
+  'needs-attention' | 'waiting' | 'streaming' | 'resolved' | 'idle';
 
 export type CompactThreadCardViewModel = {
   id: ThreadId;

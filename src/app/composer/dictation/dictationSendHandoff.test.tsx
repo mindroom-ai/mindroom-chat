@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { useRef } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { createEditor, Node, Transforms, type Descendant, type Editor } from 'slate';
@@ -11,14 +11,18 @@ import { threadModelContent } from '../../matrix/protocol/threadModel';
 import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { SlashCommand } from '../commands/useCommands';
 import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
-import type { StartRoomInputSendSessionOptions } from '../useRoomInputSendSessionController';
 import {
-  activeDictationAtom,
+  useRoomInputSendSessionController,
+  type StartRoomInputSendSessionOptions,
+} from '../useRoomInputSendSessionController';
+import { liveCaptureAtom } from '../capture/liveCapture';
+import {
   detachedDictationErrorAtom,
   detachedDictationSendsAtom,
   forgetComposerStateOfSession,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
+  roomUploadAtomFamily,
   type IReplyDraft,
 } from '../roomInputDrafts';
 import { createBrowserCaptureFactory } from './dictationAudioCapture';
@@ -41,12 +45,21 @@ const mocks = vi.hoisted(() => ({
   dictationServer: {
     available: true,
     confirmed: true,
+    apiUrl: 'https://mr.test',
     sessions: {
       baseUrl: 'https://mr.test',
       getToken: vi.fn(async () => 'tok'),
       invalidate: vi.fn(),
     },
   },
+  deleteCapture: vi.fn(async (_id: string) => undefined),
+  releaseCapture: vi.fn((_id: string) => undefined),
+}));
+
+vi.mock('../capture/captureJournal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/captureJournal')>()),
+  deleteCapture: (id: string) => mocks.deleteCapture(id),
+  releaseCapture: (id: string) => mocks.releaseCapture(id),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -85,9 +98,12 @@ const makeDoc = (text = ''): Descendant[] => [
 const readEditorText = (editor: Editor): string =>
   editor.children.map((n) => Node.string(n)).join('\n');
 const makeRoom = (roomId = '!room:example.org', name = 'General'): Room =>
-  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] } as unknown as Room);
+  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] }) as unknown as Room;
 
-const makeMockSession = (initialPhase: DictationSnapshot['phase'] = 'recording') => {
+const makeMockSession = (
+  initialPhase: DictationSnapshot['phase'] = 'recording',
+  journalId?: string
+) => {
   const listeners = new Set<() => void>();
   let snap: DictationSnapshot = {
     phase: initialPhase,
@@ -101,6 +117,8 @@ const makeMockSession = (initialPhase: DictationSnapshot['phase'] = 'recording')
     previewText: '',
     capReached: false,
     interrupted: false,
+    recovered: false,
+    hasClient: true,
   };
   const setSnap = (patch: Partial<DictationSnapshot>) => {
     snap = { ...snap, ...patch };
@@ -136,9 +154,15 @@ const makeMockSession = (initialPhase: DictationSnapshot['phase'] = 'recording')
     }),
     takePartialText: vi.fn(() => {
       setSnap({ phase: 'idle' });
-      return partial;
+      return { text: partial, ...(journalId ? { journalId } : {}) };
     }),
-    discard: vi.fn(() => setSnap({ phase: 'idle' })),
+    park: vi.fn(),
+    reset: vi.fn(() => setSnap({ phase: 'idle' })),
+    discard: vi.fn(async () => setSnap({ phase: 'idle' })),
+    attachClient: vi.fn(),
+    hasClient: vi.fn(() => true),
+    getOriginApiUrl: vi.fn(() => undefined),
+    getJournalId: vi.fn(() => journalId),
     clearError: vi.fn(() => setSnap({ errorMessage: undefined })),
   };
 
@@ -236,6 +260,13 @@ const makeStartInput = (
 
 beforeEach(() => {
   mocks.sessionsList = [{ userId: '@alice:example.org' }];
+  mocks.deleteCapture.mockClear();
+  mocks.releaseCapture.mockClear();
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+    this: HTMLElement
+  ) {
+    return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+  });
 });
 
 afterEach(() => cleanup());
@@ -339,8 +370,6 @@ describe('dictationSendHandoff', () => {
     );
     const { session, resolveFinish } = makeMockSession();
     const keyA = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadA');
-    store.set(activeDictationAtom, `${keyA}:view-1`);
-
     handoffComposerDictationSend({
       store,
       mx: { getRoom: vi.fn(() => room) } as unknown as MatrixClient,
@@ -351,7 +380,6 @@ describe('dictationSendHandoff', () => {
       threadId: '$threadA',
       threadingEnabled: true,
       ownerKey: keyA,
-      ownershipKey: `${keyA}:view-1`,
       draftKey: keyA,
       composerContext: { roomId: room.roomId, threadId: '$threadA' },
       session,
@@ -373,22 +401,22 @@ describe('dictationSendHandoff', () => {
     });
 
     expect(session.finish).toHaveBeenCalledTimes(1);
-    expect(store.get(activeDictationAtom)).toBeUndefined();
     expect(store.get(detachedDictationSendsAtom).get(keyA)?.status).toBe('sending');
     expect(access.enroll).toHaveBeenCalledWith([fileItem]);
     expect(uploadItem).toHaveBeenCalledWith(fileItem);
     expect(resetComposer).toHaveBeenCalledTimes(1);
     expect(stopTyping).toHaveBeenCalledTimes(1);
 
-    // Thread B immediately claims dictation while Thread A finishes in background.
-    store.set(activeDictationAtom, 'thread-B');
+    // Thread B immediately starts another live dictation while Thread A finishes in background.
+    const threadBSession = makeMockSession('recording').session;
+    store.set(liveCaptureAtom, { kind: 'dictation', session: threadBSession });
     await act(async () => {
       resolveFinish({ status: 'completed', text: 'check this photo' });
       await Promise.resolve();
     });
 
     expect(store.get(detachedDictationSendsAtom).size).toBe(0);
-    expect(store.get(activeDictationAtom)).toBe('thread-B');
+    expect(store.get(liveCaptureAtom)).toEqual({ kind: 'dictation', session: threadBSession });
     const call = startSendSession.mock.calls[0]![0]!;
     expect(call.textContent?.body).toContain('check this photo');
     expect(call.textContent?.formatted_body).toContain('<strong>check this photo</strong>');
@@ -560,7 +588,30 @@ describe('dictationSendHandoff', () => {
       });
       await Promise.resolve();
     });
+    // Clicking Discard on a detached failed bar opens DiscardCaptureDialog first.
     fireEvent.click(screen.getByText('composer.dictation.discard'));
+    const confirmDialog = screen.getByRole('dialog');
+    expect(s3.session.discard).not.toHaveBeenCalled();
+    // Cancelling leaves the failed bar intact.
+    fireEvent.click(
+      within(confirmDialog).getByRole('button', {
+        name: 'mindroomUi.voice.voiceRecorderDialog.cancel',
+      })
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(store.get(detachedDictationSendsAtom).get(keyA)?.status).toBe('failed');
+
+    // Confirming Discard awaits session.discard() and restores original draft/reply/attachments.
+    fireEvent.click(screen.getByText('composer.dictation.discard'));
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'mindroomUi.voice.voiceRecorderDialog.discard',
+        })
+      );
+      await Promise.resolve();
+    });
+    expect(s3.session.discard).toHaveBeenCalledTimes(1);
     expect(readEditorText(editor2)).toBe('Original draft');
     expect(restoreReply).toHaveBeenCalledWith(replyDraft);
     expect(restoreAttachments).toHaveBeenCalledWith(room.roomId, [fileItem]);
@@ -569,11 +620,11 @@ describe('dictationSendHandoff', () => {
     notice.unmount();
   });
 
-  it('aborts on account switch, restores pre-existing draft to old account only, and sends nothing', async () => {
+  it('aborts on account switch by resetting and releasing (not deleting) journal, restoring draft to old account only', async () => {
     const store = createStore();
     const room = makeRoom();
     const key = getRoomInputDraftKey('@alice:example.org', room.roomId);
-    const s = makeMockSession();
+    const s = makeMockSession('recording', 'journal-switch');
     const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
       async () => undefined
     );
@@ -589,15 +640,24 @@ describe('dictationSendHandoff', () => {
     );
 
     forgetComposerStateOfSession(store);
-    expect(s.session.discard).toHaveBeenCalledTimes(1);
+    expect(s.session.reset).toHaveBeenCalledTimes(1);
+    expect(s.session.discard).not.toHaveBeenCalled();
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
     expect(store.get(detachedDictationSendsAtom).size).toBe(0);
     expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(makeDoc('Saved before switch'));
 
     await act(async () => {
-      s.resolveFinish({ status: 'completed', text: 'should never send' });
+      s.resolveFinish({
+        status: 'completed',
+        text: 'should never send',
+        journalId: 'journal-switch',
+      });
       await Promise.resolve();
     });
     expect(startSendSession).not.toHaveBeenCalled();
+    expect(s.session.discard).not.toHaveBeenCalled();
+    expect(mocks.releaseCapture).toHaveBeenCalledWith('journal-switch');
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
   });
 
   it('handles no-speech, existing text, acting/unknown commands, Home ask, and non-collapsed selection', async () => {
@@ -1095,5 +1155,322 @@ describe('dictationSendHandoff', () => {
     expect(restoreReplyDraft).toHaveBeenCalledWith(replyDraft);
     expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
     notice.unmount();
+  });
+
+  it('retains journal across transcription and retries, deleting only after send, fallback save, partial insert, or confirmed discard', async () => {
+    const store = createStore();
+    const room = makeRoom('!r1:example.org', 'Ops');
+    const key = getRoomInputDraftKey('@alice:example.org', room.roomId, '$thread1');
+
+    // 1. Journal stays intact across failure + retry AND even after startSendSession resolves early
+    // (pending attachment / queued send), deleting only when onTextConsumed fires.
+    let capturedOnTextConsumed: (() => void) | undefined;
+    const startSendSession = vi.fn(async (opts?: StartRoomInputSendSessionOptions) => {
+      capturedOnTextConsumed = opts?.onTextConsumed;
+    });
+    const sSend = makeMockSession('recording', 'journal-send');
+    const entry = startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sSend.session,
+        ownerKey: key,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
+    );
+
+    await act(async () => {
+      sSend.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 0,
+        errorMessage: '503',
+      });
+      await Promise.resolve();
+    });
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    await act(async () => {
+      store.get(detachedDictationSendsAtom).get(entry.ownerKey)!.retryAndSend();
+      sSend.resolveRetry({
+        status: 'completed',
+        text: 'Ship it',
+        journalId: 'journal-send',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(startSendSession).toHaveBeenCalledTimes(1);
+    // startSendSession already resolved, yet journal MUST stay alive until onTextConsumed fires!
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    capturedOnTextConsumed?.();
+    expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-send');
+
+    // 2. If startSendSession throws before send, fallback draft is restored BEFORE journal deletion.
+    mocks.deleteCapture.mockClear();
+    const restoreText = vi.fn();
+    const sThrow = makeMockSession('recording', 'journal-throw');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      startDetachedDictationSend(
+        makeStartInput({
+          store,
+          room,
+          session: sThrow.session,
+          ownerKey: key,
+          docSnapshot: makeDoc('Draft'),
+          sessions: {
+            startSendSession: vi.fn(async () => {
+              throw new Error('send exploded');
+            }),
+            restoreText,
+          },
+        })
+      );
+      await act(async () => {
+        sThrow.resolveFinish({
+          status: 'completed',
+          text: 'extra',
+          journalId: 'journal-throw',
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(restoreText).toHaveBeenCalledTimes(1);
+      expect(mocks.deleteCapture).toHaveBeenCalledWith('journal-throw');
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    // 3. insertPartial deletes journal only after restoring merged partial text.
+    mocks.deleteCapture.mockClear();
+    const sPartial = makeMockSession('recording', 'journal-partial');
+    const partialEntry = startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sPartial.session,
+        ownerKey: key,
+        docSnapshot: makeDoc('Base'),
+      })
+    );
+    await act(async () => {
+      sPartial.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 1,
+        errorMessage: 'Down',
+      });
+      await Promise.resolve();
+    });
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+    store.get(detachedDictationSendsAtom).get(partialEntry.ownerKey)!.insertPartial();
+    expect(mocks.deleteCapture).toHaveBeenCalledWith('journal-partial');
+  });
+
+  it('keeps dictation journal alive through real useRoomInputSendSessionController pending upload until text sends or fallback restores', async () => {
+    const store = createStore();
+    const roomId = '!attach:example.org';
+    const sendMessage = vi.fn(async (_r: string, _c: unknown, txnId: string) => ({
+      event_id: `$ev-${txnId}`,
+    }));
+    const room = {
+      roomId,
+      name: 'Attach Room',
+      hasEncryptionStateEvent: () => false,
+      getEventForTxnId: () => undefined,
+      getMembers: () => [],
+      currentState: { getStateEvents: () => [] },
+    } as unknown as Room;
+    let txnCounter = 0;
+    const mx = {
+      getRoom: (id: string) => (id === roomId ? room : null),
+      makeTxnId: () => `txn-${(txnCounter += 1)}`,
+      sendMessage,
+    } as unknown as MatrixClient;
+
+    const file = new File(['pdf'], 'spec.pdf', { type: 'application/pdf' });
+    const fileItem: TUploadItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    let currentUploads = [
+      {
+        file,
+        status: UploadStatus.Loading,
+        promise: new Promise<{ content_uri: string }>(() => undefined),
+        progress: { loaded: 0, total: file.size },
+      },
+    ];
+    let staged: TUploadItem[] = [fileItem];
+    let enrolled: TUploadItem[] = [];
+    const listeners = new Set<() => void>();
+    const access: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged: [...staged],
+        enrolled: [...enrolled],
+        uploads: currentUploads as never,
+      }),
+      enroll: (items) => {
+        const next = items.filter((item) => !enrolled.some((e) => e.file === item.file));
+        enrolled = [...enrolled, ...next];
+        staged = staged.filter((item) => !next.some((e) => e.file === item.file));
+      },
+      clearEnrollment: (files) => {
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+      },
+      append: (_r, items) => {
+        staged = [...staged, ...items];
+      },
+      remove: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+      },
+      release: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+      },
+      protectPasteItems: () => () => undefined,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    let controller!: ReturnType<typeof useRoomInputSendSessionController>;
+    const restoreFallbackForRoom = vi.fn();
+
+    function SendControllerHost() {
+      controller = useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        clearReplyDraft: vi.fn(),
+        editor,
+        sendTypingStatus: vi.fn(),
+        attachments: access,
+        buildUploadMessageContent: async (item, mxc) => ({
+          msgtype: 'm.file',
+          body: item.file.name,
+          url: mxc,
+        }),
+        restoreComposerFallbackForRoom: restoreFallbackForRoom,
+      });
+      return null;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <SendControllerHost />
+      </Provider>
+    );
+
+    const key = getRoomInputDraftKey('@alice:example.org', roomId);
+    const sAttach = makeMockSession('recording', 'journal-pending-upload');
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        mx,
+        room,
+        session: sAttach.session,
+        ownerKey: key,
+        composerContext: { roomId, threadId: undefined },
+        sendContext: {
+          roomId,
+          room,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        stagedSnapshot: [fileItem],
+        tracksEnrollment: true,
+        attachments: access,
+        sessions: {
+          startSendSession: controller.startSendSession,
+          restoreText: controller.restoreText,
+        },
+      })
+    );
+    access.enroll([fileItem]);
+
+    await act(async () => {
+      sAttach.resolveFinish({
+        status: 'completed',
+        text: 'Caption waiting for PDF',
+        journalId: 'journal-pending-upload',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // startSendSession resolved while upload is still loading -> journal MUST NOT be deleted yet!
+    expect(controller.hasActiveSendSession()).toBe(true);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    // Finish upload -> Matrix receives file then caption -> journal IS deleted!
+    currentUploads = [
+      { file, status: UploadStatus.Success, mxc: 'mxc://mindroom/spec.pdf' } as never,
+    ];
+    await act(async () => {
+      store.set(roomUploadAtomFamily(file), {
+        status: UploadStatus.Success,
+        mxc: 'mxc://mindroom/spec.pdf',
+      } as never);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'Caption waiting for PDF' });
+    expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-pending-upload');
+
+    // Second send where Matrix sendMessage rejects without local echo -> fallback restored AND journal deleted!
+    mocks.deleteCapture.mockClear();
+    sendMessage.mockRejectedValueOnce(new Error('network down'));
+    const sFailText = makeMockSession('recording', 'journal-fallback-restore');
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        mx,
+        room,
+        session: sFailText.session,
+        ownerKey: key,
+        composerContext: { roomId, threadId: undefined },
+        sendContext: {
+          roomId,
+          room,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        stagedSnapshot: [],
+        tracksEnrollment: false,
+        attachments: access,
+        sessions: {
+          startSendSession: controller.startSendSession,
+          restoreText: controller.restoreText,
+        },
+      })
+    );
+    await act(async () => {
+      sFailText.resolveFinish({
+        status: 'completed',
+        text: 'Must survive failed send',
+        journalId: 'journal-fallback-restore',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() =>
+      expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-fallback-restore')
+    );
+    expect(editor.children.map((n) => Node.string(n)).join('\n')).toBe('Must survive failed send');
+    view.unmount();
   });
 });

@@ -48,10 +48,10 @@ const deferred = () => {
 };
 
 const journal = vi.hoisted(() => ({
-  deleteVoiceRecording: vi.fn(async () => undefined),
-  releaseVoiceRecording: vi.fn(),
+  deleteCapture: vi.fn(async () => undefined),
+  releaseCapture: vi.fn(),
 }));
-vi.mock('./voiceRecordingJournal', () => journal);
+vi.mock('../capture/captureJournal', () => journal);
 
 it('deletes journal audio only after a successful send, or on discard', async () => {
   const store = createDraftStore();
@@ -64,7 +64,7 @@ it('deletes journal audio only after a successful send, or on discard', async ()
     onFailure,
     sameAccount: () => true,
   });
-  expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
+  expect(journal.deleteCapture).not.toHaveBeenCalled();
   expect(store.read()?.recordingId).toBe(recording.recordingId);
 
   const gate = deferred();
@@ -74,27 +74,27 @@ it('deletes journal audio only after a successful send, or on discard', async ()
     sendRecording: () => gate.promise,
     onFailure,
   });
-  expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
+  expect(journal.deleteCapture).not.toHaveBeenCalled();
   gate.resolve();
   expect(await retry).toBe(true);
-  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+  expect(journal.deleteCapture).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
 
-  journal.deleteVoiceRecording.mockClear();
+  journal.deleteCapture.mockClear();
   await controller.sendInitial(recording, context, {
     sendRecording: () => undefined,
     onFailure,
     sameAccount: () => true,
   });
-  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
-  journal.deleteVoiceRecording.mockClear();
+  expect(journal.deleteCapture).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+  journal.deleteCapture.mockClear();
   store.write({ ...recording, context, recovered: true });
   await controller.discardPending();
-  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+  expect(journal.deleteCapture).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
   expect(store.read()).toBeUndefined();
 });
 
 it('keeps the disk copy of a failed send, unlocked, once its account was left', async () => {
-  journal.deleteVoiceRecording.mockClear();
+  journal.deleteCapture.mockClear();
   const store = createDraftStore();
   const recording = { ...createRecording(), recordingId: 'journal-id' };
   await createVoiceSendDraftController(store).sendInitial(recording, createContext(), {
@@ -103,12 +103,12 @@ it('keeps the disk copy of a failed send, unlocked, once its account was left', 
     sameAccount: () => false,
   });
   expect(store.read()).toBeUndefined();
-  expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
-  expect(journal.releaseVoiceRecording).toHaveBeenCalledExactlyOnceWith('journal-id');
+  expect(journal.deleteCapture).not.toHaveBeenCalled();
+  expect(journal.releaseCapture).toHaveBeenCalledExactlyOnceWith('journal-id');
 });
 
 it('parks nothing when a retry fails after its account was left', async () => {
-  journal.releaseVoiceRecording.mockClear();
+  journal.releaseCapture.mockClear();
   const draft = { ...createDraft(), recovered: true, recordingId: 'journal-id' };
   const store = createDraftStore(draft);
   const gate = deferred();
@@ -126,7 +126,7 @@ it('parks nothing when a retry fails after its account was left', async () => {
   expect(await retry).toBe(false);
   // Not written back under the next account, pinned to the room of that Retry.
   expect(store.read()).toBeUndefined();
-  expect(journal.releaseVoiceRecording).toHaveBeenCalledExactlyOnceWith('journal-id');
+  expect(journal.releaseCapture).toHaveBeenCalledExactlyOnceWith('journal-id');
   expect(onFailure).toHaveBeenCalledOnce();
 });
 

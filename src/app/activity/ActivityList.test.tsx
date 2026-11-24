@@ -72,7 +72,7 @@ vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
   // Sam invited the user to a room whose members are not known: the full name carries the ID.
   getSenderName: (_room: unknown, userId: string) =>
-    userId === '@sam:x' ? 'Sam Rivera (@sam:x)' : NAMES[userId] ?? userId,
+    userId === '@sam:x' ? 'Sam Rivera (@sam:x)' : (NAMES[userId] ?? userId),
   getMemberRawDisplayName: (_room: unknown, userId: string) => NAMES[userId],
   getMemberAvatarMxc: () => undefined,
 }));
@@ -282,7 +282,7 @@ const greetingPlugin = (preview: (text: string) => string = (text) => `Greeting:
           preview((event.content['com.example.greeting'] as { text: string }).text),
       },
     ],
-  } as unknown as RegisteredPlugin);
+  }) as unknown as RegisteredPlugin;
 
 /** A row whose newest reply is `sender`'s greeting. */
 const greetingRow = (key: string, sender: string) =>

@@ -5,7 +5,7 @@ import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../../ui/MenuEntry';
 import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
@@ -209,7 +209,7 @@ export function SpaceItemCard({
 
   const spaceName = revealDirectionControls(summary?.name || summary?.canonical_alias || roomId);
   const avatarSrc = summary?.avatar_url
-    ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined)
     : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 

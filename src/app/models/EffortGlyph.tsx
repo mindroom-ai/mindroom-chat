@@ -16,7 +16,7 @@ export const effortBars = (
   level: ReasoningLevel
 ): { count: number; filled: number } => {
   const bars = levels.filter((candidate) => candidate !== 'off');
-  return { count: bars.length, filled: bars.indexOf(level) + 1 };
+  return { count: bars.length, filled: level === 'off' ? 0 : bars.indexOf(level) + 1 };
 };
 
 /** Bar heights that rise by one whole-pixel step, from about half height up to `maxBar`. */

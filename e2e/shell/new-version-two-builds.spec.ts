@@ -71,9 +71,7 @@ const announcement = (page: Page) => page.getByText('A new version of MindRoom i
 /** The build the page runs, by its entry script; empty while the page navigates. */
 const runningEntry = (page: Page) =>
   page
-    .evaluate(
-      () => document.querySelector('script[type="module"][src]')?.getAttribute('src') ?? ''
-    )
+    .evaluate(() => document.querySelector('script[type="module"][src]')?.getAttribute('src') ?? '')
     .catch(() => '');
 
 /** The script URL of the worker that controls the page; empty while the page navigates. */

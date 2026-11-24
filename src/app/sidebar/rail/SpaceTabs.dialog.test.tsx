@@ -146,9 +146,8 @@ vi.mock('../../spaces/sidebarSpaces', () => ({
 }));
 
 vi.mock('./SidebarContextMenu', async () => {
-  const actual = await vi.importActual<typeof import('./SidebarContextMenu')>(
-    './SidebarContextMenu'
-  );
+  const actual =
+    await vi.importActual<typeof import('./SidebarContextMenu')>('./SidebarContextMenu');
   return {
     ...actual,
     SidebarContextMenu: ({ anchor, children }: { anchor?: unknown; children?: ReactNode }) =>

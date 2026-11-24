@@ -70,7 +70,7 @@ const upload = async (accessToken: string, bytes: Buffer): Promise<string> => {
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'image/png' },
-      body: bytes,
+      body: new Uint8Array(bytes),
     }
   );
   expect(response.status).toBe(200);

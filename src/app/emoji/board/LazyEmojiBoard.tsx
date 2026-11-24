@@ -1,6 +1,6 @@
 import { type ComponentProps, Suspense } from 'react';
 import { Box } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { type PartLoadRetry, lazyPart } from '../../lib/lazyPart';
 import { PartUnavailable } from '../../ui/PartUnavailable';
 import type { EmojiBoard as EmojiBoardComponent } from './EmojiBoard';

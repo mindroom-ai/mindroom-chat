@@ -33,10 +33,12 @@
 ### Task 1: The matcher
 
 **Files:**
+
 - Create: `src/app/command-palette/fuzzyMatch.ts`
 - Test: `src/app/command-palette/fuzzyMatch.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `foldText(text: string): string`
   - `type PreparedText = { text: string; flags: Uint8Array }` with `WORD_START = 1`, `WORD_END = 2`, `SEGMENT_START = 4` per folded character (a segment ignores the every-character starts of scripts without spaces)
@@ -56,10 +58,12 @@
 ### Task 2: Lists, fields and ranking
 
 **Files:**
+
 - Modify: `src/app/command-palette/commandPaletteSearch.ts`, `commandPalettePages.ts`
 - Test: `commandPaletteSearch.test.ts`, `commandPaletteSearch.names.test.ts`, `commandPalettePages.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1.
 - Produces:
   - `type CommandPaletteSearchField<T> = { key: string; get: (item: T) => string | readonly string[] | undefined; weight: number; name?: boolean }`
@@ -80,11 +84,13 @@
 ### Task 3: A tab's sections, and the source's commands
 
 **Files:**
+
 - Create: `src/app/command-palette/commandPaletteResults.ts`, `commandPaletteResults.test.ts`, `commandPaletteResults.corpus.test.ts`
 - Delete: `commandPalettePeopleRanking.ts`, `commandPaletteSearch.corpus.test.ts`
 - Modify: `CommandPalette.tsx`, `commandPaletteItems.ts`, `useCommandPaletteCommands.ts`, and the tests that build a source (`CommandPalette.test.ts`, `CommandPaletteRenderer.test.ts`, `commandPaletteItems.tour.test.tsx`, `useCommandPaletteCommands.test.tsx`)
 
 **Interfaces:**
+
 - Consumes: Task 2.
 - Produces:
   - `CommandPaletteSource.commands: Executable<CommandPaletteActionItem>[]` in place of `searchCommands`; `CommandPaletteCommands.commands` the same.
@@ -101,10 +107,12 @@
 ### Task 4: Marks
 
 **Files:**
+
 - Modify: `CommandPaletteList.tsx`, `CommandPalette.css.ts`, `CommandPalette.tsx`
 - Test: `CommandPaletteList.test.ts`, `CommandPalette.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CommandPaletteLocalSection.marks`.
 - Produces: `CommandPaletteListSection.marks?: ReadonlyMap<string, CommandPaletteMarks>`; a mark is `<mark class={css.TitleMatch} data-match>`.
 
@@ -117,6 +125,7 @@
 ### Task 5: End to end, docs, delivery
 
 **Files:**
+
 - Create: `e2e/command-palette/command-palette-fuzzy.spec.ts`
 - Modify: e2e specs and docs that describe the old search; the spec's results section.
 

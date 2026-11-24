@@ -14,13 +14,12 @@ const closed = (panels: RoomPanel[]) =>
   panels.filter((panel) => vi.mocked(panel.close).mock.calls.length > 0).map((panel) => panel.id);
 
 /** The rule in room `room` over `panels`, as a room renders it. */
-const useRoomPanelsIn = ({
-  room = '!a',
-  panels,
-}: {
+type RoomPanelsProps = {
   room?: string;
   panels: readonly RoomPanel[];
-}) => useRoomPanels(room, panels);
+};
+
+const useRoomPanelsIn = ({ room = '!a', panels }: RoomPanelsProps) => useRoomPanels(room, panels);
 
 describe('useRoomPanels', () => {
   it('shows the first open panel in their order', () => {
@@ -67,9 +66,12 @@ describe('useRoomPanels', () => {
   });
 
   it("keeps each room's layout of a panel while it stays open, also while it is hidden", () => {
-    const { result, rerender } = renderHook(useRoomPanelsIn, {
-      initialProps: { panels: panelsOf({ b: true }) },
-    });
+    const { result, rerender } = renderHook<ReturnType<typeof useRoomPanelsIn>, RoomPanelsProps>(
+      useRoomPanelsIn,
+      {
+        initialProps: { panels: panelsOf({ b: true }) },
+      }
+    );
     expect(result.current.layout).toBe('beside');
     act(() => result.current.setLayout('b', 'folded'));
     expect(result.current.layout).toBe('folded');
@@ -90,9 +92,12 @@ describe('useRoomPanels', () => {
 
   it('keeps a panel opened elsewhere as it was when its room shows again', () => {
     const options = { b: { opensElsewhere: true } };
-    const { result, rerender } = renderHook(useRoomPanelsIn, {
-      initialProps: { panels: panelsOf({ b: true }, options) },
-    });
+    const { result, rerender } = renderHook<ReturnType<typeof useRoomPanelsIn>, RoomPanelsProps>(
+      useRoomPanelsIn,
+      {
+        initialProps: { panels: panelsOf({ b: true }, options) },
+      }
+    );
     act(() => result.current.setLayout('b', 'folded'));
     // Another room, where b is not open, and back: b did not open again.
     rerender({ room: '!b', panels: panelsOf({}, options) });
@@ -115,9 +120,12 @@ describe('useRoomPanels', () => {
   });
 
   it('forgets the layout a panel had in other rooms when it opens', () => {
-    const { result, rerender } = renderHook(useRoomPanelsIn, {
-      initialProps: { panels: panelsOf({ a: true }) },
-    });
+    const { result, rerender } = renderHook<ReturnType<typeof useRoomPanelsIn>, RoomPanelsProps>(
+      useRoomPanelsIn,
+      {
+        initialProps: { panels: panelsOf({ a: true }) },
+      }
+    );
     act(() => result.current.setLayout('a', 'filled'));
     // Open in every room (as the members are): closed and opened again in another room.
     rerender({ room: '!b', panels: panelsOf({}) });

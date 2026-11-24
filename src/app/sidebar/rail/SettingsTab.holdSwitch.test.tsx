@@ -2,7 +2,7 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActiveSession, type StoredSession } from '../../matrix/session/sessions';
 import { useActiveSession, useStoredSessions } from '../../matrix/session/useSessionStore';
@@ -33,9 +33,9 @@ vi.mock('folds', async (original) => ({
 }));
 
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

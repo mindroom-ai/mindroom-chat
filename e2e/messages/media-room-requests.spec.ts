@@ -59,7 +59,7 @@ const upload = async (accessToken: string, bytes: Buffer, type: string): Promise
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': type },
-    body: bytes,
+    body: new Uint8Array(bytes),
   });
   expect(response.ok).toBe(true);
   return ((await response.json()) as { content_uri: string }).content_uri;

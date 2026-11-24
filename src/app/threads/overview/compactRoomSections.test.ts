@@ -16,10 +16,10 @@ afterEach(() => {
 });
 
 describe('compactRoomSections', () => {
-  it('starts off, with Done folded', () => {
+  it('starts off, with Quiet and Done folded', () => {
     expect(createStore().get(getCompactRoomSectionsAtom(ME))).toEqual({
       on: false,
-      folded: ['done'],
+      folded: ['quiet', 'done'],
     });
     expect(DEFAULT_COMPACT_ROOM_SECTIONS.on).toBe(false);
   });
@@ -32,15 +32,42 @@ describe('compactRoomSections', () => {
     store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'done' });
     store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'later' });
 
-    expect(store.get(sectionsAtom)).toEqual({ on: true, folded: ['later'] });
+    expect(store.get(sectionsAtom)).toEqual({ on: true, folded: ['quiet', 'later'] });
     expect(JSON.parse(localStorage.getItem(KEY) ?? 'null')).toEqual({
+      v: 2,
       on: true,
-      folded: ['later'],
+      folded: ['quiet', 'later'],
+    });
+  });
+
+  it('migrates legacy v1 storage to fold Quiet and persists unfolding Quiet as v2', () => {
+    localStorage.setItem(KEY, JSON.stringify({ on: true, folded: ['done'] }));
+    const store = createStore();
+    const sectionsAtom = getCompactRoomSectionsAtom(ME);
+    expect(store.get(sectionsAtom)).toEqual({ on: true, folded: ['quiet', 'done'] });
+
+    store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'quiet' });
+    expect(JSON.parse(localStorage.getItem(KEY) ?? 'null')).toEqual({
+      v: 2,
+      on: true,
+      folded: ['done'],
+    });
+
+    // Reloading with v2 keeps Quiet unfolded.
+    const saved = localStorage.getItem(KEY)!;
+    clearCompactRoomSectionsStore(ME);
+    localStorage.setItem(KEY, saved);
+    expect(createStore().get(getCompactRoomSectionsAtom(ME))).toEqual({
+      on: true,
+      folded: ['done'],
     });
   });
 
   it('reads a stored value that is broken or partial as the default where it is', () => {
-    localStorage.setItem(KEY, JSON.stringify({ on: true, folded: ['needsYou', 'nonsense', 4] }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ v: 2, on: true, folded: ['needsYou', 'nonsense', 4] })
+    );
     expect(createStore().get(getCompactRoomSectionsAtom(ME))).toEqual({
       on: true,
       folded: ['needsYou'],

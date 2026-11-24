@@ -145,26 +145,26 @@ const buildCacheStoreContract = (): CacheContract =>
   buildContractFromModules('cacheStore', cacheStore, cacheStore, cacheStore);
 
 type RoomLike = {
-  saveRoomEventsToCache: typeof import('../index')['saveRoomEventsToCache'];
-  loadLatestCachedRoomEvents: typeof import('../index')['loadLatestCachedRoomEvents'];
-  loadCachedRoomEventsBefore: typeof import('../index')['loadCachedRoomEventsBefore'];
-  loadCachedRoomEvent: typeof import('../index')['loadCachedRoomEvent'];
-  loadCachedRoomPaginationToken: typeof import('../index')['loadCachedRoomPaginationToken'];
-  deleteRoomEventsFromCache: typeof import('../index')['deleteRoomEventsFromCache'];
+  saveRoomEventsToCache: (typeof import('../index'))['saveRoomEventsToCache'];
+  loadLatestCachedRoomEvents: (typeof import('../index'))['loadLatestCachedRoomEvents'];
+  loadCachedRoomEventsBefore: (typeof import('../index'))['loadCachedRoomEventsBefore'];
+  loadCachedRoomEvent: (typeof import('../index'))['loadCachedRoomEvent'];
+  loadCachedRoomPaginationToken: (typeof import('../index'))['loadCachedRoomPaginationToken'];
+  deleteRoomEventsFromCache: (typeof import('../index'))['deleteRoomEventsFromCache'];
 };
 
 type ThreadLike = {
-  saveThreadEventsToCache: typeof import('../index')['saveThreadEventsToCache'];
-  loadLatestCachedThreadEvents: typeof import('../index')['loadLatestCachedThreadEvents'];
-  loadCachedThreadEventsBefore: typeof import('../index')['loadCachedThreadEventsBefore'];
-  loadCachedThreadEvent: typeof import('../index')['loadCachedThreadEvent'];
-  deleteThreadEventsFromCache: typeof import('../index')['deleteThreadEventsFromCache'];
-  deleteThreadEventFromCacheByEventId: typeof import('../index')['deleteThreadEventFromCacheByEventId'];
+  saveThreadEventsToCache: (typeof import('../index'))['saveThreadEventsToCache'];
+  loadLatestCachedThreadEvents: (typeof import('../index'))['loadLatestCachedThreadEvents'];
+  loadCachedThreadEventsBefore: (typeof import('../index'))['loadCachedThreadEventsBefore'];
+  loadCachedThreadEvent: (typeof import('../index'))['loadCachedThreadEvent'];
+  deleteThreadEventsFromCache: (typeof import('../index'))['deleteThreadEventsFromCache'];
+  deleteThreadEventFromCacheByEventId: (typeof import('../index'))['deleteThreadEventFromCacheByEventId'];
 };
 
 type SummaryLike = {
-  saveCachedThreadSummary: typeof import('../index')['saveCachedThreadSummary'];
-  loadCachedThreadSummaries: typeof import('../index')['loadCachedThreadSummaries'];
+  saveCachedThreadSummary: (typeof import('../index'))['saveCachedThreadSummary'];
+  loadCachedThreadSummaries: (typeof import('../index'))['loadCachedThreadSummaries'];
 };
 
 const buildContractFromModules = (

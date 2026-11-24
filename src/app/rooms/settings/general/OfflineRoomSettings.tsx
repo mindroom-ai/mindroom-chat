@@ -11,7 +11,7 @@ import {
   color,
   config,
 } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { DialogCloseButton } from '../../../ui/DialogChrome';
 import { Dialog, Header } from '../../../ui/glass/GlassPrimitives';

@@ -724,7 +724,18 @@
       "manage": "Gestisci"
     },
     "roomOrder": {
-      "sortByName": "Ordina le stanze dalla A alla Z"
+      "sortRooms": "Ordina le stanze",
+      "sortHeading": "Ordina le stanze",
+      "displayHeading": "Visualizzazione",
+      "recentActivity": "Attività recente",
+      "aToZ": "Dalla A alla Z",
+      "customOrder": "Ordine personalizzato",
+      "saved": "Salvato",
+      "showActivityTimes": "Mostra orari di attività",
+      "matchSpace": "Come lo spazio ({{mode}})",
+      "shortRecent": "Recenti",
+      "shortName": "A–Z",
+      "shortManual": "Pers."
     },
     "roomActions": {
       "noInvitePermission": "Non hai il permesso di invitare",
@@ -1538,7 +1549,20 @@
       "micInterrupted": "Microfono disconnesso. Riprendi o termina.",
       "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
       "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
-      "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
+      "failedSummary_other": "Impossibile trascrivere {{count}} segmenti.",
+      "discardDictation": "Elimina dettatura",
+      "discardConfirmTitle": "Eliminare la dettatura?",
+      "discardConfirmBody": "Questa dettatura non è stata inserita né inviata. Eliminarla definitivamente?",
+      "errorTitle": "Errore di dettatura",
+      "statusRecovered": "Dettatura recuperata",
+      "recoveredDuration": "Recuperata · {{time}}",
+      "indicator": {
+        "recording": "Dettatura {{time}}",
+        "paused": "Dettatura in pausa {{time}}",
+        "recovered": "Dettatura recuperata {{time}}",
+        "finishing": "Completamento dettatura...",
+        "failed": "La dettatura richiede attenzione"
+      }
     }
   },
   "commandPalette": {
@@ -1644,6 +1668,7 @@
       "needsYou": "Serve il tuo intervento",
       "working": "In corso",
       "later": "Più tardi",
+      "quiet": "Tranquilli",
       "done": "Completati",
       "all": "Tutti",
       "description": {
@@ -2005,6 +2030,7 @@
       "working": "In corso",
       "later": "Più tardi",
       "idle": "Inattivi",
+      "quiet": "Tranquilli",
       "resolved": "Risolti"
     },
     "live": {

@@ -228,10 +228,13 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
       message: `${engine}: the phone reports a finger`,
     })
     .toBe(true);
-  await page.evaluate((route) => {
-    window.history.pushState(null, '', route);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(world.roomId)}`);
+  await page.evaluate(
+    (route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(world.roomId)}`
+  );
   const row = message(page, LAST);
   await expect(row).toBeVisible({ timeout: 60_000 });
   const text = row.getByText(LAST, { exact: true });

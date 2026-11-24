@@ -19,7 +19,7 @@ export const MAX_NOTICE_ID_LENGTH = 200;
 export const MAX_NOTICE_LINK_TEXT_LENGTH = 200;
 
 export const NOTICE_LEVELS = ['info', 'warning', 'success', 'critical'] as const;
-export type NoticeLevel = typeof NOTICE_LEVELS[number];
+export type NoticeLevel = (typeof NOTICE_LEVELS)[number];
 
 // Names for icons the app already ships; any other icon must be one emoji.
 export const NOTICE_ICON_NAMES = [
@@ -31,7 +31,7 @@ export const NOTICE_ICON_NAMES = [
   'server',
   'settings',
 ] as const;
-export type NoticeIconName = typeof NOTICE_ICON_NAMES[number];
+export type NoticeIconName = (typeof NOTICE_ICON_NAMES)[number];
 
 export type Notice = {
   id: string;

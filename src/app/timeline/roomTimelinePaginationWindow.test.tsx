@@ -66,7 +66,7 @@ const fakeRoomScroller = (reader: 'bottom' | 'top' = 'bottom') => {
 };
 
 const makeRows = (count: number) =>
-  Array.from({ length: count }, (_, index) => ({ getId: () => `$row${index}` } as MatrixEvent));
+  Array.from({ length: count }, (_, index) => ({ getId: () => `$row${index}` }) as MatrixEvent);
 
 type Committed = [start: number, end: number, count: number];
 
@@ -306,7 +306,7 @@ const roomScrollerWithBackSentinel = () =>
       selector.includes('data-paginator-anchor="B"')
         ? { getBoundingClientRect: () => rectAt(VIEW_PX - 100, 1) }
         : null,
-  } as unknown as HTMLElement);
+  }) as unknown as HTMLElement;
 
 type ChainProps = {
   chain: EventTimeline[];

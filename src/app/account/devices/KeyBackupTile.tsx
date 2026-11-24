@@ -76,7 +76,7 @@ const useBackupState = () => {
         },
         () => {
           if (request !== newest.current) return;
-          setState((current) => (requested ? CHECK_FAILED : current ?? CHECK_FAILED));
+          setState((current) => (requested ? CHECK_FAILED : (current ?? CHECK_FAILED)));
         }
       );
     },

@@ -53,7 +53,7 @@ const isTextEntry = (element: HTMLElement): boolean =>
   element.matches('textarea, [contenteditable="true"]') ||
   (element.matches('input') &&
     !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'].includes(
-      (element as HTMLInputElement).type
+      element.type
     ));
 
 type Doc = Document & { defaultView: (Window & typeof globalThis) | null };
@@ -98,7 +98,7 @@ export const observeLayerHost = (host: Element): void => {
 /** The portaled layer that holds `node`, or undefined for the app itself. */
 export const layerOf = (doc: Document, node: Node | null | undefined): Element | undefined => {
   let element: Element | null =
-    node instanceof doc.defaultView!.Element ? node : node?.parentElement ?? null;
+    node instanceof doc.defaultView!.Element ? node : (node?.parentElement ?? null);
   while (element && element.parentElement && !isLayerParent(doc, element.parentElement)) {
     element = element.parentElement;
   }

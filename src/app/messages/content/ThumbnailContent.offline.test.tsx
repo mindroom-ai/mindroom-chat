@@ -97,9 +97,8 @@ it('renders persisted thumbnail bytes after remount with transport offline', asy
 });
 
 it('cannot persist a room-owned thumbnail when room clear wins its pending fetch', async () => {
-  const { clearRoomCachedContent, getCachedAttachmentMetadata } = await import(
-    '../../event-store/cache/db'
-  );
+  const { clearRoomCachedContent, getCachedAttachmentMetadata } =
+    await import('../../event-store/cache/db');
   const { createSessionId } = await import('../../matrix/session/sessions');
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();

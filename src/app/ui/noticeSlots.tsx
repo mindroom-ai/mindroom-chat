@@ -16,7 +16,7 @@ import * as css from './noticeSlots.css';
 // version notice (shell/NewVersionNotice.tsx) and the tour's offer (tour/TourOffer.tsx) take the
 // room list's while there is one, else the page's (useNoticePresence); how the connection is
 // (shell/SyncStatus.tsx) always shows in the page's. A voice recording no composer shows
-// (composer/voice/LiveVoiceRecordingIndicator.tsx) shows in the page's too, or in the place of
+// (composer/capture/LiveCaptureIndicator.tsx) shows in the page's too, or in the place of
 // what covers the page (`coverNoticeSlotAtom`).
 
 /** At the foot of the room list beside the page (ResizablePageNav); phones have none. */
@@ -157,7 +157,7 @@ export const useNoticePresence = (due: boolean, phoneLayer: PhoneLayer): NoticeP
     placement: NoticePlacement;
   }>();
   const leaving = leftFrom !== undefined;
-  const slot = leftFrom ? leftFrom.slot : listSlot ?? pageSlot;
+  const slot = leftFrom ? leftFrom.slot : (listSlot ?? pageSlot);
   const placement: NoticePlacement = leftFrom?.placement ?? (listSlot ? 'list' : 'page');
   // The card comes in once where it is placed: rebuilt in a new place of the same kind (the list
   // of another section), it shows at once instead of arriving again.

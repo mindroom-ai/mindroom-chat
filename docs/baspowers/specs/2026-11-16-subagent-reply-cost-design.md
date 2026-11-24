@@ -11,9 +11,9 @@ Success: a reply that ran a reviewer subagent shows its own cost, the subagents'
 
 `io.mindroom.ai_run.cost` gains one optional key:
 
-| Key | Type | Meaning |
-|---|---|---|
-| `usd` | decimal string (existing) | the reply's own model requests |
+| Key             | Type                                                 | Meaning                                                                                       |
+| --------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `usd`           | decimal string (existing)                            | the reply's own model requests                                                                |
 | `subagents_usd` | decimal string, same format as `usd` (new, optional) | subagent turns whose results this reply's turn received, including their own nested subagents |
 
 - Older backends and replies without subagents send no `subagents_usd`; the client then shows exactly what it shows today.

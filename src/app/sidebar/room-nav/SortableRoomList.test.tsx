@@ -30,7 +30,7 @@ vi.mock('./RoomNavItem', () => ({
   ),
 }));
 
-const room = (roomId: string): Room => ({ roomId, name: roomId.slice(1) } as unknown as Room);
+const room = (roomId: string): Room => ({ roomId, name: roomId.slice(1) }) as unknown as Room;
 
 describe('SortableRoomRow', () => {
   let container: HTMLDivElement;
@@ -112,15 +112,22 @@ function TestSection({
   spaceId,
   roomIds,
   onReorder,
+  reorderDisabled = false,
 }: {
   spaceId: string;
   roomIds: string[];
   onReorder: (order: string[]) => void;
+  reorderDisabled?: boolean;
 }) {
   const sectionDrop = useRoomSectionDrop(spaceId);
   return (
     <div {...sectionDrop} data-section-id={spaceId}>
-      <SortableRoomList listId={spaceId} roomIds={roomIds} onReorder={onReorder}>
+      <SortableRoomList
+        listId={spaceId}
+        roomIds={roomIds}
+        onReorder={onReorder}
+        reorderDisabled={reorderDisabled}
+      >
         {roomIds.map((roomId) => (
           <SortableRoomRow key={roomId} room={room(roomId)} selected={false} linkPath="/" />
         ))}
@@ -367,5 +374,78 @@ describe('SortableRoomGroup', () => {
       ).toBe('true');
     });
     expect(onMoveRoom).toHaveBeenLastCalledWith('!design', '!root', '!cedar');
+  });
+
+  it('suppresses same-list drag hints, drop reorder, and keyboard reorder when reorderDisabled, while allowing cross-section moves', async () => {
+    const onReorderRoot = vi.fn();
+    const onMoveRoom = vi.fn();
+
+    act(() => {
+      root.render(
+        <SortableRoomGroup canMoveRoom={() => true} onMoveRoom={onMoveRoom}>
+          <TestSection
+            spaceId="!root"
+            roomIds={['!alder', '!birch']}
+            onReorder={onReorderRoot}
+            reorderDisabled
+          />
+          <TestSection spaceId="!design" roomIds={['!cedar']} onReorder={vi.fn()} />
+        </SortableRoomGroup>
+      );
+    });
+
+    // Keyboard Cmd/Ctrl+Shift+ArrowUp is suppressed.
+    const birchLink = container.querySelector('a[href="#!birch"]') as HTMLElement;
+    act(() => {
+      birchLink.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowUp',
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        })
+      );
+    });
+    expect(onReorderRoot).not.toHaveBeenCalled();
+
+    // Same-list drag from !birch over !alder shows no drop hint and does not reorder.
+    await dragRow('!birch', 80, 40, () => {
+      expect(container.querySelector('[data-drop-at]')).toBeNull();
+    });
+    expect(onReorderRoot).not.toHaveBeenCalled();
+
+    // Cross-section drag from the reorderDisabled !root section into !design still works!
+    await dragRow('!birch', 80, 180, () => {
+      expect(
+        container
+          .querySelector('[data-section-id="!design"]')!
+          .getAttribute('data-section-drop-target')
+      ).toBe('true');
+    });
+    expect(onMoveRoom).toHaveBeenCalledWith('!root', '!design', '!birch');
+    expect(onReorderRoot).not.toHaveBeenCalled();
+  });
+
+  it('suppresses same-list drag hints and reorder in a standalone single list (Home) when reorderDisabled', async () => {
+    const onReorder = vi.fn();
+
+    act(() => {
+      root.render(
+        <SortableRoomList
+          listId="home"
+          roomIds={['!alder', '!birch']}
+          onReorder={onReorder}
+          reorderDisabled
+        >
+          <SortableRoomRow room={room('!alder')} selected={false} linkPath="#!alder" />
+          <SortableRoomRow room={room('!birch')} selected={false} linkPath="#!birch" />
+        </SortableRoomList>
+      );
+    });
+
+    await dragRow('!birch', 80, 40, () => {
+      expect(container.querySelector('[data-drop-at]')).toBeNull();
+    });
+    expect(onReorder).not.toHaveBeenCalled();
   });
 });

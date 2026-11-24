@@ -86,7 +86,7 @@ const makeRoom = (parentEvents: MatrixEvent[], thread: Thread | null = null) =>
     roomId,
     getThread: (threadId: string) => (threadId === '$p' ? thread : null),
     findEventById: (eventId: string) => parentEvents.find((event) => event.getId() === eventId),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 /** The event cache holds all of `$p`: the events, which the prefix takes. */
 const cacheParent = (events: MatrixEvent[]) => {

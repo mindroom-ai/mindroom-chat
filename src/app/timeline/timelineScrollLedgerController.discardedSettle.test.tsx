@@ -63,9 +63,6 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     readRowFoldPx = controller.readRowFoldPx;
     return (

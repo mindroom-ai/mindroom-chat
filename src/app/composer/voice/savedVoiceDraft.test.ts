@@ -99,7 +99,7 @@ const stubLocks = () => {
   const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
         if (held.has(name)) return callback(null);
         held.add(name);
         try {
@@ -114,7 +114,7 @@ const stubLocks = () => {
 };
 
 it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
-  const journal = await import('./voiceRecordingJournal');
+  const journal = await import('../capture/captureJournal');
   stubLocks();
   try {
     const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
@@ -126,7 +126,7 @@ it('restores the failed-send copy instead of offering the same recording as reco
     );
     await settle();
     act(() => first.renderer.unmount());
-    journal.releaseVoiceRecording(recording.id);
+    journal.releaseCapture(recording.id);
 
     const store = await reloadPage(() => failedDraft().context);
     const draft = store.get(reloadedAtom());
@@ -134,14 +134,14 @@ it('restores the failed-send copy instead of offering the same recording as reco
     expect(draft?.errorMessage).toBe('M_UNKNOWN: injected');
     expect(draft?.recovered).toBeFalsy();
   } finally {
-    await journal.clearVoiceRecordings(userId);
+    await journal.clearCaptureJournal(userId);
   }
 });
 
 it.each(['send', 'discard'])(
   'offers a left room’s recording once after reload, then can %s it',
   async (action) => {
-    const journal = await import('./voiceRecordingJournal');
+    const journal = await import('../capture/captureJournal');
     stubLocks();
     try {
       const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
@@ -153,7 +153,7 @@ it.each(['send', 'discard'])(
       );
       await settle();
       act(() => first.renderer.unmount());
-      journal.releaseVoiceRecording(recording.id);
+      journal.releaseCapture(recording.id);
       membership = KnownMembership.Leave; // The client still has the Room object.
 
       const newRoom = {
@@ -174,9 +174,8 @@ it.each(['send', 'discard'])(
       expect(offerContext).toHaveBeenCalledOnce();
       expect(await recovered?.file.text()).toBe('journal audio');
 
-      const { createVoiceSendDraftController: createController } = await import(
-        './voiceSendDraftController'
-      );
+      const { createVoiceSendDraftController: createController } =
+        await import('./voiceSendDraftController');
       const controller = createController({
         read: () => store.get(atom),
         write: (draft) => store.set(atom, draft),
@@ -207,7 +206,7 @@ it.each(['send', 'discard'])(
       const next = await reloadPage(() => context);
       expect(next.get(reloadedAtom())).toBeUndefined();
     } finally {
-      await journal.clearVoiceRecordings(userId);
+      await journal.clearCaptureJournal(userId);
     }
   }
 );

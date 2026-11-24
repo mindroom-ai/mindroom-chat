@@ -10,7 +10,7 @@ const keyEvent = (key: string) =>
     metaKey: false,
     shiftKey: false,
     preventDefault: vi.fn(),
-  } as const);
+  }) as const;
 
 describe('keyboard helpers', () => {
   it('runs autocomplete actions on Tab', () => {

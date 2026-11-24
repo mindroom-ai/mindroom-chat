@@ -724,7 +724,18 @@
       "manage": "Gérer"
     },
     "roomOrder": {
-      "sortByName": "Trier les salons de A à Z"
+      "sortRooms": "Trier les salons",
+      "sortHeading": "Trier les salons",
+      "displayHeading": "Affichage",
+      "recentActivity": "Activité récente",
+      "aToZ": "De A à Z",
+      "customOrder": "Ordre personnalisé",
+      "saved": "Enregistré",
+      "showActivityTimes": "Afficher l’heure d’activité",
+      "matchSpace": "Comme l’espace ({{mode}})",
+      "shortRecent": "Récent",
+      "shortName": "A à Z",
+      "shortManual": "Perso"
     },
     "roomActions": {
       "noInvitePermission": "Vous n’avez pas l’autorisation d’inviter",
@@ -1538,7 +1549,20 @@
       "micInterrupted": "Microphone déconnecté. Reprenez ou terminez.",
       "failedSummary_one": "Impossible de transcrire {{count}} segment.",
       "failedSummary_many": "Impossible de transcrire {{count}} segments.",
-      "failedSummary_other": "Impossible de transcrire {{count}} segments."
+      "failedSummary_other": "Impossible de transcrire {{count}} segments.",
+      "discardDictation": "Supprimer la dictée",
+      "discardConfirmTitle": "Supprimer la dictée ?",
+      "discardConfirmBody": "Cette dictée n’a pas encore été insérée ni envoyée. La supprimer définitivement ?",
+      "errorTitle": "Erreur de dictée",
+      "statusRecovered": "Dictée récupérée",
+      "recoveredDuration": "Récupérée · {{time}}",
+      "indicator": {
+        "recording": "Dictée en cours {{time}}",
+        "paused": "Dictée en pause {{time}}",
+        "recovered": "Dictée récupérée {{time}}",
+        "finishing": "Finalisation de la dictée...",
+        "failed": "La dictée requiert votre attention"
+      }
     }
   },
   "commandPalette": {
@@ -1644,6 +1668,7 @@
       "needsYou": "À vous de jouer",
       "working": "En cours",
       "later": "Plus tard",
+      "quiet": "Calme",
       "done": "Terminé",
       "all": "Tous",
       "description": {
@@ -2005,6 +2030,7 @@
       "working": "En cours",
       "later": "Plus tard",
       "idle": "Inactifs",
+      "quiet": "Calme",
       "resolved": "Résolus"
     },
     "live": {

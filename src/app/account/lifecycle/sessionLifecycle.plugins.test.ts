@@ -46,7 +46,7 @@ const clientOf = (userId: string, deviceId: string | null) =>
     getDeviceId: () => deviceId,
     stopClient: () => undefined,
     clearStores: () => Promise.resolve(),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 afterEach(() => {
   localStorage.clear();

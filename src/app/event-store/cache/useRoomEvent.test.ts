@@ -52,7 +52,7 @@ const makeRoom = () =>
     on: vi.fn(),
     removeListener: vi.fn(),
     roomId: '!room:example.org',
-  } as any);
+  }) as any;
 
 const makeRawEvent = (eventId: string) => ({
   content: { body: `body-${eventId}` },
@@ -164,8 +164,8 @@ describe('useRoomEvent', () => {
                 change === 'offline'
                   ? 'Cached announcement'
                   : change === 'live edit'
-                  ? 'Live announcement'
-                  : 'Current announcement',
+                    ? 'Live announcement'
+                    : 'Current announcement',
               ]
         );
         if (change === 'offline') {
@@ -299,16 +299,16 @@ describe('useRoomEvent', () => {
                 content: {},
               }
             : change === 'edit'
-            ? replacement
-            : {
-                ...replacement,
-                type: 'm.room.encrypted',
-                content: {
-                  algorithm: 'm.megolm.v1.aes-sha2',
-                  ciphertext: 'pending',
-                  'm.relates_to': replacement.content['m.relates_to'],
-                },
-              }
+              ? replacement
+              : {
+                  ...replacement,
+                  type: 'm.room.encrypted',
+                  content: {
+                    algorithm: 'm.megolm.v1.aes-sha2',
+                    ciphertext: 'pending',
+                    'm.relates_to': replacement.content['m.relates_to'],
+                  },
+                }
         );
         await act(async () => {
           await room.addLiveEvents([liveEvent], { addToState: true });
@@ -341,8 +341,8 @@ describe('useRoomEvent', () => {
         id === '$reply'
           ? { body: 'reply', 'm.relates_to': { rel_type: 'm.thread', event_id: '$old' } }
           : id === '$deleted'
-          ? {}
-          : { body: 'Older announcement', msgtype: 'm.text' },
+            ? {}
+            : { body: 'Older announcement', msgtype: 'm.text' },
       unsigned: id === '$deleted' ? { redacted_because: { type: 'm.room.redaction' } } : {},
     }));
     const room = makeRoom();

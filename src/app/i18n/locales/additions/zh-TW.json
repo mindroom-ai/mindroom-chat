@@ -690,7 +690,18 @@
       "manage": "管理"
     },
     "roomOrder": {
-      "sortByName": "依 A 到 Z 排序房間"
+      "sortRooms": "排序房間",
+      "sortHeading": "排序房間",
+      "displayHeading": "顯示",
+      "recentActivity": "最近動態",
+      "aToZ": "A 到 Z",
+      "customOrder": "自訂順序",
+      "saved": "已儲存",
+      "showActivityTimes": "顯示動態時間",
+      "matchSpace": "跟隨空間（{{mode}}）",
+      "shortRecent": "動態",
+      "shortName": "A 到 Z",
+      "shortManual": "自訂"
     },
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
@@ -1444,7 +1455,20 @@
       "statusPendingRetry_other": "{{count}} 個片段等待重試",
       "capReached": "已達到 5:00 上限",
       "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
-      "failedSummary_other": "無法轉寫 {{count}} 個片段。"
+      "failedSummary_other": "無法轉寫 {{count}} 個片段。",
+      "discardDictation": "捨棄聽寫",
+      "discardConfirmTitle": "捨棄聽寫？",
+      "discardConfirmBody": "此聽寫尚未插入或傳送。要永久捨棄嗎？",
+      "errorTitle": "聽寫錯誤",
+      "statusRecovered": "已還原的聽寫",
+      "recoveredDuration": "已還原 · {{time}}",
+      "indicator": {
+        "recording": "正在聽寫 {{time}}",
+        "paused": "聽寫已暫停 {{time}}",
+        "recovered": "已還原的聽寫 {{time}}",
+        "finishing": "正在完成聽寫...",
+        "failed": "聽寫需要注意"
+      }
     }
   },
   "commandPalette": {
@@ -1550,6 +1574,7 @@
       "needsYou": "需要你處理",
       "working": "處理中",
       "later": "稍後",
+      "quiet": "安靜",
       "done": "已完成",
       "all": "全部",
       "description": {
@@ -1891,6 +1916,7 @@
       "working": "進行中",
       "later": "稍後",
       "idle": "閒置",
+      "quiet": "安靜",
       "resolved": "已解決"
     },
     "live": {

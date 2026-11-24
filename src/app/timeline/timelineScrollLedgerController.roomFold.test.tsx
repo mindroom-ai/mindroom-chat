@@ -48,9 +48,6 @@ it('keeps a room fold pending through a render that still shows the window it wa
       roomFoldHeld: held,
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     readRowFoldPx = controller.readRowFoldPx;
     return <div ref={controller.virtualInnerRef} />;
@@ -158,9 +155,6 @@ const mountFoldedRoom = () => {
       roomFoldHeld: held,
       roomFoldPriceRef: useRef(() => 30),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     readRowFoldPx = controller.readRowFoldPx;
     // The timeline reads the list after each commit.

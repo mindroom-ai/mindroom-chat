@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { EventStatus, MatrixEvent, RelationType } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
 import * as threadUtils from './threadUtils';
 import * as roomThreadList from './roomThreadList';
+import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
+import { isQuietThread, QUIET_AFTER_MS } from './threadWorkflow';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -34,7 +36,7 @@ const makeEvent = ({
     getUnsigned: () => undefined,
     isRedacted: () => false,
     isRedaction: () => false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const makeRoom = ({
   rootEvent,
@@ -54,7 +56,7 @@ const makeRoom = ({
       },
     })),
     getMember: vi.fn(() => undefined),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('buildThreadRecord', () => {
   it('shares one visible-reply snapshot within a build and refreshes it after redaction', () => {
@@ -106,7 +108,7 @@ describe('buildThreadRecord', () => {
     ({
       ...makeEvent({ eventId: '$root', body: 'Root' }),
       getUnsigned: () => ({ 'm.relations': { 'm.thread': { count } } }),
-    } as unknown as MatrixEvent);
+    }) as unknown as MatrixEvent;
 
   const makeSdkThread = (rootEvent: MatrixEvent, events: MatrixEvent[], length: number) =>
     ({
@@ -123,7 +125,7 @@ describe('buildThreadRecord', () => {
         }),
         relations: { getChildEventsForEvent: () => undefined },
       }),
-    } as unknown as ReturnType<Room['getThread']>);
+    }) as unknown as ReturnType<Room['getThread']>;
 
   const makeReplies = (count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -580,5 +582,130 @@ describe('buildThreadRecord', () => {
     expect(record.status.snoozedUntilTs).toBe(Date.UTC(2026, 10, 14, 8));
     expect(record.status.snoozedAtTs).toBe(Date.UTC(2026, 10, 13, 10));
     expect(record.status.tags).toEqual([]);
+  });
+
+  it('tracks retained pending and failed local-echo replies outside thread.events and keeps old threads out of Quiet', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Root body',
+      ts: 1000,
+    });
+    const oldReply = makeEvent({
+      eventId: '$old-reply',
+      threadRootId: '$root',
+      sender: '@me:server',
+      body: 'Old reply',
+      ts: 2000,
+    });
+    const threadEvents = [oldReply];
+    const room = makeRoom({
+      rootEvent,
+      thread: {
+        id: '$root',
+        rootEvent,
+        events: threadEvents,
+        timeline: threadEvents,
+        length: 1,
+        lastReply: () => oldReply,
+        getEventReadUpTo: vi.fn(() => oldReply.getId()),
+        getLastUnthreadedReceiptFor: vi.fn(() => undefined),
+        getReadReceiptForUserId: vi.fn(() => null),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, oldReply],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+
+    const now = 2000 + QUIET_AFTER_MS + 1000;
+    const build = () =>
+      buildThreadRecord({
+        room,
+        threadRootId: '$root',
+        threadRootEvent: rootEvent,
+        currentUserId: '@me:server',
+      });
+    const quietAtNow = (record: ReturnType<typeof build>) =>
+      isQuietThread({ ...record.status, signals: { newCount: 0 } }, now);
+
+    // An unrelated pending reply in the same room must not affect this thread.
+    const unrelatedReply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: '!room:server',
+      event_id: '~other-reply',
+      sender: '@me:server',
+      origin_server_ts: now,
+      content: {
+        msgtype: 'm.text',
+        body: 'Other thread reply',
+        'm.relates_to': {
+          rel_type: RelationType.Thread,
+          event_id: '$other-root',
+        },
+      },
+    });
+    unrelatedReply.setStatus(EventStatus.NOT_SENT);
+    trackPendingThreadEvent(unrelatedReply, room);
+
+    const baseline = build();
+    expect(baseline.status.isUnread).toBe(false);
+    expect(baseline.status.lastActivityTs).toBe(2000);
+    expect(baseline.status.hasPendingSend).toBe(false);
+    expect(baseline.status.hasFailedSend).toBe(false);
+    expect(quietAtNow(baseline)).toBe(true);
+
+    // Chronological SDK rooms keep unsent/failed thread replies outside thread.events/timeline.
+    const localEchoReply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: '!room:server',
+      event_id: '~local-reply',
+      sender: '@me:server',
+      origin_server_ts: now,
+      content: {
+        msgtype: 'm.text',
+        body: 'Offline reply',
+        'm.relates_to': {
+          rel_type: RelationType.Thread,
+          event_id: '$root',
+        },
+      },
+    });
+    expect(threadEvents).not.toContain(localEchoReply);
+
+    localEchoReply.setStatus(EventStatus.SENDING);
+    trackPendingThreadEvent(localEchoReply, room);
+    const sendingRecord = build();
+    expect(sendingRecord.status.hasPendingSend).toBe(true);
+    expect(sendingRecord.status.hasFailedSend).toBe(false);
+    expect(quietAtNow(sendingRecord)).toBe(false);
+
+    localEchoReply.setStatus(EventStatus.NOT_SENT);
+    trackPendingThreadEvent(localEchoReply, room);
+    const failedRecord = build();
+    expect(failedRecord.status.hasPendingSend).toBe(false);
+    expect(failedRecord.status.hasFailedSend).toBe(true);
+    expect(quietAtNow(failedRecord)).toBe(false);
+
+    // EventStatus.SENT is still an unconfirmed local echo waiting for remote echo.
+    localEchoReply.setStatus(EventStatus.SENT);
+    trackPendingThreadEvent(localEchoReply, room);
+    const sentUnconfirmedRecord = build();
+    expect(sentUnconfirmedRecord.status.hasPendingSend).toBe(true);
+    expect(sentUnconfirmedRecord.status.hasFailedSend).toBe(false);
+    expect(quietAtNow(sentUnconfirmedRecord)).toBe(false);
+
+    // Once confirmed/cleared (status null), both flags clear and Quiet resumes.
+    localEchoReply.setStatus(null);
+    trackPendingThreadEvent(localEchoReply, room);
+    const confirmedRecord = build();
+    expect(confirmedRecord.status.hasPendingSend).toBe(false);
+    expect(confirmedRecord.status.hasFailedSend).toBe(false);
+    expect(quietAtNow(confirmedRecord)).toBe(true);
   });
 });

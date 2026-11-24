@@ -1,6 +1,6 @@
 import React, { ComponentProps, useEffect, useRef } from 'react';
 import { useSetAtom } from 'jotai';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { Modal } from '../../ui/glass/GlassPrimitives';
 import { revealDirectionControls } from '../../ui/directional';

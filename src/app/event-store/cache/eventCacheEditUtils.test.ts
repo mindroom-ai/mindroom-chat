@@ -566,7 +566,7 @@ describe('a cached edit that borrowed a finished stream status', () => {
   const relationsOf = (...edits: MatrixEvent[]) =>
     ({
       relations: { getChildEventsForEvent: () => ({ getRelations: () => edits }) },
-    } as never);
+    }) as never;
 
   it('keeps the finish of the edit it borrowed from after a cache replay', () => {
     const targetEvent = makeMessageEvent('$target', 1000);

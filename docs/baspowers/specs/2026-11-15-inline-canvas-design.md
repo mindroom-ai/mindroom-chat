@@ -35,6 +35,7 @@ For an inline canvas, the canvas notice in the timeline shows the page itself, b
 The open button stays: it opens the same canvas in the side panel, which is MindRoom's "full screen" (the panel can fill the room) and the place where answers, saved state and versions work.
 
 The inline frame:
+
 - reuses `buildCanvasDocument` (wrapper frame, CSP, sandbox, theme variables, libraries setting) with an `inline` option;
 - the inline page's base style has a transparent background and an 8px padding instead of 16px, so it sits on the thread background like T3's;
 - the bridge reports the page's height (`mindroom.canvas.size`, `{ height }`) from a `ResizeObserver` on `document.documentElement`, also after `load`, posting to `parent.parent` like its other messages; the bridge posts it in every canvas, and only the inline host reads it;
@@ -74,6 +75,7 @@ Bas mostly previews work that has nothing to do with MindRoom, such as elements 
 ### Protocol
 
 Each canvas revision may carry two presentation fields inside `canvas`, beside `title` and `html` or `document`:
+
 - `raw: true`: Chat injects no style: no theme variables, no base style, no `color-scheme`. Browser defaults apply (white page, Times, 8px body margin) until the page's own CSS says otherwise.
 - `width: <int>`, 320 to 2560: the page's viewport width in CSS pixels. An inline frame renders the page at that width and scales it down to fit the column (never up), so a desktop layout shows its desktop breakpoint. The height fit works in page pixels and is scaled the same way. Without `width`, the frame is as wide as the column, as before.
 

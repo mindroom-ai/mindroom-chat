@@ -11,7 +11,7 @@ import {
   pendingVoiceSendDraftAtom,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../composer/capture/liveCapture';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { createParagraphElement } from '../editor/utils';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -65,7 +65,7 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('../ui/page/Page', async () => {
   const { forwardRef } = await import('react');
@@ -280,9 +280,9 @@ describe('RoomViewHeader schedule actions', () => {
       store.get(atom).map((n) => SlateNode.string(n));
 
     // Voice recording and recovered voice draft block editing.
-    store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
+    store.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession });
     expect(overlayCapture.props!.onEditTask!(task({ taskId: 'e1' }))).toBe('draft-busy');
-    store.set(liveVoiceRecordingAtom, undefined);
+    store.set(liveCaptureAtom, undefined);
 
     store.set(pendingVoiceSendDraftAtom, {
       recovered: true,

@@ -42,10 +42,12 @@
 ### Task 1: The web side of the plugin
 
 **Files:**
+
 - Create: `src/app/native/nativeVoiceRecorder.ts`
 - Test: `src/app/native/nativeVoiceRecorder.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -70,8 +72,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isNativeVoiceRecorderAvailable, startNativeVoiceRecorder } from './nativeVoiceRecorder';
 
 const plugin = vi.hoisted(() => ({
-  start: vi.fn(), pause: vi.fn(), resume: vi.fn(), stop: vi.fn(), cancel: vi.fn(),
-  addListener: vi.fn(), remove: vi.fn(),
+  start: vi.fn(),
+  pause: vi.fn(),
+  resume: vi.fn(),
+  stop: vi.fn(),
+  cancel: vi.fn(),
+  addListener: vi.fn(),
+  remove: vi.fn(),
 }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -86,7 +93,9 @@ vi.mock('@capacitor/core', () => ({
 const PATH = '/tmp/voice-recorder/a.m4a';
 let emitLevel: (data: { level: number }) => void;
 const stubFetch = (response: Partial<Response> | Promise<Response>) => {
-  const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(response as Response));
+  const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+    Promise.resolve(response as Response)
+  );
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 };
@@ -99,7 +108,10 @@ const deferred = <T>() => {
   });
   return { promise, resolve, reject };
 };
-const audio = (body = 'voice'): Partial<Response> => ({ ok: true, blob: async () => new Blob([body]) });
+const audio = (body = 'voice'): Partial<Response> => ({
+  ok: true,
+  blob: async () => new Blob([body]),
+});
 const watch = (recorder: EventTarget) => {
   const seen: string[] = [];
   const chunks: Blob[] = [];
@@ -162,7 +174,11 @@ describe('native voice recorder', () => {
   it('starts recording audio/mp4 and reads the newest level', async () => {
     const recorder = await startNativeVoiceRecorder();
     expect(plugin.addListener).toHaveBeenCalledWith('level', expect.any(Function));
-    expect([recorder.state, recorder.mimeType, recorder.level()]).toEqual(['recording', 'audio/mp4', 0]);
+    expect([recorder.state, recorder.mimeType, recorder.level()]).toEqual([
+      'recording',
+      'audio/mp4',
+      0,
+    ]);
     emitLevel({ level: 0.25 });
     expect(recorder.level()).toBe(0.25);
   });
@@ -177,17 +193,20 @@ describe('native voice recorder', () => {
     expect(plugin.resume).toHaveBeenCalledWith({ id: 'a' });
   });
 
-  it.each(['pause', 'resume'] as const)('ends the recording when a native %s fails', async (method) => {
-    plugin[method].mockRejectedValue({ code: 'NOT_RECORDING' });
-    const recorder = await startNativeVoiceRecorder();
-    const { seen } = watch(recorder);
-    recorder[method]();
-    await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
-    expect(recorder.state).toBe('inactive');
-    expect(plugin.cancel).toHaveBeenCalledWith({ id: 'a' });
-    expect(plugin.remove).toHaveBeenCalledOnce();
-    expect(plugin.stop).not.toHaveBeenCalled();
-  });
+  it.each(['pause', 'resume'] as const)(
+    'ends the recording when a native %s fails',
+    async (method) => {
+      plugin[method].mockRejectedValue({ code: 'NOT_RECORDING' });
+      const recorder = await startNativeVoiceRecorder();
+      const { seen } = watch(recorder);
+      recorder[method]();
+      await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
+      expect(recorder.state).toBe('inactive');
+      expect(plugin.cancel).toHaveBeenCalledWith({ id: 'a' });
+      expect(plugin.remove).toHaveBeenCalledOnce();
+      expect(plugin.stop).not.toHaveBeenCalled();
+    }
+  );
 
   it('changes nothing when a transition fails after the stop', async () => {
     stubFetch(audio());
@@ -242,7 +261,14 @@ describe('native voice recorder', () => {
   it.each([
     ['the native stop fails', () => plugin.stop.mockRejectedValue({ code: 'NOT_RECORDING' })],
     ['the file cannot be read', () => stubFetch({ ok: false })],
-    ['the read is given up', () => vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new DOMException('slow', 'TimeoutError'))))],
+    [
+      'the read is given up',
+      () =>
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.reject(new DOMException('slow', 'TimeoutError')))
+        ),
+    ],
     ['the file is empty', () => stubFetch(audio(''))],
   ])('reports a stop without audio when %s', async (_name, fail) => {
     stubFetch(audio());
@@ -281,11 +307,13 @@ Expected: PASS (16 tests).
 ### Task 2: The session records through it, and the Mac's blocked message
 
 **Files:**
+
 - Modify: `src/app/composer/voice/voiceCaptureSession.ts` (`:1-16` imports, `:85-104` `Generation`, `:147-165` `closeAudio`, `:210-253` sampling and analyser, `:254-258` `finishStop` signature, `:311-388` `start`)
 - Modify: `src/app/composer/voice/microphoneAccess.ts:5-17`
 - Test: `src/app/composer/voice/voiceCaptureSession.test.ts`, `src/app/composer/voice/microphoneAccess.test.ts`
 
 **Interfaces:**
+
 - Consumes: `isNativeVoiceRecorderAvailable`, `startNativeVoiceRecorder`, `NativeVoiceRecorder` (Task 1); `analyserRmsToMatrixPoint` (`src/app/lib/audioWaveform.ts:81`); `isMacOS` (`src/app/lib/user-agent.ts:23`).
 - Produces: no new export. `createVoiceCaptureSession` behaves as before wherever `getUserMedia` and `MediaRecorder` exist.
 
@@ -304,9 +332,15 @@ class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
   mimeType = 'audio/mp4';
   level = () => 0.25;
-  pause = vi.fn(() => { this.state = 'paused'; });
-  resume = vi.fn(() => { this.state = 'recording'; });
-  stop = vi.fn(() => { this.state = 'inactive'; });
+  pause = vi.fn(() => {
+    this.state = 'paused';
+  });
+  resume = vi.fn(() => {
+    this.state = 'recording';
+  });
+  stop = vi.fn(() => {
+    this.state = 'inactive';
+  });
   deliver(body = 'voice') {
     this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob([body]) }));
     this.dispatchEvent(new Event('stop'));
@@ -428,7 +462,9 @@ it('is unsupported without media capture and without the plugin', async () => {
   vi.stubGlobal('MediaRecorder', undefined);
   const session = capture();
   expect(await session.start()).toBe(false);
-  expect(session.getSnapshot().errorMessage).toBe('Voice recording is not supported in this browser.');
+  expect(session.getSnapshot().errorMessage).toBe(
+    'Voice recording is not supported in this browser.'
+  );
 });
 ```
 
@@ -491,6 +527,7 @@ Expected: PASS, with `useVoiceRecorder.test.ts` and `VoiceRecorderDialog.test.ts
 ### Task 3: The Swift plugin
 
 **Files:**
+
 - Create: `ios/App/App/MindRoomVoiceRecorderPlugin.swift`
 - Modify: `ios/App/App/MindRoomBridgeViewController.swift:42` (after the Quick Capture registration)
 - Modify: `ios/App/App/SceneDelegate.swift:85` (before `QuickCapture.stopPage(of: window)`)
@@ -499,6 +536,7 @@ Expected: PASS, with `useVoiceRecorder.test.ts` and `VoiceRecorderDialog.test.ts
 - Test: `src/app/native/nativeVoiceRecorderIOSContract.test.ts`
 
 **Interfaces:**
+
 - Consumes: the names and values of Global Constraints; Task 1's wrapper is the caller.
 - Produces: `MindRoomVoiceRecorderPlugin` with `func cancelRecording()` (main queue: the page is gone; raises the page's token, stops a live recording, deletes the folder), which `SceneDelegate` calls.
 
@@ -535,7 +573,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toContain('UUID(uuidString: id)');
     ['pause', 'resume', 'stop'].forEach((method) =>
       expect(pluginSource).toMatch(
-        new RegExp(`@objc func ${method}\\(_ call: CAPPluginCall\\) \\{[\\s\\S]*?live\\.id == call\\.getString\\("id"\\)[\\s\\S]*?"NOT_RECORDING"`)
+        new RegExp(
+          `@objc func ${method}\\(_ call: CAPPluginCall\\) \\{[\\s\\S]*?live\\.id == call\\.getString\\("id"\\)[\\s\\S]*?"NOT_RECORDING"`
+        )
       )
     );
     expect(pluginSource).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
@@ -645,7 +685,8 @@ DispatchQueue.main.async {
 }
 ```
 
-  After the guard: not granted rejects `PERMISSION_DENIED`; `AVCaptureDevice.default(for: .audio) == nil` rejects `NO_MICROPHONE`; then `discardLive()`, `let id = UUID().uuidString`, the audio session as `Recorder.swift:31-33` (`.record`, `setActive(true)`), the folder created, `AVAudioRecorder(url: file(of: id), settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000])`, `isMeteringEnabled = true`, `record()`. `live` is set only after `record()` answers true, so a failed attempt cleans up from local scope, not through `discardLive()`: keep `let url = file(of: id)` and `var attempt: AVAudioRecorder?` outside the `do`; on a throw or `record()` returning false, `attempt?.stop()`, `try? FileManager.default.removeItem(at: url)`, deactivate the audio session (`Recorder.swift:89`), and reject `START_FAILED`. Else set `live`, start `meter` (`Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true)`, `[weak self]`) and `call.resolve(["id": id])`.
+After the guard: not granted rejects `PERMISSION_DENIED`; `AVCaptureDevice.default(for: .audio) == nil` rejects `NO_MICROPHONE`; then `discardLive()`, `let id = UUID().uuidString`, the audio session as `Recorder.swift:31-33` (`.record`, `setActive(true)`), the folder created, `AVAudioRecorder(url: file(of: id), settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000])`, `isMeteringEnabled = true`, `record()`. `live` is set only after `record()` answers true, so a failed attempt cleans up from local scope, not through `discardLive()`: keep `let url = file(of: id)` and `var attempt: AVAudioRecorder?` outside the `do`; on a throw or `record()` returning false, `attempt?.stop()`, `try? FileManager.default.removeItem(at: url)`, deactivate the audio session (`Recorder.swift:89`), and reject `START_FAILED`. Else set `live`, start `meter` (`Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true)`, `[weak self]`) and `call.resolve(["id": id])`.
+
 - The timer, only while `live.recorder.isRecording`: `updateMeters()`, `let level = pow(10, recorder.averagePower(forChannel: 0) / 20)`, `notifyListeners("level", data: ["level": level])`.
 - `pause`, `resume`, `stop` start with `guard let live = self.live, live.id == call.getString("id") else { return call.reject("No such recording", "NOT_RECORDING") }`.
 - `pause`: `live.recorder.pause()`, resolve. `resume`: `guard live.recorder.record() else { discardLive(); return call.reject("Could not resume", "NOT_RECORDING") }`, resolve.
@@ -695,6 +736,7 @@ Expected: PASS, including `iosSceneLifecycle.test.ts`, `macCatalystShell.test.ts
 **Files:** none committed, unless the Mac build finds a defect (fix it in the file of Task 3 and commit).
 
 **Interfaces:**
+
 - Consumes: the branch head with Tasks 1 to 3.
 
 - [ ] **Step 1: The full local check**
@@ -776,11 +818,11 @@ On the M2's worktree only, never committed: insert this block in `MindRoomBridge
 Run: `open -n --env MINDROOM_VOICE_PROBE=1 --stderr /tmp/voice-probe.log build/mac-voice/Build/Products/Debug-maccatalyst/MindRoom.chat.app`, wait 45 s, `grep 'MindRoom voice probe' /tmp/voice-probe.log` (an empty log: `log show --last 2m --predicate 'eventMessage CONTAINS "MindRoom voice probe"'`), then `afinfo <path>` with the path it printed.
 Expected: `ok bytes=` above 2000 with `status=0` or `status=200` (the file read by the wrapper's rule) and a `level=` between 0 and 1, and `afinfo` reports `1 ch,  16000 Hz` AAC with an estimated duration between 2.7 and 3.3 s. This run is the control: the runs below mean nothing until it answers `ok`. Other answers:
 
-| Answer | Meaning | Do |
-|---|---|---|
-| `failed PROMPT_PENDING` | macOS waits for a click on the microphone prompt | report the probe as blocked on the prompt, not as passed; rerun after Bas clicks Allow on the M2 |
-| `failed PERMISSION_DENIED` | denied before | `tccutil reset Microphone chat.mindroom.app`, rerun |
-| anything else | a defect | fix in Task 3's file, commit, rebuild |
+| Answer                     | Meaning                                          | Do                                                                                               |
+| -------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `failed PROMPT_PENDING`    | macOS waits for a click on the microphone prompt | report the probe as blocked on the prompt, not as passed; rerun after Bas clicks Allow on the M2 |
+| `failed PERMISSION_DENIED` | denied before                                    | `tccutil reset Microphone chat.mindroom.app`, rerun                                              |
+| anything else              | a defect                                         | fix in Task 3's file, commit, rebuild                                                            |
 
 After every `failed` answer: `ls "$(getconf DARWIN_USER_TEMP_DIR)voice-recorder"` (or the folder of an earlier run's path) shows no `.m4a`, and the next run of the probe, once its cause is removed, answers `ok`: a failed start leaves no file and does not block the next one.
 

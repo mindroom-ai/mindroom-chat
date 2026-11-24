@@ -33,12 +33,12 @@ const openPasteDb = (): Promise<IDBPDatabase<PasteDraftDb>> =>
   });
 
 const withPasteDb = async <T>(
-  use: (db: IDBPDatabase<PasteDraftDb>) => Promise<T>
+  run: (db: IDBPDatabase<PasteDraftDb>) => Promise<T>
 ): Promise<T | undefined> => {
   try {
     const db = await openPasteDb();
     try {
-      return await use(db);
+      return await run(db);
     } finally {
       db.close();
     }

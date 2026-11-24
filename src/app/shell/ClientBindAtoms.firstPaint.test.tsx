@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { atom, createStore, Provider, useAtomValue, useSetAtom } from 'jotai';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
-import { liveVoiceRecordingAtom, voiceAccountGuard } from '../composer/voice/liveVoiceRecording';
+import { captureAccountGuard, liveCaptureAtom } from '../composer/capture/liveCapture';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { createVoiceSendDraftController } from '../composer/voice/voiceSendDraftController';
 import { pendingVoiceSendDraftAtom, watchComposerAccount } from '../composer/roomInputDrafts';
@@ -89,13 +89,14 @@ it('keeps a recording and an accepted send across a same-account shell remount',
   const reset = vi.fn();
   const recording = { reset } as unknown as VoiceCaptureSession;
   renderShell(true);
-  store.set(liveVoiceRecordingAtom, recording);
+  const entry = { kind: 'voice' as const, session: recording };
+  store.set(liveCaptureAtom, entry);
   renderShell(false);
   renderShell(true);
-  expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+  expect(store.get(liveCaptureAtom)).toBe(entry);
   expect(reset).not.toHaveBeenCalled();
 
-  store.set(liveVoiceRecordingAtom, undefined);
+  store.set(liveCaptureAtom, undefined);
   const send = createVoiceSendDraftController({
     read: () => store.get(pendingVoiceSendDraftAtom),
     write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
@@ -117,7 +118,7 @@ it('keeps a recording and an accepted send across a same-account shell remount',
       threadingEnabled: true,
       signalBridgedRoom: false,
     },
-    { sendRecording: () => delivery, onFailure: vi.fn(), sameAccount: voiceAccountGuard(store) }
+    { sendRecording: () => delivery, onFailure: vi.fn(), sameAccount: captureAccountGuard(store) }
   );
   renderShell(false);
   renderShell(true);
@@ -139,12 +140,15 @@ it.each(['switch', 'logout', 'switch to the same user id on another homeserver']
     const stop = watchComposerAccount(store);
     try {
       const reset = vi.fn();
-      store.set(liveVoiceRecordingAtom, { reset } as unknown as VoiceCaptureSession);
-      const sameAccount = voiceAccountGuard(store);
+      store.set(liveCaptureAtom, {
+        kind: 'voice',
+        session: { reset } as unknown as VoiceCaptureSession,
+      });
+      const sameAccount = captureAccountGuard(store);
       if (exit === 'logout') removeSession(session.sessionId);
       else if (exit === 'switch') putSession({ ...session, userId: '@other:example.org' });
       else putSession({ ...session, baseUrl: 'https://other.example.org' });
-      expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+      expect(store.get(liveCaptureAtom)).toBeUndefined();
       expect(reset).toHaveBeenCalledOnce();
       expect(sameAccount()).toBe(false);
     } finally {

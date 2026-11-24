@@ -43,7 +43,7 @@ const response = (overrides: Partial<Response> = {}): Response =>
     type: 'basic',
     json: vi.fn().mockResolvedValue({ ok: true }),
     ...overrides,
-  } as Response);
+  }) as Response;
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', createStorage());

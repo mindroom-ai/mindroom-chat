@@ -41,8 +41,8 @@ export const launchWebKit = async (): Promise<Browser> => {
 export const blockWebKitServiceWorkers = {
   serviceWorkers: async (
     { browserName }: { browserName: string },
-    use: (serviceWorkers: 'allow' | 'block') => Promise<void>
-  ) => use(browserName === 'webkit' ? 'block' : 'allow'),
+    provide: (serviceWorkers: 'allow' | 'block') => Promise<void>
+  ) => provide(browserName === 'webkit' ? 'block' : 'allow'),
 };
 
 /**

@@ -11,7 +11,7 @@ const clientWith = (rooms: Room[]) =>
   Object.assign(new EventEmitter(), { getRooms: () => rooms }) as unknown as MatrixClient &
     EventEmitter;
 
-const thread = (id: string) => ({ id } as Thread);
+const thread = (id: string) => ({ id }) as Thread;
 
 describe('watchRoomThreads', () => {
   it("passes on the threads rooms hold, then each new or updated one, with the thread's room", () => {

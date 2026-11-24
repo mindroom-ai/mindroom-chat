@@ -775,7 +775,18 @@
       "manage": "إدارة"
     },
     "roomOrder": {
-      "sortByName": "ترتيب الغرف من أ إلى ي"
+      "sortRooms": "ترتيب الغرف",
+      "sortHeading": "ترتيب الغرف",
+      "displayHeading": "العرض",
+      "recentActivity": "النشاط الأخير",
+      "aToZ": "من أ إلى ي",
+      "customOrder": "ترتيب مخصص",
+      "saved": "محفوظ",
+      "showActivityTimes": "إظهار أوقات النشاط",
+      "matchSpace": "مطابقة المساحة (⁨{{mode}}⁩)",
+      "shortRecent": "الأخير",
+      "shortName": "أ إلى ي",
+      "shortManual": "مخصص"
     },
     "roomActions": {
       "noInvitePermission": "ليس لديك إذن بالدعوة",
@@ -1679,7 +1690,20 @@
       "failedSummary_two": "تعذّر نسخ مقطعين (⁨{{count}}⁩).",
       "failedSummary_few": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
       "failedSummary_many": "تعذّر نسخ ⁨{{count}}⁩ مقطعًا.",
-      "failedSummary_other": "تعذّر نسخ ⁨{{count}}⁩ مقطع."
+      "failedSummary_other": "تعذّر نسخ ⁨{{count}}⁩ مقطع.",
+      "discardDictation": "تجاهل الإملاء",
+      "discardConfirmTitle": "تجاهل الإملاء؟",
+      "discardConfirmBody": "لم يتم إدراج هذا الإملاء أو إرساله. هل تريد تجاهله نهائيًا؟",
+      "errorTitle": "خطأ في الإملاء",
+      "statusRecovered": "إملاء مسترد",
+      "recoveredDuration": "مسترد · ⁨{{time}}⁩",
+      "indicator": {
+        "recording": "جارٍ الإملاء ⁨{{time}}⁩",
+        "paused": "تم إيقاف الإملاء مؤقتًا ⁨{{time}}⁩",
+        "recovered": "إملاء مسترد ⁨{{time}}⁩",
+        "finishing": "جارٍ إنهاء الإملاء…",
+        "failed": "يحتاج الإملاء إلى انتباه"
+      }
     }
   },
   "commandPalette": {
@@ -1785,6 +1809,7 @@
       "needsYou": "بحاجة إليك",
       "working": "قيد العمل",
       "later": "لاحقًا",
+      "quiet": "هادئة",
       "done": "مكتمل",
       "all": "الكل",
       "description": {
@@ -2176,6 +2201,7 @@
       "working": "قيد العمل",
       "later": "لاحقًا",
       "idle": "خاملة",
+      "quiet": "هادئة",
       "resolved": "محلولة"
     },
     "live": {

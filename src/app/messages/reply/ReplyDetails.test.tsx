@@ -53,7 +53,7 @@ const thread = (
     tokens.map((reply, index) => {
       counts = { ...counts };
       AI_RUN_TOKEN_KINDS.forEach((kind) => {
-        if (reply[kind]) counts[kind] = (counts[kind] ?? 0) + reply[kind]!;
+        if (reply[kind]) counts[kind] = (counts[kind] ?? 0) + reply[kind];
       });
       return [`$r${index + 1}`, { counts, replyCount: index + 1 }] as const;
     })
@@ -194,7 +194,7 @@ describe('ReplyDetails', () => {
   const placeBars = (direction: 'ltr' | 'rtl') =>
     bars().forEach((bar, offset) => {
       const left = direction === 'ltr' ? offset * 10 : 30 - offset * 10;
-      bar.getBoundingClientRect = () => ({ left, right: left + 8 } as DOMRect);
+      bar.getBoundingClientRect = () => ({ left, right: left + 8 }) as DOMRect;
     });
 
   it('names the reply under the pointer in the caption', () => {

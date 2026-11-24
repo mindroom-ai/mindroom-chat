@@ -97,26 +97,20 @@ describe('useZoom', () => {
     const preventDefault = vi.fn();
 
     act(() => {
-      zoomSurface.dispatch(
-        'touchstart',
-        {
-          touches: createTouchList([
-            { clientX: 0, clientY: 0 },
-            { clientX: 0, clientY: 100 },
-          ]),
-        } as unknown as TouchEvent
-      );
-      zoomSurface.dispatch(
-        'touchmove',
-        {
-          cancelable: true,
-          preventDefault,
-          touches: createTouchList([
-            { clientX: 0, clientY: 0 },
-            { clientX: 0, clientY: 150 },
-          ]),
-        } as unknown as TouchEvent
-      );
+      zoomSurface.dispatch('touchstart', {
+        touches: createTouchList([
+          { clientX: 0, clientY: 0 },
+          { clientX: 0, clientY: 100 },
+        ]),
+      } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault,
+        touches: createTouchList([
+          { clientX: 0, clientY: 0 },
+          { clientX: 0, clientY: 150 },
+        ]),
+      } as unknown as TouchEvent);
     });
 
     expect(preventDefault).toHaveBeenCalledOnce();
@@ -124,12 +118,9 @@ describe('useZoom', () => {
     expect(zoomState.zoom).toBeCloseTo(1.5);
 
     act(() => {
-      zoomSurface.dispatch(
-        'touchend',
-        {
-          touches: createTouchList([{ clientX: 0, clientY: 0 }]),
-        } as unknown as TouchEvent
-      );
+      zoomSurface.dispatch('touchend', {
+        touches: createTouchList([{ clientX: 0, clientY: 0 }]),
+      } as unknown as TouchEvent);
     });
 
     expect(zoomState.isZooming).toBe(false);
@@ -153,7 +144,7 @@ describe('useZoom', () => {
       zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
     });
     const wheel = (deltaY: number, modifier: Partial<WheelEvent>) =>
-      ({ deltaY, clientX: 250, clientY: 80, preventDefault: vi.fn(), ...modifier } as WheelEvent);
+      ({ deltaY, clientX: 250, clientY: 80, preventDefault: vi.fn(), ...modifier }) as WheelEvent;
 
     act(() => {
       zoomSurface.dispatch('wheel', wheel(-100, { metaKey: true }));
@@ -297,26 +288,20 @@ describe('useZoom', () => {
     });
 
     act(() => {
-      zoomSurface.dispatch(
-        'touchstart',
-        {
-          touches: createTouchList([
-            { clientX: 0, clientY: 0 },
-            { clientX: 0, clientY: 100 },
-          ]),
-        } as unknown as TouchEvent
-      );
-      zoomSurface.dispatch(
-        'touchmove',
-        {
-          cancelable: true,
-          preventDefault: vi.fn(),
-          touches: createTouchList([
-            { clientX: 0, clientY: 0 },
-            { clientX: 0, clientY: 600 },
-          ]),
-        } as unknown as TouchEvent
-      );
+      zoomSurface.dispatch('touchstart', {
+        touches: createTouchList([
+          { clientX: 0, clientY: 0 },
+          { clientX: 0, clientY: 100 },
+        ]),
+      } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: createTouchList([
+          { clientX: 0, clientY: 0 },
+          { clientX: 0, clientY: 600 },
+        ]),
+      } as unknown as TouchEvent);
     });
 
     expect(zoomState.zoom).toBe(5);

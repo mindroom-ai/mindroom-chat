@@ -64,7 +64,7 @@ const makeThreadReplyEvent = (
     isRedacted: () => false,
     isRedaction: () => false,
     threadRootId,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const room = {
   getMember: (userId: string) =>

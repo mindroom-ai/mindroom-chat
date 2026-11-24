@@ -182,7 +182,7 @@ vi.mock('../ui/IconTooltip', () => ({
 vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => mocks.touch }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({

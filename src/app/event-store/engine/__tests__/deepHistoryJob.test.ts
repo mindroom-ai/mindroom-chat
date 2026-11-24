@@ -62,7 +62,7 @@ const makeRoom = (
       getPaginationToken: (dir: Direction) => (dir === Direction.Backward ? liveBackToken : null),
     }),
     getLastActiveTimestamp: () => 0,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;

@@ -20,7 +20,7 @@ const IGNORED: SwipeGesture = { kind: 'ignored' };
 
 const canGo = (target: Window, dir: Dir): boolean => {
   const nav = (target as NavWindow).navigation;
-  if (!(dir === 'back' ? nav?.canGoBack ?? target.history.length > 1 : nav?.canGoForward))
+  if (!(dir === 'back' ? (nav?.canGoBack ?? target.history.length > 1) : nav?.canGoForward))
     return false;
   if (!hasOpenOverlay()) return true;
   const iv = dir === 'back' ? target.document.querySelector('[data-image-viewer-overlay]') : null;

@@ -30,9 +30,7 @@ export function CanvasResponseSidecarReceipt({
 }: CanvasResponseSidecarReceiptProps) {
   // The parent builds a new source (and owner) object on every render; the download hook keys on
   // the object, so keep one per file and owner.
-  const key = `${getLongTextSourceIdentity(source)}\n${JSON.stringify(
-    source.owner ?? null
-  )}`;
+  const key = `${getLongTextSourceIdentity(source)}\n${JSON.stringify(source.owner ?? null)}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableSource = useMemo(() => source, [key]);
   const resolved = useLongTextResolvedContent(stableSource, hydrate);
