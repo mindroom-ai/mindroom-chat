@@ -130,15 +130,16 @@ vi.mock('../room/useRoomViewThreadState', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: noop }),
 }));
-vi.mock('../composer/RoomInput', () => ({ RoomInput: React.forwardRef(Composer) }));
+vi.mock('../composer/RoomInput', () => ({ RoomInput: Composer }));
 
-function Composer(
-  {
-    threadId,
-    onRoomMessageSent,
-  }: { threadId?: string; onRoomMessageSent?: (id: string) => boolean | void },
-  _ref: React.ForwardedRef<HTMLDivElement>
-) {
+function Composer({
+  threadId,
+  onRoomMessageSent,
+}: {
+  threadId?: string;
+  onRoomMessageSent?: (id: string) => boolean | void;
+  ref?: React.Ref<HTMLDivElement>;
+}) {
   const selectedFilesRef = useRef([item(first), item(second)]);
   const uploadsRef = useRef<Upload[]>([
     ready(first),

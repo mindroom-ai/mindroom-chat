@@ -9,11 +9,14 @@ import { UploadBoard, UploadBoardHeader } from './UploadBoard';
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
-  const forwardTag = (tag: string) =>
-    reactModule.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, ...props }, ref) =>
-        reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode)
-    );
+  const forwardTag =
+    (tag: string) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
+      reactModule.createElement(tag, { ...props, ref }, children);
 
   return {
     Badge: forwardTag('span'),
@@ -29,7 +32,10 @@ vi.mock('folds', async () => {
     },
     Spinner: forwardTag('span'),
     Text: forwardTag('span'),
-    as: (render: Parameters<typeof reactModule.forwardRef>[0]) => reactModule.forwardRef(render),
+    as:
+      (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+      ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+        render(props, ref ?? null),
     percent: (min: number, max: number, value: number) => ((value - min) / (max - min)) * 100,
   };
 });

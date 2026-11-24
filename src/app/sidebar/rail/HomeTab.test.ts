@@ -36,9 +36,8 @@ vi.mock('folds', async () => {
       Home: 'Home',
       CheckTwice: 'CheckTwice',
     },
-    Menu: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
-      reactModule.createElement('div', { ref }, children)
-    ),
+    Menu: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     MenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) =>
       reactModule.createElement('button', { type: 'button', onClick }, children),
     PopOut: ({ content }: { content: React.ReactNode }) =>
@@ -128,14 +127,13 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
     ),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      children: React.ReactNode;
-    }
-  >(({ children, ...props }, ref) =>
-    React.createElement('button', { ref, type: 'button', ...props }, children)
-  ),
+  SidebarAvatar: ({
+    children,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    children: React.ReactNode;
+  }) => React.createElement('button', { ref, type: 'button', ...props }, children),
 }));
 
 vi.mock('../../routes/useHomeSelected', () => ({

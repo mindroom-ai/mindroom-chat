@@ -184,15 +184,17 @@ vi.mock('../../ui/nav/NavItem', () => ({
   NavLink: passthrough,
 }));
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
-  NavCategoryHeader: React.forwardRef<HTMLDivElement, Record<string, unknown>>(
-    function MockNavCategoryHeader({ children, ...props }, ref) {
-      return (
-        <div ref={ref} data-nav-category-header {...props}>
-          {children as React.ReactNode}
-        </div>
-      );
-    }
-  ),
+  NavCategoryHeader: function MockNavCategoryHeader({
+    children,
+    ref,
+    ...props
+  }: Record<string, unknown> & { ref?: React.Ref<HTMLDivElement> }) {
+    return (
+      <div ref={ref} data-nav-category-header {...props}>
+        {children as React.ReactNode}
+      </div>
+    );
+  },
 }));
 vi.mock('../../ui/directional', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/directional')>()),
@@ -223,16 +225,20 @@ vi.mock('../../ui/MenuEntry', () => ({
   ),
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
-  RoomNavCategoryButton: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      closed?: boolean;
-      ownDirection?: boolean;
-      after?: React.ReactNode;
-      children?: React.ReactNode;
-      'data-category-id'?: string;
-    }
-  >(function MockRoomNavCategoryButton({ closed, ownDirection, after, children, ...props }, ref) {
+  RoomNavCategoryButton: function MockRoomNavCategoryButton({
+    closed,
+    ownDirection,
+    after,
+    children,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    closed?: boolean;
+    ownDirection?: boolean;
+    after?: React.ReactNode;
+    children?: React.ReactNode;
+    'data-category-id'?: string;
+  }) {
     const categoryId = props['data-category-id'] ?? '';
     categoryButtonStats.renders.set(
       categoryId,
@@ -263,7 +269,7 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
         {after}
       </button>
     );
-  }),
+  },
 }));
 // The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({

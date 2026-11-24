@@ -21,9 +21,8 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('div', null, children),
     Badge: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    Box: reactModule.forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
-      ({ children }, ref) => reactModule.createElement('div', { ref }, children)
-    ),
+    Box: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     Chip: ({
       children,
       ...props
@@ -32,12 +31,12 @@ vi.mock('folds', async (importOriginal) => {
     Header: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
     Icon: ({ src }: { src: string }) => reactModule.createElement('span', { 'data-icon': src }),
-    IconButton: reactModule.forwardRef<
-      HTMLButtonElement,
-      React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }
-    >(({ children, ...props }, ref) =>
-      reactModule.createElement('button', { ref, type: 'button', ...props }, children)
-    ),
+    IconButton: ({
+      children,
+      ref,
+      ...props
+    }: React.ComponentPropsWithRef<'button'> & { children?: React.ReactNode }) =>
+      reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ChevronTop: 'ChevronTop',
       Cross: 'Cross',
@@ -47,9 +46,8 @@ vi.mock('folds', async (importOriginal) => {
       User: 'User',
       UserPlus: 'UserPlus',
     },
-    Input: reactModule.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-      (props, ref) => reactModule.createElement('input', { ref, ...props })
-    ),
+    Input: ({ ref, ...props }: React.ComponentPropsWithRef<'input'>) =>
+      reactModule.createElement('input', { ref, ...props }),
     MenuItem: ({
       children,
       ...props
@@ -57,9 +55,8 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('button', { type: 'button', ...props }, children),
     PopOut: ({ children, content }: { children?: React.ReactNode; content?: React.ReactNode }) =>
       reactModule.createElement(reactModule.Fragment, null, children, content),
-    Scroll: reactModule.forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
-      ({ children }, ref) => reactModule.createElement('div', { ref }, children)
-    ),
+    Scroll: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     Spinner: () => reactModule.createElement('div'),
     Text: ({
       as,

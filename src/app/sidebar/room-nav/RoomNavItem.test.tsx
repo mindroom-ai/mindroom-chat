@@ -33,9 +33,8 @@ vi.mock('folds', async () => {
     Avatar: Container,
     Badge: Container,
     Box: Container,
-    Icon: reactModule.forwardRef<HTMLElement, Record<string, unknown>>((props, ref) =>
-      reactModule.createElement('i', { ...props, ref })
-    ),
+    Icon: ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<HTMLElement> }) =>
+      reactModule.createElement('i', { ...props, ref }),
     IconButton: ({ children, ...props }: { children?: React.ReactNode }) =>
       reactModule.createElement('button', props, children),
     Icons: {

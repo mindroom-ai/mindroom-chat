@@ -66,9 +66,8 @@ vi.mock('../../../ui/glass/GlassPrimitives', () => ({
     React.createElement('div', { role: 'dialog' }, children),
   Header: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('header', null, children),
-  IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-    ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
-  ),
+  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) =>
+    React.createElement('button', { ...props, ref }, children),
 }));
 
 vi.mock('react-i18next', async () => {

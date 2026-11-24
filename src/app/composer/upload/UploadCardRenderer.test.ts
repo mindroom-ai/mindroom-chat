@@ -18,11 +18,14 @@ const uploadMock = vi.hoisted(() => ({
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
-  const forwardTag = (tag: string) =>
-    React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, ...props }, ref) =>
-        reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode)
-    );
+  const forwardTag =
+    (tag: string) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
+      reactModule.createElement(tag, { ...props, ref }, children);
 
   return {
     Badge: forwardTag('span'),

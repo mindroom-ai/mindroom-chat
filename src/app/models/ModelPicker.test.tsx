@@ -147,19 +147,20 @@ vi.mock('folds', async (importOriginal) => ({
 }));
 
 vi.mock('../ui/glass/GlassPrimitives', () => ({
-  Menu: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-    ({ children, ...props }, ref) => (
-      <div ref={ref} data-glass-menu="" {...props}>
-        {children}
-      </div>
-    )
+  Menu: ({ children, ref, ...props }: React.ComponentPropsWithRef<'div'>) => (
+    <div ref={ref} data-glass-menu="" {...props}>
+      {children}
+    </div>
   ),
-  IconButton: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & Record<'variant' | 'radii' | 'size', string>
-  >(({ variant: _variant, radii: _radii, size: _size, ...props }, ref) => (
+  IconButton: ({
+    variant: _variant,
+    radii: _radii,
+    size: _size,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & Record<'variant' | 'radii' | 'size', string>) => (
     <button ref={ref} {...props} />
-  )),
+  ),
 }));
 
 vi.mock('../ui/IconTooltip', () => ({

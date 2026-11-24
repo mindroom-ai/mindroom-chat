@@ -1,4 +1,4 @@
-import { forwardRef, useContext, type MouseEvent } from 'react';
+import { type Ref, useContext, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FocusTrap } from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem } from 'folds';
@@ -19,12 +19,10 @@ type AgentCallHeaderButtonProps = {
 type ChooserProps = {
   candidates: AgentCallCandidate[];
   onChoose: (candidate: AgentCallCandidate) => void;
+  ref?: Ref<HTMLDivElement>;
 };
 
-const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChooser(
-  { candidates, onChoose },
-  ref
-) {
+function AgentChooser({ candidates, onChoose, ref }: ChooserProps) {
   const { t } = useTranslation();
   return (
     <Menu
@@ -57,7 +55,7 @@ const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChoo
       </Box>
     </Menu>
   );
-});
+}
 
 /**
  * The room header's button for calling the room's voice-capable agent: one agent is called at

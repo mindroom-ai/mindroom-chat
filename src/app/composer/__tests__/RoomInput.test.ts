@@ -231,15 +231,16 @@ vi.mock('slate-react', () => ({
 vi.mock('folds', () => {
   const Wrapper = ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children);
-  const Button = React.forwardRef<
-    HTMLButtonElement,
-    {
-      children?: React.ReactNode;
-      onClick?: () => void;
-    }
-  >(({ children, onClick, ...props }, ref) =>
-    React.createElement('button', { ...props, onClick, ref }, children)
-  );
+  const Button = ({
+    children,
+    onClick,
+    ref,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    onClick?: () => void;
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement('button', { ...props, onClick, ref }, children);
 
   return {
     Box: Wrapper,
@@ -731,54 +732,51 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
   const { useStore } = await import('jotai');
   const { claimLiveVoice } = await import('../capture/liveCapture');
   return {
-    VoiceRecorderComposer: React.forwardRef(
-      (
-        {
-          onSendRecording,
-          getSendContext,
-          ...rest
-        }: {
-          sendDisabled?: boolean;
-          onSendStopRequest?: () => boolean | void;
-          onSendStopFailure?: () => void;
-          onRetryRequest?: () => void;
-          onSendRecording: (
-            file: File,
-            duration: number,
-            waveform: number[] | undefined,
-            context: unknown
-          ) => Promise<void>;
-          getSendContext: () => PendingVoiceSendContext;
+    VoiceRecorderComposer: ({
+      onSendRecording,
+      getSendContext,
+      ref,
+      ...rest
+    }: {
+      sendDisabled?: boolean;
+      onSendStopRequest?: () => boolean | void;
+      onSendStopFailure?: () => void;
+      onRetryRequest?: () => void;
+      onSendRecording: (
+        file: File,
+        duration: number,
+        waveform: number[] | undefined,
+        context: unknown
+      ) => Promise<void>;
+      getSendContext: () => PendingVoiceSendContext;
+      ref?: React.Ref<unknown>;
+    }) => {
+      // Fill in the context from getSendContext() as the real recorder does when Send
+      // is pressed, so unit-style tests of handleVoiceSend keep their (file, duration,
+      // waveform?) call shape. The hook's own end-to-end persistence is
+      // covered by useVoiceRecorder.test.ts; the parent's recorder-shown and
+      // mic-disabled wiring is exercised in dedicated tests below.
+      voiceRecorderState.props = {
+        ...rest,
+        getSendContext,
+        onSendRecording: (file, duration, waveform, context) =>
+          onSendRecording(file, duration, waveform, context ?? getSendContext()),
+      };
+      const view = React.useContext(ConversationViewContext);
+      voiceRecorderState.byView.set(view, voiceRecorderState.props);
+      React.useEffect(() => () => void voiceRecorderState.byView.delete(view), [view]);
+      const store = useStore();
+      React.useImperativeHandle(ref, () => ({
+        // As the real recorder: the composer whose Send is pressed takes the account's
+        // recording, so no other composer shows or sends it any more.
+        send: () => {
+          claimLiveVoice(store);
+          return voiceRecorderState.send(view);
         },
-        ref
-      ) => {
-        // Fill in the context from getSendContext() as the real recorder does when Send
-        // is pressed, so unit-style tests of handleVoiceSend keep their (file, duration,
-        // waveform?) call shape. The hook's own end-to-end persistence is
-        // covered by useVoiceRecorder.test.ts; the parent's recorder-shown and
-        // mic-disabled wiring is exercised in dedicated tests below.
-        voiceRecorderState.props = {
-          ...rest,
-          getSendContext,
-          onSendRecording: (file, duration, waveform, context) =>
-            onSendRecording(file, duration, waveform, context ?? getSendContext()),
-        };
-        const view = React.useContext(ConversationViewContext);
-        voiceRecorderState.byView.set(view, voiceRecorderState.props);
-        React.useEffect(() => () => void voiceRecorderState.byView.delete(view), [view]);
-        const store = useStore();
-        React.useImperativeHandle(ref, () => ({
-          // As the real recorder: the composer whose Send is pressed takes the account's
-          // recording, so no other composer shows or sends it any more.
-          send: () => {
-            claimLiveVoice(store);
-            return voiceRecorderState.send(view);
-          },
-          phase: () => 'recording',
-        }));
-        return React.createElement('div');
-      }
-    ),
+        phase: () => 'recording',
+      }));
+      return React.createElement('div');
+    },
   };
 });
 

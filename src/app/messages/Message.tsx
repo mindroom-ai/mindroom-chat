@@ -1,5 +1,4 @@
 import {
-  forwardRef,
   useCallback,
   useMemo,
   useRef,
@@ -9,6 +8,7 @@ import {
   type MouseEventHandler,
   type PointerEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFocusWithin, useHover } from 'react-aria';
@@ -582,6 +582,7 @@ export type MessageProps = MessageSubject &
     /** The reaction chips, shown under the body. */
     reactions?: ReactNode;
     'data-message-id'?: string;
+    ref?: Ref<HTMLDivElement>;
   };
 
 const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
@@ -646,604 +647,596 @@ const pointRect = (left: number, top: number): RectCords => ({
 });
 
 /** One message in the timeline: avatar, sender, body, hover toolbar and context menu. */
-export const Message = forwardRef<HTMLDivElement, MessageProps>(
-  (
-    {
-      room,
-      mEvent,
-      collapse,
-      highlight,
-      // Editing and what the viewer may do with the message.
-      edit,
-      onEditId,
-      canDelete = false,
-      canSendReaction = false,
-      canPinEvent = false,
-      imagePackRooms = [],
-      relations,
-      // Presentation.
-      messageLayout = MessageLayout.Modern,
-      messageSpacing = '400',
-      hideReadReceipts = false,
-      hour24Clock = false,
-      dateFormatString,
-      reply,
-      reactions,
-      // Clicks on the avatar and the name.
-      onUserClick,
-      onUsernameClick,
-      // Replying and reacting.
-      onReplyClick,
-      onOpenInOriginalThread,
-      onForkClick,
-      onForkToRoomClick,
-      onReactionToggle,
-      resolvedMessageContent,
-      replyTiming,
-      children,
-      ...props
+export function Message({
+  ref,
+  room,
+  mEvent,
+  collapse,
+  highlight,
+  // Editing and what the viewer may do with the message.
+  edit,
+  onEditId,
+  canDelete = false,
+  canSendReaction = false,
+  canPinEvent = false,
+  imagePackRooms = [],
+  relations,
+  // Presentation.
+  messageLayout = MessageLayout.Modern,
+  messageSpacing = '400',
+  hideReadReceipts = false,
+  hour24Clock = false,
+  dateFormatString,
+  reply,
+  reactions,
+  // Clicks on the avatar and the name.
+  onUserClick,
+  onUsernameClick,
+  // Replying and reacting.
+  onReplyClick,
+  onOpenInOriginalThread,
+  onForkClick,
+  onForkToRoomClick,
+  onReactionToggle,
+  resolvedMessageContent,
+  replyTiming,
+  children,
+  ...props
+}: MessageProps) {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  // Anchors of the context menu and of the emoji board while they are open.
+  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+  // The menu's entries keep the dialogs they open: the menu hides while one is open rather than
+  // stay open behind it, and the entry closes the menu with its dialog.
+  const [menuDialogs, setMenuDialogs] = useState(0);
+  const hideMenu = useCallback(() => {
+    setMenuDialogs((count) => count + 1);
+    return () => setMenuDialogs((count) => count - 1);
+  }, []);
+  const menuShown = menuDialogs === 0;
+  // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
+  // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
+  // a tap does, since touch screens have no hover, and the next tap on the message hides it
+  // again: a tap on the message toggles its toolbar. Where the pointer cannot hover, the row
+  // takes no hover at all: WebKit hovers the row that lands under the finger after a tap with
+  // its emulated mouse, and never ends that hover, so the toolbar stayed there.
+  const [pointerInside, setPointerInside] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const { hoverProps } = useHover({
+    onHoverChange: (hovered: boolean) => setPointerInside(hovered && canHover()),
+  });
+  const { focusWithinProps } = useFocusWithin({
+    onFocusWithinChange: (inside: boolean) => {
+      if (!inside) setFocusInside(false);
     },
-    ref
-  ) => {
-    const client = useMatrixClient();
-    const { t } = useTranslation();
-    // Anchors of the context menu and of the emoji board while they are open.
-    const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-    const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
-    // The menu's entries keep the dialogs they open: the menu hides while one is open rather than
-    // stay open behind it, and the entry closes the menu with its dialog.
-    const [menuDialogs, setMenuDialogs] = useState(0);
-    const hideMenu = useCallback(() => {
-      setMenuDialogs((count) => count + 1);
-      return () => setMenuDialogs((count) => count - 1);
-    }, []);
-    const menuShown = menuDialogs === 0;
-    // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
-    // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
-    // a tap does, since touch screens have no hover, and the next tap on the message hides it
-    // again: a tap on the message toggles its toolbar. Where the pointer cannot hover, the row
-    // takes no hover at all: WebKit hovers the row that lands under the finger after a tap with
-    // its emulated mouse, and never ends that hover, so the toolbar stayed there.
-    const [pointerInside, setPointerInside] = useState(false);
-    const [focusInside, setFocusInside] = useState(false);
-    const { hoverProps } = useHover({
-      onHoverChange: (hovered: boolean) => setPointerInside(hovered && canHover()),
-    });
-    const { focusWithinProps } = useFocusWithin({
-      onFocusWithinChange: (inside: boolean) => {
-        if (!inside) setFocusInside(false);
-      },
-    });
-    // The kind of pointer that pressed in the row, until the focus that press gives arrives.
-    const pressedPointer = useRef<string>(undefined);
-    // Whether text was selected when a press that opens a context menu (a right click, or a
-    // Control click on macOS) went down, until its contextmenu event. Safari selects the word
-    // under the pointer between the two; that word is the click's, not the reader's selection.
-    const selectedAtMenuPress = useRef<boolean>(undefined);
-    // Whether a touch or pen press went down while the focus showed the toolbar, until its click.
-    const tapWhileShown = useRef(false);
-    const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
-      pressedPointer.current = evt.pointerType;
-      // A press that starts on selected text ends that selection: the browser clears it before the
-      // click, so the click can no longer tell.
-      tapWhileShown.current =
-        evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
-      const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
-      selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
-    };
-    // The kind of pointer that last pressed on the header's time: a touch there unfolds the time,
-    // other pointers open the reply details. A touchscreen laptop's primary pointer hovers too.
-    const timePointer = useRef<string>(undefined);
-    const toolbarRef = useRef<HTMLDivElement>(null);
-    // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
-    // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
-    // row and kept the toolbar open over the message above it. A tap on one of the toolbar's own
-    // buttons keeps it: Chromium focuses the button on the tap's mousedown, and a toolbar hidden
-    // then is gone before the click, so Reply did nothing.
-    const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
-      const pointer = pressedPointer.current;
-      pressedPointer.current = undefined;
-      const tapped = evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
-      setFocusInside(
-        isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
-      );
-    };
-    // A tap on the message itself hides the toolbar its focus showed: the row keeps the focus, so
-    // the tap gives no focus event, and iOS WebKit does not blur the row for a tap on its text.
-    // The row lets go of the focus, so the next tap focuses it and shows the toolbar again. A tap
-    // on one of the row's controls, on the toolbar or inside the row's pop-outs, which React
-    // passes up through their portals, keeps it, as do the tap that ends a text selection and a
-    // menu or an emoji board left open.
-    const hideToolbarOnTap = (evt: MouseEvent<HTMLDivElement>) => {
-      const shownAtPress = tapWhileShown.current;
-      tapWhileShown.current = false;
-      const row = evt.currentTarget;
-      const target = evt.target as Element;
-      if (
-        !shownAtPress ||
-        menuAnchor ||
-        emojiAnchor ||
-        hasSelectedText() ||
-        !row.contains(target) ||
-        toolbarRef.current?.contains(target) ||
-        target.closest(ROW_FOCUSABLE) !== row
-      )
-        return;
-      setFocusInside(false);
-      const focused = document.activeElement;
-      if (focused instanceof HTMLElement && row.contains(focused)) focused.blur();
-    };
-    // The inline editor has its own buttons, so the toolbar stays away while it is open.
-    const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
-    const useAuthentication = useMediaAuthentication();
-    const baseRef = useRef<HTMLDivElement | null>(null);
-    const setBaseRef = useCallback(
-      (node: HTMLDivElement | null) => {
-        baseRef.current = node;
-        if (typeof ref === 'function') ref(node);
-        else if (ref) ref.current = node;
-      },
-      [ref]
+  });
+  // The kind of pointer that pressed in the row, until the focus that press gives arrives.
+  const pressedPointer = useRef<string>(undefined);
+  // Whether text was selected when a press that opens a context menu (a right click, or a
+  // Control click on macOS) went down, until its contextmenu event. Safari selects the word
+  // under the pointer between the two; that word is the click's, not the reader's selection.
+  const selectedAtMenuPress = useRef<boolean>(undefined);
+  // Whether a touch or pen press went down while the focus showed the toolbar, until its click.
+  const tapWhileShown = useRef(false);
+  const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
+    pressedPointer.current = evt.pointerType;
+    // A press that starts on selected text ends that selection: the browser clears it before the
+    // click, so the click can no longer tell.
+    tapWhileShown.current =
+      evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
+    const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
+    selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
+  };
+  // The kind of pointer that last pressed on the header's time: a touch there unfolds the time,
+  // other pointers open the reply details. A touchscreen laptop's primary pointer hovers too.
+  const timePointer = useRef<string>(undefined);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
+  // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
+  // row and kept the toolbar open over the message above it. A tap on one of the toolbar's own
+  // buttons keeps it: Chromium focuses the button on the tap's mousedown, and a toolbar hidden
+  // then is gone before the click, so Reply did nothing.
+  const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
+    const pointer = pressedPointer.current;
+    pressedPointer.current = undefined;
+    const tapped = evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
+    setFocusInside(
+      isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
     );
+  };
+  // A tap on the message itself hides the toolbar its focus showed: the row keeps the focus, so
+  // the tap gives no focus event, and iOS WebKit does not blur the row for a tap on its text.
+  // The row lets go of the focus, so the next tap focuses it and shows the toolbar again. A tap
+  // on one of the row's controls, on the toolbar or inside the row's pop-outs, which React
+  // passes up through their portals, keeps it, as do the tap that ends a text selection and a
+  // menu or an emoji board left open.
+  const hideToolbarOnTap = (evt: MouseEvent<HTMLDivElement>) => {
+    const shownAtPress = tapWhileShown.current;
+    tapWhileShown.current = false;
+    const row = evt.currentTarget;
+    const target = evt.target as Element;
+    if (
+      !shownAtPress ||
+      menuAnchor ||
+      emojiAnchor ||
+      hasSelectedText() ||
+      !row.contains(target) ||
+      toolbarRef.current?.contains(target) ||
+      target.closest(ROW_FOCUSABLE) !== row
+    )
+      return;
+    setFocusInside(false);
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && row.contains(focused)) focused.blur();
+  };
+  // The inline editor has its own buttons, so the toolbar stays away while it is open.
+  const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
+  const useAuthentication = useMediaAuthentication();
+  const baseRef = useRef<HTMLDivElement | null>(null);
+  const setBaseRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      baseRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref]
+  );
 
-    const toolbarClearance = useToolbarClearance(baseRef, toolbarRef, toolbarVisible);
+  const toolbarClearance = useToolbarClearance(baseRef, toolbarRef, toolbarVisible);
 
-    const eventId = mEvent.getId() ?? '';
-    const senderId = mEvent.getSender() ?? '';
-    const confirmed = isConfirmedMatrixEventId(eventId);
-    const content = useMemo(
-      () => resolvedMessageContent ?? mEvent.getContent<Record<string, unknown>>(),
-      [mEvent, resolvedMessageContent]
-    );
-    // An agent reply's run details, and for a long reply the file with its whole text, which
-    // loads while the menu is open so that Copy Text copies all of it.
-    const { aiRunInfo, longTextSource, resolvedLongTextContent, longTextLoading } =
-      useMessageControls(content, !!menuAnchor, mEvent);
-    // The sender edits their own confirmed text messages, long texts included.
-    const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
-    const startEdit = () => onEditId?.(eventId);
-    const dismissMenu = () => setMenuAnchor(undefined);
-    const menuSide = menuAnchor ? popOutSide(menuAnchor) : 'Bottom';
-    const emojiSide = emojiAnchor ? popOutSide(emojiAnchor) : 'Bottom';
-    // A right click opens the message's menu where the pointer is. A menu key has no press before
-    // it, so text selected then is the reader's. Right clicks inside the row's own pop-outs and
-    // the dialogs their entries open, which React passes up through their portals, are not the
-    // row's: they keep the browser's menu.
-    const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
-      const selectedBefore = selectedAtMenuPress.current ?? true;
-      selectedAtMenuPress.current = undefined;
-      if (
-        edit ||
-        !evt.currentTarget.contains(evt.target as Node) ||
-        wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())
-      )
-        return;
-      evt.preventDefault();
-      // The word the click selected would stay highlighted under the menu.
-      if (hasSelectedText()) document.getSelection()?.removeAllRanges();
-      setMenuAnchor(pointRect(evt.clientX, evt.clientY));
-    };
-    // A long press opens it where the finger rests, on touch screens whose browser fires no
-    // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
-    // up through their portals, are not the row's. A long press on the message's text is the
-    // platform's: it selects the word under the finger, with its handles and Copy bar. A tap
-    // shows the toolbar, whose More Options opens the menu there too. Text selected before does
-    // not hold a press off the text back; the menu clears it when it opens.
-    const longPress = useLongPress(
-      (x, y) => setMenuAnchor(pointRect(x, y)),
-      (evt) => {
-        const touch = evt.touches[0];
-        return (
-          !edit &&
-          evt.currentTarget.contains(evt.target as Node) &&
-          !wantsBrowserMenu(evt.target, false) &&
-          !(touch && selectableTextNear(evt.target, touch.clientX, touch.clientY, LONG_PRESS_SLOP))
-        );
-      }
-    );
-
-    const senderDisplayName =
-      getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-    const nameTone = getSenderNameTone(room, senderId);
-    const avatarMxc = getMemberAvatarMxc(room, senderId);
-    // The spec's 96 px crop: sharp at twice the 36 px avatar, and the thumbnail other lists share.
-    const avatarUrl = avatarMxc
-      ? (mxcUrlToHttp(client, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined)
-      : undefined;
-
-    const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
-    const renderAvatar = (withModel: boolean) => {
-      const avatar = (
-        <Avatar size="300" data-user-id={senderId} onClick={onUserClick}>
-          <UserAvatar
-            alt={senderDisplayName}
-            renderFallback={avatarFallback}
-            src={avatarUrl}
-            userId={senderId}
-          />
-        </Avatar>
-      );
-      if (!withModel || !aiRunInfo) return <AvatarBase>{avatar}</AvatarBase>;
+  const eventId = mEvent.getId() ?? '';
+  const senderId = mEvent.getSender() ?? '';
+  const confirmed = isConfirmedMatrixEventId(eventId);
+  const content = useMemo(
+    () => resolvedMessageContent ?? mEvent.getContent<Record<string, unknown>>(),
+    [mEvent, resolvedMessageContent]
+  );
+  // An agent reply's run details, and for a long reply the file with its whole text, which
+  // loads while the menu is open so that Copy Text copies all of it.
+  const { aiRunInfo, longTextSource, resolvedLongTextContent, longTextLoading } =
+    useMessageControls(content, !!menuAnchor, mEvent);
+  // The sender edits their own confirmed text messages, long texts included.
+  const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
+  const startEdit = () => onEditId?.(eventId);
+  const dismissMenu = () => setMenuAnchor(undefined);
+  const menuSide = menuAnchor ? popOutSide(menuAnchor) : 'Bottom';
+  const emojiSide = emojiAnchor ? popOutSide(emojiAnchor) : 'Bottom';
+  // A right click opens the message's menu where the pointer is. A menu key has no press before
+  // it, so text selected then is the reader's. Right clicks inside the row's own pop-outs and
+  // the dialogs their entries open, which React passes up through their portals, are not the
+  // row's: they keep the browser's menu.
+  const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
+    const selectedBefore = selectedAtMenuPress.current ?? true;
+    selectedAtMenuPress.current = undefined;
+    if (
+      edit ||
+      !evt.currentTarget.contains(evt.target as Node) ||
+      wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())
+    )
+      return;
+    evt.preventDefault();
+    // The word the click selected would stay highlighted under the menu.
+    if (hasSelectedText()) document.getSelection()?.removeAllRanges();
+    setMenuAnchor(pointRect(evt.clientX, evt.clientY));
+  };
+  // A long press opens it where the finger rests, on touch screens whose browser fires no
+  // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
+  // up through their portals, are not the row's. A long press on the message's text is the
+  // platform's: it selects the word under the finger, with its handles and Copy bar. A tap
+  // shows the toolbar, whose More Options opens the menu there too. Text selected before does
+  // not hold a press off the text back; the menu clears it when it opens.
+  const longPress = useLongPress(
+    (x, y) => setMenuAnchor(pointRect(x, y)),
+    (evt) => {
+      const touch = evt.touches[0];
       return (
-        <AvatarBase>
-          <div className={css.MessageAvatarWithModel}>
-            <AvatarModelMark info={aiRunInfo}>{avatar}</AvatarModelMark>
-            <ModelBadge info={aiRunInfo} />
-          </div>
-        </AvatarBase>
+        !edit &&
+        evt.currentTarget.contains(evt.target as Node) &&
+        !wantsBrowserMenu(evt.target, false) &&
+        !(touch && selectableTextNear(evt.target, touch.clientX, touch.clientY, LONG_PRESS_SLOP))
       );
-    };
+    }
+  );
 
-    const compactLayout = messageLayout === MessageLayout.Compact;
-    const renderBody = (controls?: { open: boolean; openDetails: () => void }) => {
-      const openAiRun = () => {
-        dismissMenu();
-        controls?.openDetails();
-      };
-      // The name on the left; the reply details button and the time on the right.
-      const header = (
+  const senderDisplayName =
+    getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+  const nameTone = getSenderNameTone(room, senderId);
+  const avatarMxc = getMemberAvatarMxc(room, senderId);
+  // The spec's 96 px crop: sharp at twice the 36 px avatar, and the thumbnail other lists share.
+  const avatarUrl = avatarMxc
+    ? (mxcUrlToHttp(client, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined)
+    : undefined;
+
+  const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
+  const renderAvatar = (withModel: boolean) => {
+    const avatar = (
+      <Avatar size="300" data-user-id={senderId} onClick={onUserClick}>
+        <UserAvatar
+          alt={senderDisplayName}
+          renderFallback={avatarFallback}
+          src={avatarUrl}
+          userId={senderId}
+        />
+      </Avatar>
+    );
+    if (!withModel || !aiRunInfo) return <AvatarBase>{avatar}</AvatarBase>;
+    return (
+      <AvatarBase>
+        <div className={css.MessageAvatarWithModel}>
+          <AvatarModelMark info={aiRunInfo}>{avatar}</AvatarModelMark>
+          <ModelBadge info={aiRunInfo} />
+        </div>
+      </AvatarBase>
+    );
+  };
+
+  const compactLayout = messageLayout === MessageLayout.Compact;
+  const renderBody = (controls?: { open: boolean; openDetails: () => void }) => {
+    const openAiRun = () => {
+      dismissMenu();
+      controls?.openDetails();
+    };
+    // The name on the left; the reply details button and the time on the right.
+    const header = (
+      <Box
+        className={css.SenderLine}
+        data-message-sender-line=""
+        gap="300"
+        justifyContent="SpaceBetween"
+        alignItems="Center"
+        grow="Yes"
+      >
+        <Username as="button" data-user-id={senderId} tone={nameTone} onClick={onUsernameClick}>
+          <Text as="span" size="T400" truncate>
+            <UsernameBold>{senderDisplayName}</UsernameBold>
+          </Text>
+        </Username>
         <Box
-          className={css.SenderLine}
-          data-message-sender-line=""
-          gap="300"
-          justifyContent="SpaceBetween"
+          className={controls ? aiRunDetailsTarget : undefined}
+          shrink="No"
           alignItems="Center"
-          grow="Yes"
+          gap="100"
         >
-          <Username as="button" data-user-id={senderId} tone={nameTone} onClick={onUsernameClick}>
-            <Text as="span" size="T400" truncate>
-              <UsernameBold>{senderDisplayName}</UsernameBold>
-            </Text>
-          </Username>
-          <Box
-            className={controls ? aiRunDetailsTarget : undefined}
-            shrink="No"
-            alignItems="Center"
-            gap="100"
-          >
-            {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
-            <Time
-              ts={mEvent.getTs()}
-              compact={compactLayout}
-              timing={replyTiming}
-              hour24Clock={hour24Clock}
-              dateFormatString={dateFormatString}
-              // With a hovering pointer the time, whose unfolding moves the small button, opens
-              // the details too. A tap keeps unfolding it.
-              onPointerDown={(evt: PointerEvent<HTMLTimeElement>) => {
-                timePointer.current = evt.pointerType;
-              }}
-              onClick={
-                controls &&
-                ((evt: MouseEvent<HTMLTimeElement>) => {
-                  if (!canHover() || timePointer.current === 'touch') return;
-                  evt.preventDefault();
-                  openAiRun();
-                })
-              }
-            />
-          </Box>
+          {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
+          <Time
+            ts={mEvent.getTs()}
+            compact={compactLayout}
+            timing={replyTiming}
+            hour24Clock={hour24Clock}
+            dateFormatString={dateFormatString}
+            // With a hovering pointer the time, whose unfolding moves the small button, opens
+            // the details too. A tap keeps unfolding it.
+            onPointerDown={(evt: PointerEvent<HTMLTimeElement>) => {
+              timePointer.current = evt.pointerType;
+            }}
+            onClick={
+              controls &&
+              ((evt: MouseEvent<HTMLTimeElement>) => {
+                if (!canHover() || timePointer.current === 'touch') return;
+                evt.preventDefault();
+                openAiRun();
+              })
+            }
+          />
         </Box>
-      );
-      // The quoted reply, then the editor or the content, then the reaction chips.
-      const body = (
-        <>
-          {reply}
-          {onEditId && edit ? (
-            <MessageEditor room={room} mEvent={mEvent} onDone={() => onEditId(undefined)} />
-          ) : (
-            children
-          )}
-          {reactions}
-        </>
-      );
-      const menu = menuAnchor && (
-        <FocusTrap
-          active={menuShown}
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: false,
-            clickOutsideDeactivates: () => {
-              dismissMenu();
-              return true;
-            },
-            escapeDeactivates: () => {
-              dismissMenu();
-              return true;
-            },
+      </Box>
+    );
+    // The quoted reply, then the editor or the content, then the reaction chips.
+    const body = (
+      <>
+        {reply}
+        {onEditId && edit ? (
+          <MessageEditor room={room} mEvent={mEvent} onDone={() => onEditId(undefined)} />
+        ) : (
+          children
+        )}
+        {reactions}
+      </>
+    );
+    const menu = menuAnchor && (
+      <FocusTrap
+        active={menuShown}
+        focusTrapOptions={{
+          initialFocus: false,
+          returnFocusOnDeactivate: false,
+          clickOutsideDeactivates: () => {
+            dismissMenu();
+            return true;
+          },
+          escapeDeactivates: () => {
+            dismissMenu();
+            return true;
+          },
+        }}
+      >
+        {/* The entries scroll inside the menu's rim, which stays put around them. */}
+        <Menu
+          style={{
+            maxHeight: popOutMaxHeight(menuAnchor, menuSide),
+            display: menuShown ? 'flex' : 'none',
+            flexDirection: 'column',
           }}
         >
-          {/* The entries scroll inside the menu's rim, which stays put around them. */}
-          <Menu
-            style={{
-              maxHeight: popOutMaxHeight(menuAnchor, menuSide),
-              display: menuShown ? 'flex' : 'none',
-              flexDirection: 'column',
-            }}
-          >
-            <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
-              <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                {canSendReaction && confirmed && onReactionToggle && (
-                  <MessageQuickReactions
-                    imagePackRooms={imagePackRooms}
-                    onReaction={(key, shortcode) => {
-                      onReactionToggle(key, shortcode);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {confirmed && relations && (
-                  <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
-                )}
-                {confirmed && onReplyClick && (
-                  <MenuEntry
-                    label={t('mindroomUi.messages.mindroomMessage.reply')}
-                    icon={Icons.ReplyArrow}
-                    directional
-                    onSelect={() => {
-                      onReplyClick(eventId);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {confirmed && onReplyClick && (
-                  <MenuEntry
-                    label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
-                    icon={Icons.ThreadPlus}
-                    onSelect={() => {
-                      onReplyClick(eventId, true);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {onOpenInOriginalThread && (
-                  <MenuEntry
-                    label={t('threadFork.openInOriginalThread')}
-                    icon={Icons.Thread}
-                    onSelect={() => {
-                      onOpenInOriginalThread();
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {confirmed && onForkClick && (
-                  <MenuEntry
-                    label={t('threadFork.forkFromHere')}
-                    icon={ForkIcon}
-                    onSelect={() => {
-                      onForkClick(eventId);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {confirmed && onForkToRoomClick && (
-                  <MenuEntry
-                    label={t('threadFork.forkToRoom')}
-                    icon={ForkIcon}
-                    onSelect={() => {
-                      onForkToRoomClick(eventId);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {canEdit && (
-                  <MenuEntry
-                    label={t('mindroomUi.messages.mindroomMessage.editMessage')}
-                    icon={Icons.Pencil}
-                    onSelect={() => {
-                      startEdit();
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {canSendReaction && confirmed && (
-                  <MenuEntry
-                    label={t('mindroomUi.messages.mindroomMessage.addReaction')}
-                    icon={Icons.SmilePlus}
-                    onSelect={() => {
-                      setEmojiAnchor(menuAnchor);
-                      dismissMenu();
-                    }}
-                  />
-                )}
-                {longTextSource || isCopyTextMessageContent(content) ? (
-                  <MessageCopyTextItem
-                    content={content}
-                    originalContent={mEvent.getContent()}
-                    resolvedContent={resolvedLongTextContent}
-                    // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
-                    toolRows={isMindroomAgentUserIdForViewer(
-                      senderId,
-                      client.getUserId() ?? undefined
-                    )}
-                    loading={longTextLoading}
-                    onClose={dismissMenu}
-                  />
-                ) : null}
-                {confirmed && (
-                  <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
-                )}
-                {confirmed && canPinEvent && (
-                  <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-                )}
-                {controls && <AiRunMenuItem onOpen={openAiRun} />}
-                {!hideReadReceipts && confirmed && (
-                  <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
-                )}
-                <DeveloperMessageMenuItems
-                  room={room}
-                  mEvent={mEvent}
-                  longTextSource={longTextSource}
-                  onClose={dismissMenu}
-                />
-                <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-                {confirmed && canDelete && (
-                  <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-                )}
-                {confirmed && senderId !== client.getUserId() && (
-                  <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-                )}
-              </Box>
-            </Scroll>
-          </Menu>
-        </FocusTrap>
-      );
-      const emojiBoard = emojiAnchor && onReactionToggle && (
-        <PopOut
-          anchor={emojiAnchor}
-          position={emojiSide}
-          align="End"
-          offset={POP_OUT_OFFSET}
-          content={
-            <EmojiBoard
-              imagePackRooms={imagePackRooms}
-              maxHeight={popOutMaxHeight(emojiAnchor, emojiSide)}
-              requestClose={() => setEmojiAnchor(undefined)}
-              returnFocusOnDeactivate
-              onEmojiSelect={(unicode, shortcode) => {
-                onReactionToggle(unicode, shortcode);
-                setEmojiAnchor(undefined);
-              }}
-              onCustomEmojiSelect={(mxc, shortcode) => {
-                onReactionToggle(mxc, shortcode);
-                setEmojiAnchor(undefined);
-              }}
-              onTextReaction={(text) => {
-                onReactionToggle(text);
-                setEmojiAnchor(undefined);
-              }}
-            />
-          }
-        />
-      );
-      const options = (
-        <div
-          ref={toolbarRef}
-          className={css.MessageOptionsBase}
-          style={
-            toolbarClearance === undefined
-              ? undefined
-              : { insetBlockStart: `${toolbarClearance}px` }
-          }
-        >
-          <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>
-            <Box className={css.MessageOptionsRow}>
+          <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
+            <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
               {canSendReaction && confirmed && onReactionToggle && (
-                <ToolbarAction
-                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
-                  icon={Icons.SmilePlus}
-                  pressed={!!emojiAnchor}
-                  onClick={(evt: MouseEvent<HTMLButtonElement>) => setEmojiAnchor(getAnchor(evt))}
+                <MessageQuickReactions
+                  imagePackRooms={imagePackRooms}
+                  onReaction={(key, shortcode) => {
+                    onReactionToggle(key, shortcode);
+                    dismissMenu();
+                  }}
                 />
               )}
+              {confirmed && relations && (
+                <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
+              )}
               {confirmed && onReplyClick && (
-                <ToolbarAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
                   directional
-                  iconClassName={css.MessageOptionsReplyIcon}
-                  onClick={() => onReplyClick(eventId)}
+                  onSelect={() => {
+                    onReplyClick(eventId);
+                    dismissMenu();
+                  }}
                 />
               )}
               {confirmed && onReplyClick && (
-                <ToolbarAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
                   icon={Icons.ThreadPlus}
-                  onClick={() => onReplyClick(eventId, true)}
+                  onSelect={() => {
+                    onReplyClick(eventId, true);
+                    dismissMenu();
+                  }}
+                />
+              )}
+              {onOpenInOriginalThread && (
+                <MenuEntry
+                  label={t('threadFork.openInOriginalThread')}
+                  icon={Icons.Thread}
+                  onSelect={() => {
+                    onOpenInOriginalThread();
+                    dismissMenu();
+                  }}
+                />
+              )}
+              {confirmed && onForkClick && (
+                <MenuEntry
+                  label={t('threadFork.forkFromHere')}
+                  icon={ForkIcon}
+                  onSelect={() => {
+                    onForkClick(eventId);
+                    dismissMenu();
+                  }}
+                />
+              )}
+              {confirmed && onForkToRoomClick && (
+                <MenuEntry
+                  label={t('threadFork.forkToRoom')}
+                  icon={ForkIcon}
+                  onSelect={() => {
+                    onForkToRoomClick(eventId);
+                    dismissMenu();
+                  }}
                 />
               )}
               {canEdit && (
-                <ToolbarAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.editMessage')}
                   icon={Icons.Pencil}
-                  onClick={startEdit}
+                  onSelect={() => {
+                    startEdit();
+                    dismissMenu();
+                  }}
                 />
               )}
-              <PopOut
-                anchor={menuAnchor}
-                position={menuSide}
-                align="End"
-                offset={POP_OUT_OFFSET}
-                content={
-                  <DialogOpenerContext.Provider value={hideMenu}>
-                    {menu}
-                  </DialogOpenerContext.Provider>
-                }
-              >
-                <ToolbarAction
-                  label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
-                  icon={Icons.VerticalDots}
-                  pressed={!!menuAnchor}
-                  onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
+              {canSendReaction && confirmed && (
+                <MenuEntry
+                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                  icon={Icons.SmilePlus}
+                  onSelect={() => {
+                    setEmojiAnchor(menuAnchor);
+                    dismissMenu();
+                  }}
                 />
-              </PopOut>
+              )}
+              {longTextSource || isCopyTextMessageContent(content) ? (
+                <MessageCopyTextItem
+                  content={content}
+                  originalContent={mEvent.getContent()}
+                  resolvedContent={resolvedLongTextContent}
+                  // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
+                  toolRows={isMindroomAgentUserIdForViewer(
+                    senderId,
+                    client.getUserId() ?? undefined
+                  )}
+                  loading={longTextLoading}
+                  onClose={dismissMenu}
+                />
+              ) : null}
+              {confirmed && (
+                <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
+              )}
+              {confirmed && canPinEvent && (
+                <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              )}
+              {controls && <AiRunMenuItem onOpen={openAiRun} />}
+              {!hideReadReceipts && confirmed && (
+                <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
+              )}
+              <DeveloperMessageMenuItems
+                room={room}
+                mEvent={mEvent}
+                longTextSource={longTextSource}
+                onClose={dismissMenu}
+              />
+              <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              {confirmed && canDelete && (
+                <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              )}
+              {confirmed && senderId !== client.getUserId() && (
+                <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              )}
             </Box>
-          </Menu>
-        </div>
-      );
-
-      // A follow-up row from the same sender drops the name and time, but an agent reply keeps
-      // them: each reply is its own run, with its own time and details. A streaming reply has its
-      // timing before its run details.
-      const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
-      const layout =
-        messageLayout === MessageLayout.Compact ? (
-          <CompactLayout before={header}>{body}</CompactLayout>
-        ) : messageLayout === MessageLayout.Bubble ? (
-          <BubbleLayout
-            before={renderAvatar(true)}
-            header={showHeader && header}
-            own={senderId === client.getUserId()}
-          >
-            {body}
-          </BubbleLayout>
-        ) : (
-          <ModernLayout before={showHeader ? renderAvatar(true) : undefined}>
-            {showHeader && header}
-            {body}
-          </ModernLayout>
-        );
-
-      return (
-        <MessageBase
-          ref={setBaseRef}
-          tabIndex={0}
-          highlight={highlight}
-          className={css.MessageBase}
-          collapse={!showHeader}
-          space={messageSpacing}
-          selected={!!menuAnchor || edit}
-          onContextMenu={openMenuAtPointer}
-          {...longPress}
-          onPointerDownCapture={noteRowPointer}
-          onFocusCapture={noteRowFocus}
-          onClick={hideToolbarOnTap}
-          {...hoverProps}
-          {...focusWithinProps}
-          {...props}
-        >
-          {toolbarVisible && options}
-          {emojiBoard}
-          {layout}
-        </MessageBase>
-      );
-    };
-
-    // An agent reply owns its Reply details dialog, which its header and menu open. Every message
-    // renders through the controls, so a streaming reply whose run details arrive with a later
-    // edit keeps its row and the state inside it, such as an open tool-call list.
-    return (
-      <AiRunControls info={aiRunInfo} eventId={eventId} forwardedRef={baseRef}>
-        {renderBody}
-      </AiRunControls>
+          </Scroll>
+        </Menu>
+      </FocusTrap>
     );
-  }
-);
+    const emojiBoard = emojiAnchor && onReactionToggle && (
+      <PopOut
+        anchor={emojiAnchor}
+        position={emojiSide}
+        align="End"
+        offset={POP_OUT_OFFSET}
+        content={
+          <EmojiBoard
+            imagePackRooms={imagePackRooms}
+            maxHeight={popOutMaxHeight(emojiAnchor, emojiSide)}
+            requestClose={() => setEmojiAnchor(undefined)}
+            returnFocusOnDeactivate
+            onEmojiSelect={(unicode, shortcode) => {
+              onReactionToggle(unicode, shortcode);
+              setEmojiAnchor(undefined);
+            }}
+            onCustomEmojiSelect={(mxc, shortcode) => {
+              onReactionToggle(mxc, shortcode);
+              setEmojiAnchor(undefined);
+            }}
+            onTextReaction={(text) => {
+              onReactionToggle(text);
+              setEmojiAnchor(undefined);
+            }}
+          />
+        }
+      />
+    );
+    const options = (
+      <div
+        ref={toolbarRef}
+        className={css.MessageOptionsBase}
+        style={
+          toolbarClearance === undefined ? undefined : { insetBlockStart: `${toolbarClearance}px` }
+        }
+      >
+        <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>
+          <Box className={css.MessageOptionsRow}>
+            {canSendReaction && confirmed && onReactionToggle && (
+              <ToolbarAction
+                label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                icon={Icons.SmilePlus}
+                pressed={!!emojiAnchor}
+                onClick={(evt: MouseEvent<HTMLButtonElement>) => setEmojiAnchor(getAnchor(evt))}
+              />
+            )}
+            {confirmed && onReplyClick && (
+              <ToolbarAction
+                label={t('mindroomUi.messages.mindroomMessage.reply')}
+                icon={Icons.ReplyArrow}
+                directional
+                iconClassName={css.MessageOptionsReplyIcon}
+                onClick={() => onReplyClick(eventId)}
+              />
+            )}
+            {confirmed && onReplyClick && (
+              <ToolbarAction
+                label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                icon={Icons.ThreadPlus}
+                onClick={() => onReplyClick(eventId, true)}
+              />
+            )}
+            {canEdit && (
+              <ToolbarAction
+                label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                icon={Icons.Pencil}
+                onClick={startEdit}
+              />
+            )}
+            <PopOut
+              anchor={menuAnchor}
+              position={menuSide}
+              align="End"
+              offset={POP_OUT_OFFSET}
+              content={
+                <DialogOpenerContext.Provider value={hideMenu}>{menu}</DialogOpenerContext.Provider>
+              }
+            >
+              <ToolbarAction
+                label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                icon={Icons.VerticalDots}
+                pressed={!!menuAnchor}
+                onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
+              />
+            </PopOut>
+          </Box>
+        </Menu>
+      </div>
+    );
+
+    // A follow-up row from the same sender drops the name and time, but an agent reply keeps
+    // them: each reply is its own run, with its own time and details. A streaming reply has its
+    // timing before its run details.
+    const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
+    const layout =
+      messageLayout === MessageLayout.Compact ? (
+        <CompactLayout before={header}>{body}</CompactLayout>
+      ) : messageLayout === MessageLayout.Bubble ? (
+        <BubbleLayout
+          before={renderAvatar(true)}
+          header={showHeader && header}
+          own={senderId === client.getUserId()}
+        >
+          {body}
+        </BubbleLayout>
+      ) : (
+        <ModernLayout before={showHeader ? renderAvatar(true) : undefined}>
+          {showHeader && header}
+          {body}
+        </ModernLayout>
+      );
+
+    return (
+      <MessageBase
+        ref={setBaseRef}
+        tabIndex={0}
+        highlight={highlight}
+        className={css.MessageBase}
+        collapse={!showHeader}
+        space={messageSpacing}
+        selected={!!menuAnchor || edit}
+        onContextMenu={openMenuAtPointer}
+        {...longPress}
+        onPointerDownCapture={noteRowPointer}
+        onFocusCapture={noteRowFocus}
+        onClick={hideToolbarOnTap}
+        {...hoverProps}
+        {...focusWithinProps}
+        {...props}
+      >
+        {toolbarVisible && options}
+        {emojiBoard}
+        {layout}
+      </MessageBase>
+    );
+  };
+
+  // An agent reply owns its Reply details dialog, which its header and menu open. Every message
+  // renders through the controls, so a streaming reply whose run details arrive with a later
+  // edit keeps its row and the state inside it, such as an open tool-call list.
+  return (
+    <AiRunControls info={aiRunInfo} eventId={eventId} forwardedRef={baseRef}>
+      {renderBody}
+    </AiRunControls>
+  );
+}
 
 /** A state or membership row shares its identity, highlight and slots with a message. */
 export type EventProps = Pick<
   MessageProps,
-  'room' | 'mEvent' | 'highlight' | 'children' | 'data-message-id'
+  'room' | 'mEvent' | 'highlight' | 'children' | 'data-message-id' | 'ref'
 > & {
   messageSpacing: MessageSpacing;
 };
@@ -1304,19 +1297,25 @@ function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
 }
 
 /** A state or membership event: a single compact line without a sender header. */
-export const Event = forwardRef<HTMLDivElement, EventProps>(
-  ({ room, mEvent, highlight, messageSpacing, children, ...props }, ref) => {
-    return (
-      <MessageBase
-        ref={ref}
-        className={css.MessageBase}
-        highlight={highlight}
-        autoCollapse
-        space={messageSpacing}
-        {...props}
-      >
-        {children ?? <StateEventLine room={room} mEvent={mEvent} />}
-      </MessageBase>
-    );
-  }
-);
+export function Event({
+  room,
+  mEvent,
+  highlight,
+  messageSpacing,
+  children,
+  ref,
+  ...props
+}: EventProps) {
+  return (
+    <MessageBase
+      ref={ref}
+      className={css.MessageBase}
+      highlight={highlight}
+      autoCollapse
+      space={messageSpacing}
+      {...props}
+    >
+      {children ?? <StateEventLine room={room} mEvent={mEvent} />}
+    </MessageBase>
+  );
+}

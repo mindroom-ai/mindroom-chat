@@ -58,9 +58,8 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('div', null, children),
     Badge: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    Box: reactModule.forwardRef<HTMLDivElement, React.PropsWithChildren>(({ children }, ref) =>
-      reactModule.createElement('div', { ref }, children)
-    ),
+    Box: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     config: {
       ...actual.config,
       space: {
@@ -69,14 +68,13 @@ vi.mock('folds', async (importOriginal) => {
       },
     },
     Icon: ({ src }: { src: string }) => reactModule.createElement('span', { 'data-icon': src }),
-    IconButton: React.forwardRef<
-      HTMLButtonElement,
-      React.ButtonHTMLAttributes<HTMLButtonElement> & {
-        children: React.ReactNode;
-      }
-    >(({ children, ...props }, ref) =>
-      reactModule.createElement('button', { ref, type: 'button', ...props }, children)
-    ),
+    IconButton: ({
+      children,
+      ref,
+      ...props
+    }: React.ComponentPropsWithRef<'button'> & {
+      children: React.ReactNode;
+    }) => reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ArrowLeft: 'ArrowLeft',
       CheckTwice: 'CheckTwice',
@@ -88,9 +86,8 @@ vi.mock('folds', async (importOriginal) => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: reactModule.forwardRef<HTMLDivElement, React.PropsWithChildren>(({ children }, ref) =>
-      reactModule.createElement('div', { ref }, children)
-    ),
+    Menu: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     MenuItem: ({
       children,
       after,
@@ -139,9 +136,8 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../../ui/page/Page', () => ({
-  PageHeader: React.forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) =>
-    React.createElement('header', { ref }, children)
-  ),
+  PageHeader: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLElement> }) =>
+    React.createElement('header', { ref }, children),
 }));
 
 vi.mock('../../ui/styles/ContainerColor.css', () => ({

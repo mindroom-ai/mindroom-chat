@@ -2,7 +2,7 @@ import {
   Fragment,
   type MouseEvent,
   type ReactNode,
-  forwardRef,
+  type Ref,
   useCallback,
   useEffect,
   useId,
@@ -547,221 +547,229 @@ type RoomSchedulesDialogProps = {
   onOpenThread: (threadId: string) => void;
   onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
   onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
+  ref?: Ref<HTMLDivElement>;
 };
 
-export const RoomSchedulesDialog = forwardRef<HTMLDivElement, RoomSchedulesDialogProps>(
-  ({ roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask }, ref) => {
-    const { t, i18n } = useTranslation();
-    const titleId = useId();
-    const mx = useMatrixClient();
-    const mentionClickHandler = useMentionClickHandler(roomId);
-    const dialogRef = useRef<HTMLDivElement | null>(null);
-    const closeButtonRef = useRef<HTMLButtonElement>(null);
-    const [now, setNow] = useState(Date.now);
-    const [filter, setFilter] = useState<ScheduleFilter>('all');
-    const [expandedId, setExpandedId] = useState<string | null>(() =>
-      tasks.length === 1 ? tasks[0]!.taskId : null
-    );
-    const cancel = useScheduleCancelState(roomId, onCancelTask);
+export function RoomSchedulesDialog({
+  roomId,
+  tasks,
+  openThreadId,
+  onClose,
+  onOpenThread,
+  onCancelTask,
+  onEditTask,
+  ref,
+}: RoomSchedulesDialogProps) {
+  const { t, i18n } = useTranslation();
+  const titleId = useId();
+  const mx = useMatrixClient();
+  const mentionClickHandler = useMentionClickHandler(roomId);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [now, setNow] = useState(Date.now);
+  const [filter, setFilter] = useState<ScheduleFilter>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(() =>
+    tasks.length === 1 ? tasks[0]!.taskId : null
+  );
+  const cancel = useScheduleCancelState(roomId, onCancelTask);
 
-    const setModalRef = useCallback(
-      (node: HTMLDivElement | null) => {
-        dialogRef.current = node;
-        if (typeof ref === 'function') ref(node);
-        else if (ref) ref.current = node;
-      },
-      [ref]
-    );
+  const setModalRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      dialogRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref]
+  );
 
-    const locale = i18n.resolvedLanguage ?? i18n.language;
-    const formatter = useMemo(
-      () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
-      [locale]
-    );
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const formatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
+    [locale]
+  );
 
-    const recurringCount = tasks.filter(sched.isRecurringTask).length;
-    const onceCount = tasks.length - recurringCount;
-    const showFilterBar = onceCount > 0 && recurringCount > 0;
-    const effectiveFilter: ScheduleFilter =
-      (filter === 'once' && onceCount === 0) || (filter === 'recurring' && recurringCount === 0)
-        ? 'all'
-        : filter;
-    const filteredTasks = useMemo(
-      () => filterByType(tasks, effectiveFilter),
-      [effectiveFilter, tasks]
-    );
+  const recurringCount = tasks.filter(sched.isRecurringTask).length;
+  const onceCount = tasks.length - recurringCount;
+  const showFilterBar = onceCount > 0 && recurringCount > 0;
+  const effectiveFilter: ScheduleFilter =
+    (filter === 'once' && onceCount === 0) || (filter === 'recurring' && recurringCount === 0)
+      ? 'all'
+      : filter;
+  const filteredTasks = useMemo(
+    () => filterByType(tasks, effectiveFilter),
+    [effectiveFilter, tasks]
+  );
 
-    useEffect(() => {
-      if (expandedId !== null && !tasks.some((task) => task.taskId === expandedId)) {
-        setExpandedId(null);
-      }
-      if (!showFilterBar && filter !== 'all') setFilter('all');
-    }, [expandedId, filter, showFilterBar, tasks]);
+  useEffect(() => {
+    if (expandedId !== null && !tasks.some((task) => task.taskId === expandedId)) {
+      setExpandedId(null);
+    }
+    if (!showFilterBar && filter !== 'all') setFilter('all');
+  }, [expandedId, filter, showFilterBar, tasks]);
 
-    const hasCancel = Boolean(onCancelTask);
-    const hasEdit = Boolean(onEditTask);
+  const hasCancel = Boolean(onCancelTask);
+  const hasEdit = Boolean(onEditTask);
 
-    // Recover focus inside the dialog if a focused task row, filter button, or action control unmounted.
-    useLayoutEffect(() => {
-      const modal = dialogRef.current;
-      if (!modal) return;
-      const active = modal.ownerDocument.activeElement;
-      if (active && active !== modal.ownerDocument.body) return;
-      const fallback =
-        modal.querySelector<HTMLButtonElement>(
-          '[data-expanded="true"] button[data-schedule-toggle]'
-        ) ?? modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
-      (fallback ?? closeButtonRef.current)?.focus();
-    }, [cancel.statusByTaskId, expandedId, filteredTasks, hasCancel, hasEdit, showFilterBar]);
+  // Recover focus inside the dialog if a focused task row, filter button, or action control unmounted.
+  useLayoutEffect(() => {
+    const modal = dialogRef.current;
+    if (!modal) return;
+    const active = modal.ownerDocument.activeElement;
+    if (active && active !== modal.ownerDocument.body) return;
+    const fallback =
+      modal.querySelector<HTMLButtonElement>(
+        '[data-expanded="true"] button[data-schedule-toggle]'
+      ) ?? modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
+    (fallback ?? closeButtonRef.current)?.focus();
+  }, [cancel.statusByTaskId, expandedId, filteredTasks, hasCancel, hasEdit, showFilterBar]);
 
-    const inThread = (task: ParsedScheduledTask) =>
-      openThreadId !== undefined && sched.isScheduleInThread(task, openThreadId);
-    const threadTasks = filteredTasks.filter(inThread);
-    const elsewhereTasks = filteredTasks.filter((task) => !inThread(task));
-    const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
-    const groups = [
-      ['thread', 'roomSchedules.thisThread', threadTasks],
-      ['elsewhere', 'roomSchedules.elsewhereInRoom', elsewhereTasks],
-    ] as const;
+  const inThread = (task: ParsedScheduledTask) =>
+    openThreadId !== undefined && sched.isScheduleInThread(task, openThreadId);
+  const threadTasks = filteredTasks.filter(inThread);
+  const elsewhereTasks = filteredTasks.filter((task) => !inThread(task));
+  const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
+  const groups = [
+    ['thread', 'roomSchedules.thisThread', threadTasks],
+    ['elsewhere', 'roomSchedules.elsewhereInRoom', elsewhereTasks],
+  ] as const;
 
-    const hasImminentTask = tasks.some((task) => {
-      const ts = sched.getScheduleTimestamp(task);
-      return (
-        !sched.isRecurringTask(task) &&
-        ts !== undefined &&
-        ts > now &&
-        ts - now <= IMMINENT_COUNTDOWN_WINDOW_MS
-      );
-    });
-    useEffect(() => {
-      const timer = window.setInterval(() => setNow(Date.now()), hasImminentTask ? 1_000 : 10_000);
-      return () => window.clearInterval(timer);
-    }, [hasImminentTask]);
-
-    const handleSelectFilter = (nextFilter: ScheduleFilter) => {
-      setFilter(nextFilter);
-      const nextFiltered = filterByType(tasks, nextFilter);
-      if (nextFiltered.length === 1) setExpandedId(nextFiltered[0]!.taskId);
-    };
-
-    const renderOwner = (userId: string) =>
-      isUserId(userId)
-        ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
-            ...makeMentionCustomProps(mentionClickHandler),
-            title: userId,
-          })
-        : undefined;
-
-    const itemCtx: ScheduleContext = {
-      now,
-      locale,
-      formatter,
-      grouped,
-      canManageCancel: Boolean(onCancelTask),
-      cancel,
-      renderOwner,
-      onOpenThread,
-      onEditTask,
-    };
-    const filterOptions = [
-      ['all', t('roomSchedules.filterAll'), tasks.length],
-      ['once', t('roomSchedules.once'), onceCount],
-      ['recurring', t('roomSchedules.recurring'), recurringCount],
-    ] as const;
-
+  const hasImminentTask = tasks.some((task) => {
+    const ts = sched.getScheduleTimestamp(task);
     return (
-      <Modal
-        ref={setModalRef}
-        size="400"
-        flexHeight
-        className={css.Dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
+      !sched.isRecurringTask(task) &&
+      ts !== undefined &&
+      ts > now &&
+      ts - now <= IMMINENT_COUNTDOWN_WINDOW_MS
+    );
+  });
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), hasImminentTask ? 1_000 : 10_000);
+    return () => window.clearInterval(timer);
+  }, [hasImminentTask]);
+
+  const handleSelectFilter = (nextFilter: ScheduleFilter) => {
+    setFilter(nextFilter);
+    const nextFiltered = filterByType(tasks, nextFilter);
+    if (nextFiltered.length === 1) setExpandedId(nextFiltered[0]!.taskId);
+  };
+
+  const renderOwner = (userId: string) =>
+    isUserId(userId)
+      ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
+          ...makeMentionCustomProps(mentionClickHandler),
+          title: userId,
+        })
+      : undefined;
+
+  const itemCtx: ScheduleContext = {
+    now,
+    locale,
+    formatter,
+    grouped,
+    canManageCancel: Boolean(onCancelTask),
+    cancel,
+    renderOwner,
+    onOpenThread,
+    onEditTask,
+  };
+  const filterOptions = [
+    ['all', t('roomSchedules.filterAll'), tasks.length],
+    ['once', t('roomSchedules.once'), onceCount],
+    ['recurring', t('roomSchedules.recurring'), recurringCount],
+  ] as const;
+
+  return (
+    <Modal
+      ref={setModalRef}
+      size="400"
+      flexHeight
+      className={css.Dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <PageScroll
+        header={
+          <Header size="500" className={css.Header}>
+            <Box grow="Yes" alignItems="Center" gap="200">
+              <Icon size="200" src={Icons.Clock} />
+              <Text as="h2" id={titleId} size="H4">
+                {t('roomSchedules.title')}
+              </Text>
+              <span className={css.HeaderCount}>{localDigits(String(tasks.length), locale)}</span>
+            </Box>
+            <DialogCloseButton
+              ref={closeButtonRef}
+              label={t('roomSchedules.close')}
+              onClick={onClose}
+            />
+          </Header>
+        }
       >
-        <PageScroll
-          header={
-            <Header size="500" className={css.Header}>
-              <Box grow="Yes" alignItems="Center" gap="200">
-                <Icon size="200" src={Icons.Clock} />
-                <Text as="h2" id={titleId} size="H4">
-                  {t('roomSchedules.title')}
-                </Text>
-                <span className={css.HeaderCount}>{localDigits(String(tasks.length), locale)}</span>
-              </Box>
-              <DialogCloseButton
-                ref={closeButtonRef}
-                label={t('roomSchedules.close')}
-                onClick={onClose}
-              />
-            </Header>
-          }
-        >
-          <Box direction="Column" gap="300" className={css.Content}>
-            {tasks.length === 0 ? (
-              <Box direction="Column" gap="200" className={css.Empty}>
-                <Text size="T400">{t('roomSchedules.empty')}</Text>
-                <Text size="T300" priority="300">
-                  {t('roomSchedules.emptyHint')}
-                </Text>
-              </Box>
-            ) : (
-              <>
-                {showFilterBar && (
-                  <div
-                    role="group"
-                    aria-label={t('roomSchedules.filterLabel')}
-                    className={css.FilterBar}
-                  >
-                    {filterOptions.map(([optId, label, count]) => {
-                      const active = effectiveFilter === optId;
+        <Box direction="Column" gap="300" className={css.Content}>
+          {tasks.length === 0 ? (
+            <Box direction="Column" gap="200" className={css.Empty}>
+              <Text size="T400">{t('roomSchedules.empty')}</Text>
+              <Text size="T300" priority="300">
+                {t('roomSchedules.emptyHint')}
+              </Text>
+            </Box>
+          ) : (
+            <>
+              {showFilterBar && (
+                <div
+                  role="group"
+                  aria-label={t('roomSchedules.filterLabel')}
+                  className={css.FilterBar}
+                >
+                  {filterOptions.map(([optId, label, count]) => {
+                    const active = effectiveFilter === optId;
+                    return (
+                      <button
+                        key={optId}
+                        type="button"
+                        aria-pressed={active}
+                        className={classNames(css.FilterPill, active && css.FilterPillActive)}
+                        onClick={() => handleSelectFilter(optId)}
+                      >
+                        {active && <Icon size="50" src={Icons.Check} aria-hidden />}
+                        <span>{label}</span>
+                        <span className={css.FilterCount}>
+                          {localDigits(String(count), locale)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Box direction="Column" gap="200">
+                {groups.map(([groupId, heading, groupTasks]) => (
+                  <Fragment key={groupId}>
+                    {grouped && (
+                      <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
+                        {t(heading)}
+                      </Text>
+                    )}
+                    {groupTasks.map((task) => {
+                      const open = expandedId === task.taskId;
                       return (
-                        <button
-                          key={optId}
-                          type="button"
-                          aria-pressed={active}
-                          className={classNames(css.FilterPill, active && css.FilterPillActive)}
-                          onClick={() => handleSelectFilter(optId)}
-                        >
-                          {active && <Icon size="50" src={Icons.Check} aria-hidden />}
-                          <span>{label}</span>
-                          <span className={css.FilterCount}>
-                            {localDigits(String(count), locale)}
-                          </span>
-                        </button>
+                        <ScheduleAccordionItem
+                          key={task.taskId}
+                          ctx={itemCtx}
+                          task={task}
+                          open={open}
+                          onToggle={() => setExpandedId(open ? null : task.taskId)}
+                        />
                       );
                     })}
-                  </div>
-                )}
-
-                <Box direction="Column" gap="200">
-                  {groups.map(([groupId, heading, groupTasks]) => (
-                    <Fragment key={groupId}>
-                      {grouped && (
-                        <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
-                          {t(heading)}
-                        </Text>
-                      )}
-                      {groupTasks.map((task) => {
-                        const open = expandedId === task.taskId;
-                        return (
-                          <ScheduleAccordionItem
-                            key={task.taskId}
-                            ctx={itemCtx}
-                            task={task}
-                            open={open}
-                            onToggle={() => setExpandedId(open ? null : task.taskId)}
-                          />
-                        );
-                      })}
-                    </Fragment>
-                  ))}
-                </Box>
-              </>
-            )}
-          </Box>
-        </PageScroll>
-      </Modal>
-    );
-  }
-);
+                  </Fragment>
+                ))}
+              </Box>
+            </>
+          )}
+        </Box>
+      </PageScroll>
+    </Modal>
+  );
+}

@@ -1,4 +1,4 @@
-import { Fragment, Suspense, forwardRef, useCallback, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, useCallback, useState, type ReactNode, type Ref } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useTranslation } from 'react-i18next';
 import { Line, toRem } from 'folds';
@@ -18,6 +18,7 @@ type RoomActionsMenuProps = RoomActionProps & {
    * A section of its own, before the room's actions.
    */
   roomEntries?: ReactNode;
+  ref?: Ref<HTMLDivElement>;
 };
 
 const menuStyle = { minWidth: toRem(200), maxWidth: toRem(280) } as const;
@@ -57,65 +58,63 @@ function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string 
  * reaches the menu element, which the focus trap around it needs to close on Escape and outside
  * clicks.
  */
-export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
-  function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
-    const { t } = useTranslation();
-    const { room, close, showDialog } = actionProps;
-    const pluginEntries = usePluginRoomActions(registeredPlugins, usePluginClientConfig(), room);
-    // A plugin's entry closes the menu, then runs with the menu's dialog.
-    const pluginRows = (critical: boolean) =>
-      pluginEntries
-        .filter((entry) => entry.critical === critical)
-        .map(({ id, tag, label, icon, run }) => (
-          <MenuEntry
-            key={id}
-            icon={icon}
-            label={label}
-            critical={critical}
-            onSelect={() => {
-              close();
-              run((dialog) =>
-                showDialog((done) => <PluginDialog tag={tag} dialog={dialog} close={done} />)
-              );
-            }}
-          />
-        ));
-    const ordinaryRows = pluginRows(false);
-    const criticalRows = pluginRows(true);
-    return (
-      <Menu ref={ref} className={scrollableMenuCss.ScrollableMenu} style={menuStyle}>
-        <div className={scrollableMenuCss.ScrollableMenuRows}>
-          {roomEntries && (
-            <>
-              <MenuGroup label={t('featureUi.roomActions.viewSection')}>{roomEntries}</MenuGroup>
-              <Line variant="Surface" size="300" />
-            </>
-          )}
-          {ROOM_ACTIONS.map((group, index) => {
-            const isExit = group.id === 'exit';
-            return (
-              <Fragment key={group.id}>
-                {index > 0 && <Line variant="Surface" size="300" />}
-                {isExit && ordinaryRows.length > 0 && (
-                  <>
-                    <MenuGroup>{ordinaryRows}</MenuGroup>
-                    <Line variant="Surface" size="300" />
-                  </>
-                )}
-                <MenuGroup label={group.labelKey ? t(group.labelKey) : undefined}>
-                  {group.actions.map(({ id, Entry }) => (
-                    <Entry key={id} {...actionProps} />
-                  ))}
-                  {isExit && criticalRows}
-                </MenuGroup>
-              </Fragment>
+export function RoomActionsMenu({ roomEntries, ref, ...actionProps }: RoomActionsMenuProps) {
+  const { t } = useTranslation();
+  const { room, close, showDialog } = actionProps;
+  const pluginEntries = usePluginRoomActions(registeredPlugins, usePluginClientConfig(), room);
+  // A plugin's entry closes the menu, then runs with the menu's dialog.
+  const pluginRows = (critical: boolean) =>
+    pluginEntries
+      .filter((entry) => entry.critical === critical)
+      .map(({ id, tag, label, icon, run }) => (
+        <MenuEntry
+          key={id}
+          icon={icon}
+          label={label}
+          critical={critical}
+          onSelect={() => {
+            close();
+            run((dialog) =>
+              showDialog((done) => <PluginDialog tag={tag} dialog={dialog} close={done} />)
             );
-          })}
-        </div>
-      </Menu>
-    );
-  }
-);
+          }}
+        />
+      ));
+  const ordinaryRows = pluginRows(false);
+  const criticalRows = pluginRows(true);
+  return (
+    <Menu ref={ref} className={scrollableMenuCss.ScrollableMenu} style={menuStyle}>
+      <div className={scrollableMenuCss.ScrollableMenuRows}>
+        {roomEntries && (
+          <>
+            <MenuGroup label={t('featureUi.roomActions.viewSection')}>{roomEntries}</MenuGroup>
+            <Line variant="Surface" size="300" />
+          </>
+        )}
+        {ROOM_ACTIONS.map((group, index) => {
+          const isExit = group.id === 'exit';
+          return (
+            <Fragment key={group.id}>
+              {index > 0 && <Line variant="Surface" size="300" />}
+              {isExit && ordinaryRows.length > 0 && (
+                <>
+                  <MenuGroup>{ordinaryRows}</MenuGroup>
+                  <Line variant="Surface" size="300" />
+                </>
+              )}
+              <MenuGroup label={group.labelKey ? t(group.labelKey) : undefined}>
+                {group.actions.map(({ id, Entry }) => (
+                  <Entry key={id} {...actionProps} />
+                ))}
+                {isExit && criticalRows}
+              </MenuGroup>
+            </Fragment>
+          );
+        })}
+      </div>
+    </Menu>
+  );
+}
 
 /**
  * The dialog a room menu's entry opened (invite, Jump to Time, leave and the like), which stays

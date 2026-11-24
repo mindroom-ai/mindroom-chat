@@ -1,4 +1,4 @@
-import React, { forwardRef, type MutableRefObject, type ReactNode, type RefCallback } from 'react';
+import React, { type MutableRefObject, type ReactNode, type RefCallback } from 'react';
 import {
   PopOut as FoldsPopOut,
   TooltipProvider as FoldsTooltipProvider,
@@ -115,14 +115,15 @@ export const documentIsRightToLeft = (): boolean =>
   globalThis.document?.documentElement?.dir === 'rtl';
 
 /** folds' PopOut, placed in reading order: `position="Right"` opens toward the line's end. */
-export const PopOut = forwardRef<HTMLElement, Placement & Record<string, unknown>>(
-  function DirectionalPopOut(rawProps, ref) {
-    const { position, align, ...props } = rawProps as Placement & Record<string, unknown>;
-    const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
-    const Base = FoldsPopOut as React.ElementType;
-    return <Base {...props} {...placement} ref={ref} />;
-  }
-) as unknown as typeof FoldsPopOut;
+export const PopOut = function DirectionalPopOut({
+  position,
+  align,
+  ...props
+}: Placement & Record<string, unknown>) {
+  const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
+  const Base = FoldsPopOut as React.ElementType;
+  return <Base {...props} {...placement} />;
+} as unknown as typeof FoldsPopOut;
 
 /** Whether the last press was a touch, with no mouse moved since. */
 let touchedLast = false;
@@ -193,19 +194,18 @@ type TooltipChildren = (triggerRef: TriggerRef) => ReactNode;
  * folds' TooltipProvider, placed in reading order like {@link PopOut}, which a tap on a touch
  * screen does not open.
  */
-export const TooltipProvider = forwardRef<
-  HTMLElement,
-  Placement & { children: TooltipChildren } & Record<string, unknown>
->(function DirectionalTooltipProvider(rawProps, ref) {
-  const { position, align, children, ...props } = rawProps as Placement & {
-    children: TooltipChildren;
-  } & Record<string, unknown>;
+export const TooltipProvider = function DirectionalTooltipProvider({
+  position,
+  align,
+  children,
+  ...props
+}: Placement & { children: TooltipChildren } & Record<string, unknown>) {
   watchPresses();
   const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
   const Base = FoldsTooltipProvider as React.ElementType;
   return (
-    <Base {...props} {...placement} ref={ref}>
+    <Base {...props} {...placement}>
       {(triggerRef: TriggerRef) => children(guardTrigger(triggerRef))}
     </Base>
   );
-}) as unknown as typeof FoldsTooltipProvider;
+} as unknown as typeof FoldsTooltipProvider;

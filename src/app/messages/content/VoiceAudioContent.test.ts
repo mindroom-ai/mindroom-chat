@@ -17,12 +17,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('folds', () => ({
   Icon: (props: Record<string, unknown>) => React.createElement('span', props),
-  IconButton: React.forwardRef<
-    HTMLButtonElement,
-    { children?: React.ReactNode; onClick?: () => void }
-  >(({ children, onClick, ...props }, ref) =>
-    React.createElement('button', { ...props, onClick, ref }, children)
-  ),
+  IconButton: ({
+    children,
+    onClick,
+    ref,
+    ...props
+  }: { children?: React.ReactNode; onClick?: () => void } & {
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement('button', { ...props, onClick, ref }, children),
   Icons: {
     Download: 'download',
     Pause: 'pause',

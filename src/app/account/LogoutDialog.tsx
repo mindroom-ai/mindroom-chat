@@ -1,4 +1,4 @@
-import { CSSProperties, forwardRef, useEffect, useState } from 'react';
+import { CSSProperties, type Ref, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -51,6 +51,7 @@ type LogoutDialogProps = {
   handleClose: () => void;
   /** An account other than the active one, to log out instead of the active one. */
   session?: StoredSession;
+  ref?: Ref<HTMLDivElement>;
 };
 
 const RISK_PANEL_SHAPE: CSSProperties = {
@@ -62,10 +63,7 @@ const RISK_PANEL_SHAPE: CSSProperties = {
  * Confirms logging out, warning first when this device holds the only copy of message keys.
  * The ref reaches the dialog element, so a focus trap around it knows what counts as inside.
  */
-export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(function LogoutDialog(
-  { handleClose, session },
-  ref
-) {
+export function LogoutDialog({ handleClose, session, ref }: LogoutDialogProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
@@ -178,4 +176,4 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
       </Box>
     </Dialog>
   );
-});
+}
