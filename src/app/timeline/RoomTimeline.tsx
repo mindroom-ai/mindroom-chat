@@ -1215,14 +1215,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
   const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
-  // The virtual list and its offset ledger.
-  const itemCount = threadId ? threadEvents.length + threadLeadingOffset : roomWindowRows.length;
   const showRoomIntro =
     !threadId &&
     liveTimelineLinked &&
     activeTimelineRange.start === 0 &&
     !canPaginateRoomBack &&
     !roomHasMoreCachedBack;
+  const hasRoomLeadingIntro = showRoomIntro && !latestAtTop;
+  const roomLeadingOffset = hasRoomLeadingIntro ? 1 : 0;
+  const roomLeadingOffsetRef = useLatestRef(roomLeadingOffset);
+  // The virtual list and its offset ledger.
+  const itemCount = threadId
+    ? threadEvents.length + threadLeadingOffset
+    : roomWindowRows.length + roomLeadingOffset;
   const showRoomBackSentinel =
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
@@ -1267,6 +1272,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     showThreadRepliesInRoom,
     threadEvents,
     hasThreadLoadOlder: showThreadLoadOlder,
+    hasRoomIntro: hasRoomLeadingIntro,
     roomWindowRows,
     windowStart: activeTimelineRange.start,
     roomRowsRef,
@@ -1287,7 +1293,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       windowRows: roomWindowRows,
       pinnedIds: membershipPinnedIds,
     },
-    estimateSize
+    (index) => estimateSize(index + roomLeadingOffset)
   );
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
@@ -1321,10 +1327,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     rowsKey: threadId ? undefined : rowsGeneration,
     threadId,
     pinThreadLeadingItem: showThreadLoadOlder,
-    leadingKey:
-      !threadId && roomSurfaceShown && !latestAtTop
-        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-        : '',
+    hasRoomIntro: hasRoomLeadingIntro,
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
@@ -1393,7 +1396,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId ? undefined : roomWindowRows,
     membershipFolds.view,
     renderedRoomRowsRef,
-    ledger.virtualInnerRef
+    ledger.virtualInnerRef,
+    roomLeadingOffset
   );
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
@@ -1411,6 +1415,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     virtualizerRef,
     threadEventIndexMapRef,
     threadLeadingOffsetRef,
+    roomLeadingOffsetRef,
     onJump: ledger.endSettleDiscardWatch,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
@@ -2125,11 +2130,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       onLoadOlder={handleLoadOlderThread}
     />
   ) : undefined;
+  const roomIntro =
+    showRoomIntro &&
+    (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
   const tiles = renderTimelineTiles({
     virtualItems,
     threadId,
     threadEvents,
     threadLoadOlderNode,
+    roomIntroNode: hasRoomLeadingIntro ? roomIntro : undefined,
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
@@ -2167,7 +2176,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
   // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
   // to the line's start and they keep clear of it there.
-  const expandAllToggle = itemCount > 0 && (
+  const expandAllToggle = roomWindowRows.length > 0 && (
     <ExpandAllLine
       expanded={expandAll}
       onToggle={handleToggleExpandAll}
@@ -2178,9 +2187,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
   // history is at the bottom. The sentinel above the rows sits inside the list, at its top, where
   // its first row is: rows the offset ledger holds above the reader count as loaded.
-  const roomIntro =
-    showRoomIntro &&
-    (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
   const backSentinel = showRoomBackSentinel && (
     <div
       ref={paginator.observeBackAnchor}
@@ -2233,10 +2239,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
-            <div ref={ledger.leadingRef}>
-              {!latestAtTop && roomIntro}
-              {expandAllToggle}
-            </div>
+            expandAllToggle
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>

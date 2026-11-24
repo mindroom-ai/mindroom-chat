@@ -405,7 +405,8 @@ describe('RoomTimeline', () => {
         });
 
         expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(0, {
+        // Virtual item 0 is the room intro, so room event index 0 sits at virtual index 1.
+        expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(1, {
           align: 'center',
           behavior: 'smooth',
         });

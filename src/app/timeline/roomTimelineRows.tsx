@@ -185,6 +185,9 @@ const TURN_BREAK_ESTIMATE_PX = 42;
  */
 export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
 const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
+export const ROOM_INTRO_KEY = '__room_intro__';
+// Non-integer so virtual-core records the first DOM measurement even when RoomIntro is 160 px.
+export const ROOM_INTRO_ESTIMATE_PX = 160 + ROOM_ROW_UNMEASURED_PX;
 
 export const timelineRowSizing = ({
   threadId,
@@ -192,6 +195,7 @@ export const timelineRowSizing = ({
   showThreadRepliesInRoom,
   threadEvents,
   hasThreadLoadOlder = false,
+  hasRoomIntro = false,
   roomWindowRows,
   windowStart,
   roomRowsRef,
@@ -208,6 +212,8 @@ export const timelineRowSizing = ({
   threadEvents: MatrixEvent[];
   /** Whether index 0 of the thread virtualizer is the Load Older chip. */
   hasThreadLoadOlder?: boolean;
+  /** Whether index 0 of the room virtualizer is the room start intro. */
+  hasRoomIntro?: boolean;
   roomWindowRows: MatrixEvent[];
   windowStart: number;
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
@@ -226,10 +232,16 @@ export const timelineRowSizing = ({
   renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
 }) => {
   const threadLeadingOffset = threadId && hasThreadLoadOlder ? 1 : 0;
+  const roomLeadingOffset = !threadId && hasRoomIntro ? 1 : 0;
   const estimateSize = (index?: number): number => {
     if (!threadId) {
+      if (roomLeadingOffset && index === 0) return ROOM_INTRO_ESTIMATE_PX;
       const rows = roomRowsRef.current;
-      const position = index === undefined ? undefined : activeRangeRef.current.start + index;
+      // Negative indexes come from room-fold pricing above the current window; non-negative
+      // virtual indexes follow the leading room intro item when present.
+      const rowIndex =
+        index === undefined ? undefined : index < 0 ? index : index - roomLeadingOffset;
+      const position = rowIndex === undefined ? undefined : activeRangeRef.current.start + rowIndex;
       const event = position === undefined ? undefined : rows[position];
       const membershipFold = event && membershipFoldsRef?.current.breaks.get(event.getId() ?? '');
       if (membershipFold?.open === false) {
@@ -270,8 +282,14 @@ export const timelineRowSizing = ({
   };
   const getItemKey = (index: number): string | number => {
     if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_KEY;
-    const event = threadId ? threadEvents[index - threadLeadingOffset] : roomWindowRows[index];
-    return event?.getId() ?? (threadId ? index - threadLeadingOffset : windowStart + index);
+    if (roomLeadingOffset && index === 0) return ROOM_INTRO_KEY;
+    const event = threadId
+      ? threadEvents[index - threadLeadingOffset]
+      : roomWindowRows[index - roomLeadingOffset];
+    return (
+      event?.getId() ??
+      (threadId ? index - threadLeadingOffset : windowStart + index - roomLeadingOffset)
+    );
   };
   return { estimateSize, getItemKey };
 };
@@ -396,6 +414,7 @@ export const renderTimelineTiles = ({
   turnFolds,
   membershipFolds,
   threadLoadOlderNode,
+  roomIntroNode,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -405,6 +424,8 @@ export const renderTimelineTiles = ({
   threadEvents: MatrixEvent[];
   /** When set in a thread, index 0 renders this Load Older chip as a virtual tile. */
   threadLoadOlderNode?: ReactNode;
+  /** When set in a room, index 0 renders the room start intro as a virtual tile. */
+  roomIntroNode?: ReactNode;
   roomWindowRows: MatrixEvent[];
   roomRowEntries: TimelineEventEntry[];
   windowStart: number;
@@ -444,7 +465,8 @@ export const renderTimelineTiles = ({
   measureElement: (node: Element | null) => void;
   ledgerPxAtRender: number;
 }): ReactNode[] => {
-  const threadLeadingOffset = threadId && threadLoadOlderNode ? 1 : 0;
+  const leadingNode = threadId ? threadLoadOlderNode : roomIntroNode;
+  const leadingOffset = leadingNode ? 1 : 0;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
   // A folded turn's rows show nothing, the one that draws its break included.
@@ -467,8 +489,8 @@ export const renderTimelineTiles = ({
     threadId ? undefined : membershipFolds?.view.breaks.get(event?.getId() ?? '');
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems
-      .filter((item) => item.index >= threadLeadingOffset)
-      .map((item) => item.index - threadLeadingOffset),
+      .filter((item) => item.index >= leadingOffset)
+      .map((item) => item.index - leadingOffset),
     getEvent: getRowEvent,
     isSkipped: isRowHidden,
     isFoldBreak: membershipFolds
@@ -487,7 +509,7 @@ export const renderTimelineTiles = ({
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
-    if (threadLeadingOffset && item.index === 0) {
+    if (leadingOffset && item.index === 0) {
       return (
         <VirtualTile
           key={item.key}
@@ -495,11 +517,11 @@ export const renderTimelineTiles = ({
           virtualItem={item}
           style={{ top: item.start + ledgerPxAtRender }}
         >
-          {threadLoadOlderNode}
+          {leadingNode}
         </VirtualTile>
       );
     }
-    const eventIndex = item.index - threadLeadingOffset;
+    const eventIndex = item.index - leadingOffset;
     const event = getRowEvent(eventIndex);
     if (!event) return null;
     // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
@@ -591,7 +613,7 @@ export const renderTimelineTiles = ({
         virtualItem={item}
         style={{ top: item.start + ledgerPxAtRender }}
       >
-        <div data-room-row-index={threadId ? undefined : item.index}>
+        <div data-room-row-index={threadId ? undefined : eventIndex}>
           {foldClosed && context?.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
           {breakNode}
           {content}

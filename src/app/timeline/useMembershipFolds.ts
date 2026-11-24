@@ -180,7 +180,8 @@ export const readRenderedRoomRows = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[],
   view: MembershipFoldView,
-  readerTop: RenderedListPlace['readerTop'] = () => undefined
+  readerTop: RenderedListPlace['readerTop'] = () => undefined,
+  leadingOffset = 0
 ): RenderedRoomRows => {
   const sizes = new Map<string, number>();
   const foldEnds = new Map<string, number>();
@@ -188,11 +189,13 @@ export const readRenderedRoomRows = (
   windowRows.forEach((event, index) => {
     const id = event.getId();
     if (!id) return;
-    const end = view.breaks.get(id)?.open === false && virtualizer.measurementsCache[index]?.end;
+    const itemIndex = index + leadingOffset;
+    const end =
+      view.breaks.get(id)?.open === false && virtualizer.measurementsCache[itemIndex]?.end;
     if (typeof end === 'number') foldEnds.set(id, end - listStart);
     let size = virtualizer.itemSizeCache.get(id);
     if (size === undefined) {
-      size = virtualizer.measurementsCache[index]?.size;
+      size = virtualizer.measurementsCache[itemIndex]?.size;
       if (size === undefined) return;
       const element =
         view.breaks.get(id)?.open === false ? virtualizer.elementsCache.get(id) : undefined;
@@ -263,12 +266,17 @@ export const useMembershipFoldRowSizes = (
   windowRows: readonly MatrixEvent[] | undefined,
   view: MembershipFoldView,
   renderedRef: MutableRefObject<RenderedRoomRows>,
-  innerRef: RefObject<Element | null>
+  innerRef: RefObject<Element | null>,
+  leadingOffset = 0
 ) => {
   useLayoutEffect(() => {
     renderedRef.current = windowRows
-      ? readRenderedRoomRows(virtualizer, windowRows, view, () =>
-          readReaderTop(virtualizer.scrollElement, innerRef.current)
+      ? readRenderedRoomRows(
+          virtualizer,
+          windowRows,
+          view,
+          () => readReaderTop(virtualizer.scrollElement, innerRef.current),
+          leadingOffset
         )
       : NO_RENDERED_ROOM_ROWS;
   });

@@ -39,18 +39,9 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
   const scrollElement = document.createElement('div');
   scrollElement.scrollTop = 400;
-  // The room's leading content (its intro) lies above the reader's view.
-  let leadingPx = 100;
   const rect = vi
     .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-    .mockImplementation(function (this: HTMLElement) {
-      return { top: 0, bottom: this.hasAttribute('data-leading') ? -10 : 800 } as DOMRect;
-    });
-  const height = vi
-    .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
-    .mockImplementation(function (this: HTMLElement) {
-      return this.hasAttribute('data-leading') ? leadingPx : 0;
-    });
+    .mockImplementation(() => ({ top: 0, bottom: 800 }) as DOMRect);
   let readRowFoldPx = () => 0;
   function Harness() {
     const controller = useTimelineScrollLedgerController({
@@ -59,18 +50,12 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
       getItemKey: (index) => index,
       getScrollElement: () => scrollElement,
       itemCount: 2,
-      leadingKey: 'room',
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
     });
     readRowFoldPx = controller.readRowFoldPx;
-    return (
-      <>
-        <div ref={controller.leadingRef} data-leading />
-        <div ref={controller.virtualInnerRef} data-list />
-      </>
-    );
+    return <div ref={controller.virtualInnerRef} data-list />;
   }
   const container = document.createElement('div');
   const root = createRoot(container);
@@ -82,14 +67,7 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     if (!inner) throw new Error('List missing');
     // jsdom keeps a margin that is set to '', as the settle sets it.
     Object.defineProperty(inner, 'style', { value: { marginTop: '' } });
-    // The intro grows by 30 px: the ledger holds it, and no row brought that height.
-    leadingPx = 130;
-    render();
-    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
-      marginTop: '-30px',
-      rowFoldPx: 0,
-    });
-    // A row above the reader grows by 62 px while they scroll up: the ledger takes that too.
+    // A row above the reader grows by 62 px while they scroll up: the ledger takes that.
     const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
     expect(
       hook({ end: 100, index: 0 }, 62, {
@@ -100,7 +78,7 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     ).toBe(false);
     render();
     render();
-    const held = { marginTop: '-92px', rowFoldPx: 62 };
+    const held = { marginTop: '-62px', rowFoldPx: 62 };
     expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);
 
     // The scroll comes to rest and the ledger settles: the margin goes into the position.
@@ -109,7 +87,7 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     await Promise.resolve();
     expect({ marginTop: inner.style.marginTop, scrollTop: scrollElement.scrollTop }).toEqual({
       marginTop: '',
-      scrollTop: 492,
+      scrollTop: 462,
     });
     expect(readRowFoldPx()).toBe(0);
 
@@ -123,7 +101,6 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
   } finally {
     flushSync(() => root.unmount());
     rect.mockRestore();
-    height.mockRestore();
     reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
   }
 });

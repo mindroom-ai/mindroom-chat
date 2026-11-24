@@ -557,6 +557,7 @@ export const useTimelineRowJumps = ({
   virtualizerRef,
   threadEventIndexMapRef,
   threadLeadingOffsetRef,
+  roomLeadingOffsetRef,
   onJump,
   rows,
 }: {
@@ -568,6 +569,7 @@ export const useTimelineRowJumps = ({
   >;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadLeadingOffsetRef?: MutableRefObject<number>;
+  roomLeadingOffsetRef?: MutableRefObject<number>;
   onJump: () => void;
   rows: RoomRowLookup;
 }) => {
@@ -660,7 +662,10 @@ export const useTimelineRowJumps = ({
               return;
             }
           } else {
-            virtualizerRef.current.scrollToIndex(index - start, { align, behavior: 'auto' });
+            virtualizerRef.current.scrollToIndex(
+              index - start + (roomLeadingOffsetRef?.current ?? 0),
+              { align, behavior: 'auto' }
+            );
           }
         }
         requestAnimationFrame(step);
@@ -668,7 +673,14 @@ export const useTimelineRowJumps = ({
       if (afterSmoothScroll) requestAnimationFrame(step);
       else step();
     },
-    [activeRangeRef, jumped, paginatorScrollToElement, rowsRef, virtualizerRef]
+    [
+      activeRangeRef,
+      jumped,
+      paginatorScrollToElement,
+      roomLeadingOffsetRef,
+      rowsRef,
+      virtualizerRef,
+    ]
   );
 
   const scrollToItem = useCallback<ScrollToItem>(
@@ -689,7 +701,7 @@ export const useTimelineRowJumps = ({
           return true;
         }
         if (index < start || index >= end) return false;
-        virtualizerRef.current.scrollToIndex(index - start, {
+        virtualizerRef.current.scrollToIndex(index - start + (roomLeadingOffsetRef?.current ?? 0), {
           align: opts?.align ?? 'center',
           behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
         });
@@ -701,7 +713,15 @@ export const useTimelineRowJumps = ({
       followFarRow(eventId, index, opts?.align ?? 'center', false, opts?.offset);
       return true;
     },
-    [activeRangeRef, followFarRow, jumped, paginatorScrollToItem, rowsRef, virtualizerRef]
+    [
+      activeRangeRef,
+      followFarRow,
+      jumped,
+      paginatorScrollToItem,
+      roomLeadingOffsetRef,
+      rowsRef,
+      virtualizerRef,
+    ]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {

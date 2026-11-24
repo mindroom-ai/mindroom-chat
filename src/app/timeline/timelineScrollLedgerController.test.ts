@@ -405,71 +405,56 @@ describe('useTimelineScrollLedgerController', () => {
   });
 });
 
-describe("the room's start above its rows", () => {
-  // The room intro mounts once history reaches the room's start, which pagination loads a screen
-  // ahead of the reader.
+describe("the room's start as virtual item 0", () => {
   const scroller = {
     getBoundingClientRect: () => ({ top: 100 }),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     scrollTop: 0,
   };
-  const leadingBox = { bottom: 0, offsetHeight: 30 };
-  const leading = {
-    get offsetHeight() {
-      return leadingBox.offsetHeight;
-    },
-    getBoundingClientRect: () => ({ bottom: leadingBox.bottom }),
-    style: { minHeight: '' },
-  };
   const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
   let ledgerPx = 0;
 
-  const Harness = ({ leadingKey }: { leadingKey: string }) => {
+  const Harness = ({ hasRoomIntro }: { hasRoomIntro: boolean }) => {
     const pendingRoomFoldPxRef = useRef(0);
     const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
       () => 10
     );
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
-      estimateSize: () => 10,
-      getItemKey: (index) => index,
+      estimateSize: (index) => (hasRoomIntro && index === 0 ? 160.5 : 10),
+      getItemKey: (index) => (hasRoomIntro && index === 0 ? '__room_intro__' : index),
       getScrollElement: () => scroller as unknown as HTMLDivElement,
-      itemCount: 3,
+      itemCount: hasRoomIntro ? 4 : 3,
       pendingRoomFoldPxRef,
       roomFoldPriceRef,
       roomId: '!room:example.org',
-      leadingKey,
+      hasRoomIntro,
     });
-    (controller.leadingRef as { current: unknown }).current = leading;
     (controller.virtualInnerRef as { current: unknown }).current = inner;
     ledgerPx = controller.ledgerPxAtRender;
     return null;
   };
 
-  const showIntro = (aboveView: boolean) => {
-    // The line above the rows ends above the reader's view (the scroll area's top, 100px), or
-    // in it.
-    leadingBox.bottom = aboveView ? 40 : 160;
-    leadingBox.offsetHeight = 30;
+  const showIntro = (scrollTop: number) => {
+    scroller.scrollTop = scrollTop;
     let renderer: ReturnType<typeof create> | undefined;
     act(() => {
-      renderer = create(React.createElement(Harness, { leadingKey: 'room||toggle' }));
+      renderer = create(React.createElement(Harness, { hasRoomIntro: false }));
     });
-    leadingBox.offsetHeight = 197;
     act(() => {
-      renderer?.update(React.createElement(Harness, { leadingKey: 'room|intro|toggle' }));
+      renderer?.update(React.createElement(Harness, { hasRoomIntro: true }));
     });
     renderer?.unmount();
   };
 
-  it('holds a reader below it when the intro mounts', () => {
-    showIntro(true);
-    expect(ledgerPx).toBe(167);
+  it('holds a reader below row 0 when the intro prepends as item 0', () => {
+    showIntro(400);
+    expect(ledgerPx).toBe(160.5);
   });
 
-  it('lets a reader who sees it see the intro arrive', () => {
-    showIntro(false);
+  it('lets a reader at the top see the intro arrive', () => {
+    showIntro(0);
     expect(ledgerPx).toBe(0);
   });
 });
