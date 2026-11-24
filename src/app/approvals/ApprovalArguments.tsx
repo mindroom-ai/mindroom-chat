@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ToolApprovalData } from '../matrix/protocol/toolApproval';
 import { downloadSidecarBlob } from '../event-store/cache/sidecarDownload';
+import { useRevealOnOpen } from '../ui/disclosureReveal';
 import { ApprovalArgumentFields, countArgumentFields } from './ApprovalArgumentFields';
 import * as css from './ApprovalArgumentFields.css';
 
@@ -13,6 +14,9 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(open, toggleRef, containerRef);
   const [loaded, setLoaded] = useState<{ sourceKey: string; value: Record<string, unknown> }>();
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -48,9 +52,10 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
       </div>
     );
   return (
-    <div className={css.Arguments}>
+    <div ref={containerRef} className={css.Arguments}>
       {!open && <ApprovalArgumentFields value={approval.arguments} limit={PREVIEW_FIELDS} />}
       <Button
+        ref={toggleRef}
         type="button"
         size="300"
         variant="Secondary"
@@ -58,7 +63,10 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
         radii="300"
         className={css.Toggle}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open) armReveal();
+          setOpen((value) => !value);
+        }}
         before={<Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} />}
         outlined
       >
