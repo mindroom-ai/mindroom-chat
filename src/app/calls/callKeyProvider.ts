@@ -76,7 +76,7 @@ export const sendCallKey = async (
   let encrypted = await encrypt();
   if (!encrypted) {
     // Tracks an untracked user and awaits their key query through the Rust crypto
-    // (patches/matrix-js-sdk+45.1.0.patch); a tracked user's cached list is kept as it is.
+    // (patches/matrix-js-sdk+45.2.0.patch); a tracked user's cached list is kept as it is.
     await cryptoApi.getUserDeviceInfo([to.userId], true);
     encrypted = await encrypt();
   }
