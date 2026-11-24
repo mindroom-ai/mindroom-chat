@@ -11,17 +11,23 @@ import { waitForScrollQuiescence } from './scrollQuiescence';
 export const useThreadPrependViewport = ({
   controller,
   scrollRef,
+  onBegin,
 }: {
   controller: ThreadBackPaginationController;
   scrollRef: RefObject<HTMLDivElement | null>;
+  onBegin?: () => void;
 }): ThreadPrependViewportPort =>
   useMemo(
     () => ({
-      begin: (request) => controller.begin(request),
+      begin: (request) => {
+        const started = controller.begin(request);
+        if (started) onBegin?.();
+        return started;
+      },
       waitForQuiescence: async (request) => {
         if (controller.owns(request)) await waitForScrollQuiescence(scrollRef.current);
       },
       finish: (request) => controller.finish(request),
     }),
-    [controller, scrollRef]
+    [controller, onBegin, scrollRef]
   );

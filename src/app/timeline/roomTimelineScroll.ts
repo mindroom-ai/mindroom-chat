@@ -456,6 +456,7 @@ export const useGestureBottomPins = ({
   scrollToBottomRef,
   readerScrolledRef,
   onFirstGesture,
+  onThreadTakeover,
 }: {
   backController: ThreadBackPaginationController;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
@@ -463,17 +464,21 @@ export const useGestureBottomPins = ({
   readerScrolledRef: MutableRefObject<ViewScopedFlag>;
   /** Runs once per view, at the reader's first gesture. */
   onFirstGesture: () => void;
+  /** Cancels any active programmatic scroll when the reader gestures in a thread. */
+  onThreadTakeover?: () => void;
 }) => {
   // The request count when the reader last touched, scrolled or pressed a key.
   const countAtGestureRef = useRef<number | undefined>(undefined);
+  const onThreadTakeoverRef = useLatestRef(onThreadTakeover);
   const onThreadGesture = useCallback(() => {
+    onThreadTakeoverRef.current?.();
     const { count } = scrollToBottomRef.current;
     backController.cancelOpenBottomPin(count);
     countAtGestureRef.current = count;
     if (readerScrolledRef.current.value) return;
     readerScrolledRef.current.value = true;
     onFirstGesture();
-  }, [backController, onFirstGesture, readerScrolledRef, scrollToBottomRef]);
+  }, [backController, onFirstGesture, onThreadTakeoverRef, readerScrolledRef, scrollToBottomRef]);
   /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
   const onRoomGesture = useCallback(() => {
     countAtGestureRef.current = scrollToBottomRef.current.count;
@@ -562,6 +567,7 @@ export const useTimelineRowJumps = ({
   activeRangeRef,
   virtualizerRef,
   threadEventIndexMapRef,
+  threadLeadingOffsetRef,
   onJump,
   rows,
 }: {
@@ -570,6 +576,7 @@ export const useTimelineRowJumps = ({
   activeRangeRef: MutableRefObject<ItemRange>;
   virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadLeadingOffsetRef?: MutableRefObject<number>;
   onJump: () => void;
   rows: RoomRowLookup;
 }) => {
@@ -710,10 +717,12 @@ export const useTimelineRowJumps = ({
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
       jumped();
-      virtualizerRef.current.scrollToIndex(index, { align: 'center' });
+      virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
+        align: 'center',
+      });
       return true;
     },
-    [jumped, threadEventIndexMapRef, virtualizerRef]
+    [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };

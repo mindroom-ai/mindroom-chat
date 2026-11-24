@@ -92,6 +92,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadInitialRenderMode: ThreadInitialRenderMode;
   /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
   threadRowPricing?: unknown;
+  /** Keep thread virtual item 0 (Load Older) mounted while scrolled down. */
+  pinThreadLeadingItem?: boolean;
   /**
    * What the timeline renders above its rows: a thread's lines between its banner and its rows,
    * or the room's start (the room intro) and the line above its rows.
@@ -228,6 +230,7 @@ export const useTimelineScrollLedgerController = ({
   threadId,
   threadInitialRenderMode,
   threadRowPricing,
+  pinThreadLeadingItem = false,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -483,7 +486,8 @@ export const useTimelineScrollLedgerController = ({
 
   // Extraction runs after useVirtualizer returns, against this render's
   // instance/options. A fresh callback invalidates the range cache on resize.
-  const rangeExtractor = (range: Range): number[] => threadScrollRange(range, virtualizer);
+  const rangeExtractor = (range: Range): number[] =>
+    threadScrollRange(range, virtualizer, pinThreadLeadingItem);
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
     getScrollElement,
@@ -1196,7 +1200,14 @@ export const useTimelineScrollLedgerController = ({
       settleDiscardWatchRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = useUpstreamThreadAnchor
-      ? undefined
+      ? (item, delta, instance) => {
+          const offset = instance.scrollOffset ?? 0;
+          const adjust = instance.itemSizeCache.has(item.key)
+            ? item.end <= offset
+            : item.start < offset;
+          if (adjust && delta < 0) measurementCorrectionPxRef.current += delta;
+          return adjust;
+        }
       : measurementScrollCorrectionHook;
   }, [
     ledgerViewKey,

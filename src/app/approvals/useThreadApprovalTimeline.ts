@@ -46,16 +46,18 @@ export const useThreadApprovalRowMeasurements = (
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   events: readonly MatrixEvent[],
   hidden: ReadonlySet<string>,
-  estimate: (index: number) => number
+  estimate: (index: number) => number,
+  indexOffset = 0
 ) => {
   const previous = useRef<ReadonlySet<string>>(new Set());
   useLayoutEffect(() => {
     events.forEach((event, index) => {
       const id = event.getId();
       if (!id) return;
-      if (hidden.has(id)) virtualizer.resizeItem(index, 0);
-      else if (previous.current.has(id)) virtualizer.resizeItem(index, estimate(index));
+      const itemIndex = index + indexOffset;
+      if (hidden.has(id)) virtualizer.resizeItem(itemIndex, 0);
+      else if (previous.current.has(id)) virtualizer.resizeItem(itemIndex, estimate(itemIndex));
     });
     previous.current = hidden;
-  }, [virtualizer, events, hidden, estimate]);
+  }, [virtualizer, events, hidden, estimate, indexOffset]);
 };

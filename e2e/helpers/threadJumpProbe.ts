@@ -44,7 +44,7 @@ export type ProbeReport = {
 
 type WindowWithProbe = {
   __threadJumpProbe: {
-    start: (mode: ProbeMode, stallMs: number) => void;
+    start: (mode: ProbeMode) => void;
     stop: () => ProbeReport;
     clearCacheStore: () => Promise<number>;
     findScroller: () => HTMLElement | null;
@@ -78,7 +78,6 @@ export const installThreadJumpProbe = () => {
   const initialState = () => ({
     active: false,
     mode: 'open' as ProbeMode,
-    stallMs: 0,
     writeDelta: 0,
     frameWrites: [] as { api: string; delta: number; wheelLive: boolean; msSinceWheel: number; caller: string }[],
     lastWheelAt: -Infinity,
@@ -185,8 +184,8 @@ export const installThreadJumpProbe = () => {
       this.burstRowPx = 0;
       this.burstClamped = false;
     },
-    start(mode: ProbeMode, stallMs = 0) {
-      Object.assign(this, initialState(), { active: true, mode, stallMs });
+    start(mode: ProbeMode) {
+      Object.assign(this, initialState(), { active: true, mode });
       this.scroller = this.findScroller();
       this.prevScrollTop = this.scroller?.scrollTop ?? 0;
     },
@@ -247,15 +246,8 @@ export const installThreadJumpProbe = () => {
         return get.call(this);
       },
       set(value: number) {
-        const delta = recordWrite(this, value, 'scrollTop');
+        recordWrite(this, value, 'scrollTop');
         set.call(this, value);
-        // Simulate a long main-thread settle frame so the next wheel notch overtakes the write.
-        if (probe.stallMs > 0 && Math.abs(delta) >= 48) {
-          const until = performance.now() + probe.stallMs;
-          while (performance.now() < until) {
-            // Keeps the main thread busy.
-          }
-        }
       },
     });
   }
@@ -487,13 +479,10 @@ export const installThreadJumpProbe = () => {
   requestAnimationFrame(tick);
 };
 
-export const startProbe = (page: Page, mode: ProbeMode, stallMs = 0) =>
-  page.evaluate(
-    ([m, stall]) => {
-      (window as unknown as WindowWithProbe).__threadJumpProbe.start(m, stall);
-    },
-    [mode, stallMs] as const
-  );
+export const startProbe = (page: Page, mode: ProbeMode) =>
+  page.evaluate((m) => {
+    (window as unknown as WindowWithProbe).__threadJumpProbe.start(m);
+  }, mode);
 
 export const stopProbe = (page: Page): Promise<ProbeReport> =>
   page.evaluate(() => (window as unknown as WindowWithProbe).__threadJumpProbe.stop());

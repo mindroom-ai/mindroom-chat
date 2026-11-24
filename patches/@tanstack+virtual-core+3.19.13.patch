@@ -1,5 +1,9 @@
+# Hold scrollTop writes in _holdOffset while a wheel gesture is live (150ms
+# re-armed quiet timer) and flush via _flushHoldIfReady, so WebKit compositor
+# wheel replay cannot fight prepend/resize scrollTop writes.
+# Upstream report: docs/dev/tanstack-wheel-hold-upstream.md
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..16200aa 100644
+index 186f79e..04d88b2 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,8 @@ class Virtualizer {
@@ -23,7 +27,7 @@ index 186f79e..16200aa 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +632,26 @@ class Virtualizer {
+@@ -625,9 +632,30 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -40,6 +44,10 @@ index 186f79e..16200aa 100644
 +            this._wheelTimer = this.targetWindow ? this.targetWindow.setTimeout(() => {
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
++              const live = this._readElementOffset();
++              if (live !== null && this._holdOffset !== 0) {
++                this.scrollOffset = Math.max(0, live + this._holdOffset);
++              }
 +              this._flushHoldIfReady(true);
 +              this._retryClampedAdjustment();
 +            }, 150) : null;
@@ -51,7 +59,7 @@ index 186f79e..16200aa 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,7 +729,7 @@ class Virtualizer {
+@@ -705,7 +733,7 @@ class Virtualizer {
        }
        return null;
      };
@@ -61,7 +69,7 @@ index 186f79e..16200aa 100644
        var _a;
        if (this._holdOffset === 0) return;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..29f66fb 100644
+index ef861e1..bb2a4fc 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,8 @@ class Virtualizer {
@@ -85,7 +93,7 @@ index ef861e1..29f66fb 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +631,26 @@ class Virtualizer {
+@@ -624,9 +631,30 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -102,6 +110,10 @@ index ef861e1..29f66fb 100644
 +            this._wheelTimer = this.targetWindow ? this.targetWindow.setTimeout(() => {
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
++              const live = this._readElementOffset();
++              if (live !== null && this._holdOffset !== 0) {
++                this.scrollOffset = Math.max(0, live + this._holdOffset);
++              }
 +              this._flushHoldIfReady(true);
 +              this._retryClampedAdjustment();
 +            }, 150) : null;
@@ -113,7 +125,7 @@ index ef861e1..29f66fb 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,7 +728,7 @@ class Virtualizer {
+@@ -704,7 +732,7 @@ class Virtualizer {
        }
        return null;
      };

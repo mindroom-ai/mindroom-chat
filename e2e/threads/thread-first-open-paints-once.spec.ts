@@ -275,8 +275,24 @@ test('a thread opened for the first time paints its replies once, its long reply
     filterState: createDefaultThreadFilterState(),
   });
   await page.getByRole('link', { name: roomName }).first().click();
+  // Wait for the later room notes to settle into Compact view; if they push the target card into
+  // the trailing collapsed block ("N more threads"), expand it before starting the click timer.
+  await expect(page.getByText(`Room note ${ROOM_MESSAGES_AFTER}`, { exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
   const card = page.locator(`[data-thread-root-id="${rootId}"]`);
-  await expect(card).toBeVisible({ timeout: 60_000 });
+  const moreThreads = page.getByRole('button', { name: /more threads?$/i });
+  await expect
+    .poll(
+      async () => {
+        if (await moreThreads.isVisible().catch(() => false)) {
+          await moreThreads.click().catch(() => undefined);
+        }
+        return card.isVisible().catch(() => false);
+      },
+      { timeout: 60_000 }
+    )
+    .toBe(true);
 
   const stopScreencast = SHOTS ? await recordScreencast(page, `${SHOTS}/first-open`) : undefined;
   await page.evaluate(() =>

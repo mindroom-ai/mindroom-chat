@@ -13,6 +13,8 @@ type ThreadOpeningRevealOptions = {
   opensAtLatest: boolean;
   /** The rows of the thread's virtual list. */
   rows: readonly MatrixEvent[];
+  /** Leading non-event virtual items before the thread's rows. */
+  indexOffset?: number;
   scrollRef: RefObject<HTMLElement | null>;
   /** Whether the reader took the position over: a gesture, a jump, a request for older history. */
   readerTookOver: () => boolean;
@@ -33,6 +35,7 @@ export const useThreadOpeningReveal = ({
   viewKey,
   opensAtLatest,
   rows,
+  indexOffset = 0,
   scrollRef,
   readerTookOver,
 }: ThreadOpeningRevealOptions): boolean => {
@@ -46,7 +49,7 @@ export const useThreadOpeningReveal = ({
       !!scrollArea &&
       lastTileIndex >= 0 &&
       scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1 &&
-      !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`);
+      !!scrollArea.querySelector(`[data-index="${lastTileIndex + indexOffset}"]`);
     if (atEnd || readerTookOver()) setRevealed(true);
   });
 
