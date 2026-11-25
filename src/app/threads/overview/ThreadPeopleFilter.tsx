@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
+import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
+import { getMemberAvatarMxc, getMemberDisplayName, splitUserIdSuffix } from '../../matrix/room';
 import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { ThreadFilterDropdown, ThreadFilterPanel } from './ThreadFilterDropdown';
 import * as css from './ThreadFilterDropdown.css';
@@ -16,8 +17,9 @@ import {
 } from '../../event-store/threads/threadPeopleFilter';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
-export type ThreadPeopleFilterProps = {
-  room: Room;
+export type ThreadPeopleFilterProps = (
+  { room: Room; rooms?: never } | { rooms: readonly Room[]; room?: never }
+) & {
   /** The room's thread records before filtering: whoever took part in any of them is listed. */
   records: ReadonlyMap<string, ThreadRecord>;
   selected: readonly string[] | undefined;
@@ -31,13 +33,18 @@ export type ThreadPeopleFilterProps = {
 type PersonOption = {
   userId: string;
   displayName: string;
+  disambiguator?: string;
   avatarUrl?: string;
   agent: boolean;
   threadCount: number;
 };
 
+const normalizeDisplayNameKey = (name: string): string =>
+  removeHiddenChars(name).normalize('NFKC').trim().toLocaleLowerCase();
+
 function PeoplePanel({
   room,
+  rooms,
   records,
   selected,
   onShown,
@@ -51,13 +58,31 @@ function PeoplePanel({
     onShown?.();
   }, [onShown]);
 
+  const lookupRooms = useMemo<readonly Room[]>(() => rooms ?? (room ? [room] : []), [room, rooms]);
+
   // One pass over the room's threads while the panel is open, again only when they change.
   const activity = useMemo(() => buildThreadPeopleActivity(records.values()), [records]);
   const toOption = (userId: string, threadCount: number): PersonOption => {
-    const avatarMxc = getMemberAvatarMxc(room, userId);
+    let displayName: string | undefined;
+    let avatarMxc: string | undefined;
+    for (const candidate of lookupRooms) {
+      if (!candidate.getMember?.(userId)) continue;
+      if (!displayName) displayName = getMemberDisplayName(candidate, userId) || undefined;
+      if (!avatarMxc) avatarMxc = getMemberAvatarMxc(candidate, userId) || undefined;
+      if (displayName && avatarMxc) break;
+    }
+    if (!displayName) {
+      for (const candidate of lookupRooms) {
+        const name = getMemberDisplayName(candidate, userId);
+        if (name) {
+          displayName = name;
+          break;
+        }
+      }
+    }
     return {
       userId,
-      displayName: getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId,
+      displayName: displayName ?? getMxIdLocalPart(userId) ?? userId,
       avatarUrl: avatarMxc
         ? (mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
         : undefined,
@@ -69,14 +94,27 @@ function PeoplePanel({
     () => activity.map((person) => toOption(person.userId, person.threadCount)),
     // toOption reads only these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activity, room, mx, authenticatedMedia]
+    [activity, lookupRooms, mx, authenticatedMedia]
   );
   // A chosen person no thread shows any more stays listed, so the choice can be undone.
   const listedIds = new Set(listed.map((person) => person.userId));
-  const people = [
+  const rawPeople = [
     ...listed,
     ...(selected ?? []).filter((userId) => !listedIds.has(userId)).map((id) => toOption(id, 0)),
   ];
+  const splitPeople = rawPeople.map((person) => {
+    const [baseName, existingSuffix] = splitUserIdSuffix(person.displayName, person.userId);
+    return { person, baseName, existingSuffix, key: normalizeDisplayNameKey(baseName) };
+  });
+  const nameCounts = new Map<string, number>();
+  splitPeople.forEach(({ key }) => {
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+  });
+  const people = splitPeople.map(({ person, baseName, existingSuffix, key }) =>
+    existingSuffix || (nameCounts.get(key) ?? 0) > 1
+      ? { ...person, displayName: baseName, disambiguator: person.userId }
+      : person
+  );
   const chosen = new Set(selected);
 
   return (
@@ -106,6 +144,18 @@ function PeoplePanel({
                 <Text as="span" size="T300" truncate className={css.Name}>
                   {person.displayName}
                 </Text>
+                {person.disambiguator && (
+                  <Text
+                    as="span"
+                    size="T200"
+                    truncate
+                    dir="ltr"
+                    className={css.Disambiguator}
+                    data-person-disambiguator="true"
+                  >
+                    {person.disambiguator}
+                  </Text>
+                )}
                 {person.agent && (
                   <Text as="span" size="L400" className={css.Marker}>
                     {t('threadActions.agent')}

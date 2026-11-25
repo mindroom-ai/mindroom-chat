@@ -2390,7 +2390,8 @@
       "roomsCount_one": "{{count}} sala",
       "roomsCount_many": "{{count}} salas",
       "roomsCount_other": "{{count}} salas",
-      "roomsFiltered": "{{active}} de {{total}} salas"
+      "roomsFiltered": "{{active}} de {{total}} salas",
+      "switchSpace": "Cambiar de espacio"
     },
     "roomFilter": {
       "label": "Salas",

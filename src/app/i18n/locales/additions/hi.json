@@ -2311,7 +2311,8 @@
     "header": {
       "roomsCount_one": "{{count}} रूम",
       "roomsCount_other": "{{count}} रूम",
-      "roomsFiltered": "{{total}} में से {{active}} रूम"
+      "roomsFiltered": "{{total}} में से {{active}} रूम",
+      "switchSpace": "स्पेस बदलें"
     },
     "roomFilter": {
       "label": "रूम",

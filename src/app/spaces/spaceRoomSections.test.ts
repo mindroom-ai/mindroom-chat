@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import type { RoomToParents, RoomToUnread } from '../matrix/types/room';
+import { makeNavCategoryId } from '../ui/nav/closedNavCategories';
 import {
   getCollapsedSectionUnread,
   getDescendantSubspaces,

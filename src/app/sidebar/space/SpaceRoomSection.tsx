@@ -33,13 +33,13 @@ import { getSpaceSearchRooms } from '../../matrix/state/useSpaceSearchRooms';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import type { SpaceMenuGroupsProps } from '../../spaces/SpaceActions';
 import { moveSpaceRoom } from '../../spaces/lobby/spaceChildren';
-import { getDescendantSubspaces, getSpaceRoomSections } from './spaceRoomSections';
+import { getDescendantSubspaces, getSpaceRoomSections } from '../../spaces/spaceRoomSections';
 import {
   type SpaceSectionTreeNode,
   buildSpaceSectionTree,
   collectShortcutRoomIds,
   findSelectedDescendantSection,
-} from './spaceSectionTree';
+} from '../../spaces/spaceSectionTree';
 import {
   type RenderedSpaceRoomSection,
   buildRenderedSpaceSections,

@@ -2627,7 +2627,8 @@
       "roomsCount_few": "⁨{{count}}⁩ غرف",
       "roomsCount_many": "⁨{{count}}⁩ غرفة",
       "roomsCount_other": "⁨{{count}}⁩ غرفة",
-      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة"
+      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة",
+      "switchSpace": "تبديل المساحة"
     },
     "roomFilter": {
       "label": "الغرف",

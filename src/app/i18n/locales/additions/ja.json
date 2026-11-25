@@ -2232,7 +2232,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}}件のルーム",
-      "roomsFiltered": "{{total}}件中{{active}}件のルーム"
+      "roomsFiltered": "{{total}}件中{{active}}件のルーム",
+      "switchSpace": "スペースを切り替え"
     },
     "roomFilter": {
       "label": "ルーム",

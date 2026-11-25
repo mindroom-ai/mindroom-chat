@@ -2232,7 +2232,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}} 個房間",
-      "roomsFiltered": "{{active}}/{{total}} 個房間"
+      "roomsFiltered": "{{active}}/{{total}} 個房間",
+      "switchSpace": "切換空間"
     },
     "roomFilter": {
       "label": "房間",

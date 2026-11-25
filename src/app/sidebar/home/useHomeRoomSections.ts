@@ -25,8 +25,8 @@ import {
   toActivityTrackedSection,
   useSpaceEditPermissions,
 } from '../space/spaceSectionHelpers';
-import { getHomeSpaceSections } from '../space/spaceRoomSections';
-import { buildSpaceSectionTree, collectShortcutRoomIds } from '../space/spaceSectionTree';
+import { getHomeSpaceSections } from '../../spaces/spaceRoomSections';
+import { buildSpaceSectionTree, collectShortcutRoomIds } from '../../spaces/spaceSectionTree';
 
 /**
  * Derives Home's unspaced Rooms list and rail-ordered Space sections from one `useRoomOrders`

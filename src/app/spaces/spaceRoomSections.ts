@@ -1,10 +1,10 @@
 import type { MatrixClient } from 'matrix-js-sdk';
-import { sortRoomIdsByName } from '../../lib/nameOrder';
-import { isSpace } from '../../matrix/room';
-import { reachesSpaceDirectly } from '../../matrix/state/spaceAncestors';
-import { getJoinedSubspaces, getSpaceOwnRooms } from '../../matrix/state/useSpaceSearchRooms';
-import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import { sortRoomIdsByName } from '../lib/nameOrder';
+import { isSpace } from '../matrix/room';
+import { reachesSpaceDirectly } from '../matrix/state/spaceAncestors';
+import { getJoinedSubspaces, getSpaceOwnRooms } from '../matrix/state/useSpaceSearchRooms';
+import type { RoomToParents, RoomToUnread } from '../matrix/types/room';
+import { makeNavCategoryId } from '../ui/nav/closedNavCategories';
 import { type AttachedNode, attachSpaceSectionNodes } from './spaceSectionTree';
 
 export type SpaceRoomSection = {
@@ -239,6 +239,69 @@ export const getSpaceRoomSections = (
   return [rootSection, ...subspaceSections];
 };
 
+export type OrderedSpaceEntry = {
+  spaceId: string;
+  parentSpaceId: string | undefined;
+  ancestorSpaceIds: string[];
+  depth: number;
+};
+
+/**
+ * Ordered, cycle-safe joined space entries: walks `railSpaceIds` with each space's joined
+ * descendant sub-spaces in pre-order DFS (siblings sorted A to Z), then sweeps any remaining
+ * joined spaces (parentless roots first, then mutual cycles/orphans, sorted A to Z).
+ */
+export const getOrderedSpaceEntries = (
+  mx: MatrixClient,
+  railSpaceIds: readonly string[],
+  joinedRoomIds: readonly string[],
+  roomToParents: RoomToParents
+): OrderedSpaceEntry[] => {
+  const joinedList = [...joinedRoomIds];
+  const joinedSpaceIds = joinedList.filter((roomId) => isSpace(mx.getRoom(roomId)));
+  const joinedSpaceSet = new Set(joinedSpaceIds);
+  const emitted = new Set<string>();
+  const entries: OrderedSpaceEntry[] = [];
+
+  const emit = (
+    spaceId: string,
+    depth: number,
+    ancestorChain?: readonly string[]
+  ): string[] | undefined => {
+    if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return undefined;
+    emitted.add(spaceId);
+    const ancestors = ancestorChain
+      ? [...new Set(ancestorChain)].filter((id) => id !== spaceId)
+      : getJoinedAncestorSpaceIds(mx, spaceId, joinedSpaceSet, roomToParents);
+    entries.push({
+      spaceId,
+      parentSpaceId: ancestors[0],
+      ancestorSpaceIds: ancestors,
+      depth,
+    });
+    return ancestors;
+  };
+  const emitTree = (rootSpaceId: string) => {
+    const rootAncestors = emit(rootSpaceId, 0);
+    if (!rootAncestors) return;
+    getDescendantSubspaceEntries(mx, rootSpaceId, joinedList, roomToParents).forEach(
+      ({ spaceId, ancestorSpaceIds }) =>
+        emit(spaceId, ancestorSpaceIds.length, [...ancestorSpaceIds, ...rootAncestors])
+    );
+  };
+
+  railSpaceIds.forEach(emitTree);
+  const remaining = sortRoomIdsByName(
+    mx,
+    joinedSpaceIds.filter((id) => !emitted.has(id))
+  );
+  const remainingRoots = remaining.filter(
+    (id) => ![...(roomToParents.get(id) ?? [])].some((parentId) => joinedSpaceSet.has(parentId))
+  );
+  [...remainingRoots, ...remaining].forEach(emitTree);
+  return entries;
+};
+
 export type HomeSpaceSections = {
   /** Visible ordinary rooms outside every joined space, sorted A to Z. */
   unspacedByName: string[];
@@ -265,8 +328,6 @@ export const getHomeSpaceSections = (
   chatRooms: ReadonlySet<string>,
   canEditSpace: (spaceId: string) => boolean = () => false
 ): HomeSpaceSections => {
-  const joinedSpaceIds = joinedRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId)));
-  const joinedSpaceSet = new Set(joinedSpaceIds);
   const build = createSectionBuilder(
     mx,
     visibleRoomIds,
@@ -276,36 +337,16 @@ export const getHomeSpaceSections = (
     chatRooms
   );
 
-  const emitted = new Set<string>();
-  const built: SpaceRoomSection[] = [];
-  const emit = (spaceId: string, ancestorChain?: readonly string[]): string[] | undefined => {
-    if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return undefined;
-    emitted.add(spaceId);
-    const ancestors = ancestorChain
-      ? [...new Set(ancestorChain)].filter((id) => id !== spaceId)
-      : getJoinedAncestorSpaceIds(mx, spaceId, joinedSpaceSet, roomToParents);
-    built.push(
-      build(spaceId, false, ancestors[0], ancestors, makeNavCategoryId('home', 'space', spaceId))
-    );
-    return ancestors;
-  };
-  const emitTree = (rootSpaceId: string) => {
-    const rootAncestors = emit(rootSpaceId);
-    if (!rootAncestors) return;
-    getDescendantSubspaceEntries(mx, rootSpaceId, joinedRoomIds, roomToParents).forEach(
-      ({ spaceId, ancestorSpaceIds }) => emit(spaceId, [...ancestorSpaceIds, ...rootAncestors])
-    );
-  };
-
-  railSpaceIds.forEach(emitTree);
-  const remaining = sortRoomIdsByName(
-    mx,
-    joinedSpaceIds.filter((id) => !emitted.has(id))
+  const built = getOrderedSpaceEntries(mx, railSpaceIds, joinedRoomIds, roomToParents).map(
+    ({ spaceId, parentSpaceId, ancestorSpaceIds }) =>
+      build(
+        spaceId,
+        false,
+        parentSpaceId,
+        ancestorSpaceIds,
+        makeNavCategoryId('home', 'space', spaceId)
+      )
   );
-  const remainingRoots = remaining.filter(
-    (id) => ![...(roomToParents.get(id) ?? [])].some((parentId) => joinedSpaceSet.has(parentId))
-  );
-  [...remainingRoots, ...remaining].forEach(emitTree);
 
   const covered = new Set(built.flatMap((section) => section.scopeRoomsByName));
   const unspacedByName = homeRoomsByName.filter((roomId) => !covered.has(roomId));

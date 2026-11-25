@@ -2311,7 +2311,8 @@
     "header": {
       "roomsCount_one": "{{count}} oda",
       "roomsCount_other": "{{count}} oda",
-      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi",
+      "switchSpace": "Alan değiştir"
     },
     "roomFilter": {
       "label": "Odalar",

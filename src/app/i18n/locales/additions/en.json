@@ -2311,7 +2311,8 @@
     "header": {
       "roomsCount_one": "{{count}} room",
       "roomsCount_other": "{{count}} rooms",
-      "roomsFiltered": "{{active}} of {{total}} rooms"
+      "roomsFiltered": "{{active}} of {{total}} rooms",
+      "switchSpace": "Switch space"
     },
     "roomFilter": {
       "label": "Rooms",
