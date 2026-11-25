@@ -25,7 +25,7 @@ import { HOME_ASK_VIEW } from '../navigation/conversationView';
 import { ROOM_THREAD_MODE_EVENT } from '../matrix/protocol/roomThreadMode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { HomeAsk } from './HomeAsk';
-import { startDirectChat, type HomeAgent } from './homeAgents';
+import { startDirectChat, type HomeAgent } from '../sidebar/home/homeAgents';
 
 const ME = '@robin:example.org';
 const HELPER = '@mindroom_helper:example.org';
@@ -41,8 +41,8 @@ const { lastRoomInputProps, navigateRoom, navigateRoomThreadDirect } = vi.hoiste
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
-vi.mock('./homeAgents', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./homeAgents')>()),
+vi.mock('../sidebar/home/homeAgents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../sidebar/home/homeAgents')>()),
   startDirectChat: vi.fn(),
 }));
 vi.mock('../matrix/hooks/useCapabilities', () => ({ useCapabilities: () => ({}) }));

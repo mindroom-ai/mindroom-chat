@@ -46,7 +46,7 @@ import {
   type HomeAgent,
   isDirectRoomWith,
   startDirectChat,
-} from './homeAgents';
+} from '../sidebar/home/homeAgents';
 import * as css from './Home.css';
 
 type BadgeProps = { id: string; name: string; mxc?: string; src?: string; square?: boolean };

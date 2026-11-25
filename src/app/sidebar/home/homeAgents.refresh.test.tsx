@@ -12,16 +12,16 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useHomeAgents } from './homeAgents';
 
 const ME = '@robin:example.org';
 const HELPER = '@mindroom_helper:example.org';
 const SCOUT = '@mindroom_scout:example.org';
 
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
-vi.mock('../matrix/hooks/useStateEventCallback', () => ({ useStateEventCallback: vi.fn() }));
-vi.mock('../matrix/state/archivedRooms', async () => {
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
+vi.mock('../../matrix/hooks/useStateEventCallback', () => ({ useStateEventCallback: vi.fn() }));
+vi.mock('../../matrix/state/archivedRooms', async () => {
   const { atom } = await import('jotai');
   return { navigationRoomsAtom: atom(['!lobby', '!eng']) };
 });

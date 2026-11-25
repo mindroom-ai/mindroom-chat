@@ -6,12 +6,12 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { getThreadSummaryReply } from '../matrix/client/unopenedThreadEdits';
-import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
+import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { canAskIn, isDirectRoomWith, readHomeAgents, startDirectChat } from './homeAgents';
 
-vi.mock('../matrix/client/unopenedThreadEdits', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../matrix/client/unopenedThreadEdits')>();
+vi.mock('../../matrix/client/unopenedThreadEdits', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../matrix/client/unopenedThreadEdits')>();
   return { ...actual, getThreadSummaryReply: vi.fn(actual.getThreadSummaryReply) };
 });
 

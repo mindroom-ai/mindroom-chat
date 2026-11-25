@@ -10,26 +10,26 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { MINDROOM_SERVER_EVENT } from '../computer/agentServer';
+import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
 
-import { createDirectRoom } from '../matrix/createRoom';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useStateEventCallback } from '../matrix/hooks/useStateEventCallback';
-import { useForceUpdate } from '../lib/hooks/useForceUpdate';
-import { getThreadSummaryReply } from '../matrix/client/unopenedThreadEdits';
-import { addRoomIdToMDirect, getMxIdLocalPart } from '../matrix/matrix';
-import { agentRoomState } from '../matrix/protocol/agentRoomState';
-import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../matrix/protocol/agentIdentity';
-import { isThreadSummaryEvent } from '../matrix/protocol/threadSummary';
-import { canSendMessageInRoom, getMemberAvatarMxc, getMemberRawDisplayName } from '../matrix/room';
-import { navigationRoomsAtom } from '../matrix/state/archivedRooms';
-import { mDirectAtom } from '../matrix/state/mDirectList';
-import type { MDirectContent } from '../matrix/types/accountData';
+import { createDirectRoom } from '../../matrix/createRoom';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import { addRoomIdToMDirect, getMxIdLocalPart } from '../../matrix/matrix';
+import { agentRoomState } from '../../matrix/protocol/agentRoomState';
+import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
+import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
+import { canSendMessageInRoom, getMemberAvatarMxc, getMemberRawDisplayName } from '../../matrix/room';
+import { navigationRoomsAtom } from '../../matrix/state/archivedRooms';
+import { mDirectAtom } from '../../matrix/state/mDirectList';
+import type { MDirectContent } from '../../matrix/types/accountData';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
-} from '../threads/cross-room/crossRoomThreadIndex';
-import { revealDirectionControls } from '../ui/directional';
+} from '../../threads/cross-room/crossRoomThreadIndex';
+import { revealDirectionControls } from '../../ui/directional';
 
 export type HomeAgent = {
   userId: string;

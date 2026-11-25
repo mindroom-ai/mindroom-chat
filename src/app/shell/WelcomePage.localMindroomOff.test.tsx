@@ -17,7 +17,7 @@ vi.mock('../ui/page/Page', () => {
   const Frame = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });
-vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
+vi.mock('../sidebar/home/homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
 vi.mock('./HomeAsk', () => ({ HomeAsk: () => null }));
 vi.mock('./HomeRecentThreads', () => ({ HomeRecentThreads: () => null }));
 vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayName: 'Ada' }) }));
