@@ -28,6 +28,7 @@ on:
       - electron/**
       - electron/afterPack.cjs
       - scripts/build-desktop-app.sh
+      - scripts/build-trackpad-swipe-addon.sh
       - scripts/desktop-helper-pin.json
       - scripts/fetch-desktop-helper.mjs
       - scripts/desktop-latest-yml.mjs
@@ -39,6 +40,7 @@ on:
       - src/app/desktop-access/**
       - src/app/native/**
       - src/app/navigation/desktopAccessModal.ts
+      - src/app/navigation/desktopHistorySwipe*
       - src/app/quick-capture/**
       - src/app/composer/voice/liveVoiceRecording.ts
       - src/app/shortcuts/shortcuts.ts

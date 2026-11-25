@@ -1,5 +1,4 @@
 import { useMemo, useRef } from 'react';
-import { isDesktopApp } from '../../lib/nativeShell';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -320,12 +319,6 @@ export const useCompactThreadCardViewModels = ({
       language,
       useAuthentication,
       mx.getHomeserverUrl(),
-      useAuthentication &&
-      !isDesktopApp() &&
-      typeof window !== 'undefined' &&
-      window.location?.protocol === 'capacitor:'
-        ? mx.getAccessToken()
-        : undefined,
       new Intl.DateTimeFormat().resolvedOptions().timeZone,
       room
         .getMembers()

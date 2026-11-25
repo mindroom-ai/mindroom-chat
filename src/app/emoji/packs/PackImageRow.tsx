@@ -5,6 +5,7 @@ import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import type { PackImage } from '../custom/types';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import {
   isValidShortcode,
@@ -28,7 +29,8 @@ function PackImagePreview({
   const client = useMatrixClient();
   const authenticated = useMediaAuthentication();
   return (
-    <img
+    <AuthenticatedImage
+      client={client}
       src={mxcUrlToHttp(client, url, authenticated, 96, 96, 'scale') ?? undefined}
       alt={shortcode}
       style={{ width: toRem(size), height: toRem(size), objectFit: 'contain', flexShrink: 0 }}

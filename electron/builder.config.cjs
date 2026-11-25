@@ -26,6 +26,7 @@ module.exports = {
   files: [
     'build/electron/**/*',
     '!build/electron/mindroom-screenshot-helper',
+    '!build/electron/mindroom-trackpad-swipe.node',
     '!build/electron/MindRoom Desktop Helper.app/**',
     'dist/**/*',
     'package.json',
@@ -33,6 +34,7 @@ module.exports = {
   ],
   extraResources: [
     { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+    { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
   ],
   mac: {
     // electron-builder 26.18.0 rejects a top-level `zip` key in schema validation;

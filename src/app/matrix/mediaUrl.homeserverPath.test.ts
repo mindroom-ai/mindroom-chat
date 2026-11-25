@@ -5,7 +5,7 @@ import { authenticatedMediaRequestInit } from './mediaUrl';
 // The access token goes only to the homeserver's own authenticated media endpoints: the media path
 // must start right after the homeserver's base path, as the service worker requires.
 describe('authenticatedMediaRequestInit path matching', () => {
-  const header = { headers: { Authorization: 'Bearer test-token' } };
+  const header = { headers: { Authorization: 'Bearer test-token' }, cache: 'no-store' };
 
   it('adds no header when the media path appears later in the URL path', () => {
     const mx = createClient({

@@ -42,6 +42,7 @@ import { createMarkdownDecorate, type MarkdownLeaf } from './markdownDecorations
 import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
+import { useAvatarImage } from '../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { findShortcut, usesCommandKey } from '../shortcuts/shortcuts';
 import { openOverlay } from '../shortcuts/shortcutDom';
@@ -75,8 +76,11 @@ function EditorCustomEmoji({
 }) {
   const client = useOptionalMatrixClient();
   const authenticated = useMediaAuthentication();
-  const src = client ? mxcUrlToHttp(client, mxc, authenticated, 64, 64, 'scale') : undefined;
-  if (!src) {
+  const src = client
+    ? (mxcUrlToHttp(client, mxc, authenticated, 64, 64, 'scale') ?? undefined)
+    : undefined;
+  const { imageSrc, onImageError } = useAvatarImage(src, client);
+  if (!imageSrc) {
     return (
       <span className={classNames(css.InlineChip, active && css.InlineChipSelected)}>
         :{shortcode}:
@@ -86,10 +90,11 @@ function EditorCustomEmoji({
   return (
     <img
       className={classNames(css.Emoticon, active && css.InlineChipSelected)}
-      src={src}
+      src={imageSrc}
       alt={`:${shortcode}:`}
       title={`:${shortcode}:`}
       draggable={false}
+      onError={onImageError}
     />
   );
 }

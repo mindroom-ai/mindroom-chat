@@ -14,6 +14,21 @@ export const isDesktopAccessAvailable = (): boolean => Boolean(desktopBridge()?.
 /** Whether the page runs inside a Capacitor native shell (iOS or Android). */
 export const isCapacitorApp = (): boolean => Capacitor.isNativePlatform();
 
+/**
+ * Whether the page runs inside a Capacitor (or other non-http(s), non-Electron) native shell
+ * where no service worker or desktop webRequest interceptor adds media auth headers.
+ */
+export const isCapacitorMediaShell = (): boolean => {
+  if (isDesktopApp()) return false;
+  const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
+  if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
+  try {
+    return isCapacitorApp();
+  } catch {
+    return false;
+  }
+};
+
 /** Whether the page runs inside any bundled app shell (Capacitor or Electron). */
 export const isBundledApp = (): boolean => isDesktopApp() || isCapacitorApp();
 

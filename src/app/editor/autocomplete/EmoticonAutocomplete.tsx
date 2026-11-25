@@ -21,6 +21,7 @@ import { ImageUsage } from '../../emoji/custom/types';
 import { useEmojiData } from '../../emoji/emojiData';
 import { addRecentEmoji } from '../../emoji/recent-emoji-list';
 import { emojiSkinToneAtom } from '../../emoji/emojiSkinTone';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 
 /** Where the `:` query sits, whose packs to search, and how the composer hears back. */
@@ -55,7 +56,8 @@ function SuggestionGlyph({ suggestion }: { suggestion: EmoticonSuggestion }) {
     );
   }
   return (
-    <img
+    <AuthenticatedImage
+      client={client}
       src={mxcUrlToHttp(client, suggestion.key, authenticatedMedia, 48, 48, 'scale') ?? undefined}
       alt=""
       style={{ ...GLYPH_BOX, objectFit: 'contain' }}

@@ -20,6 +20,7 @@ import {
 } from '../../matrix/session/sessions';
 import { settingsModalAtom } from '../../navigation/settingsModal';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
+import { authenticatedMediaRequestInit } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { getLoginPath } from '../../routes/pathUtils';
 import { withAddAccountSearch } from '../../navigation/addAccount';
@@ -74,16 +75,13 @@ const useCachedActiveAvatar = (
       'crop'
     );
     if (!httpUrl) return undefined;
-    const accessToken = mx.getAccessToken();
     let cancelled = false;
     void (async () => {
       try {
-        let response = await fetch(
-          httpUrl,
-          useAuthentication && accessToken
-            ? { headers: { Authorization: `Bearer ${accessToken}` } }
-            : {}
-        );
+        const requestInit = useAuthentication
+          ? (authenticatedMediaRequestInit(mx, httpUrl) ?? {})
+          : {};
+        let response = await fetch(httpUrl, requestInit);
         // Without a service worker the URL is a legacy one, which servers with authenticated
         // media may refuse; ask the authenticated endpoint with the token instead.
         const retry =

@@ -115,8 +115,13 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       },
       extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
+      files: expect.arrayContaining([
+        '!build/electron/mindroom-screenshot-helper',
+        '!build/electron/mindroom-trackpad-swipe.node',
+      ]),
       extraResources: [
         { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+        { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
       ],
       mac: {
         artifactName: 'MindRoom-Chat-${arch}-mac.${ext}',
@@ -646,14 +651,21 @@ describe('scripts/desktop-helper-pin.json and scripts/fetch-desktop-helper.mjs',
 });
 
 describe('scripts/build-desktop-app.sh fail-closed checks', () => {
-  type Cmd = { cmd: string; hasNotary: boolean; cscName: string; sign: string; args: string };
+  type Cmd = {
+    cmd: string;
+    hasNotary: boolean;
+    cscName: string;
+    sign: string;
+    skipAddon: string;
+    args: string;
+  };
 
   const FAKE_BIN = `#!/usr/bin/env bash
 set -eu
 cmd=$(basename "$0"); target=""; for a in "$@"; do target="$a"; done
 fail="\${TEST_FAIL:-}"; has_notary=0
 if [[ -n "\${APPLE_ID:-}\${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then has_notary=1; fi
-printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$cmd" "$has_notary" "\${CSC_NAME:-}" "\${MINDROOM_DESKTOP_SIGN:-}" "$*" >> "$TEST_LOG"
+printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$cmd" "$has_notary" "\${CSC_NAME:-}" "\${MINDROOM_DESKTOP_SIGN:-}" "\${MINDROOM_SKIP_TRACKPAD_ADDON_BUILD:-}" "$*" >> "$TEST_LOG"
 case "$cmd" in
   npx)
     if [[ "\${1:-}" == "electron-builder" ]]; then
@@ -663,7 +675,12 @@ case "$cmd" in
       done
     fi ;;
   swiftc) printf 'fake-swift-bin' > "$target" ;;
-  lipo) printf 'fake-universal-helper' > "$target" ;;
+  lipo)
+    if [[ "\${1:-}" == "-archs" ]]; then
+      printf '%s\\n' "\${TEST_ADDON_ARCHS:-x86_64 arm64}"
+    else
+      printf 'fake-universal-bin' > "$target"
+    fi ;;
   ditto)
     mkdir -p "$target/MindRoom Chat.app/Contents/Resources"
     if [[ "$fail" != "helper:missing" ]]; then
@@ -676,11 +693,15 @@ case "$cmd" in
     if [[ "$target" == */x64 && "$fail" == "desktop-helper:x64-present" ]]; then
       mkdir -p "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS"
       printf 'unexpected-x64-helper' > "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS/MindRoom Desktop Helper"
+    fi
+    if [[ "$fail" != "addon:missing" ]]; then
+      printf 'fake-addon' > "$target/MindRoom Chat.app/Contents/Resources/mindroom-trackpad-swipe.node"
     fi ;;
   codesign)
     if [[ "\${1:-}" == "--verify" ]] && {
       [[ "$fail" == "codesign:app" && "$target" == *"MindRoom Chat.app" ]] ||
       [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]] ||
+      [[ "$fail" == "codesign:addon" && "$target" == */mindroom-trackpad-swipe.node ]] ||
       [[ "$fail" == "codesign:desktop-helper" && "$target" == *"MindRoom Desktop Helper.app" ]];
     }; then exit 1; fi
     if [[ "\${1:-}" == "-dv" ]]; then
@@ -704,6 +725,8 @@ case "$cmd" in
       printf '%s\\n' "/Fake/MacOSX.sdk"
     elif [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "swiftc" ]]; then
       printf 'fake-swift-bin' > "$target"
+    elif [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "clang++" ]]; then
+      printf 'fake-clang-bundle' > "$target"
     elif [[ "\${1:-}" == "stapler" && "\${2:-}" == "validate" ]] && { [[ "$fail" == "stapler:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "stapler:app" && "$target" == *.app ]]; }; then
       exit 65
     fi ;;
@@ -717,7 +740,7 @@ const args = process.argv.slice(2);
 const hasNotary = process.env.APPLE_ID || process.env.APPLE_APP_SPECIFIC_PASSWORD ? '1' : '0';
 appendFileSync(
   process.env.TEST_LOG,
-  \`fetch-desktop-helper\\t\${hasNotary}\\t\${process.env.CSC_NAME ?? ''}\\t\${process.env.MINDROOM_DESKTOP_SIGN ?? ''}\\t\${args.join(' ')}\\n\`
+  \`fetch-desktop-helper\\t\${hasNotary}\\t\${process.env.CSC_NAME ?? ''}\\t\${process.env.MINDROOM_DESKTOP_SIGN ?? ''}\\t\${process.env.MINDROOM_SKIP_TRACKPAD_ADDON_BUILD ?? ''}\\t\${args.join(' ')}\\n\`
 );
 if (process.env.TEST_FAIL === 'desktop-helper:fetch') {
   console.error('simulated fetch failure');
@@ -731,7 +754,11 @@ writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'),
 
   function createFixture() {
     const root = makeTempDir('mindroom-desktop-build-');
-    for (const file of ['scripts/build-desktop-app.sh', 'scripts/desktop-latest-yml.mjs']) {
+    for (const file of [
+      'scripts/build-desktop-app.sh',
+      'scripts/build-trackpad-swipe-addon.sh',
+      'scripts/desktop-latest-yml.mjs',
+    ]) {
       mkdirSync(dirname(join(root, file)), { recursive: true });
       copyFileSync(resolve(file), join(root, file));
     }
@@ -780,9 +807,15 @@ writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'),
             .split('\n')
             .filter(Boolean)
             .map((line) => {
-              const [cmd = '', hasNotary = '0', cscName = '', sign = '', rawArgs = ''] =
-                line.split('\t');
-              return { cmd, hasNotary: hasNotary === '1', cscName, sign, args: rawArgs };
+              const [
+                cmd = '',
+                hasNotary = '0',
+                cscName = '',
+                sign = '',
+                skipAddon = '',
+                rawArgs = '',
+              ] = line.split('\t');
+              return { cmd, hasNotary: hasNotary === '1', cscName, sign, skipAddon, args: rawArgs };
             })
         : [];
       return { ...res, commands };
@@ -857,6 +890,9 @@ writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'),
     ['wrong Identifier on desktop helper', { TEST_DESKTOP_HELPER_ID: 'chat.mindroom.wrong' }],
     ['wrong TeamIdentifier on desktop helper', { TEST_DESKTOP_HELPER_TEAM: 'OTHERTEAM1' }],
     ['missing hardened runtime on desktop helper', { TEST_DESKTOP_HELPER_FLAGS: '0x0(none)' }],
+    ['missing trackpad swipe addon', { TEST_FAIL: 'addon:missing' }],
+    ['single-arch trackpad swipe addon', { TEST_ADDON_ARCHS: 'arm64' }],
+    ['failed codesign on trackpad swipe addon', { TEST_FAIL: 'codesign:addon' }],
   ])(
     '--verify-only fails closed on %s',
     (_label, overrides) => {
@@ -870,7 +906,10 @@ writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'),
     const { root, run } = createFixture();
     const res = run(['--sign']);
     expect(res.status, res.stderr).toBe(0);
-    expect(res.commands.find((c) => c.cmd === 'npm')?.hasNotary).toBe(false);
+    expect(res.commands.find((c) => c.cmd === 'npm')).toMatchObject({
+      hasNotary: false,
+      skipAddon: '1',
+    });
     const fetchIdx = res.commands.findIndex((c) => c.cmd === 'fetch-desktop-helper');
     const stagedVerifyIdx = res.commands.findIndex(
       (c) =>
@@ -903,10 +942,37 @@ writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'),
       expect.stringContaining('-target arm64-apple-macosx13.0 electron/native/helper.swift'),
       expect.stringContaining('-target x86_64-apple-macosx13.0 electron/native/helper.swift'),
     ]);
-    expect(res.commands.find((c) => c.cmd === 'lipo')).toMatchObject({
-      hasNotary: false,
-      args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
-    });
+    const clang = res.commands.filter(
+      (c) => c.cmd === 'xcrun' && c.args.startsWith('--sdk macosx clang++ ')
+    );
+    expect(clang).toHaveLength(2);
+    expect(clang.every((c) => !c.hasNotary)).toBe(true);
+    expect(clang.every((c) => c.args.includes('-isysroot /Fake/MacOSX.sdk'))).toBe(true);
+    expect(clang.every((c) => c.args.includes('-DNAPI_VERSION=8'))).toBe(true);
+    expect(clang.map((c) => c.args)).toEqual([
+      expect.stringContaining('-target arm64-apple-macosx13.0 electron/native/trackpad_swipe.mm'),
+      expect.stringContaining('-target x86_64-apple-macosx13.0 electron/native/trackpad_swipe.mm'),
+    ]);
+    const lipoCreates = res.commands.filter(
+      (c) => c.cmd === 'lipo' && c.args.startsWith('-create ')
+    );
+    expect(lipoCreates).toEqual([
+      expect.objectContaining({
+        hasNotary: false,
+        args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
+      }),
+      expect.objectContaining({
+        hasNotary: false,
+        args: expect.stringContaining('-output build/electron/mindroom-trackpad-swipe.node'),
+      }),
+    ]);
+    expect(
+      res.commands.find(
+        (c) =>
+          c.cmd === 'codesign' &&
+          c.args === '--force --sign - build/electron/mindroom-trackpad-swipe.node'
+      )
+    ).toMatchObject({ hasNotary: false });
     expect(res.commands[builderIdx]).toMatchObject({
       sign: '1',
       hasNotary: true,
@@ -992,11 +1058,13 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
     expect(desktop.on.pull_request.paths).toEqual(
       expect.arrayContaining([
         'scripts/macos-publish-appcast.sh',
+        'scripts/build-trackpad-swipe-addon.sh',
         'scripts/desktop-helper-pin.json',
         'scripts/fetch-desktop-helper.mjs',
         'electron/afterPack.cjs',
         'src/app/desktop-access/**',
         'src/app/navigation/desktopAccessModal.ts',
+        'src/app/navigation/desktopHistorySwipe*',
       ])
     );
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });

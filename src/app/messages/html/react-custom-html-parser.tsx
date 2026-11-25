@@ -53,6 +53,9 @@ import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
+import type { AvatarMediaClient } from '../../avatars/avatarMedia';
+import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
@@ -70,9 +73,16 @@ import {
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
 
 /** An inline homeserver image opens the same full-size viewer as link preview pictures. */
-function InlineImage({ alt = '', ...props }: ComponentPropsWithoutRef<'img'>) {
+function InlineImage({
+  alt = '',
+  client,
+  src,
+  ...props
+}: ComponentPropsWithoutRef<'img'> & { client?: AvatarMediaClient }) {
   const { t } = useTranslation();
   const [viewerOpen, setViewerOpen] = useState(false);
+  // Resolve a live URL on open so an inline image whose cached blob was evicted still opens.
+  const viewer = useAvatarImage(viewerOpen ? src : undefined, client);
   const label = alt || t('sharedUi.imageContent.view');
   const openViewer = (event: SyntheticEvent) => {
     event.preventDefault();
@@ -87,15 +97,18 @@ function InlineImage({ alt = '', ...props }: ComponentPropsWithoutRef<'img'>) {
         aria-label={revealDirectionControls(label)}
         onClick={openViewer}
       >
-        <img
+        <AuthenticatedImage
           {...props}
+          client={client}
+          src={src}
           alt={revealDirectionControls(alt)}
+          fallback={alt ? revealDirectionControls(alt) : null}
           className={css.InlineImage}
           loading="lazy"
         />
       </button>
       {viewerOpen && (
-        <ImageOverlay src={props.src} alt={label} requestClose={() => setViewerOpen(false)} />
+        <ImageOverlay src={viewer.imageSrc} alt={label} requestClose={() => setViewerOpen(false)} />
       )}
     </>
   );
@@ -997,12 +1010,15 @@ export const getReactCustomHtmlParser = (
           if (params.mxcImages === false) return <>{alt ?? ''}</>;
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
+            const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
-                <img
+                <AuthenticatedImage
+                  client={mx}
                   className={css.Emoticon()}
                   src={url}
-                  alt={alt ?? title ?? ''}
+                  alt={emoticonAlt}
+                  fallback={emoticonAlt}
                   title={title ?? alt}
                   loading="lazy"
                 />
@@ -1010,17 +1026,21 @@ export const getReactCustomHtmlParser = (
             );
           }
           if (hasAncestor(domNode, ['a'])) {
+            const linkedAlt = revealDirectionControls(alt ?? '');
             return (
-              <img
+              <AuthenticatedImage
                 {...props}
+                client={mx}
                 src={url}
-                alt={revealDirectionControls(alt ?? '')}
+                alt={linkedAlt}
+                fallback={linkedAlt}
+                showFallbackWhileLoading
                 className={css.InlineImage}
                 loading="lazy"
               />
             );
           }
-          return <InlineImage {...props} src={url} alt={alt ?? ''} />;
+          return <InlineImage {...props} client={mx} src={url} alt={alt ?? ''} />;
         }
         default:
           return undefined;
