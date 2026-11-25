@@ -10,15 +10,13 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { blockSelection } from '../dragSelection';
 import {
   animatePanel,
-  cancelPanelMotion,
   currentPanelSize,
   layoutParentOf,
   measureFullRowWidth,
   panelGap,
-  panelRenderedWidth,
   type PanelPhase,
   type PanelRegistration,
-  usePanelFillMotion,
+  useJustFilled,
   usePanelPresence,
 } from './panelPresence';
 import { PanelFrameStrip } from './PanelFrame';
@@ -208,7 +206,7 @@ export function ResizablePanel({
     }
     // Turned around mid-motion, a panel moves on from where it is.
     const now = motionRef.current?.playState === 'running' ? currentPanelSize(panel) : undefined;
-    cancelPanelMotion(panel, motionRef);
+    motionRef.current?.cancel();
     const gap = panelGap(panel, side);
     if (phase === 'exit') {
       // A drag released past the threshold left the panel at its width; it closes from there.
@@ -232,23 +230,13 @@ export function ResizablePanel({
     releasedAt.current = undefined;
     movesRef.current = moves;
     if (panel && released !== undefined && moves && released !== width) {
-      cancelPanelMotion(panel, motionRef);
+      motionRef.current?.cancel();
       const from = { width: released, gap: 0 };
       motionRef.current = animatePanel(panel, from, { width, gap: 0 }, false);
     }
   });
 
-  const justFilled = usePanelFillMotion({
-    panelRef,
-    motionRef,
-    full,
-    folded,
-    mobile,
-    passthrough,
-    phase,
-    side,
-    width,
-  });
+  const justFilled = useJustFilled(full, folded, passthrough, phase);
 
   // The slot waits for this panel to close; a panel that takes another's place starts from the
   // width that one had when it left.
@@ -261,7 +249,7 @@ export function ResizablePanel({
     return () => {
       own?.();
       if (lastWidth && panel) {
-        lastWidth.current = movesRef.current ? panelRenderedWidth(panel) : undefined;
+        lastWidth.current = movesRef.current ? panel.getBoundingClientRect().width : undefined;
       }
     };
   }, [lastWidth, register]);
@@ -303,9 +291,9 @@ export function ResizablePanel({
     // Never past its widest, as a swap from a wider panel can be, or a release with no move fills.
     const startWidth =
       panel && motionRef.current?.playState === 'running'
-        ? Math.min(panelRenderedWidth(panel), maxWidth)
+        ? Math.min(panel.getBoundingClientRect().width, maxWidth)
         : width;
-    cancelPanelMotion(panel, motionRef);
+    motionRef.current?.cancel();
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,

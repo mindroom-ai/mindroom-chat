@@ -130,17 +130,11 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await expect(discard).toBeHidden();
   await expect(recordingPill(page)).toHaveText(/^Recording \d+:\d\d$/);
   // In the conversation's place, the panel's card keeps the gap at its start as at its ends.
-  await panelLocator(page, 'call').evaluate((panel) =>
-    Promise.allSettled(panel.getAnimations().map((animation) => animation.finished))
-  );
-  await expect
-    .poll(() =>
-      panelLocator(page, 'call').evaluate((panel) => {
-        const style = getComputedStyle(panel);
-        return style.paddingInlineStart === style.paddingBlockStart;
-      })
-    )
-    .toBe(true);
+  const gaps = await panelLocator(page, 'call').evaluate((panel) => {
+    const style = getComputedStyle(panel);
+    return [style.paddingInlineStart, style.paddingBlockStart];
+  });
+  expect(gaps[0]).toBe(gaps[1]);
   await shot('filled');
   await fill.click();
   await expect(discard).toBeVisible();

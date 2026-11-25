@@ -56,14 +56,6 @@ globalStyle(`${Panel} > :first-child > *`, {
   flex: '0 0 auto',
   width: 'var(--mr-panel-content-width, 100%)',
 });
-// While restoring from filled to beside, let content track the live animated width instead of
-// snapping to the narrower settled width on frame 0. `:where` keeps specificity at (0, 2, 0) so
-// PanelFrame's fixed `Strip` (0, 3, 0) preserves `flex: 0 0 40px` when `openStrip` is present.
-globalStyle(`${Panel}:where([data-fill-glide]) > :first-child > *`, {
-  flex: '1 1 0',
-  minWidth: 0,
-  width: '100%',
-});
 
 export const Handle = style({
   position: 'absolute',

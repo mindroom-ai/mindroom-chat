@@ -4,7 +4,6 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
-import { animatePanelFill, PANEL_MOTION_EASING, PANEL_MOTION_MS } from './panelPresence';
 import { ResizablePanel, SIDE_PANEL_MAX_WIDTH } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';
 
@@ -83,8 +82,7 @@ const renderStatefulPanel = ({
   initialLayout?: PanelLayout;
 } = {}) => {
   const row = document.body.appendChild(document.createElement('div'));
-  let width = rowWidth;
-  Object.defineProperty(row, 'clientWidth', { configurable: true, get: () => width });
+  Object.defineProperty(row, 'clientWidth', { configurable: true, get: () => rowWidth });
   if (paddingInlineEnd) row.style.paddingInlineEnd = paddingInlineEnd;
   let updateLayout: ((next: PanelLayout) => void) | undefined;
   function Harness() {
@@ -112,44 +110,10 @@ const renderStatefulPanel = ({
   return {
     row,
     unmount: rendered.unmount,
-    setRowWidth: (next: number) => {
-      width = next;
-    },
     setLayout: (next: PanelLayout) => {
       act(() => updateLayout?.(next));
     },
   };
-};
-
-type ControlledAnimation = {
-  cancel: ReturnType<typeof vi.fn>;
-  playState: AnimationPlayState;
-  finished: Promise<Animation>;
-  resolve: () => void;
-};
-
-const createControlledAnimate = () => {
-  const animations: ControlledAnimation[] = [];
-  const animate = vi.fn(() => {
-    let resolveFinished!: () => void;
-    const finished = new Promise<Animation>((resolve) => {
-      resolveFinished = () => resolve(anim as unknown as Animation);
-    });
-    const anim: ControlledAnimation = {
-      playState: 'running',
-      finished,
-      cancel: vi.fn(() => {
-        anim.playState = 'idle';
-      }),
-      resolve: () => {
-        anim.playState = 'finished';
-        resolveFinished();
-      },
-    };
-    animations.push(anim);
-    return anim as unknown as Animation;
-  });
-  return { animate, animations };
 };
 
 const separator = () => screen.getByRole('separator', { name: 'Resize' });
@@ -377,145 +341,14 @@ describe('dragging a side panel past its widest', () => {
     expect(stored()).toBe(550);
   });
 
-  it('interpolates paddingInlineStart in animatePanelFill to avoid the 8 px floating-card jump', () => {
-    const { animate } = createControlledAnimate();
-    const panel = document.body.appendChild(document.createElement('div'));
-    panel.style.paddingInlineStart = '8px';
-    Object.defineProperty(panel, 'animate', { configurable: true, value: animate });
-
-    animatePanelFill(panel, 600, 1092, 'end');
-    expect(animate).toHaveBeenCalledWith(
-      [
-        { width: '600px', marginInlineStart: '492px', paddingInlineStart: '0px' },
-        { width: '1092px', marginInlineStart: '0px', paddingInlineStart: '8px' },
-      ],
-      { duration: PANEL_MOTION_MS, easing: PANEL_MOTION_EASING, fill: 'none' }
-    );
-  });
-
-  it('glides with WAAPI on fill and restore, toggles data-fill-glide, lands pulse on finish, and respects reduced motion', async () => {
-    const { animate, animations } = createControlledAnimate();
-    Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animate });
-    const rectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        const w = this.style.width === '100%' ? 1000 : Number.parseFloat(this.style.width) || 0;
-        return { width: w } as DOMRect;
-      });
+  it('sets data-just-filled on fill, clears after timeout or un-fill, and skips initial mount, folded unfold, and reduced motion', () => {
+    vi.useFakeTimers();
     try {
-      const { setRowWidth } = renderStatefulPanel({ rowWidth: 1000 });
-      const panel = screen.getByTestId('panel');
-      const fillButton = () => screen.getByRole('button', { name: 'Fill the room with Notes' });
-
-      dragTo(660);
-      release();
-      expect(animate).toHaveBeenCalledTimes(1);
-      expect(animate).toHaveBeenLastCalledWith(
-        [
-          { width: '600px', marginInlineStart: '400px', paddingInlineStart: '0px' },
-          { width: '1000px', marginInlineStart: '0px', paddingInlineStart: '0px' },
-        ],
-        { duration: PANEL_MOTION_MS, easing: PANEL_MOTION_EASING, fill: 'none' }
-      );
-      // Landing pulse waits until the fill glide finishes.
-      expect(panel.dataset.justFilled).toBeUndefined();
-      await act(async () => {
-        animations[0]!.resolve();
-      });
-      expect(panel.dataset.justFilled).toBe('true');
-
-      // Window resizes while filled: restore measures the live parent row width directly.
-      setRowWidth(1200);
-      fireEvent.click(fillButton());
-      expect(panel.dataset.justFilled).toBeUndefined();
-      expect(animate).toHaveBeenCalledTimes(2);
-      expect(animate).toHaveBeenLastCalledWith(
-        [{ width: '1200px', marginInlineStart: '0px', offset: 0 }],
-        { duration: PANEL_MOTION_MS, easing: PANEL_MOTION_EASING, fill: 'none' }
-      );
-      expect(panel.dataset.fillGlide).toBe('true');
-
-      await act(async () => {
-        animations[1]!.resolve();
-      });
-      expect(panel.dataset.fillGlide).toBeUndefined();
-
-      // Reduced motion skips both glide animations and the landing pulse.
-      animate.mockClear();
-      vi.stubGlobal('matchMedia', () => ({ matches: true }));
-      fireEvent.click(fillButton());
-      expect(animate).not.toHaveBeenCalled();
-      expect(panel.dataset.justFilled).toBeUndefined();
-      fireEvent.click(fillButton());
-      expect(animate).not.toHaveBeenCalled();
-      expect(panel.dataset.fillGlide).toBeUndefined();
-    } finally {
-      rectSpy.mockRestore();
-      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
-    }
-  });
-
-  it('guards data-just-filled against mid-glide un-fill and never glides or pulses from folded or initial mount', async () => {
-    const { animate, animations } = createControlledAnimate();
-    Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animate });
-    let midFlightWidth: number | undefined;
-    const rectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        if (midFlightWidth !== undefined && this.dataset.testid === 'panel') {
-          return { width: midFlightWidth } as DOMRect;
-        }
-        const w = this.style.width === '100%' ? 1000 : Number.parseFloat(this.style.width) || 0;
-        return { width: w } as DOMRect;
-      });
-    try {
-      // Initial mount in filled layout neither glides nor pulses.
       const initial = renderStatefulPanel({ rowWidth: 1000, initialLayout: 'filled' });
-      expect(animate).not.toHaveBeenCalled();
       expect(screen.getByTestId('panel').dataset.justFilled).toBeUndefined();
       initial.unmount();
 
-      // Un-filling before the fill glide finishes reverses from live width and suppresses stale pulse.
       const { setLayout } = renderStatefulPanel({ rowWidth: 1000 });
-      const panel = screen.getByTestId('panel');
-      const fillButton = () => screen.getByRole('button', { name: 'Fill the room with Notes' });
-      fireEvent.click(fillButton());
-      expect(panel.dataset.justFilled).toBeUndefined();
-      const fillAnim = animations[0]!;
-      midFlightWidth = 750;
-      fireEvent.click(fillButton());
-      midFlightWidth = undefined;
-      expect(fillAnim.cancel).toHaveBeenCalledOnce();
-      expect(animate).toHaveBeenLastCalledWith(
-        [{ width: '750px', marginInlineStart: '0px', offset: 0 }],
-        { duration: PANEL_MOTION_MS, easing: PANEL_MOTION_EASING, fill: 'none' }
-      );
-      expect(panel.dataset.fillGlide).toBe('true');
-      await act(async () => {
-        fillAnim.resolve();
-      });
-      expect(panel.dataset.justFilled).toBeUndefined();
-      await act(async () => {
-        animations[1]!.resolve();
-      });
-      expect(panel.dataset.fillGlide).toBeUndefined();
-
-      // Unfolding straight from folded into filled neither glides nor pulses.
-      animate.mockClear();
-      setLayout('folded');
-      setLayout('filled');
-      expect(animate).not.toHaveBeenCalled();
-      expect(panel.dataset.justFilled).toBeUndefined();
-    } finally {
-      rectSpy.mockRestore();
-      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
-    }
-  });
-
-  it('sets data-just-filled immediately when WAAPI is unavailable and clears after timeout or un-fill', () => {
-    vi.useFakeTimers();
-    try {
-      renderStatefulPanel({ rowWidth: 1000 });
       const panel = screen.getByTestId('panel');
       const fillButton = () => screen.getByRole('button', { name: 'Fill the room with Notes' });
       expect(panel.dataset.justFilled).toBeUndefined();
@@ -541,7 +374,13 @@ describe('dragging a side panel past its widest', () => {
       fireEvent.click(fillButton());
       expect(panel.dataset.justFilled).toBeUndefined();
 
-      // Reduced motion still skips the pulse even when WAAPI is unavailable.
+      // Unfolding straight from folded into filled does not pulse.
+      setLayout('folded');
+      setLayout('filled');
+      expect(panel.dataset.justFilled).toBeUndefined();
+
+      // Reduced motion skips the pulse.
+      setLayout('beside');
       vi.stubGlobal('matchMedia', () => ({ matches: true }));
       fireEvent.click(fillButton());
       expect(panel.dataset.justFilled).toBeUndefined();
