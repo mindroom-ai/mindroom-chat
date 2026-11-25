@@ -327,31 +327,22 @@ describe('estimateThreadEventRowHeight', () => {
     expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(26);
   });
 
-  it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
+  it('estimates always-expanded legacy thread-summary rows uncapped', () => {
     const body = Array.from({ length: 10 }, (_v, line) => `answer line ${line}`).join('\n');
     const event = new MatrixEvent({
       content: {
         body,
         msgtype: 'm.text',
-        'com.mindroom.message_extras': {
-          version: 2,
-          sections: [
-            { title: 'Tool call 1', content_type: 'text/markdown', content: 'output 1' },
-            { title: 'Tool call 2', content_type: 'text/markdown', content: 'output 2' },
-          ],
-        },
+        'io.mindroom.thread_summary': true,
       },
-      event_id: '$extras',
+      event_id: '$legacy-summary',
       origin_server_ts: 1,
       room_id: '!room:example.org',
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 +
-    // 10*20 + 2 section headers * 40 (calibrated constants). NOT the
-    // folded 80: these rows never fold, and estimating them small caused
-    // the per-frame jump budget the ride-smoothness e2e pins.
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20 + 2 * 40);
+    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 + 10*20.
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20);
   });
 
   it('bounds pathological always-expanded bodies at the line cap', () => {
@@ -359,10 +350,7 @@ describe('estimateThreadEventRowHeight', () => {
       content: {
         body: 'x\n'.repeat(10_000),
         msgtype: 'm.text',
-        'com.mindroom.message_extras': {
-          version: 2,
-          sections: [{ title: 'Tool', content_type: 'text/markdown', content: 'y' }],
-        },
+        'io.mindroom.thread_summary': true,
       },
       event_id: '$huge',
       origin_server_ts: 1,
@@ -370,7 +358,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20 + 40);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20);
   });
 });
 

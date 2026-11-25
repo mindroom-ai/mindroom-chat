@@ -1,5 +1,4 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-import { hasMessageExtras, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit } from '../../matrix/room';
@@ -111,8 +110,6 @@ const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
 // and bounded (a pathological body should not produce a megapixel row).
 const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
 const THREAD_ROW_BODY_SCAN_CHARS = 4096;
-// Extras sections render as collapsed accordion headers.
-const THREAD_ROW_SECTION_HEADER_PX = 40;
 
 const estimateBodyLines = (body: string, wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE): number => {
   const scanned =
@@ -150,24 +147,13 @@ export const estimateThreadEventRowHeight = (
   const body = typeof content.body === 'string' ? content.body : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
   if (getThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
-  // Always-expanded rows (agent tool traces / legacy thread summaries) never
-  // fold: the body renders in full and each extras section adds a
-  // collapsed accordion header. Estimating these at the fold cap made
-  // every one of them mount ~hundreds of px small — the per-frame jumps
-  // the ride-smoothness e2e budget now pins.
-  if (hasThreadSummary(contentRecord) || hasMessageExtras(contentRecord)) {
-    const sections = parseMessageExtras(contentRecord)?.sections.length ?? 0;
-    return (
-      base +
-      estimateBodyLines(body, wrapChars) * THREAD_ROW_LINE_PX +
-      sections * THREAD_ROW_SECTION_HEADER_PX
-    );
-  }
   const lines = estimateBodyLines(body, wrapChars);
-  if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
-    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX;
-  }
-  return base + lines * THREAD_ROW_LINE_PX;
+  // Always-expanded rows (legacy thread summaries) never fold: the body
+  // renders in full.
+  const shown = hasThreadSummary(contentRecord)
+    ? lines
+    : Math.min(lines, THREAD_ROW_FOLD_CONTENT_LINES);
+  return base + shown * THREAD_ROW_LINE_PX;
 };
 
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {

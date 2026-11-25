@@ -1,0 +1,369 @@
+# Nightly full cross-repo sweep across all real-backend agentStack specs:
+# - Job 1: sharded across 4 runners for all standard stub-stack specs
+# - Job 2: --client-sessions contract specs + call transcription + canvas-during-call (with LiveKit + RTC auth)
+# - Job 3: --terminals persistent terminal spec
+name: Nightly Agent E2E
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      mindroom_ref:
+        description: 'Git ref of mindroom-ai/mindroom to test against'
+        type: string
+        default: 'main'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-agent-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  agent-stack-default:
+    name: Agent stack default (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout mindroom-chat
+        uses: actions/checkout@v7
+
+      - name: Checkout mindroom
+        uses: actions/checkout@v7
+        with:
+          repository: mindroom-ai/mindroom
+          ref: ${{ inputs.mindroom_ref || 'main' }}
+          path: mindroom-backend
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Log resolved SHAs
+        id: refs
+        run: |
+          set -euo pipefail
+          chat_sha="$(git rev-parse HEAD)"
+          mindroom_sha="$(git -C mindroom-backend rev-parse HEAD)"
+          echo "chat_sha=${chat_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom_sha=${mindroom_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom-chat SHA: ${chat_sha}"
+          echo "mindroom SHA:      ${mindroom_sha}"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'mindroom-backend/uv.lock'
+
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Start the test homeserver
+        run: docker compose -f e2e/docker-compose.yaml up -d --wait
+
+      - name: Restore Playwright Chromium
+        id: playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Build
+        run: npx vite build
+
+      - name: Run default agentStack specs (shard ${{ matrix.shard }}/4)
+        env:
+          E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
+          E2E_REUSE_EXISTING_SERVER: '0'
+          E2E_REQUIRE_AGENT_STACK: '1'
+          E2E_MINDROOM_CHECKOUT: ${{ github.workspace }}/mindroom-backend
+          E2E_MINDROOM_REF: ${{ steps.refs.outputs.mindroom_sha }}
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: |
+          set -euo pipefail
+          mapfile -t specs < <(python3 - <<'PY'
+          from pathlib import Path
+
+          excluded_prefixes = (
+              "e2e/contract/",
+              "e2e/calls/",
+              "e2e/perf/",
+          )
+          # Plugin-build specs (mindroom-server, agent-plugin-origin, agent-thread-board, agent-thread-view, agent-thread-column, agent-plugin-directory, room-computers) require separate MINDROOM_CLIENT_PLUGINS / --computers builds and are intentionally excluded from the default-build sweep.
+          excluded_exact = {
+              "e2e/canvas/agent-canvas-during-call.spec.ts",
+              "e2e/messages/agent-plugin-directory.spec.ts",
+              "e2e/plugins/mindroom-server.spec.ts",
+              "e2e/plugins/room-computers.spec.ts",
+              "e2e/plugins/agent-terminals.spec.ts",
+              "e2e/plugins/agent-plugin-origin.spec.ts",
+              "e2e/plugins/agent-thread-board.spec.ts",
+              "e2e/plugins/agent-thread-view.spec.ts",
+              "e2e/threads/agent-thread-column.spec.ts",
+          }
+          for path in sorted(Path("e2e").rglob("*.spec.ts")):
+              rel = path.as_posix()
+              if rel.startswith(excluded_prefixes) or rel in excluded_exact:
+                  continue
+              if "agentStack" in path.read_text():
+                  print(rel)
+          PY
+          )
+          echo "Discovered ${#specs[@]} default agentStack specs"
+          npx playwright test --shard=${{ matrix.shard }}/4 "${specs[@]}"
+
+      # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
+      # Never upload state.json or .env.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-agent-default-shard-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/mindroom-client-agents/slot-0/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the agent stack
+        if: always()
+        env:
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: python3 scripts/agent-stack/stack.py 0 down || true
+
+  agent-stack-client-sessions:
+    name: Agent stack client-sessions & call transcription
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout mindroom-chat
+        uses: actions/checkout@v7
+
+      - name: Checkout mindroom
+        uses: actions/checkout@v7
+        with:
+          repository: mindroom-ai/mindroom
+          ref: ${{ inputs.mindroom_ref || 'main' }}
+          path: mindroom-backend
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Log resolved SHAs
+        id: refs
+        run: |
+          set -euo pipefail
+          chat_sha="$(git rev-parse HEAD)"
+          mindroom_sha="$(git -C mindroom-backend rev-parse HEAD)"
+          echo "chat_sha=${chat_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom_sha=${mindroom_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom-chat SHA: ${chat_sha}"
+          echo "mindroom SHA:      ${mindroom_sha}"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'mindroom-backend/uv.lock'
+
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Start MatrixRTC call service
+        run: bash scripts/e2e-rtc.sh 0 up
+
+      - name: Start the test homeserver
+        env:
+          E2E_LIVEKIT_SERVICE_URL: http://127.0.0.1:29500
+          E2E_LIVEKIT_URL: ws://127.0.0.1:29200
+        run: docker compose -f e2e/docker-compose.yaml up -d --wait
+
+      - name: Restore Playwright Chromium
+        id: playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Build
+        run: npx vite build
+
+      - name: Run client-sessions, call transcription & canvas-during-call specs
+        env:
+          E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
+          E2E_REUSE_EXISTING_SERVER: '0'
+          E2E_REQUIRE_AGENT_STACK: '1'
+          E2E_MINDROOM_CHECKOUT: ${{ github.workspace }}/mindroom-backend
+          E2E_MINDROOM_REF: ${{ steps.refs.outputs.mindroom_sha }}
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+          E2E_LIVEKIT_SERVICE_URL: http://127.0.0.1:29500
+          E2E_LIVEKIT_URL: ws://127.0.0.1:29200
+        run: >-
+          npx playwright test
+          e2e/contract/
+          e2e/calls/call-transcription.spec.ts
+          e2e/canvas/agent-canvas-during-call.spec.ts
+
+      # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
+      # Never upload state.json or .env.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-agent-client-sessions
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/mindroom-client-agents/slot-0/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the agent stack and MatrixRTC call service
+        if: always()
+        env:
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: |
+          python3 scripts/agent-stack/stack.py 0 down || true
+          bash scripts/e2e-rtc.sh 0 down || true
+
+  agent-stack-terminals:
+    name: Agent stack terminals
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout mindroom-chat
+        uses: actions/checkout@v7
+
+      - name: Checkout mindroom
+        uses: actions/checkout@v7
+        with:
+          repository: mindroom-ai/mindroom
+          ref: ${{ inputs.mindroom_ref || 'main' }}
+          path: mindroom-backend
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Log resolved SHAs
+        id: refs
+        run: |
+          set -euo pipefail
+          chat_sha="$(git rev-parse HEAD)"
+          mindroom_sha="$(git -C mindroom-backend rev-parse HEAD)"
+          echo "chat_sha=${chat_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom_sha=${mindroom_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom-chat SHA: ${chat_sha}"
+          echo "mindroom SHA:      ${mindroom_sha}"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'mindroom-backend/uv.lock'
+
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Start the test homeserver
+        run: docker compose -f e2e/docker-compose.yaml up -d --wait
+
+      - name: Restore Playwright Chromium
+        id: playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Build
+        run: npx vite build
+
+      - name: Run terminals agentStack spec
+        env:
+          E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
+          E2E_REUSE_EXISTING_SERVER: '0'
+          E2E_REQUIRE_AGENT_STACK: '1'
+          E2E_MINDROOM_CHECKOUT: ${{ github.workspace }}/mindroom-backend
+          E2E_MINDROOM_REF: ${{ steps.refs.outputs.mindroom_sha }}
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: npx playwright test e2e/plugins/agent-terminals.spec.ts
+
+      # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
+      # Never upload state.json or .env.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-agent-terminals
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/mindroom-client-agents/slot-0/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the agent stack
+        if: always()
+        env:
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: python3 scripts/agent-stack/stack.py 0 down || true

@@ -7,6 +7,7 @@ import {
   messageRow,
   openLobby,
   routeClientConfig,
+  saveTesterCryptoState,
   sendFromComposer,
   showThread,
   signIn,
@@ -345,11 +346,12 @@ const withWebKit = async (
   run: (page: Page) => Promise<void>
 ) => {
   let browser: Browser | undefined;
+  let context: BrowserContext | undefined;
+  const state = webKitState(stack);
   try {
     browser = await launchWebKit();
-    const state = webKitState(stack);
     const signedIn = existsSync(state);
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: DESKTOP,
       hasTouch: phone,
       baseURL,
@@ -366,7 +368,11 @@ const withWebKit = async (
     if (phone) await page.setViewportSize(PHONE);
     await run(page);
   } finally {
-    await browser?.close();
+    try {
+      if (context) await saveTesterCryptoState(context, state);
+    } finally {
+      await browser?.close();
+    }
   }
 };
 
@@ -384,7 +390,13 @@ const withChromiumPhone = async (
     await routeClientConfig(page, stack);
     await run(page);
   } finally {
-    await context?.close();
+    if (context) {
+      try {
+        await saveTesterCryptoState(context, storageState);
+      } finally {
+        await context.close();
+      }
+    }
   }
 };
 

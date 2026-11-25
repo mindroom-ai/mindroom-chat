@@ -119,7 +119,7 @@ describe('useLiveReplyContent', () => {
 
   it('shows the live state of a fresh entry from the reply sender while the reply streams', () => {
     ingest(snapshot(0));
-    render(durable('streaming', { 'com.mindroom.message_extras': { sections: [] } }));
+    render(durable('streaming', { 'com.mindroom.original_sender': '@alice:example.org' }));
 
     expect(shown()).toEqual({
       msgtype: 'm.text',
@@ -131,7 +131,7 @@ describe('useLiveReplyContent', () => {
       'io.mindroom.live_activity': 'Preparing isolated worker... 3s elapsed.',
       'io.mindroom.live_reasoning': 'Weighing options',
       'io.mindroom.live_compactions': [],
-      'com.mindroom.message_extras': { sections: [] },
+      'com.mindroom.original_sender': '@alice:example.org',
     });
     expect(live()).toBe(true);
   });

@@ -6,7 +6,7 @@ import { transition } from '../ui/styles/transition';
 
 /**
  * Left-edge conversation minimap ported from the t3code timeline. The rail
- * hit area is intentionally narrower than the reference (16px instead of
+ * hit area is intentionally narrower than the reference (14px instead of
  * 40px) so it never covers message avatars — this fork's timeline has no
  * empty side gutter to float over.
  */
@@ -39,7 +39,7 @@ export const MinimapRail = style({
   top: '50%',
   insetInlineStart: 0,
   transform: 'translateY(-50%)',
-  width: '1rem',
+  width: toRem(14),
   cursor: 'pointer',
   touchAction: 'none',
   background: 'none',
@@ -53,33 +53,85 @@ export const MinimapRail = style({
   },
 });
 
+const EXPANDED_RAIL = `${MinimapRail}[data-expanded="true"]`;
+
 const MinimapStripBase = style({
   pointerEvents: 'none',
   position: 'absolute',
   insetInlineStart: 0,
-  height: toRem(2),
+  height: toRem(1.5),
   transform: 'translateY(-50%)',
   borderRadius: config.radii.Pill,
   backgroundColor: color.SurfaceVariant.OnContainer,
-  opacity: 0.35,
-  transition: transition(['background-color', 'width', 'opacity'], motion.duration.Normal),
+  opacity: 0.28,
+  transition: transition(
+    ['background-color', 'width', 'height', 'opacity'],
+    motion.duration.Normal
+  ),
   selectors: {
     '&[data-in-view="true"]': {
       backgroundColor: color.Surface.OnContainer,
-      opacity: 0.9,
+      opacity: 0.78,
+    },
+    [`${EXPANDED_RAIL} &`]: {
+      height: toRem(2),
+      opacity: 0.4,
+    },
+    [`${EXPANDED_RAIL} &[data-in-view="true"]`]: {
+      opacity: 0.95,
     },
   },
 });
 
 export const MinimapStrip = styleVariants({
-  Rest: [MinimapStripBase, { width: toRem(8) }],
-  Near: [MinimapStripBase, { width: toRem(10) }],
-  Close: [MinimapStripBase, { width: toRem(16) }],
+  Rest: [
+    MinimapStripBase,
+    {
+      width: toRem(5),
+      selectors: {
+        '&[data-in-view="true"]': {
+          width: toRem(7),
+        },
+        [`${EXPANDED_RAIL} &`]: {
+          width: toRem(8),
+        },
+      },
+    },
+  ],
+  Near: [
+    MinimapStripBase,
+    {
+      width: toRem(11),
+      selectors: {
+        [`${EXPANDED_RAIL} &`]: {
+          opacity: 0.5,
+        },
+      },
+    },
+  ],
+  Close: [
+    MinimapStripBase,
+    {
+      width: toRem(16),
+      selectors: {
+        [`${EXPANDED_RAIL} &`]: {
+          opacity: 0.65,
+        },
+      },
+    },
+  ],
   Active: [
     MinimapStripBase,
     {
       width: toRem(24),
-      opacity: 0.75,
+      selectors: {
+        [`${EXPANDED_RAIL} &`]: {
+          opacity: 0.92,
+        },
+        [`${EXPANDED_RAIL} &[data-in-view="true"]`]: {
+          opacity: 0.98,
+        },
+      },
     },
   ],
 });
@@ -98,6 +150,15 @@ export const MinimapPreviewCard = style({
   textAlign: 'start',
   boxShadow: config.shadow.E400,
   zIndex: 1,
+});
+
+export const MinimapPreviewMeta = style({
+  display: 'block',
+  marginBottom: toRem(2),
+  color: color.SurfaceVariant.OnContainer,
+  fontSize: toRem(11),
+  lineHeight: toRem(16),
+  fontVariantNumeric: 'tabular-nums',
 });
 
 export const MinimapPreviewTitle = style({

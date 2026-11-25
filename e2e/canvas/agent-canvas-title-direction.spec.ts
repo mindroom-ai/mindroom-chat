@@ -46,14 +46,19 @@ test(
     const rootId = await startThread(stack, `${uniqueWord('canvasrtl')} #canvasrtl`);
     await showThread(page, stack, rootId);
 
-    const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
+    const open = page
+      .getByRole('button', { name: `${TITLE} Canvas` })
+      .or(page.getByRole('button', { name: 'Open canvas', exact: true }))
+      .first();
     await expect(open).toBeVisible({ timeout: 120_000 });
     const panel = page.getByRole('complementary', { name: 'Canvas panel' });
     if (!(await panel.isVisible())) await open.click();
     await expect(panel).toBeVisible();
 
     const header = panel.getByText(TITLE, { exact: true });
-    const line = page.locator('[data-canvas-notice-title]').getByText(TITLE, { exact: true });
+    const line = open
+      .getByText(TITLE, { exact: true })
+      .or(page.locator('[data-canvas-notice-title]').getByText(TITLE, { exact: true }));
     await expect(header).toBeVisible();
     await expect(line.first()).toBeVisible();
     expect(await reading(header)).toEqual({ direction: 'rtl', firstWordRight: true });
