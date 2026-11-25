@@ -809,6 +809,87 @@ for (const engine of ENGINES) {
           inRoom(garden)
         );
         await expectDrawer(page, false, 'drawer remains closed after live-peek exit');
+        expect(
+          new URL(page.url()).searchParams.get('focusEvent'),
+          'direct-exit lands on focused room URL'
+        ).toBe('1');
+
+        // 3. Re-open the thread from that focused room URL, reload to clear scroll memory and
+        // room preview cache, then swipe back: live peek still focuses the offscreen older card.
+        await focusedCard.tap();
+        await expectAt(
+          page,
+          { room: garden, thread: gardenRoot },
+          're-entering thread from focused room entry'
+        );
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+
+        await page.reload();
+        await expectAt(
+          page,
+          { room: garden, thread: gardenRoot },
+          'thread reloads with focused room history entry behind it'
+        );
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+
+        const reloadDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await reloadDrag.moveTo(240, { steps: 12, stepMs: 16 });
+          await expect(
+            page.locator('[data-swipe-preview="under"]'),
+            'no cached room preview after reload'
+          ).toHaveCount(0);
+          await expect(
+            page.locator('[data-swipe-under-thread]'),
+            'live room peek reveals focused room entry after reload'
+          ).toBeVisible();
+        } finally {
+          await reloadDrag.release();
+        }
+
+        await expectAt(
+          page,
+          inRoom(garden),
+          'committed swipe back after reload returns to focused Garden Club entry'
+        );
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        expect(
+          new URL(page.url()).searchParams.get('focusEvent'),
+          'returns to focused room URL after reload'
+        ).toBe('1');
+        await expect(
+          focusedCard,
+          'focused older thread card stays in viewport after reload and swipe back'
+        ).toBeInViewport();
+        await expect
+          .poll(
+            () =>
+              page.locator('[data-compact-room-view="true"]').evaluate((view) => ({
+                overflows: view.scrollHeight > view.clientHeight,
+                scrolled: view.scrollTop > 0,
+              })),
+            { message: 'compact list stays scrolled to the focused older card after reload' }
+          )
+          .toEqual({ overflows: true, scrolled: true });
+        await expectDrawer(page, false, 'drawer remains closed after reloaded live-peek exit');
       } finally {
         await context.close();
       }

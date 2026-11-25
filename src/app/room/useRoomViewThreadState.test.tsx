@@ -33,7 +33,11 @@ import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
 import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
-import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
+import {
+  useRoomViewThreadState,
+  type LiveRoomPeekFocus,
+  type RoomViewThreadState,
+} from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
 const ROOM_ID = '!room:example.org';
@@ -132,7 +136,7 @@ const mountThreadState = ({
   hasMindroomAgents?: boolean;
   advancedFilters?: boolean;
   threadId?: string;
-  enterLiveRoomPeek?: (focusEventId?: string) => LiveThreadBackUnder | null;
+  enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
 } = {}) => {
   const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
@@ -699,7 +703,7 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     scene!.cleanup(false);
   });
 
-  it('passes effectiveThreadId to enterLiveRoomPeek on direct exit, undefined when returning to room, and skips live peek for Space All threads', () => {
+  it('passes peek focus targets for direct exits and focused room entries, undefined for plain room entries, and skips live peek for Space All threads', () => {
     const { stage, page } = mountPhoneStage('');
     const liveStage = document.createElement('div');
     const under = document.createElement('div');
@@ -707,7 +711,7 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     liveStage.append(under, over);
     page.append(liveStage);
 
-    const enterLiveRoomPeek = vi.fn((_focusEventId?: string): LiveThreadBackUnder => ({
+    const enterLiveRoomPeek = vi.fn((_peekFocus?: LiveRoomPeekFocus): LiveThreadBackUnder => ({
       stage: liveStage,
       over,
       under,
@@ -723,12 +727,36 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
       const directScene = begin?.({ axisSign: 1, dirSign: 1 });
       expect(directScene).not.toBeNull();
       expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
-      expect(enterLiveRoomPeek).toHaveBeenCalledWith('$thread');
+      expect(enterLiveRoomPeek).toHaveBeenCalledWith({ eventId: '$thread' });
       expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
       expect(liveStage.querySelector('[data-swipe-dim="live-back"]')).not.toBeNull();
       directScene!.cleanup(false);
 
-      // 2. Returning to room history entry (returnsToRoom): passes undefined to keep saved scroll.
+      // 2. Returning to a focused room entry: passes origin focus event with onlyIfUnsaved.
+      enterLiveRoomPeek.mockClear();
+      window.history.replaceState(
+        {
+          usr: withRoomThreadExitTargetState(undefined, {
+            exitPath: `/home/${encodeURIComponent(ROOM_ID)}/%24older/?focusEvent=1`,
+            roomId: ROOM_ID,
+            threadId: '$thread',
+            useHistoryBack: true,
+          }),
+        },
+        ''
+      );
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+      const focusedReturnBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+      const focusedReturnScene = focusedReturnBegin?.({ axisSign: 1, dirSign: 1 });
+      expect(focusedReturnScene).not.toBeNull();
+      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+      expect(enterLiveRoomPeek).toHaveBeenCalledWith({
+        eventId: '$older',
+        onlyIfUnsaved: true,
+      });
+      focusedReturnScene!.cleanup(false);
+
+      // 3. Returning to a plain room history entry: passes undefined to keep saved scroll.
       enterLiveRoomPeek.mockClear();
       window.history.replaceState(
         {
@@ -749,7 +777,7 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
       expect(enterLiveRoomPeek).toHaveBeenCalledWith(undefined);
       roomReturnScene!.cleanup(false);
 
-      // 3. Thread returning to Space All threads: skips live peek and keeps backdrop fallback.
+      // 4. Thread returning to Space All threads: skips live peek and keeps backdrop fallback.
       enterLiveRoomPeek.mockClear();
       window.history.replaceState(
         {

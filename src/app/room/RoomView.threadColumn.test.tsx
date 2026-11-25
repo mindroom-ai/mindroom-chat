@@ -30,6 +30,7 @@ import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import type { LiveRoomPeekFocus } from './useRoomViewThreadState';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -63,7 +64,7 @@ const state = vi.hoisted(() => ({
   // The threads of the Compact cards the room's messages show while no thread is open.
   cards: undefined as string[] | undefined,
   enterLiveRoomPeek: undefined as
-    ((focusEventId?: string) => LiveThreadBackUnder | null) | undefined,
+    ((peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null) | undefined,
   timelineMounts: 0,
   headerProps: [] as Array<{ passive?: boolean; openThreadId?: string; threadId?: string }>,
 }));
@@ -89,7 +90,7 @@ vi.mock('../event-store/engine/engineContext', () => ({
 const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: (opts: {
-    enterLiveRoomPeek?: (focusEventId?: string) => LiveThreadBackUnder | null;
+    enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
   }) => {
     state.enterLiveRoomPeek = opts.enterLiveRoomPeek;
     return {
@@ -1108,7 +1109,7 @@ it('live room peek keeps ConversationLayout mounted continuously on commit and r
   expect(screen.getByTestId('room-header').dataset.passive).toBe('false');
 });
 
-it('live room peek forwards direct-exit focus props when focusEventId is provided and omits them when undefined', () => {
+it('live room peek forwards direct-exit and unsaved focused-entry targets while preserving saved scroll positions', () => {
   state.thread = undefined;
   const { rerender } = render(tree({}, ScreenSize.Mobile));
   const savedCompactScroll = { scrollTop: 240, anchors: [{ key: '$other', offset: 12 }] };
@@ -1128,10 +1129,10 @@ it('live room peek forwards direct-exit focus props when focusEventId is provide
     )
   );
 
-  // 1. Direct exit (!returnsToRoom): passes focusEventId as room focus target with cleared route flags.
+  // 1. Direct exit (!returnsToRoom): passes eventId as room focus target with cleared route flags.
   let live: LiveThreadBackUnder | null = null;
   act(() => {
-    live = state.enterLiveRoomPeek?.('$thread') ?? null;
+    live = state.enterLiveRoomPeek?.({ eventId: '$thread' }) ?? null;
   });
   expect(live).not.toBeNull();
   expect(state.main).toMatchObject({
@@ -1154,7 +1155,67 @@ it('live room peek forwards direct-exit focus props when focusEventId is provide
     savedCompactScroll
   );
 
-  // 2. Returning to an existing room history entry (returnsToRoom): omits focus override.
+  // 2. Focused room entry with saved compact scroll (onlyIfUnsaved): omits focus override.
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
+
+  // 3. Focused room entry with saved Threaded return place for this room: omits focus override.
+  state.main!.compactRoomScrollStateRef!.current.delete(room.roomId);
+  state.main!.threadReturnPlaceRef!.current = {
+    roomId: room.roomId,
+    eventId: '$saved-row',
+    offset: 18,
+  };
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
+
+  // 4. Focused room entry with no saved scroll (e.g. after reload): forwards room focus props.
+  state.main!.threadReturnPlaceRef!.current = undefined;
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: '$older',
+    focusEventInRoom: true,
+    entryKey: undefined,
+    entryPushed: false,
+    entryReturned: false,
+  });
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, {
+    scrollTop: 1,
+    anchors: [{ key: '$older', offset: 160 }],
+  });
+  act(() => {
+    live!.exit(false);
+  });
+  expect(state.main!.compactRoomScrollStateRef!.current.has(room.roomId)).toBe(false);
+
+  // 5. Plain room history entry (undefined): omits focus override even without saved scroll.
   act(() => {
     live = state.enterLiveRoomPeek?.(undefined) ?? null;
   });

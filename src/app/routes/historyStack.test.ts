@@ -17,6 +17,7 @@ import {
   OPENED_FROM_OUTSIDE_STATE,
   previousHistoryOrigin,
   previousHistoryPathname,
+  roomFocusEventOf,
   showsRoom,
   useHistoryStackRecorder,
   type HistoryStack,
@@ -207,6 +208,23 @@ describe('findHistoryOrigin', () => {
     });
     expect(showsRoom(historyPageOf(path), [room], ['$root'])).toBe(true);
     expect(showsRoom(historyPageOf(`/home/${encodeURIComponent(room)}/`), [room], [''])).toBe(true);
+  });
+
+  it('extracts the focused room event only from room URLs with focusEvent=1', () => {
+    const encodedRoom = encodeURIComponent(room);
+    const encodedSpace = encodeURIComponent('!space:example.org');
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older?focusEvent=1`))).toBe(
+      '$older'
+    );
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older/?focusEvent=1`))).toBe(
+      '$older'
+    );
+    expect(
+      roomFocusEventOf(historyPageOf(`/${encodedSpace}/${encodedRoom}/%24older?focusEvent=1`))
+    ).toBe('$older');
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older`))).toBeUndefined();
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/?focusEvent=1`))).toBeUndefined();
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/`))).toBeUndefined();
   });
 
   it("counts a space's own pages as the space", () => {

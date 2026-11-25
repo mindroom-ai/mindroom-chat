@@ -54,7 +54,7 @@ import {
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
-import { useRoomViewThreadState } from './useRoomViewThreadState';
+import { useRoomViewThreadState, type LiveRoomPeekFocus } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
@@ -185,7 +185,7 @@ export function RoomView({
   crossRoomForkRef.current = Boolean(crossRoomFork);
 
   const enterLiveRoomPeek = useCallback(
-    (focusEventId?: string): LiveThreadBackUnder | null => {
+    (peekFocus?: LiveRoomPeekFocus): LiveThreadBackUnder | null => {
       const stage = pageRef.current;
       const under = areaRef.current;
       if (!columnFillsRef.current || crossRoomForkRef.current || !stage || !under) return null;
@@ -194,6 +194,11 @@ export function RoomView({
 
       const savedReturnPlace = threadReturnPlaceRef.current;
       const savedCompactScroll = compactRoomScrollStateRef.current.get(roomId);
+      const hasSavedReturnPlace = savedReturnPlace?.roomId === roomId;
+      const focusEventId =
+        peekFocus && (!peekFocus.onlyIfUnsaved || (!savedCompactScroll && !hasSavedReturnPlace))
+          ? peekFocus.eventId
+          : undefined;
 
       stage.setAttribute(SWIPE_THREAD_STAGE, '');
       under.setAttribute(SWIPE_UNDER_THREAD, '');

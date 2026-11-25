@@ -49,6 +49,7 @@ import {
   isSpaceThreadsPage,
   previousHistoryOrigin,
   RETURN_TO_ROOM_STATE,
+  roomFocusEventOf,
   showsRoom,
 } from '../routes/historyStack';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
@@ -78,8 +79,13 @@ import { loadLatestCachedThreadEvents } from '../event-store/cache/eventReposito
 import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
+export type LiveRoomPeekFocus = {
+  eventId: string;
+  onlyIfUnsaved?: boolean;
+};
+
 type UseRoomViewThreadStateOptions = {
-  enterLiveRoomPeek?: (focusEventId?: string) => LiveThreadBackUnder | null;
+  enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
   eventId?: string;
   hasMindroomAgents?: boolean;
   room: Room;
@@ -250,11 +256,19 @@ export const useRoomViewThreadState = ({
     }
     const originPage = historyPageOf(originPath);
     const returnsToRoom = showsRoom(originPage, addresses, ['']);
+    const originFocusEventId = returnsToRoom ? roomFocusEventOf(originPage) : undefined;
     const openedForOrigin = origin
       ? origin.returnToOrigin === true
       : exitTarget?.returnToOrigin === true;
     const returnsToSpaceThreads = openedForOrigin && isSpaceThreadsPage(originPage);
-    return { exitTarget, origin, originPath, returnsToRoom, returnsToSpaceThreads };
+    return {
+      exitTarget,
+      origin,
+      originFocusEventId,
+      originPath,
+      returnsToRoom,
+      returnsToSpaceThreads,
+    };
   }, [effectiveThreadId, locationKey, locationState, mx, roomId, sessionId, threadId]);
 
   const leaveThread = useCallback(
@@ -368,7 +382,12 @@ export const useRoomViewThreadState = ({
   const beginThreadBackSwipe = useCallback(
     ({ dirSign }: { dirSign: 1 | -1 }) => {
       if (!effectiveThreadId) return null;
-      const { returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+      const { originFocusEventId, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+      const peekFocus: LiveRoomPeekFocus | undefined = !returnsToRoom
+        ? { eventId: effectiveThreadId }
+        : originFocusEventId
+          ? { eventId: originFocusEventId, onlyIfUnsaved: true }
+          : undefined;
       return createThreadBackSwipeScene({
         key: { sessionId, roomId, threadId: effectiveThreadId },
         fromLocationKey: resolveFromLocationKey(),
@@ -376,8 +395,7 @@ export const useRoomViewThreadState = ({
         dirSign,
         enterLiveUnder: returnsToSpaceThreads
           ? undefined
-          : () =>
-              enterLiveRoomPeekRef.current?.(returnsToRoom ? undefined : effectiveThreadId) ?? null,
+          : () => enterLiveRoomPeekRef.current?.(peekFocus) ?? null,
       });
     },
     [
