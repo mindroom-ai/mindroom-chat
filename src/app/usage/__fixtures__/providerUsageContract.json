@@ -35,7 +35,13 @@
       "stale": false,
       "tokens_7d": 14200000,
       "cost_usd_7d": null,
-      "cost_estimated": false
+      "cost_estimated": false,
+      "token_mix_7d": {
+        "input_tokens": 1800000,
+        "output_tokens": 400000,
+        "cache_read_tokens": 10200000,
+        "cache_write_tokens": 1800000
+      }
     },
     {
       "id": "codex:default",
@@ -68,7 +74,13 @@
       "stale": false,
       "tokens_7d": 9800000,
       "cost_usd_7d": null,
-      "cost_estimated": false
+      "cost_estimated": false,
+      "token_mix_7d": {
+        "input_tokens": 1600000,
+        "output_tokens": 500000,
+        "cache_read_tokens": 6600000,
+        "cache_write_tokens": 1100000
+      }
     },
     {
       "id": "openrouter:1",
@@ -91,7 +103,13 @@
       "stale": false,
       "tokens_7d": 6400000,
       "cost_usd_7d": 18.4,
-      "cost_estimated": true
+      "cost_estimated": true,
+      "token_mix_7d": {
+        "input_tokens": 900000,
+        "output_tokens": 200000,
+        "cache_read_tokens": 4600000,
+        "cache_write_tokens": 700000
+      }
     },
     {
       "id": "anthropic:default",
@@ -105,7 +123,13 @@
       "stale": false,
       "tokens_7d": 1200000,
       "cost_usd_7d": 3.25,
-      "cost_estimated": true
+      "cost_estimated": true,
+      "token_mix_7d": {
+        "input_tokens": 300000,
+        "output_tokens": 100000,
+        "cache_read_tokens": 650000,
+        "cache_write_tokens": 150000
+      }
     }
   ],
   "daily_7d": [
@@ -116,7 +140,12 @@
         "codex:default": 1200000,
         "openrouter:1": 900000
       },
-      "unattributed_tokens": 0
+      "unattributed_tokens": 0,
+      "cost_by_account": {
+        "openrouter:1": 9.5,
+        "anthropic:default": 1.6
+      },
+      "unattributed_cost_usd": 0
     },
     {
       "day": "2026-11-18",
@@ -125,9 +154,124 @@
         "codex:default": 1500000,
         "openrouter:1": 850000
       },
-      "unattributed_tokens": 0
+      "unattributed_tokens": 0,
+      "cost_by_account": {
+        "openrouter:1": 8.9,
+        "anthropic:default": 1.65
+      },
+      "unattributed_cost_usd": 0
     }
   ],
   "unattributed_tokens_7d": 0,
-  "unattributed_cost_usd_7d": null
+  "unattributed_cost_usd_7d": null,
+  "token_mix_7d": {
+    "input_tokens": 4600000,
+    "output_tokens": 1200000,
+    "cache_read_tokens": 22050000,
+    "cache_write_tokens": 3750000
+  },
+  "cache_savings_usd_7d": 14.6,
+  "top_models_7d": [
+    {
+      "provider": "openrouter",
+      "model": "neon-pro",
+      "account_id": "openrouter:1",
+      "tokens_7d": 6400000,
+      "cost_usd_7d": 18.4,
+      "run_count": 142,
+      "token_mix_7d": {
+        "input_tokens": 900000,
+        "output_tokens": 200000,
+        "cache_read_tokens": 4600000,
+        "cache_write_tokens": 700000
+      },
+      "daily_tokens_7d": [900000, 850000]
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-sample",
+      "account_id": "anthropic:default",
+      "tokens_7d": 1200000,
+      "cost_usd_7d": 3.25,
+      "run_count": 68,
+      "token_mix_7d": {
+        "input_tokens": 300000,
+        "output_tokens": 100000,
+        "cache_read_tokens": 650000,
+        "cache_write_tokens": 150000
+      },
+      "daily_tokens_7d": [600000, 600000]
+    },
+    {
+      "provider": "claude_code",
+      "model": "opus-sample",
+      "account_id": "claude_code:default",
+      "tokens_7d": 14200000,
+      "cost_usd_7d": null,
+      "run_count": 95,
+      "token_mix_7d": {
+        "input_tokens": 1800000,
+        "output_tokens": 400000,
+        "cache_read_tokens": 10200000,
+        "cache_write_tokens": 1800000
+      },
+      "daily_tokens_7d": [1900000, 2100000]
+    },
+    {
+      "provider": "codex",
+      "model": "codex-sample",
+      "account_id": "codex:default",
+      "tokens_7d": 9800000,
+      "cost_usd_7d": null,
+      "run_count": 54,
+      "token_mix_7d": {
+        "input_tokens": 1600000,
+        "output_tokens": 500000,
+        "cache_read_tokens": 6600000,
+        "cache_write_tokens": 1100000
+      },
+      "daily_tokens_7d": [1200000, 1500000]
+    }
+  ],
+  "top_agents_7d": [
+    {
+      "entity": "builder_agent",
+      "tokens_7d": 19400000,
+      "cost_usd_7d": 14.2,
+      "run_count": 210,
+      "token_mix_7d": {
+        "input_tokens": 2800000,
+        "output_tokens": 700000,
+        "cache_read_tokens": 13600000,
+        "cache_write_tokens": 2300000
+      },
+      "daily_tokens_7d": [2500000, 2800000]
+    },
+    {
+      "entity": "analyst_agent",
+      "tokens_7d": 8900000,
+      "cost_usd_7d": 5.45,
+      "run_count": 104,
+      "token_mix_7d": {
+        "input_tokens": 1200000,
+        "output_tokens": 350000,
+        "cache_read_tokens": 6300000,
+        "cache_write_tokens": 1050000
+      },
+      "daily_tokens_7d": [1100000, 1300000]
+    },
+    {
+      "entity": "router_agent",
+      "tokens_7d": 3300000,
+      "cost_usd_7d": 2.0,
+      "run_count": 45,
+      "token_mix_7d": {
+        "input_tokens": 600000,
+        "output_tokens": 150000,
+        "cache_read_tokens": 2150000,
+        "cache_write_tokens": 400000
+      },
+      "daily_tokens_7d": [400000, 350000]
+    }
+  ]
 }

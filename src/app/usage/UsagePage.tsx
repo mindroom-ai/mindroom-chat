@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Spinner, Text } from 'folds';
 import { IconAlertTriangle, IconGauge, IconRefresh } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -9,14 +9,20 @@ import { Page, PageContent, PageHeader } from '../ui/page/Page';
 import { PageScroll } from '../ui/page/PageScroll';
 import { ProviderModelIcon } from '../ui/ProviderModelIcon';
 import type { ProviderAccountUsage } from './providerUsageProtocol';
-import { accountDisplayTitle, providerAccentColor, QuotaBar } from './QuotaBar';
+import { accountChartColor, accountDisplayTitle, QuotaBar } from './QuotaBar';
 import { useProviderUsage } from './useProviderUsage';
-import { formatCompactTokens, formatUsd, UsageTokensView } from './UsageTokensView';
+import {
+  formatCompactTokens,
+  formatUsd,
+  ModelChips,
+  UsageBreakdownSection,
+  UsageDailySection,
+  UsageOverviewSection,
+} from './UsageTokensView';
 import * as css from './UsagePage.css';
 
-type UsageTabId = 'limits' | 'tokens';
-
 const COUNTDOWN_TICK_MS = 60_000;
+const SUBSCRIPTION_QUOTA_PROVIDERS = new Set(['codex', 'claude_code']);
 
 const useMinuteClock = (active: boolean, resetKey?: string): number => {
   const [now, setNow] = useState(() => Date.now());
@@ -29,19 +35,14 @@ const useMinuteClock = (active: boolean, resetKey?: string): number => {
   return now;
 };
 
-const isPayAsYouGo = (account: ProviderAccountUsage): boolean => {
-  const label = `${account.plan ?? ''} ${account.account_label ?? ''}`.toLowerCase();
-  return (
-    label.includes('pay-as-you-go') || label.includes('pay as you go') || label.includes('payg')
-  );
-};
+const isSubscriptionAccount = (account: ProviderAccountUsage): boolean =>
+  account.windows.length > 0 ||
+  SUBSCRIPTION_QUOTA_PROVIDERS.has(account.provider.toLowerCase()) ||
+  (account.unavailable_reason !== undefined &&
+    account.unavailable_reason !== null &&
+    account.unavailable_reason !== 'unsupported');
 
-const SUBSCRIPTION_QUOTA_PROVIDERS = new Set(['codex', 'claude_code']);
-
-const isSubscriptionQuotaProvider = (provider: string): boolean =>
-  SUBSCRIPTION_QUOTA_PROVIDERS.has(provider.toLowerCase());
-
-function AccountLimitCard({
+function SubscriptionAccountCard({
   account,
   allAccounts,
   spanFull,
@@ -72,23 +73,34 @@ function AccountLimitCard({
       data-span-full={spanFull || undefined}
     >
       <div className={css.CardHeader}>
-        <div className={css.CardIdentity}>
+        <div className={css.RowInline}>
           <ProviderModelIcon provider={account.provider} size={20} />
-          <span
-            className={css.ProviderDot}
-            style={{ backgroundColor: providerAccentColor(account.provider) }}
-            aria-hidden="true"
-          />
-          <div className={css.CardTitles}>
+          <div className={css.RowWrap}>
             <span className={css.CardName}>{title}</span>
-            {planText && <span className={css.MutedText}>{planText}</span>}
+            {planText && <span className={css.PillBadge}>{planText}</span>}
+            {account.stale && (
+              <Badge variant="Warning" fill="Soft" radii="300" data-stale-badge="">
+                <Text size="L400">{t('mindroomUi.usage.stale')}</Text>
+              </Badge>
+            )}
           </div>
         </div>
-        {account.stale && (
-          <Badge variant="Warning" fill="Soft" radii="300" data-stale-badge="">
-            <Text size="L400">{t('mindroomUi.usage.stale')}</Text>
-          </Badge>
-        )}
+        <div className={css.CardStats}>
+          {spendText ? (
+            <>
+              <strong>{spendText}</strong>
+              <span className={css.MutedText}>
+                {formatCompactTokens(account.tokens_7d, language)}
+              </span>
+            </>
+          ) : (
+            <span className={css.MutedText}>
+              {t('mindroomUi.usage.tokens7d', {
+                tokens: formatCompactTokens(account.tokens_7d, language),
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className={css.WindowsList}>
@@ -96,7 +108,7 @@ function AccountLimitCard({
           account.windows.map((window) => (
             <QuotaBar key={window.id} window={window} provider={account.provider} now={now} />
           ))
-        ) : account.unavailable_reason || isSubscriptionQuotaProvider(account.provider) ? (
+        ) : (
           <div
             className={css.NoLimitNote}
             data-unavailable-reason={account.unavailable_reason ?? 'limits_unavailable'}
@@ -107,22 +119,14 @@ function AccountLimitCard({
                 : t('mindroomUi.usage.limitsUnavailable')}
             </span>
           </div>
-        ) : (
-          <div className={css.NoLimitNote} data-no-limit="">
-            {isPayAsYouGo(account) && <strong>{t('mindroomUi.usage.payAsYouGo')}</strong>}
-            <span>{t('mindroomUi.usage.noSubscriptionLimit')}</span>
-          </div>
         )}
       </div>
 
-      <div className={css.CardFooter}>
-        <span>
-          {t('mindroomUi.usage.tokens7d', {
-            tokens: formatCompactTokens(account.tokens_7d, language),
-          })}
-        </span>
-        {spendText && <span>{spendText}</span>}
-      </div>
+      {account.model_keys.length > 0 && (
+        <div className={css.ChipFooter}>
+          <ModelChips keys={account.model_keys} max={6} />
+        </div>
+      )}
     </article>
   );
 }
@@ -132,35 +136,54 @@ export function UsagePage() {
   const language = useAppLanguageCode();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const usage = useProviderUsage();
-  const { ensureLoaded } = usage;
-  const [activeTab, setActiveTab] = useState<UsageTabId>('limits');
+  const { ensureLoaded, snapshot } = usage;
 
   useEffect(() => {
     ensureLoaded();
   }, [ensureLoaded]);
 
-  const checkedAtMs = usage.snapshot ? Date.parse(usage.snapshot.checked_at) : Number.NaN;
+  const checkedAtMs = snapshot ? Date.parse(snapshot.checked_at) : Number.NaN;
   const relativeUpdated = useRelativeTime(Number.isFinite(checkedAtMs) ? checkedAtMs : undefined);
-  const now = useMinuteClock(
-    Boolean(usage.snapshot) && activeTab === 'limits',
-    usage.snapshot?.checked_at
+  const now = useMinuteClock(Boolean(snapshot), snapshot?.checked_at);
+
+  const colors = useMemo(() => {
+    const usedColors = new Set<string>();
+    return new Map(
+      (snapshot?.accounts ?? []).map((account, index) => [
+        account.id,
+        accountChartColor(account, index, usedColors),
+      ])
+    );
+  }, [snapshot?.accounts]);
+
+  const subscriptionAccounts = useMemo(
+    () => (snapshot?.accounts ?? []).filter(isSubscriptionAccount),
+    [snapshot?.accounts]
   );
+
+  const hasAnyUsageData =
+    Boolean(snapshot) &&
+    ((snapshot?.accounts.length ?? 0) > 0 ||
+      (snapshot?.unattributed_tokens_7d ?? 0) > 0 ||
+      (snapshot?.top_models_7d?.length ?? 0) > 0 ||
+      (snapshot?.top_agents_7d?.length ?? 0) > 0);
 
   return (
     <Page data-testid="usage-view">
-      <PageHeader>
+      <PageHeader className={css.UsageHeader}>
         <div className={css.HeaderInner}>
-          <div className={css.HeaderTitle}>
+          <div className={css.RowInline}>
             <IconGauge size={22} stroke={1.8} aria-hidden="true" />
             <Text as="h1" size="H3" truncate>
               {t('mindroomUi.usage.title')}
             </Text>
           </div>
-          <div className={css.HeaderControls}>
+          <div className={css.RowWrap}>
             {usage.runtimes.length > 1 && (
               <select
                 className={css.RuntimeSelect}
                 aria-label={t('mindroomUi.usage.runtimeLabel')}
+                title={t('mindroomUi.usage.runtimeLabel')}
                 value={usage.selectedRuntimeId ?? ''}
                 onChange={(event) => usage.selectRuntime(event.target.value)}
               >
@@ -179,8 +202,9 @@ export function UsagePage() {
             {usage.available && (
               <button
                 type="button"
-                className={css.RefreshButton}
+                className={css.ActionButton}
                 aria-label={t('mindroomUi.usage.refresh')}
+                title={t('mindroomUi.usage.refresh')}
                 disabled={usage.refreshing}
                 onClick={() => usage.refresh(true)}
               >
@@ -204,7 +228,7 @@ export function UsagePage() {
                 {t('mindroomUi.usage.loading')}
               </Text>
             </div>
-          ) : !usage.snapshot ? (
+          ) : !snapshot ? (
             <div className={css.CenterState} data-testid="usage-unavailable">
               <IconGauge size={36} stroke={1.5} aria-hidden="true" />
               <Text as="h2" size="H4">
@@ -218,76 +242,62 @@ export function UsagePage() {
               </Button>
             </div>
           ) : (
-            <>
-              <div className={css.Toolbar}>
-                <div
-                  className={css.Segmented}
-                  role="tablist"
-                  aria-label={t('mindroomUi.usage.title')}
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === 'limits'}
-                    className={css.SegmentTab}
-                    onClick={() => setActiveTab('limits')}
-                  >
-                    {t('mindroomUi.usage.tabsLimits')}
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === 'tokens'}
-                    className={css.SegmentTab}
-                    onClick={() => setActiveTab('tokens')}
-                  >
-                    {t('mindroomUi.usage.tabsTokens')}
-                  </button>
-                </div>
-              </div>
-
-              {usage.snapshot.partial && (
+            <div className={css.PageStack}>
+              {snapshot.partial && (
                 <div className={css.PartialNotice} role="status" data-testid="partial-data-notice">
                   <IconAlertTriangle size={16} stroke={1.8} aria-hidden="true" />
                   <span>{t('mindroomUi.usage.partialData')}</span>
                 </div>
               )}
 
-              {activeTab === 'limits' ? (
-                usage.snapshot.accounts.length === 0 ? (
-                  <div className={css.CenterState}>
-                    <Text size="T300" priority="300">
-                      {t('mindroomUi.usage.noAccounts')}
-                    </Text>
-                  </div>
-                ) : (
-                  <div
-                    className={css.CardGrid}
-                    data-testid="usage-limits-grid"
-                    data-mobile={phone || undefined}
-                  >
-                    {usage.snapshot.accounts.map((account, index) => {
-                      const isOddLast =
-                        !phone &&
-                        usage.snapshot!.accounts.length % 2 === 1 &&
-                        index === usage.snapshot!.accounts.length - 1;
-                      return (
-                        <AccountLimitCard
-                          key={account.id}
-                          account={account}
-                          allAccounts={usage.snapshot!.accounts}
-                          spanFull={isOddLast}
-                          language={language}
-                          now={now}
-                        />
-                      );
-                    })}
-                  </div>
-                )
+              {!hasAnyUsageData ? (
+                <div className={css.CenterState}>
+                  <Text size="T300" priority="300">
+                    {t('mindroomUi.usage.noAccounts')}
+                  </Text>
+                </div>
               ) : (
-                <UsageTokensView snapshot={usage.snapshot} language={language} />
+                <>
+                  <UsageOverviewSection snapshot={snapshot} language={language} />
+
+                  {subscriptionAccounts.length > 0 && (
+                    <section data-testid="subscription-quotas-section">
+                      <div className={css.SectionKicker}>
+                        <h2 className={css.KickerTitle}>
+                          {t('mindroomUi.usage.subscriptionQuotas')}
+                        </h2>
+                        {subscriptionAccounts.some((a) => a.windows.some((w) => Boolean(w.resets_at && w.window_duration_mins && w.window_duration_mins > 0))) && (
+                          <span className={css.MutedText}>{t('mindroomUi.usage.paceLegend')}</span>
+                        )}
+                      </div>
+                      <div
+                        className={css.CardGrid}
+                        data-testid="usage-limits-grid"
+                        data-mobile={phone || undefined}
+                      >
+                        {subscriptionAccounts.map((account, index) => (
+                          <SubscriptionAccountCard
+                            key={account.id}
+                            account={account}
+                            allAccounts={snapshot.accounts}
+                            spanFull={
+                              !phone &&
+                              subscriptionAccounts.length % 2 === 1 &&
+                              index === subscriptionAccounts.length - 1
+                            }
+                            language={language}
+                            now={now}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  <UsageDailySection snapshot={snapshot} colors={colors} language={language} />
+                  <UsageBreakdownSection snapshot={snapshot} colors={colors} language={language} />
+                </>
               )}
-            </>
+            </div>
           )}
         </PageContent>
       </PageScroll>
