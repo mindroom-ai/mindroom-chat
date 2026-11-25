@@ -71,10 +71,47 @@ export function WorkflowNodeInspector({
   ];
   const preview = nodeResultPreview(subagentRun);
   const sessionName = sessionBadgeLabel(session);
-  // Resolve direct edges AND edges addressed to/from this turn's parent session ID.
-  const endpointIds = new Set(node.session ? [node.id, node.session] : [node.id]);
-  const outgoing = edges.filter((e) => endpointIds.has(e.from) && !endpointIds.has(e.to));
-  const incoming = edges.filter((e) => endpointIds.has(e.to) && !endpointIds.has(e.from));
+  const directOut = edges.filter((e) => e.from === node.id);
+  const directIn = edges.filter((e) => e.to === node.id);
+  const sessionOut = node.session
+    ? edges.filter((e) => e.from === node.session && e.to !== node.id)
+    : [];
+  const sessionIn = node.session
+    ? edges.filter((e) => e.to === node.session && e.from !== node.id)
+    : [];
+  const renderEdgeLinks = (
+    outEdges: readonly WorkflowRunEdge[],
+    inEdges: readonly WorkflowRunEdge[]
+  ) => (
+    <>
+      {outEdges.map((e) => (
+        <button
+          key={`out:${e.from}->${e.to}`}
+          type="button"
+          className={css.PeerLinkButton}
+          onClick={() => onSelect(e.to)}
+        >
+          {t('mindroomUi.workflowRun.node.messagesTo', {
+            name: nodeDisplayName(nodesById, e.to),
+            count: e.count,
+          })}
+        </button>
+      ))}
+      {inEdges.map((e) => (
+        <button
+          key={`in:${e.from}->${e.to}`}
+          type="button"
+          className={css.PeerLinkButton}
+          onClick={() => onSelect(e.from)}
+        >
+          {t('mindroomUi.workflowRun.node.messagesFrom', {
+            name: nodeDisplayName(nodesById, e.from),
+            count: e.count,
+          })}
+        </button>
+      ))}
+    </>
+  );
 
   return (
     <aside className={css.InspectorPane} data-workflow-node-details={node.id}>
@@ -142,37 +179,28 @@ export function WorkflowNodeInspector({
         </div>
       )}
 
-      {(outgoing.length > 0 || incoming.length > 0) && (
+      {(directOut.length > 0 || directIn.length > 0) && (
         <div className={css.Stack}>
           <Text size="T200" className={css.StrongText}>
             {t('mindroomUi.workflowRun.node.messages')}
           </Text>
-          {outgoing.map((e) => (
-            <button
-              key={`out:${e.from}->${e.to}`}
-              type="button"
-              className={css.PeerLinkButton}
-              onClick={() => onSelect(e.to)}
-            >
-              {t('mindroomUi.workflowRun.node.messagesTo', {
-                name: nodeDisplayName(nodesById, e.to),
-                count: e.count,
-              })}
-            </button>
-          ))}
-          {incoming.map((e) => (
-            <button
-              key={`in:${e.from}->${e.to}`}
-              type="button"
-              className={css.PeerLinkButton}
-              onClick={() => onSelect(e.from)}
-            >
-              {t('mindroomUi.workflowRun.node.messagesFrom', {
-                name: nodeDisplayName(nodesById, e.from),
-                count: e.count,
-              })}
-            </button>
-          ))}
+          {renderEdgeLinks(directOut, directIn)}
+        </div>
+      )}
+
+      {(sessionOut.length > 0 || sessionIn.length > 0) && (
+        <div className={css.Stack} data-workflow-session-messages={node.session ?? undefined}>
+          <div className={css.ChipTop}>
+            <Text size="T200" className={css.StrongText}>
+              {t('mindroomUi.workflowRun.node.messages')}
+            </Text>
+            {sessionName && (
+              <span className={css.SessionBadge} {...ownDirectionLine}>
+                @{sessionName}
+              </span>
+            )}
+          </div>
+          {renderEdgeLinks(sessionOut, sessionIn)}
         </div>
       )}
 

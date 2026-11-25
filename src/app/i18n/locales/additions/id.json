@@ -1528,7 +1528,7 @@
         "selectStep": "Pilih langkah untuk memeriksa keluaran, metrik, dan tautannya.",
         "noMessages": "Belum ada pesan antar langkah.",
         "noLog": "Belum ada entri log.",
-        "omittedEdges_other": "{{count}} pesan dilewati.",
+        "omittedEdges_other": "{{count}} rute pesan dilewati.",
         "omittedLog_other": "{{count}} entri log dilewati.",
         "setupSteps_other": "{{count}} langkah penyiapan",
         "showMore": "Tampilkan {{count}} lagi",

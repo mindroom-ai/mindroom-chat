@@ -1,4 +1,4 @@
-import { createContainer, style, styleVariants } from '@vanilla-extract/css';
+import { createContainer, globalStyle, style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import {
   Body as SubagentsBody,
@@ -34,6 +34,14 @@ const variantCard = {
   border: variantLine,
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
+} as const;
+const surfacePressed = {
+  borderColor: color.Primary.Main,
+  backgroundColor: color.Surface.ContainerActive,
+} as const;
+const variantPressed = {
+  borderColor: color.Primary.Main,
+  backgroundColor: color.SurfaceVariant.ContainerActive,
 } as const;
 
 export { Empty, Panel, VisuallyHidden };
@@ -85,8 +93,7 @@ export const TabButton = style([
   pill,
   {
     flexShrink: 0,
-    paddingInline: space.S200,
-    paddingBlock: space.S100,
+    padding: `${space.S100} ${space.S200}`,
     border: `${borderWidth.B300} solid transparent`,
     backgroundColor: 'transparent',
     color: color.Surface.OnContainer,
@@ -110,8 +117,7 @@ export const TabPanel = style([
 ]);
 
 export const StaleBanner = style({
-  paddingInline: space.S300,
-  paddingBlock: space.S200,
+  padding: `${space.S200} ${space.S300}`,
   borderRadius: radii.R300,
   backgroundColor: color.Warning.Container,
   color: color.Warning.OnContainer,
@@ -131,7 +137,14 @@ export const InspectorPane = style([
   InsetBox,
   {
     padding: space.S300,
-    '@container': { [widePanel]: { position: 'sticky', insetBlockStart: 0 } },
+    '@container': {
+      [widePanel]: {
+        position: 'sticky',
+        insetBlockStart: 0,
+        maxBlockSize: 'calc(100vh - 8rem)',
+        overflowY: 'auto',
+      },
+    },
   },
 ]);
 export const InspectorEmpty = style({
@@ -159,8 +172,7 @@ export const KpiCell = style([
   Stack,
   {
     gap: toRem(2),
-    paddingInline: space.S200,
-    paddingBlock: space.S100,
+    padding: `${space.S100} ${space.S200}`,
     selectors: { '& + &': { borderInlineStart: line } },
   },
 ]);
@@ -174,6 +186,8 @@ export const ErrorBox = style([
     backgroundColor: color.Critical.Container,
     color: color.Critical.OnContainer,
     overflowWrap: 'anywhere',
+    maxBlockSize: toRem(220),
+    overflowY: 'auto',
   },
 ]);
 export const ResultPre = style({
@@ -193,8 +207,7 @@ export const PeerLinkButton = style({
   ...surfaceCard,
   ...smallType,
   inlineSize: '100%',
-  paddingInline: space.S200,
-  paddingBlock: space.S100,
+  padding: `${space.S100} ${space.S200}`,
   borderRadius: radii.R300,
   textAlign: 'start',
   cursor: 'pointer',
@@ -222,6 +235,7 @@ export const FlowConnector = style({
   justifyContent: 'center',
   paddingBlock: toRem(2),
 });
+export const BandGap = style({ blockSize: space.S300 });
 export const ForkJoinSvg = style({ display: 'block', inlineSize: '100%', blockSize: toRem(18) });
 export const ConnectorPath = style({
   fill: 'none',
@@ -311,22 +325,17 @@ export const Chip = style([
     textAlign: 'start',
     borderRadius: radii.R400,
     cursor: 'pointer',
+    overflow: 'hidden',
     ...variantCard,
     selectors: {
       '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
       '&:focus-visible': focusRing,
       '&[data-session-highlighted="true"]': sessionRing,
-      '&[aria-pressed="true"]': {
-        borderColor: color.Primary.Main,
-        backgroundColor: color.SurfaceVariant.ContainerActive,
-      },
+      '&[aria-pressed="true"]': variantPressed,
       [`${GroupBox} &`]: surfaceCard,
       [`${GroupBox} &:hover`]: { backgroundColor: color.Surface.ContainerHover },
       [`${GroupBox} &[data-session-highlighted="true"]`]: sessionRing,
-      [`${GroupBox} &[aria-pressed="true"]`]: {
-        borderColor: color.Primary.Main,
-        backgroundColor: color.Surface.ContainerActive,
-      },
+      [`${GroupBox} &[aria-pressed="true"]`]: surfacePressed,
     },
   },
 ]);
@@ -340,29 +349,36 @@ export const ChipLabel = style({
 export const ChipMeta = style({
   ...flexRow,
   flexWrap: 'wrap',
+  minInlineSize: 0,
+  maxInlineSize: '100%',
   columnGap: space.S200,
   rowGap: toRem(2),
   color: 'inherit',
   opacity: opacity.P400,
   ...smallType,
 });
+globalStyle(`${ChipMeta} > span`, { minInlineSize: 0, maxInlineSize: '100%', ...truncate });
 export const ChipNote = style({ ...smallType, color: color.Warning.Main });
+const badgeText = style({ display: 'inline-block', minInlineSize: 0, ...smallType, ...truncate });
+export const StepStatusNote = style([
+  badgeText,
+  { flexShrink: 0, maxInlineSize: toRem(140), opacity: opacity.P400 },
+]);
 export const SessionBadge = style([
-  pill,
+  badgeText,
   {
     flexShrink: 0,
     maxInlineSize: toRem(120),
     paddingInline: space.S100,
     paddingBlock: toRem(1),
+    borderRadius: radii.Pill,
     backgroundColor: color.Primary.Container,
     color: color.Primary.OnContainer,
-    ...truncate,
   },
 ]);
 export const ErrorPill = style([
-  pill,
+  badgeText,
   {
-    ...truncate,
     alignSelf: 'flex-start',
     maxInlineSize: '100%',
     paddingInline: space.S200,
@@ -378,18 +394,13 @@ export const PlumbingPill = style([
   {
     ...surfaceCard,
     maxInlineSize: '100%',
-    paddingInline: space.S200,
-    paddingBlock: space.S100,
+    padding: `${space.S100} ${space.S200}`,
     border: `${borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
     cursor: 'pointer',
     selectors: {
       '&:hover': { backgroundColor: color.Surface.ContainerHover },
       '&:focus-visible': focusRing,
-      '&[aria-pressed="true"]': {
-        borderStyle: 'solid',
-        borderColor: color.Primary.Main,
-        backgroundColor: color.Surface.ContainerActive,
-      },
+      '&[aria-pressed="true"]': { ...surfacePressed, borderStyle: 'solid' },
     },
   },
 ]);
@@ -406,8 +417,7 @@ export const StepRow = style({
   ...flexRow,
   gap: space.S200,
   inlineSize: '100%',
-  paddingInline: space.S200,
-  paddingBlock: space.S100,
+  padding: `${space.S100} ${space.S200}`,
   borderRadius: radii.R300,
   border: `${borderWidth.B300} solid transparent`,
   backgroundColor: 'transparent',
@@ -430,8 +440,7 @@ export const MessageRow = style({
   ...flexRow,
   justifyContent: 'space-between',
   gap: space.S200,
-  paddingInline: space.S300,
-  paddingBlock: space.S200,
+  padding: `${space.S200} ${space.S300}`,
   borderRadius: radii.R300,
   ...variantCard,
   ...smallType,

@@ -14,6 +14,7 @@ import {
 import { ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
 import {
+  bandPrecedesBand,
   foldGroupItems,
   getWorkflowNodeMetrics,
   groupFlowItems,
@@ -251,14 +252,19 @@ const WorkflowPlumbingChip = memo(function WorkflowPlumbingChip({
 
 function PlumbingGroupPill({ nodes, ctx }: { nodes: readonly WorkflowRunNode[]; ctx: RenderCtx }) {
   const [expanded, setExpanded] = useState(false);
-  const open = expanded || nodes.some((n) => n.id === ctx.selectedId);
+  const [dismissedSelection, setDismissedSelection] = useState<string | null>(null);
+  const hasSelected = nodes.some((n) => n.id === ctx.selectedId);
+  const open = expanded || (hasSelected && dismissedSelection !== ctx.selectedId);
   return (
     <div className={css.CenterWrap}>
       <button
         type="button"
         className={css.PlumbingPill}
         aria-expanded={open}
-        onClick={() => setExpanded((cur) => !cur)}
+        onClick={() => {
+          setExpanded(!open);
+          setDismissedSelection(open ? ctx.selectedId : null);
+        }}
       >
         <span className={css.NodeDot.completed} aria-hidden />
         <span>{ctx.t('mindroomUi.workflowRun.panel.setupSteps', { count: nodes.length })}</span>
@@ -416,7 +422,13 @@ export function WorkflowGraphView({
     <div className={mode === 'flow' ? css.GraphCanvas : css.Band}>
       {bands.map((band, index) => (
         <Fragment key={band.phase ?? `unphased-${index}`}>
-          {mode === 'flow' && index > 0 && <FlowArrowSvg />}
+          {mode === 'flow' &&
+            index > 0 &&
+            (bandPrecedesBand(bands[index - 1]!, band) ? (
+              <FlowArrowSvg />
+            ) : (
+              <div className={css.BandGap} aria-hidden="true" />
+            ))}
           <section className={css.Band}>
             {band.phase !== null && (
               <div className={css.PhaseHeader}>

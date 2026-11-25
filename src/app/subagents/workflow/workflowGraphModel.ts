@@ -308,6 +308,30 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
   return { bands, sessionsById, peerBridgesByGroup, stepCount };
 };
 
+const collectBandIds = (items: readonly WorkflowGraphItem[], out: string[]) => {
+  for (const item of items) {
+    if (item.type === 'group') {
+      out.push(item.group.id);
+      collectBandIds(item.items, out);
+    } else {
+      out.push(item.node.id);
+      if (item.children) collectBandIds(item.children, out);
+    }
+  }
+};
+
+/** True when all items in `prev` started before the earliest item in `next` (no backwards arrow). */
+export const bandPrecedesBand = (prev: WorkflowGraphBand, next: WorkflowGraphBand): boolean => {
+  const prevIds: string[] = [];
+  const nextIds: string[] = [];
+  collectBandIds(prev.items, prevIds);
+  collectBandIds(next.items, nextIds);
+  if (!prevIds.length || !nextIds.length) return false;
+  prevIds.sort(compareIds);
+  nextIds.sort(compareIds);
+  return compareIds(prevIds[prevIds.length - 1]!, nextIds[0]!) < 0;
+};
+
 const foldPriority = (item: WorkflowGraphItem): [number, number] => {
   if (item.type === 'group') {
     const { group } = item;
@@ -354,17 +378,6 @@ const stripSingleCodeFence = (text: string): string => {
 const formatPreview = (raw: string): string | undefined => {
   const cleaned = stripSingleCodeFence(raw);
   if (!cleaned) return undefined;
-  if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
-    try {
-      const parsed: unknown = JSON.parse(cleaned);
-      if (parsed && typeof parsed === 'object') {
-        const pretty = JSON.stringify(parsed, null, 2);
-        if (pretty.length < 300) return pretty;
-      }
-    } catch {
-      // Not valid JSON; display cleaned text as-is.
-    }
-  }
   return cleaned.length > 300 ? `${cleaned.slice(0, 299)}…` : cleaned;
 };
 

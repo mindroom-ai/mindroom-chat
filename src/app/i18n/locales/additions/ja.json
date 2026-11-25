@@ -1528,7 +1528,7 @@
         "selectStep": "ステップを選択すると、出力・指標・リンクを確認できます。",
         "noMessages": "ステップ間のメッセージはまだありません。",
         "noLog": "ログ項目はまだありません。",
-        "omittedEdges_other": "{{count}} 件のメッセージが省略されました。",
+        "omittedEdges_other": "{{count}} 件のメッセージ経路が省略されました。",
         "omittedLog_other": "{{count}} 件のログ項目が省略されました。",
         "setupSteps_other": "{{count}} 件のセットアップステップ",
         "showMore": "さらに {{count}} 件表示",

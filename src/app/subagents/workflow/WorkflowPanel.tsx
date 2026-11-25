@@ -249,7 +249,7 @@ export function WorkflowPanel({
                 type="button"
                 role="tab"
                 aria-selected={selected}
-                aria-controls={`${tabsId}-panel-${id}`}
+                aria-controls={selected ? `${tabsId}-panel-${id}` : undefined}
                 tabIndex={selected ? 0 : -1}
                 className={css.TabButton}
                 onClick={() => setActiveTab(id)}

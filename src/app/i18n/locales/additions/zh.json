@@ -1528,7 +1528,7 @@
         "selectStep": "选择一个步骤以查看其输出、指标和链接。",
         "noMessages": "步骤之间暂无消息。",
         "noLog": "暂无日志条目。",
-        "omittedEdges_other": "已省略 {{count}} 条消息。",
+        "omittedEdges_other": "已省略 {{count}} 条消息路径。",
         "omittedLog_other": "已省略 {{count}} 条日志。",
         "setupSteps_other": "{{count}} 个准备步骤",
         "showMore": "再显示 {{count}} 项",

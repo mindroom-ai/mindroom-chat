@@ -6,6 +6,7 @@ import type {
 } from '../../matrix/protocol/workflowFrame';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
 import {
+  bandPrecedesBand,
   foldGroupItems,
   formatWorkflowModelLabel,
   groupFlowItems,
@@ -391,14 +392,14 @@ describe('workflowGraphModel', () => {
     expect(formatWorkflowModelLabel(undefined)).toBeUndefined();
   });
 
-  it('strips code fences, pretty-prints short JSON previews, and truncates long results to 300 chars', () => {
+  it('strips code fences verbatim without rounding 64-bit JSON integers, and truncates to 300 chars', () => {
     expect(nodeResultPreview(undefined)).toBeUndefined();
     expect(nodeResultPreview(makeSubagent('Summary ready.', 'Earlier line\nLast line'))).toBe(
       'Summary ready.'
     );
-    expect(nodeResultPreview(makeSubagent('```json\n{"ok":true,"count":2}\n```', ''))).toBe(
-      '{\n  "ok": true,\n  "count": 2\n}'
-    );
+    expect(
+      nodeResultPreview(makeSubagent('```json\n{"id":9223372036854775807,"ok":true}\n```', ''))
+    ).toBe('{"id":9223372036854775807,"ok":true}');
     expect(nodeResultPreview(makeSubagent('```\nPlain fenced text\n```', ''))).toBe(
       'Plain fenced text'
     );
@@ -429,6 +430,31 @@ describe('workflowGraphModel', () => {
     });
     const long = shortNodeError('A'.repeat(60));
     expect(long?.kind === 'text' ? long.text : '').toHaveLength(40);
+  });
+
+  it('suppresses backwards inter-band arrows when an unphased step ran after a phased step', () => {
+    const postPhase = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Build'],
+        nodes: [
+          makeNode('n1', { label: 'Compile', phase: 0 }),
+          makeNode('n2', { label: 'Publish', phase: null }),
+        ],
+      })
+    );
+    expect(postPhase.bands.map((b) => b.phase)).toEqual([null, 'Build']);
+    expect(bandPrecedesBand(postPhase.bands[0]!, postPhase.bands[1]!)).toBe(false);
+
+    const forward = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Build', 'Deploy'],
+        nodes: [
+          makeNode('n1', { label: 'Compile', phase: 0 }),
+          makeNode('n2', { label: 'Publish', phase: 1 }),
+        ],
+      })
+    );
+    expect(bandPrecedesBand(forward.bands[0]!, forward.bands[1]!)).toBe(true);
   });
 
   it('attaches a session turn to its emitted group when its parent session node was omitted', () => {

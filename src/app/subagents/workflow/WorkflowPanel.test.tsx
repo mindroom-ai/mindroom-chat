@@ -986,7 +986,7 @@ describe('WorkflowPanel', () => {
           status: 'completed',
           startedAt: 1795389740,
           endedAt: 1795389755,
-          result: '```json\n{"ok":true,"checked":4}\n```',
+          result: '```json\n{"id":9223372036854775807,"checked":4}\n```',
         },
         snapshot: {
           md: '',
@@ -1055,8 +1055,15 @@ describe('WorkflowPanel', () => {
     expect(document.querySelector('[data-workflow-chip-id="n4"]')).toBeTruthy();
 
     fireEvent.click(setupToggle);
-    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeTruthy();
+    const setupChild1 = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    expect(setupChild1).toBeTruthy();
     expect(document.querySelector('[data-workflow-chip-id="n2"]')).toBeTruthy();
+    // Selecting a child does not block collapsing the setup-steps group on toggle click.
+    fireEvent.click(setupChild1);
+    expect(document.querySelector('[data-workflow-node-details="n1"]')).toBeTruthy();
+    fireEvent.click(setupToggle);
+    expect(setupToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeNull();
 
     // Selecting n3 displays KPI metrics and un-fenced pretty JSON inside <pre>.
     fireEvent.click(screen.getByRole('button', { name: /Run audit/ }));
@@ -1065,15 +1072,18 @@ describe('WorkflowPanel', () => {
     expect(within(details).getByText('2K')).toBeTruthy();
     expect(within(details).getByText('$0.12')).toBeTruthy();
     const pre = details.querySelector('pre');
-    expect(pre?.textContent).toBe('{\n  "ok": true,\n  "checked": 4\n}');
+    expect(pre?.textContent).toBe('{"id":9223372036854775807,"checked":4}');
 
     // Tabs have space-separated accessible names and wire aria-controls to a focusable tabpanel.
     const tabs = screen.getAllByRole('tab');
     expect(tabs).toHaveLength(4);
     expect(tabs[1]!.textContent).toBe('Steps 4');
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeTruthy();
+    expect(tabs[1]!.getAttribute('aria-controls')).toBeNull();
     fireEvent.click(tabs[1]!);
     const stepsPanel = screen.getByRole('tabpanel');
     expect(stepsPanel.id).toBe(tabs[1]!.getAttribute('aria-controls'));
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeNull();
     expect(stepsPanel.getAttribute('tabindex')).toBe('0');
     expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(4);
     expect(document.querySelector('[data-workflow-chip-id="n4"]')?.textContent).toContain(
@@ -1152,7 +1162,7 @@ describe('WorkflowPanel', () => {
 
     fireEvent.click(tabs[2]!);
     expect(screen.queryByText('No messages between steps yet.')).toBeNull();
-    expect(screen.getByText('5 messages omitted.')).toBeTruthy();
+    expect(screen.getByText('5 message routes omitted.')).toBeTruthy();
     expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
 
     fireEvent.click(tabs[3]!);
@@ -1231,7 +1241,12 @@ describe('WorkflowPanel', () => {
     );
     fireEvent.click(document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement);
     const details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
-    expect(within(details).getByText('Messages from backend: 2')).toBeTruthy();
+    const sessionSection = details.querySelector(
+      '[data-workflow-session-messages="s1"]'
+    ) as HTMLElement;
+    expect(sessionSection).toBeTruthy();
+    expect(within(sessionSection).getByText('@reviewer')).toBeTruthy();
+    expect(within(sessionSection).getByText('Messages from backend: 2')).toBeTruthy();
 
     // Folded 25-item sequential `run` group keeps its 24 kept items in ascending execution order (n11..n34).
     const seqGroup = document.querySelector('[data-workflow-group-id="g-seq"]') as HTMLElement;
@@ -1242,6 +1257,51 @@ describe('WorkflowPanel', () => {
     expect(seqChipIds).toHaveLength(24);
     expect(seqChipIds[0]).toBe('n11');
     expect(seqChipIds[23]).toBe('n34');
+  });
+
+  it('omits backwards arrows for post-phase unphased steps and shows visible non-color status cues in Steps', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Build'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Compile',
+            phase: 0,
+            status: 'waiting',
+            waitingOn: 'peer',
+          }),
+          makeNode('n2', {
+            label: 'Publish',
+            phase: null,
+            status: 'running',
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Unphased Publish (n2) appears above Build (n1) without a backwards downward arrow SVG.
+    const flowPanel = screen.getByRole('tabpanel');
+    expect(flowPanel.querySelectorAll('svg')).toHaveLength(0);
+
+    // Steps tab renders visible non-color status notes alongside screen-reader status labels.
+    fireEvent.click(screen.getAllByRole('tab')[1]!);
+    const compileRow = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    const publishRow = document.querySelector('[data-workflow-chip-id="n2"]') as HTMLElement;
+    expect(within(compileRow).getByText('Waiting for a message')).toBeTruthy();
+    expect(within(publishRow).getByText('Running')).toBeTruthy();
   });
 
   it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {

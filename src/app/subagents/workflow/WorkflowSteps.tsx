@@ -134,6 +134,11 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
   );
   const errorBadge = node.status === 'failed' ? formatNodeErrorBadge(node.error, t) : undefined;
   const statusLabel = workflowNodeStatusLabel(node.status, t, node.waitingOn);
+  const visibleStatus = node.cached
+    ? t('mindroomUi.workflowRun.node.reused')
+    : node.status !== 'completed' && !errorBadge
+      ? statusLabel
+      : undefined;
   return (
     <button
       type="button"
@@ -157,6 +162,11 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
       {errorBadge && (
         <span className={css.ErrorPill} {...ownDirectionLine}>
           {errorBadge}
+        </span>
+      )}
+      {visibleStatus && (
+        <span className={css.StepStatusNote} aria-hidden="true">
+          {visibleStatus}
         </span>
       )}
       {elapsed && <span className={`${css.MutedNum} ${css.EndAlign}`}>{elapsed}</span>}

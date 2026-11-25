@@ -1528,7 +1528,7 @@
         "selectStep": "選擇一個步驟以檢視其輸出、指標和連結。",
         "noMessages": "步驟之間尚無訊息。",
         "noLog": "尚無日誌項目。",
-        "omittedEdges_other": "已省略 {{count}} 則訊息。",
+        "omittedEdges_other": "已省略 {{count}} 條訊息路徑。",
         "omittedLog_other": "已省略 {{count}} 筆日誌。",
         "setupSteps_other": "{{count}} 個準備步驟",
         "showMore": "再顯示 {{count}} 項",

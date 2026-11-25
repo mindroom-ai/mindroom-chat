@@ -1528,7 +1528,7 @@
         "selectStep": "단계를 선택하여 출력, 지표, 연결을 확인하세요.",
         "noMessages": "단계 간 메시지가 아직 없습니다.",
         "noLog": "로그 항목이 아직 없습니다.",
-        "omittedEdges_other": "메시지 {{count}}개가 생략되었습니다.",
+        "omittedEdges_other": "메시지 경로 {{count}}개가 생략되었습니다.",
         "omittedLog_other": "로그 항목 {{count}}개가 생략되었습니다.",
         "setupSteps_other": "준비 단계 {{count}}개",
         "showMore": "{{count}}개 더 보기",
