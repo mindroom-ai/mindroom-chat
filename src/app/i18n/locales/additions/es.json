@@ -2296,7 +2296,6 @@
   "roomTriggers": {
     "title": "Activadores",
     "openLabel": "Activadores ({{total}})",
-    "close": "Cerrar",
     "loading": "Cargando…",
     "empty": "No hay activadores en esta sala.",
     "emptyHint": "Los activadores configurados para esta sala aparecen aquí.",

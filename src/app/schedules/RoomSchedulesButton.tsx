@@ -6,7 +6,7 @@ import { MenuEntry } from '../ui/MenuEntry';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
-import { RoomDialogOverlay, RoomHeaderCountButton } from './RoomDialogOverlay';
+import { RoomDialogOverlay, RoomHeaderCountButton } from '../ui/RoomDialogOverlay';
 import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
 
 /** Pending tasks from the room's current state, shared by its header, menu and dialog. */

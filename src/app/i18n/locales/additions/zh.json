@@ -2140,7 +2140,6 @@
   "roomTriggers": {
     "title": "触发器",
     "openLabel": "触发器 ({{total}})",
-    "close": "关闭",
     "loading": "正在加载…",
     "empty": "此房间没有触发器。",
     "emptyHint": "为此房间配置的触发器会显示在这里。",

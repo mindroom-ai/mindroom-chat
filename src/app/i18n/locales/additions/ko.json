@@ -2140,7 +2140,6 @@
   "roomTriggers": {
     "title": "트리거",
     "openLabel": "트리거 ({{total}})",
-    "close": "닫기",
     "loading": "불러오는 중…",
     "empty": "이 방에 트리거가 없습니다.",
     "emptyHint": "이 방에 설정된 트리거가 여기에 표시됩니다.",

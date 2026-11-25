@@ -3,7 +3,6 @@ import {
   type MouseEvent,
   type ReactNode,
   type Ref,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -17,9 +16,7 @@ import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { copyToClipboard } from '../lib/dom';
 import { localDigits } from '../lib/localDigits';
-import { DialogCloseButton } from '../ui/DialogChrome';
-import { PageScroll } from '../ui/page/PageScroll';
-import { Header, Modal } from '../ui/glass/GlassPrimitives';
+import { RoomDialogEmpty, RoomDialogFrame } from '../ui/RoomDialogOverlay';
 import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
@@ -561,7 +558,6 @@ export function RoomSchedulesDialog({
   ref,
 }: RoomSchedulesDialogProps) {
   const { t, i18n } = useTranslation();
-  const titleId = useId();
   const mx = useMatrixClient();
   const mentionClickHandler = useMentionClickHandler(roomId);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -572,15 +568,6 @@ export function RoomSchedulesDialog({
     tasks.length === 1 ? tasks[0]!.taskId : null
   );
   const cancel = useScheduleCancelState(roomId, onCancelTask);
-
-  const setModalRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      dialogRef.current = node;
-      if (typeof ref === 'function') ref(node);
-      else if (ref) ref.current = node;
-    },
-    [ref]
-  );
 
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const formatter = useMemo(
@@ -679,97 +666,65 @@ export function RoomSchedulesDialog({
   ] as const;
 
   return (
-    <Modal
-      ref={setModalRef}
-      size="400"
-      flexHeight
-      className={css.Dialog}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
+    <RoomDialogFrame
+      ref={ref}
+      modalRef={dialogRef}
+      closeButtonRef={closeButtonRef}
+      icon={Icons.Clock}
+      title={t('roomSchedules.title')}
+      count={tasks.length}
+      onClose={onClose}
     >
-      <PageScroll
-        header={
-          <Header size="500" className={css.Header}>
-            <Box grow="Yes" alignItems="Center" gap="200">
-              <Icon size="200" src={Icons.Clock} />
-              <Text as="h2" id={titleId} size="H4">
-                {t('roomSchedules.title')}
-              </Text>
-              <span className={css.HeaderCount}>{localDigits(String(tasks.length), locale)}</span>
-            </Box>
-            <DialogCloseButton
-              ref={closeButtonRef}
-              label={t('roomSchedules.close')}
-              onClick={onClose}
-            />
-          </Header>
-        }
-      >
-        <Box direction="Column" gap="300" className={css.Content}>
-          {tasks.length === 0 ? (
-            <Box direction="Column" gap="200" className={css.Empty}>
-              <Text size="T400">{t('roomSchedules.empty')}</Text>
-              <Text size="T300" priority="300">
-                {t('roomSchedules.emptyHint')}
-              </Text>
-            </Box>
-          ) : (
-            <>
-              {showFilterBar && (
-                <div
-                  role="group"
-                  aria-label={t('roomSchedules.filterLabel')}
-                  className={css.FilterBar}
-                >
-                  {filterOptions.map(([optId, label, count]) => {
-                    const active = effectiveFilter === optId;
-                    return (
-                      <button
-                        key={optId}
-                        type="button"
-                        aria-pressed={active}
-                        className={classNames(css.FilterPill, active && css.FilterPillActive)}
-                        onClick={() => handleSelectFilter(optId)}
-                      >
-                        {active && <Icon size="50" src={Icons.Check} aria-hidden />}
-                        <span>{label}</span>
-                        <span className={css.FilterCount}>
-                          {localDigits(String(count), locale)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              <Box direction="Column" gap="200">
-                {groups.map(([groupId, heading, groupTasks]) => (
-                  <Fragment key={groupId}>
-                    {grouped && (
-                      <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
-                        {t(heading)}
-                      </Text>
-                    )}
-                    {groupTasks.map((task) => {
-                      const open = expandedId === task.taskId;
-                      return (
-                        <ScheduleAccordionItem
-                          key={task.taskId}
-                          ctx={itemCtx}
-                          task={task}
-                          open={open}
-                          onToggle={() => setExpandedId(open ? null : task.taskId)}
-                        />
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </Box>
-            </>
+      {tasks.length === 0 ? (
+        <RoomDialogEmpty title={t('roomSchedules.empty')} hint={t('roomSchedules.emptyHint')} />
+      ) : (
+        <>
+          {showFilterBar && (
+            <div role="group" aria-label={t('roomSchedules.filterLabel')} className={css.FilterBar}>
+              {filterOptions.map(([optId, label, count]) => {
+                const active = effectiveFilter === optId;
+                return (
+                  <button
+                    key={optId}
+                    type="button"
+                    aria-pressed={active}
+                    className={classNames(css.FilterPill, active && css.FilterPillActive)}
+                    onClick={() => handleSelectFilter(optId)}
+                  >
+                    {active && <Icon size="50" src={Icons.Check} aria-hidden />}
+                    <span>{label}</span>
+                    <span className={css.FilterCount}>{localDigits(String(count), locale)}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </Box>
-      </PageScroll>
-    </Modal>
+
+          <Box direction="Column" gap="200">
+            {groups.map(([groupId, heading, groupTasks]) => (
+              <Fragment key={groupId}>
+                {grouped && (
+                  <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
+                    {t(heading)}
+                  </Text>
+                )}
+                {groupTasks.map((task) => {
+                  const open = expandedId === task.taskId;
+                  return (
+                    <ScheduleAccordionItem
+                      key={task.taskId}
+                      ctx={itemCtx}
+                      task={task}
+                      open={open}
+                      onToggle={() => setExpandedId(open ? null : task.taskId)}
+                    />
+                  );
+                })}
+              </Fragment>
+            ))}
+          </Box>
+        </>
+      )}
+    </RoomDialogFrame>
   );
 }

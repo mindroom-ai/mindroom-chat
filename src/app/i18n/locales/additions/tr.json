@@ -2218,7 +2218,6 @@
   "roomTriggers": {
     "title": "Tetikleyiciler",
     "openLabel": "Tetikleyiciler ({{total}})",
-    "close": "Kapat",
     "loading": "Yükleniyor…",
     "empty": "Bu odada tetikleyici yok.",
     "emptyHint": "Bu oda için ayarlanan tetikleyiciler burada görünür.",

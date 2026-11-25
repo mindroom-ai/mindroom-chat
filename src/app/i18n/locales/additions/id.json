@@ -2140,7 +2140,6 @@
   "roomTriggers": {
     "title": "Pemicu",
     "openLabel": "Pemicu ({{total}})",
-    "close": "Tutup",
     "loading": "Memuat…",
     "empty": "Tidak ada pemicu di ruang ini.",
     "emptyHint": "Pemicu yang diatur untuk ruang ini akan muncul di sini.",

@@ -210,7 +210,7 @@ vi.mock('../RoomViewHeaderLayout.css', () => ({
   CallGroup: 'CallGroup',
 }));
 
-vi.mock('../../schedules/roomSchedules.css', () => ({
+vi.mock('../../ui/RoomDialogOverlay.css', () => ({
   Trigger: 'Trigger',
   Count: 'Count',
 }));

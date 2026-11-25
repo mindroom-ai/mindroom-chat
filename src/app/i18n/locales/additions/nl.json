@@ -2218,7 +2218,6 @@
   "roomTriggers": {
     "title": "Triggers",
     "openLabel": "Triggers ({{total}})",
-    "close": "Sluiten",
     "loading": "Laden…",
     "empty": "Geen triggers in deze kamer.",
     "emptyHint": "Triggers die voor deze kamer zijn ingesteld verschijnen hier.",

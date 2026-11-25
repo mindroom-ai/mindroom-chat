@@ -2296,7 +2296,6 @@
   "roomTriggers": {
     "title": "Gatilhos",
     "openLabel": "Gatilhos ({{total}})",
-    "close": "Fechar",
     "loading": "Carregando…",
     "empty": "Nenhum gatilho nesta sala.",
     "emptyHint": "Os gatilhos configurados para esta sala aparecem aqui.",

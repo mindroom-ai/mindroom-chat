@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   renderMatrixMention: vi.fn<(...args: unknown[]) => React.ReactNode>(() => undefined),
 }));
 
-vi.mock('./roomSchedules.css', () => ({
+vi.mock('../ui/RoomDialogOverlay.css', () => ({
   Dialog: 'dialog',
   Header: 'header',
   HeaderCount: 'header-count',
   Content: 'content',
   Empty: 'empty',
+}));
+vi.mock('./roomSchedules.css', () => ({
   FilterBar: 'filter-bar',
   FilterPill: 'filter-pill',
   FilterPillActive: 'filter-pill-active',

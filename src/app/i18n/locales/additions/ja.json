@@ -2140,7 +2140,6 @@
   "roomTriggers": {
     "title": "トリガー",
     "openLabel": "トリガー ({{total}})",
-    "close": "閉じる",
     "loading": "読み込み中…",
     "empty": "このルームにトリガーはありません。",
     "emptyHint": "このルームに設定されたトリガーがここに表示されます。",

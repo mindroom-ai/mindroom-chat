@@ -2218,7 +2218,6 @@
   "roomTriggers": {
     "title": "Triggers",
     "openLabel": "Triggers ({{total}})",
-    "close": "Close",
     "loading": "Loading…",
     "empty": "No triggers in this room.",
     "emptyHint": "Triggers configured for this room appear here.",

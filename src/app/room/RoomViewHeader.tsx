@@ -53,7 +53,7 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
-import { RoomDialogOverlay, RoomHeaderCountButton } from '../schedules/RoomDialogOverlay';
+import { RoomDialogOverlay, RoomHeaderCountButton } from '../ui/RoomDialogOverlay';
 import { RoomTriggersDialog } from '../triggers/RoomTriggersDialog';
 import { TriggersIcon } from '../triggers/TriggersIcon';
 import { useRoomTriggers } from '../triggers/useRoomTriggers';

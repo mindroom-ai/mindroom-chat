@@ -2296,7 +2296,6 @@
   "roomTriggers": {
     "title": "Trigger",
     "openLabel": "Trigger ({{total}})",
-    "close": "Chiudi",
     "loading": "Caricamento…",
     "empty": "Nessun trigger in questa stanza.",
     "emptyHint": "I trigger configurati per questa stanza compaiono qui.",

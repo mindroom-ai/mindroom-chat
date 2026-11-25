@@ -2296,7 +2296,6 @@
   "roomTriggers": {
     "title": "Déclencheurs",
     "openLabel": "Déclencheurs ({{total}})",
-    "close": "Fermer",
     "loading": "Chargement…",
     "empty": "Aucun déclencheur dans ce salon.",
     "emptyHint": "Les déclencheurs configurés pour ce salon apparaissent ici.",
