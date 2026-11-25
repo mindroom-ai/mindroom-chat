@@ -1823,7 +1823,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     forwardScene!.cleanup(false);
   });
 
-  it('captures roomPreview on 1 -> 2 slide from Space All threads and reveals it on interactive back swipe', async () => {
+  it('captures roomPreview on 1 -> 2 slide from Space All threads when returnToSpaceThreads is set', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Space All Threads', 85);
     setActivePhoneSwipeContext({
@@ -1834,7 +1834,12 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
 
     slidePhonePage(() => {
       showThread(true);
-      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+      setActivePhoneSwipeContext({
+        sessionId: SESSION,
+        roomId: ROOM,
+        threadId: THREAD,
+        returnToSpaceThreads: true,
+      });
       page.textContent = 'Thread View';
     });
     pageMock.frame();
@@ -1853,19 +1858,25 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     scene!.cleanup(false);
   });
 
-  it('rejects cross-session isSpaceThreads capture and clears stale roomPreview from unmatched surfaces', async () => {
+  it('rejects Space All threads capture without returnToSpaceThreads or across sessions, and clears stale roomPreview', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Room Overview');
     const slideIntoThread = async (
       label: string,
-      departing: Parameters<typeof setActivePhoneSwipeContext>[0]
+      departing: Parameters<typeof setActivePhoneSwipeContext>[0],
+      returnToSpaceThreads?: boolean
     ) => {
       showThread(false);
       page.textContent = label;
       setActivePhoneSwipeContext(departing);
       slidePhonePage(() => {
         showThread(true);
-        setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+        setActivePhoneSwipeContext({
+          sessionId: SESSION,
+          roomId: ROOM,
+          threadId: THREAD,
+          ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+        });
         page.textContent = 'Thread View';
       });
       pageMock.frame();
@@ -1882,34 +1893,32 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       scene!.cleanup(false);
     };
 
+    // Entering a thread from an overlay over Space All threads (no returnToSpaceThreads) must
+    // neither capture Space All threads nor retain an earlier room preview.
     await slideIntoThread('Room Overview', { sessionId: SESSION, roomId: ROOM });
-    await slideIntoThread('Other Account Space Threads', {
-      sessionId: 'https://other.org::@bob:other.org',
-      roomId: '!space:other.org',
+    await slideIntoThread('Space All Threads', {
+      sessionId: SESSION,
+      roomId: '!space:example.org',
       isSpaceThreads: true,
     });
+    expectBackdrop('k-overlay');
+
+    // Cross-session isSpaceThreads must never capture even with returnToSpaceThreads.
+    await slideIntoThread('Room Overview Again', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread(
+      'Other Account Space Threads',
+      {
+        sessionId: 'https://other.org::@bob:other.org',
+        roomId: '!space:other.org',
+        isSpaceThreads: true,
+      },
+      true
+    );
     expectBackdrop('k-cross');
 
-    await slideIntoThread('Room Overview Again', { sessionId: SESSION, roomId: ROOM });
+    // Entering from an unmatched surface without swipe context clears any stale roomPreview.
+    await slideIntoThread('Room Overview Third', { sessionId: SESSION, roomId: ROOM });
     await slideIntoThread('Activity', undefined);
     expectBackdrop('k-activity');
-  });
-
-  it('aborts forward swipe commit if active context becomes Space All threads mid-settle', async () => {
-    makeStage('Room');
-    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
-    const onCommit = vi.fn();
-    const forward = createThreadForwardSwipeScene({
-      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
-      fromLocationKey: 'k-room',
-      onCommit,
-      dirSign: 1,
-    });
-    expect(forward).not.toBeNull();
-    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, isSpaceThreads: true });
-    await forward!.settle(true, 0, 180);
-    forward!.commit();
-    forward!.cleanup(true);
-    expect(onCommit).not.toHaveBeenCalled();
   });
 });

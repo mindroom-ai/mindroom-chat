@@ -83,6 +83,7 @@ export type PhoneSwipePreviewKey = {
 
 export type ActivePhoneSwipeContext = PhoneSwipePreviewKey & {
   isSpaceThreads?: boolean;
+  returnToSpaceThreads?: boolean;
 };
 
 type StoredPreviewKey = {
@@ -474,10 +475,7 @@ const isSceneContextCurrent = (
     if (kind === 'back' && activeSwipeContext.threadId !== key.threadId) {
       return false;
     }
-    if (
-      kind === 'forward' &&
-      (activeSwipeContext.threadId !== undefined || activeSwipeContext.isSpaceThreads)
-    ) {
+    if (kind === 'forward' && activeSwipeContext.threadId !== undefined) {
       return false;
     }
   }
@@ -1088,7 +1086,9 @@ export const slidePhonePage = (change: Change): void => {
         enteredContext?.threadId &&
         departingContext &&
         departingContext.sessionId === enteredContext.sessionId &&
-        (departingContext.roomId === enteredContext.roomId || departingContext.isSpaceThreads)
+        ((!departingContext.isSpaceThreads && departingContext.roomId === enteredContext.roomId) ||
+          (departingContext.isSpaceThreads === true &&
+            enteredContext.returnToSpaceThreads === true))
       ) {
         storePhoneSwipePreview(
           'room',

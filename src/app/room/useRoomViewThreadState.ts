@@ -235,8 +235,12 @@ export const useRoomViewThreadState = ({
       }
       const originPage = historyPageOf(originPath);
       const returnsToRoom = showsRoom(originPage, addresses, ['']);
-      // The room itself (with no thread open in it) or a space's All threads overview.
-      if (!returnsToRoom && !isSpaceThreadsPage(originPage)) {
+      const openedForOrigin = origin
+        ? origin.returnToOrigin === true
+        : exitTarget?.returnToOrigin === true;
+      const returnsToSpaceThreads = openedForOrigin && isSpaceThreadsPage(originPage);
+      // The room itself (with no thread open in it) or the Space All threads page that opened it.
+      if (!returnsToRoom && !returnsToSpaceThreads) {
         toRoom();
         return;
       }
@@ -313,13 +317,31 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
-  const locationKey = useContext(UNSAFE_LocationContext)?.location.key;
+  const location = useContext(UNSAFE_LocationContext)?.location;
+  const locationKey = location?.key;
+  const locationState: unknown = location?.state;
 
   useLayoutEffect(() => {
-    const context = { sessionId, roomId, threadId: effectiveThreadId };
+    const exitTarget =
+      (locationKey !== undefined || locationState !== undefined
+        ? getRoomThreadExitTargetFromHistoryState({ key: locationKey, usr: locationState })
+        : undefined) ?? getRoomThreadExitTargetFromHistoryState(window.history.state);
+    const activeSessionId = getActiveSession()?.sessionId ?? sessionId;
+    const returnToSpaceThreads =
+      !!effectiveThreadId &&
+      exitTarget?.returnToOrigin === true &&
+      exitTarget.roomId === roomId &&
+      (exitTarget.threadId === effectiveThreadId || exitTarget.threadId === threadId) &&
+      (exitTarget.sessionId === undefined || exitTarget.sessionId === activeSessionId);
+    const context = {
+      sessionId,
+      roomId,
+      threadId: effectiveThreadId,
+      ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+    };
     setActivePhoneSwipeContext(context);
     return () => clearActivePhoneSwipeContext(context);
-  }, [effectiveThreadId, roomId, sessionId]);
+  }, [effectiveThreadId, locationKey, locationState, roomId, sessionId, threadId]);
 
   const resolveFromLocationKey = useCallback(
     () =>

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
+  withRoomThreadExitTargetState,
 } from '../../routes/roomNavigateState';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RETURN_TO_ROOM_STATE } from '../../routes/historyStack';
@@ -1441,6 +1442,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
           roomId: room.roomId,
           threadId: '$thread',
           useHistoryBack: true,
+          returnToOrigin: true,
         },
       },
     };
@@ -1455,6 +1457,33 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(historyBackMock).toHaveBeenCalledOnce();
     expect(navigatePathMock).not.toHaveBeenCalled();
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves for the room after a reload when Space All threads exitTarget lacks returnToOrigin', async () => {
+    const room = makeRoom(nextRoomId('room-a'));
+    historyStub.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: '/%21space%3Aexample.org/threads/',
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: true,
+        },
+      },
+    };
+    const { RoomView } = await import('../RoomView');
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigatePathMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
   });
 
   it.each([
@@ -1473,6 +1502,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
             roomId: room.roomId,
             threadId: '$thread',
             useHistoryBack,
+            returnToOrigin: true,
           },
         },
       };
@@ -1491,8 +1521,8 @@ describe('RoomView', { timeout: 30_000 }, () => {
   );
 
   describe('with the pages the app has shown', () => {
-    /** Shows `paths` one after another, as the app's router does, recording them as the app does. */
-    const showPages = async (paths: string[]) => {
+    /** Shows `pages` one after another, as the app's router does, recording them as the app does. */
+    const showPages = async (pages: Array<string | { path: string; state?: unknown }>) => {
       const { useHistoryStackRecorder } = await import('../../routes/historyStack');
       const { MemoryRouter, useNavigate } = await import('react-router-dom');
       let navigate: ReturnType<typeof useNavigate> | undefined;
@@ -1501,21 +1531,28 @@ describe('RoomView', { timeout: 30_000 }, () => {
         navigate = useNavigate();
         return null;
       }
-      const [first, ...rest] = paths;
+      const [first, ...rest] = pages;
+      const firstEntry =
+        typeof first === 'string'
+          ? first
+          : first
+            ? { pathname: first.path, state: first.state }
+            : '/home/';
       let recorder: ReturnType<typeof create> | undefined;
       await act(async () => {
         recorder = create(
           React.createElement(
             MemoryRouter,
-            { initialEntries: [first ?? '/home/'] },
+            { initialEntries: [firstEntry] },
             React.createElement(Recorder)
           )
         );
       });
-      for (const path of rest) {
+      for (const page of rest) {
         // eslint-disable-next-line no-await-in-loop
         await act(async () => {
-          void navigate?.(path);
+          if (typeof page === 'string') void navigate?.(page);
+          else void navigate?.(page.path, { state: page.state });
         });
       }
       return recorder;
@@ -1577,7 +1614,19 @@ describe('RoomView', { timeout: 30_000 }, () => {
       const room = makeRoom(nextRoomId('room-a'));
       const spaceThreadsPath = '/%21space%3Aexample.org/threads/';
       const roomPath = `/%21space%3Aexample.org/${encodeURIComponent(room.roomId)}/`;
-      const recorder = await showPages([spaceThreadsPath, `${roomPath}?threadId=%24thread`]);
+      const recorder = await showPages([
+        spaceThreadsPath,
+        {
+          path: `${roomPath}?threadId=%24thread`,
+          state: withRoomThreadExitTargetState(undefined, {
+            exitPath: spaceThreadsPath,
+            roomId: room.roomId,
+            threadId: '$thread',
+            useHistoryBack: true,
+            returnToOrigin: true,
+          }),
+        },
+      ]);
 
       await exitThread(room);
 
@@ -1594,7 +1643,16 @@ describe('RoomView', { timeout: 30_000 }, () => {
       const roomPath = `/%21space%3Aexample.org/${encodeURIComponent(room.roomId)}/`;
       const recorder = await showPages([
         spaceThreadsPath,
-        `${roomPath}?threadId=%24thread`,
+        {
+          path: `${roomPath}?threadId=%24thread`,
+          state: withRoomThreadExitTargetState(undefined, {
+            exitPath: spaceThreadsPath,
+            roomId: room.roomId,
+            threadId: '$thread',
+            useHistoryBack: true,
+            returnToOrigin: true,
+          }),
+        },
         `${roomPath}%24reply?threadId=%24thread`,
       ]);
 
@@ -1603,6 +1661,34 @@ describe('RoomView', { timeout: 30_000 }, () => {
       expect(historyGoMock).toHaveBeenCalledWith(-2);
       expect(historyBackMock).not.toHaveBeenCalled();
       expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+      recorder?.unmount();
+    });
+
+    it('leaves for the room when a thread is opened over Space All threads without returnToOrigin (e.g. Activity bell or Command Palette)', async () => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const spaceThreadsPath = '/%21space%3Aexample.org/threads/';
+      const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
+      const recorder = await showPages([
+        spaceThreadsPath,
+        {
+          path: `${roomPath}?threadId=%24thread`,
+          state: withRoomThreadExitTargetState(undefined, {
+            exitPath: spaceThreadsPath,
+            roomId: room.roomId,
+            threadId: '$thread',
+            useHistoryBack: true,
+          }),
+        },
+      ]);
+
+      await exitThread(room);
+
+      expect(historyGoMock).not.toHaveBeenCalled();
+      expect(historyBackMock).not.toHaveBeenCalled();
+      expect(navigatePathMock).not.toHaveBeenCalled();
+      expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+        replace: true,
+      });
       recorder?.unmount();
     });
   });

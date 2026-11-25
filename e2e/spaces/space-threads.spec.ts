@@ -487,73 +487,83 @@ test.describe.serial('Space Threads overview', () => {
     }
   });
 
-  test('returns to Space All threads with active room filter after opening a thread on desktop and phone', async ({
+  const verifyReturnToSpaceThreads = async (
+    browser: Browser,
+    viewport: BrowserContextOptions,
+    isPhone: boolean,
+    shot: string
+  ) => {
+    const ciRoomId = workspace.rooms['ci-runners'];
+    const { context, page } = await openInContext(browser, viewport, 'dark-theme', workspace.user);
+    try {
+      await page.goto(`/${encodeURIComponent(workspace.spaceId)}/threads`);
+      await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
+        timeout: 20_000,
+      });
+
+      const roomsTrigger = page.locator('[data-room-filter-button]');
+      await roomsTrigger.click();
+      await expect(page.locator('[data-room-filter-panel]')).toBeVisible();
+      await page.locator(`[data-subspace-option="${workspace.platformSpaceId}"]`).click();
+      await roomsTrigger.click();
+      await expect(page.locator('[data-room-filter-panel]')).toBeHidden();
+      await expect(roomsTrigger).toHaveText('Platform');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
+      await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
+
+      const threadCard = page.getByText('Cache build artifacts across runners');
+      if (isPhone) await threadCard.tap();
+      else await threadCard.click();
+
+      await expect(page).toHaveURL(new RegExp(`${encodeURIComponent(ciRoomId)}.*threadId=`), {
+        timeout: 20_000,
+      });
+      const banner = page.locator('[data-thread-context-banner="true"]');
+      await expect(banner).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
+      await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+
+      const backButton = banner.getByRole('button', { name: 'Back', exact: true });
+      if (isPhone) await backButton.tap();
+      else await backButton.click();
+
+      await expect(page.locator('[data-space-threads-page]')).toHaveAttribute(
+        'data-space-threads-page',
+        workspace.spaceId,
+        { timeout: 20_000 }
+      );
+      await expect(page).toHaveURL(/\/threads\/?$/, { timeout: 20_000 });
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
+      await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+      await expect(roomsTrigger).toHaveText('Platform');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
+      await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
+      await expect(page.getByText('Keyboard navigation for command menu')).toBeHidden();
+      await saveShot(page, shot);
+    } finally {
+      await context.close();
+    }
+  };
+
+  test('returns to Space All threads with active room filter after opening a thread on desktop', async ({
     browser,
   }) => {
-    const ciRoomId = workspace.rooms['ci-runners'];
-    const runCase = async (viewport: BrowserContextOptions, isPhone: boolean, shot: string) => {
-      const { context, page } = await openInContext(
-        browser,
-        viewport,
-        'dark-theme',
-        workspace.user
-      );
-      try {
-        await page.goto(`/${encodeURIComponent(workspace.spaceId)}/threads`);
-        await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
-          timeout: 20_000,
-        });
+    await verifyReturnToSpaceThreads(
+      browser,
+      DESKTOP,
+      false,
+      'after-space-threads-return-desktop.png'
+    );
+  });
 
-        const roomsTrigger = page.locator('[data-room-filter-button]');
-        await roomsTrigger.click();
-        await expect(page.locator('[data-room-filter-panel]')).toBeVisible();
-        await page.locator(`[data-subspace-option="${workspace.platformSpaceId}"]`).click();
-        await roomsTrigger.click();
-        await expect(page.locator('[data-room-filter-panel]')).toBeHidden();
-        await expect(roomsTrigger).toHaveText('Platform');
-        await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
-        await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
-        await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
-        await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
-
-        const threadCard = page.getByText('Cache build artifacts across runners');
-        if (isPhone) await threadCard.tap();
-        else await threadCard.click();
-
-        await expect(page).toHaveURL(new RegExp(`${encodeURIComponent(ciRoomId)}.*threadId=`), {
-          timeout: 20_000,
-        });
-        const banner = page.locator('[data-thread-context-banner="true"]');
-        await expect(banner).toBeVisible({ timeout: 20_000 });
-        await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
-        await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
-
-        const backButton = banner.getByRole('button', { name: 'Back', exact: true });
-        if (isPhone) await backButton.tap();
-        else await backButton.click();
-
-        await expect(page.locator('[data-space-threads-page]')).toHaveAttribute(
-          'data-space-threads-page',
-          workspace.spaceId,
-          { timeout: 20_000 }
-        );
-        await expect(page).toHaveURL(/\/threads\/?$/, { timeout: 20_000 });
-        await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
-        await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
-        await expect(roomsTrigger).toHaveText('Platform');
-        await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
-        await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
-        await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
-        await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
-        await expect(page.getByText('Keyboard navigation for command menu')).toBeHidden();
-        await saveShot(page, shot);
-      } finally {
-        await context.close();
-      }
-    };
-
-    await runCase(DESKTOP, false, 'after-space-threads-return-desktop.png');
-    await runCase(PHONE, true, 'after-space-threads-return-phone.png');
+  test('returns to Space All threads with active room filter after opening a thread on phone', async ({
+    browser,
+  }) => {
+    await verifyReturnToSpaceThreads(browser, PHONE, true, 'after-space-threads-return-phone.png');
   });
 });

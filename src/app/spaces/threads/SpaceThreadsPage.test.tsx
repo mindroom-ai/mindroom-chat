@@ -447,7 +447,9 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
 
     fireEvent.click(screen.getByTestId('mock-send-message'));
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '$sent-root');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '$sent-root', undefined, {
+      returnToOrigin: true,
+    });
 
     // Check a 2nd room: room badges reappear and trigger shows "Rooms 2".
     toggleRoomOption(container, ROOM_OPS);
@@ -468,7 +470,9 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
 
     fireEvent.click(container.querySelector('[data-thread-root-id="$t-eng"]')!);
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng', undefined, {
+      returnToOrigin: true,
+    });
   });
 
   it('navigates room-mode sends with confirmed IDs and omits local-echo IDs, while thread mode keeps local echoes', () => {
@@ -490,7 +494,9 @@ describe('SpaceThreadsPage', () => {
     // Thread mode still preserves local-echo navigation via navigateRoomThread.
     fireEvent.click(container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!);
     fireEvent.click(screen.getByTestId('mock-send-local-echo'));
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '~local-root');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '~local-root', undefined, {
+      returnToOrigin: true,
+    });
   });
 
   it('hides blocked/ignored users threads and updates live when ignored users change', () => {

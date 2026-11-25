@@ -291,6 +291,11 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       }),
     [orderedRoomIds, updateFilter]
   );
+  const handleOpenThread = useCallback(
+    (roomId: string, threadRootId: string) =>
+      navigateRoomThread(roomId, threadRootId, undefined, { returnToOrigin: true }),
+    [navigateRoomThread]
+  );
   const handleThreadCreated = useCallback(
     (roomId: string, eventId: string) => {
       if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') {
@@ -298,7 +303,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         else navigateRoom(roomId);
         return;
       }
-      navigateRoomThread(roomId, eventId);
+      navigateRoomThread(roomId, eventId, undefined, { returnToOrigin: true });
     },
     [mx, navigateRoom, navigateRoomThread]
   );
@@ -437,7 +442,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           metaVersion={metaVersion}
           showLoading={showLoading}
           emptyKey={emptyKey}
-          onOpenThread={navigateRoomThread}
+          onOpenThread={handleOpenThread}
         />
 
         {spaceRooms.length > 0 && (
