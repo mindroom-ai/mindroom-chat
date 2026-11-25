@@ -12,6 +12,7 @@ import {
   computeSpendTrend3d,
   formatShortUsd,
   formatSignedPercent,
+  formatUsd,
 } from './usageCalendar';
 import type { UseProviderUsageResult } from './useProviderUsage';
 import { UsagePage } from './UsagePage';
@@ -458,8 +459,14 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(firstModelBtn.getAttribute('aria-expanded')).toBe('true');
     const drawer = container.querySelector('[data-testid="breakdown-drawer"]')!;
     expect(drawer.textContent).toContain('Share of 7d spend');
-    const modelSparkPts = drawer
-      .querySelector('[data-sparkline] polyline')
+    const modelSparkSvg = drawer.querySelector('[data-sparkline]')!;
+    expect(modelSparkSvg.getAttribute('role')).toBe('img');
+    expect(modelSparkSvg.getAttribute('aria-hidden')).toBeNull();
+    expect(modelSparkSvg.getAttribute('aria-label')).toBe(
+      '7d trend: Nov 17 900K, Nov 18 850K, Nov 19 0, Nov 20 1.6M, Nov 21 0, Nov 22 1.6M, Nov 23 1.5M'
+    );
+    const modelSparkPts = modelSparkSvg
+      .querySelector('polyline')
       ?.getAttribute('points')
       ?.trim()
       .split(/\s+/);
@@ -771,6 +778,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
 
     const claudeCard = () => container.querySelector('[data-account-card="claude_code:default"]')!;
     expect(claudeCard().textContent).toContain('Resets in 5m');
+    expect(claudeCard().querySelectorAll('[data-pace-badge]')).toHaveLength(2);
 
     act(() => {
       vi.advanceTimersByTime(2 * 60_000);
@@ -783,6 +791,9 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(claudeCard().textContent).toContain('Resets soon');
     const firstTick = claudeCard().querySelector<HTMLElement>('[data-pace-tick]')!;
     expect(firstTick.style.insetInlineStart).toBe('0%');
+    // Expired quota window suppresses its pace delta badge while the active 7-day window keeps its badge.
+    expect(claudeCard().querySelectorAll('[data-pace-badge]')).toHaveLength(1);
+    expect(claudeCard().textContent).not.toContain('+62% ahead');
 
     act(() => root.unmount());
     expect(vi.getTimerCount()).toBe(0);
@@ -807,12 +818,38 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(formatSignedPercent(0, 'en')).toBe('0%');
     expect(formatSignedPercent(0.3, 'tr')).toBe('+%30');
 
+    expect(formatUsd(0, 'en')).toBe('$0.00');
+    expect(formatUsd(0.004, 'en')).toBe('<$0.01');
+    expect(formatUsd(0.01, 'en')).toBe('$0.01');
+    expect(formatUsd(2.45, 'en')).toBe('$2.45');
+
     expect(formatShortUsd(0, 'en')).toBe('$0');
     expect(formatShortUsd(0.004, 'en')).toBe('<$0.01');
     expect(formatShortUsd(0.04, 'en')).toBe('$0.04');
     expect(formatShortUsd(2.45, 'en')).toBe('$2.45');
     expect(formatShortUsd(42, 'en')).toBe('$42');
     expect(formatShortUsd(1250, 'en')).toBe('$1.3K');
+
+    // Sub-cent daily spend renders "<$0.01" (not "$0.00") in bar top, bar aria-label, and Day Detail totals & rows.
+    const subCent = cloneFixture();
+    subCent.daily_7d.push({
+      day: '2026-11-21',
+      by_account: { 'anthropic:default': 1200 },
+      unattributed_tokens: 0,
+      cost_by_account: { 'anthropic:default': 0.004 },
+    });
+    renderPage(makeUsageState({ snapshot: subCent }));
+    const subCentBar = container.querySelector<HTMLButtonElement>('button[data-day="2026-11-21"]')!;
+    expect(subCentBar.querySelector('span:first-child')?.textContent).toBe('<$0.01');
+    expect(subCentBar.getAttribute('aria-label')).toContain('<$0.01');
+    expect(subCentBar.getAttribute('aria-label')).not.toContain('$0.00');
+    act(() => subCentBar.click());
+    const subCentDrawer = container.querySelector('[data-testid="day-detail-drawer"]')!;
+    expect(subCentDrawer.textContent).toContain('<$0.01');
+    expect(subCentDrawer.textContent).not.toContain('$0.00');
+    expect(
+      subCentDrawer.querySelector('[data-day-account="anthropic:default"]')?.textContent
+    ).toContain('<$0.01');
   });
 
   it('renders loading, empty-accounts, empty-daily, zero-day, and zero-mix states cleanly', () => {

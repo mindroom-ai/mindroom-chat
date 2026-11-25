@@ -228,7 +228,9 @@ export function QuotaBar({
   const tone = quotaTone(remaining);
   const fillColor = quotaFillColor(tone, provider);
   const pacePercent = computePacePercent(window.resets_at, window.window_duration_mins, now);
-  const pace = paceInfo(remaining, pacePercent, t);
+  const resetMs = window.resets_at ? Date.parse(window.resets_at) : Number.NaN;
+  const pace =
+    Number.isFinite(resetMs) && resetMs <= now ? undefined : paceInfo(remaining, pacePercent, t);
   const resetText = formatResetCountdown(window.resets_at, now, language, t);
   const ariaLabel = resetText
     ? t('mindroomUi.usage.quotaAriaWithReset', {

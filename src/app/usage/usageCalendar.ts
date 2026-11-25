@@ -183,7 +183,7 @@ export const formatCompactTokens = (tokens: number, language: string): string =>
 export const formatExactInt = (value: number, language: string): string =>
   new Intl.NumberFormat(language).format(Math.round(value));
 
-export const formatUsd = (amount: number, language: string): string =>
+const formatUsdExact = (amount: number, language: string): string =>
   new Intl.NumberFormat(language, {
     style: 'currency',
     currency: 'USD',
@@ -191,9 +191,13 @@ export const formatUsd = (amount: number, language: string): string =>
     maximumFractionDigits: 2,
   }).format(amount);
 
+export const formatUsd = (amount: number, language: string): string =>
+  amount > 0 && amount < 0.01
+    ? `<${formatUsdExact(0.01, language)}`
+    : formatUsdExact(amount, language);
+
 export const formatShortUsd = (amount: number, language: string): string => {
-  if (amount > 0 && amount < 0.01) return `<${formatUsd(0.01, language)}`;
-  if (amount >= 0.01 && amount < 10) return formatUsd(amount, language);
+  if (amount > 0 && amount < 10) return formatUsd(amount, language);
   return new Intl.NumberFormat(language, {
     style: 'currency',
     currency: 'USD',

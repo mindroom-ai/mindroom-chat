@@ -13,6 +13,7 @@ import {
   alignDailySeriesToCalendar7d,
   type CalendarDaySlot,
   formatCompactTokens,
+  formatDay,
   formatShare,
   formatUsd,
   snapshotTotals,
@@ -43,6 +44,22 @@ type BreakdownItem = {
 
 const sortBySpendThenTokens = <T extends { cost: number | null; tokens: number }>(a: T, b: T) =>
   (b.cost ?? -1) - (a.cost ?? -1) || b.tokens - a.tokens;
+
+const sparklineAriaLabel = (
+  values: readonly number[],
+  calendar: readonly CalendarDaySlot[],
+  language: string,
+  t: TFunction
+): string => {
+  const parts =
+    values.length === calendar.length
+      ? values.map(
+          (val, i) =>
+            `${formatDay(calendar[i]!.day, language, 'short')} ${formatCompactTokens(val, language)}`
+        )
+      : values.map((val) => formatCompactTokens(val, language));
+  return `${t('mindroomUi.usage.trend7d')}: ${parts.join(', ')}`;
+};
 
 const buildBreakdown = (
   tab: BreakdownTab,
@@ -324,8 +341,14 @@ export function UsageBreakdown({
                     </span>
                     {item.spark && item.spark.length >= 2 && item.spark.some((v) => v > 0) && (
                       <span className={css.RowInline}>
-                        <span className={css.MutedText}>{t('mindroomUi.usage.trend7d')}</span>
-                        <Sparkline values={item.spark} stroke={item.color} />
+                        <span className={css.MutedText} aria-hidden="true">
+                          {t('mindroomUi.usage.trend7d')}
+                        </span>
+                        <Sparkline
+                          values={item.spark}
+                          stroke={item.color}
+                          ariaLabel={sparklineAriaLabel(item.spark, calendar, language, t)}
+                        />
                       </span>
                     )}
                   </div>

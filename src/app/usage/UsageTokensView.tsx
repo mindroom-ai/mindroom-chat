@@ -132,7 +132,15 @@ export function TokenMixBar({
   );
 }
 
-export function Sparkline({ values, stroke }: { values: readonly number[]; stroke: string }) {
+export function Sparkline({
+  values,
+  stroke,
+  ariaLabel,
+}: {
+  values: readonly number[];
+  stroke: string;
+  ariaLabel?: string;
+}) {
   if (values.length < 2 || !values.some((v) => v > 0)) return null;
   const max = Math.max(1, ...values);
   const points = values
@@ -142,7 +150,15 @@ export function Sparkline({ values, stroke }: { values: readonly number[]; strok
     )
     .join(' ');
   return (
-    <svg width={68} height={20} viewBox="0 0 68 20" aria-hidden="true" data-sparkline="">
+    <svg
+      width={68}
+      height={20}
+      viewBox="0 0 68 20"
+      role={ariaLabel ? 'img' : undefined}
+      aria-label={ariaLabel || undefined}
+      aria-hidden={ariaLabel ? undefined : true}
+      data-sparkline=""
+    >
       <polyline
         fill="none"
         stroke={stroke}
