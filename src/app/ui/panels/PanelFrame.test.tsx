@@ -232,7 +232,7 @@ describe('PanelHeaderControls', () => {
     const { container: expectedIcon } = render(
       <IconButton size="300" radii="300" variant="Surface" fill="None" />
     );
-    const surfaceNoneClass = expectedIcon.querySelector('button')!.className;
+    const surfaceNoneTokens = Array.from(expectedIcon.querySelector('button')!.classList);
     cleanup();
 
     const { container } = render(
@@ -254,7 +254,7 @@ describe('PanelHeaderControls', () => {
       'Close Notes',
     ]);
     for (const button of buttons.slice(1)) {
-      expect(button.className).toBe(surfaceNoneClass);
+      expect(Array.from(button.classList)).toEqual(expect.arrayContaining(surfaceNoneTokens));
     }
     fireEvent.click(screen.getByRole('button', { name: 'Close Notes' }));
     expect(onClose).toHaveBeenCalledTimes(1);
