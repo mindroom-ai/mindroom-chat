@@ -240,11 +240,7 @@ export function CallViewChrome(props: CallViewChromeProps) {
   });
 
   return (
-    <Shell
-      className={classNames(css.Panel, frame && css.InWindow)}
-      aria-label={frame ? undefined : title}
-      data-testid="call-panel"
-    >
+    <Shell className={css.Panel} aria-label={frame ? undefined : title} data-testid="call-panel">
       {frame?.bar ? (
         <div ref={handleRef} className={css.Bar} {...frame.handleProps}>
           {bar?.faces}

@@ -60,17 +60,12 @@ export const TabLabel = style({
   textOverflow: 'ellipsis',
 });
 
-// Compact rounded control pill at the end of a side panel's header: panel-specific actions, then
-// frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
-export const ControlPill = style({
+// Shared surface and >= 32 px button hit targets for floating header pills (ControlPill and
+// CanvasPanel's VersionPill).
+export const HeaderPill = style({
   display: 'inline-flex',
-  flexWrap: 'wrap',
   alignItems: 'center',
-  justifyContent: 'flex-end',
   gap: toRem(2),
-  flexShrink: 0,
-  marginInlineStart: 'auto',
-  maxInlineSize: '100%',
   padding: toRem(2),
   borderRadius: config.radii.R400,
   backgroundColor: color.SurfaceVariant.Container,
@@ -78,10 +73,23 @@ export const ControlPill = style({
 });
 
 // Keep compact icons visually crisp while preserving a >= 32 px hit target (including on phones).
-globalStyle(`${ControlPill} button`, {
+globalStyle(`${HeaderPill} button`, {
   minInlineSize: toRem(32),
   minBlockSize: toRem(32),
 });
+
+// Compact rounded control pill at the end of a side panel's header: panel-specific actions, then
+// frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
+export const ControlPill = style([
+  HeaderPill,
+  {
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    flexShrink: 0,
+    marginInlineStart: 'auto',
+    maxInlineSize: '100%',
+  },
+]);
 
 export const ControlExtras = style({
   display: 'inline-flex',

@@ -425,8 +425,7 @@ function RoomContent() {
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call or its live transcript and show
-  // again when it closes. The computer and a canvas have their own Expand, which fills the room as
-  // their frame's Fill does.
+  // again when it closes.
   const panels: PanelEntry[] = [
     {
       id: 'computer',

@@ -24,10 +24,6 @@ const hairline = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 // It fills its column, and the room's width on phones, where it covers the conversation.
 export const Panel = style([SidePanelPanel, { flexGrow: 1, containerType: 'inline-size' }]);
 
-// The floating window draws the edge around the call view; the side column's start line would
-// double it.
-export const InWindow = style({ selectors: { '&&': { borderInlineStart: 'none' } } });
-
 // The title bar answers its own width: one too narrow for a readable title beside all five buttons
 // (176 px with their gaps) drops the speaker switch first.
 const titleBar = createContainer();

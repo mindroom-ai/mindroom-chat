@@ -245,6 +245,24 @@ describe('PanelHeaderControls', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('prefers host-supplied fillLabel and foldLabel when present', () => {
+    render(
+      <PanelFrameProvider
+        value={{
+          label: 'Notes',
+          layout: 'beside',
+          fillLabel: 'Expand Notes',
+          foldLabel: 'Dock Notes',
+          setLayout: vi.fn(),
+        }}
+      >
+        <PanelHeaderControls />
+      </PanelFrameProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Expand Notes' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dock Notes' })).toBeTruthy();
+  });
+
   it('omits Fill and Fold when showFrame is false or outside a PanelFrameProvider', () => {
     const onClose = vi.fn();
     const { rerender } = render(

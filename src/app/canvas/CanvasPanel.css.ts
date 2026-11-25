@@ -1,5 +1,6 @@
-import { createContainer, globalStyle, style } from '@vanilla-extract/css';
-import { color, config, toRem } from 'folds';
+import { createContainer, style } from '@vanilla-extract/css';
+import { color, config } from 'folds';
+import { HeaderPill } from '../ui/panels/PanelFrame.css';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
@@ -71,20 +72,7 @@ export const VersionRow = style({
   },
 });
 
-export const VersionPill = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: toRem(2),
-  padding: toRem(2),
-  borderRadius: config.radii.R400,
-  backgroundColor: color.SurfaceVariant.Container,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-});
-
-globalStyle(`${VersionPill} button`, {
-  minInlineSize: toRem(32),
-  minBlockSize: toRem(32),
-});
+export const VersionPill = HeaderPill;
 
 export const Version = style({
   whiteSpace: 'nowrap',

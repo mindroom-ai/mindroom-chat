@@ -6,49 +6,29 @@ import { ExpandIcon, ShrinkIcon } from './panelIcons';
 import { usePanelFrame, type PanelFrame } from './panelFrameContext';
 import * as css from './PanelFrame.css';
 
-/**
- * The frame's edge strip: folded, the vertical tab at the room's end edge that brings the panel
- * back beside the conversation. Open, renders nothing by default (Fill and Fold live in the
- * panel's header control pill), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
- * `title: 'own'` plugins that do not declare `frameControls: 'own'`.
- */
-export function PanelFrameStrip({
-  frame: { label, layout, setLayout },
-  openStrip = false,
+/** Fill and Fold icon buttons shared by the legacy open strip and the header control pill. */
+function FrameActionButtons({
+  frame: { label, layout, setLayout, fillLabel, foldLabel },
+  variant,
+  tooltipPosition,
 }: {
   frame: PanelFrame;
-  openStrip?: boolean;
+  variant: 'Surface' | 'SurfaceVariant';
+  tooltipPosition: 'Right' | 'Bottom';
 }) {
   const { t } = useTranslation();
-  if (layout === 'folded') {
-    return (
-      <button
-        type="button"
-        className={css.Tab}
-        aria-label={t('mindroomUi.sidePanel.unfold', { label })}
-        onClick={() => setLayout('beside')}
-      >
-        <Icon size="200" src={Icons.ChevronLeft} data-directional />
-        <Text as="span" size="L400" className={css.TabLabel}>
-          {label}
-        </Text>
-      </button>
-    );
-  }
-  if (!openStrip) return null;
-
   const filled = layout === 'filled';
-  const fill = t('mindroomUi.sidePanel.fill', { label });
-  const fold = t('mindroomUi.sidePanel.fold', { label });
+  const fill = fillLabel ?? t('mindroomUi.sidePanel.fill', { label });
+  const fold = foldLabel ?? t('mindroomUi.sidePanel.fold', { label });
   return (
-    <div className={css.Strip}>
-      <IconTooltip label={fill} position="Right">
+    <>
+      <IconTooltip label={fill} position={tooltipPosition}>
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
             size="300"
             radii="300"
-            variant="Surface"
+            variant={variant}
             fill="None"
             aria-label={fill}
             aria-pressed={filled}
@@ -58,13 +38,13 @@ export function PanelFrameStrip({
           </IconButton>
         )}
       </IconTooltip>
-      <IconTooltip label={fold} position="Right">
+      <IconTooltip label={fold} position={tooltipPosition}>
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
             size="300"
             radii="300"
-            variant="Surface"
+            variant={variant}
             fill="None"
             aria-label={fold}
             onClick={() => setLayout('folded')}
@@ -73,6 +53,44 @@ export function PanelFrameStrip({
           </IconButton>
         )}
       </IconTooltip>
+    </>
+  );
+}
+
+/**
+ * The frame's edge strip: folded, the vertical tab at the room's end edge that brings the panel
+ * back beside the conversation. Open, renders nothing by default (Fill and Fold live in the
+ * panel's header control pill), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
+ * `title: 'own'` plugins that do not declare `frameControls: 'own'`.
+ */
+export function PanelFrameStrip({
+  frame,
+  openStrip = false,
+}: {
+  frame: PanelFrame;
+  openStrip?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (frame.layout === 'folded') {
+    return (
+      <button
+        type="button"
+        className={css.Tab}
+        aria-label={t('mindroomUi.sidePanel.unfold', { label: frame.label })}
+        onClick={() => frame.setLayout('beside')}
+      >
+        <Icon size="200" src={Icons.ChevronLeft} data-directional />
+        <Text as="span" size="L400" className={css.TabLabel}>
+          {frame.label}
+        </Text>
+      </button>
+    );
+  }
+  if (!openStrip) return null;
+
+  return (
+    <div className={css.Strip}>
+      <FrameActionButtons frame={frame} variant="Surface" tooltipPosition="Right" />
     </div>
   );
 }
@@ -94,14 +112,9 @@ export function PanelHeaderControls({
   closeLabel,
   showFrame = true,
 }: PanelHeaderControlsProps) {
-  const { t } = useTranslation();
   const frame = usePanelFrame();
-  const hasFrame = showFrame && frame !== undefined && frame.layout !== 'folded';
-  if (children === undefined && !hasFrame && !onClose) return null;
-
-  const filled = frame?.layout === 'filled';
-  const fill = hasFrame ? t('mindroomUi.sidePanel.fill', { label: frame.label }) : undefined;
-  const fold = hasFrame ? t('mindroomUi.sidePanel.fold', { label: frame.label }) : undefined;
+  const activeFrame = showFrame && frame && frame.layout !== 'folded' ? frame : undefined;
+  if (children === undefined && !activeFrame && !onClose) return null;
 
   return (
     <div className={css.ControlPill}>
@@ -111,42 +124,14 @@ export function PanelHeaderControls({
           <span className={css.ControlSeparator} aria-hidden="true" />
         </>
       )}
-      {(hasFrame || onClose) && (
+      {(activeFrame || onClose) && (
         <span className={css.ControlCore}>
-          {hasFrame && fill && fold && (
-            <>
-              <IconTooltip label={fill} position="Bottom">
-                {(triggerRef) => (
-                  <IconButton
-                    ref={triggerRef}
-                    size="300"
-                    radii="300"
-                    variant="SurfaceVariant"
-                    fill="None"
-                    aria-label={fill}
-                    aria-pressed={filled}
-                    onClick={() => frame.setLayout(filled ? 'beside' : 'filled')}
-                  >
-                    <Icon size="200" src={filled ? ShrinkIcon : ExpandIcon} />
-                  </IconButton>
-                )}
-              </IconTooltip>
-              <IconTooltip label={fold} position="Bottom">
-                {(triggerRef) => (
-                  <IconButton
-                    ref={triggerRef}
-                    size="300"
-                    radii="300"
-                    variant="SurfaceVariant"
-                    fill="None"
-                    aria-label={fold}
-                    onClick={() => frame.setLayout('folded')}
-                  >
-                    <Icon size="200" src={Icons.ChevronRight} data-directional />
-                  </IconButton>
-                )}
-              </IconTooltip>
-            </>
+          {activeFrame && (
+            <FrameActionButtons
+              frame={activeFrame}
+              variant="SurfaceVariant"
+              tooltipPosition="Bottom"
+            />
           )}
           {onClose && (
             <IconButton
