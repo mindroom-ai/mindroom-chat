@@ -57,7 +57,7 @@ import { RoomDialogOverlay, RoomHeaderCountButton } from '../ui/RoomDialogOverla
 import { RoomTriggersDialog } from '../triggers/RoomTriggersDialog';
 import { TriggersIcon } from '../triggers/TriggersIcon';
 import { useRoomTriggers } from '../triggers/useRoomTriggers';
-import { openRoomTriggersDialog, roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
@@ -301,16 +301,21 @@ export function RoomViewHeader({
     if (!schedulesOpen && schedules) setSchedules(undefined);
   }, [schedulesOpen, schedules]);
   const roomTriggers = useRoomTriggers(room);
+  const { refetch: refetchRoomTriggers } = roomTriggers;
   const triggersDialog = useAtomValue(roomTriggersDialogAtom);
   const triggersOpen = triggersDialog?.roomId === room.roomId;
   const openTriggers = (opener?: HTMLButtonElement) => {
-    void roomTriggers.refetch();
-    openRoomTriggersDialog(store, room.roomId, { opener });
+    store.set(roomTriggersDialogAtom, { roomId: room.roomId, opener });
   };
   const closeTriggers = (dismissed?: boolean) => {
     store.set(roomTriggersDialogAtom, undefined);
-    if (dismissed) restoreFocusAfterDismiss(triggersDialog?.opener);
+    if (dismissed || (dismissed === false && !triggersDialog?.opener?.isConnected)) {
+      restoreFocusAfterDismiss(triggersDialog?.opener);
+    }
   };
+  useEffect(() => {
+    if (triggersOpen) void refetchRoomTriggers();
+  }, [triggersOpen, triggersDialog, refetchRoomTriggers]);
   useEffect(
     () => () => {
       if (store.get(roomTriggersDialogAtom)?.roomId === room.roomId) {
@@ -472,6 +477,8 @@ export function RoomViewHeader({
   };
 
   // The header's actions, in the order both the row and the room menu use.
+  const triggerCount = roomTriggers.triggers.length;
+  const triggersLabel = t('roomTriggers.openLabel', { total: triggerCount });
   const listed: (RoomHeaderEntry | false | undefined)[] = [
     viewSwitch &&
       !threadId && {
@@ -515,14 +522,14 @@ export function RoomViewHeader({
         />
       ),
     },
-    roomTriggers.triggers.length > 0 && {
+    triggerCount > 0 && {
       id: 'triggers',
       placement: 'auto',
       row: (
         <RoomHeaderCountButton
           icon={TriggersIcon}
-          label={t('roomTriggers.openLabel', { total: roomTriggers.triggers.length })}
-          total={roomTriggers.triggers.length}
+          label={triggersLabel}
+          total={triggerCount}
           open={triggersOpen && !triggersDialog?.triggerId && openedFromRow(triggersDialog?.opener)}
           onOpen={openTriggers}
         />
@@ -530,7 +537,7 @@ export function RoomViewHeader({
       menu: (
         <MenuEntry
           icon={TriggersIcon}
-          label={t('roomTriggers.openLabel', { total: roomTriggers.triggers.length })}
+          label={triggersLabel}
           aria-haspopup="dialog"
           onSelect={fromMenu(openTriggers)}
         />

@@ -20,8 +20,7 @@ export const readAgentNoticeMarker = (
   content: Record<string, unknown>,
   originTs: number | undefined,
   roomId?: string,
-  senderDisplayName?: string,
-  linkTrigger?: boolean
+  senderDisplayName?: string
 ): ReactNode | null => {
   const snoozeEndedNote = readSnoozeEndedNote(content);
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
@@ -29,16 +28,7 @@ export const readAgentNoticeMarker = (
   if (skillReview) return <SkillReviewMarker review={skillReview} />;
   const hasLongText = getLongTextSource(content) !== undefined;
   const triggerWake = hasLongText ? null : readTriggerWake(content);
-  if (triggerWake) {
-    return (
-      <TriggerWakeMarker
-        wake={triggerWake}
-        ts={originTs}
-        roomId={roomId}
-        linkTrigger={linkTrigger}
-      />
-    );
-  }
+  if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={originTs} roomId={roomId} />;
   const todoPoke = hasLongText ? null : readTodoPoke(content);
   if (todoPoke) {
     return <TodoPokeMarker poke={todoPoke} ts={originTs} senderDisplayName={senderDisplayName} />;

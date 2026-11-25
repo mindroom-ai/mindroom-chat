@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
@@ -7,6 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ar from '../i18n/locales/additions/ar.json';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { RoomProvider } from '../matrix/hooks/useRoom';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
 import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
@@ -308,16 +308,14 @@ describe('TriggerWakeMarker', () => {
     expect(payload.querySelector('a')).toBeNull();
   });
 
-  it('links to its trigger row from the expanded panel and invalidates room triggers', () => {
+  it('links to its trigger row from the expanded panel when rendered inside the matching RoomProvider', () => {
     const store = createStore();
-    const queryClient = new QueryClient();
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     render(
-      <QueryClientProvider client={queryClient}>
-        <JotaiProvider store={store}>
+      <JotaiProvider store={store}>
+        <RoomProvider value={{ roomId: '!ops:example.org' } as Room}>
           <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
-        </JotaiProvider>
-      </QueryClientProvider>
+        </RoomProvider>
+      </JotaiProvider>
     );
 
     // Collapsed pill stays unchanged.
@@ -330,7 +328,6 @@ describe('TriggerWakeMarker', () => {
     expect(linkButton.getAttribute('aria-haspopup')).toBe('dialog');
     fireEvent.click(linkButton);
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['room-triggers', '!ops:example.org'] });
     expect(store.get(roomTriggersDialogAtom)).toEqual({
       roomId: '!ops:example.org',
       triggerId: 'tr_demo_watch',
@@ -338,14 +335,25 @@ describe('TriggerWakeMarker', () => {
     });
   });
 
-  it('keeps the trigger ID as plain text when linkTrigger is false', () => {
-    render(
-      <TriggerWakeMarker roomId="!ops:example.org" linkTrigger={false} wake={reactiveWake()} />
+  it('keeps the trigger ID as plain text outside a matching RoomProvider', () => {
+    // Search previews have no RoomProvider.
+    const { rerender } = render(
+      <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
     );
-
     fireEvent.click(screen.getByRole('button', { expanded: false }));
     expect(screen.queryByRole('button', { name: /View trigger/ })).toBeNull();
-    expect(document.querySelector('[data-trigger-wake-link]')).toBeNull();
+    expect(document.querySelector('[data-trigger-wake-details]')?.textContent).toContain(
+      'Trigger tr_demo_watch'
+    );
+
+    // Cross-room fork prefix rows sit inside another room's RoomProvider.
+    rerender(
+      <RoomProvider value={{ roomId: '!fork:example.org' } as Room}>
+        <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+      </RoomProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.queryByRole('button', { name: /View trigger/ })).toBeNull();
     expect(document.querySelector('[data-trigger-wake-details]')?.textContent).toContain(
       'Trigger tr_demo_watch'
     );

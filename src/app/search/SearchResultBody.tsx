@@ -209,7 +209,6 @@ export function SearchResultBody({
         highlightRegex={highlightRegex}
         htmlReactParserOptions={parserOptions}
         linkifyOpts={LINKIFY_OPTS}
-        linkTrigger={false}
       />
     );
   }

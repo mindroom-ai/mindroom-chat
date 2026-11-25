@@ -4,6 +4,11 @@ import * as modelCss from './ModelChangeMarker.css';
 
 export { Marker, Title, Model as Summary } from './ModelChangeMarker.css';
 
+const focusRing = {
+  outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+  outlineOffset: toRem(1),
+} as const;
+
 // Matches ModelChangeMarker.Trigger geometry while keeping >= 4.5:1 WCAG AA contrast across all 23
 // palettes: resting P400 (0.9) is >= 5.35:1 on Surface/SurfaceVariant, and hover/expanded
 // Primary.OnContainer on Primary.Container is >= 7.26:1.
@@ -33,10 +38,7 @@ export const Trigger = style({
       color: color.Primary.OnContainer,
       background: color.Primary.Container,
     },
-    '&:focus-visible': {
-      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
+    '&:focus-visible': focusRing,
   },
 });
 
@@ -79,12 +81,7 @@ export const MetaLink = style({
   textDecoration: 'underline',
   textUnderlineOffset: toRem(2),
   cursor: 'pointer',
-  selectors: {
-    '&:focus-visible': {
-      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
-  },
+  selectors: { '&:focus-visible': focusRing },
 });
 
 export const CopyButton = style({
@@ -107,10 +104,7 @@ export const CopyButton = style({
       color: color.Primary.OnContainer,
       background: color.Primary.Container,
     },
-    '&:focus-visible': {
-      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
+    '&:focus-visible': focusRing,
   },
 });
 
@@ -129,8 +123,7 @@ globalStyle(`${Prompt} a:not([class])`, {
 });
 
 globalStyle(`${Prompt} a:focus-visible`, {
-  outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-  outlineOffset: toRem(1),
+  ...focusRing,
   borderRadius: config.radii.R300,
 });
 
@@ -160,10 +153,5 @@ export const Payload = style({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
   textAlign: 'start',
-  selectors: {
-    '&:focus-visible': {
-      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
-  },
+  selectors: { '&:focus-visible': focusRing },
 });

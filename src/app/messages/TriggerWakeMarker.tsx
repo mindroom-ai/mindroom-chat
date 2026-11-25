@@ -1,6 +1,5 @@
 import {
   Fragment,
-  useContext,
   useEffect,
   useId,
   useMemo,
@@ -10,7 +9,6 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
@@ -27,6 +25,7 @@ import { useHour24Clock } from '../preferences/useHour24Clock';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { settingsAtom } from '../preferences/settings';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomOptionally } from '../matrix/hooks/useRoom';
 import { testMatrixTo } from '../matrix/matrix-to';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
@@ -49,7 +48,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from './html/react-custom-html-parser';
-import { openRoomTriggersDialog, ROOM_TRIGGERS_QUERY_KEY } from '../navigation/roomTriggersDialog';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { useMentionClickHandler } from './useMentionClickHandler';
 import { Time } from './Time';
 import * as css from './TriggerWakeMarker.css';
@@ -206,7 +205,6 @@ type TriggerWakeMarkerProps = {
   wake: TriggerWakeInfo;
   ts?: number;
   roomId?: string;
-  linkTrigger?: boolean;
 };
 
 const summaryParts = (wake: TriggerWakeInfo): string[] =>
@@ -225,19 +223,14 @@ const describeSource = (wake: TriggerWakeInfo): string | undefined => {
  * Quiet 1-line marker for a MindRoom reactive or direct external trigger wake event.
  * Expands in place to show trigger metadata, prompt text, and optional JSON event payload.
  */
-export function TriggerWakeMarker({
-  wake,
-  ts,
-  roomId,
-  linkTrigger = true,
-}: TriggerWakeMarkerProps) {
+export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) {
   const { t } = useTranslation();
   const [hour24Clock] = useHour24Clock();
   const dateFormatString = useSettingValue(settingsAtom, 'dateFormatString');
   const client = useOptionalMatrixClient();
+  const currentRoom = useRoomOptionally();
   const inRouter = useInRouterContext();
   const store = useStore();
-  const queryClient = useContext(QueryClientContext);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -252,21 +245,19 @@ export function TriggerWakeMarker({
     const id = revealDirectionControls(wake.triggerId);
     const label = t(`${KEY}.triggerLabel`, { id });
     metaItems.push(
-      roomId && linkTrigger ? (
+      roomId && currentRoom?.roomId === roomId ? (
         <button
-          key="trigger"
           type="button"
           className={css.MetaLink}
-          data-trigger-wake-link={wake.triggerId}
           aria-haspopup="dialog"
           aria-label={t(`${KEY}.openTriggerLabel`, { id })}
-          onClick={(event) => {
-            void queryClient?.invalidateQueries({ queryKey: [ROOM_TRIGGERS_QUERY_KEY, roomId] });
-            openRoomTriggersDialog(store, roomId, {
+          onClick={(event) =>
+            store.set(roomTriggersDialogAtom, {
+              roomId,
               triggerId: wake.triggerId!,
               opener: event.currentTarget,
-            });
-          }}
+            })
+          }
         >
           {label}
         </button>
