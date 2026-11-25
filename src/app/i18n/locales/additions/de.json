@@ -482,7 +482,8 @@
         "inUse": "Verwendeter Server",
         "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus.",
         "useServer": "{{host}} verwenden",
-        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben."
+        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben.",
+        "foundNotSavedChoose": "Über deine Agenten gefunden, nicht gespeichert. Wähle den Server, dem du vertraust; dieses Gerät verwendet ihn für alle Räume."
       },
       "keywords": {
         "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",

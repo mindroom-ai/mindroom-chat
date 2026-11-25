@@ -495,7 +495,8 @@
         "inUse": "Servidor em utilização",
         "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo.",
         "useServer": "Usar {{host}}",
-        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui."
+        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui.",
+        "foundNotSavedChoose": "Encontrados através dos seus agentes, não guardados. Escolha o servidor em que confia; este dispositivo utiliza-o em todas as salas."
       },
       "keywords": {
         "theme": "modo escuro, modo claro, modo noturno, cores",

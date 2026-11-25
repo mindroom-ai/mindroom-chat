@@ -482,7 +482,8 @@
         "inUse": "Kullanılan sunucu",
         "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
         "useServer": "{{host}} kullan",
-        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin.",
+        "foundNotSavedChoose": "Ajanlarınızdan bulundu, kaydedilmedi. Güvendiğiniz sunucuyu seçin; bu cihaz tüm odalar için onu kullanır."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",

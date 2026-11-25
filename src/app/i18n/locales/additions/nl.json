@@ -482,7 +482,8 @@
         "inUse": "Server in gebruik",
         "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat.",
         "useServer": "{{host}} gebruiken",
-        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren."
+        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren.",
+        "foundNotSavedChoose": "Gevonden via je agents, niet opgeslagen. Kies de server die je vertrouwt; dit apparaat gebruikt die voor alle kamers."
       },
       "keywords": {
         "theme": "donkere modus, lichte modus, nachtmodus, kleuren",

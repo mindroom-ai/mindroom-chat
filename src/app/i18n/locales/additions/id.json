@@ -469,7 +469,8 @@
         "inUse": "Server yang digunakan",
         "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini.",
         "useServer": "Gunakan {{host}}",
-        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini."
+        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini.",
+        "foundNotSavedChoose": "Ditemukan dari agen Anda, belum disimpan. Pilih server yang Anda percaya; perangkat ini menggunakannya untuk semua ruang."
       },
       "keywords": {
         "theme": "mode gelap, mode terang, mode malam, warna",

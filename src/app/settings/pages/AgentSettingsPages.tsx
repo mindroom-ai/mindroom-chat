@@ -56,14 +56,18 @@ export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
   // Servers found from the agents are in use for computers but not saved, and secret requests
   // accept only a saved origin. Offer each found server so the user can pick one even when rooms'
   // agents publish several; saving one sets this device's server for every room.
-  const foundUrls = discovered ? urls : [];
-  const singleFound = foundUrls.length === 1 ? foundUrls[0] : undefined;
-  const multipleFound = foundUrls.length > 1;
+  const foundServers = (discovered ? urls : []).map((url) => ({ url, parsed: new URL(url) }));
+  const hostCounts = new Map<string, number>();
+  foundServers.forEach(({ parsed }) =>
+    hostCounts.set(parsed.host, (hostCounts.get(parsed.host) ?? 0) + 1)
+  );
+  const singleFound = foundServers.length === 1 ? foundServers[0] : undefined;
+  const multipleFound = foundServers.length > 1;
   let description = t('featureUi.settings.computers.inUseNone');
-  if (multipleFound) description = t('featureUi.settings.computers.foundNotSaved');
+  if (multipleFound) description = t('featureUi.settings.computers.foundNotSavedChoose');
   else if (urls.length > 0) description = urls.join(', ');
 
-  const saveServerButton = (url: string) => (
+  const saveServerButton = ({ url, parsed }: { url: string; parsed: URL }) => (
     <Button
       onClick={() => setSaveFailed(!setPreference(url))}
       variant="Secondary"
@@ -72,7 +76,9 @@ export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
       radii="300"
     >
       <Text size="B300">
-        {t('featureUi.settings.computers.useServer', { host: new URL(url).host })}
+        {t('featureUi.settings.computers.useServer', {
+          host: (hostCounts.get(parsed.host) ?? 0) > 1 ? parsed.origin : parsed.host,
+        })}
       </Text>
     </Button>
   );
@@ -114,12 +120,16 @@ export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
           )}
           {multipleFound && (
             <Box direction="Column" gap="300">
-              {foundUrls.map((url) => (
-                <SettingTile key={url} description={url} after={saveServerButton(url)} />
+              {foundServers.map((server) => (
+                <SettingTile
+                  key={server.url}
+                  description={server.url}
+                  after={saveServerButton(server)}
+                />
               ))}
             </Box>
           )}
-          {foundUrls.length > 0 && saveFailed && (
+          {foundServers.length > 0 && saveFailed && (
             <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
               {t('settings.general.computers.saveFailed')}
             </Text>

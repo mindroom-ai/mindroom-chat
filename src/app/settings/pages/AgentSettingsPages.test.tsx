@@ -94,6 +94,8 @@ vi.mock('react-i18next', async () => {
 });
 
 const FOUND_HINT = 'Found from your agents, not saved; save it to enter keys here.';
+const FOUND_CHOOSE_HINT =
+  'Found from your agents, not saved. Choose the server you trust; this device uses it for all rooms.';
 
 let renderer: ReactTestRenderer;
 let store: ReturnType<typeof createStore>;
@@ -183,7 +185,7 @@ describe('Agents & servers settings page', () => {
     state.urls = ['https://lab.example.org', 'https://other.example.org:8765'];
     render();
     expect(serverDescriptions()).toEqual([
-      FOUND_HINT,
+      FOUND_CHOOSE_HINT,
       'https://lab.example.org',
       'https://other.example.org:8765',
     ]);
@@ -201,37 +203,36 @@ describe('Agents & servers settings page', () => {
     expect(serverDescriptions()).toEqual(['https://other.example.org:8765']);
     expect(serverInUseTile().findAllByType('button')).toHaveLength(0);
     expect(texts()).not.toContain(FOUND_HINT);
+    expect(serverDescriptions()).not.toContain(FOUND_CHOOSE_HINT);
   });
 
-  it('shows the save-failed alert when storing one of several found servers fails', () => {
+  it('labels Use buttons with full origins when found servers share a host', () => {
+    state.urls = ['http://localhost:8765', 'https://localhost:8765'];
+    render();
+    expect(findUseButton('http://localhost:8765')).toBeDefined();
+    const httpsButton = findUseButton('https://localhost:8765');
+    expect(httpsButton).toBeDefined();
+
+    act(() => {
+      httpsButton!.props.onClick();
+    });
+
+    expect(store.get(computerServicePreferenceAtom)).toBe('https://localhost:8765');
+  });
+
+  it('says so when this device refuses to store the found server and keeps all choices for retry', () => {
     state.urls = ['https://lab.example.org', 'https://other.example.org:8765'];
     render();
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-
     act(() => {
       findUseButton('lab.example.org')!.props.onClick();
     });
-
     const alert = renderer.root.findAllByType('span').find((node) => node.props.role === 'alert');
     expect(alert?.children).toEqual(['Could not save the computer service on this device.']);
     expect(store.get(computerServicePreferenceAtom)).toBeNull();
-    expect(serverInUseTile().findAllByType('button')).toHaveLength(2);
-  });
-
-  it('says so when this device refuses to store the found server', () => {
-    state.urls = ['https://mindroom.lab.example'];
-    render();
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    act(() => {
-      findUseButton()!.props.onClick();
-    });
-    const alert = renderer.root.findAllByType('span').find((node) => node.props.role === 'alert');
-    expect(alert?.children).toEqual(['Could not save the computer service on this device.']);
-    expect(store.get(computerServicePreferenceAtom)).toBeNull();
-    expect(findUseButton()).toBeDefined();
+    expect(findUseButton('lab.example.org')).toBeDefined();
+    expect(findUseButton('other.example.org:8765')).toBeDefined();
   });
 });
