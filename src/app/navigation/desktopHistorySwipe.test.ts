@@ -358,6 +358,18 @@ describe('installDesktopHistorySwipe', () => {
     BACK.forEach((w) => wheel(w));
     expect(counts()).toEqual([2, 0]);
 
+    // A fresh begin after a missed end resets stale tracked distance instead of carrying it over
+    phase('begin');
+    wheel({ deltaX: -30 });
+    wheel({ deltaX: -30 });
+    expect(pill()?.dataset.visible).toBe('true');
+    phase('begin');
+    expect(pill()?.dataset.visible).toBe('false');
+    wheel({ deltaX: -30 });
+    phase('end');
+    flushRaf();
+    expect(counts()).toEqual([2, 0]);
+
     // Teardown cancels any pending end rAF cleanly
     phase('begin');
     wheel({ deltaX: -30 });

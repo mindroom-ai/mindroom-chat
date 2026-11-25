@@ -42,7 +42,7 @@ if (!fs.existsSync(distDir)) {
 }
 fs.writeFileSync(path.join(distDir, 'canvas-frame.html'), CANVAS_FRAME_HTML, 'utf8');
 
-if (process.platform === 'darwin') {
+if (process.platform === 'darwin' && process.env.MINDROOM_SKIP_TRACKPAD_ADDON_BUILD !== '1') {
   const addonOut = path.join(root, 'build/electron/mindroom-trackpad-swipe.node');
   const inputs = [
     path.join(root, 'electron/native/trackpad_swipe.mm'),

@@ -7,6 +7,7 @@
 #import <Foundation/Foundation.h>
 #include <node_api.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -26,6 +27,11 @@ struct MonitorState {
 };
 
 void EnvCleanupHook(void* arg);
+
+bool IsDesktopTestMode() {
+  const char* val = std::getenv("MINDROOM_DESKTOP_TEST");
+  return val != nullptr && std::strcmp(val, "1") == 0;
+}
 
 napi_value Throw(napi_env env, const char* msg, bool type_error = false) {
   (type_error ? napi_throw_type_error : napi_throw_error)(env, nullptr, msg);
@@ -66,12 +72,14 @@ void EmitPhase(const std::shared_ptr<MonitorState>& s, const char* phase) {
   if (napi_open_handle_scope(s->env, &scope) == napi_ok) {
     napi_value cb = nullptr, recv = nullptr, arg = nullptr;
     if (napi_get_reference_value(s->env, s->callback_ref, &cb) == napi_ok && cb &&
-        napi_get_undefined(s->env, &recv) == napi_ok &&
+        napi_get_global(s->env, &recv) == napi_ok &&
         napi_create_string_utf8(s->env, phase, NAPI_AUTO_LENGTH, &arg) == napi_ok &&
-        napi_make_callback(s->env, s->async_context, recv, cb, 1, &arg, nullptr) ==
-            napi_pending_exception) {
-      napi_value err = nullptr;
-      if (napi_get_and_clear_last_exception(s->env, &err) == napi_ok) napi_fatal_exception(s->env, err);
+        napi_make_callback(s->env, s->async_context, recv, cb, 1, &arg, nullptr) != napi_ok) {
+      bool pending = false;
+      if (napi_is_exception_pending(s->env, &pending) == napi_ok && pending) {
+        napi_value err = nullptr;
+        if (napi_get_and_clear_last_exception(s->env, &err) == napi_ok) napi_fatal_exception(s->env, err);
+      }
     }
     napi_close_handle_scope(s->env, scope);
   }
@@ -85,11 +93,13 @@ void HandleScrollEvent(const std::shared_ptr<MonitorState>& s, NSEvent* event) {
   const NSEventPhase phase = event.phase;
   const NSEventPhase momentum = event.momentumPhase;
   CGEventRef cg = event.CGEvent;
+  // Require kernel/HID origin (pid 0) to exclude userspace scroll drivers (Logi Options+, Mos, LinearMouse) and remote-injected events.
   const BOOL is_hw_touch = event.hasPreciseScrollingDeltas && cg != nullptr &&
                            CGEventGetIntegerValueField(cg, kCGEventSourceUnixProcessID) == 0;
   if (phase == NSEventPhaseMayBegin) return;
   if (is_hw_touch && (phase == NSEventPhaseBegan || (phase == NSEventPhaseChanged && !s->in_touch_gesture))) {
-    if (!s->in_touch_gesture) { s->in_touch_gesture = true; EmitPhase(s, "begin"); }
+    s->in_touch_gesture = true;
+    EmitPhase(s, "begin");
   } else if (phase == NSEventPhaseEnded) {
     if (s->in_touch_gesture) { s->in_touch_gesture = false; EmitPhase(s, "end"); }
   } else if (phase == NSEventPhaseCancelled) {
@@ -111,7 +121,24 @@ napi_value DetachCallback(napi_env env, napi_callback_info info) {
   return undef;
 }
 
-void FinalizeDetach(napi_env, void* data, void*) {
+napi_value EmitForTestCallback(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1] = {nullptr};
+  void* data = nullptr;
+  if (napi_get_cb_info(env, info, &argc, argv, nullptr, &data) != napi_ok || argc < 1 || !data)
+    return Throw(env, "_emitForTest requires (phase)", true);
+  char buf[16] = {};
+  size_t len = 0;
+  if (napi_get_value_string_utf8(env, argv[0], buf, sizeof(buf), &len) != napi_ok ||
+      (std::strcmp(buf, "begin") != 0 && std::strcmp(buf, "end") != 0 && std::strcmp(buf, "cancel") != 0))
+    return Throw(env, "phase must be 'begin', 'end', or 'cancel'", true);
+  if (auto& state = *static_cast<std::shared_ptr<MonitorState>*>(data)) EmitPhase(state, buf);
+  napi_value undef = nullptr;
+  napi_get_undefined(env, &undef);
+  return undef;
+}
+
+void FinalizeHandle(napi_env, void* data, void*) {
   delete static_cast<std::shared_ptr<MonitorState>*>(data);
 }
 
@@ -165,10 +192,24 @@ napi_value Attach(napi_env env, napi_callback_info info) {
   auto* detach_handle = new std::shared_ptr<MonitorState>(state);
   napi_value detach_fn = nullptr;
   if (napi_create_function(env, "detach", NAPI_AUTO_LENGTH, DetachCallback, detach_handle, &detach_fn) != napi_ok ||
-      napi_add_finalizer(env, detach_fn, detach_handle, FinalizeDetach, nullptr, nullptr) != napi_ok) {
+      napi_add_finalizer(env, detach_fn, detach_handle, FinalizeHandle, nullptr, nullptr) != napi_ok) {
     delete detach_handle;
     Detach(state, false);
     return Throw(env, "Failed to create detach callback");
+  }
+  if (IsDesktopTestMode()) {
+    auto* emit_handle = new std::shared_ptr<MonitorState>(state);
+    napi_value emit_fn = nullptr;
+    if (napi_create_function(env, "_emitForTest", NAPI_AUTO_LENGTH, EmitForTestCallback, emit_handle, &emit_fn) != napi_ok ||
+        napi_add_finalizer(env, emit_fn, emit_handle, FinalizeHandle, nullptr, nullptr) != napi_ok) {
+      delete emit_handle;
+      Detach(state, false);
+      return Throw(env, "Failed to create test emit callback");
+    }
+    if (napi_set_named_property(env, detach_fn, "_emitForTest", emit_fn) != napi_ok) {
+      Detach(state, false);
+      return Throw(env, "Failed to attach test emit callback");
+    }
   }
   state->keepalive = state;
   return detach_fn;

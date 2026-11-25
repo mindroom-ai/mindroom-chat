@@ -149,14 +149,21 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
 });
 
 describe('scripts/build-desktop-app.sh fail-closed checks', () => {
-  type Cmd = { cmd: string; hasNotary: boolean; cscName: string; sign: string; args: string };
+  type Cmd = {
+    cmd: string;
+    hasNotary: boolean;
+    cscName: string;
+    sign: string;
+    skipAddon: string;
+    args: string;
+  };
 
   const FAKE_BIN = `#!/usr/bin/env bash
 set -eu
 cmd=$(basename "$0"); target=""; for a in "$@"; do target="$a"; done
 fail="\${TEST_FAIL:-}"; has_notary=0
 if [[ -n "\${APPLE_ID:-}\${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then has_notary=1; fi
-printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$cmd" "$has_notary" "\${CSC_NAME:-}" "\${MINDROOM_DESKTOP_SIGN:-}" "$*" >> "$TEST_LOG"
+printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$cmd" "$has_notary" "\${CSC_NAME:-}" "\${MINDROOM_DESKTOP_SIGN:-}" "\${MINDROOM_SKIP_TRACKPAD_ADDON_BUILD:-}" "$*" >> "$TEST_LOG"
 case "$cmd" in
   npx)
     if [[ "\${1:-}" == "electron-builder" ]]; then
@@ -261,9 +268,15 @@ esac
             .split('\n')
             .filter(Boolean)
             .map((line) => {
-              const [cmd = '', hasNotary = '0', cscName = '', sign = '', rawArgs = ''] =
-                line.split('\t');
-              return { cmd, hasNotary: hasNotary === '1', cscName, sign, args: rawArgs };
+              const [
+                cmd = '',
+                hasNotary = '0',
+                cscName = '',
+                sign = '',
+                skipAddon = '',
+                rawArgs = '',
+              ] = line.split('\t');
+              return { cmd, hasNotary: hasNotary === '1', cscName, sign, skipAddon, args: rawArgs };
             })
         : [];
       return { ...res, commands };
@@ -335,7 +348,10 @@ esac
     const { root, run } = createFixture();
     const res = run(['--sign']);
     expect(res.status, res.stderr).toBe(0);
-    expect(res.commands.find((c) => c.cmd === 'npm')?.hasNotary).toBe(false);
+    expect(res.commands.find((c) => c.cmd === 'npm')).toMatchObject({
+      hasNotary: false,
+      skipAddon: '1',
+    });
     expect(
       res.commands.find((c) => c.cmd === 'xcrun' && c.args === '--sdk macosx --show-sdk-path')
     ).toMatchObject({

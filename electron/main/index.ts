@@ -24,7 +24,7 @@ import {
   supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
 } from './security';
-import { setTrackpadSwipeRecorder, type TrackpadSwipeStatus } from './trackpadSwipe';
+import { setTrackpadSwipeRecorder, type TrackpadSwipePhase } from './trackpadSwipe';
 import { startUpdater, type UpdaterHandle } from './updater';
 
 const SCREEN_RECORDING_SETTINGS_URL =
@@ -58,13 +58,26 @@ const telemetry = isTest
       networkPermissions: [] as string[],
       externalOpens: [] as string[],
       badgeCounts: [] as number[],
-      trackpadSwipe: [] as TrackpadSwipeStatus[],
+      trackpadSwipe: [] as Array<{ attached: boolean; warning?: string }>,
     }
   : undefined;
 if (telemetry) {
-  Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
+  let emitTrackpadSwipeForTest: ((phase: TrackpadSwipePhase) => void) | undefined;
+  Object.assign(globalThis, {
+    __mindroomTestTelemetry: telemetry,
+    __mindroomTestTrackpadSwipe: {
+      emit: (phase: TrackpadSwipePhase): boolean => {
+        if (!emitTrackpadSwipeForTest) return false;
+        emitTrackpadSwipeForTest(phase);
+        return true;
+      },
+    },
+  });
   setBlockedUrlRecorder((url) => telemetry.blockedUrls.push(url));
-  setTrackpadSwipeRecorder((status) => telemetry.trackpadSwipe.push(status));
+  setTrackpadSwipeRecorder(({ attached, warning, emitForTest }) => {
+    telemetry.trackpadSwipe.push(warning ? { attached, warning } : { attached });
+    if (emitForTest) emitTrackpadSwipeForTest = emitForTest;
+  });
 }
 
 const focusMainWindow = (): void => {

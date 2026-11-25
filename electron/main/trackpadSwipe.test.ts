@@ -94,7 +94,11 @@ describe('attachTrackpadSwipe', () => {
   it('forwards native begin/end/cancel phases, ignores input-event, and detaches on closed', () => {
     let enabled = true;
     let emitPhase: ((phase: TrackpadSwipePhase) => void) | undefined;
-    const detach = vi.fn();
+    const statuses: TrackpadSwipeStatus[] = [];
+    setTrackpadSwipeRecorder((status) => statuses.push(status));
+    const detach = Object.assign(vi.fn(), {
+      _emitForTest: (phase: TrackpadSwipePhase) => emitPhase?.(phase),
+    });
     const attachNativeMonitor = vi.fn(
       (_handle: Buffer, onPhase: (phase: TrackpadSwipePhase) => void) => {
         emitPhase = onPhase;
@@ -107,6 +111,7 @@ describe('attachTrackpadSwipe', () => {
       isSwipeTrackingEnabled: () => enabled,
       attachNativeMonitor,
     });
+    expect(statuses).toEqual([{ attached: true, emitForTest: detach._emitForTest }]);
 
     expect(attachNativeMonitor).toHaveBeenCalledTimes(1);
     expect(attachNativeMonitor).toHaveBeenCalledWith(win.handle, expect.any(Function));

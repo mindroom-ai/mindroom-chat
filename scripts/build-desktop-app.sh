@@ -127,7 +127,7 @@ expected_outputs=(
 
 if [[ "$mode" == "unsigned" ]]; then
   rm -rf "$out_dir"
-  npm run build:desktop
+  MINDROOM_SKIP_TRACKPAD_ADDON_BUILD=1 npm run build:desktop
   build_screenshot_helper
   bash scripts/build-trackpad-swipe-addon.sh
   CSC_IDENTITY_AUTO_DISCOVERY=false MINDROOM_DESKTOP_SIGN=0 \
@@ -152,7 +152,7 @@ notary_password=$APPLE_APP_SPECIFIC_PASSWORD
 unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
 
 rm -rf "$out_dir"
-npm run build:desktop
+MINDROOM_SKIP_TRACKPAD_ADDON_BUILD=1 npm run build:desktop
 build_screenshot_helper
 bash scripts/build-trackpad-swipe-addon.sh
 

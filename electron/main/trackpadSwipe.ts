@@ -6,11 +6,18 @@ import type { DesktopShellEvent } from '../../src/app/lib/desktopBridge';
 export const TRACKPAD_SWIPE_ADDON_NAME = 'mindroom-trackpad-swipe.node';
 
 export type TrackpadSwipePhase = 'begin' | 'end' | 'cancel';
-export type TrackpadSwipeStatus = { attached: boolean; warning?: string };
+export type TrackpadSwipeStatus = {
+  attached: boolean;
+  warning?: string;
+  emitForTest?: (phase: TrackpadSwipePhase) => void;
+};
+export type DetachNativeMonitor = (() => void) & {
+  _emitForTest?: (phase: TrackpadSwipePhase) => void;
+};
 export type AttachNativeMonitor = (
   nativeWindowHandle: Buffer,
   onPhase: (phase: TrackpadSwipePhase) => void
-) => () => void;
+) => DetachNativeMonitor;
 
 export type TrackpadSwipeWindow = {
   isDestroyed(): boolean;
@@ -114,7 +121,8 @@ export const attachTrackpadSwipe = (
       });
     const detach = attachMonitor(win.getNativeWindowHandle(), onPhase);
     attached = true;
-    statusRecorder?.({ attached: true });
+    const emitForTest = typeof detach._emitForTest === 'function' ? detach._emitForTest : undefined;
+    statusRecorder?.(emitForTest ? { attached: true, emitForTest } : { attached: true });
     win.once('closed', () => {
       try {
         detach();

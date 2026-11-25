@@ -133,8 +133,8 @@ export const installDesktopHistorySwipe = (
         if (pendingEndRaf !== null) {
           clearPendingEnd();
           finish(null);
-        } else if (gesture?.kind === 'ignored') {
-          gesture = null;
+        } else {
+          reset(null);
         }
         inTouchGesture = true;
       } else if (e.phase === 'cancel') {
