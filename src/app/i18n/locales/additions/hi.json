@@ -270,6 +270,13 @@
       "threadIn": "{{room}} में थ्रेड",
       "messageElsewhere": "किसी दूसरे रूम में संदेश"
     },
+    "callout": {
+      "note": "नोट",
+      "tip": "सुझाव",
+      "important": "महत्वपूर्ण",
+      "warning": "चेतावनी",
+      "caution": "सावधानी"
+    },
     "deviceVerification": {
       "acceptStalled": "दूसरे सत्र ने जवाब नहीं दिया। इसे बंद करें और सत्यापन फिर से शुरू करें।"
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "स्पेस का अवलोकन"
+    },
+    "footnote": {
+      "backToReference": "संदर्भ पर वापस जाएं"
     }
   },
   "featureUi": {
@@ -2286,5 +2296,13 @@
     "error": {
       "title": "स्पेस के थ्रेड लोड नहीं हो सके"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "आरेख",
+    "source": "स्रोत",
+    "showDiagram": "आरेख दिखाएं",
+    "showSource": "स्रोत दिखाएं",
+    "mermaidDiagram": "Mermaid आरेख",
+    "diagramUnavailable": "स्रोत दिखाया जा रहा है"
   }
 }

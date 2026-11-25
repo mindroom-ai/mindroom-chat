@@ -270,6 +270,13 @@
       "threadIn": "{{room}}-এ থ্রেড",
       "messageElsewhere": "অন্য একটি রুমে বার্তা"
     },
+    "callout": {
+      "note": "নোট",
+      "tip": "টিপস",
+      "important": "গুরুত্বপূর্ণ",
+      "warning": "সতর্কবার্তা",
+      "caution": "সাবধানতা"
+    },
     "deviceVerification": {
       "acceptStalled": "অন্য সেশনটি সাড়া দেয়নি। এটি বন্ধ করে আবার যাচাইকরণ শুরু করুন।"
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "স্পেসের সংক্ষিপ্ত বিবরণ"
+    },
+    "footnote": {
+      "backToReference": "তথ্যসূত্রে ফিরে যান"
     }
   },
   "featureUi": {
@@ -2286,5 +2296,13 @@
     "error": {
       "title": "স্পেসের থ্রেড লোড করা যায়নি"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "ডায়াগ্রাম",
+    "source": "সোর্স",
+    "showDiagram": "ডায়াগ্রাম দেখান",
+    "showSource": "সোর্স দেখান",
+    "mermaidDiagram": "Mermaid ডায়াগ্রাম",
+    "diagramUnavailable": "সোর্স দেখানো হচ্ছে"
   }
 }

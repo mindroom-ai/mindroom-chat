@@ -333,13 +333,44 @@ vi.mock('../room-nav/SortableRoomList', () => ({
   }: {
     room: { roomId: string };
     linkPath: string;
-    spaceId: string;
+    spaceId?: string;
     removeFromSpaceId?: string;
     subRoom?: boolean;
     activityTimestamp?: number;
   }) => (
     <div
       data-row-room={room.roomId}
+      data-sortable-row
+      data-link={linkPath}
+      data-space={spaceId}
+      data-remove-from-space={removeFromSpaceId}
+      data-sub-room={subRoom}
+      data-activity-ts={activityTimestamp}
+    />
+  ),
+}));
+vi.mock('../room-nav/RoomNavItem', () => ({
+  RoomNavItem: ({
+    room,
+    selected: isSelected,
+    linkPath,
+    spaceId,
+    removeFromSpaceId,
+    subRoom,
+    activityTimestamp,
+  }: {
+    room: { roomId: string };
+    selected?: boolean;
+    linkPath: string;
+    spaceId?: string;
+    removeFromSpaceId?: string;
+    subRoom?: boolean;
+    activityTimestamp?: number;
+  }) => (
+    <div
+      data-row-room={room.roomId}
+      data-static-row
+      data-selected={isSelected ? 'true' : undefined}
       data-link={linkPath}
       data-space={spaceId}
       data-remove-from-space={removeFromSpaceId}
@@ -872,9 +903,9 @@ describe('Space navigation', () => {
     ).toBe(5000);
   });
 
-  it('shows editable empty sub-spaces, reacts to power-level changes, and keeps section headers mounted across toggles', () => {
+  it('shows editable empty sub-spaces, reacts to power-level changes, nests sub-spaces, and keeps headers mounted across toggles', () => {
     const { space, joined, organizer, design, designReview, research, readingList } = rooms.ids;
-    const { store } = renderSpace(
+    const { store, rerender } = renderSpace(
       [space, joined, organizer, design, designReview, research, readingList],
       {
         [joined]: [space],
@@ -909,6 +940,19 @@ describe('Space navigation', () => {
       organizerCategoryId,
       researchCategoryId,
     ]);
+    const headingLevelOf = (categoryId: string) =>
+      renderer!.root
+        .findAll(
+          (node) => typeof node.type === 'string' && 'data-nav-category-header' in node.props
+        )
+        .find(
+          (header) =>
+            header.findAll(
+              (child) => child.type === 'button' && child.props['data-category-id'] === categoryId
+            ).length > 0
+        )?.props['aria-level'];
+    expect(headingLevelOf(organizerCategoryId)).toBe(3);
+    expect(headingLevelOf(researchCategoryId)).toBe(4);
 
     // Unread updates while Research Group is expanded do not re-render its header button.
     const rendersBeforeExpandedUnread = categoryButtonStats.renders.get(researchCategoryId) ?? 0;
@@ -923,11 +967,13 @@ describe('Space navigation', () => {
     // Collapsing and re-expanding keeps the same button mounted (preserving keyboard focus).
     const researchButton = () =>
       sectionButtons().find((node) => node.props['data-category-id'] === researchCategoryId)!;
+    const mountsBeforeToggle = categoryButtonStats.mounts.get(researchCategoryId) ?? 0;
+    const unmountsBeforeToggle = categoryButtonStats.unmounts.get(researchCategoryId) ?? 0;
     act(() => {
       researchButton().props.onClick({ currentTarget: { getAttribute: () => researchCategoryId } });
     });
-    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(1);
-    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(0);
+    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(mountsBeforeToggle);
+    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(unmountsBeforeToggle);
 
     // While collapsed with unread, an unrelated unread update does not re-render this header.
     const rendersWhileCollapsed = categoryButtonStats.renders.get(researchCategoryId) ?? 0;
@@ -945,8 +991,97 @@ describe('Space navigation', () => {
     act(() => {
       researchButton().props.onClick({ currentTarget: { getAttribute: () => researchCategoryId } });
     });
-    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(1);
-    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(0);
+    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(mountsBeforeToggle);
+    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(unmountsBeforeToggle);
+
+    // Collapsing the parent organizer hides nested Research Group headers, rolls up its unread
+    // dot, and keeps only the active descendant room row visible (preserving its owning space).
+    const organizerButton = () =>
+      sectionButtons().find((node) => node.props['data-category-id'] === organizerCategoryId)!;
+    act(() => {
+      organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
+    });
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
+    ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([joined, designReview]);
+    expect(shortcutCalls.at(-1)).toEqual([joined, designReview]);
+    expect(unreadDots(organizerButton())).toHaveLength(1);
+
+    selected.roomId = readingList;
+    rerender();
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
+    ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      readingList,
+    ]);
+    const retainedRow = rows().find((node) => node.props['data-row-room'] === readingList)!;
+    expect(retainedRow.props['data-remove-from-space']).toBe(research);
+    expect(retainedRow.props['data-selected']).toBe('true');
+    // Retained descendant row renders as a plain non-draggable RoomNavItem (not inside a
+    // SortableRoomList), so dragging and releasing it cannot trigger onMoveRoom into organizer.
+    expect(retainedRow.props['data-static-row']).toBe(true);
+    expect(retainedRow.props['data-sortable-row']).toBeUndefined();
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          'data-sortable-list' in node.props &&
+          node.findAll(
+            (child) =>
+              typeof child.type === 'string' && child.props['data-row-room'] === readingList
+          ).length > 0
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          (node.props['data-sortable-list'] === organizer ||
+            node.props['data-sortable-list'] === research)
+      )
+    ).toHaveLength(0);
+    expect(shortcutCalls.at(-1)).toEqual([joined, designReview, readingList]);
+    expect(unreadDots(organizerButton())).toHaveLength(0);
+
+    // Expanding the parent restores nested Research Group and its sortable room row cleanly.
+    act(() => {
+      organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
+    });
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
+      researchCategoryId,
+    ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      readingList,
+    ]);
+    const expandedRow = rows().find((node) => node.props['data-row-room'] === readingList)!;
+    expect(expandedRow.props['data-sortable-row']).toBe(true);
+    expect(expandedRow.props['data-static-row']).toBeUndefined();
+
+    // Collapsing again after selection moves elsewhere hides the descendant row completely.
+    selected.roomId = undefined;
+    rerender();
+    act(() => {
+      organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
+    });
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
+    ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([joined, designReview]);
   });
 
   it('validates cross-section moves, calls moveSpaceRoom, guards in-flight moves, and appends only to manual targets', async () => {
@@ -1496,5 +1631,73 @@ describe('Space navigation', () => {
     expect(subRadios.some((label) => label.includes('Match space'))).toBe(true);
     expect(subEntries).toContain('Space overview');
     expect(subEntries).toContain('Pin to Sidebar');
+  });
+
+  it('renders quiet unread and highlight dots on collapsed Home SpaceRoomSection with subtree roll-up', () => {
+    const { space, joined, design, designReview } = rooms.ids;
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [space, joined, design, designReview] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
+    store.set(roomToUnreadAtom, {
+      type: 'RESET',
+      unreadInfos: [{ roomId: designReview, total: 1, highlight: 0 }],
+    });
+    const closedAtom = makeClosedNavCategoriesAtom('@alice:example.org');
+    const collapsedTop: RenderedSpaceRoomSection = {
+      spaceId: space,
+      isRoot: false,
+      parentSpaceId: undefined,
+      ancestorSpaceIds: [],
+      isEmpty: false,
+      categoryId: makeNavCategoryId('home', 'space', space),
+      ownRoomsByName: [joined],
+      scopeRoomsByName: [joined],
+      closed: true,
+      tree: { top: [joined], children: new Map() },
+      orderedTop: [joined],
+      shownRoomIds: [joined],
+      listedRoomIds: [],
+      mode: 'name',
+      showTimes: false,
+      inheritFrom: undefined,
+    };
+
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <ClosedNavCategoriesProvider value={closedAtom}>
+            <SpaceRoomSection
+              section={collapsedTop}
+              subtreeShownRoomIds={[joined, designReview]}
+              spaceId={space}
+              spaceIdOrAlias={space}
+              selectedRoomId={undefined}
+              onCategoryClick={vi.fn()}
+              onReorder={vi.fn()}
+              roomPath={getHomeRoomPath}
+              showOverview
+              quietUnread
+            />
+          </ClosedNavCategoriesProvider>
+        </Provider>
+      );
+    });
+
+    // Plain unread rolled up from nested sub-space: data-unread present, no data-highlight.
+    const plainDot = unreadDots(sectionButtons()[0]!);
+    expect(plainDot).toHaveLength(1);
+    expect(plainDot[0]!.props['data-highlight']).toBeUndefined();
+
+    // Upgrading to a mention sets data-highlight="true".
+    act(() =>
+      store.set(roomToUnreadAtom, {
+        type: 'RESET',
+        unreadInfos: [{ roomId: designReview, total: 2, highlight: 1 }],
+      })
+    );
+    const highlightDot = unreadDots(sectionButtons()[0]!);
+    expect(highlightDot).toHaveLength(1);
+    expect(highlightDot[0]!.props['data-highlight']).toBe('true');
   });
 });

@@ -72,4 +72,39 @@ describe('closed navigation categories', () => {
     ]);
     expect(secondRefreshStore.get(secondRefreshAtom)).toEqual(new Set());
   });
+
+  it('applies INIT_CLOSED once per category and respects prior or subsequent manual toggles', () => {
+    const store = createStore();
+    const categories = makeClosedNavCategoriesAtom(USER_ID);
+
+    // A manual toggle before INIT_CLOSED records the category as initialized so INIT_CLOSED
+    // never overrides the user's explicit open choice.
+    store.set(categories, { type: 'PUT', categoryId: 'home|space|!manual' });
+    store.set(categories, { type: 'DELETE', categoryId: 'home|space|!manual' });
+
+    store.set(categories, {
+      type: 'INIT_CLOSED',
+      categoryIds: ['home|space|!manual', 'home|space|!work', 'home|space|!garden'],
+    });
+    expect(store.get(categories)).toEqual(new Set(['home|space|!work', 'home|space|!garden']));
+    expect(JSON.parse(storage.get(INITIALIZED_STORE_KEY) ?? '[]')).toEqual([
+      'home|space|!manual',
+      'home|space|!work',
+      'home|space|!garden',
+    ]);
+
+    // Expanding Work persists across reload and subsequent INIT_CLOSED with a new space only
+    // closes the brand-new space.
+    store.set(categories, { type: 'DELETE', categoryId: 'home|space|!work' });
+
+    const reloadedStore = createStore();
+    const reloaded = makeClosedNavCategoriesAtom(USER_ID);
+    reloadedStore.set(reloaded, {
+      type: 'INIT_CLOSED',
+      categoryIds: ['home|space|!work', 'home|space|!garden', 'home|space|!fresh'],
+    });
+    expect(reloadedStore.get(reloaded)).toEqual(
+      new Set(['home|space|!garden', 'home|space|!fresh'])
+    );
+  });
 });

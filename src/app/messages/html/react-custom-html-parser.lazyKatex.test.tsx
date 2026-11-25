@@ -17,6 +17,7 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
 }));
+vi.mock('../../rich-text/Footnote.css', () => ({}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({}));
 vi.mock('./HtmlBlocks.css', () => ({}));
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({}));

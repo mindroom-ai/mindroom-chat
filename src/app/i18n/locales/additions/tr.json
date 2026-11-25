@@ -270,6 +270,13 @@
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
     },
+    "callout": {
+      "note": "Not",
+      "tip": "İpucu",
+      "important": "Önemli",
+      "warning": "Uyarı",
+      "caution": "Dikkat"
+    },
     "deviceVerification": {
       "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Alana genel bakış"
+    },
+    "footnote": {
+      "backToReference": "Başvuruya dön"
     }
   },
   "featureUi": {
@@ -2286,5 +2296,13 @@
     "error": {
       "title": "Alan iş parçacıkları yüklenemedi"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diyagram",
+    "source": "Kaynak",
+    "showDiagram": "Diyagramı göster",
+    "showSource": "Kaynağı göster",
+    "mermaidDiagram": "Mermaid diyagramı",
+    "diagramUnavailable": "Kaynak gösteriliyor"
   }
 }

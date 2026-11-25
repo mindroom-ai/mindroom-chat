@@ -278,6 +278,13 @@
       "threadIn": "Tópico em {{room}}",
       "messageElsewhere": "Mensagem noutra sala"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Dica",
+      "important": "Importante",
+      "warning": "Aviso",
+      "caution": "Cuidado"
+    },
     "deviceVerification": {
       "acceptStalled": "A outra sessão não respondeu. Feche isto e inicie a verificação novamente."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Visão geral do espaço"
+    },
+    "footnote": {
+      "backToReference": "Voltar para a referência"
     }
   },
   "featureUi": {
@@ -2365,5 +2375,13 @@
     "error": {
       "title": "Não foi possível carregar as conversas do espaço"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

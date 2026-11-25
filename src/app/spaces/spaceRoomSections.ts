@@ -5,6 +5,7 @@ import { reachesSpaceDirectly } from '../matrix/state/spaceAncestors';
 import { getJoinedSubspaces, getSpaceOwnRooms } from '../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents, RoomToUnread } from '../matrix/types/room';
 import { makeNavCategoryId } from '../ui/nav/closedNavCategories';
+import { type AttachedNode, attachSpaceSectionNodes } from './spaceSectionTree';
 
 export type SpaceRoomSection = {
   /** The space whose rooms this section lists (`rootSpaceId` for the top Rooms section). */
@@ -246,11 +247,12 @@ export type HomeSpaceSections = {
 };
 
 /**
- * Splits Home's visible ordinary rooms into unspaced rooms and flat ordered space sections:
+ * Splits Home's visible ordinary rooms into unspaced rooms and ordered space sections:
  * spaces follow `railSpaceIds` with each space's joined descendants immediately below in pre-order
  * DFS, then any remaining joined spaces (e.g. mutual cycles or sub-spaces whose parent was left).
  * Rooms listed in any Matrix descendant sub-space are omitted from ancestor spaces regardless of
- * rail pin order, and empty spaces are kept only when `canEditSpace` allows adding rooms.
+ * rail pin order. Read-only spaces with 0 direct rooms are kept when they have at least one kept
+ * descendant section so parent containers stay collapsible in Home's nested tree.
  */
 export const getHomeSpaceSections = (
   mx: MatrixClient,
@@ -315,19 +317,32 @@ export const getHomeSpaceSections = (
   );
   const bySpace = new Map(built.map((section, index) => [section.spaceId, { section, index }]));
 
-  const sections = built
-    .map((section, index) => {
-      const listedBelow = new Set<string>();
-      descendantsOf.get(section.spaceId)?.forEach((descendantId) => {
-        const entry = bySpace.get(descendantId);
-        if (!entry) return;
-        const mutualCycle = descendantsOf.get(descendantId)?.has(section.spaceId) ?? false;
-        if (mutualCycle && entry.index < index) return;
-        entry.section.scopeRoomsByName.forEach((roomId) => listedBelow.add(roomId));
-      });
-      return omitRooms(section, listedBelow);
-    })
-    .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
+  const deduped = built.map((section, index) => {
+    const listedBelow = new Set<string>();
+    descendantsOf.get(section.spaceId)?.forEach((descendantId) => {
+      const entry = bySpace.get(descendantId);
+      if (!entry) return;
+      const mutualCycle = descendantsOf.get(descendantId)?.has(section.spaceId) ?? false;
+      if (mutualCycle && entry.index < index) return;
+      entry.section.scopeRoomsByName.forEach((roomId) => listedBelow.add(roomId));
+    });
+    return omitRooms(section, listedBelow);
+  });
+
+  // Post-order prune on the display tree: keep empty read-only containers only when they have a
+  // kept descendant section, dropping truly empty read-only branches.
+  const keptSpaceIds = new Set<string>();
+  const prune = (node: AttachedNode<SpaceRoomSection>): boolean => {
+    let hasKeptDescendant = false;
+    node.children.forEach((child) => {
+      if (prune(child)) hasKeptDescendant = true;
+    });
+    const keep = !node.section.isEmpty || canEditSpace(node.section.spaceId) || hasKeptDescendant;
+    if (keep) keptSpaceIds.add(node.section.spaceId);
+    return keep;
+  };
+  attachSpaceSectionNodes(deduped).forEach(prune);
+  const sections = deduped.filter((section) => keptSpaceIds.has(section.spaceId));
 
   return { unspacedByName, sections };
 };
@@ -361,20 +376,3 @@ export const getCollapsedSectionUnread = (
   if (!hasUnread) return undefined;
   return highlight ? COLLAPSED_HIGHLIGHT : COLLAPSED_UNREAD;
 };
-
-/**
- * Deduplicated room IDs across rendered sections for keyboard room-stepping, preserving first
- * occurrence in rendered order (each collapsed section contributes only its lone visible room).
- */
-export const collectShortcutRoomIds = (
-  sections: readonly {
-    closed: boolean;
-    listedRoomIds: readonly string[];
-    shownRoomIds: readonly string[];
-  }[]
-): string[] =>
-  Array.from(
-    new Set(
-      sections.flatMap((section) => (section.closed ? section.listedRoomIds : section.shownRoomIds))
-    )
-  );

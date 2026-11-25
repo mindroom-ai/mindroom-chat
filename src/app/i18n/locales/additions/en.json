@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
     },
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
     "deviceVerification": {
       "acceptStalled": "The other session did not answer. Close this and start the verification again."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space overview"
+    },
+    "footnote": {
+      "backToReference": "Back to reference"
     }
   },
   "featureUi": {
@@ -2286,5 +2296,13 @@
     "error": {
       "title": "Could not load space threads"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }

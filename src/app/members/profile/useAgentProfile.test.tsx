@@ -11,9 +11,10 @@ const server = vi.hoisted((): { apiUrl: string | undefined; pending: boolean } =
 const send = vi.hoisted(() => vi.fn<(path: string, init: RequestInit) => Promise<Response>>());
 
 const client = vi.hoisted(() => ({}));
+const useAgentMindroomServer = vi.hoisted(() => vi.fn((..._args: unknown[]) => server));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../computer/useAgentMindroomServer', () => ({
-  useAgentMindroomServer: () => server,
+  useAgentMindroomServer,
 }));
 vi.mock('../../computer/clientSessions', () => ({ clientSessions: () => ({ send }) }));
 
@@ -38,6 +39,7 @@ beforeEach(() => {
   membership.me = 'join';
   membership.agent = 'join';
   send.mockReset();
+  useAgentMindroomServer.mockClear();
 });
 afterEach(() => vi.useRealTimers());
 
@@ -47,6 +49,9 @@ describe('useAgentProfile', () => {
     const first = open();
     expect(first.result.current.status).toBe('loading');
     await waitFor(() => expect(first.result.current.status).toBe('ready'));
+    expect(useAgentMindroomServer).toHaveBeenCalledWith(client, room.roomId, AGENT, {
+      trust: 'room',
+    });
     expect(send).toHaveBeenCalledWith(
       '/api/rooms/!room%3Ax/agents/%40mindroom_helper%3Ax/profile',
       expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) })

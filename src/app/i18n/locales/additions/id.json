@@ -262,6 +262,13 @@
       "threadIn": "Utas di {{room}}",
       "messageElsewhere": "Pesan di ruang lain"
     },
+    "callout": {
+      "note": "Catatan",
+      "tip": "Tips",
+      "important": "Penting",
+      "warning": "Peringatan",
+      "caution": "Perhatian"
+    },
     "deviceVerification": {
       "acceptStalled": "Sesi lain tidak menjawab. Tutup ini dan mulai verifikasi lagi."
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "Ikhtisar space"
+    },
+    "footnote": {
+      "backToReference": "Kembali ke referensi"
     }
   },
   "featureUi": {
@@ -2207,5 +2217,13 @@
     "error": {
       "title": "Tidak dapat memuat utas space"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Sumber",
+    "showDiagram": "Tampilkan diagram",
+    "showSource": "Tampilkan sumber",
+    "mermaidDiagram": "Diagram Mermaid",
+    "diagramUnavailable": "Menampilkan sumber"
   }
 }

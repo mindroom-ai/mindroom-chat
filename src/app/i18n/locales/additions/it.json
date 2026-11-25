@@ -278,6 +278,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Messaggio in un'altra stanza"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Suggerimento",
+      "important": "Importante",
+      "warning": "Avviso",
+      "caution": "Attenzione"
+    },
     "deviceVerification": {
       "acceptStalled": "L'altra sessione non ha risposto. Chiudi qui e avvia di nuovo la verifica."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Panoramica dello spazio"
+    },
+    "footnote": {
+      "backToReference": "Torna al riferimento"
     }
   },
   "featureUi": {
@@ -2365,5 +2375,13 @@
     "error": {
       "title": "Impossibile caricare le discussioni dello spazio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramma",
+    "source": "Sorgente",
+    "showDiagram": "Mostra diagramma",
+    "showSource": "Mostra sorgente",
+    "mermaidDiagram": "Diagramma Mermaid",
+    "diagramUnavailable": "Sorgente visualizzato"
   }
 }

@@ -278,6 +278,13 @@
       "threadIn": "Hilo en {{room}}",
       "messageElsewhere": "Mensaje en otra sala"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Consejo",
+      "important": "Importante",
+      "warning": "Advertencia",
+      "caution": "Precaución"
+    },
     "deviceVerification": {
       "acceptStalled": "La otra sesión no respondió. Cierra esto y vuelve a iniciar la verificación."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Resumen del espacio"
+    },
+    "footnote": {
+      "backToReference": "Volver a la referencia"
     }
   },
   "featureUi": {
@@ -2365,5 +2375,13 @@
     "error": {
       "title": "No se pudieron cargar los hilos del espacio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama de Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

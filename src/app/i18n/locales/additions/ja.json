@@ -262,6 +262,13 @@
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
     },
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
     "deviceVerification": {
       "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "スペースの概要"
+    },
+    "footnote": {
+      "backToReference": "参照元に戻る"
     }
   },
   "featureUi": {
@@ -2207,5 +2217,13 @@
     "error": {
       "title": "スペースのスレッドを読み込めませんでした"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "図",
+    "source": "ソース",
+    "showDiagram": "図を表示",
+    "showSource": "ソースを表示",
+    "mermaidDiagram": "Mermaid 図",
+    "diagramUnavailable": "ソースを表示中"
   }
 }

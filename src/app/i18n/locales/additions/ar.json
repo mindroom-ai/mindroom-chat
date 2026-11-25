@@ -302,6 +302,13 @@
       "threadIn": "سلسلة محادثة في ⁨{{room}}⁩",
       "messageElsewhere": "رسالة في غرفة أخرى"
     },
+    "callout": {
+      "note": "ملاحظة",
+      "tip": "نصيحة",
+      "important": "مهم",
+      "warning": "تحذير",
+      "caution": "تنبيه"
+    },
     "deviceVerification": {
       "acceptStalled": "لم تستجب الجلسة الأخرى. أغلق هذه النافذة وابدأ التحقق مرة أخرى."
     },
@@ -422,6 +429,9 @@
     },
     "space": {
       "overview": "نظرة عامة على المساحة"
+    },
+    "footnote": {
+      "backToReference": "العودة إلى المرجع"
     }
   },
   "featureUi": {
@@ -2602,5 +2612,13 @@
     "error": {
       "title": "تعذر تحميل سلاسل رسائل المساحة"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "مخطط",
+    "source": "المصدر",
+    "showDiagram": "إظهار المخطط",
+    "showSource": "إظهار المصدر",
+    "mermaidDiagram": "مخطط Mermaid",
+    "diagramUnavailable": "عرض المصدر"
   }
 }

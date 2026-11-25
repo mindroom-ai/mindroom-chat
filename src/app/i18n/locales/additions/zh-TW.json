@@ -262,6 +262,13 @@
       "threadIn": "{{room}} 中的討論串",
       "messageElsewhere": "其他房間中的訊息"
     },
+    "callout": {
+      "note": "備註",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "小心"
+    },
     "deviceVerification": {
       "acceptStalled": "另一個工作階段沒有回應。請關閉此視窗並重新開始驗證。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "空間概覽"
+    },
+    "footnote": {
+      "backToReference": "返回引用處"
     }
   },
   "featureUi": {
@@ -2207,5 +2217,13 @@
     "error": {
       "title": "無法載入空間討論串"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "圖表",
+    "source": "原始碼",
+    "showDiagram": "顯示圖表",
+    "showSource": "顯示原始碼",
+    "mermaidDiagram": "Mermaid 圖表",
+    "diagramUnavailable": "正在顯示原始碼"
   }
 }

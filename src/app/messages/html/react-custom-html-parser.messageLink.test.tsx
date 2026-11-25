@@ -18,6 +18,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
   Emoticon: () => 'Emoticon',
 }));
 vi.mock('../../rich-text/matrixMath.css', () => ({ MathInline: 'MathInline' }));
+vi.mock('../../rich-text/Footnote.css', () => ({}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({}));
 vi.mock('./HtmlBlocks.css', () => ({}));
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({}));

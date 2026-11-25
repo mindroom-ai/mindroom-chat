@@ -262,6 +262,13 @@
       "threadIn": "{{room}}의 스레드",
       "messageElsewhere": "다른 방의 메시지"
     },
+    "callout": {
+      "note": "참고",
+      "tip": "팁",
+      "important": "중요",
+      "warning": "경고",
+      "caution": "주의"
+    },
     "deviceVerification": {
       "acceptStalled": "다른 세션이 응답하지 않았습니다. 이 창을 닫고 확인을 다시 시작하세요."
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "스페이스 개요"
+    },
+    "footnote": {
+      "backToReference": "참조 위치로 돌아가기"
     }
   },
   "featureUi": {
@@ -2207,5 +2217,13 @@
     "error": {
       "title": "스페이스 스레드를 불러올 수 없습니다"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "다이어그램",
+    "source": "소스",
+    "showDiagram": "다이어그램 보기",
+    "showSource": "소스 보기",
+    "mermaidDiagram": "Mermaid 다이어그램",
+    "diagramUnavailable": "소스 표시 중"
   }
 }

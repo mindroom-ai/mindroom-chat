@@ -278,6 +278,13 @@
       "threadIn": "Fil dans {{room}}",
       "messageElsewhere": "Message dans une autre salle"
     },
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "Important",
+      "warning": "Avertissement",
+      "caution": "Attention"
+    },
     "deviceVerification": {
       "acceptStalled": "L'autre session n'a pas répondu. Fermez ceci et relancez la vérification."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Vue d'ensemble de l'espace"
+    },
+    "footnote": {
+      "backToReference": "Retour à la référence"
     }
   },
   "featureUi": {
@@ -2365,5 +2375,13 @@
     "error": {
       "title": "Impossible de charger les fils de l’espace"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramme",
+    "source": "Source",
+    "showDiagram": "Afficher le diagramme",
+    "showSource": "Afficher la source",
+    "mermaidDiagram": "Diagramme Mermaid",
+    "diagramUnavailable": "Affichage de la source"
   }
 }

@@ -3,6 +3,8 @@ import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_HTML_REG_G, MINDROOM_TOOL_REF_ICON } from '../html/blocks';
 import {
+  isFootnoteHref,
+  isFootnoteId,
   sanitizeCustomHtml,
   sanitizeText,
   type SanitizeCustomHtmlOptions,
@@ -71,6 +73,34 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
 
 /** Whether the sanitized HTML shows anything. */
 const rendersVisibleContent = (html: string): boolean => hasVisibleContent(parseHtmlToDom(html));
+
+const collectFootnoteAnchors = (
+  nodes: ChildNode[],
+  ids = new Set<string>(),
+  targets = new Set<string>()
+): { ids: Set<string>; targets: Set<string> } => {
+  for (const node of nodes) {
+    if (!isDomElementNode(node)) continue;
+    if ((node.name === 'a' || node.name === 'li') && isFootnoteId(node.attribs.id)) {
+      ids.add(node.attribs.id);
+    }
+    if (node.name === 'a' && isFootnoteHref(node.attribs.href)) {
+      targets.add(node.attribs.href.slice(1));
+    }
+    collectFootnoteAnchors(node.children, ids, targets);
+  }
+  return { ids, targets };
+};
+
+/** Whether any footnote link in one half targets a footnote anchor only in the other half. */
+const hasCrossHalfFootnote = (headHtml: string, tailHtml: string): boolean => {
+  if (!headHtml.includes('#fn') && !tailHtml.includes('#fn')) return false;
+  const head = collectFootnoteAnchors(parseHtmlToDom(headHtml));
+  const tail = collectFootnoteAnchors(parseHtmlToDom(tailHtml));
+  for (const target of head.targets) if (!head.ids.has(target) && tail.ids.has(target)) return true;
+  for (const target of tail.targets) if (!tail.ids.has(target) && head.ids.has(target)) return true;
+  return false;
+};
 
 // A marker the renderer draws from the start of a paragraph, after line breaks or the markers
 // before it (`takeLeadingToolRefs`), and the breaks that follow the last one.
@@ -147,6 +177,7 @@ export const splitFinishedWork = (
       if (!cut) return undefined;
       const head = `${serialize(0, end - 1)}${cut[0]}`;
       const answer = `${cut[1]}${tail}`;
+      if (hasCrossHalfFootnote(head, answer)) return undefined;
       return rendersVisibleContent(withoutDrawnCalls(head)) && rendersVisibleContent(answer)
         ? { head, tail: answer }
         : undefined;
