@@ -421,6 +421,7 @@
       },
       "sidebar": {
         "title": "Kenar çubuğu",
+        "navigation": "Gezinme",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
@@ -450,14 +451,15 @@
       "menu": {
         "groups": {
           "you": "Siz",
-          "app": "Bu uygulama",
-          "agents": "Ajanlar ve bağlantılar",
-          "help": "Yardım ve gelişmiş"
+          "app": "Uygulama",
+          "mindroom": "MindRoom",
+          "system": "Sistem"
         },
         "pages": {
           "privacy": "Gizlilik ve güvenlik",
           "language": "Dil ve bölge",
-          "storage": "Depolama ve çevrimdışı"
+          "storage": "Depolama ve çevrimdışı",
+          "agentsServers": "Ajanlar ve sunucular"
         }
       },
       "search": {
@@ -472,7 +474,9 @@
       "advanced": "Gelişmiş",
       "sections": {
         "display": "Görünüm",
-        "privacy": "Gizlilik"
+        "privacy": "Gizlilik",
+        "replying": "Yanıtlama",
+        "connectionsComputers": "Bağlantılar ve bilgisayarlar"
       },
       "computers": {
         "inUse": "Kullanılan sunucu",

@@ -480,7 +480,9 @@ def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
 # Processes
 
 
-def alive(pid: int | None, marker: str) -> bool:
+def alive(pid: int | None, marker: str, *, process: subprocess.Popen[bytes] | None = None) -> bool:
+    if process is not None:
+        return process.poll() is None
     if not pid:
         return False
     try:
@@ -497,24 +499,28 @@ def alive(pid: int | None, marker: str) -> bool:
     return marker in cmdline
 
 
-def stop_process(pid: int | None, marker: str) -> None:
+def stop_process(pid: int | None, marker: str, *, process: subprocess.Popen[bytes] | None = None) -> None:
     """Stop a process group this script started; a PID that now names another program is left alone."""
-    if not alive(pid, marker):
+    if not alive(pid, marker, process=process):
         return
-    assert pid is not None
+    pid = process.pid if process is not None else pid
+    if not pid:
+        return
     with contextlib.suppress(ProcessLookupError):
         os.killpg(pid, signal.SIGTERM)
     deadline = time.monotonic() + 20
-    while alive(pid, marker) and time.monotonic() < deadline:
+    while alive(pid, marker, process=process) and time.monotonic() < deadline:
         time.sleep(0.2)
-    if alive(pid, marker):
+    if alive(pid, marker, process=process):
         with contextlib.suppress(ProcessLookupError):
             os.killpg(pid, signal.SIGKILL)
+        if process is not None:
+            process.wait()
 
 
-def start_process(command: list[str], *, cwd: Path, env: dict[str, str], log_path: Path) -> int:
+def start_process(command: list[str], *, cwd: Path, env: dict[str, str], log_path: Path) -> subprocess.Popen[bytes]:
     with log_path.open("ab") as output:
-        process = subprocess.Popen(
+        return subprocess.Popen(
             command,
             cwd=cwd,
             env=env,
@@ -523,7 +529,10 @@ def start_process(command: list[str], *, cwd: Path, env: dict[str, str], log_pat
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-    return process.pid
+
+
+def exit_status(process: subprocess.Popen[bytes]) -> str:
+    return "" if process.returncode is None else f" (exit {process.returncode})"
 
 
 # Configuration
@@ -965,10 +974,14 @@ def running(state: dict | None, slot_dir: Path) -> bool:
     return alive(pids.get("backend"), marker) and stub_ok and runner_ok
 
 
-def stop_processes(slot_dir: Path) -> None:
+def stop_processes(slot_dir: Path, processes: dict[str, subprocess.Popen[bytes]] | None = None) -> None:
     state = read_state(slot_dir) or {}
     for name in ("backend", "stub", "runner"):
-        stop_process((state.get("pids") or {}).get(name), str(slot_dir))
+        process = (processes or {}).get(name)
+        if process is not None:
+            stop_process(process.pid, str(slot_dir), process=process)
+        else:
+            stop_process((state.get("pids") or {}).get(name), str(slot_dir))
 
 
 def remove_workers(slot: int) -> None:
@@ -1267,11 +1280,12 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             EXIT_NO_KEYS,
         )
     stop(slot_dir)
+    processes: dict[str, subprocess.Popen[bytes]] = {}
     try:
-        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, plugin_dirs, transcription)
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, plugin_dirs, transcription, processes)
     except BaseException:
         # Whatever this start launched stops; its logs stay in the slot directory until the next start.
-        stop_processes(slot_dir)
+        stop_processes(slot_dir, processes)
         raise
 
 
@@ -1286,9 +1300,12 @@ def start(
     keys: dict[str, str],
     plugin_dirs: list[dict],
     transcription: dict | None,
+    processes: dict[str, subprocess.Popen[bytes]] | None = None,
 ) -> dict:
     """Starts the stack with the checked `plugin_dirs`; `keys` (paid models only) go to the backend's process
     environment and nowhere else."""
+    if processes is None:
+        processes = {}
     calls = calls_setting(args)
     venv_bin = backend_bin(checkout, sha, args)
     computers = computers_setting(args, sha)
@@ -1401,7 +1418,7 @@ def start(
     }
 
     if not real:
-        state["pids"]["stub"] = start_process(
+        processes["stub"] = start_process(
             [
                 str(venv_bin / "python"),
                 str(HERE / "stub_model.py"),
@@ -1423,6 +1440,7 @@ def start(
             env=env,
             log_path=slot_dir / "stub.log",
         )
+        state["pids"]["stub"] = processes["stub"].pid
         (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
         wait_until("the stub model", lambda: http_json("GET", f"{stub_url}/models")[0] == 200, 60, 0.5)
 
@@ -1436,26 +1454,30 @@ def start(
             "MINDROOM_SANDBOX_PROXY_TOKEN": runner_token,
             "MINDROOM_STORAGE_PATH": str(slot_dir / "storage"),
         }
-        state["pids"]["runner"] = start_process(
+        runner = start_process(
             [str(venv_bin / "python"), "-P", "-s", "-c", SANDBOX_RUNNER, str(port["runner"]), str(slot_dir)],
             cwd=slot_dir / "runner",
             env=runner_env_vars,
             log_path=slot_dir / "runner.log",
         )
+        processes["runner"] = runner
+        state["pids"]["runner"] = runner.pid
         (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
         runner_url = f"http://127.0.0.1:{port['runner']}/healthz"
 
         def runner_ready() -> bool:
-            if not alive(state["pids"]["runner"], str(slot_dir)):
+            if not alive(runner.pid, str(slot_dir), process=runner):
                 tail = (slot_dir / "runner.log").read_text(errors="replace")[-4000:]
-                raise StackError(f"the sandbox runner exited while starting\n--- runner.log ---\n{tail}")
+                raise StackError(
+                    f"the sandbox runner exited while starting{exit_status(runner)}\n--- runner.log ---\n{tail}"
+                )
             return http_json("GET", runner_url)[0] == 200
 
         wait_until("the sandbox runner", runner_ready, 120, 0.5)
 
     voice = f", calls on {calls['model']}" if calls else ""
     log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model{voice}) on {api_url}")
-    state["pids"]["backend"] = start_process(
+    backend = start_process(
         [
             str(venv_bin / "mindroom"),
             "run",
@@ -1473,6 +1495,8 @@ def start(
         env=backend_env,
         log_path=slot_dir / "backend.log",
     )
+    processes["backend"] = backend
+    state["pids"]["backend"] = backend.pid
     (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
 
     def backend_log_tail() -> str:
@@ -1487,8 +1511,8 @@ def start(
         return "\n--- backend.log ---\n" + tail
 
     def backend_alive() -> None:
-        if not alive(state["pids"]["backend"], str(slot_dir)):
-            raise StackError(f"MindRoom exited while starting{backend_log_tail()}")
+        if not alive(backend.pid, str(slot_dir), process=backend):
+            raise StackError(f"MindRoom exited while starting{exit_status(backend)}{backend_log_tail()}")
 
     def healthy() -> bool:
         backend_alive()

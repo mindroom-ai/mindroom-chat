@@ -32,11 +32,10 @@ describe('getSettingsMenuItems', () => {
       'Privacy & security',
       'Appearance',
       'Chats',
+      'Archived Rooms',
       'Sidebar',
       'Language & region',
-      'Connected accounts',
-      'Computers',
-      'Archived Rooms',
+      'Agents & servers',
       'Storage & offline',
       'Developer Tools',
       'About',
@@ -50,13 +49,16 @@ describe('getSettingsMenuItems', () => {
       );
 
     expect(shown(false)).toBeUndefined();
-    expect(shown(true)).toMatchObject({ name: 'Server accounts', group: 'server' });
+    expect(shown(true)).toMatchObject({ name: 'Server accounts', group: 'system' });
   });
 
-  it('leaves Connections out of the apps, which cannot open its window', () => {
+  it('keeps Agents & servers on native apps', () => {
     const items = getSettingsMenuItems(false, t, true);
 
-    expect(items.some((item) => item.page === SettingsPages.ConnectionsPage)).toBe(false);
+    expect(items.find((item) => item.page === SettingsPages.MindroomPage)).toMatchObject({
+      name: 'Agents & servers',
+      group: 'mindroom',
+    });
   });
 
   it('shows Plugins under app between Sidebar and Language when hasPlugins is true', () => {
@@ -91,6 +93,12 @@ describe('resolveSettingsInitialPage', () => {
     );
     expect(resolveSettingsInitialPage('devices', ScreenSize.Mobile, false)).toBe(
       SettingsPages.PrivacyPage
+    );
+    expect(resolveSettingsInitialPage('connections', ScreenSize.Desktop, false)).toBe(
+      SettingsPages.MindroomPage
+    );
+    expect(resolveSettingsInitialPage('computers', ScreenSize.Desktop, false)).toBe(
+      SettingsPages.MindroomPage
     );
   });
 

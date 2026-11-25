@@ -434,6 +434,7 @@
       },
       "sidebar": {
         "title": "Barra lateral",
+        "navigation": "Navegación",
         "threads": "Mostrar Hilos en la barra lateral",
         "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
         "canvasesDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
@@ -463,14 +464,15 @@
       "menu": {
         "groups": {
           "you": "Tú",
-          "app": "Esta app",
-          "agents": "Agentes y conexiones",
-          "help": "Ayuda y avanzado"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "Sistema"
         },
         "pages": {
           "privacy": "Privacidad y seguridad",
           "language": "Idioma y región",
-          "storage": "Almacenamiento y sin conexión"
+          "storage": "Almacenamiento y sin conexión",
+          "agentsServers": "Agentes y servidores"
         }
       },
       "search": {
@@ -485,7 +487,9 @@
       "advanced": "Avanzado",
       "sections": {
         "display": "Pantalla",
-        "privacy": "Privacidad"
+        "privacy": "Privacidad",
+        "replying": "Respuestas",
+        "connectionsComputers": "Conexiones y ordenadores"
       },
       "computers": {
         "inUse": "Servidor en uso",

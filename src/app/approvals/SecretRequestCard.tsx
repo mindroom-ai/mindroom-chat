@@ -164,7 +164,7 @@ function SecretRequestAnswer({
         <Text size="T200">{t('mindroomUi.messages.secretRequestCard.unavailable')}</Text>
         <Text size="T200" className={sectionCss.SectionMeta}>
           {t('mindroomUi.messages.secretRequestCard.unavailableHint', {
-            page: t('settings.general.computers.sectionTitle'),
+            page: t('featureUi.settings.menu.pages.agentsServers'),
           })}
         </Text>
       </>

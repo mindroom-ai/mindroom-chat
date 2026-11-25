@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixEvent, type IContent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { SUPPRESS_PUSH_KEY } from '../matrix/protocol/aiRun';
 import {
   MESSAGE_NOTIFY_MAX_AGE_MS,
   getCompletedAgentReply,
   getEventThreadId,
   isNoticeOnScreen,
+  isPushSuppressed,
   readMessageNotice,
 } from './messageNotificationRules';
 import { defined } from '../../test/utils/defined';
@@ -26,6 +28,17 @@ const makeEvent = (content: IContent, extra: Partial<Record<string, unknown>> = 
     content,
     ...extra,
   });
+};
+
+const makeDecryptedEvent = async (clearContent: IContent, wireExtra: IContent = {}) => {
+  const event = makeEvent(
+    { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'opaque', session_id: 'S', ...wireExtra },
+    { type: 'm.room.encrypted' }
+  );
+  await event.attemptDecryption({
+    decryptEvent: async () => ({ clearEvent: { type: 'm.room.message', content: clearContent } }),
+  } as never);
+  return event;
 };
 
 type Actions = { notify: boolean; tweaks?: { sound?: string; highlight?: boolean } };
@@ -130,6 +143,55 @@ describe('readMessageNotice', () => {
     expect(getPushActionsForEvent).not.toHaveBeenCalled();
   });
 
+  it('stays quiet when io.mindroom.suppress_push is true, and notifies when false or absent', () => {
+    const { client, room, getPushActionsForEvent } = setup(loud);
+    const suppressed = makeEvent({
+      msgtype: 'm.text',
+      body: 'intermediate update',
+      [SUPPRESS_PUSH_KEY]: true,
+    });
+    expect(readMessageNotice(client, room, suppressed, NOW)).toBeUndefined();
+    expect(getPushActionsForEvent).not.toHaveBeenCalled();
+
+    const explicitFalse = makeEvent({
+      msgtype: 'm.text',
+      body: 'still notify',
+      [SUPPRESS_PUSH_KEY]: false,
+    });
+    expect(readMessageNotice(client, room, explicitFalse, NOW)).toMatchObject({
+      eventId: explicitFalse.getId(),
+      content: { body: 'still notify' },
+    });
+  });
+
+  it('honors io.mindroom.suppress_push on encrypted events from wire or decrypted content', async () => {
+    const { client, room, getPushActionsForEvent } = setup(loud);
+    const wireSuppressed = await makeDecryptedEvent(
+      { msgtype: 'm.text', body: 'hoisted' },
+      { [SUPPRESS_PUSH_KEY]: true }
+    );
+    const clearSuppressed = await makeDecryptedEvent({
+      msgtype: 'm.text',
+      body: 'inside',
+      [SUPPRESS_PUSH_KEY]: true,
+    });
+    expect(isPushSuppressed(wireSuppressed)).toBe(true);
+    expect(isPushSuppressed(clearSuppressed)).toBe(true);
+    expect(readMessageNotice(client, room, wireSuppressed, NOW)).toBeUndefined();
+    expect(readMessageNotice(client, room, clearSuppressed, NOW)).toBeUndefined();
+    expect(getPushActionsForEvent).not.toHaveBeenCalled();
+
+    const unsuppressed = await makeDecryptedEvent(
+      { msgtype: 'm.text', body: 'clear reply', [SUPPRESS_PUSH_KEY]: false },
+      { [SUPPRESS_PUSH_KEY]: false }
+    );
+    expect(isPushSuppressed(unsuppressed)).toBe(false);
+    expect(readMessageNotice(client, room, unsuppressed, NOW)).toMatchObject({
+      eventId: unsuppressed.getId(),
+      content: { body: 'clear reply' },
+    });
+  });
+
   describe('a streamed agent reply', () => {
     const streamed = () =>
       makeEvent({
@@ -138,14 +200,22 @@ describe('readMessageNotice', () => {
         'io.mindroom.stream_status': 'streaming',
         'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
       });
-    const finish = (reply: MatrixEvent, status = 'completed', msgtype = 'm.text') =>
+    const finish = (
+      reply: MatrixEvent,
+      status = 'completed',
+      msgtype = 'm.text',
+      outerExtra: IContent = {},
+      newContentExtra: IContent = {}
+    ) =>
       makeEvent({
         msgtype: 'm.text',
         body: '* @me:example.org the answer',
+        ...outerExtra,
         'm.new_content': {
           msgtype,
           body: '@me:example.org the answer',
           'io.mindroom.stream_status': status,
+          ...newContentExtra,
         },
         'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
       });
@@ -242,6 +312,45 @@ describe('readMessageNotice', () => {
       const other = setup(loud, [sentFinished]);
       expect(getCompletedAgentReply(other.room, finish(sentFinished))).toBeUndefined();
       expect(getCompletedAgentReply(setup(loud).room, finish(reply))).toBeUndefined();
+    });
+
+    it('stays quiet when the finishing edit suppresses push in m.new_content or outer wire content', async () => {
+      const reply = streamed();
+      const { client, room, getPushActionsForEvent } = setup(loud, [reply]);
+      const inNewContent = finish(reply, 'completed', 'm.text', {}, { [SUPPRESS_PUSH_KEY]: true });
+      const inOuterContent = finish(reply, 'completed', 'm.text', { [SUPPRESS_PUSH_KEY]: true });
+      const encryptedHoisted = await makeDecryptedEvent(
+        {
+          msgtype: 'm.text',
+          body: '* done silently',
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'done silently',
+            'io.mindroom.stream_status': 'completed',
+          },
+        },
+        {
+          'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
+          [SUPPRESS_PUSH_KEY]: true,
+        }
+      );
+
+      expect(readMessageNotice(client, room, inNewContent, NOW)).toBeUndefined();
+      expect(readMessageNotice(client, room, inOuterContent, NOW)).toBeUndefined();
+      expect(readMessageNotice(client, room, encryptedHoisted, NOW)).toBeUndefined();
+      expect(getPushActionsForEvent).not.toHaveBeenCalled();
+
+      const explicitFalse = finish(
+        reply,
+        'completed',
+        'm.text',
+        { [SUPPRESS_PUSH_KEY]: false },
+        { [SUPPRESS_PUSH_KEY]: false }
+      );
+      expect(readMessageNotice(client, room, explicitFalse, NOW)).toMatchObject({
+        eventId: reply.getId(),
+        threadId: '$root',
+      });
     });
   });
 });

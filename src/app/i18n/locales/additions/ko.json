@@ -408,6 +408,7 @@
       },
       "sidebar": {
         "title": "사이드바",
+        "navigation": "탐색",
         "threads": "사이드바에 스레드 표시",
         "threadsDescription": "모든 방의 스레드를 한 목록에서 봅니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "canvasesDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
@@ -437,14 +438,15 @@
       "menu": {
         "groups": {
           "you": "나",
-          "app": "이 앱",
-          "agents": "에이전트 및 연결",
-          "help": "도움말 및 고급"
+          "app": "앱",
+          "mindroom": "MindRoom",
+          "system": "시스템"
         },
         "pages": {
           "privacy": "개인정보 및 보안",
           "language": "언어 및 지역",
-          "storage": "저장공간 및 오프라인"
+          "storage": "저장공간 및 오프라인",
+          "agentsServers": "에이전트 및 서버"
         }
       },
       "search": {
@@ -459,7 +461,9 @@
       "advanced": "고급",
       "sections": {
         "display": "표시",
-        "privacy": "개인정보"
+        "privacy": "개인정보",
+        "replying": "답장",
+        "connectionsComputers": "연결 및 컴퓨터"
       },
       "computers": {
         "inUse": "사용 중인 서버",

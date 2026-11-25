@@ -421,6 +421,7 @@
       },
       "sidebar": {
         "title": "Sidebar",
+        "navigation": "Navigation",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
@@ -450,14 +451,15 @@
       "menu": {
         "groups": {
           "you": "You",
-          "app": "This app",
-          "agents": "Agents & connections",
-          "help": "Help & advanced"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "System"
         },
         "pages": {
           "privacy": "Privacy & security",
           "language": "Language & region",
-          "storage": "Storage & offline"
+          "storage": "Storage & offline",
+          "agentsServers": "Agents & servers"
         }
       },
       "search": {
@@ -472,7 +474,9 @@
       "advanced": "Advanced",
       "sections": {
         "display": "Display",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Replying",
+        "connectionsComputers": "Connections & computers"
       },
       "computers": {
         "inUse": "Server in use",

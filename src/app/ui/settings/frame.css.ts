@@ -93,7 +93,7 @@ export const SettingsMenuRow = style({
 });
 
 /**
- * A group heading of the menu (You, This app, ...), quiet, starting where the rows' icons do: its
+ * A group heading of the menu (You, App, ...), quiet, starting where the rows' icons do: its
  * row's own 4 px and these 4 px make the rows' 8 px.
  */
 export const SettingsMenuGroupLabel = style({
