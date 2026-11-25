@@ -248,6 +248,31 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     }
   );
 
+  it.each([0, 20, 60])(
+    'holds the oldest visible thread reply after [Load Older, thread root] when older replies prepend at scrollTop=%i',
+    async (initialScrollTop) => {
+      const replies = Array.from({ length: 40 }, (_, i) => `$reply-${i}`);
+      const { scrollElement, render, getTileTop } = await mountTimeline({
+        initialKeys: [THREAD_LOAD_OLDER_KEY, '$thread-root', ...replies],
+        initialScrollTop,
+        leadingKey: THREAD_LOAD_OLDER_KEY,
+        leadingHeight: THREAD_LOAD_OLDER_PX,
+        thread: true,
+      });
+      const yOf = () => getTileTop('$reply-0')! - scrollElement.scrollTop;
+      const before = yOf();
+      expect(before).toBe(THREAD_LOAD_OLDER_PX + ROW_HEIGHT - initialScrollTop);
+
+      const older = Array.from({ length: 8 }, (_, i) => `$older-reply-${i}`);
+      render([THREAD_LOAD_OLDER_KEY, '$thread-root', ...older, ...replies]);
+      await Promise.resolve();
+      render();
+
+      expect(yOf()).toBeCloseTo(before, 0);
+      expect(scrollElement.scrollTop).toBeCloseTo(initialScrollTop + older.length * ROW_HEIGHT, 0);
+    }
+  );
+
   it('keeps the first message at y=22 when useVirtualPaginator widens backward at scrollTop=0', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     stubSafariMac();

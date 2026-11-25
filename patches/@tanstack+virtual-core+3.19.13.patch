@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..e20e590 100644
+index 186f79e..bf7d0f3 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -37,10 +37,10 @@ index 186f79e..e20e590 100644
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
 -          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          // PR 4: a stable leading item stays at index 0; anchor on item 1 when items insert after it.
++          // PR 4: skip a stable leading prefix (up to 2 items, e.g. header + root) so items inserted after it anchor on the first shifted item.
 +          let item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          if (item && item.index === 0 && prevCount > 1 && nextCount > 0 && merged.getItemKey(0) === prevFirstKey) {
-+            item = measurements[1] ?? item;
++          while (item && item.index < 2 && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++            item = measurements[item.index + 1] ?? item;
 +          }
            if (item) {
              anchor = [item.key, this.getScrollOffset() - item.start];
@@ -187,7 +187,7 @@ index 159bbd6..ffe90ce 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..ea910e8 100644
+index ef861e1..399bbd0 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -225,10 +225,10 @@ index ef861e1..ea910e8 100644
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
 -          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          // PR 4: a stable leading item stays at index 0; anchor on item 1 when items insert after it.
++          // PR 4: skip a stable leading prefix (up to 2 items, e.g. header + root) so items inserted after it anchor on the first shifted item.
 +          let item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          if (item && item.index === 0 && prevCount > 1 && nextCount > 0 && merged.getItemKey(0) === prevFirstKey) {
-+            item = measurements[1] ?? item;
++          while (item && item.index < 2 && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++            item = measurements[item.index + 1] ?? item;
 +          }
            if (item) {
              anchor = [item.key, this.getScrollOffset() - item.start];

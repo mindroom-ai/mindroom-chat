@@ -73,15 +73,15 @@
 +  const target = cmd ?? this.getScrollOffset()
 ```
 
-## PR 4: Skip a stable leading item when picking the `anchorTo: 'end'` prepend anchor
+## PR 4: Skip a stable leading prefix when picking the `anchorTo: 'end'` prepend anchor
 
-**Problem & repro:** When an `anchorTo: 'end'` list keeps a stable leading tile at index 0 (e.g., a room `[+all]`/intro header or a thread "Load Older" chip) and prepends older items after index 0 while `scrollOffset` sits within item 0 (e.g., `scrollTop = 0`), `getVirtualItemForOffset(scrollOffset)` returns item 0. Because index 0's key does not move (`merged.getItemKey(0) === prevFirstKey`), `setOptions` computes `newOffset = scrollOffset` and lets the prepended page push every visible item down by the page height. Mount an `anchorTo: 'end'` list with a 22 px leading key at index 0 followed by 100 px items at `scrollTop = 0`, insert 8 items after index 0, and observe item 1 jump from `y = 22` to `y = 822`. When `item.index === 0`, `prevCount > 1`, `nextCount > 0`, and `merged.getItemKey(0) === prevFirstKey`, anchor on `measurements[1]` instead (keeping `anchorOffset = scrollOffset - item.start`, which may be negative, so `anchorItem.start + anchorOffset` lands at `scrollOffset + pageHeight`).
+**Problem & repro:** When an `anchorTo: 'end'` list keeps a stable leading tile at index 0 (e.g., a room `[+all]`/intro header) or a stable 2-item leading prefix (e.g., a thread "Load Older" chip at index 0 followed by the thread root at index 1) and prepends older items after that prefix while `scrollOffset` sits within it (e.g., `scrollTop = 0`), `getVirtualItemForOffset(scrollOffset)` returns an item whose key stays at its index (`merged.getItemKey(item.index) === getPreviousKey(item.index)`). `setOptions` then computes `newOffset = scrollOffset` and lets the prepended page push every visible item down by the page height. Mount an `anchorTo: 'end'` list with a 22 px leading key at index 0 followed by 100 px items at `scrollTop = 0`, insert 8 items after index 0, and observe item 1 jump from `y = 22` to `y = 822` (or in a thread with `[Load Older, root]` at indices 0–1, observe the first reply jump by 800 px). While `item.index < 2`, `item.index + 1 < prevCount`, `item.index < nextCount`, and `merged.getItemKey(item.index) === getPreviousKey(item.index)`, advance `item` to `measurements[item.index + 1]` (keeping `anchorOffset = scrollOffset - item.start`, which may be negative, so `anchorItem.start + anchorOffset` lands at `scrollOffset + pageHeight`).
 
 ```diff
    // setOptions() inside `if (didEdgeKeysChange)` (already gated on `merged.anchorTo === 'end'`):
 -  const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null
 +  let item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null
-+  if (item && item.index === 0 && prevCount > 1 && nextCount > 0 && merged.getItemKey(0) === prevFirstKey) {
-+    item = measurements[1] ?? item
++  while (item && item.index < 2 && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++    item = measurements[item.index + 1] ?? item
 +  }
 ```
