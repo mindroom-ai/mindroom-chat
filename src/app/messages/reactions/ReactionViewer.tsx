@@ -5,6 +5,7 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { DialogCloseButton } from '../../ui/DialogChrome';
 import { Header, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -78,10 +79,11 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
 
   const renderKey = (key: string) => {
     const src = key.startsWith('mxc://')
-      ? mxcUrlToHttp(client, key, authenticatedMedia)
+      ? (mxcUrlToHttp(client, key, authenticatedMedia) ?? undefined)
       : undefined;
     return src ? (
-      <img
+      <AuthenticatedImage
+        client={client}
         src={src}
         alt={revealDirectionControls(key)}
         style={{ width: '1.25em', height: '1.25em', objectFit: 'contain' }}

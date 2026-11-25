@@ -39,6 +39,7 @@ import { EmojiGroupId, type IEmoji, emojiGroups, withSkinTone } from '../emoji';
 import { ImageUsage } from '../custom/types';
 import { type ImagePack, PackImageReader } from '../custom/ImagePack';
 import { emojiSkinToneAtom } from '../emojiSkinTone';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { mobileOrTablet } from '../../lib/user-agent';
 import { makeTrapOptions } from './boardFocusTrap';
@@ -148,7 +149,8 @@ function ItemButton({ item, client, authMedia }: ItemButtonProps) {
   const sticker = item.type === EmojiType.Sticker;
   return (
     <button className={sticker ? css.StickerItem : css.EmojiItem} {...common}>
-      <img
+      <AuthenticatedImage
+        client={client}
         className={sticker ? css.StickerImg : css.CustomEmojiImg}
         src={imageSrc(client, item.data, authMedia, sticker ? 160 : 64)}
         alt={item.shortcode}
@@ -465,7 +467,8 @@ export function EmojiBoard(props: EmojiBoardProps) {
                 <span className={css.PreviewEmoji}>{hovered.data}</span>
               )}
               {hovered && hovered.type !== EmojiType.Emoji && (
-                <img
+                <AuthenticatedImage
+                  client={client}
                   className={css.PreviewImg}
                   src={imageSrc(client, hovered.data, authMedia, 64)}
                   alt={hovered.shortcode}
@@ -517,7 +520,8 @@ export function EmojiBoard(props: EmojiBoardProps) {
                   }}
                 >
                   {group.avatarMxc ? (
-                    <img
+                    <AuthenticatedImage
+                      client={client}
                       className={css.SidebarBtnImg}
                       src={imageSrc(client, group.avatarMxc, authMedia, 48)}
                       alt=""

@@ -292,6 +292,7 @@ describe('persistent attachment repository', () => {
         return new Response('Unauthenticated media is disabled.', { status: 403 });
       }
       expect(init?.headers).toEqual({ Authorization: 'Bearer test-token' });
+      expect(init?.cache).toBe('no-store');
       return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -304,6 +305,37 @@ describe('persistent attachment repository', () => {
     const content = await hydrateCachedLongText(alice, SOURCE);
 
     expect(content.body).toBe('Complete response from the sidecar');
+  });
+
+  it('sends Authorization Bearer and no access_token query param on Capacitor', async () => {
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    vi.stubGlobal('navigator', {});
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).includes('/_matrix/client/versions')) {
+        return Response.json({ versions: ['v1.11'] });
+      }
+      expect(String(url)).toBe(
+        `${BASE_URL}/_matrix/client/v1/media/download/matrix.example.org/cap-photo?allow_redirect=true`
+      );
+      expect(String(url)).not.toContain('access_token');
+      expect(init?.headers).toEqual({ Authorization: 'Bearer cap-token' });
+      expect(init?.cache).toBe('no-store');
+      return new Response('image-bytes', { headers: { 'Content-Type': 'image/png' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createClient({
+      baseUrl: BASE_URL,
+      userId: '@alice:matrix.example.org',
+      accessToken: 'cap-token',
+    });
+
+    const blob = await downloadCachedAttachment(alice, {
+      mxcUri: 'mxc://matrix.example.org/cap-photo',
+      mimeType: 'image/png',
+    });
+
+    expect(await blob.text()).toBe('image-bytes');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('downloads from the legacy endpoint without the access token when authenticated media is unsupported', async () => {
@@ -333,6 +365,7 @@ describe('persistent attachment repository', () => {
         return new Response('Unauthenticated media is disabled.', { status: 403 });
       }
       expect(init?.headers).toEqual({ Authorization: 'Bearer test-token' });
+      expect(init?.cache).toBe('no-store');
       return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
     });
     vi.stubGlobal('fetch', fetchMock);
