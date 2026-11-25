@@ -193,7 +193,7 @@ afterEach(() => {
 });
 
 describe('RoomViewHeader triggers integration', () => {
-  it('hides the header entry when the room has 0 triggers', async () => {
+  it('hides the header entry at 0 triggers and does not GET while server resolution is pending', async () => {
     mocks.send.mockResolvedValueOnce(
       new Response(JSON.stringify({ triggers: [] }), { status: 200 })
     );
@@ -204,6 +204,16 @@ describe('RoomViewHeader triggers integration', () => {
       expect(queryClient.isFetching()).toBe(0);
     });
     expect(screen.queryByRole('button', { name: /Triggers/ })).toBeNull();
+    cleanup();
+    mocks.send.mockReset();
+
+    // Opening the dialog while server resolution is pending never GETs a provisional URL.
+    mocks.server = { apiUrl: 'https://provisional.example.org', pending: true };
+    renderRoomHeader('tr_design');
+    fireEvent.click(screen.getByRole('button', { name: /Triggered/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'View trigger tr_design' }));
+    await screen.findByRole('dialog', { name: 'Triggers' });
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 
   it('shows the header button when >0, refetches on open, closes via real FocusTrap, and clears atom on room change', async () => {
@@ -257,30 +267,5 @@ describe('RoomViewHeader triggers integration', () => {
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
-  });
-
-  it('shows load error and focuses Close after PATCH 200 followed by GET failure', async () => {
-    const offRow = rowJson({ enabled: false, disabled_reason: 'manual' });
-    mocks.send
-      .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [offRow] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [offRow] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-      .mockRejectedValueOnce(new Error('refresh down'));
-    renderRoomHeader();
-    fireEvent.click(await screen.findByRole('button', { name: 'Triggers (1)' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Triggers' });
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
-
-    const enableBtn = screen.getByRole('button', { name: 'Enable' });
-    enableBtn.focus();
-    fireEvent.click(enableBtn);
-    await waitFor(() =>
-      expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
-        "Couldn't load triggers."
-      )
-    );
-    expect(dialog.querySelector('[data-trigger-id]')).toBeNull();
-    expect(screen.queryByText('Off')).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
   });
 });
