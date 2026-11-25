@@ -1513,6 +1513,8 @@
       "stopping": "중지 중…",
       "resume": "재개",
       "runAgain": "다시 실행",
+      "confirmRunAgain": "다시 실행 확인",
+      "cancel": "취소",
       "starting": "시작 중…",
       "failedCount_other": "{{count}}개 실패",
       "question": {
@@ -1544,6 +1546,7 @@
         "noMessages": "단계 간 메시지가 아직 없습니다.",
         "noLog": "로그 항목이 아직 없습니다.",
         "omittedEdges_other": "메시지 경로 {{count}}개가 생략되었습니다.",
+        "omittedMessages_other": "메시지 {{count}}개가 생략되었습니다.",
         "omittedLog_other": "로그 항목 {{count}}개가 생략되었습니다.",
         "setupSteps_other": "준비 단계 {{count}}개",
         "showMore": "{{count}}개 더 보기",
@@ -1581,12 +1584,15 @@
         "messagesFrom": "{{name}}에게서 받은 메시지: {{count}}",
         "timeout": "시간 초과",
         "routeTo": "{{from}}에서 {{to}}(으)로: {{count}}",
+        "messageRoute": "{{from}}에서 {{to}}(으)로",
+        "script": "스크립트",
         "routeBetween": "{{from}} 및 {{to}}: {{count}}",
         "duration": "소요 시간",
         "tokens": "토큰",
         "cost": "비용",
         "open": "열기",
         "detailsUnavailable": "새로고침 후에는 세부 정보를 볼 수 없습니다.",
+        "transcriptUnavailable": "새로고침 후에는 전체 기록을 볼 수 없습니다.",
         "stop": "에이전트 중지"
       }
     },

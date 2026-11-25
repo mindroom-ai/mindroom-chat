@@ -1,9 +1,14 @@
+import type { Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Button, Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import type { WorkflowRunEdge, WorkflowRunNode } from '../../matrix/protocol/workflowFrame';
+import type {
+  WorkflowRunEdge,
+  WorkflowRunMessage,
+  WorkflowRunNode,
+} from '../../matrix/protocol/workflowFrame';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
 import { workflowNodeStatusLabel } from '../../messages/workflow-run/workflowRunLabels';
 import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
@@ -12,8 +17,9 @@ import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
 import {
   getWorkflowNodeMetrics,
-  nodeDisplayName,
+  messageEndpointName,
   nodeResultPreview,
+  routeEndpointName,
   sessionBadgeLabel,
   type WorkflowSessionInfo,
 } from './workflowGraphModel';
@@ -38,8 +44,10 @@ export type WorkflowNodeInspectorProps = {
   session?: WorkflowSessionInfo;
   nodesById: ReadonlyMap<string, WorkflowRunNode>;
   edges: readonly WorkflowRunEdge[];
+  messages: readonly WorkflowRunMessage[];
   now: number;
   canStop: boolean;
+  inspectorRef?: Ref<HTMLElement>;
   onSelect: (id: string) => void;
   onStopNode: (jobId: string) => void;
 };
@@ -53,8 +61,10 @@ export function WorkflowNodeInspector({
   session,
   nodesById,
   edges,
+  messages,
   now,
   canStop,
+  inspectorRef,
   onSelect,
   onStopNode,
 }: WorkflowNodeInspectorProps) {
@@ -69,16 +79,32 @@ export function WorkflowNodeInspector({
     [t('mindroomUi.workflowRun.node.tokens'), tokens],
     [t('mindroomUi.workflowRun.node.cost'), cost],
   ];
-  const preview = nodeResultPreview(subagentRun);
+  const scriptLabel = t('mindroomUi.workflowRun.node.script');
+  const preview = nodeResultPreview(subagentRun) ?? (node.preview?.trim() || undefined);
   const sessionName = sessionBadgeLabel(session);
-  const directOut = edges.filter((e) => e.from === node.id);
-  const directIn = edges.filter((e) => e.to === node.id);
-  const sessionOut = node.session
-    ? edges.filter((e) => e.from === node.session && e.to !== node.id)
+  const hasMessages = messages.length > 0;
+  const directMessages = hasMessages
+    ? messages.filter((m) => m.from === node.id || m.to === node.id)
     : [];
-  const sessionIn = node.session
-    ? edges.filter((e) => e.to === node.session && e.from !== node.id)
-    : [];
+  const sessionMessages =
+    hasMessages && node.session
+      ? messages.filter(
+          (m) =>
+            (m.from === node.session || m.to === node.session) &&
+            m.from !== node.id &&
+            m.to !== node.id
+        )
+      : [];
+  const directOut = hasMessages ? [] : edges.filter((e) => e.from === node.id);
+  const directIn = hasMessages ? [] : edges.filter((e) => e.to === node.id);
+  const sessionOut =
+    !hasMessages && node.session
+      ? edges.filter((e) => e.from === node.session && e.to !== node.id)
+      : [];
+  const sessionIn =
+    !hasMessages && node.session
+      ? edges.filter((e) => e.to === node.session && e.from !== node.id)
+      : [];
   const renderEdgeLinks = (
     outEdges: readonly WorkflowRunEdge[],
     inEdges: readonly WorkflowRunEdge[]
@@ -92,7 +118,7 @@ export function WorkflowNodeInspector({
           onClick={() => onSelect(e.to)}
         >
           {t('mindroomUi.workflowRun.node.messagesTo', {
-            name: nodeDisplayName(nodesById, e.to),
+            name: routeEndpointName(nodesById, e.to, 'to', scriptLabel),
             count: e.count,
           })}
         </button>
@@ -105,16 +131,53 @@ export function WorkflowNodeInspector({
           onClick={() => onSelect(e.from)}
         >
           {t('mindroomUi.workflowRun.node.messagesFrom', {
-            name: nodeDisplayName(nodesById, e.from),
+            name: routeEndpointName(nodesById, e.from, 'from', scriptLabel),
             count: e.count,
           })}
         </button>
       ))}
     </>
   );
+  const renderMessageItems = (items: readonly WorkflowRunMessage[], ownerId: string) =>
+    items.map((m) => {
+      const fromName = messageEndpointName(nodesById, m.from, m.fromName, 'from', scriptLabel);
+      const toName = messageEndpointName(nodesById, m.to, m.toName, 'to', scriptLabel);
+      const peerId = m.from === ownerId ? m.to : m.from;
+      const clickablePeer = peerId && peerId !== node.id && nodesById.has(peerId) ? peerId : null;
+      const content = (
+        <>
+          <span className={css.MessageHeader}>
+            <span dir="ltr" aria-hidden="true">
+              <bdi>{fromName}</bdi> → <bdi>{toName}</bdi>
+            </span>
+            <span className={css.VisuallyHidden}>
+              {t('mindroomUi.workflowRun.node.messageRoute', { from: fromName, to: toName })}
+            </span>
+          </span>
+          <span className={css.MessagePreview} {...ownDirectionBlock}>
+            {m.text}
+          </span>
+        </>
+      );
+      return clickablePeer ? (
+        <button
+          key={m.seq}
+          type="button"
+          className={css.PeerMessageButton}
+          onClick={() => onSelect(clickablePeer)}
+        >
+          {content}
+        </button>
+      ) : (
+        <div key={m.seq} className={css.PeerMessageCard}>
+          {content}
+        </div>
+      );
+    });
+  const canOpenSubagent = Boolean(node.run && subagentRun);
 
   return (
-    <aside className={css.InspectorPane} data-workflow-node-details={node.id}>
+    <aside ref={inspectorRef} className={css.InspectorPane} data-workflow-node-details={node.id}>
       <div className={css.Stack}>
         <div className={css.ChipTop}>
           <span className={css.NodeDot[node.status]} aria-hidden />
@@ -179,16 +242,18 @@ export function WorkflowNodeInspector({
         </div>
       )}
 
-      {(directOut.length > 0 || directIn.length > 0) && (
+      {(directMessages.length > 0 || directOut.length > 0 || directIn.length > 0) && (
         <div className={css.Stack}>
           <Text size="T200" className={css.StrongText}>
             {t('mindroomUi.workflowRun.node.messages')}
           </Text>
-          {renderEdgeLinks(directOut, directIn)}
+          {hasMessages
+            ? renderMessageItems(directMessages, node.id)
+            : renderEdgeLinks(directOut, directIn)}
         </div>
       )}
 
-      {(sessionOut.length > 0 || sessionIn.length > 0) && (
+      {(sessionMessages.length > 0 || sessionOut.length > 0 || sessionIn.length > 0) && (
         <div className={css.Stack} data-workflow-session-messages={node.session ?? undefined}>
           <div className={css.ChipTop}>
             <Text size="T200" className={css.StrongText}>
@@ -200,19 +265,20 @@ export function WorkflowNodeInspector({
               </span>
             )}
           </div>
-          {renderEdgeLinks(sessionOut, sessionIn)}
+          {hasMessages && node.session
+            ? renderMessageItems(sessionMessages, node.session)
+            : renderEdgeLinks(sessionOut, sessionIn)}
         </div>
       )}
 
-      {(node.run || canStop) && (
+      {(canOpenSubagent || (canStop && node.job)) && (
         <div className={cardCss.Row}>
-          {node.run && (
+          {canOpenSubagent && (
             <Button
               type="button"
               size="300"
               variant="Secondary"
               fill="Soft"
-              disabled={!subagentRun}
               onClick={() => openSubagentsPanel(jotaiStore, room.roomId, threadId, node.run)}
             >
               <Text size="B300">{t('mindroomUi.workflowRun.node.open')}</Text>
@@ -234,7 +300,11 @@ export function WorkflowNodeInspector({
 
       {node.run && !subagentRun && (
         <Text size="T200" priority="300">
-          {t('mindroomUi.workflowRun.node.detailsUnavailable')}
+          {t(
+            preview
+              ? 'mindroomUi.workflowRun.node.transcriptUnavailable'
+              : 'mindroomUi.workflowRun.node.detailsUnavailable'
+          )}
         </Text>
       )}
     </aside>

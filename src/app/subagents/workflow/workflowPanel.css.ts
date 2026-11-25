@@ -342,10 +342,8 @@ export const ChipMeta = style({
   columnGap: space.S200,
   rowGap: toRem(2),
   color: 'inherit',
-  opacity: opacity.P400,
   ...smallType,
 });
-globalStyle(`${ChipMeta} > span`, { minInlineSize: 0, maxInlineSize: '100%', ...truncate });
 export const ChipNote = style({ ...smallType, color: color.Warning.Main });
 const badgeText = style({ display: 'inline-block', minInlineSize: 0, ...smallType, ...truncate });
 export const StepStatusNote = style([
@@ -356,13 +354,19 @@ export const SessionBadge = style([
   badgeText,
   {
     flexShrink: 0,
-    maxInlineSize: toRem(120),
+    maxInlineSize: `min(100%, ${toRem(120)})`,
     padding: `${toRem(1)} ${space.S100}`,
     borderRadius: radii.Pill,
     backgroundColor: color.Primary.Container,
     color: color.Primary.OnContainer,
   },
 ]);
+globalStyle(`${ChipMeta} > span:not(${SessionBadge})`, {
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+  opacity: opacity.P400,
+  ...truncate,
+});
 export const ErrorPill = style([
   badgeText,
   {
@@ -441,6 +445,64 @@ export const MessageRow = style({
   borderRadius: radii.R300,
   ...variantCard,
   ...smallType,
+});
+export const MessageCard = style([
+  InsetBox,
+  {
+    gap: space.S100,
+    padding: `${space.S200} ${space.S300}`,
+    borderRadius: radii.R300,
+    ...smallType,
+  },
+]);
+export const MessageHeader = style({
+  ...flexRow,
+  justifyContent: 'space-between',
+  gap: space.S200,
+  minInlineSize: 0,
+});
+export const MessageRoute = style({
+  ...flexRow,
+  flexWrap: 'wrap',
+  gap: space.S100,
+  minInlineSize: 0,
+});
+export const MessageNodeLink = style({
+  padding: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  color: color.Primary.Main,
+  font: 'inherit',
+  fontWeight: 600,
+  cursor: 'pointer',
+  borderRadius: radii.R300,
+  selectors: { '&:hover': { textDecoration: 'underline' }, '&:focus-visible': focusRing },
+});
+export const MessageText = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+export const PeerMessageCard = style([
+  Stack,
+  {
+    ...surfaceCard,
+    ...smallType,
+    gap: toRem(2),
+    inlineSize: '100%',
+    padding: `${space.S100} ${space.S200}`,
+    borderRadius: radii.R300,
+    textAlign: 'start',
+  },
+]);
+export const PeerMessageButton = style([
+  PeerMessageCard,
+  { cursor: 'pointer', selectors: surfaceHover },
+]);
+export const MessagePreview = style({
+  display: '-webkit-box',
+  overflow: 'hidden',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+  opacity: opacity.P400,
 });
 export const LogList = style([
   InsetBox,

@@ -55,6 +55,7 @@ type RenderCtx = Omit<WorkflowGraphViewProps, 'bands'> & { t: TFunction; languag
 const FORK_ONE = ['M 50 0 L 50 18'];
 const FORK_TWO = ['M 50 0 C 50 9, 25 9, 25 18', 'M 50 0 C 50 9, 75 9, 75 18'];
 const JOIN_TWO = ['M 25 0 C 25 9, 50 9, 50 18', 'M 75 0 C 75 9, 50 9, 50 18'];
+const JOIN_TWO_ODD = ['M 25 0 C 25 9, 50 9, 50 18'];
 const FORK_THREE = ['M 50 0 C 50 9, 17 9, 17 18', 'M 50 0 L 50 18', 'M 50 0 C 50 9, 83 9, 83 18'];
 const JOIN_THREE = ['M 17 0 C 17 9, 50 9, 50 18', 'M 50 0 L 50 18', 'M 83 0 C 83 9, 50 9, 50 18'];
 
@@ -71,6 +72,7 @@ function FlowArrowSvg() {
 /** Responsive fork/join curves synced via CSS @container queries to BranchGrid's 1/2/3 columns. */
 function ForkJoinSvg({ direction, count }: { direction: 'fork' | 'join'; count: number }) {
   const two = direction === 'fork' ? FORK_TWO : JOIN_TWO;
+  const twoMid = direction === 'join' && count > 2 && count % 2 === 1 ? JOIN_TWO_ODD : two;
   const three = direction === 'fork' ? FORK_THREE : JOIN_THREE;
   const draw = (paths: readonly string[]) =>
     paths.map((d) => (
@@ -93,7 +95,7 @@ function ForkJoinSvg({ direction, count }: { direction: 'fork' | 'join'; count: 
       ) : (
         <>
           <g className={css.ForkVis.three}>{draw(three)}</g>
-          <g className={css.ForkVis.twoMid}>{draw(two)}</g>
+          <g className={css.ForkVis.twoMid}>{draw(twoMid)}</g>
           <g className={css.ForkVis.one}>{draw(FORK_ONE)}</g>
         </>
       )}
@@ -196,14 +198,14 @@ const WorkflowNodeCard = memo(function WorkflowNodeCard({
         <span className={css.ChipLabel} {...ownDirectionLine}>
           {node.label}
         </span>
-        {sessionLabel && (
-          <span className={css.SessionBadge} {...ownDirectionLine}>
-            @{sessionLabel}
-          </span>
-        )}
       </span>
-      {meta.length > 0 && (
+      {(sessionLabel || meta.length > 0) && (
         <span className={css.ChipMeta}>
+          {sessionLabel && (
+            <span className={css.SessionBadge} {...ownDirectionLine}>
+              @{sessionLabel}
+            </span>
+          )}
           {meta.map((part, i) => (
             // Metadata fragments are static positional badges per card.
             // eslint-disable-next-line react/no-array-index-key

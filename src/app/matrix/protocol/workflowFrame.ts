@@ -6,6 +6,7 @@ import type { SubagentUsage } from './subagentFrame';
 export const WORKFLOW_FRAME_EVENT_TYPE = 'io.mindroom.workflow';
 export const WORKFLOW_RUN_ID_PATTERN = /^wf-[0-9a-f]{32}$/;
 const MAX_LOG_LINES = 20;
+const MAX_MESSAGES = 50;
 
 const RUN_STATUSES = [
   'starting',
@@ -45,6 +46,7 @@ const OMITTED_KEYS = [
   'groups',
   'phases',
   'log',
+  'messages',
 ] as const;
 
 export type WorkflowRunStatus = (typeof RUN_STATUSES)[number];
@@ -164,11 +166,12 @@ const parseNode = (v: unknown) => {
     !NODE_STATUS_SET.has(status)
   )
     return null;
-  const [agent, model, run, job, usage] = [
+  const [agent, model, run, job, preview, usage] = [
     optStr(v.agent),
     optStr(v.model),
     optStr(v.run),
     optStr(v.job),
+    optStr(v.preview),
     parseCoreUsage(v.usage),
   ];
   return {
@@ -187,6 +190,7 @@ const parseNode = (v: unknown) => {
     ...(model ? { model } : {}),
     ...(run ? { run } : {}),
     ...(job ? { job } : {}),
+    ...(preview ? { preview } : {}),
     session: optStr(v.session) ?? null,
     turns: nonNegInt(v.turns, 1),
     startedAt: nullNum(v.started_at),
@@ -221,6 +225,26 @@ const parseEdge = (v: unknown) => {
 };
 export type WorkflowRunEdge = NonNullable<ReturnType<typeof parseEdge>>;
 
+const parseMessage = (v: unknown) => {
+  if (!isRecord(v)) return null;
+  const { seq, text } = v;
+  const from = optStr(v.from) ?? null;
+  const to = optStr(v.to) ?? null;
+  const fromName = optStr(v.from_name) ?? from;
+  const toName = optStr(v.to_name) ?? to;
+  if (!isNonNegInt(seq) || typeof text !== 'string' || !fromName || !toName) return null;
+  return {
+    seq,
+    from,
+    fromName,
+    to,
+    toName,
+    text,
+    sentAt: nullNum(v.sent_at),
+  };
+};
+export type WorkflowRunMessage = NonNullable<ReturnType<typeof parseMessage>>;
+
 /** Parses a workflow graph snapshot (used by live snapshots and durable card graphs). */
 export const parseWorkflowRunGraph = (v: unknown) =>
   isRecord(v)
@@ -229,6 +253,7 @@ export const parseWorkflowRunGraph = (v: unknown) =>
         groups: readRows(v.groups, parseGroup),
         nodes: readRows(v.nodes, parseNode),
         edges: readRows(v.edges, parseEdge),
+        messages: readRows(v.messages, parseMessage),
         log: stringList(v.log),
         omitted: parseKeyedInts(v.omitted, OMITTED_KEYS, false)!,
       }
@@ -241,6 +266,9 @@ const parseDelta = (v: unknown) =>
         ...(Array.isArray(v.nodes) ? { nodes: readRows(v.nodes, parseNode) } : {}),
         ...(Array.isArray(v.groups) ? { groups: readRows(v.groups, parseGroup) } : {}),
         ...(Array.isArray(v.edges) ? { edges: readRows(v.edges, parseEdge) } : {}),
+        ...(Array.isArray(v.messages_append)
+          ? { messagesAppend: readRows(v.messages_append, parseMessage) }
+          : {}),
         ...(Array.isArray(v.log_append) ? { logAppend: stringList(v.log_append) } : {}),
       }
     : null;
@@ -303,6 +331,16 @@ const upsertBy = <T>(
   return next;
 };
 
+const mergeMessages = (
+  existing: readonly WorkflowRunMessage[],
+  updates: readonly WorkflowRunMessage[]
+): WorkflowRunMessage[] => {
+  if (!updates.length) return existing as WorkflowRunMessage[];
+  return upsertBy(existing, updates, (m) => String(m.seq))
+    .sort((a, b) => a.seq - b.seq)
+    .slice(-MAX_MESSAGES);
+};
+
 /** Applies a delta while preserving object identity of untouched rows for memoized chips. */
 export const applyWorkflowRunDelta = (
   graph: WorkflowRunGraph,
@@ -314,6 +352,9 @@ export const applyWorkflowRunDelta = (
   edges: delta.edges
     ? upsertBy(graph.edges, delta.edges, (e) => `${e.from}\0${e.to}`)
     : graph.edges,
+  messages: delta.messagesAppend
+    ? mergeMessages(graph.messages, delta.messagesAppend)
+    : graph.messages,
   log: delta.logAppend?.length
     ? [...graph.log, ...delta.logAppend].slice(-MAX_LOG_LINES)
     : graph.log,
