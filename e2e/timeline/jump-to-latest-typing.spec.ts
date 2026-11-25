@@ -410,6 +410,111 @@ const verifyJumpToLatestStableWithTyping = async (
     .toBeLessThanOrEqual(2);
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 15_000 });
   await expectMinimapStill('at-bottom');
+
+  if (label === 'desktop') {
+    const approvalsBar = threadArea.locator('[data-approvals-bar]');
+    try {
+      await page.setViewportSize({ width: 1280, height: 380 });
+      await expect
+        .poll(async () => {
+          const [box, insets] = await Promise.all([
+            minimapRail.boundingBox(),
+            readThreadInsets(page),
+          ]);
+          return (
+            box !== null &&
+            box.y + box.height < 380 &&
+            box.height < (emptyMinimapBox?.height ?? Infinity) &&
+            insets !== null &&
+            insets.composer === insets.composerOffsetHeight &&
+            insets.dock === 0
+          );
+        })
+        .toBe(true);
+      await page.evaluate(async () => {
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      });
+
+      const shortRailBefore = await boundsOf(
+        minimapRail,
+        'Timeline minimap rail (short desktop before approvals)'
+      );
+
+      const now = Date.now();
+      const approvalId = `approval-${label}-${RUN}`;
+      await matrixFetch(
+        HOMESERVER,
+        `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/${approvalId}`,
+        {
+          method: 'PUT',
+          accessToken: agent.accessToken,
+          body: JSON.stringify({
+            msgtype: 'io.mindroom.tool_approval',
+            body: 'Approval required: run_placeholder_tool',
+            approval_id: approvalId,
+            tool_name: 'run_placeholder_tool',
+            agent_name: `helper_${label}`,
+            status: 'pending',
+            approvable: true,
+            approver_user_id: viewer.userId,
+            requester_id: viewer.userId,
+            approval_scope: {
+              id: 'placeholder-scope',
+              entity_name: `helper_${label}`,
+              invoking_agent: `helper_${label}`,
+              operation: { tool_name: 'run_placeholder_tool' },
+            },
+            arguments: { command: 'echo placeholder' },
+            requested_at: new Date(now - 60_000).toISOString(),
+            expires_at: new Date(now + 3_600_000).toISOString(),
+            thread_id: rootId,
+            'm.relates_to': {
+              rel_type: 'm.thread',
+              event_id: rootId,
+              is_falling_back: true,
+              'm.in_reply_to': { event_id: rootId },
+            },
+          }),
+        }
+      );
+
+      await expect(approvalsBar).toBeVisible({ timeout: 30_000 });
+      await expect
+        .poll(async () => (await readThreadInsets(page))?.dock ?? 0)
+        .toBeGreaterThanOrEqual(35);
+      await saveShot(page, `approvals-short-${label}`);
+
+      const shortRailAfter = await boundsOf(
+        minimapRail,
+        'Timeline minimap rail (short desktop with approvals)'
+      );
+      expect(Math.abs(shortRailAfter.top - shortRailBefore.top)).toBeLessThanOrEqual(1);
+      expect(Math.abs(shortRailAfter.bottom - shortRailBefore.bottom)).toBeLessThanOrEqual(1);
+
+      const approvalsBox = await boundsOf(approvalsBar, 'Approvals bar (short desktop)');
+      expect(approvalsBox.top).toBeLessThan(shortRailAfter.bottom);
+
+      const railHitMinimap = await minimapRail.evaluate((rail) => {
+        const rect = rail.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.bottom - 1);
+        return !!hit?.closest('[data-testid="timeline-minimap"]');
+      });
+      expect(railHitMinimap).toBe(true);
+
+      const barHitApprovals = await approvalsBar.evaluate((bar) => {
+        const rect = bar.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2
+        );
+        return !!hit && bar.contains(hit);
+      });
+      expect(barHitApprovals).toBe(true);
+    } finally {
+      await page.setViewportSize({ width: 1280, height: 800 });
+    }
+  }
 };
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });

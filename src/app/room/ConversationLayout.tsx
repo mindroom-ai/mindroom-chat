@@ -46,7 +46,6 @@ const DOCK_STYLE: CSSProperties = {
   zIndex: 5,
   pointerEvents: 'none',
 };
-const APPROVALS_STYLE: CSSProperties = { pointerEvents: 'auto' };
 // The footer starts with an empty box where a selection can end. A triple click selects up to the
 // start of the next paragraph; on the conversation's last text, with nothing in between, that
 // start was in the composer, and Chrome moved the selection and the focus there as the held drag
@@ -68,10 +67,11 @@ const NOTICE_STYLE: CSSProperties = {
 };
 
 /**
- * Keeps the heights of the floating header and footer on the box, where the scroll areas read
- * them (`--room-header-height`, `--room-footer-height`) to pad their content clear of both. The
- * parts mount anew with each `parts` key (another thread, a header that comes or goes), so they
- * are measured again whenever it changes.
+ * Keeps the heights of the floating header, composer and footer on the box, where the scroll
+ * areas and overlays read them (`--room-header-height`, `--room-composer-height`,
+ * `--room-footer-height`) to pad their content clear of them. The parts mount anew with each
+ * `parts` key (another thread, a header that comes or goes), so they are measured again whenever
+ * it changes.
  */
 const useOverlayInsets = (
   areaRef: RefObject<HTMLElement | null>,
@@ -246,11 +246,7 @@ export function ConversationLayout({
                   </div>
                   <RoomViewFollowing room={room} threadId={threadId} />
                 </div>
-                {threadId && !readOnly && (
-                  <div style={APPROVALS_STYLE}>
-                    <ThreadApprovalQueue />
-                  </div>
-                )}
+                {threadId && !readOnly && <ThreadApprovalQueue />}
               </div>
             </ThreadApprovalProvider>
             {/* Outside the approval provider: opening a thread must not remount the composer. */}

@@ -40,3 +40,15 @@ describe('the timeline minimap styles', () => {
     });
   });
 });
+
+describe('the thread approvals dock styles', () => {
+  it('re-enable pointer events on the visible approvals bar inside the dock', async () => {
+    await withCssRules(async (rules) => {
+      const { Bar } = await import('../approvals/ThreadApprovals.css');
+      const barClasses = new Set(Bar.split(' '));
+      const barRules = rules.filter((css) => barClasses.has(css.selector));
+
+      expect(barRules.some((css) => css.rule?.pointerEvents === 'auto')).toBe(true);
+    });
+  });
+});
