@@ -1,4 +1,10 @@
-import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
+import {
+  createVar,
+  fallbackVar,
+  globalStyle,
+  style,
+  type CSSProperties,
+} from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from '../../ui/styles/RoomOverlay.css';
 import { transition } from '../../ui/styles/transition';
@@ -207,7 +213,13 @@ export const CardMenuButton = style({
 // Touch action bar placement: centers the 2.5rem menu button on the card's last row (24px tall,
 // above an S200 padding and the border) and hides the hover quick actions. Activated by the touch
 // media query or explicitly via data-touch-actions="true" (for the tour's touch/phone preview).
-const touchCardAction = {
+const touchRule = (target: string, rules: CSSProperties) => {
+  const suffix = target.startsWith(':') ? target : ` ${target}`;
+  globalStyle(`${CardShell}${suffix}`, { '@media': { [touchActions]: rules } });
+  globalStyle(`${CardShell}[data-touch-actions="true"]${suffix}`, rules);
+};
+
+touchRule(CardAction, {
   insetInlineEnd: config.space.S100,
   insetBlockStart: 'auto',
   insetBlockEnd: `calc(${config.borderWidth.B300} + ${config.space.S200} + ${toRem(12)} - 1.25rem)`,
@@ -216,29 +228,10 @@ const touchCardAction = {
   opacity: 1,
   pointerEvents: 'auto',
   background: 'none',
-} as const;
-
-globalStyle(`${CardShell} ${CardAction}`, {
-  '@media': { [touchActions]: touchCardAction },
 });
-globalStyle(`${CardShell} ${CardAction}::before`, {
-  '@media': { [touchActions]: { content: 'none' } },
-});
-globalStyle(`${CardShell}[data-touch-actions="true"] ${CardAction}`, touchCardAction);
-globalStyle(`${CardShell}[data-touch-actions="true"] ${CardAction}::before`, { content: 'none' });
-
-globalStyle(`${CardShell} ${CardQuickAction}`, {
-  '@media': { [touchActions]: { display: 'none' } },
-});
-globalStyle(`${CardShell}[data-touch-actions="true"] ${CardQuickAction}`, { display: 'none' });
-
-globalStyle(`${CardShell} ${CardMenuButton}`, {
-  '@media': { [touchActions]: { width: '2.5rem', height: '2.5rem' } },
-});
-globalStyle(`${CardShell}[data-touch-actions="true"] ${CardMenuButton}`, {
-  width: '2.5rem',
-  height: '2.5rem',
-});
+touchRule(`${CardAction}::before`, { content: 'none' });
+touchRule(CardQuickAction, { display: 'none' });
+touchRule(CardMenuButton, { width: '2.5rem', height: '2.5rem' });
 
 globalStyle(`[dir='rtl'] ${CardAction}::before`, {
   background: `linear-gradient(to left, transparent, ${hoverTint})`,
@@ -399,16 +392,7 @@ export const Chips = style({
 
 // Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
 // edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
-globalStyle(`${CardShell}:has(${CardAction}) ${MetadataRow}`, {
-  '@media': {
-    [touchActions]: {
-      paddingInlineEnd: toRem(36),
-    },
-  },
-});
-globalStyle(`${CardShell}[data-touch-actions="true"]:has(${CardAction}) ${MetadataRow}`, {
-  paddingInlineEnd: toRem(36),
-});
+touchRule(`:has(${CardAction}) ${MetadataRow}`, { paddingInlineEnd: toRem(36) });
 
 export const Participants = style({
   display: 'flex',

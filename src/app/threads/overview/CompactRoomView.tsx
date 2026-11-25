@@ -160,8 +160,6 @@ type CompactThreadCardRowProps = {
   menuOpen: boolean;
   resolveLabel: string;
   reopenLabel: string;
-  pinLabel: string;
-  moreLabel: string;
   onThreadClick: (threadRootId: string) => void;
   onSetResolved: (threadRootId: string, resolved: boolean) => void;
   onPin: (threadRootId: string, pinned: boolean) => void;
@@ -181,8 +179,6 @@ const CompactThreadCardRow = React.memo(
     menuOpen,
     resolveLabel,
     reopenLabel,
-    pinLabel,
-    moreLabel,
     onThreadClick,
     onSetResolved,
     onPin,
@@ -287,9 +283,6 @@ const CompactThreadCardRow = React.memo(
               showPinAction={showPinAction}
               actionsDisabled={actionsDisabled}
               menuOpen={menuOpen}
-              resolveLabel={resolveLabel}
-              pinLabel={pinLabel}
-              moreLabel={moreLabel}
               onResolve={() => onSetResolved(rootId, true)}
               onPin={() => onPin(rootId, pinned)}
               onOpenMenu={(event) =>
@@ -624,9 +617,6 @@ export function CompactRoomView({
 
   const resolveLabel = t('thread.resolve');
   const reopenLabel = t('threadActions.reopen');
-  const pinLabel = t('threadNav.pin');
-  const unpinLabel = t('threadNav.unpin');
-  const moreLabel = t('threadActions.more');
   const renderCard = (viewModel: CompactThreadCardViewModel) => {
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
@@ -656,8 +646,6 @@ export function CompactRoomView({
         menuOpen={menu?.rootId === rootId && !!menuModel}
         resolveLabel={resolveLabel}
         reopenLabel={reopenLabel}
-        pinLabel={pinned ? unpinLabel : pinLabel}
-        moreLabel={moreLabel}
         onThreadClick={handleCardClick}
         onSetResolved={handleSetResolved}
         onPin={handlePin}
@@ -747,9 +735,7 @@ export function CompactRoomView({
           </Text>
         )}
         {!!groups.pinned?.length && (
-          <PinnedThreadsSection label={t('threadNav.pinned')}>
-            {blocks.rows[0]?.map(renderRow)}
-          </PinnedThreadsSection>
+          <PinnedThreadsSection>{blocks.rows[0]?.map(renderRow)}</PinnedThreadsSection>
         )}
         {threadRootIds.length === 0 ? (
           showRichEmptyState ? (

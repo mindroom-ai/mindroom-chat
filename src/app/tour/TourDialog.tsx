@@ -231,7 +231,6 @@ export function TourDialog({ level, initialStep, onLevelChange, onClose }: TourD
           className={phone ? css.PhoneStage : css.Stage}
           scene={scene}
           phone={phone}
-          touchCards={touchCards}
           phase={phase}
           settled={settled}
         />

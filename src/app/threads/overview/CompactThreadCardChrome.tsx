@@ -11,9 +11,6 @@ export type CompactCardActionsProps = {
   showPinAction: boolean;
   actionsDisabled?: boolean;
   menuOpen?: boolean;
-  resolveLabel?: string;
-  pinLabel?: string;
-  moreLabel?: string;
   onResolve?: () => void;
   onPin?: () => void;
   onOpenMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -26,21 +23,18 @@ export function CompactCardActions({
   showPinAction,
   actionsDisabled = false,
   menuOpen = false,
-  resolveLabel,
-  pinLabel,
-  moreLabel,
   onResolve,
   onPin,
   onOpenMenu,
 }: CompactCardActionsProps) {
   const { t } = useTranslation();
-  const resolveText = resolveLabel ?? t('thread.resolve');
-  const pinText = pinLabel ?? t(pinned ? 'threadNav.unpin' : 'threadNav.pin');
-  const moreText = moreLabel ?? t('threadActions.more');
+  const resolveLabel = t('thread.resolve');
+  const pinLabel = t(pinned ? 'threadNav.unpin' : 'threadNav.pin');
+  const moreLabel = t('threadActions.more');
   return (
     <div className={css.CardAction}>
       {showResolveAction && (
-        <IconTooltip label={resolveText} position="Top">
+        <IconTooltip label={resolveLabel} position="Top">
           {(triggerRef) => (
             <IconButton
               ref={triggerRef}
@@ -50,7 +44,7 @@ export function CompactCardActions({
               variant="Secondary"
               fill="None"
               radii="300"
-              aria-label={resolveText}
+              aria-label={resolveLabel}
               disabled={actionsDisabled}
               onClick={onResolve}
               data-compact-thread-resolve="true"
@@ -61,7 +55,7 @@ export function CompactCardActions({
         </IconTooltip>
       )}
       {showPinAction && (
-        <IconTooltip label={pinText} position="Top">
+        <IconTooltip label={pinLabel} position="Top">
           {(triggerRef) => (
             <IconButton
               ref={triggerRef}
@@ -71,7 +65,7 @@ export function CompactCardActions({
               variant="Secondary"
               fill="None"
               radii="300"
-              aria-label={pinText}
+              aria-label={pinLabel}
               disabled={actionsDisabled}
               onClick={onPin}
               data-compact-thread-pin="true"
@@ -81,7 +75,7 @@ export function CompactCardActions({
           )}
         </IconTooltip>
       )}
-      <IconTooltip label={moreText} position="Top">
+      <IconTooltip label={moreLabel} position="Top">
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
@@ -91,7 +85,7 @@ export function CompactCardActions({
             variant="Secondary"
             fill="None"
             radii="300"
-            aria-label={moreText}
+            aria-label={moreLabel}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={onOpenMenu}
@@ -106,19 +100,13 @@ export function CompactCardActions({
 }
 
 export type PinnedThreadsSectionProps = ComponentPropsWithoutRef<'section'> & {
-  label?: string;
   children: ReactNode;
 };
 
 /** The Pinned section heading and container above the rest of a room's compact thread cards. */
-export function PinnedThreadsSection({
-  label,
-  children,
-  className,
-  ...props
-}: PinnedThreadsSectionProps) {
+export function PinnedThreadsSection({ children, className, ...props }: PinnedThreadsSectionProps) {
   const { t } = useTranslation();
-  const heading = label ?? t('threadNav.pinned');
+  const heading = t('threadNav.pinned');
   return (
     <Box
       as="section"

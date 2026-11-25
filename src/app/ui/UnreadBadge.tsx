@@ -21,7 +21,7 @@ const MENTION_RING = {
 } as const;
 
 /** The count in the interface language's digits, as every other number on screen. */
-const formatCount = (count: number, language: string): string =>
+export const formatBadgeCount = (count: number, language: string): string =>
   localDigits(count > 99 ? '99+' : `${count}`, language);
 
 /** A badge whose count grew while it showed pops once, so what just came catches the eye. */
@@ -70,7 +70,7 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
       size="400"
     >
       <Text as="span" size="L400">
-        {formatCount(count, i18n.language)}
+        {formatBadgeCount(count, i18n.language)}
       </Text>
     </Badge>
   );

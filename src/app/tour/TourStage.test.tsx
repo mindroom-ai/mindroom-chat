@@ -14,9 +14,9 @@ import { TOUR_STEPS, type TourStepId } from './tourSteps';
 
 const TYPED = 12;
 
-const stageOf = (scene: TourScene, phone = false, touchCards = phone) => (
+const stageOf = (scene: TourScene, phone = false) => (
   <ScreenSizeProvider value={phone ? ScreenSize.Mobile : ScreenSize.Desktop}>
-    <TourStage scene={scene} phone={phone} touchCards={touchCards} phase={0} settled={false} />
+    <TourStage scene={scene} phone={phone} phase={0} settled={false} />
   </ScreenSizeProvider>
 );
 
@@ -24,7 +24,7 @@ const lastPhase = (id: TourStepId): number =>
   (TOUR_STEPS.find((step) => step.id === id)?.phases.length ?? 1) - 1;
 
 const show = (id: TourStepId, phase = lastPhase(id), phone = false, touchCards = phone) =>
-  render(stageOf(sceneOf(id, phase, phone, TYPED, touchCards), phone, touchCards));
+  render(stageOf(sceneOf(id, phase, phone, TYPED, touchCards), phone));
 
 const stage = () => {
   const root = document.querySelector<HTMLElement>('[data-tour-stage]');
@@ -36,6 +36,15 @@ const cardIds = (within: ParentNode = stage()) =>
   Array.from(
     within.querySelectorAll<HTMLElement>('[data-tour-card]'),
     (card) => card.dataset.tourCard
+  );
+const activityRowKinds = () =>
+  Array.from(
+    stage().querySelectorAll<HTMLElement>('[data-tour-activity-row]'),
+    (row) => row.dataset.tourActivityRow
+  );
+const buttonLabels = (selector: string) =>
+  Array.from(stage().querySelectorAll(`${selector} button`), (button) =>
+    button.getAttribute('aria-label')
   );
 
 beforeEach(() => mockLayout(10));
@@ -300,12 +309,7 @@ describe('TourStage', () => {
   it('puts the bell on the rail, or in the top bar of a phone, with three rows in its list', () => {
     show('activity');
     expect(parts('bell')[0]?.closest('[data-tour-rail]')).toBeTruthy();
-    const rows = () =>
-      Array.from(
-        stage().querySelectorAll<HTMLElement>('[data-tour-activity-row]'),
-        (row) => row.dataset.tourActivityRow
-      );
-    expect(rows()).toEqual(['approval', 'finished', 'mention']);
+    expect(activityRowKinds()).toEqual(['approval', 'finished', 'mention']);
     expect(stage().querySelector('[data-tour-activity]')?.textContent).toContain(
       'Analyst needs approval'
     );
@@ -315,7 +319,7 @@ describe('TourStage', () => {
     show('activity', 0, true);
     expect(parts('bell')[0]?.closest('[data-tour-phone-bar]')).toBeTruthy();
     expect(stage().querySelector('[data-tour-rail]')).toBeNull();
-    expect(rows()).toEqual([]);
+    expect(activityRowKinds()).toEqual([]);
   });
 
   it('fades a new view in over the one before it, which loses its marks', () => {
@@ -406,10 +410,7 @@ describe('TourStage', () => {
   it('renders real room header, thread banner, and activity list chrome', () => {
     // Desktop list header matches RoomViewHeader order.
     show('conversation', 0, false);
-    const desktopLabels = Array.from(stage().querySelectorAll('[data-tour-header] button'), (b) =>
-      b.getAttribute('aria-label')
-    );
-    expect(desktopLabels).toEqual([
+    expect(buttonLabels('[data-tour-header]')).toEqual([
       'Compact view',
       'Thread filters',
       'Scheduled tasks (0)',
@@ -421,26 +422,30 @@ describe('TourStage', () => {
     // Desktop open thread shows real banner with ThreadRootTitle, More, Pin, and Resolve;
     // room header omits Compact view and Thread filters.
     show('start');
-    const threadHeaderLabels = Array.from(
-      stage().querySelectorAll('[data-tour-header] button'),
-      (b) => b.getAttribute('aria-label')
-    );
-    expect(threadHeaderLabels).toEqual(['Scheduled tasks (0)', 'Show Members', 'More Options']);
-    const banner = stage().querySelector('[data-thread-context-banner]');
-    expect(banner?.querySelector('[data-thread-context-root-title]')?.textContent).toBe(
-      'Draft the spring launch email'
-    );
+    expect(buttonLabels('[data-tour-header]')).toEqual([
+      'Scheduled tasks (0)',
+      'Show Members',
+      'More Options',
+    ]);
     expect(
-      Array.from(banner?.querySelectorAll('button') ?? [], (b) => b.getAttribute('aria-label'))
-    ).toEqual(['Back', 'Thread options', 'Pin thread', 'Resolve']);
+      stage().querySelector('[data-thread-context-banner] [data-thread-context-root-title]')
+        ?.textContent
+    ).toBe('Draft the spring launch email');
+    expect(buttonLabels('[data-thread-context-banner]')).toEqual([
+      'Back',
+      'Thread options',
+      'Pin thread',
+      'Resolve',
+    ]);
     cleanup();
 
     // Phone open thread banner keeps Back, More, and Resolve (omits Pin, matching ThreadContextBanner).
     show('start', lastPhase('start'), true);
-    const phoneBanner = stage().querySelector('[data-thread-context-banner]');
-    expect(
-      Array.from(phoneBanner?.querySelectorAll('button') ?? [], (b) => b.getAttribute('aria-label'))
-    ).toEqual(['Back', 'Thread options', 'Resolve']);
+    expect(buttonLabels('[data-thread-context-banner]')).toEqual([
+      'Back',
+      'Thread options',
+      'Resolve',
+    ]);
     cleanup();
 
     // Activity panel renders real header, tabs (including Replies 1), Today divider, and ActivityBadge.
@@ -458,11 +463,7 @@ describe('TourStage', () => {
 
     // Phone Activity sheet renders two complete representative rows without clipping.
     show('activity', lastPhase('activity'), true);
-    const phoneActivityRows = Array.from(
-      stage().querySelectorAll<HTMLElement>('[data-tour-activity-row]'),
-      (row) => row.dataset.tourActivityRow
-    );
-    expect(phoneActivityRows).toEqual(['approval', 'finished']);
+    expect(activityRowKinds()).toEqual(['approval', 'finished']);
     cleanup();
 
     // Phone top bar renders search placeholder and real ActivityBadge.

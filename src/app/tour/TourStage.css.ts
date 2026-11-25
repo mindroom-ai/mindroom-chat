@@ -137,18 +137,24 @@ const drop = keyframes({
 /** A menu that opens fades in from just above its place. */
 const opening = once(drop, motion.duration.Normal, motion.easing.Decelerate);
 
+const floatingMenu = style([
+  opening,
+  {
+    position: 'absolute',
+    zIndex: 4,
+    inlineSize: toRem(224),
+  },
+]);
+
 /**
  * A card's Thread options menu, floating inside `Page` (like the app's `PopOut`, never clipped by
  * `Body` or `Composer`). Positioned below the card's `⋯` button on wide screens.
  */
 export const CardMenu = style([
-  opening,
+  floatingMenu,
   {
-    position: 'absolute',
-    zIndex: 4,
     insetInlineEnd: config.space.S300,
     insetBlockStart: toRem(104),
-    inlineSize: toRem(224),
   },
 ]);
 
@@ -165,7 +171,6 @@ export const PhoneCardMenu = style({
 
 /** On a phone, a pinned card's shorter menu starts below the room header. */
 export const PhoneCardMenuPinned = style({
-  insetInlineEnd: config.space.S200,
   insetBlockStart: toRem(52),
 });
 
@@ -176,13 +181,10 @@ export const StageMenuSurface = style({
 
 /** A phone's room menu, under the button at the header's end. */
 export const RoomMenu = style([
-  opening,
+  floatingMenu,
   {
-    position: 'absolute',
-    zIndex: 4,
     insetInlineEnd: config.space.S200,
     insetBlockStart: toRem(46),
-    inlineSize: toRem(224),
   },
 ]);
 

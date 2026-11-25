@@ -73,6 +73,7 @@ import { MenuGroup, MenuSwitchEntry } from '../ui/MenuEntry';
 import { PageHeader } from '../ui/page/Page';
 import * as scrollableMenuCss from '../ui/ScrollableMenu.css';
 import * as searchFieldCss from '../ui/SearchField.css';
+import { MenuIcon } from '../ui/sidebar/MenuIcon';
 import * as phoneBarCss from '../ui/sidebar/PhoneTopBar.css';
 import {
   Sidebar,
@@ -106,8 +107,6 @@ type RoomProps = {
   scene: TourScene;
   /** Draws a phone's room chrome: phone top bar, room menu, and phone thread banner. */
   phone: boolean;
-  /** Uses touch card actions (`phone || hasNoHover()`) instead of desktop hover buttons. */
-  touchCards?: boolean;
   /**
    * Whether this is the view the tour is on. A view that is fading out under the next one is
    * drawn without its marks, so each part is in the stage once.
@@ -155,16 +154,23 @@ const CARD_MENU_MARKS = [
   ['[data-thread-action="pin"]', 'menuPin'],
 ] as const;
 
-/** Three bars, the usual sign of a menu that slides in, as a phone's top bar draws it. */
-const MenuIcon: IconSrc = () => (
-  <path
-    d="M4 6h16M4 12h16M4 18h16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  />
-);
+function SampleAvatar({
+  id,
+  icon = Icons.User,
+  radii,
+}: {
+  id: string;
+  icon?: IconSrc;
+  radii?: '400' | 'Pill';
+}) {
+  return (
+    <Avatar size="300" radii={radii} style={{ flexShrink: 0 }}>
+      <AvatarFallback style={getAvatarFallbackStyle(id)}>
+        <Icon size="200" src={icon} filled />
+      </AvatarFallback>
+    </Avatar>
+  );
+}
 
 /** The room header and phone room menu actions in `RoomViewHeader.tsx` order. */
 const roomHeaderActions = (scene: TourScene, t: TFunction) => {
@@ -204,7 +210,7 @@ const roomHeaderActions = (scene: TourScene, t: TFunction) => {
 };
 
 /** The room's header: real `PageHeader` with `HeaderActionButton` in `RoomViewHeader.tsx` order. */
-function RoomHeader({ scene, phone, live }: Omit<RoomProps, 'now' | 'touchCards'>) {
+function RoomHeader({ scene, phone, live }: Omit<RoomProps, 'now'>) {
   const { t } = useTranslation();
   const headerRef = useRef<HTMLElement>(null);
   const a = roomHeaderActions(scene, t);
@@ -217,13 +223,7 @@ function RoomHeader({ scene, phone, live }: Omit<RoomProps, 'now' | 'touchCards'
   return (
     <PageHeader ref={headerRef} outlined className={headerLayoutCss.Header} data-tour-header="">
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
-        {!phone && (
-          <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
-            <AvatarFallback style={getAvatarFallbackStyle(SAMPLE_ROOM_ID)}>
-              <Icon size="200" src={Icons.Hash} filled />
-            </AvatarFallback>
-          </Avatar>
-        )}
+        {!phone && <SampleAvatar id={SAMPLE_ROOM_ID} icon={Icons.Hash} radii="400" />}
         <Text as="span" size="H5" truncate>
           {t('tour.sample.room')}
         </Text>
@@ -319,7 +319,6 @@ function CardMenu({ phone, live, pinned, state }: CardMenuProps) {
     pinned,
     isResolved: state.resolved === true,
     snoozed: state.snoozed === true,
-    showCopy: true,
     showToolCalls: false,
   });
   return (
@@ -327,8 +326,8 @@ function CardMenu({ phone, live, pinned, state }: CardMenuProps) {
       ref={menuRef}
       className={classNames(
         css.CardMenu,
-        !phone && pinned && css.CardMenuPinned,
-        phone && (pinned ? css.PhoneCardMenuPinned : css.PhoneCardMenu)
+        phone && css.PhoneCardMenu,
+        pinned && (phone ? css.PhoneCardMenuPinned : css.CardMenuPinned)
       )}
       data-tour-card-menu=""
     >
@@ -341,14 +340,15 @@ function CardMenu({ phone, live, pinned, state }: CardMenuProps) {
   );
 }
 
-type SampleCardRowProps = RoomProps & { card: SceneCard; pinned: boolean; touchCards: boolean };
+type SampleCardRowProps = RoomProps & { card: SceneCard; pinned: boolean };
 
 /** One thread: real `CompactThreadCard`, real `CompactCardActions`, and real swipe chrome. */
-function SampleCardRow({ card, scene, touchCards, live, now, pinned }: SampleCardRowProps) {
+function SampleCardRow({ card, scene, live, now, pinned }: SampleCardRowProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const shellRef = useRef<HTMLDivElement>(null);
   const { id, state } = card;
+  const { touchCards } = scene;
   const menuOpen = scene.menuOn === id;
   const pointed = !touchCards && scene.actionsOn === id;
   const swiped = touchCards && scene.actionsOn === id;
@@ -392,7 +392,7 @@ function SampleCardRow({ card, scene, touchCards, live, now, pinned }: SampleCar
 }
 
 /** The Compact view: real `RoomThreadOverview`, real `PinnedThreadsSection`, then the other cards. */
-function CardList(props: RoomProps & { touchCards: boolean }) {
+function CardList(props: RoomProps) {
   const { scene, live } = props;
   const paneRef = useRef<HTMLDivElement>(null);
   const ids = scene.cards.map(({ id }) => id);
@@ -435,11 +435,7 @@ function MessageRow({ message, ts, replyCount = 0, participants, isResolved }: M
       <ModernLayout
         before={
           <AvatarBase>
-            <Avatar size="300">
-              <AvatarFallback style={getAvatarFallbackStyle(sampleUserId(message.sender))}>
-                <Icon filled size="200" src={Icons.User} />
-              </AvatarFallback>
-            </Avatar>
+            <SampleAvatar id={sampleUserId(message.sender)} />
           </AvatarBase>
         }
       >
@@ -503,8 +499,8 @@ function MessageList({ scene, now }: Pick<RoomProps, 'scene' | 'now'>) {
 }
 
 /** The open thread: real banner frame/actions + `ThreadRootTitle`, then its messages. */
-function ThreadPane({ scene, phone, live, now }: Omit<RoomProps, 'touchCards'>) {
-  const { t, i18n } = useTranslation();
+function ThreadPane({ scene, phone, live, now }: RoomProps) {
+  const { t } = useTranslation();
   const bannerRef = useRef<HTMLDivElement>(null);
   useTourMarks(bannerRef, live, [['button', 'back']]);
   return (
@@ -512,19 +508,14 @@ function ThreadPane({ scene, phone, live, now }: Omit<RoomProps, 'touchCards'>) 
       <div className={css.Thread} {...mark(live, 'thread')}>
         <div ref={bannerRef} className={bannerCss.Banner} data-thread-context-banner="true">
           <div className={bannerCss.TitleRow}>
-            <ThreadBannerBackButton
-              phone={phone}
-              label={t('thread.back')}
-              rtl={i18n.dir() === 'rtl'}
-              onBack={nothing}
-            />
+            <ThreadBannerBackButton phone={phone} onBack={nothing} />
             <div className={bannerCss.TitleColumn}>
               <Box className={bannerCss.EyebrowRow} direction="Row" alignItems="Center" gap="200" />
               <div className={bannerCss.SubtitleRow}>
                 <ThreadRootTitle text={t('tour.sample.typed')} whole={phone} />
               </div>
             </div>
-            <ThreadBannerActions showPinButton={!phone} showResolveButton />
+            <ThreadBannerActions showPinButton={!phone} />
           </div>
         </div>
         <div className={css.Messages}>
@@ -538,14 +529,14 @@ function ThreadPane({ scene, phone, live, now }: Omit<RoomProps, 'touchCards'>) 
 }
 
 /** The composer: real `ComposerIconButton` controls around the placeholder or typed text. */
-function Composer({ scene, phone, live }: Omit<RoomProps, 'now' | 'touchCards'>) {
+function Composer({ scene, phone, live }: Omit<RoomProps, 'now'>) {
   const { t } = useTranslation();
   const typed = sampleGraphemes(t('tour.sample.typed')).slice(0, scene.typed).join('');
   const before: Array<[string, IconSrc]> = [
     [t('composer.attach'), Icons.PlusCircle],
     [t('composer.dictation.label'), Icons.Mic],
-    ...(phone ? [] : [[t('composer.formatting'), Icons.Text] as [string, IconSrc]]),
   ];
+  if (!phone) before.push([t('composer.formatting'), Icons.Text]);
   return (
     <div
       className={css.Composer}
@@ -603,11 +594,7 @@ function Rail({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
       <SidebarStack>
         {tabs.map((tab) => (
           <SidebarItem key={tab.id} active={tab.active}>
-            <SidebarAvatar
-              as="span"
-              outlined={tab.bell}
-              {...(tab.bell ? mark(live, 'bell') : undefined)}
-            >
+            <SidebarAvatar as="span" outlined={tab.bell} {...mark(live && !!tab.bell, 'bell')}>
               <Icon filled={tab.bell ? scene.activity : tab.active} src={tab.icon} />
             </SidebarAvatar>
             {tab.bell && (
@@ -664,11 +651,7 @@ function PhoneBar({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
           <ActivityBadge count={ACTIVITY_ROWS.length} needsYou />
         </span>
       </div>
-      <Avatar size="300" radii="Pill" style={{ flexShrink: 0 }}>
-        <AvatarFallback style={getAvatarFallbackStyle(sampleUserId('you'))}>
-          <Icon filled size="200" src={Icons.User} />
-        </AvatarFallback>
-      </Avatar>
+      <SampleAvatar id={sampleUserId('you')} radii="Pill" />
     </div>
   );
 }
@@ -688,7 +671,12 @@ const ACTIVITY_ROWS: readonly SampleActivityRow[] = [
   { kind: 'mention', sender: 'ana', thread: 'vendor', preview: 'vendorReply', age: 2 * 3_600_000 },
 ];
 // `approval` is Needs you, `finished` is an unread reply/run in your thread (Replies 1), `mention` is Mentions 1.
-const ACTIVITY_TAB_COUNTS = { all: 3, mentions: 1, replies: 1, needsYou: 1 } as const;
+const ACTIVITY_TAB_COUNTS = {
+  all: ACTIVITY_ROWS.length,
+  mentions: 1,
+  replies: 1,
+  needsYou: 1,
+} as const;
 
 /**
  * The bell's list: real `ActivityListHeader`, `ActivityListTabs`, and `ActivityRowView` inside the
@@ -769,7 +757,6 @@ export function TourStageActivity({ phone, now }: Pick<RoomProps, 'phone' | 'now
  */
 export function TourStageRoom(props: RoomProps) {
   const { scene, phone, live } = props;
-  const touchCards = props.touchCards ?? phone;
   // A phone's open thread has its banner for a header: one Back, not two.
   const header = scene.header && !(phone && scene.view === 'thread');
   const menuCard =
@@ -782,7 +769,7 @@ export function TourStageRoom(props: RoomProps) {
       <div className={css.Page}>
         {scene.bell && phone && <PhoneBar scene={scene} live={live} />}
         {header && <RoomHeader scene={scene} phone={phone} live={live} />}
-        {scene.view === 'list' && <CardList {...props} touchCards={touchCards} />}
+        {scene.view === 'list' && <CardList {...props} />}
         {scene.view === 'thread' && <ThreadPane {...props} />}
         {scene.view === 'messages' && <MessageList scene={scene} now={props.now} />}
         {scene.composer && <Composer scene={scene} phone={phone} live={live} />}

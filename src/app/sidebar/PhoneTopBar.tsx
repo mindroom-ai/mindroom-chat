@@ -2,7 +2,7 @@ import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
@@ -24,21 +24,11 @@ import { useRailButtons } from '../settings/railButtons';
 import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
 import { ActivityBadge } from '../activity/ActivityBadge';
+import { MenuIcon } from '../ui/sidebar/MenuIcon';
 import * as css from '../ui/sidebar/PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
 export const PHONE_NAV_DRAWER_ID = 'phone-nav-drawer';
-
-/** Three bars, the usual sign for a menu that slides in. */
-const MenuIcon: IconSrc = () => (
-  <path
-    d="M4 6h16M4 12h16M4 18h16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  />
-);
 
 /** The menu button, with a dot while any room has unread messages. */
 function MenuButton() {

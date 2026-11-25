@@ -232,7 +232,7 @@ export function ThreadContextBanner({
   onShowFull,
   onClose,
 }: ThreadContextBannerProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
@@ -435,10 +435,7 @@ export function ThreadContextBanner({
   const backButton = (
     <ThreadBannerBackButton
       phone={phone}
-      label={t('thread.back')}
-      closeLabel={t('thread.close')}
       shortcut="leaveThread"
-      rtl={i18n.dir() === 'rtl'}
       onBack={onExitThread}
       onClose={onClose}
     />
@@ -700,7 +697,6 @@ export function ThreadContextBanner({
               <ThreadBannerActions
                 key="actions"
                 before={pluginControls}
-                moreLabel={t('threadActions.more')}
                 moreButtonRef={moreButtonRef}
                 canOpenMenu={canOpenMenu}
                 menuOpen={!!activeMenu}
@@ -709,20 +705,12 @@ export function ThreadContextBanner({
                 }
                 showPinButton={!compact && pinning.canPin && !!mutableThreadRootId}
                 isPinned={isPinned}
-                pinLabel={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                pinnedLabel={t('threadNav.pinned')}
                 pinDisabled={pinning.updating || updating}
                 onTogglePin={() =>
                   mutableThreadRootId && void pinning.setPinned(mutableThreadRootId, !isPinned)
                 }
-                showResolveButton={!isPinned}
                 isResolved={headerModel.isResolved}
-                resolveLabel={
-                  headerModel.isResolved
-                    ? (resolvedByLabel ?? t('thread.resolved'))
-                    : t('thread.resolve')
-                }
-                resolveAriaLabel={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+                resolvedByLabel={resolvedByLabel}
                 resolveHint={
                   headerModel.isResolved && headerModel.canEdit
                     ? t('threadActions.reopen')

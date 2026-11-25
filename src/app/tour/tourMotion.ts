@@ -1,21 +1,20 @@
+const matchesMedia = (query: string): boolean =>
+  typeof window !== 'undefined' && (window.matchMedia?.(query).matches ?? false);
+
 /**
  * Whether the person asked their system for less motion. The tour then shows each scene's last
  * phase at once and moves nothing. False where the page cannot ask.
  */
-export const prefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' &&
-  (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+export const prefersReducedMotion = (): boolean => matchesMedia('(prefers-reduced-motion: reduce)');
 
 /** Whether the main pointer is a finger, which gets no focus it did not ask for. */
-export const hasCoarsePointer = (): boolean =>
-  typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+export const hasCoarsePointer = (): boolean => matchesMedia('(pointer: coarse)');
 
 /**
  * Whether the primary pointer cannot hover, matching `CompactRoomView.css.ts`'s `(hover: none)`
  * rule that hides card hover quick actions on touch tablets as well as phones.
  */
-export const hasNoHover = (): boolean =>
-  typeof window !== 'undefined' && (window.matchMedia?.('(hover: none)').matches ?? false);
+export const hasNoHover = (): boolean => matchesMedia('(hover: none)');
 
 /** Whether cards use touch actions (permanent `⋯`, swipe to resolve, Pin in Thread options). */
 export const hasTouchCardActions = (phone: boolean): boolean => phone || hasNoHover();

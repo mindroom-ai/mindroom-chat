@@ -93,8 +93,6 @@ type TourStageProps = {
   scene: TourScene;
   /** Draws a phone's room instead of a wider screen's. */
   phone: boolean;
-  /** Uses touch card actions (`phone || hasNoHover()`) instead of desktop hover buttons. */
-  touchCards?: boolean;
   /** The phase of the step's scene, for tests and screenshots. */
   phase: number;
   /** Whether the scene has reached its last phase. */
@@ -107,14 +105,7 @@ type TourStageProps = {
  * spotlight on the part the step is about. The room is inert and hidden from assistive
  * technology, since the step's text says what it shows.
  */
-export function TourStage({
-  scene,
-  phone,
-  touchCards = phone,
-  phase,
-  settled,
-  className,
-}: TourStageProps) {
+export function TourStage({ scene, phone, phase, settled, className }: TourStageProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   useInert(roomRef, true);
@@ -140,17 +131,11 @@ export function TourStage({
         {/* Keyed by its view, so the view that leaves keeps its elements while it fades. */}
         {leaving && leaving.name !== name && (
           <div key={leaving.name} className={classNames(css.View, css.ViewEntering)}>
-            <TourStageRoom
-              scene={leaving.scene}
-              phone={phone}
-              touchCards={touchCards}
-              live={false}
-              now={now}
-            />
+            <TourStageRoom scene={leaving.scene} phone={phone} live={false} now={now} />
           </div>
         )}
         <div key={name} className={classNames(css.View, css.ViewEntering)} data-tour-view={name}>
-          <TourStageRoom scene={scene} phone={phone} touchCards={touchCards} live now={now} />
+          <TourStageRoom scene={scene} phone={phone} live now={now} />
         </div>
         <TourSpotlight part={scene.spotlight} />
         {scene.activity && <TourStageActivity phone={phone} now={now} />}

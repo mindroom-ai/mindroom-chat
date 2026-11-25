@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { CompactThreadCardViewModel } from '../event-store/threads/types';
+import type { ThreadIndicatorParticipant } from '../messages/ThreadIndicatorChip';
 import {
   formatCompactThreadMessageCount,
   getCompactThreadAttentionState,
@@ -102,7 +103,7 @@ export const sampleReplyParticipants = (
   id: SampleThreadId,
   state: SampleCardState,
   t: TFunction
-): Array<{ userId: string; displayName: string }> => {
+): ThreadIndicatorParticipant[] => {
   const count = sampleReplyCount(id, state);
   if (count === 0) return [];
   const thread = THREADS[id];

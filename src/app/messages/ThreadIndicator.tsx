@@ -1,4 +1,3 @@
-import type { ComponentPropsWithoutRef, Ref } from 'react';
 import type { EventTimelineSet, Room } from 'matrix-js-sdk';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -6,16 +5,17 @@ import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { getMemberDisplayName } from '../matrix/room';
 import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import {
-  MAX_THREAD_INDICATOR_PARTICIPANTS,
   ThreadIndicatorChip,
+  type ThreadIndicatorChipProps,
   type ThreadIndicatorParticipant,
   type ThreadIndicatorUnread,
 } from './ThreadIndicatorChip';
 
 export type { ThreadIndicatorUnread };
 
-type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'> & {
-  as?: 'button' | 'div' | 'span';
+const MAX_THREAD_INDICATOR_PARTICIPANTS = 3;
+
+type ThreadIndicatorProps = Omit<ThreadIndicatorChipProps, 'replyCount' | 'participants'> & {
   room: Room;
   /** Root of the thread; without one the indicator only labels the composer as replying in a thread. */
   threadRootId?: string;
@@ -24,12 +24,6 @@ type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'>
   /** Known reply count; read from the thread model or root metadata when omitted. */
   threadReplyCount?: number;
   threadParticipantIds?: string[];
-  isResolved?: boolean;
-  /** Optional leading title, allowed to wrap before the unbroken reply metadata. */
-  threadTitle?: string;
-  /** Set while the thread is unread: the chip takes the accent and reads "New". */
-  unread?: ThreadIndicatorUnread;
-  ref?: Ref<HTMLElement>;
 };
 
 const resolveReplyCount = (
@@ -56,34 +50,29 @@ export function ThreadIndicator({
   threadRootId,
   timelineSet,
   room,
-  ref,
   ...rest
 }: ThreadIndicatorProps) {
   const mx = useOptionalMatrixClient();
   const useAuthentication = useMediaAuthentication();
 
   const replyCount =
-    threadReplyCount !== undefined
-      ? threadReplyCount
-      : threadRootId
-        ? resolveReplyCount(room, threadRootId, timelineSet)
-        : undefined;
+    threadReplyCount ??
+    (threadRootId ? resolveReplyCount(room, threadRootId, timelineSet) : undefined);
 
-  const participants: ThreadIndicatorParticipant[] | undefined =
-    threadParticipantIds && threadParticipantIds.length > 0
-      ? threadParticipantIds.slice(0, MAX_THREAD_INDICATOR_PARTICIPANTS).map((userId) => {
-          const member = room.getMember?.(userId);
-          const displayName = (member && getMemberDisplayName(room, userId)) || userId;
-          const mxc = member?.getMxcAvatarUrl();
-          const avatarUrl =
-            mx && mxc
-              ? (mxcUrlToHttp(mx, mxc, useAuthentication, 36, 36, 'crop') ?? undefined)
-              : undefined;
-          return { userId, displayName, avatarUrl };
-        })
-      : undefined;
+  const participants: ThreadIndicatorParticipant[] | undefined = threadParticipantIds
+    ?.slice(0, MAX_THREAD_INDICATOR_PARTICIPANTS)
+    .map((userId) => {
+      const member = room.getMember?.(userId);
+      const mxc = member?.getMxcAvatarUrl();
+      return {
+        userId,
+        displayName: (member && getMemberDisplayName(room, userId)) || userId,
+        avatarUrl:
+          mx && mxc
+            ? (mxcUrlToHttp(mx, mxc, useAuthentication, 36, 36, 'crop') ?? undefined)
+            : undefined,
+      };
+    });
 
-  return (
-    <ThreadIndicatorChip {...rest} ref={ref} replyCount={replyCount} participants={participants} />
-  );
+  return <ThreadIndicatorChip {...rest} replyCount={replyCount} participants={participants} />;
 }

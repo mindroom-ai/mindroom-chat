@@ -21,7 +21,7 @@ import * as css from './ActivityList.css';
 
 export const ACTIVITY_TABS: readonly ActivityTab[] = ['all', 'mentions', 'replies', 'needsYou'];
 
-export const ACTIVITY_KIND_ICONS: Record<ActivityKind, { icon: IconSrc; className?: string }> = {
+const ACTIVITY_KIND_ICONS: Record<ActivityKind, { icon: IconSrc; className?: string }> = {
   approval: { icon: Icons.Lock, className: css.KindAttention },
   question: { icon: Icons.Info, className: css.KindAttention },
   invite: { icon: Icons.Mail, className: css.KindAttention },

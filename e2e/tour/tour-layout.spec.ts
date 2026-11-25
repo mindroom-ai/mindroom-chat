@@ -275,10 +275,14 @@ const verifySnoozeAndPinAndTag = async (
   for (let at = 1; at < 9; at += 1) await page.locator('[data-tour-action="next"]').click();
   await expect(dialog).toHaveAttribute('data-tour-step', 'snooze');
   const frame = await frameOf(page);
+  const expectPhaseSpotlight = async (phase: number, part: string, label: string) => {
+    await expect(stage).toHaveAttribute('data-tour-phase', String(phase));
+    const ring = await expectSpotlightOn(page, part, `${label} ${name}`);
+    expect(inside(ring, frame), `${name} ${label}: spotlight inside stage`).toBe(true);
+  };
+
   await page.clock.runFor(1_500);
-  await expect(stage).toHaveAttribute('data-tour-phase', '1');
-  const snoozeRing = await expectSpotlightOn(page, 'menuSnooze', `snooze ${name} p1`);
-  expect(inside(snoozeRing, frame), `${name} snooze p1: spotlight inside stage`).toBe(true);
+  await expectPhaseSpotlight(1, 'menuSnooze', 'snooze p1');
   const snoozeMenuBox = await boxOf(page, '[data-tour-card-menu]');
   expect(inside(snoozeMenuBox, frame), `${name} snooze p1: menu inside stage`).toBe(true);
 
@@ -287,9 +291,7 @@ const verifySnoozeAndPinAndTag = async (
   await expect(dialog).toHaveAttribute('data-tour-step', 'pinAndTag');
 
   // Phase 0: pinButton (desktop hover) or menuPin inside Thread options (phone / touch tablet).
-  await expect(stage).toHaveAttribute('data-tour-phase', '0');
-  const ring0 = await expectSpotlightOn(page, phase0Part, `pinAndTag ${name} p0`);
-  expect(inside(ring0, frame), `${name} p0: spotlight inside stage`).toBe(true);
+  await expectPhaseSpotlight(0, phase0Part, 'pinAndTag p0');
   if (phase0Part === 'menuPin') {
     await expect(page.locator('[data-tour-stage] [data-tour-part="pinButton"]')).toHaveCount(0);
     const menuBox = await boxOf(page, '[data-tour-card-menu]');
@@ -298,23 +300,17 @@ const verifySnoozeAndPinAndTag = async (
 
   // Phase 1: Pinned section (450ms start delay + 1200ms phase 0).
   await page.clock.runFor(1_700);
-  await expect(stage).toHaveAttribute('data-tour-phase', '1');
-  const ring1 = await expectSpotlightOn(page, 'pinnedSection', `pinAndTag ${name} p1`);
-  expect(inside(ring1, frame), `${name} p1: spotlight inside stage`).toBe(true);
+  await expectPhaseSpotlight(1, 'pinnedSection', 'pinAndTag p1');
 
   // Phase 2: Edit tags in Thread options (1100ms phase 1).
   await page.clock.runFor(1_150);
-  await expect(stage).toHaveAttribute('data-tour-phase', '2');
-  const ring2 = await expectSpotlightOn(page, 'menuTags', `pinAndTag ${name} p2`);
-  expect(inside(ring2, frame), `${name} p2: spotlight inside stage`).toBe(true);
+  await expectPhaseSpotlight(2, 'menuTags', 'pinAndTag p2');
   const menu2Box = await boxOf(page, '[data-tour-card-menu]');
   expect(inside(menu2Box, frame), `${name} p2: menu inside stage`).toBe(true);
 
   // Phase 3: settled (pinned and tagged, after 1200ms phase 2).
   await page.clock.runFor(1_250);
-  await expect(stage).toHaveAttribute('data-tour-phase', '3');
-  const ring3 = await expectSpotlightOn(page, 'card:budget', `pinAndTag ${name} p3`);
-  expect(inside(ring3, frame), `${name} p3: spotlight inside stage`).toBe(true);
+  await expectPhaseSpotlight(3, 'card:budget', 'pinAndTag p3');
 };
 
 for (const screen of [

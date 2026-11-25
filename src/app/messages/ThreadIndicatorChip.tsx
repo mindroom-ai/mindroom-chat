@@ -6,8 +6,6 @@ import { UserAvatar } from '../avatars/UserAvatar';
 import { documentIsRightToLeft } from '../ui/directional';
 import * as css from './ThreadIndicator.css';
 
-export const MAX_THREAD_INDICATOR_PARTICIPANTS = 3;
-
 export type ThreadIndicatorParticipant = {
   userId: string;
   displayName: string;
@@ -38,7 +36,7 @@ export type ThreadIndicatorChipProps = Omit<ComponentPropsWithoutRef<'button'>, 
  */
 export function ThreadIndicatorChip({
   replyCount,
-  participants: allParticipants,
+  participants = [],
   isResolved,
   unread,
   threadTitle,
@@ -58,7 +56,6 @@ export function ThreadIndicatorChip({
   const iconLabel = counted
     ? { role: 'img', 'aria-label': t('thread.chip') }
     : { 'aria-hidden': true as const };
-  const participants = allParticipants?.slice(0, MAX_THREAD_INDICATOR_PARTICIPANTS) ?? [];
 
   const ownProps = {
     // A button inside a form must never submit it.

@@ -59,6 +59,8 @@ export type TourScene = {
   thread?: { messages: readonly SampleMessage[] };
   /** The part the step is about, which the spotlight rings; none for the whole list. */
   spotlight?: TourPart;
+  /** Uses touch card actions (`phone || hasNoHover()`) instead of desktop hover buttons. */
+  touchCards: boolean;
 };
 
 /** The phase of `start` in which the message is typed into the composer. */
@@ -73,19 +75,22 @@ const toTop = (cards: readonly SceneCard[], top: SampleThreadId): readonly Scene
 ];
 
 /** The room as every step starts from it: the list, with nothing open. */
-const room = (cards: readonly SceneCard[]): TourScene => ({
-  view: 'list',
-  header: true,
-  composer: true,
-  typed: 0,
-  pinned: [],
-  cards,
-  roomMenu: false,
-  filterBar: false,
-  unresolvedOnly: true,
-  bell: false,
-  activity: false,
-});
+const roomWith =
+  (touchCards: boolean) =>
+  (cards: readonly SceneCard[]): TourScene => ({
+    view: 'list',
+    header: true,
+    composer: true,
+    typed: 0,
+    pinned: [],
+    cards,
+    roomMenu: false,
+    filterBar: false,
+    unresolvedOnly: true,
+    bell: false,
+    activity: false,
+    touchCards,
+  });
 
 /** The room before the tour's thread is started, newest first. */
 const BEFORE: readonly SceneCard[] = [
@@ -127,19 +132,19 @@ const TAGGED_OTHERS: readonly SceneCard[] = TIDY.map(({ id }) =>
 const QUESTION: SampleMessage = { sender: 'you', text: 'typed' };
 const ANSWER: SampleMessage = { sender: 'writer', text: 'launchReply' };
 
-/** The new thread, open, with the room's list behind it. */
-const openThread = (messages: readonly SampleMessage[], launch: SampleCardState): TourScene => ({
-  ...room(withLaunch(launch)),
-  view: 'thread',
-  thread: { messages },
-});
-
 const scenesOf = (
   step: TourStepId,
   phone: boolean,
   typedLength: number,
   touchCards: boolean
 ): TourScene[] => {
+  const room = roomWith(touchCards);
+  /** The new thread, open, with the room's list behind it. */
+  const openThread = (messages: readonly SampleMessage[], launch: SampleCardState): TourScene => ({
+    ...room(withLaunch(launch)),
+    view: 'thread',
+    thread: { messages },
+  });
   switch (step) {
     case 'conversation':
       return [{ ...room(BEFORE), spotlight: 'card:budget' }];

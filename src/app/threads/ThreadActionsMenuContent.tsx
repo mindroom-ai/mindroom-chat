@@ -27,7 +27,7 @@ export type ThreadActionMenuGroup = {
 
 // As the original's thread menu measures: at least 220px wide, with the banner's 12px corners. A
 // screen narrower than that at a large Page Zoom (320px at 150%) keeps a 0.5rem margin on each side.
-export const threadActionsMenuStyle: CSSProperties = {
+const threadActionsMenuStyle: CSSProperties = {
   minWidth: `min(${toRem(220)}, calc(100vw - 1rem))`,
   maxWidth: 'calc(100vw - 1rem)',
   borderRadius: config.radii.R500,
@@ -49,7 +49,6 @@ export type ThreadActionMenuGroupsOptions = {
   resolveShortcut?: ShortcutId;
   /** Open-thread fork actions (Fork thread, Fork to room). */
   forkItems?: readonly ThreadActionMenuItem[];
-  showCopy?: boolean;
   /** When defined, adds the Show Tool Calls switch under View. */
   showToolCalls?: boolean;
   /** Additional View actions (Show beside, Show in full, Hide details). */
@@ -86,7 +85,6 @@ export function buildThreadActionMenuGroups({
   snoozed,
   resolveShortcut,
   forkItems = [],
-  showCopy = true,
   showToolCalls,
   viewItems = [],
   onTags,
@@ -156,15 +154,15 @@ export function buildThreadActionMenuGroups({
     }
   }
 
-  const shareItems: ThreadActionMenuItem[] = [...forkItems];
-  if (showCopy) {
-    shareItems.push({
+  const shareItems: ThreadActionMenuItem[] = [
+    ...forkItems,
+    {
       action: 'copy',
       label: t('threadActions.copy'),
       icon: Icons.Link,
       onSelect: onCopy ?? noop,
-    });
-  }
+    },
+  ];
 
   const resolvedViewItems: ThreadActionMenuItem[] = [];
   if (showToolCalls !== undefined) {
@@ -203,7 +201,6 @@ export type ThreadActionsMenuContentProps = {
   saving?: boolean;
   ariaDescribedBy?: string;
   className?: string;
-  style?: CSSProperties;
   ref?: Ref<HTMLDivElement>;
 };
 
@@ -215,7 +212,6 @@ export function ThreadActionsMenuContent({
   saving = false,
   ariaDescribedBy,
   className,
-  style,
   ref,
 }: ThreadActionsMenuContentProps) {
   return (
@@ -225,7 +221,7 @@ export function ThreadActionsMenuContent({
       aria-label={label}
       aria-describedby={ariaDescribedBy}
       className={classNames(css.ThreadMenu, className)}
-      style={style ? { ...threadActionsMenuStyle, ...style } : threadActionsMenuStyle}
+      style={threadActionsMenuStyle}
     >
       <div className={css.ThreadMenuRows}>
         {before}
