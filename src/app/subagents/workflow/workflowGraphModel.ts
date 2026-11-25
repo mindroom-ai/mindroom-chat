@@ -39,6 +39,7 @@ export type WorkflowGraphLayout = {
   peerBridgesByGroup: Map<string, WorkflowPeerBridge[]>;
   stepCount: number;
 };
+export type ShortNodeError = { kind: 'timeout' } | { kind: 'text'; text: string };
 
 const PLUMBING_KINDS: ReadonlySet<string> = new Set(['value', 'state', 'send', 'inbox', 'tool']);
 const STATUS_RANK = {
@@ -133,6 +134,26 @@ const compareIds = (a: string, b: string): number => idNum(a) - idNum(b) || a.lo
 const itemId = (item: WorkflowGraphItem): string =>
   item.type === 'group' ? item.group.id : item.node.id;
 
+const deepestCommonGroup = (
+  fromStacks: readonly (readonly string[])[],
+  toStacks: readonly (readonly string[])[]
+): string | null => {
+  let bestGroup: string | null = null;
+  let bestDepth = 0;
+  for (const a of fromStacks) {
+    for (const b of toStacks) {
+      let depth = 0;
+      const limit = Math.min(a.length, b.length);
+      while (depth < limit && a[depth] === b[depth]) depth += 1;
+      if (depth > bestDepth) {
+        bestDepth = depth;
+        bestGroup = a[depth - 1]!;
+      }
+    }
+  }
+  return bestGroup;
+};
+
 /** Builds phase bands, session metadata, and in-group peer message bridges in one indexed pass. */
 export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLayout => {
   type Entry = {
@@ -180,16 +201,20 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
     else roots.push(e);
   }
 
-  // Omit empty 0s session wrapper nodes whose emitted turns all live inside groups.
+  // Omit completed empty 0s session wrappers (no error/job/run) whose emitted turns all live in groups.
   const isRedundantSession = (e: Entry): boolean =>
     e.node?.kind === 'session' &&
+    e.node.status === 'completed' &&
     e.node.turns > 0 &&
     !e.node.error &&
+    !e.node.job &&
+    !e.node.run &&
     (emittedTurnsBySession.get(e.id) ?? 0) > 0 &&
     (childrenOf.get(e.id)?.length ?? 0) === 0;
 
   const visited = new Set<string>();
   const ancestorGroups = new Map<string, string[]>();
+  const sessionTurnGroups = new Map<string, string[][]>();
   let stepCount = 0;
 
   const build = (e: Entry, groupStack: string[]): WorkflowGraphItem => {
@@ -198,6 +223,12 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
     if (e.node) {
       stepCount += 1;
       ancestorGroups.set(e.node.id, groupStack);
+      if (e.node.session && groupStack.length > 0) {
+        (
+          sessionTurnGroups.get(e.node.session) ??
+          sessionTurnGroups.set(e.node.session, []).get(e.node.session)!
+        ).push(groupStack);
+      }
     }
     const kids: WorkflowGraphItem[] = [];
     for (const c of (childrenOf.get(e.id) ?? []).sort((a, b) => compareIds(a.id, b.id))) {
@@ -231,21 +262,23 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
       if (!visited.has(e.id)) place(e);
     });
 
-  // Derive deduplicated / bidirectional peer message bridges per enclosing group.
+  // Derive deduplicated / bidirectional peer message bridges per enclosing group,
+  // including edges addressed to/from a session node whose turns live inside that group.
+  const endpointGroups = (id: string): string[][] => {
+    const own = ancestorGroups.get(id);
+    const out = own?.length ? [own] : [];
+    const sessionStacks = sessionsById.has(id) ? sessionTurnGroups.get(id) : undefined;
+    return sessionStacks?.length ? [...out, ...sessionStacks] : out;
+  };
   const bridgeMaps = new Map<string, Map<string, WorkflowPeerBridge>>();
   for (const edge of graph.edges) {
     if (edge.from === edge.to) continue;
-    const fromGroups = ancestorGroups.get(edge.from);
-    const toGroups = ancestorGroups.get(edge.to);
-    if (!fromGroups?.length || !toGroups?.length) continue;
-    let commonGroup: string | null = null;
-    for (
-      let i = 0;
-      i < Math.min(fromGroups.length, toGroups.length) && fromGroups[i] === toGroups[i];
-      i += 1
-    ) {
-      commonGroup = fromGroups[i]!;
-    }
+    if (
+      nodesById.get(edge.from)?.session === edge.to ||
+      nodesById.get(edge.to)?.session === edge.from
+    )
+      continue;
+    const commonGroup = deepestCommonGroup(endpointGroups(edge.from), endpointGroups(edge.to));
     if (!commonGroup) continue;
     const byPair =
       bridgeMaps.get(commonGroup) ?? bridgeMaps.set(commonGroup, new Map()).get(commonGroup)!;
@@ -288,19 +321,26 @@ const foldPriority = (item: WorkflowGraphItem): [number, number] => {
   return [rank, rank === 4 ? -(item.node.endedAt ?? idNum(item.node.id)) : idNum(item.node.id)];
 };
 
-/** Folds a large group to `limit`: unfinished items first, then newest completed ones. */
-export const foldGroupItems = (items: readonly WorkflowGraphItem[], limit = 24) => {
+/** Folds a large group to `limit`: unfinished items first, then newest completed ones.
+ *  When `preserveOrder` is true (sequential groups), re-sorts kept items in execution order. */
+export const foldGroupItems = (
+  items: readonly WorkflowGraphItem[],
+  limit = 24,
+  preserveOrder = false
+) => {
   if (items.length <= limit) return { shown: [...items], more: 0 };
   const ordered = [...items].sort((a, b) => {
     const [ab, ar] = foldPriority(a);
     const [bb, br] = foldPriority(b);
     return ab - bb || ar - br || compareIds(itemId(a), itemId(b));
   });
-  return { shown: ordered.slice(0, limit), more: ordered.length - limit };
+  const kept = ordered.slice(0, limit);
+  if (preserveOrder) kept.sort((a, b) => compareIds(itemId(a), itemId(b)));
+  return { shown: kept, more: ordered.length - limit };
 };
 
 const FENCE_MULTILINE = /^```[^\n]*\n([\s\S]*?)\n?```$/;
-const FENCE_INLINE = /^```(?:[a-zA-Z0-9_-]+\s+)?([\s\S]*?)```$/;
+const FENCE_INLINE = /^```([\s\S]*?)```$/;
 
 const stripSingleCodeFence = (text: string): string => {
   const trimmed = text.trim();
@@ -344,15 +384,19 @@ export const nodeResultPreview = (run: SubagentRun | undefined): string | undefi
   return lastLine ? formatPreview(lastLine) : undefined;
 };
 
-/** Concise 1-line inline error badge for failed cards and outline rows. */
-export const shortNodeError = (error: string | null): string | undefined => {
+const TIMEOUT_ERROR_RE =
+  /^(?:(?:[a-z_][\w.]*)?timeout(?:error)?\b|time\s*out\b)|\b(?:timed\s*out|did\s+not\s+finish\s+in\s+time)\b|\(\s*timeout\s*\)|:\s*timeout\b/i;
+
+/** Concise 1-line inline error badge descriptor for failed cards and outline rows. */
+export const shortNodeError = (error: string | null): ShortNodeError | null => {
   const firstLine = error
     ?.split('\n')
     .map((l) => l.trim())
     .find(Boolean);
-  if (!firstLine) return undefined;
+  if (!firstLine) return null;
   const stripped = firstLine.replace(/^error:\s*/i, '').trim() || firstLine;
-  if (/\b(?:timed?\s*out|timeout(?:error)?)\b/i.test(stripped)) return 'Timeout';
+  if (TIMEOUT_ERROR_RE.test(stripped)) return { kind: 'timeout' };
   const clause = stripped.split(/[:;!?](?:\s|$)|\.(?:\s|$)/)[0]?.trim() || stripped;
-  return clause.length > 40 ? `${clause.slice(0, 39).trimEnd()}…` : clause;
+  const text = clause.length > 40 ? `${clause.slice(0, 39).trimEnd()}…` : clause;
+  return { kind: 'text', text };
 };

@@ -71,8 +71,10 @@ export function WorkflowNodeInspector({
   ];
   const preview = nodeResultPreview(subagentRun);
   const sessionName = sessionBadgeLabel(session);
-  const outgoing = edges.filter((e) => e.from === node.id);
-  const incoming = edges.filter((e) => e.to === node.id);
+  // Resolve direct edges AND edges addressed to/from this turn's parent session ID.
+  const endpointIds = new Set(node.session ? [node.id, node.session] : [node.id]);
+  const outgoing = edges.filter((e) => endpointIds.has(e.from) && !endpointIds.has(e.to));
+  const incoming = edges.filter((e) => endpointIds.has(e.to) && !endpointIds.has(e.from));
 
   return (
     <aside className={css.InspectorPane} data-workflow-node-details={node.id}>

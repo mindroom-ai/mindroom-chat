@@ -1528,6 +1528,8 @@
         "selectStep": "选择一个步骤以查看其输出、指标和链接。",
         "noMessages": "步骤之间暂无消息。",
         "noLog": "暂无日志条目。",
+        "omittedEdges_other": "已省略 {{count}} 条消息。",
+        "omittedLog_other": "已省略 {{count}} 条日志。",
         "setupSteps_other": "{{count}} 个准备步骤",
         "showMore": "再显示 {{count}} 项",
         "omitted": {
@@ -1562,6 +1564,9 @@
         "messages": "消息",
         "messagesTo": "发送给 {{name}} 的消息：{{count}}",
         "messagesFrom": "来自 {{name}} 的消息：{{count}}",
+        "timeout": "超时",
+        "routeTo": "{{from}} 发送至 {{to}}：{{count}}",
+        "routeBetween": "{{from}} 与 {{to}} 之间：{{count}}",
         "duration": "耗时",
         "tokens": "令牌",
         "cost": "费用",

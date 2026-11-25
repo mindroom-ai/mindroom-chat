@@ -2,7 +2,10 @@ import { memo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { Button, Text } from 'folds';
 import type { WorkflowRunGroup, WorkflowRunNode } from '../../matrix/protocol/workflowFrame';
-import { formatWorkflowElapsed } from '../../messages/workflow-run/workflowRunLabels';
+import {
+  formatWorkflowElapsed,
+  workflowNodeStatusLabel,
+} from '../../messages/workflow-run/workflowRunLabels';
 import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { ownDirectionLine } from '../../ui/directional';
 import {
@@ -15,7 +18,7 @@ import {
 } from './workflowGraphModel';
 import * as css from './workflowPanel.css';
 
-export const GROUP_KIND_KEYS = new Map([
+const GROUP_KIND_KEYS = new Map([
   ['foreach', 'mindroomUi.workflowRun.group.foreach'],
   ['parallel', 'mindroomUi.workflowRun.group.parallel'],
   ['run', 'mindroomUi.workflowRun.group.run'],
@@ -25,6 +28,12 @@ export const GROUP_KIND_KEYS = new Map([
 export const groupKindLabel = (kind: string, t: TFunction): string => {
   const key = GROUP_KIND_KEYS.get(kind as never);
   return key ? t(key) : kind;
+};
+
+export const formatNodeErrorBadge = (error: string | null, t: TFunction): string | undefined => {
+  const short = shortNodeError(error);
+  if (!short) return undefined;
+  return short.kind === 'timeout' ? t('mindroomUi.workflowRun.node.timeout') : short.text;
 };
 
 export const isSessionHighlighted = (
@@ -103,6 +112,7 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
   selected,
   sessionHighlighted,
   now,
+  t,
   language,
   onSelect,
 }: {
@@ -111,6 +121,7 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
   selected: boolean;
   sessionHighlighted: boolean;
   now: number;
+  t: TFunction;
   language: string;
   onSelect: (id: string) => void;
 }) {
@@ -121,7 +132,8 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
     isLive ? now : null,
     language
   );
-  const errorBadge = node.status === 'failed' ? shortNodeError(node.error) : undefined;
+  const errorBadge = node.status === 'failed' ? formatNodeErrorBadge(node.error, t) : undefined;
+  const statusLabel = workflowNodeStatusLabel(node.status, t, node.waitingOn);
   return (
     <button
       type="button"
@@ -136,6 +148,7 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
       <span className={css.ChipLabel} {...ownDirectionLine}>
         {node.label}
       </span>
+      <span className={css.VisuallyHidden}>{` (${statusLabel})`}</span>
       {sessionLabel && (
         <span className={css.SessionBadge} {...ownDirectionLine}>
           @{sessionLabel}
@@ -161,7 +174,10 @@ function StepsGroup({
   ctx: StepsCtx;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { shown, more } = expanded ? { shown: items, more: 0 } : foldGroupItems(items);
+  const parallel = group.kind === 'parallel' || group.kind === 'foreach';
+  const { shown, more } = expanded
+    ? { shown: items, more: 0 }
+    : foldGroupItems(items, 24, !parallel);
   return (
     <div className={css.Stack} data-workflow-group-id={group.id}>
       <GroupHeaderRow group={group} t={ctx.t} compact />
@@ -196,6 +212,7 @@ export function WorkflowStepsItems({
               selected={selected}
               sessionHighlighted={isSessionHighlighted(item.node, selected, ctx.selectedSessionId)}
               now={isLiveWorkflowNodeStatus(item.node.status) ? ctx.now : 0}
+              t={ctx.t}
               language={ctx.language}
               onSelect={ctx.onSelect}
             />

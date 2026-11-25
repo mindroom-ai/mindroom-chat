@@ -946,7 +946,9 @@ describe('WorkflowPanel', () => {
     expect(within(groupEl).getAllByText('@reviewer')).toHaveLength(2);
     expect(within(groupEl).getByText('gemini_flash · minimal')).toBeTruthy();
     expect(within(groupEl).getByText('Timeout')).toBeTruthy();
-    expect(groupEl.textContent).toContain('backend↔frontend·3');
+    expect(groupEl.querySelector('[dir="ltr"]')?.textContent).toContain('backend ↔ frontend · 3');
+    expect(groupEl.textContent).toContain('backend and frontend: 3');
+    expect(groupEl.querySelector('[role="progressbar"]')).toBeNull();
     expect(groupEl.querySelectorAll('svg path').length).toBeGreaterThan(0);
 
     // Inspector details stay absent until a node is selected.
@@ -1065,17 +1067,27 @@ describe('WorkflowPanel', () => {
     const pre = details.querySelector('pre');
     expect(pre?.textContent).toBe('{\n  "ok": true,\n  "checked": 4\n}');
 
-    // Steps tab shows all 4 nodes flat as individual rows.
+    // Tabs have space-separated accessible names and wire aria-controls to a focusable tabpanel.
     const tabs = screen.getAllByRole('tab');
     expect(tabs).toHaveLength(4);
+    expect(tabs[1]!.textContent).toBe('Steps 4');
     fireEvent.click(tabs[1]!);
+    const stepsPanel = screen.getByRole('tabpanel');
+    expect(stepsPanel.id).toBe(tabs[1]!.getAttribute('aria-controls'));
+    expect(stepsPanel.getAttribute('tabindex')).toBe('0');
     expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(4);
+    expect(document.querySelector('[data-workflow-chip-id="n4"]')?.textContent).toContain(
+      '(Failed)'
+    );
 
-    // Messages tab lists routes and counts; keyboard ArrowRight switches to Log tab.
+    // Messages tab wraps arrows in dir="ltr" and exposes accessible direction; ArrowRight switches to Log.
     fireEvent.click(tabs[2]!);
-    expect(screen.getByRole('listitem').textContent).toContain('auditor → Notify peer');
+    const routeItem = screen.getByRole('listitem');
+    expect(routeItem.querySelector('[dir="ltr"]')?.textContent).toBe('auditor → Notify peer');
+    expect(routeItem.textContent).toContain('auditor to Notify peer: 2');
     fireEvent.keyDown(tabs[2]!, { key: 'ArrowRight' });
     expect(tabs[3]!.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[3]!.id);
     expect(screen.getByText('Round 1 finished')).toBeTruthy();
 
     // Bengali locale formats tab counts with localDigits and RTL reverses arrow-key tab order.
@@ -1108,6 +1120,128 @@ describe('WorkflowPanel', () => {
         await i18next.changeLanguage(previousLanguage);
       });
     }
+  });
+
+  it('shows omitted notices instead of empty states and hides 0 tab badges when edges or logs were omitted', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [makeNode('n1', { label: 'Check auth', status: 'completed', endedAt: 1795389760 })],
+        edges: [],
+        log: [],
+        omitted: { ...emptyOmitted, edges: 5, log: 3 },
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[2]!.textContent).toBe('Messages');
+    expect(tabs[3]!.textContent).toBe('Log');
+
+    fireEvent.click(tabs[2]!);
+    expect(screen.queryByText('No messages between steps yet.')).toBeNull();
+    expect(screen.getByText('5 messages omitted.')).toBeTruthy();
+    expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
+
+    fireEvent.click(tabs[3]!);
+    expect(screen.queryByText('No log entries yet.')).toBeNull();
+    expect(screen.getByText('3 log entries omitted.')).toBeTruthy();
+  });
+
+  it('resolves session-addressed peer edges in Parallel groups and preserves execution order in folded sequential run groups', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const seqNodes = Array.from({ length: 25 }, (_, i) =>
+      makeNode(`n${i + 10}`, {
+        label: `Seq ${i + 1}`,
+        group: 'g-seq',
+        phase: 1,
+        status: 'completed',
+        endedAt: 1795389800 + i,
+      })
+    );
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit', 'Pipeline'],
+        groups: [
+          { id: 'g1', kind: 'parallel', phase: 0, parent: null, total: 2, done: 2, failed: 0 },
+          { id: 'g-seq', kind: 'run', phase: 1, parent: null, total: 25, done: 25, failed: 0 },
+        ],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            phase: 0,
+            status: 'completed',
+            turns: 1,
+            endedAt: 1795389750,
+          }),
+          makeNode('n4', {
+            label: 'Backend scan',
+            name: 'backend',
+            group: 'g1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'Review pass',
+            name: 'pass-1',
+            group: 'g1',
+            session: 's1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+          ...seqNodes,
+        ],
+        edges: [{ from: 'n4', to: 's1', count: 2 }],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Turn-to-session edge renders as a peer bridge inside g1 and appears in n5's inspector.
+    const parallelGroup = document.querySelector('[data-workflow-group-id="g1"]') as HTMLElement;
+    expect(parallelGroup.querySelector('[dir="ltr"]')?.textContent).toContain(
+      'backend → reviewer · 2'
+    );
+    fireEvent.click(document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement);
+    const details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    expect(within(details).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // Folded 25-item sequential `run` group keeps its 24 kept items in ascending execution order (n11..n34).
+    const seqGroup = document.querySelector('[data-workflow-group-id="g-seq"]') as HTMLElement;
+    const seqChipIds = Array.from(
+      seqGroup.querySelectorAll<HTMLElement>('[data-workflow-chip-id]'),
+      (el) => el.dataset.workflowChipId
+    );
+    expect(seqChipIds).toHaveLength(24);
+    expect(seqChipIds[0]).toBe('n11');
+    expect(seqChipIds[23]).toBe('n34');
   });
 
   it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {

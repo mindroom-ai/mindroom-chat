@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -75,6 +76,7 @@ export function WorkflowPanel({
 }: WorkflowPanelProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const tabsId = useId();
   const mx = useMatrixClient();
   const entry = useWorkflowRun(room.roomId, run);
   useEffect(() => getWorkflowRunStore(mx).pin(room.roomId, run), [mx, room.roomId, run]);
@@ -139,6 +141,20 @@ export function WorkflowPanel({
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
   const hasOmitted = Boolean(omitted && Object.values(omitted).some(Boolean));
+  const omittedSteps = omitted
+    ? omitted.queued + omitted.running + omitted.waiting + omitted.completed + omitted.failed
+    : 0;
+  const omittedEdges = omitted?.edges ?? 0;
+  const omittedLog = omitted?.log ?? 0;
+  const askAgentLine = entry
+    ? t('mindroomUi.workflowRun.panel.askAgent', { agent: agentProfile.name || entry.agent })
+    : '';
+
+  const tabCountText = (count: number, omittedCount: number): string | undefined => {
+    if (count === 0 && omittedCount > 0) return undefined;
+    const digits = localDigits(String(count), language);
+    return omittedCount > 0 ? `${digits}+` : digits;
+  };
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const rtl = documentIsRightToLeft();
@@ -159,11 +175,20 @@ export function WorkflowPanel({
     tabRefs.current[target]?.focus();
   };
 
-  const tabMeta: Record<WorkflowTab, { label: string; count?: number }> = {
+  const tabMeta: Record<WorkflowTab, { label: string; countText?: string }> = {
     flow: { label: t('mindroomUi.workflowRun.panel.flow') },
-    steps: { label: t('mindroomUi.workflowRun.panel.steps'), count: layout?.stepCount ?? 0 },
-    messages: { label: t('mindroomUi.workflowRun.node.messages'), count: messageCount },
-    log: { label: t('mindroomUi.workflowRun.panel.log'), count: logLines.length },
+    steps: {
+      label: t('mindroomUi.workflowRun.panel.steps'),
+      countText: tabCountText(layout?.stepCount ?? 0, omittedSteps),
+    },
+    messages: {
+      label: t('mindroomUi.workflowRun.node.messages'),
+      countText: tabCountText(messageCount, omittedEdges),
+    },
+    log: {
+      label: t('mindroomUi.workflowRun.panel.log'),
+      countText: tabCountText(logLines.length, omittedLog),
+    },
   };
 
   const omittedNotice = entry && hasOmitted && omitted && (
@@ -174,7 +199,7 @@ export function WorkflowPanel({
         </Text>
       ))}
       <Text size="T200" priority="300">
-        {t('mindroomUi.workflowRun.panel.askAgent', { agent: agentProfile.name || entry.agent })}
+        {askAgentLine}
       </Text>
     </div>
   );
@@ -212,25 +237,30 @@ export function WorkflowPanel({
           aria-label={t('mindroomUi.workflowRun.panel.viewsLabel')}
         >
           {TABS.map((id, idx) => {
-            const { label, count } = tabMeta[id];
+            const { label, countText } = tabMeta[id];
             const selected = activeTab === id;
             return (
               <button
                 key={id}
+                id={`${tabsId}-tab-${id}`}
                 ref={(el) => {
                   tabRefs.current[id] = el;
                 }}
                 type="button"
                 role="tab"
                 aria-selected={selected}
+                aria-controls={`${tabsId}-panel-${id}`}
                 tabIndex={selected ? 0 : -1}
                 className={css.TabButton}
                 onClick={() => setActiveTab(id)}
                 onKeyDown={(e) => onTabKeyDown(e, idx)}
               >
                 <span>{label}</span>
-                {count !== undefined && (
-                  <span className={css.MutedNum}>{localDigits(String(count), language)}</span>
+                {countText !== undefined && (
+                  <>
+                    {' '}
+                    <span className={css.MutedNum}>{countText}</span>
+                  </>
                 )}
               </button>
             );
@@ -253,84 +283,137 @@ export function WorkflowPanel({
             {t('mindroomUi.workflowRun.panel.stale', { time: staleRelative })}
           </Text>
         )}
-        {showSplit && (
-          <div className={css.SplitLayout}>
-            <div className={css.Band}>
-              {layout && layout.bands.length > 0 && (
-                <WorkflowGraphView
-                  mode={activeTab === 'steps' ? 'steps' : 'flow'}
-                  bands={layout.bands}
-                  sessionsById={layout.sessionsById}
-                  peerBridgesByGroup={layout.peerBridgesByGroup}
-                  room={room}
-                  subagentsByRun={subagentsByRun}
-                  selectedId={selectedId}
-                  selectedSessionId={selectedSessionId}
-                  now={now}
-                  onSelect={handleSelect}
-                />
-              )}
-              {omittedNotice}
-            </div>
-            {selectedNode ? (
-              <WorkflowNodeInspector
-                room={room}
-                threadId={effectiveThreadId}
-                node={selectedNode}
-                subagentRun={selectedNode.run ? subagentsByRun.get(selectedNode.run) : undefined}
-                session={
-                  selectedNode.session ? layout?.sessionsById.get(selectedNode.session) : undefined
-                }
-                nodesById={nodesById}
-                edges={edges}
-                now={now}
-                canStop={canStopNode}
-                onSelect={handleSelect}
-                onStopNode={(jobId) => void stopNode(jobId)}
-              />
-            ) : (
-              <WorkflowInspectorEmpty />
+        {entry && (
+          <div
+            role="tabpanel"
+            id={`${tabsId}-panel-${activeTab}`}
+            aria-labelledby={`${tabsId}-tab-${activeTab}`}
+            tabIndex={0}
+            className={css.TabPanel}
+          >
+            {showSplit && (
+              <div className={css.SplitLayout}>
+                <div className={css.Band}>
+                  {layout && layout.bands.length > 0 && (
+                    <WorkflowGraphView
+                      mode={activeTab === 'steps' ? 'steps' : 'flow'}
+                      bands={layout.bands}
+                      sessionsById={layout.sessionsById}
+                      peerBridgesByGroup={layout.peerBridgesByGroup}
+                      room={room}
+                      subagentsByRun={subagentsByRun}
+                      selectedId={selectedId}
+                      selectedSessionId={selectedSessionId}
+                      now={now}
+                      onSelect={handleSelect}
+                    />
+                  )}
+                  {omittedNotice}
+                </div>
+                {selectedNode ? (
+                  <WorkflowNodeInspector
+                    room={room}
+                    threadId={effectiveThreadId}
+                    node={selectedNode}
+                    subagentRun={
+                      selectedNode.run ? subagentsByRun.get(selectedNode.run) : undefined
+                    }
+                    session={
+                      selectedNode.session
+                        ? layout?.sessionsById.get(selectedNode.session)
+                        : undefined
+                    }
+                    nodesById={nodesById}
+                    edges={edges}
+                    now={now}
+                    canStop={canStopNode}
+                    onSelect={handleSelect}
+                    onStopNode={(jobId) => void stopNode(jobId)}
+                  />
+                ) : (
+                  <WorkflowInspectorEmpty />
+                )}
+              </div>
+            )}
+            {(activeTab === 'flow' || activeTab === 'steps') && !showSplit && omittedNotice}
+            {activeTab === 'messages' && (
+              <>
+                {edges.length > 0 ? (
+                  <ul className={css.MessageList}>
+                    {edges.map((e) => {
+                      const fromName = nodeDisplayName(nodesById, e.from);
+                      const toName = nodeDisplayName(nodesById, e.to);
+                      return (
+                        <li key={`${e.from}->${e.to}`} className={css.MessageRow}>
+                          <span dir="ltr" aria-hidden="true">
+                            <bdi>{fromName}</bdi> → <bdi>{toName}</bdi>
+                          </span>
+                          <span className={css.CountBadge} aria-hidden="true">
+                            {localDigits(String(e.count), language)}
+                          </span>
+                          <span className={css.VisuallyHidden}>
+                            {t('mindroomUi.workflowRun.node.routeTo', {
+                              from: fromName,
+                              to: toName,
+                              count: e.count,
+                            })}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  omittedEdges === 0 && (
+                    <Text size="T200" priority="300" className={css.Empty}>
+                      {t('mindroomUi.workflowRun.panel.noMessages')}
+                    </Text>
+                  )
+                )}
+                {omittedEdges > 0 && (
+                  <div className={css.InsetBox}>
+                    <Text size="T200" priority="300">
+                      {t('mindroomUi.workflowRun.panel.omittedEdges', { count: omittedEdges })}
+                    </Text>
+                    <Text size="T200" priority="300">
+                      {askAgentLine}
+                    </Text>
+                  </div>
+                )}
+              </>
+            )}
+            {activeTab === 'log' && (
+              <>
+                {logLines.length > 0 ? (
+                  <ul className={css.LogList}>
+                    {logLines.map((line, i) => (
+                      // Log lines are append-only text and can repeat across rounds.
+                      // eslint-disable-next-line react/no-array-index-key
+                      <li key={i} {...ownDirectionLine}>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  omittedLog === 0 && (
+                    <Text size="T200" priority="300" className={css.Empty}>
+                      {t('mindroomUi.workflowRun.panel.noLog')}
+                    </Text>
+                  )
+                )}
+                {omittedLog > 0 && (
+                  <div className={css.InsetBox}>
+                    <Text size="T200" priority="300">
+                      {t('mindroomUi.workflowRun.panel.omittedLog', { count: omittedLog })}
+                    </Text>
+                    <Text size="T200" priority="300">
+                      {askAgentLine}
+                    </Text>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
-        {entry && (activeTab === 'flow' || activeTab === 'steps') && !showSplit && omittedNotice}
-        {entry &&
-          activeTab === 'messages' &&
-          (edges.length > 0 ? (
-            <ul className={css.MessageList}>
-              {edges.map((e) => (
-                <li key={`${e.from}->${e.to}`} className={css.MessageRow}>
-                  <span {...ownDirectionLine}>
-                    <bdi>{nodeDisplayName(nodesById, e.from)}</bdi>
-                    {' → '}
-                    <bdi>{nodeDisplayName(nodesById, e.to)}</bdi>
-                  </span>
-                  <span className={css.CountBadge}>{localDigits(String(e.count), language)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Text size="T200" priority="300" className={css.Empty}>
-              {t('mindroomUi.workflowRun.panel.noMessages')}
-            </Text>
-          ))}
-        {entry &&
-          activeTab === 'log' &&
-          (logLines.length > 0 ? (
-            <ul className={css.LogList}>
-              {logLines.map((line, i) => (
-                // Log lines are append-only text and can repeat across rounds.
-                // eslint-disable-next-line react/no-array-index-key
-                <li key={i} {...ownDirectionLine}>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Text size="T200" priority="300" className={css.Empty}>
-              {t('mindroomUi.workflowRun.panel.noLog')}
-            </Text>
-          ))}
       </div>
     </section>
   );

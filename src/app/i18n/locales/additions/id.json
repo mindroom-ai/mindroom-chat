@@ -1528,6 +1528,8 @@
         "selectStep": "Pilih langkah untuk memeriksa keluaran, metrik, dan tautannya.",
         "noMessages": "Belum ada pesan antar langkah.",
         "noLog": "Belum ada entri log.",
+        "omittedEdges_other": "{{count}} pesan dilewati.",
+        "omittedLog_other": "{{count}} entri log dilewati.",
         "setupSteps_other": "{{count}} langkah penyiapan",
         "showMore": "Tampilkan {{count}} lagi",
         "omitted": {
@@ -1562,6 +1564,9 @@
         "messages": "Pesan",
         "messagesTo": "Pesan ke {{name}}: {{count}}",
         "messagesFrom": "Pesan dari {{name}}: {{count}}",
+        "timeout": "Waktu habis",
+        "routeTo": "{{from}} ke {{to}}: {{count}}",
+        "routeBetween": "{{from}} dan {{to}}: {{count}}",
         "duration": "Durasi",
         "tokens": "Token",
         "cost": "Biaya",

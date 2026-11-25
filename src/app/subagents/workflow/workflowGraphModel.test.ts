@@ -174,7 +174,7 @@ describe('workflowGraphModel', () => {
       })
     );
 
-    // s1 is omitted from roots (all emitted turns live in g1), while s2 (0 turns yet) stays.
+    // s1 is omitted from roots (completed, no error/job/run, all emitted turns in g1); s2 (0 turns) stays.
     expect(ids(layout.bands[0]!.items)).toEqual(['g1', 's2']);
     const groupItem = layout.bands[0]!.items[0];
     expect(groupItem?.type === 'group' ? ids(groupItem.items) : []).toEqual(['n4', 'n5']);
@@ -285,6 +285,71 @@ describe('workflowGraphModel', () => {
     ]);
   });
 
+  it('keeps live, job-bearing, or run-bearing sessions visible and resolves turn-to-session bridges inside Parallel groups', () => {
+    const layout = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        groups: [makeGroup('g1', { kind: 'parallel', phase: 0, total: 3, done: 2 })],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            name: 'reviewer',
+            phase: 0,
+            status: 'completed',
+            turns: 1,
+          }),
+          makeNode('s2', {
+            kind: 'session',
+            name: 'live-session',
+            phase: 0,
+            status: 'running',
+            turns: 1,
+          }),
+          makeNode('s3', {
+            kind: 'session',
+            name: 'job-session',
+            phase: 0,
+            status: 'completed',
+            job: 'job-s3',
+            turns: 1,
+          }),
+          makeNode('n4', { name: 'backend', group: 'g1', phase: 0 }),
+          makeNode('n5', { kind: 'turn', name: 'pass1', group: 'g1', session: 's1', phase: 0 }),
+          makeNode('n6', { kind: 'turn', name: 'pass2', group: 'g1', session: 's2', phase: 0 }),
+          makeNode('n7', { kind: 'turn', name: 'pass3', group: 'g1', session: 's3', phase: 0 }),
+        ],
+        edges: [{ from: 'n4', to: 's1', count: 2 }],
+      })
+    );
+
+    // Only completed jobless/runless s1 is omitted; running s2 and job-bearing s3 remain visible.
+    expect(ids(layout.bands[0]!.items)).toEqual(['g1', 's2', 's3']);
+    expect(layout.peerBridgesByGroup.get('g1')).toEqual([
+      {
+        key: 'n4\0s1',
+        fromId: 'n4',
+        toId: 's1',
+        fromLabel: 'backend',
+        toLabel: 'reviewer',
+        bidirectional: false,
+        count: 2,
+      },
+    ]);
+  });
+
+  it('preserves ascending execution order when folding a 25-item sequential group', () => {
+    const items: WorkflowGraphItem[] = Array.from({ length: 25 }, (_, i) => ({
+      type: 'node',
+      node: makeNode(`n${i + 1}`, { status: 'completed', endedAt: 1000 + i }),
+    }));
+    const { shown, more } = foldGroupItems(items, 24, true);
+    expect(more).toBe(1);
+    expect(shown).toHaveLength(24);
+    expect(ids(shown)[0]).toBe('n2');
+    expect(ids(shown)[23]).toBe('n25');
+    expect(ids(shown)).toEqual(Array.from({ length: 24 }, (_, i) => `n${i + 2}`));
+  });
+
   it('folds a group of 300 to its unfinished items and the newest done ones', () => {
     const items: WorkflowGraphItem[] = [];
     for (let i = 1; i <= 280; i += 1) {
@@ -337,19 +402,33 @@ describe('workflowGraphModel', () => {
     expect(nodeResultPreview(makeSubagent('```\nPlain fenced text\n```', ''))).toBe(
       'Plain fenced text'
     );
+    expect(nodeResultPreview(makeSubagent('```git status```', ''))).toBe('git status');
     expect(nodeResultPreview(makeSubagent(undefined, 'First line\n\nSecond line\n  '))).toBe(
       'Second line'
     );
     expect(nodeResultPreview(makeSubagent('x'.repeat(400), ''))).toHaveLength(300);
   });
 
-  it('extracts concise inline error badges for timeout and structured error strings', () => {
-    expect(shortNodeError(null)).toBeUndefined();
-    expect(shortNodeError('Timed out after 120s waiting for reply')).toBe('Timeout');
-    expect(shortNodeError('TimeoutError: upstream gateway')).toBe('Timeout');
-    expect(shortNodeError('RateLimitError: too many requests')).toBe('RateLimitError');
-    expect(shortNodeError('Error: Connection refused. Retry later')).toBe('Connection refused');
-    expect(shortNodeError('A'.repeat(60))).toHaveLength(40);
+  it('extracts concise inline error descriptors with tight timeout detection', () => {
+    expect(shortNodeError(null)).toBeNull();
+    expect(shortNodeError('Timed out after 120s waiting for reply')).toEqual({ kind: 'timeout' });
+    expect(shortNodeError('AgentError(timeout): exceeded 60s')).toEqual({ kind: 'timeout' });
+    expect(shortNodeError('Step did not finish in time')).toEqual({ kind: 'timeout' });
+    expect(shortNodeError('TimeoutError: upstream gateway')).toEqual({ kind: 'timeout' });
+    expect(shortNodeError('no timeout configured; connection refused')).toEqual({
+      kind: 'text',
+      text: 'no timeout configured',
+    });
+    expect(shortNodeError('RateLimitError: too many requests')).toEqual({
+      kind: 'text',
+      text: 'RateLimitError',
+    });
+    expect(shortNodeError('Error: Connection refused. Retry later')).toEqual({
+      kind: 'text',
+      text: 'Connection refused',
+    });
+    const long = shortNodeError('A'.repeat(60));
+    expect(long?.kind === 'text' ? long.text : '').toHaveLength(40);
   });
 
   it('attaches a session turn to its emitted group when its parent session node was omitted', () => {

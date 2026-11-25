@@ -1,6 +1,12 @@
 import { createContainer, style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { Body as SubagentsBody, Empty, Panel, StatusDot } from '../subagentsPanel.css';
+import {
+  Body as SubagentsBody,
+  Empty,
+  Panel,
+  StatusDot,
+  VisuallyHidden,
+} from '../subagentsPanel.css';
 
 const { space, radii, borderWidth, fontSize, lineHeight, opacity } = config;
 const line = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
@@ -9,9 +15,12 @@ const focusRing = { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 1
 const truncate = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
 const smallType = { fontSize: fontSize.T200, lineHeight: lineHeight.T200 } as const;
 const tabular = { fontVariantNumeric: 'tabular-nums' } as const;
+const flexRow = { display: 'flex', alignItems: 'center' } as const;
 const panelBody = createContainer();
 const groupBox = createContainer();
 const widePanel = `${panelBody} (min-width: 36rem)`;
+const twoCols = `${groupBox} (min-width: 20rem)`;
+const threeCols = `${groupBox} (min-width: 34rem)`;
 const sessionRing = {
   borderColor: color.Primary.ContainerLine,
   boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}`,
@@ -26,9 +35,8 @@ const variantCard = {
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
 } as const;
-const flexRow = { display: 'flex', alignItems: 'center' } as const;
 
-export { Empty, Panel };
+export { Empty, Panel, VisuallyHidden };
 
 const dotBase = style({ flexShrink: 0, marginInlineEnd: 0 });
 export const NodeDot = styleVariants({
@@ -95,6 +103,10 @@ export const TabButton = style([
       },
     },
   },
+]);
+export const TabPanel = style([
+  Stack,
+  { gap: space.S300, borderRadius: radii.R300, selectors: { '&:focus-visible': focusRing } },
 ]);
 
 export const StaleBanner = style({
@@ -178,14 +190,14 @@ export const ResultPre = style({
 });
 export const PeerLinkButton = style({
   ...flexRow,
+  ...surfaceCard,
+  ...smallType,
   inlineSize: '100%',
   paddingInline: space.S200,
   paddingBlock: space.S100,
   borderRadius: radii.R300,
   textAlign: 'start',
   cursor: 'pointer',
-  ...surfaceCard,
-  ...smallType,
   selectors: {
     '&:hover': { backgroundColor: color.Surface.ContainerHover },
     '&:focus-visible': focusRing,
@@ -213,10 +225,20 @@ export const FlowConnector = style({
 export const ForkJoinSvg = style({ display: 'block', inlineSize: '100%', blockSize: toRem(18) });
 export const ConnectorPath = style({
   fill: 'none',
-  stroke: color.SurfaceVariant.ContainerLine,
+  stroke: color.SurfaceVariant.OnContainer,
+  strokeOpacity: 0.65,
   strokeWidth: 1.5,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
+});
+export const ForkVis = styleVariants({
+  one: { '@container': { [twoCols]: { display: 'none' } } },
+  two: { display: 'none', '@container': { [twoCols]: { display: 'inline' } } },
+  twoMid: {
+    display: 'none',
+    '@container': { [twoCols]: { display: 'inline' }, [threeCols]: { display: 'none' } },
+  },
+  three: { display: 'none', '@container': { [threeCols]: { display: 'inline' } } },
 });
 
 export const GroupBox = style([
@@ -244,19 +266,15 @@ const branchBase = style({
   gap: space.S200,
   alignItems: 'start',
 });
-const twoCols = `${groupBox} (min-width: 20rem)`;
-const threeCols = `${groupBox} (min-width: 34rem)`;
+const cols2 = { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' };
 export const BranchGrid = styleVariants({
   one: [branchBase],
-  two: [
-    branchBase,
-    { '@container': { [twoCols]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } } },
-  ],
+  two: [branchBase, { '@container': { [twoCols]: cols2 } }],
   many: [
     branchBase,
     {
       '@container': {
-        [twoCols]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+        [twoCols]: cols2,
         [threeCols]: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
       },
     },
@@ -341,20 +359,20 @@ export const SessionBadge = style([
     ...truncate,
   },
 ]);
-export const ErrorPill = style({
-  display: 'inline-flex',
-  alignSelf: 'flex-start',
-  maxInlineSize: '100%',
-  paddingInline: space.S200,
-  paddingBlock: toRem(2),
-  borderRadius: radii.R300,
-  backgroundColor: color.Critical.Container,
-  color: color.Critical.OnContainer,
-  fontWeight: 500,
-  ...smallType,
-  ...truncate,
-});
-
+export const ErrorPill = style([
+  pill,
+  {
+    ...truncate,
+    alignSelf: 'flex-start',
+    maxInlineSize: '100%',
+    paddingInline: space.S200,
+    paddingBlock: toRem(2),
+    borderRadius: radii.R300,
+    backgroundColor: color.Critical.Container,
+    color: color.Critical.OnContainer,
+    fontWeight: 500,
+  },
+]);
 export const PlumbingPill = style([
   pill,
   {
@@ -375,7 +393,6 @@ export const PlumbingPill = style([
     },
   },
 ]);
-
 export const IndentRail = style([
   Stack,
   {
@@ -408,7 +425,6 @@ export const StepRow = style({
     },
   },
 });
-
 export const MessageList = style([Stack, { margin: 0, padding: 0, listStyle: 'none' }]);
 export const MessageRow = style({
   ...flexRow,

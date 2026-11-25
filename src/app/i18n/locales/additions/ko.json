@@ -1528,6 +1528,8 @@
         "selectStep": "단계를 선택하여 출력, 지표, 연결을 확인하세요.",
         "noMessages": "단계 간 메시지가 아직 없습니다.",
         "noLog": "로그 항목이 아직 없습니다.",
+        "omittedEdges_other": "메시지 {{count}}개가 생략되었습니다.",
+        "omittedLog_other": "로그 항목 {{count}}개가 생략되었습니다.",
         "setupSteps_other": "준비 단계 {{count}}개",
         "showMore": "{{count}}개 더 보기",
         "omitted": {
@@ -1562,6 +1564,9 @@
         "messages": "메시지",
         "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
         "messagesFrom": "{{name}}에게서 받은 메시지: {{count}}",
+        "timeout": "시간 초과",
+        "routeTo": "{{from}}에서 {{to}}(으)로: {{count}}",
+        "routeBetween": "{{from}} 및 {{to}}: {{count}}",
         "duration": "소요 시간",
         "tokens": "토큰",
         "cost": "비용",

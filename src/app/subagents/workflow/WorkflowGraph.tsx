@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useState } from 'react';
+import { Fragment, memo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -19,13 +19,13 @@ import {
   groupFlowItems,
   isCollapsiblePlumbingItem,
   isLiveWorkflowNodeStatus,
-  shortNodeError,
   type WorkflowGraphBand,
   type WorkflowGraphItem,
   type WorkflowPeerBridge,
   type WorkflowSessionInfo,
 } from './workflowGraphModel';
 import {
+  formatNodeErrorBadge,
   GroupHeaderRow,
   isSessionHighlighted,
   resolveSessionLabel,
@@ -50,6 +50,12 @@ export type WorkflowGraphViewProps = {
 
 type RenderCtx = Omit<WorkflowGraphViewProps, 'bands'> & { t: TFunction; language: string };
 
+const FORK_ONE = ['M 50 0 L 50 18'];
+const FORK_TWO = ['M 50 0 C 50 9, 25 9, 25 18', 'M 50 0 C 50 9, 75 9, 75 18'];
+const JOIN_TWO = ['M 25 0 C 25 9, 50 9, 50 18', 'M 75 0 C 75 9, 50 9, 50 18'];
+const FORK_THREE = ['M 50 0 C 50 9, 17 9, 17 18', 'M 50 0 L 50 18', 'M 50 0 C 50 9, 83 9, 83 18'];
+const JOIN_THREE = ['M 17 0 C 17 9, 50 9, 50 18', 'M 50 0 L 50 18', 'M 83 0 C 83 9, 50 9, 50 18'];
+
 function FlowArrowSvg() {
   return (
     <div className={css.FlowConnector} aria-hidden="true">
@@ -60,18 +66,14 @@ function FlowArrowSvg() {
   );
 }
 
+/** Responsive fork/join curves synced via CSS @container queries to BranchGrid's 1/2/3 columns. */
 function ForkJoinSvg({ direction, count }: { direction: 'fork' | 'join'; count: number }) {
-  const branches = Math.min(3, Math.max(1, count));
-  const paths =
-    branches === 1
-      ? ['M 50 0 L 50 18']
-      : branches === 2
-        ? direction === 'fork'
-          ? ['M 50 0 C 50 9, 25 9, 25 18', 'M 50 0 C 50 9, 75 9, 75 18']
-          : ['M 25 0 C 25 9, 50 9, 50 18', 'M 75 0 C 75 9, 50 9, 50 18']
-        : direction === 'fork'
-          ? ['M 50 0 C 50 9, 17 9, 17 18', 'M 50 0 L 50 18', 'M 50 0 C 50 9, 83 9, 83 18']
-          : ['M 17 0 C 17 9, 50 9, 50 18', 'M 50 0 L 50 18', 'M 83 0 C 83 9, 50 9, 50 18'];
+  const two = direction === 'fork' ? FORK_TWO : JOIN_TWO;
+  const three = direction === 'fork' ? FORK_THREE : JOIN_THREE;
+  const draw = (paths: readonly string[]) =>
+    paths.map((d) => (
+      <path key={d} d={d} className={css.ConnectorPath} vectorEffect="non-scaling-stroke" />
+    ));
   return (
     <svg
       className={css.ForkJoinSvg}
@@ -79,18 +81,31 @@ function ForkJoinSvg({ direction, count }: { direction: 'fork' | 'join'; count: 
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      {paths.map((d) => (
-        <path key={d} d={d} className={css.ConnectorPath} vectorEffect="non-scaling-stroke" />
-      ))}
+      {count <= 1 ? (
+        draw(FORK_ONE)
+      ) : count === 2 ? (
+        <>
+          <g className={css.ForkVis.two}>{draw(two)}</g>
+          <g className={css.ForkVis.one}>{draw(FORK_ONE)}</g>
+        </>
+      ) : (
+        <>
+          <g className={css.ForkVis.three}>{draw(three)}</g>
+          <g className={css.ForkVis.twoMid}>{draw(two)}</g>
+          <g className={css.ForkVis.one}>{draw(FORK_ONE)}</g>
+        </>
+      )}
     </svg>
   );
 }
 
 function PeerBridges({
   bridges,
+  t,
   language,
 }: {
   bridges: readonly WorkflowPeerBridge[];
+  t: TFunction;
   language: string;
 }) {
   if (!bridges.length) return null;
@@ -98,11 +113,18 @@ function PeerBridges({
     <div className={css.CenterWrap}>
       {bridges.map((b) => (
         <span key={b.key} className={css.PeerBridgePill}>
-          <bdi>{b.fromLabel}</bdi>
-          <span aria-hidden="true">{b.bidirectional ? '↔' : '→'}</span>
-          <bdi>{b.toLabel}</bdi>
-          <span aria-hidden="true">·</span>
-          <span>{localDigits(String(b.count), language)}</span>
+          <span dir="ltr" aria-hidden="true">
+            <bdi>{b.fromLabel}</bdi> {b.bidirectional ? '↔' : '→'} <bdi>{b.toLabel}</bdi> ·{' '}
+            {localDigits(String(b.count), language)}
+          </span>
+          <span className={css.VisuallyHidden}>
+            {t(
+              b.bidirectional
+                ? 'mindroomUi.workflowRun.node.routeBetween'
+                : 'mindroomUi.workflowRun.node.routeTo',
+              { from: b.fromLabel, to: b.toLabel, count: b.count }
+            )}
+          </span>
         </span>
       ))}
     </div>
@@ -135,7 +157,7 @@ const WorkflowNodeCard = memo(function WorkflowNodeCard({
 }) {
   const agentProfile = useAgentProfile(room, node.agent ?? '');
   const { model, tokens, cost, elapsed } = getWorkflowNodeMetrics(node, subagentRun, now, language);
-  const errorBadge = node.status === 'failed' ? shortNodeError(node.error) : undefined;
+  const errorBadge = node.status === 'failed' ? formatNodeErrorBadge(node.error, t) : undefined;
   const note = node.cached
     ? t('mindroomUi.workflowRun.node.reused')
     : node.status === 'queued'
@@ -228,23 +250,20 @@ const WorkflowPlumbingChip = memo(function WorkflowPlumbingChip({
 });
 
 function PlumbingGroupPill({ nodes, ctx }: { nodes: readonly WorkflowRunNode[]; ctx: RenderCtx }) {
-  const hasSelected = nodes.some((n) => n.id === ctx.selectedId);
-  const [expanded, setExpanded] = useState(hasSelected);
-  useEffect(() => {
-    if (hasSelected) setExpanded(true);
-  }, [hasSelected]);
+  const [expanded, setExpanded] = useState(false);
+  const open = expanded || nodes.some((n) => n.id === ctx.selectedId);
   return (
     <div className={css.CenterWrap}>
       <button
         type="button"
         className={css.PlumbingPill}
-        aria-expanded={expanded}
+        aria-expanded={open}
         onClick={() => setExpanded((cur) => !cur)}
       >
         <span className={css.NodeDot.completed} aria-hidden />
         <span>{ctx.t('mindroomUi.workflowRun.panel.setupSteps', { count: nodes.length })}</span>
       </button>
-      {expanded &&
+      {open &&
         nodes.map((node) => (
           <WorkflowPlumbingChip
             key={node.id}
@@ -305,26 +324,22 @@ function WorkflowGroupBox({
   ctx: RenderCtx;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { shown, more } = expanded ? { shown: items, more: 0 } : foldGroupItems(items);
+  const parallel = group.kind === 'parallel' || group.kind === 'foreach';
+  const { shown, more } = expanded
+    ? { shown: items, more: 0 }
+    : foldGroupItems(items, 24, !parallel);
   const total = Math.max(1, group.total);
   const done = Math.min(group.done, group.total);
   const pct = Math.min(100, Math.round((done / total) * 100));
   const tone =
     group.failed > 0 ? 'failed' : group.total > 0 && done >= group.total ? 'done' : 'live';
-  const parallel = group.kind === 'parallel' || group.kind === 'foreach';
   const branchVariant = shown.length <= 1 ? 'one' : shown.length === 2 ? 'two' : 'many';
   const bridges = ctx.peerBridgesByGroup.get(group.id) ?? [];
 
   return (
     <div className={css.GroupBox} data-workflow-group-id={group.id}>
       <GroupHeaderRow group={group} t={ctx.t} />
-      <div
-        className={css.ProgressTrack}
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
-      >
+      <div className={css.ProgressTrack} aria-hidden="true">
         <div className={css.ProgressFill[tone]} style={{ inlineSize: `${pct}%` }} />
       </div>
       {parallel ? (
@@ -346,13 +361,13 @@ function WorkflowGroupBox({
               )}
             </div>
           )}
-          <PeerBridges bridges={bridges} language={ctx.language} />
+          <PeerBridges bridges={bridges} t={ctx.t} language={ctx.language} />
           {shown.length > 0 && <ForkJoinSvg direction="join" count={shown.length} />}
         </>
       ) : (
         <>
           <WorkflowFlowList items={shown} ctx={ctx} />
-          <PeerBridges bridges={bridges} language={ctx.language} />
+          <PeerBridges bridges={bridges} t={ctx.t} language={ctx.language} />
         </>
       )}
       {more > 0 && <ShowMoreButton count={more} t={ctx.t} onExpand={() => setExpanded(true)} />}
