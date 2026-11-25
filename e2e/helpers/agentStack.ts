@@ -333,6 +333,10 @@ export const saveTesterCryptoState = async (
   if (!storageStateFile || !existsSync(storageStateFile)) return;
   let latest: StorageStateSnapshot;
   try {
+    // Close live app pages first so matrix-js-sdk cannot encrypt/send another Olm to-device
+    // message after storageState() reads IndexedDB; Playwright reads the quiescent IndexedDB via
+    // an inert origin page in visitOrigins().
+    await Promise.all(context.pages().map((page) => page.close().catch(() => undefined)));
     latest = await context.storageState({ indexedDB: true });
   } catch {
     // A test may have closed its context early; leave the saved snapshot untouched.
@@ -390,6 +394,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const page = await context.newPage();
         await routeClientConfig(page, agentStackOrSkip);
         await signIn(page, agentStackOrSkip);
+        await page.close();
         await context.storageState({ path: file, indexedDB: true });
         await context.close();
       }
