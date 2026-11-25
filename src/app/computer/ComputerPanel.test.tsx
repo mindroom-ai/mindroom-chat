@@ -52,10 +52,12 @@ vi.mock('folds', () => ({
 
 vi.mock('../ui/panels/PanelFrame.css', () => ({
   STRIP_WIDTH: 40,
+  Strip: 'Strip',
   Tab: 'Tab',
   TabLabel: 'TabLabel',
   ControlPill: 'ControlPill',
   ControlExtras: 'ControlExtras',
+  ControlCore: 'ControlCore',
   ControlSeparator: 'ControlSeparator',
 }));
 

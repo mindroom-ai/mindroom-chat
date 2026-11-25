@@ -16,7 +16,7 @@ import { Header, Panel } from '../ui/panels/SidePanel.css';
  * still be closed, until another request comes.
  */
 export function PluginSidePanel({
-  panel: { id, label, tag, Component, frame, title },
+  panel: { id, label, tag, Component, frame, title, frameControls },
   roomId,
   request,
   onClose,
@@ -37,6 +37,9 @@ export function PluginSidePanel({
   const own = frame === 'own';
   // Only without its own frame: `frame: 'own'` wins.
   const titled = !own && title === 'own';
+  // Legacy `title: 'own'` panels without `frameControls: 'own'` keep the host's open strip, so
+  // loading/error header fallbacks must not duplicate Fill and Fold.
+  const hostStrip = titled && frameControls !== 'own';
   const framed = (content: ReactNode, withTitle = true) => (
     <section className={Panel} style={{ flexGrow: 1 }} aria-label={label}>
       {withTitle && (
@@ -47,7 +50,7 @@ export function PluginSidePanel({
           <PanelHeaderControls
             onClose={onClose}
             closeLabel={t('mindroomUi.plugins.sidePanel.close', { label })}
-            showFrame={!own}
+            showFrame={!own && !hostStrip}
           />
         </header>
       )}

@@ -611,6 +611,7 @@ function RoomContent() {
             minContentWidth={CONVERSATION_MIN_WIDTH}
             maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
             passthrough={mobile}
+            openStrip={panel.title === 'own' && panel.frameControls !== 'own'}
             resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
             collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
             onCollapse={closePluginPanel}

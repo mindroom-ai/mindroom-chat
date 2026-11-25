@@ -189,6 +189,33 @@ describe('the frame of a side panel', () => {
       Reflect.deleteProperty(HTMLElement.prototype, 'animate');
     }
   });
+  it('renders an open Fill/Fold strip when openStrip is enabled for legacy own-title panels', () => {
+    const setLayout = vi.fn<PanelFrame['setLayout']>();
+    render(
+      <PanelFrameProvider value={{ label: 'Pull Request', layout: 'beside', setLayout }}>
+        <ResizablePanel
+          side="end"
+          openStrip
+          storageKey="panel-open-strip"
+          defaultWidth={320}
+          minContentWidth={300}
+          maxPanelWidth={600}
+          resizeLabel="Resize panel"
+          testId="panel"
+        >
+          <p>PR body</p>
+        </ResizablePanel>
+      </PanelFrameProvider>,
+      { container: row() }
+    );
+    expect(
+      (panel().firstElementChild as HTMLElement).style.getPropertyValue('--mr-panel-content-width')
+    ).toBe('280px');
+    fireEvent.click(screen.getByRole('button', { name: 'Fill the room with Pull Request' }));
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Pull Request to the edge' }));
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
+  });
 });
 
 describe('PanelHeaderControls', () => {

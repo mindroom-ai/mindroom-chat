@@ -7,24 +7,73 @@ import { usePanelFrame, type PanelFrame } from './panelFrameContext';
 import * as css from './PanelFrame.css';
 
 /**
- * The frame's edge tab while folded: all of the panel that shows, with its name rotated vertically,
- * which brings the panel back beside the conversation. Renders nothing while the panel is open.
+ * The frame's edge strip: folded, the vertical tab at the room's end edge that brings the panel
+ * back beside the conversation. Open, renders nothing by default (Fill and Fold live in the
+ * panel's header control pill), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
+ * `title: 'own'` plugins that do not declare `frameControls: 'own'`.
  */
-export function PanelFrameStrip({ frame: { label, layout, setLayout } }: { frame: PanelFrame }) {
+export function PanelFrameStrip({
+  frame: { label, layout, setLayout },
+  openStrip = false,
+}: {
+  frame: PanelFrame;
+  openStrip?: boolean;
+}) {
   const { t } = useTranslation();
-  if (layout !== 'folded') return null;
+  if (layout === 'folded') {
+    return (
+      <button
+        type="button"
+        className={css.Tab}
+        aria-label={t('mindroomUi.sidePanel.unfold', { label })}
+        onClick={() => setLayout('beside')}
+      >
+        <Icon size="200" src={Icons.ChevronLeft} data-directional />
+        <Text as="span" size="L400" className={css.TabLabel}>
+          {label}
+        </Text>
+      </button>
+    );
+  }
+  if (!openStrip) return null;
+
+  const filled = layout === 'filled';
+  const fill = t('mindroomUi.sidePanel.fill', { label });
+  const fold = t('mindroomUi.sidePanel.fold', { label });
   return (
-    <button
-      type="button"
-      className={css.Tab}
-      aria-label={t('mindroomUi.sidePanel.unfold', { label })}
-      onClick={() => setLayout('beside')}
-    >
-      <Icon size="200" src={Icons.ChevronLeft} data-directional />
-      <Text as="span" size="L400" className={css.TabLabel}>
-        {label}
-      </Text>
-    </button>
+    <div className={css.Strip}>
+      <IconTooltip label={fill} position="Left">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            size="300"
+            radii="300"
+            variant="Surface"
+            fill="None"
+            aria-label={fill}
+            aria-pressed={filled}
+            onClick={() => setLayout(filled ? 'beside' : 'filled')}
+          >
+            <Icon size="200" src={filled ? ShrinkIcon : ExpandIcon} />
+          </IconButton>
+        )}
+      </IconTooltip>
+      <IconTooltip label={fold} position="Left">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            size="300"
+            radii="300"
+            variant="Surface"
+            fill="None"
+            aria-label={fold}
+            onClick={() => setLayout('folded')}
+          >
+            <Icon size="200" src={Icons.ChevronRight} data-directional />
+          </IconButton>
+        )}
+      </IconTooltip>
+    </div>
   );
 }
 
@@ -62,52 +111,56 @@ export function PanelHeaderControls({
           <span className={css.ControlSeparator} aria-hidden="true" />
         </>
       )}
-      {hasFrame && fill && fold && (
-        <>
-          <IconTooltip label={fill} position="Bottom">
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                size="300"
-                radii="300"
-                variant="SurfaceVariant"
-                fill="None"
-                aria-label={fill}
-                aria-pressed={filled}
-                onClick={() => frame.setLayout(filled ? 'beside' : 'filled')}
-              >
-                <Icon size="200" src={filled ? ShrinkIcon : ExpandIcon} />
-              </IconButton>
-            )}
-          </IconTooltip>
-          <IconTooltip label={fold} position="Bottom">
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                size="300"
-                radii="300"
-                variant="SurfaceVariant"
-                fill="None"
-                aria-label={fold}
-                onClick={() => frame.setLayout('folded')}
-              >
-                <Icon size="200" src={Icons.ChevronRight} data-directional />
-              </IconButton>
-            )}
-          </IconTooltip>
-        </>
-      )}
-      {onClose && (
-        <IconButton
-          size="300"
-          radii="300"
-          variant="SurfaceVariant"
-          fill="None"
-          aria-label={closeLabel}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
+      {(hasFrame || onClose) && (
+        <span className={css.ControlCore}>
+          {hasFrame && fill && fold && (
+            <>
+              <IconTooltip label={fill} position="Bottom">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    fill="None"
+                    aria-label={fill}
+                    aria-pressed={filled}
+                    onClick={() => frame.setLayout(filled ? 'beside' : 'filled')}
+                  >
+                    <Icon size="200" src={filled ? ShrinkIcon : ExpandIcon} />
+                  </IconButton>
+                )}
+              </IconTooltip>
+              <IconTooltip label={fold} position="Bottom">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    fill="None"
+                    aria-label={fold}
+                    onClick={() => frame.setLayout('folded')}
+                  >
+                    <Icon size="200" src={Icons.ChevronRight} data-directional />
+                  </IconButton>
+                )}
+              </IconTooltip>
+            </>
+          )}
+          {onClose && (
+            <IconButton
+              size="300"
+              radii="300"
+              variant="SurfaceVariant"
+              fill="None"
+              aria-label={closeLabel}
+              onClick={onClose}
+            >
+              <Icon size="200" src={Icons.Cross} />
+            </IconButton>
+          )}
+        </span>
       )}
     </div>
   );

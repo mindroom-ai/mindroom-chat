@@ -122,9 +122,9 @@ export function CanvasPanel({
             </Text>
           </div>
         </Box>
-        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
-          {versions && onSelectVersion && (
-            <>
+        {versions && onSelectVersion && (
+          <div className={css.VersionRow}>
+            <div className={css.VersionPill}>
               <IconTooltip label={t('mindroomUi.canvas.previousVersion')}>
                 {(triggerRef) => (
                   <IconButton
@@ -163,8 +163,10 @@ export function CanvasPanel({
                   </IconButton>
                 )}
               </IconTooltip>
-            </>
-          )}
+            </div>
+          </div>
+        )}
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
           {onToggleExpanded && !frame && (
             <IconTooltip label={t('mindroomUi.canvas.expand')}>
               {(triggerRef) => (

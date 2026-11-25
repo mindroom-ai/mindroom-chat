@@ -93,6 +93,37 @@ describe('PluginSidePanel', () => {
     vi.restoreAllMocks();
   });
 
+  it('omits Fill and Fold in loading fallback for legacy title:own panels, and includes them with frameControls:own', () => {
+    const setLayout = vi.fn();
+    const loading = lazy(() => new Promise<never>(() => undefined));
+    const { rerender } = render(
+      <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
+        <PluginSidePanel
+          panel={titled(loading)}
+          roomId="!lobby:example.org"
+          request={undefined}
+          onClose={() => undefined}
+        />
+      </PanelFrameProvider>
+    );
+    expect(close()).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fill the room with Notes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fold Notes to the edge' })).toBeNull();
+
+    rerender(
+      <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
+        <PluginSidePanel
+          panel={{ ...titled(loading), frameControls: 'own' }}
+          roomId="!lobby:example.org"
+          request={undefined}
+          onClose={() => undefined}
+        />
+      </PanelFrameProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Fill the room with Notes' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Fold Notes to the edge' })).not.toBeNull();
+  });
+
   it('leaves the frame to a panel that draws its own, also with its own title', () => {
     show({ ...titled(() => <p>Notes body</p>), frame: 'own' });
     expect(screen.queryByRole('region', { name: 'Notes' })).toBeNull();

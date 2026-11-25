@@ -70,6 +70,7 @@ export function ResizablePanel({
   defaultWidth = 256,
   fullWidth = false,
   passthrough = false,
+  openStrip = false,
   side = 'start',
   minContentWidth = 320,
   maxPanelWidth = MAX_WIDTH,
@@ -96,6 +97,8 @@ export function ResizablePanel({
   fullWidth?: boolean;
   /** Render no box of its own, for a child that positions itself (such as a full-screen phone panel). */
   passthrough?: boolean;
+  /** Keep the 40 px Fill/Fold strip while open (for legacy `title: 'own'` plugins). */
+  openStrip?: boolean;
   side?: 'start' | 'end';
   minContentWidth?: number;
   /** The widest the panel may be dragged; the content beside it keeps minContentWidth. */
@@ -148,8 +151,8 @@ export function ResizablePanel({
   const folded = frame?.layout === 'folded';
   /** Beside the content, at a width of its own: the splitter resizes it. */
   const resizable = !full && !folded && !passthrough;
-  // Folded, only the frame's edge tab shows; open, the panel uses its full width without a strip.
-  const strip = folded ? STRIP_WIDTH : 0;
+  // Folded, only the frame's edge tab shows; open, only legacy `openStrip` panels reserve a strip.
+  const strip = folded || (openStrip && frame) ? STRIP_WIDTH : 0;
   const smallest = MIN_WIDTH + strip;
   // Beside the content a panel opens and closes by moving its width; phones, full-width and
   // folded panels switch at once.
@@ -382,7 +385,7 @@ export function ResizablePanel({
       {/* Folded, the edge tab shows and the content stays mounted out of sight beside it (a call
           or a computer keeps its connection). */}
       <div style={contentStyle}>
-        {frame && <PanelFrameStrip frame={frame} />}
+        {frame && <PanelFrameStrip frame={frame} openStrip={openStrip} />}
         {children}
       </div>
       {/* After the content, before the splitter. */}

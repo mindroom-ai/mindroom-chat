@@ -4,11 +4,11 @@ import { roomHeader } from '../helpers/roomMenu';
 import { openPanel, openPanelRoom, panelLocator, widthOf } from '../helpers/sidePanels';
 import { blockWebKitServiceWorkers } from '../helpers/webkit';
 
-// A side panel folded from its frame's strip (the computer's) is its tab alone at the room's end
-// edge, and the conversation takes the rest of the row, from the panel's default width and from
+// A side panel folded from its header control pill (the computer's) is its tab alone at the room's
+// end edge, and the conversation takes the rest of the row, from the panel's default width and from
 // its widest, in Chromium and, tagged `@webkit` for the WebKit project, in WebKit. Folded, the
-// panel's box sizes to what it holds, the strip alone; in WebKit a flex item's width, unlike its
-// flex basis, counts toward that size, so a strip that took the content's width there kept the
+// panel's box sizes to what it holds, the edge tab alone; in WebKit a flex item's width, unlike its
+// flex basis, counts toward that size, so a tab that took the content's width there kept the
 // folded panel as wide as it was. FOLD_SHOTS names a directory for a screenshot of each fold.
 
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off', ...blockWebKitServiceWorkers });

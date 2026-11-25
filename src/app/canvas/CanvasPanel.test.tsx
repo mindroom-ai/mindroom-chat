@@ -111,10 +111,12 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('../ui/panels/PanelFrame.css', () => ({
   STRIP_WIDTH: 40,
+  Strip: 'Strip',
   Tab: 'Tab',
   TabLabel: 'TabLabel',
   ControlPill: 'ControlPill',
   ControlExtras: 'ControlExtras',
+  ControlCore: 'ControlCore',
   ControlSeparator: 'ControlSeparator',
 }));
 
@@ -126,6 +128,8 @@ vi.mock('./CanvasPanel.css.ts', () => ({
   FrameWrap: 'FrameWrap',
   Frame: 'Frame',
   Footer: 'Footer',
+  VersionRow: 'VersionRow',
+  VersionPill: 'VersionPill',
   Error: 'Error',
   Notice: 'Notice',
   Staged: 'Staged',

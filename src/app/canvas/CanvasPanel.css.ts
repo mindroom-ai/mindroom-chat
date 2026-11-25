@@ -1,8 +1,26 @@
-import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { createContainer, globalStyle, style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
+import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
-export { Header, Panel } from '../ui/panels/SidePanel.css';
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
+
+const canvasPanel = createContainer();
+
+export const Panel = style([
+  SidePanelPanel,
+  {
+    containerName: canvasPanel,
+    containerType: 'inline-size',
+  },
+]);
+
+export const Header = style([
+  SidePanelHeader,
+  {
+    flexWrap: 'wrap',
+    rowGap: config.space.S100,
+  },
+]);
 
 export const TitleGroup = style({
   flex: '1 1 auto',
@@ -45,6 +63,33 @@ export const Footer = style({
   alignItems: 'flex-start',
   padding: `${config.space.S200} ${config.space.S300}`,
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+});
+
+export const VersionRow = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  '@container': {
+    [`${canvasPanel} (max-width: 380px)`]: {
+      order: 1,
+      flex: '1 0 100%',
+    },
+  },
+});
+
+export const VersionPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(2),
+  padding: toRem(2),
+  borderRadius: config.radii.R400,
+  backgroundColor: color.SurfaceVariant.Container,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+});
+
+globalStyle(`${VersionPill} button`, {
+  minInlineSize: toRem(32),
+  minBlockSize: toRem(32),
 });
 
 export const Version = style({
