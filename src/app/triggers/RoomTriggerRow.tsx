@@ -15,10 +15,12 @@ import * as css from './roomTriggers.css';
 const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT = { ...BTN, variant: 'Secondary', fill: 'Soft', className: s.CompactAction } as const;
 
-const KNOWN_KIND_LIST = ['webhook', 'room_message', 'external_event', 'thread_tag'] as const;
-const KNOWN_KINDS: ReadonlySet<string> = new Set(KNOWN_KIND_LIST);
-const isKnownKind = (kind: string): kind is (typeof KNOWN_KIND_LIST)[number] =>
-  KNOWN_KINDS.has(kind);
+const KIND_KEYS = {
+  webhook: 'roomTriggers.kind.webhook',
+  room_message: 'roomTriggers.kind.room_message',
+  external_event: 'roomTriggers.kind.external_event',
+  thread_tag: 'roomTriggers.kind.thread_tag',
+} as const;
 
 const DEST_KEYS = {
   room: 'roomTriggers.destinationRoom',
@@ -52,7 +54,11 @@ export function RoomTriggerRow(props: Props) {
     if (confirmDelete) keepBtnRef.current?.focus();
   }, [confirmDelete]);
 
-  const kindLabel = t(`roomTriggers.kind.${isKnownKind(trigger.kind) ? trigger.kind : 'unknown'}`);
+  const kindLabel = t(
+    Object.hasOwn(KIND_KEYS, trigger.kind)
+      ? KIND_KEYS[trigger.kind as keyof typeof KIND_KEYS]
+      : 'roomTriggers.kind.unknown'
+  );
   const destLabel =
     trigger.threadMode && Object.hasOwn(DEST_KEYS, trigger.threadMode)
       ? t(DEST_KEYS[trigger.threadMode as keyof typeof DEST_KEYS])

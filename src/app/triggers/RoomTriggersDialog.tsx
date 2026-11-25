@@ -1,4 +1,4 @@
-import { type Ref, useLayoutEffect, useRef, useState } from 'react';
+import { type Ref, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import { RoomDialogEmpty, RoomDialogFrame } from '../ui/RoomDialogOverlay';
@@ -40,17 +40,11 @@ export function RoomTriggersDialog({
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const highlightedRef = useRef<HTMLElement>(null);
   const focusedHighlightRef = useRef<string | undefined>(undefined);
-  const [matchedHighlightId, setMatchedHighlightId] = useState<string | undefined>(undefined);
   const matched = Boolean(
     !loadFailed &&
     highlightTriggerId &&
     triggers.some((row) => row.triggerId === highlightTriggerId)
   );
-  if (matched && matchedHighlightId !== highlightTriggerId) {
-    setMatchedHighlightId(highlightTriggerId);
-  } else if (!highlightTriggerId && matchedHighlightId !== undefined) {
-    setMatchedHighlightId(undefined);
-  }
 
   useLayoutEffect(() => {
     if (matched && focusedHighlightRef.current !== highlightTriggerId) {
@@ -83,18 +77,15 @@ export function RoomTriggersDialog({
         </RoomDialogEmpty>
       ) : (
         <>
-          {highlightTriggerId &&
-            !loading &&
-            !matched &&
-            matchedHighlightId !== highlightTriggerId && (
-              <div role="status" className={s.NoticeBar} data-trigger-missing="">
-                <Text size="T200">
-                  {t('roomTriggers.missingTrigger', {
-                    id: revealDirectionControls(highlightTriggerId),
-                  })}
-                </Text>
-              </div>
-            )}
+          {highlightTriggerId && !loading && !matched && (
+            <div role="status" className={s.NoticeBar} data-trigger-missing="">
+              <Text size="T200">
+                {t('roomTriggers.missingTrigger', {
+                  id: revealDirectionControls(highlightTriggerId),
+                })}
+              </Text>
+            </div>
+          )}
 
           {triggers.length > 0 ? (
             <Box direction="Column" gap="200">

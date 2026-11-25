@@ -74,7 +74,11 @@ describe('useRoomTriggers', () => {
     await waitFor(() => expect(result.current.loadFailed).toBe(true));
     expect(result.current.triggers.map((t) => t.triggerId)).toEqual(['tr_a']);
 
-    // Toggle sends PATCH and invalidates, clearing loadFailed when GET succeeds.
+    // Seed another room's triggers cache so we verify mutations invalidate all rooms (watch targets).
+    const otherRoomKey = ['room-triggers', '!roomB:example.org', 'https://mindroom.example.org'];
+    queryClient.setQueryData(otherRoomKey, []);
+
+    // Toggle sends PATCH and invalidates the room-triggers prefix, clearing loadFailed when GET succeeds.
     mocks.send
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(
@@ -85,6 +89,7 @@ describe('useRoomTriggers', () => {
     });
     await waitFor(() => expect(result.current.triggers[0]?.enabled).toBe(false));
     expect(result.current.loadFailed).toBe(false);
+    expect(queryClient.getQueryState(otherRoomKey)?.isInvalidated).toBe(true);
 
     // PATCH 200 followed by GET failure marks loadFailed instead of leaving a stale Off row.
     mocks.send
@@ -139,5 +144,39 @@ describe('useRoomTriggers', () => {
     });
     expect(result.current.triggers).toEqual([]);
     expect(result.current.loadFailed).toBe(true);
+  });
+
+  it('ignores refetch while server resolution is pending with a provisional URL or when not joined', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const room = makeRoom('!roomA:example.org');
+
+    mocks.server = { apiUrl: 'https://provisional.example.org', pending: true };
+    const { result, rerender } = renderHook(() => useRoomTriggers(room), {
+      wrapper: makeWrapper(queryClient),
+    });
+    expect(result.current.loading).toBe(true);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(mocks.send).not.toHaveBeenCalled();
+
+    // Settling the server enables the query and triggers a single fetch.
+    mocks.server = { apiUrl: 'https://settled.example.org', pending: false };
+    mocks.send.mockResolvedValueOnce(
+      new Response(JSON.stringify({ triggers: [makeRow('tr_a', true)] }), { status: 200 })
+    );
+    rerender();
+    await waitFor(() => expect(result.current.triggers).toHaveLength(1));
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+
+    // Leaving the room disables refetch again.
+    const leftRoom = makeRoom('!roomA:example.org', 'leave');
+    const leftHook = renderHook(() => useRoomTriggers(leftRoom), {
+      wrapper: makeWrapper(queryClient),
+    });
+    await act(async () => {
+      await leftHook.result.current.refetch();
+    });
+    expect(mocks.send).toHaveBeenCalledTimes(1);
   });
 });

@@ -140,12 +140,15 @@ describe('RoomTriggersDialog', () => {
     expect(tagCard.textContent).toContain('Expired');
   });
 
-  it('lets the owner toggle, keep (restoring Delete focus), and delete (moving focus to Close without a missing notice)', async () => {
+  it('lets the owner toggle, keep (restoring Delete focus), see inline delete errors in ConfirmBar, and delete (restoring Close focus)', async () => {
     const onToggleTrigger = vi
       .fn<(...args: [string, boolean]) => Promise<void>>()
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce(undefined);
-    const onDeleteTrigger = vi.fn(async () => undefined);
+    const onDeleteTrigger = vi
+      .fn<(...args: [string]) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('delete failed'))
+      .mockResolvedValueOnce(undefined);
 
     const { rerenderDialog } = renderDialog({
       highlightTriggerId: 'tr_watch',
@@ -162,22 +165,32 @@ describe('RoomTriggersDialog', () => {
 
     const deleteIconBtn = screen.getByRole('button', { name: 'Delete' });
     fireEvent.click(deleteIconBtn);
-    const keepButton = screen.getByRole('button', { name: 'Keep' });
+    const confirmBar = screen.getByRole('group', { name: 'Delete this trigger?' });
+    expect(deleteIconBtn.getAttribute('aria-controls')).toBe(confirmBar.id);
+    const keepButton = within(confirmBar).getByRole('button', { name: 'Keep' });
     expect(document.activeElement).toBe(keepButton);
     fireEvent.click(keepButton);
     expect(onDeleteTrigger).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(deleteIconBtn);
 
+    // Failed delete shows the alert inside ConfirmBar; retry succeeds.
     fireEvent.click(deleteIconBtn);
-    const confirmDeleteBtn = screen.getByRole('button', { name: 'Delete trigger' });
+    const confirmGroup = screen.getByRole('group', { name: 'Delete this trigger?' });
+    const confirmDeleteBtn = within(confirmGroup).getByRole('button', {
+      name: 'Delete trigger',
+    });
     confirmDeleteBtn.focus();
     fireEvent.click(confirmDeleteBtn);
-    await waitFor(() => expect(onDeleteTrigger).toHaveBeenCalledWith('tr_watch'));
+    await waitFor(() =>
+      expect(within(confirmGroup).getByRole('alert').textContent).toContain('Could not delete')
+    );
+    fireEvent.click(confirmDeleteBtn);
+    await waitFor(() => expect(onDeleteTrigger).toHaveBeenCalledTimes(2));
 
-    // Removing the deleted highlighted row restores focus to Close and does not show a missing-trigger notice.
+    // Removing the deleted highlighted row moves lost focus back to Close and reflects the settled empty list.
     rerenderDialog({ triggers: [], highlightTriggerId: 'tr_watch' });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
-    expect(document.querySelector('[data-trigger-missing]')).toBeNull();
+    expect(document.querySelector('[data-trigger-missing]')?.textContent).toContain('tr_watch');
   });
 
   it('focuses matched target row, shows loading state, loadError on failure, and missing notice only when never matched', () => {
@@ -205,18 +218,28 @@ describe('RoomTriggersDialog', () => {
     expect(loadingStatus.textContent).toBe('Loading…');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
-    // Failed load even with cached rows: show only the single error line, no rows or missing notice.
+    // Focus a row button, then flip loadFailed -> true with cached rows still present:
+    // shows only the error alert (no stale rows or missing notice) and moves lost focus to Close.
+    const cachedRow = makeTrigger({
+      triggerId: 'tr_target',
+      description: 'Target',
+      enabled: false,
+    });
+    rerenderDialog({ triggers: [cachedRow], loading: false, loadFailed: false });
+    const enableBtn = screen.getByRole('button', { name: 'Enable' });
+    enableBtn.focus();
+    expect(document.activeElement).toBe(enableBtn);
+
     rerenderDialog({
-      triggers: [makeTrigger({ triggerId: 'tr_target', description: 'Target' })],
+      triggers: [cachedRow],
       loadFailed: true,
       highlightTriggerId: 'tr_gone',
     });
-    expect(screen.getByRole('alert').textContent).toBe(
-      "Couldn't load triggers."
-    );
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't load triggers.");
     expect(screen.queryAllByRole('article')).toHaveLength(0);
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
     expect(screen.queryByText('No triggers in this room.')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
     // Successful empty load for a never-matched ID: show missing notice + empty state.
     rerenderDialog({

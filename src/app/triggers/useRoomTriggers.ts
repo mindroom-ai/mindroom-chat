@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Room } from 'matrix-js-sdk';
 import { useRoomMindroomServer } from '../computer/useRoomMindroomServer';
@@ -37,10 +37,20 @@ export function useRoomTriggers(room: Room) {
       joined && apiUrl ? fetchRoomTriggers(mx, apiUrl, room.roomId, signal) : null,
   });
 
+  const enabledRef = useRef(enabled);
+  useLayoutEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+  const { refetch: queryRefetch } = query;
+  const refetch = useCallback(
+    () => (enabledRef.current ? queryRefetch() : Promise.resolve()),
+    [queryRefetch]
+  );
+
   const mutate = async (fn: (url: string) => Promise<void>) => {
     if (!apiUrl) throw new Error('No MindRoom server available for this room.');
     await fn(apiUrl);
-    await queryClient.invalidateQueries({ queryKey });
+    await queryClient.invalidateQueries({ queryKey: [ROOM_TRIGGERS_QUERY_KEY] });
   };
 
   const toggleTrigger = (triggerId: string, nextEnabled: boolean) =>
@@ -56,7 +66,7 @@ export function useRoomTriggers(room: Room) {
     triggers: loaded ? query.data! : EMPTY,
     loading,
     loadFailed: loaded ? failed : !loading,
-    refetch: query.refetch,
+    refetch,
     toggleTrigger,
     deleteTrigger,
   };
