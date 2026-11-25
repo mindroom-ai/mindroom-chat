@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "সাইডবার",
         "navigation": "নেভিগেশন",
+        "direct": "সাইডবারে সরাসরি বার্তা দেখান",
+        "directDescription": "সাইডবারে নিজস্ব ট্যাবে সরাসরি বার্তা। লুকানো থাকলে হোম থেকে বা হোমের ⋮ মেনু থেকে খুলুন।",
         "threads": "সাইডবারে থ্রেড দেখান",
         "threadsDescription": "সব রুমের থ্রেড এক তালিকায়। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
         "canvasesDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
@@ -556,7 +558,13 @@
       "failed": "চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।"
     },
     "homeNav": {
-      "options": "হোম বিকল্প"
+      "options": "হোম বিকল্প",
+      "addRooms": "রুম যোগ করুন",
+      "directMessages": "সরাসরি বার্তা",
+      "newDirectMessage": "নতুন সরাসরি বার্তা",
+      "showAllDirectMessages": "সব দেখান ({{count}})",
+      "agents": "এজেন্ট",
+      "agentActive": "এজেন্ট সক্রিয়"
     },
     "directNav": {
       "options": "সরাসরি বার্তার বিকল্প"
@@ -1086,6 +1094,14 @@
       },
       "unavailable": {
         "description": "এই ডিভাইসে Mac কম্পিউটার অ্যাক্সেস উপলব্ধ নয়।"
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "আপনি",
+        "draft": "খসড়া",
+        "groupMemberCount_one": "{{count}} জন সদস্য",
+        "groupMemberCount_other": "{{count}} জন সদস্য"
       }
     }
   },

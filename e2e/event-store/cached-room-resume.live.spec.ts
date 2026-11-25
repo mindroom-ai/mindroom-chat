@@ -230,7 +230,7 @@ test.describe('live issue-071 cached room resume', () => {
 
     await expectLoggedInShellStable(page);
     await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
-    await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
+    await expect(page.locator('[data-home-room-action="add"]')).toBeVisible();
     await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [roomName, roomId])).toEqual([]);
@@ -406,7 +406,7 @@ test.describe('live issue-071 cached room resume', () => {
 
     await expectLoggedInShellStable(page);
     await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
-    await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
+    await expect(page.locator('[data-home-room-action="add"]')).toBeVisible();
     await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [spaceName, spaceId, roomName, roomId])).toEqual(

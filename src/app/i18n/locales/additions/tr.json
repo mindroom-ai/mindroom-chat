@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Kenar çubuğu",
         "navigation": "Gezinme",
+        "direct": "Doğrudan mesajları kenar çubuğunda göster",
+        "directDescription": "Doğrudan mesajlar kendi kenar çubuğu sekmesinde. Gizlendiğinde, Ana sayfadan veya Ana sayfadaki ⋮ menüsünden açın.",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
@@ -556,7 +558,13 @@
       "failed": "Sohbet başlatılamadı. Tekrar deneyin."
     },
     "homeNav": {
-      "options": "Ana sayfa seçenekleri"
+      "options": "Ana sayfa seçenekleri",
+      "addRooms": "Oda ekle",
+      "directMessages": "Doğrudan mesajlar",
+      "newDirectMessage": "Yeni doğrudan mesaj",
+      "showAllDirectMessages": "Tümünü göster ({{count}})",
+      "agents": "Ajanlar",
+      "agentActive": "Ajan etkin"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"
@@ -1086,6 +1094,14 @@
       },
       "unavailable": {
         "description": "Mac Bilgisayar Erişimi bu cihazda kullanılamıyor."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "sen",
+        "draft": "Taslak",
+        "groupMemberCount_one": "{{count}} üye",
+        "groupMemberCount_other": "{{count}} üye"
       }
     }
   },

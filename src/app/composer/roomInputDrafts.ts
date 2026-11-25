@@ -182,6 +182,13 @@ const homeAskEntryAtomFamily = atomFamily((userId: string) => {
   return entryAtom;
 });
 
+// Latest in-memory draft written in this store per key, kept separate from
+// `roomIdToMsgDraftAtomFamily` so read-only observers (such as sidebar draft marks) never prime an
+// unopened room's draft atom cache with an empty storage read before the composer opens.
+const writtenMsgDraftAtomFamily = atomFamily((_draftKey: string) =>
+  atom<Descendant[] | undefined>(undefined)
+);
+
 const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Descendant[]], void> => {
   const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const userId = getDraftUserId(draftKey);
@@ -194,11 +201,13 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
   }
   const generation = getDraftGeneration(userId);
   const valueAtom = atom<Descendant[] | undefined>(undefined);
+  const writtenAtom = writtenMsgDraftAtomFamily(draftKey);
 
   return atom<Descendant[], [Descendant[]], void>(
     (get) => get(valueAtom) ?? asDraft(readStoredJson(storageKey)),
     (_get, set, draft) => {
       set(valueAtom, draft);
+      set(writtenAtom, draft);
       if (getDraftGeneration(userId) !== generation) return;
       const storage = getSafeLocalStorage();
       if (draft.length === 0) {
@@ -212,6 +221,20 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
 
 /** The unsent message of a composer, keyed by `getRoomInputDraftKey`. */
 export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
+
+/**
+ * In-memory draft updates written in the current store (`undefined` until this store writes the
+ * key), so sidebar observers can react to live edits without touching `roomIdToMsgDraftAtomFamily`.
+ */
+export const roomIdToWrittenMsgDraftAtomFamily = writtenMsgDraftAtomFamily;
+
+/** Storage key for the persisted composer draft under `draftKey`. */
+export const getMsgDraftStorageKey = (draftKey: string): string =>
+  `${DRAFT_STORAGE_PREFIX}${draftKey}`;
+
+/** Reads the persisted draft under `draftKey` directly from storage without creating its atom. */
+export const readStoredMsgDraft = (draftKey: string): Descendant[] =>
+  asDraft(readStoredJson(getMsgDraftStorageKey(draftKey)));
 
 /** Whether a draft is kept under `draftKey`, read without creating its atom. */
 export const hasKeptDraft = (draftKey: string): boolean =>
@@ -292,6 +315,10 @@ export const clearRoomInputDrafts = (userId: string): void => {
     (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
   );
   roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+  writtenMsgDraftAtomFamily.setShouldRemove(
+    (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
+  );
+  writtenMsgDraftAtomFamily.setShouldRemove(null);
   homeAskEntryAtomFamily.remove(userId);
   homeAskDestinationAtomFamily.remove(userId);
   homeAskPendingAtomFamily.remove(userId);

@@ -55,7 +55,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             top={
               <SidebarStack>
                 <HomeTab onSelect={onPageNavSelect} />
-                <DirectTab onSelect={onPageNavSelect} />
+                {shown.direct && <DirectTab onSelect={onPageNavSelect} />}
                 <ActivityTab onSelect={onPageNavSelect} />
                 {shown.threads && <ThreadsTab onSelect={onPageNavSelect} />}
                 {shown.canvases && <CanvasesTab />}

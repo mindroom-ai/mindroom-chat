@@ -111,6 +111,7 @@ const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.D
 };
 
 const SWITCHES: Array<[string, keyof AccountSettings]> = [
+  ['direct', 'showDirectInSidebar'],
   ['threads', 'showThreadsInSidebar'],
   ['canvases', 'showCanvasesInSidebar'],
   ['usage', 'showUsageInSidebar'],
@@ -181,7 +182,7 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_OFF, [setting]: true };
     const { tabs } = renderedTabs();
     expect(tabs).toContain(button);
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(6);
   });
 
   it('keeps the rule above Explore and Create Space while one of them shows', () => {

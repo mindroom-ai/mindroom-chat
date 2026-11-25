@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Zijbalk",
         "navigation": "Navigatie",
+        "direct": "Directe berichten in de zijbalk tonen",
+        "directDescription": "Directe berichten in een eigen tab in de zijbalk. Verborgen open je ze vanuit Home of via het ⋮-menu in Home.",
         "threads": "Threads in de zijbalk tonen",
         "threadsDescription": "Threads uit alle kamers in één lijst. Verborgen open je ze via het ⋮-menu in Home.",
         "canvasesDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Verborgen open je ze via het ⋮-menu in Home.",
@@ -556,7 +558,13 @@
       "failed": "De chat kon niet worden gestart. Probeer het opnieuw."
     },
     "homeNav": {
-      "options": "Opties voor Home"
+      "options": "Opties voor Home",
+      "addRooms": "Kamers toevoegen",
+      "directMessages": "Directe berichten",
+      "newDirectMessage": "Nieuw direct bericht",
+      "showAllDirectMessages": "Alles tonen ({{count}})",
+      "agents": "Agenten",
+      "agentActive": "Agent actief"
     },
     "directNav": {
       "options": "Opties voor directe berichten"
@@ -1086,6 +1094,14 @@
       },
       "unavailable": {
         "description": "Mac-computertoegang is niet beschikbaar op dit apparaat."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "jij",
+        "draft": "Concept",
+        "groupMemberCount_one": "{{count}} lid",
+        "groupMemberCount_other": "{{count}} leden"
       }
     }
   },

@@ -6,6 +6,7 @@ import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 /** The icon rail buttons each person can hide in Settings. */
 export type RailButton =
+  | 'direct'
   | 'threads'
   | 'canvases'
   | 'usage'
@@ -19,6 +20,7 @@ export type RailButtons = Record<RailButton, boolean>;
 
 /** The `io.mindroom.settings` switch that shows or hides each button. */
 export const RAIL_BUTTON_SETTING: Record<RailButton, BooleanAccountSetting> = {
+  direct: 'showDirectInSidebar',
   threads: 'showThreadsInSidebar',
   canvases: 'showCanvasesInSidebar',
   usage: 'showUsageInSidebar',
@@ -39,6 +41,7 @@ export function useOfferedRailButtons(): RailButtons {
   const localMindroom = useShowLocalMindroom();
   const communities = sidebar?.showExploreCommunity ?? true;
   return {
+    direct: true,
     threads: sidebar?.showThreads ?? true,
     canvases: canvasesEnabled(config),
     usage: true,
@@ -56,6 +59,7 @@ export function useRailButtons(): RailButtons {
   const settings = useAccountSettings();
   const shown = (button: RailButton) => offered[button] && settings[RAIL_BUTTON_SETTING[button]];
   return {
+    direct: shown('direct'),
     threads: shown('threads'),
     canvases: shown('canvases'),
     usage: shown('usage'),

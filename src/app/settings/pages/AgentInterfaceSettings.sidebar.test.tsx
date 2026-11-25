@@ -101,6 +101,7 @@ describe('Settings > Sidebar', () => {
       );
     expect(sectionTitles).toEqual([
       [
+        'Show Direct Messages in the sidebar',
         'Show Threads in the sidebar',
         'Show Explore Community in the sidebar',
         'Show Create Space in the sidebar',
@@ -122,6 +123,7 @@ describe('Settings > Sidebar', () => {
       mindroom: { canvas: { enabled: false } },
     });
     expect(titles(renderer)).toEqual([
+      'Show Direct Messages in the sidebar',
       'Show Search in the sidebar',
       'Show Help & guides in the sidebar',
       'Show Usage in the sidebar',
@@ -131,6 +133,7 @@ describe('Settings > Sidebar', () => {
   it('says where each hidden page stays reachable', () => {
     const renderer = render({ mindroom: { canvas: { enabled: true } } });
     const description = (title: string) => tile(renderer, title).props['data-description'];
+    expect(description('Show Direct Messages in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Threads in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Canvases in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Usage in the sidebar')).toContain('⋮ menu in Home');
@@ -155,6 +158,7 @@ describe('Settings > Sidebar', () => {
     expect(toggle('Show Threads in the sidebar').props['aria-checked']).toBe(true);
     expect(toggle('Show Search in the sidebar').props['aria-checked']).toBe(false);
     expect(toggle('Show Explore Community in the sidebar').props['aria-checked']).toBe(false);
+    expect(toggle('Show Direct Messages in the sidebar').props['aria-checked']).toBe(true);
     expect(toggle('Show Help & guides in the sidebar').props['aria-checked']).toBe(true);
 
     await act(async () => {
@@ -169,5 +173,9 @@ describe('Settings > Sidebar', () => {
       toggle('Show Help & guides in the sidebar').props.onClick();
     });
     expect(state.write).toHaveBeenLastCalledWith({ showHelpInSidebar: false });
+    await act(async () => {
+      toggle('Show Direct Messages in the sidebar').props.onClick();
+    });
+    expect(state.write).toHaveBeenLastCalledWith({ showDirectInSidebar: false });
   });
 });

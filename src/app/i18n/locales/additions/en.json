@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Sidebar",
         "navigation": "Navigation",
+        "direct": "Show Direct Messages in the sidebar",
+        "directDescription": "Direct messages in their own rail tab. When hidden, open them from Home or the ⋮ menu in Home.",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
@@ -556,7 +558,13 @@
       "failed": "Could not start the chat. Try again."
     },
     "homeNav": {
-      "options": "Home Options"
+      "options": "Home Options",
+      "addRooms": "Add rooms",
+      "directMessages": "Direct messages",
+      "newDirectMessage": "New direct message",
+      "showAllDirectMessages": "Show all ({{count}})",
+      "agents": "Agents",
+      "agentActive": "Agent active"
     },
     "directNav": {
       "options": "Direct Messages Options"
@@ -1086,6 +1094,14 @@
       },
       "unavailable": {
         "description": "Mac Computer Access is not available on this device."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "you",
+        "draft": "Draft",
+        "groupMemberCount_one": "{{count}} member",
+        "groupMemberCount_other": "{{count}} members"
       }
     }
   },

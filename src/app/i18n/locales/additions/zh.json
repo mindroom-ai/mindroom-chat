@@ -419,6 +419,8 @@
       "sidebar": {
         "title": "侧边栏",
         "navigation": "导航",
+        "direct": "在侧边栏显示私信",
+        "directDescription": "在侧边栏单独的标签页中显示私信。隐藏后，可从首页或首页的 ⋮ 菜单打开。",
         "threads": "在侧边栏显示讨论串",
         "threadsDescription": "所有房间的讨论串集中在一个列表中。隐藏后，可从首页的 ⋮ 菜单打开。",
         "canvasesDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。隐藏后，可从首页的 ⋮ 菜单打开。",
@@ -543,7 +545,13 @@
       "failed": "无法开始聊天，请重试。"
     },
     "homeNav": {
-      "options": "首页选项"
+      "options": "首页选项",
+      "addRooms": "添加房间",
+      "directMessages": "私信",
+      "newDirectMessage": "新建私信",
+      "showAllDirectMessages": "显示全部 ({{count}})",
+      "agents": "代理",
+      "agentActive": "代理正在运行"
     },
     "directNav": {
       "options": "私信选项"
@@ -1069,6 +1077,13 @@
       },
       "unavailable": {
         "description": "此设备不支持 Mac 电脑访问。"
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "自己",
+        "draft": "草稿",
+        "groupMemberCount_other": "{{count}} 位成员"
       }
     }
   },

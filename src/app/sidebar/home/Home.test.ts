@@ -20,6 +20,9 @@ const {
   groupProps,
   sectionDropIds,
   closedState,
+  homeState,
+  shortcutCalls,
+  focusTrapState,
 } = vi.hoisted(() => {
   const sort: {
     mode: 'recent' | 'name' | 'manual';
@@ -43,6 +46,21 @@ const {
     groupProps: [] as Array<{ canMoveRoom?: unknown; onMoveRoom?: unknown }>,
     sectionDropIds: [] as string[],
     closedState: { atom: undefined as ClosedNavCategoriesAtom | undefined },
+    homeState: {
+      directRooms: [] as Array<Record<string, unknown>>,
+      homeAgents: [] as Array<Record<string, unknown>>,
+      directTabShown: true,
+      selectedRoomId: undefined as string | undefined,
+    },
+    shortcutCalls: [] as Array<readonly string[]>,
+    focusTrapState: {
+      options: undefined as
+        | {
+            escapeDeactivates?: (event: KeyboardEvent) => boolean;
+            onDeactivate?: () => void;
+          }
+        | undefined,
+    },
     roomsById: new Map<
       string,
       { roomId: string; name: string; lastActive: number; space?: boolean }
@@ -97,15 +115,27 @@ vi.mock('folds', async () => {
     Button: button,
     Icon: passthrough,
     IconButton: button,
+    color: {
+      Critical: { Main: '#f00' },
+      Primary: { Main: '#00f' },
+      Success: { Main: '#0f0' },
+      Background: { Container: '#fff' },
+      SurfaceVariant: { Container: '#eee', OnContainer: '#111' },
+    },
     Icons: {
+      Category: 'Category',
       Check: 'Check',
+      ChevronBottom: 'ChevronBottom',
+      ChevronTop: 'ChevronTop',
       Hash: 'Hash',
       Link: 'Link',
+      Message: 'Message',
       Plus: 'Plus',
       Search: 'Search',
       Sort: 'Sort',
       VerticalDots: 'VerticalDots',
     },
+    Spinner: () => reactModule.createElement('span', { 'data-spinner': 'true' }),
     Line: () => reactModule.createElement('hr'),
     Menu: ({ children, ref }: { children?: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
       reactModule.createElement('div', { ref }, children),
@@ -114,7 +144,12 @@ vi.mock('folds', async () => {
     Switch: ({ value }: { value?: boolean }) =>
       reactModule.createElement('span', { 'data-switch': String(Boolean(value)) }),
     Text: passthrough,
-    config: { space: { S100: '4px', S200: '8px' } },
+    config: {
+      space: { S100: '4px', S200: '8px' },
+      opacity: { Disabled: 0.4, P300: 0.3, P500: 0.5 },
+      radii: { Pill: '999px' },
+      fontWeight: { W400: 400 },
+    },
     toRem: () => '10rem',
   };
 });
@@ -149,13 +184,22 @@ vi.mock('../../ui/glass/GlassPrimitives', async () => {
   };
 });
 
-vi.mock('../../matrix/state/archivedRooms', () => ({
+vi.mock('../../matrix/state/archivedRooms', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/state/archivedRooms')>()),
   useVisibleRooms: (rooms: string[]) => rooms,
 }));
 
 vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({ children }: { children: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children),
+  FocusTrap: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children: React.ReactNode;
+    focusTrapOptions?: typeof focusTrapState.options;
+  }) => {
+    focusTrapState.options = focusTrapOptions;
+    return React.createElement(React.Fragment, null, children);
+  },
 }));
 
 vi.mock('../../ui/nav/NavItem', async () => {
@@ -176,7 +220,15 @@ vi.mock('../../ui/nav/NavItem', async () => {
       reactModule.createElement('div', { 'data-empty-layout': 'true' }, options),
     NavItem: passthrough,
     NavItemContent: passthrough,
-    NavLink: passthrough,
+    NavLink: ({
+      children,
+      to,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      to?: string;
+      [key: string]: unknown;
+    }) => reactModule.createElement('a', { href: to, ...props }, children),
   };
 });
 vi.mock('../../ui/nav/NavCategoryHeader', async () => {
@@ -189,6 +241,7 @@ vi.mock('../../ui/nav/NavCategoryHeader', async () => {
 });
 
 vi.mock('../../routes/pathUtils', () => ({
+  getDirectCreatePath: () => '/direct/create',
   getExplorePath: () => '/explore',
   getHomeCreatePath: () => '/home/create',
   getHomeRoomPath: (roomId: string) => `/home/${roomId}`,
@@ -196,10 +249,9 @@ vi.mock('../../routes/pathUtils', () => ({
   withSearchParam: (path: string) => path,
 }));
 
-vi.mock('../../matrix/matrix', () => ({
-  getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
+vi.mock('../../navigation/useSelectedRoom', () => ({
+  useSelectedRoom: () => homeState.selectedRoomId,
 }));
-vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
 vi.mock('../../routes/useHomeSelected', () => ({ useHomeCreateSelected: () => false }));
 vi.mock('../../lib/hooks/useScreenSize', () => ({
   ScreenSize: { Desktop: 'Desktop', Tablet: 'Tablet', Mobile: 'Mobile' },
@@ -243,10 +295,42 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: 'div' }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
-  RoomNavCategoryButton: 'button',
+  RoomNavCategoryButton: ({
+    children,
+    before,
+    after,
+    closed,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    before?: React.ReactNode;
+    after?: React.ReactNode;
+    closed?: boolean;
+    [key: string]: unknown;
+  }) =>
+    React.createElement('button', { 'aria-expanded': !closed, ...props }, before, children, after),
 }));
 vi.mock('../room-nav/RoomNavItem', () => ({
-  RoomNavItem: 'div',
+  RoomNavItem: ({
+    room,
+    linkPath,
+    direct,
+    nameOverride,
+    selected,
+  }: {
+    room: { roomId: string };
+    linkPath: string;
+    direct?: boolean;
+    nameOverride?: string;
+    selected?: boolean;
+  }) =>
+    React.createElement('div', {
+      'data-room-nav-item': room.roomId,
+      'data-link-path': linkPath,
+      'data-direct': direct ? 'true' : undefined,
+      'data-name-override': nameOverride,
+      'data-selected': selected ? 'true' : undefined,
+    }),
 }));
 vi.mock('../room-nav/roomOrder', () => ({
   HOME_ROOM_LIST: 'home',
@@ -368,7 +452,9 @@ vi.mock('../space/SpaceRoomSection', () => {
   };
   return { SpaceRoomSection: MockSpaceRoomSection };
 });
-vi.mock('../../ui/nav/useCategoryHandler', () => ({ useCategoryHandler: () => vi.fn() }));
+vi.mock('../../ui/nav/useCategoryHandler', async (importOriginal) =>
+  importOriginal<typeof import('../../ui/nav/useCategoryHandler')>()
+);
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: vi.fn(),
 }));
@@ -388,7 +474,7 @@ vi.mock('../../ui/page/Page', async () => {
 vi.mock('../../ui/nav/useClosedNavCategories', () => ({
   useClosedNavCategoriesAtom: () => closedState.atom!,
 }));
-vi.mock('../../lib/keyboard', () => ({ stopPropagation: vi.fn() }));
+vi.mock('../../lib/keyboard', () => ({ stopPropagation: vi.fn(() => true) }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationMode: vi.fn(),
   useRoomsNotificationPreferencesContext: () => new Map(),
@@ -398,12 +484,15 @@ vi.mock('../../rooms/join/JoinAddressPrompt', async () => {
   return {
     JoinAddressPrompt: ({
       onOpen,
+      returnFocusTo,
     }: {
       onOpen: (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => void;
+      returnFocusTo?: HTMLElement | null;
     }) =>
       reactModule.createElement('div', {
         'data-join-address-prompt': 'true',
         onOpen,
+        returnFocusTo,
       }),
   };
 });
@@ -418,6 +507,40 @@ vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
     React.createElement('div', { 'data-mark-read-rooms': roomIds.join(',') }),
 }));
 vi.mock('./HiddenRailPages', () => ({ HiddenRailPages: () => null }));
+vi.mock('../direct/useDirectRooms', () => ({
+  useDirectRooms: () => homeState.directRooms,
+  useDirectRoomIds: () => homeState.directRooms.map((room) => room.roomId as string),
+}));
+vi.mock('./homeAgents', () => ({
+  useHomeAgents: () => homeState.homeAgents,
+  startDirectChat: vi.fn(),
+  agentNameIn: (_room: unknown, userId: string) => userId.replace(/^@mindroom_/, '').split(':')[0],
+}));
+vi.mock('../../settings/railButtons', () => ({
+  useRailButtons: () => ({ direct: homeState.directTabShown }),
+}));
+vi.mock('../useRoomListShortcuts', () => ({
+  useRoomListShortcuts: (roomIds: readonly string[]) => {
+    shortcutCalls.push([...roomIds]);
+  },
+}));
+vi.mock('../../avatars/UserAvatar', () => ({
+  UserAvatar: ({ alt }: { alt?: string }) => React.createElement('span', null, alt),
+}));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
+vi.mock('../../matrix/hooks/useCapabilities', () => ({
+  useCapabilities: () => ({ 'm.room_versions': { default: '11' } }),
+}));
+vi.mock('../../matrix/hooks/useRoomActiveRuns', () => ({
+  useRoomActiveRuns: () => ({ runs: [], threads: new Set() }),
+}));
+vi.mock('../../matrix/matrix', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/matrix')>()),
+  getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
+  mxcUrlToHttp: () => undefined,
+}));
 vi.mock('./MacAppMenuEntry', () => ({ MacAppMenuEntry: () => null }));
 
 const makeStore = (rooms: string[], parents: Record<string, string[]> = {}) => {
@@ -441,7 +564,28 @@ const renderHome = (rooms: string[], parents: Record<string, string[]> = {}) => 
   return { renderer, store };
 };
 
-const expectRoomActionsWork = (renderer: ReactTestRenderer) => {
+const makeDm = (roomId: string, partnerId: string, joined = 2, lastActive = 1000) => ({
+  roomId,
+  name: roomId,
+  myUserId: '@alice:example.org',
+  getJoinedMemberCount: () => joined,
+  getInvitedMemberCount: () => 0,
+  getLastActiveTimestamp: () => lastActive,
+  getAvatarFallbackMember: () => ({ userId: partnerId, getMxcAvatarUrl: () => null }),
+  getMembers: () => [
+    { userId: '@alice:example.org', membership: 'join' },
+    { userId: partnerId, membership: 'join' },
+  ],
+});
+
+const fakeAnchorEvent = {
+  currentTarget: {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 120, height: 32 }),
+    focus: vi.fn(),
+  },
+};
+
+const expectEmptyRoomActionsWork = (renderer: ReactTestRenderer) => {
   const createButton = renderer.root.find(
     (node) => node.type === 'button' && node.props['data-home-room-action'] === 'create'
   );
@@ -467,6 +611,73 @@ const expectRoomActionsWork = (renderer: ReactTestRenderer) => {
   expect(navigate).toHaveBeenCalledWith('/home/!joined:example.org');
 };
 
+const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
+  // Populated Home hides direct top Create/Join buttons until + Add rooms menu opens.
+  expect(
+    renderer.root.findAll(
+      (node) => node.type === 'button' && node.props['data-home-room-action'] === 'create'
+    )
+  ).toHaveLength(0);
+  expect(
+    renderer.root.findAll(
+      (node) => node.type === 'button' && node.props['data-home-room-action'] === 'join'
+    )
+  ).toHaveLength(0);
+
+  const openMenu = () => {
+    const addButton = renderer.root.find(
+      (node) => node.type === 'button' && node.props['data-home-room-action'] === 'add'
+    );
+    act(() => {
+      addButton.props.onClick(fakeAnchorEvent);
+    });
+  };
+
+  const openMenus = () => renderer.root.findAll((node) => node.props.role === 'menu');
+
+  openMenu();
+  const createItem = renderer.root.find(
+    (node) => node.type === 'button' && node.props['data-home-room-action'] === 'create'
+  );
+  act(() => {
+    createItem.props.onClick();
+  });
+  expect(openMenus()).toHaveLength(0);
+  expect(navigate).toHaveBeenCalledWith('/home/create');
+  navigate.mockReset();
+
+  openMenu();
+  const joinItem = renderer.root.find(
+    (node) => node.type === 'button' && node.props['data-home-room-action'] === 'join'
+  );
+  act(() => {
+    joinItem.props.onClick();
+  });
+  expect(openMenus()).toHaveLength(0);
+  const joinPrompt = renderer.root.find(
+    (node) => node.type === 'div' && node.props['data-join-address-prompt'] === 'true'
+  );
+  expect(joinPrompt.props.returnFocusTo).toBe(fakeAnchorEvent.currentTarget);
+  act(() => {
+    joinPrompt.props.onOpen('!joined:example.org');
+  });
+  expect(navigate).toHaveBeenCalledWith('/home/!joined:example.org');
+
+  // Escape closes the menu and restores focus to its opener; outside click closes without refocusing.
+  fakeAnchorEvent.currentTarget.focus.mockReset();
+  openMenu();
+  expect(focusTrapState.options?.escapeDeactivates?.({} as KeyboardEvent)).toBe(true);
+  act(() => focusTrapState.options?.onDeactivate?.());
+  expect(openMenus()).toHaveLength(0);
+  expect(fakeAnchorEvent.currentTarget.focus).toHaveBeenCalledTimes(1);
+
+  fakeAnchorEvent.currentTarget.focus.mockReset();
+  openMenu();
+  act(() => focusTrapState.options?.onDeactivate?.());
+  expect(openMenus()).toHaveLength(0);
+  expect(fakeAnchorEvent.currentTarget.focus).not.toHaveBeenCalled();
+};
+
 describe('Home', () => {
   afterEach(() => {
     screen.size = 'Desktop';
@@ -478,6 +689,13 @@ describe('Home', () => {
     navigate.mockReset();
     groupProps.length = 0;
     sectionDropIds.length = 0;
+    homeState.directRooms = [];
+    homeState.homeAgents = [];
+    homeState.directTabShown = true;
+    homeState.selectedRoomId = undefined;
+    focusTrapState.options = undefined;
+    fakeAnchorEvent.currentTarget.focus.mockReset();
+    shortcutCalls.length = 0;
   });
 
   const textOf = (node: ReactTestInstance | string): string =>
@@ -486,10 +704,10 @@ describe('Home', () => {
   const findFields = (renderer: ReactTestRenderer) =>
     renderer.root.findAllByProps({ 'data-find-anything': true });
 
-  it('keeps create and join actions available when rooms exist', () => {
+  it('replaces top create/join rows with the inline + Add rooms menu when rooms exist', () => {
     const { renderer } = renderHome(['!room:example.org']);
 
-    expectRoomActionsWork(renderer);
+    expectPopulatedAddRoomsMenuWorks(renderer);
     expect(findFields(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
@@ -511,7 +729,7 @@ describe('Home', () => {
         (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
       )
     ).toHaveLength(0);
-    expectRoomActionsWork(renderer);
+    expectEmptyRoomActionsWork(renderer);
     expect(findFields(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
 
@@ -726,7 +944,7 @@ describe('Home', () => {
     const { renderer } = renderHome(['!room:example.org']);
 
     expect(findFields(renderer)).toHaveLength(0);
-    expectRoomActionsWork(renderer);
+    expectPopulatedAddRoomsMenuWorks(renderer);
 
     act(() => renderer.unmount());
   });
@@ -808,5 +1026,183 @@ describe('Home', () => {
     ]);
 
     act(() => renderer.unmount());
+  });
+  it('opens the Create/Join menu from the Rooms header hover + button and shows standalone + Add rooms on all-spaced Home', () => {
+    const { renderer } = renderHome(['!room:example.org']);
+    const headerPlus = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Add rooms'
+    );
+    act(() => {
+      headerPlus.props.onClick(fakeAnchorEvent);
+    });
+    const createItem = renderer.root.find(
+      (node) => node.type === 'button' && node.props['data-home-room-action'] === 'create'
+    );
+    act(() => {
+      createItem.props.onClick();
+    });
+    expect(navigate).toHaveBeenCalledWith('/home/create');
+    act(() => renderer.unmount());
+
+    navigate.mockReset();
+    const { renderer: spacedOnly } = renderHome(['!work:example.org', '!planning:example.org'], {
+      '!planning:example.org': ['!work:example.org'],
+    });
+    expectPopulatedAddRoomsMenuWorks(spacedOnly);
+    act(() => spacedOnly.unmount());
+  });
+
+  it('renders Direct messages and Agents sections in mindroom categories, stays in Home on click, and includes DMs in shortcuts and Mark as Read', () => {
+    homeState.directRooms = [
+      makeDm('!dm-maya:example.org', '@maya:example.org', 2, 5000),
+      makeDm('!dm-group:example.org', '@mindroom_dev:example.org', 3, 4500),
+      makeDm('!dm-dev:example.org', '@mindroom_dev:example.org', 2, 4000),
+    ];
+    homeState.homeAgents = [
+      {
+        userId: '@mindroom_dev:example.org',
+        name: 'DevAgent',
+        roomIds: ['!room:example.org'],
+        direct: { roomId: '!dm-dev:example.org', waiting: false },
+        lastUsedTs: 3000,
+      },
+      {
+        userId: '@mindroom_researcher:example.org',
+        name: 'Researcher',
+        roomIds: ['!room:example.org'],
+        lastUsedTs: 2000,
+      },
+    ];
+
+    const { renderer } = renderHome(['!room:example.org']);
+
+    // Only Rooms uses home| category prefix; Direct messages & Agents use mindroom|.
+    const homeCategories = renderer.root
+      .findAll(
+        (node) =>
+          node.type === 'button' &&
+          typeof node.props['data-category-id'] === 'string' &&
+          node.props['data-category-id'].startsWith('home|')
+      )
+      .map((node) => node.props['data-category-id']);
+    expect(homeCategories).toEqual(['home|room']);
+
+    const dmSection = renderer.root.findByProps({ 'data-testid': 'home-direct-section' });
+    expect(
+      dmSection
+        .findAll((n) => typeof n.type === 'string' && 'data-room-nav-item' in n.props)
+        .map((n) => ({
+          id: n.props['data-room-nav-item'],
+          link: n.props['data-link-path'],
+          direct: n.props['data-direct'],
+        }))
+    ).toEqual([
+      { id: '!dm-maya:example.org', link: '/home/!dm-maya:example.org', direct: 'true' },
+      { id: '!dm-group:example.org', link: '/home/!dm-group:example.org', direct: 'true' },
+    ]);
+
+    const agentsSection = renderer.root.findByProps({ 'data-testid': 'home-agents-section' });
+    expect(
+      agentsSection
+        .findAll((n) => typeof n.type === 'string' && 'data-room-nav-item' in n.props)
+        .map((n) => ({
+          id: n.props['data-room-nav-item'],
+          link: n.props['data-link-path'],
+          name: n.props['data-name-override'],
+          direct: n.props['data-direct'],
+        }))
+    ).toEqual([
+      {
+        id: '!dm-dev:example.org',
+        link: '/home/!dm-dev:example.org',
+        name: 'DevAgent',
+        direct: 'true',
+      },
+    ]);
+
+    expect(
+      agentsSection.findAll(
+        (n) =>
+          n.type === 'button' &&
+          n.props['data-home-agent-id'] === '@mindroom_researcher:example.org'
+      )
+    ).toHaveLength(1);
+
+    // Shortcuts and HomeHeader Mark as Read include both ordinary rooms and DMs/agent DMs.
+    expect(shortcutCalls.at(-1)).toEqual([
+      '!room:example.org',
+      '!dm-maya:example.org',
+      '!dm-group:example.org',
+      '!dm-dev:example.org',
+    ]);
+    const optionsButton = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Home Options'
+    );
+    act(() => {
+      optionsButton.props.onClick(fakeAnchorEvent);
+    });
+    expect(
+      renderer.root.findByProps({
+        'data-mark-read-rooms':
+          '!room:example.org,!dm-maya:example.org,!dm-group:example.org,!dm-dev:example.org',
+      })
+    ).toBeDefined();
+
+    // Collapsing Direct messages hides its DM rows and removes them from shortcuts.
+    const dmHeaderButton = dmSection.find(
+      (n) => n.type === 'button' && n.props['data-category-id'] === 'mindroom|home-direct'
+    );
+    act(() => {
+      dmHeaderButton.props.onClick({
+        currentTarget: { getAttribute: () => 'mindroom|home-direct' },
+      });
+    });
+    expect(
+      dmSection.findAll((n) => typeof n.type === 'string' && 'data-room-nav-item' in n.props)
+    ).toHaveLength(0);
+    expect(shortcutCalls.at(-1)).toEqual(['!room:example.org', '!dm-dev:example.org']);
+
+    act(() => renderer.unmount());
+  });
+
+  it('shows Direct messages when empty only if the Direct Messages rail button is hidden, and stays non-empty for DM-only accounts', () => {
+    const { renderer: shownRail } = renderHome(['!room:example.org']);
+    expect(shownRail.root.findAllByProps({ 'data-testid': 'home-direct-section' })).toHaveLength(0);
+    act(() => shownRail.unmount());
+
+    homeState.directTabShown = false;
+    const { renderer: hiddenRail } = renderHome(['!room:example.org']);
+    const dmSection = hiddenRail.root.findByProps({ 'data-testid': 'home-direct-section' });
+    const newDmLink = dmSection.find(
+      (n) => n.type === 'a' && n.props['data-home-dm-action'] === 'new'
+    );
+    expect(newDmLink.props.href).toBe('/direct/create');
+    act(() => hiddenRail.unmount());
+
+    // Account with only a DM (no rooms or spaces) renders populated Home, not NavEmptyLayout.
+    homeState.directTabShown = true;
+    homeState.directRooms = [makeDm('!dm-liam:example.org', '@liam:example.org')];
+    const { renderer: dmOnly } = renderHome([]);
+    expect(dmOnly.root.findAllByProps({ 'data-empty-layout': 'true' })).toHaveLength(0);
+    expect(
+      dmOnly.root.findAll(
+        (n) => typeof n.type === 'string' && n.props['data-testid'] === 'home-direct-section'
+      )
+    ).toHaveLength(1);
+    expectPopulatedAddRoomsMenuWorks(dmOnly);
+    act(() => dmOnly.unmount());
+
+    // Account with only an agent DM and Direct rail shown still shows Direct messages so New direct message is reachable.
+    homeState.directTabShown = true;
+    homeState.directRooms = [makeDm('!dm-dev:example.org', '@mindroom_dev:example.org')];
+    const { renderer: agentDmOnly } = renderHome(['!room:example.org']);
+    const agentOnlyDmSection = agentDmOnly.root.findByProps({
+      'data-testid': 'home-direct-section',
+    });
+    const agentOnlyNewDm = agentOnlyDmSection.find(
+      (n) => n.type === 'a' && n.props['data-home-dm-action'] === 'new'
+    );
+    expect(agentOnlyNewDm.props.href).toBe('/direct/create');
+    act(() => agentDmOnly.unmount());
   });
 });

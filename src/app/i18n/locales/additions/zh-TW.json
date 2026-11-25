@@ -419,6 +419,8 @@
       "sidebar": {
         "title": "側邊欄",
         "navigation": "導覽",
+        "direct": "在側邊欄顯示私訊",
+        "directDescription": "在側邊欄單獨的分頁中顯示私訊。隱藏後，可從首頁或首頁的 ⋮ 選單開啟。",
         "threads": "在側邊欄顯示討論串",
         "threadsDescription": "所有房間的討論串集中在一個清單中。隱藏後，可從首頁的 ⋮ 選單開啟。",
         "canvasesDescription": "有互動式面板後，顯示一個按鈕來查看代理程式為您建立的面板。隱藏後，可從首頁的 ⋮ 選單開啟。",
@@ -543,7 +545,13 @@
       "failed": "無法開始聊天，請再試一次。"
     },
     "homeNav": {
-      "options": "首頁選項"
+      "options": "首頁選項",
+      "addRooms": "新增房間",
+      "directMessages": "私訊",
+      "newDirectMessage": "新增私訊",
+      "showAllDirectMessages": "顯示全部 ({{count}})",
+      "agents": "代理",
+      "agentActive": "代理正在執行"
     },
     "directNav": {
       "options": "私訊選項"
@@ -1069,6 +1077,13 @@
       },
       "unavailable": {
         "description": "此裝置不支援 Mac 電腦存取。"
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "自己",
+        "draft": "草稿",
+        "groupMemberCount_other": "{{count}} 位成員"
       }
     }
   },

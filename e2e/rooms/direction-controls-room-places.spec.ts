@@ -325,6 +325,7 @@ const checkEnglish = async (page: Page, world: World, label: string) => {
     const menu = page.locator('#phone-nav-menu-button');
     if ((await menu.getAttribute('aria-expanded')) === 'false') await menu.click();
   }
+  await page.locator('[data-home-room-action="add"]').first().click();
   await page.locator('[data-home-room-action="join"]').first().click();
   const dialog = page.getByRole('dialog', { name: 'Join a Room' });
   await dialog.getByRole('searchbox').fill(RUN);

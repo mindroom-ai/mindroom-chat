@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Seitenleiste",
         "navigation": "Navigation",
+        "direct": "Direktnachrichten in der Seitenleiste anzeigen",
+        "directDescription": "Direktnachrichten als eigener Reiter in der Seitenleiste. Ausgeblendet öffnest du sie auf der Startseite oder über das ⋮-Menü auf der Startseite.",
         "threads": "Threads in der Seitenleiste anzeigen",
         "threadsDescription": "Threads aus allen Räumen in einer Liste. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
         "canvasesDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
@@ -556,7 +558,13 @@
       "failed": "Der Chat konnte nicht gestartet werden. Versuche es erneut."
     },
     "homeNav": {
-      "options": "Optionen für die Startseite"
+      "options": "Optionen für die Startseite",
+      "addRooms": "Räume hinzufügen",
+      "directMessages": "Direktnachrichten",
+      "newDirectMessage": "Neue Direktnachricht",
+      "showAllDirectMessages": "Alle anzeigen ({{count}})",
+      "agents": "Agenten",
+      "agentActive": "Agent aktiv"
     },
     "directNav": {
       "options": "Optionen für Direktnachrichten"
@@ -1086,6 +1094,14 @@
       },
       "unavailable": {
         "description": "Mac-Computerzugriff ist auf diesem Gerät nicht verfügbar."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "du",
+        "draft": "Entwurf",
+        "groupMemberCount_one": "{{count}} Mitglied",
+        "groupMemberCount_other": "{{count}} Mitglieder"
       }
     }
   },

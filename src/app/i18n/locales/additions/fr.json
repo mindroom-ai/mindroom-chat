@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barre latérale",
         "navigation": "Navigation",
+        "direct": "Afficher Messages directs dans la barre latérale",
+        "directDescription": "Les messages directs dans leur propre onglet latéral. Masqués, ouvrez-les depuis l’accueil ou depuis le menu ⋮ de l’accueil.",
         "threads": "Afficher Fils dans la barre latérale",
         "threadsDescription": "Les fils de toutes les salles dans une seule liste. Masqués, ouvrez-les depuis le menu ⋮ de l’accueil.",
         "canvasesDescription": "Affichez un bouton pour les panneaux interactifs de vos agents dès que vous en avez un. Masqué, ouvrez-les depuis le menu ⋮ de l’accueil.",
@@ -569,7 +571,13 @@
       "failed": "Impossible de démarrer la discussion. Réessayez."
     },
     "homeNav": {
-      "options": "Options de l’accueil"
+      "options": "Options de l’accueil",
+      "addRooms": "Ajouter des salles",
+      "directMessages": "Messages directs",
+      "newDirectMessage": "Nouveau message direct",
+      "showAllDirectMessages": "Tout afficher ({{count}})",
+      "agents": "Agents",
+      "agentActive": "Agent actif"
     },
     "directNav": {
       "options": "Options des messages directs"
@@ -1103,6 +1111,15 @@
       },
       "unavailable": {
         "description": "L'accès à l'ordinateur Mac n'est pas disponible sur cet appareil."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "vous",
+        "draft": "Brouillon",
+        "groupMemberCount_many": "{{count}} membres",
+        "groupMemberCount_one": "{{count}} membre",
+        "groupMemberCount_other": "{{count}} membres"
       }
     }
   },

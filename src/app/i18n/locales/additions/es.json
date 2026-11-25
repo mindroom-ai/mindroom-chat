@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barra lateral",
         "navigation": "Navegación",
+        "direct": "Mostrar Mensajes directos en la barra lateral",
+        "directDescription": "Los mensajes directos en su propia pestaña lateral. Si lo ocultas, ábrelos desde Inicio o desde el menú ⋮ de Inicio.",
         "threads": "Mostrar Hilos en la barra lateral",
         "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
         "canvasesDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
@@ -569,7 +571,13 @@
       "failed": "No se pudo iniciar el chat. Inténtalo de nuevo."
     },
     "homeNav": {
-      "options": "Opciones de Inicio"
+      "options": "Opciones de Inicio",
+      "addRooms": "Añadir salas",
+      "directMessages": "Mensajes directos",
+      "newDirectMessage": "Nuevo mensaje directo",
+      "showAllDirectMessages": "Mostrar todos ({{count}})",
+      "agents": "Agentes",
+      "agentActive": "Agente activo"
     },
     "directNav": {
       "options": "Opciones de mensajes directos"
@@ -1103,6 +1111,15 @@
       },
       "unavailable": {
         "description": "El acceso al Mac no está disponible en este dispositivo."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "tú",
+        "draft": "Borrador",
+        "groupMemberCount_many": "{{count}} miembros",
+        "groupMemberCount_one": "{{count}} miembro",
+        "groupMemberCount_other": "{{count}} miembros"
       }
     }
   },

@@ -419,6 +419,8 @@
       "sidebar": {
         "title": "사이드바",
         "navigation": "탐색",
+        "direct": "사이드바에 다이렉트 메시지 표시",
+        "directDescription": "다이렉트 메시지를 전용 사이드바 탭에 표시합니다. 숨기면 홈 또는 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "threads": "사이드바에 스레드 표시",
         "threadsDescription": "모든 방의 스레드를 한 목록에서 봅니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "canvasesDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
@@ -543,7 +545,13 @@
       "failed": "채팅을 시작하지 못했습니다. 다시 시도하세요."
     },
     "homeNav": {
-      "options": "홈 옵션"
+      "options": "홈 옵션",
+      "addRooms": "방 추가",
+      "directMessages": "다이렉트 메시지",
+      "newDirectMessage": "새 다이렉트 메시지",
+      "showAllDirectMessages": "모두 보기 ({{count}})",
+      "agents": "에이전트",
+      "agentActive": "에이전트 활동 중"
     },
     "directNav": {
       "options": "다이렉트 메시지 옵션"
@@ -1069,6 +1077,13 @@
       },
       "unavailable": {
         "description": "이 기기에서는 Mac 컴퓨터 접근을 사용할 수 없습니다."
+      }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "나",
+        "draft": "초안",
+        "groupMemberCount_other": "멤버 {{count}}명"
       }
     }
   },

@@ -25,7 +25,7 @@ import { settingsModalAtom } from '../navigation/settingsModal';
 import { tourAtom } from '../navigation/tourState';
 import { HomeAsk } from './HomeAsk';
 import { HomeRecentThreads } from './HomeRecentThreads';
-import { useHomeAgents } from './homeAgents';
+import { useHomeAgents } from '../sidebar/home/homeAgents';
 import * as css from './Home.css';
 
 const SETUP_COMMAND =

@@ -342,6 +342,8 @@ export function JoinRoomPanel({ onOpen, onExplore }: JoinRoomPanelProps) {
 type JoinAddressPromptProps = {
   onOpen: OpenRoom;
   onCancel: () => void;
+  /** Element to return focus to when closed (used when opened from an ephemeral menu). */
+  returnFocusTo?: HTMLElement | null;
 };
 
 const TITLE_ID = 'join-address-prompt-title';
@@ -350,7 +352,7 @@ const TITLE_ID = 'join-address-prompt-title';
 const TRAP_DISMISSAL = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
 
 /** The Join a Room dialog: public rooms of the user's server, and any address pasted in. */
-export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) {
+export function JoinAddressPrompt({ onOpen, onCancel, returnFocusTo }: JoinAddressPromptProps) {
   const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
@@ -358,7 +360,12 @@ export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) 
     <Overlay backdrop={<OverlayBackdrop />} open>
       <OverlayCenter className={phone ? modalCss.PhoneOverlayCenter : modalCss.SafeOverlayCenter}>
         <FocusTrap
-          focusTrapOptions={{ ...TRAP_DISMISSAL, initialFocus: false, onDeactivate: onCancel }}
+          focusTrapOptions={{
+            ...TRAP_DISMISSAL,
+            initialFocus: false,
+            setReturnFocus: (previous) => (returnFocusTo?.isConnected ? returnFocusTo : previous),
+            onDeactivate: onCancel,
+          }}
         >
           <Dialog
             role="dialog"

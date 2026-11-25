@@ -274,8 +274,9 @@ const CASES: Case[] = [
     from: 'home',
     screens: ['desktop', 'phone'],
     open: async (page, screen) => {
-      const opener = page.locator('[data-home-room-action="join"]');
+      const opener = page.locator('[data-home-room-action="add"]');
       await press(opener, screen);
+      await press(page.locator('[data-home-room-action="join"]'), screen);
       return opener;
     },
   },
@@ -334,7 +335,7 @@ const walk = async (page: Page, testCase: Case, screen: Screen, engine: string, 
   if (testCase.from === 'room') {
     await expect(page.getByRole('textbox').first()).toBeVisible({ timeout: 30_000 });
   } else {
-    await expect(page.locator('[data-home-room-action="join"]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-home-room-action="add"]')).toBeVisible({ timeout: 30_000 });
   }
   const label = `${testCase.name} (${screen}, ${engine})`;
   const opener = await testCase.open(page, screen);
