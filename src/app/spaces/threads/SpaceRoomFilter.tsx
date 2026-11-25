@@ -74,13 +74,7 @@ function RoomFilterPanel({
               }
             />
           </Avatar>
-          <Text
-            as="span"
-            size="T300"
-            truncate
-            className={dropdownCss.Name}
-            {...ownDirectionLine}
-          >
+          <Text as="span" size="T300" truncate className={dropdownCss.Name} {...ownDirectionLine}>
             {item.name}
           </Text>
         </>
@@ -115,9 +109,7 @@ function RoomFilterPanel({
           !needle ||
           Boolean(forcedRoomIds?.has(item.room.roomId)) ||
           item.name.toLocaleLowerCase().includes(needle);
-        const visibleRoomIds = new Set(
-          rooms.filter(matchesRoom).map((item) => item.room.roomId)
-        );
+        const visibleRoomIds = new Set(rooms.filter(matchesRoom).map((item) => item.room.roomId));
 
         const rows: ThreadFilterOption[] = [];
         groups.rootRoomIds.forEach((id) => {

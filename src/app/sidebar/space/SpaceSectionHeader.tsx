@@ -35,7 +35,10 @@ import {
   useSpaceQuickDialogs,
   useSpaceQuickPermissions,
 } from '../../spaces/SpaceActions';
-import { type CollapsedSectionUnread, getCollapsedSectionUnread } from './spaceRoomSections';
+import {
+  type CollapsedSectionUnread,
+  getCollapsedSectionUnread,
+} from '../../spaces/spaceRoomSections';
 import * as css from './SpaceSectionHeader.css';
 
 const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);

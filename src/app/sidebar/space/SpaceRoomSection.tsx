@@ -36,7 +36,7 @@ import {
   collectShortcutRoomIds,
   getDescendantSubspaces,
   getSpaceRoomSections,
-} from './spaceRoomSections';
+} from '../../spaces/spaceRoomSections';
 import {
   type RenderedSpaceRoomSection,
   buildRenderedSpaceSections,

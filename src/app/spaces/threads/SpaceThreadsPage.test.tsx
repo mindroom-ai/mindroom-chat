@@ -1463,8 +1463,10 @@ describe('SpaceThreadsPage', () => {
       '[data-space-switcher-button="true"]'
     )!;
     expect(trigger).toBeTruthy();
+    expect(trigger.getAttribute('aria-label')).toBe('Product, Switch space');
     fireEvent.click(trigger);
 
+    const menu = document.querySelector<HTMLElement>('[data-space-switcher-menu="true"]')!;
     const options = [...document.querySelectorAll<HTMLElement>('[data-space-switcher-option]')];
     expect(options.map((el) => el.getAttribute('data-space-switcher-option'))).toEqual([
       otherSpaceId,
@@ -1474,7 +1476,36 @@ describe('SpaceThreadsPage', () => {
     expect(options[1]?.getAttribute('aria-checked')).toBe('true');
     expect(options[2]?.style.paddingInlineStart).toContain('16px');
 
-    fireEvent.click(options[2]!);
+    // ArrowDown / ArrowUp / Home / End move focus across menuitemradio options.
+    options[1]!.focus();
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(options[2]);
+    fireEvent.keyDown(menu, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(options[1]);
+    fireEvent.keyDown(menu, { key: 'Home' });
+    expect(document.activeElement).toBe(options[0]);
+    fireEvent.keyDown(menu, { key: 'End' });
+    expect(document.activeElement).toBe(options[2]);
+
+    // Selecting the current space closes the menu and returns focus to the trigger button.
+    fireEvent.click(options[1]!);
+    expect(document.querySelector('[data-space-switcher-menu]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    // Renaming a space/subspace updates the switcher options on reopen.
+    act(() => {
+      subSpace.setName('Core Platform');
+      space.setName('Product HQ');
+      space.emit(RoomEvent.Name, space);
+    });
+    expect(trigger.getAttribute('aria-label')).toBe('Product HQ, Switch space');
+    fireEvent.click(trigger);
+    const renamedSub = document.querySelector<HTMLElement>(
+      `[data-space-switcher-option="${subId}"]`
+    )!;
+    expect(renamedSub.textContent).toContain('Core Platform');
+
+    fireEvent.click(renamedSub);
     expect(screen.getByTestId('switcher-path').textContent).toBe(
       `/${encodeURIComponent(subId)}/threads`
     );

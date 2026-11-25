@@ -253,6 +253,23 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       setFilterState((prev) => mutate(prev ?? defaultFilterState)),
     [defaultFilterState, setFilterState]
   );
+  const updateRoomSelection = useCallback(
+    (
+      mutate: (
+        current: ReadonlySet<string> | undefined,
+        allRoomIds: readonly string[]
+      ) => Set<string> | undefined
+    ) =>
+      updateFilter((prev) => {
+        const current = pruneSpaceRoomSelection(
+          prev.rooms?.length ? new Set(prev.rooms) : undefined,
+          orderedRoomIds
+        );
+        const next = mutate(current, orderedRoomIds);
+        return { ...prev, rooms: next ? [...next].sort() : undefined };
+      }),
+    [orderedRoomIds, updateFilter]
+  );
   const handleThreadCreated = useCallback(
     (roomId: string, eventId: string) => {
       if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') {
@@ -307,28 +324,14 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                   groups={roomFilterGroups}
                   onSelectAll={() => updateFilter((prev) => ({ ...prev, rooms: undefined }))}
                   onToggleRoom={(id) =>
-                    updateFilter((prev) => {
-                      const current = pruneSpaceRoomSelection(
-                        prev.rooms?.length ? new Set(prev.rooms) : undefined,
-                        orderedRoomIds
-                      );
-                      const next = toggleSpaceRoomSelection(current, id, orderedRoomIds);
-                      return { ...prev, rooms: next ? [...next].sort() : undefined };
-                    })
+                    updateRoomSelection((current, allRoomIds) =>
+                      toggleSpaceRoomSelection(current, id, allRoomIds)
+                    )
                   }
                   onToggleRoomGroup={(groupRoomIds) =>
-                    updateFilter((prev) => {
-                      const current = pruneSpaceRoomSelection(
-                        prev.rooms?.length ? new Set(prev.rooms) : undefined,
-                        orderedRoomIds
-                      );
-                      const next = toggleSpaceRoomGroupSelection(
-                        current,
-                        groupRoomIds,
-                        orderedRoomIds
-                      );
-                      return { ...prev, rooms: next ? [...next].sort() : undefined };
-                    })
+                    updateRoomSelection((current, allRoomIds) =>
+                      toggleSpaceRoomGroupSelection(current, groupRoomIds, allRoomIds)
+                    )
                   }
                 />
               }

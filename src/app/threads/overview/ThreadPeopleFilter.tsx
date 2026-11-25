@@ -17,8 +17,7 @@ import {
 import type { ThreadRecord } from '../../event-store/threads/types';
 
 export type ThreadPeopleFilterProps = (
-  | { room: Room; rooms?: never }
-  | { rooms: readonly Room[]; room?: never }
+  { room: Room; rooms?: never } | { rooms: readonly Room[]; room?: never }
 ) & {
   /** The room's thread records before filtering: whoever took part in any of them is listed. */
   records: ReadonlyMap<string, ThreadRecord>;
@@ -96,10 +95,20 @@ function PeoplePanel({
   );
   // A chosen person no thread shows any more stays listed, so the choice can be undone.
   const listedIds = new Set(listed.map((person) => person.userId));
-  const people = [
+  const rawPeople = [
     ...listed,
     ...(selected ?? []).filter((userId) => !listedIds.has(userId)).map((id) => toOption(id, 0)),
   ];
+  const nameCounts = new Map<string, number>();
+  rawPeople.forEach((person) => {
+    nameCounts.set(person.displayName, (nameCounts.get(person.displayName) ?? 0) + 1);
+  });
+  const people = rawPeople.map((person) =>
+    (nameCounts.get(person.displayName) ?? 0) > 1 &&
+    !person.displayName.endsWith(` (${person.userId})`)
+      ? { ...person, displayName: `${person.displayName} (${person.userId})` }
+      : person
+  );
   const chosen = new Set(selected);
 
   return (

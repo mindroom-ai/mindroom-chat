@@ -1,10 +1,10 @@
 import type { MatrixClient } from 'matrix-js-sdk';
-import { sortRoomIdsByName } from '../../lib/nameOrder';
-import { isSpace } from '../../matrix/room';
-import { reachesSpaceDirectly } from '../../matrix/state/spaceAncestors';
-import { getJoinedSubspaces, getSpaceOwnRooms } from '../../matrix/state/useSpaceSearchRooms';
-import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import { sortRoomIdsByName } from '../lib/nameOrder';
+import { isSpace } from '../matrix/room';
+import { reachesSpaceDirectly } from '../matrix/state/spaceAncestors';
+import { getJoinedSubspaces, getSpaceOwnRooms } from '../matrix/state/useSpaceSearchRooms';
+import type { RoomToParents, RoomToUnread } from '../matrix/types/room';
+import { makeNavCategoryId } from '../ui/nav/closedNavCategories';
 
 export type SpaceRoomSection = {
   /** The space whose rooms this section lists (`rootSpaceId` for the top Rooms section). */

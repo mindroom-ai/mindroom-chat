@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { IconChevronDown } from '@tabler/icons-react';
 import { FocusTrap } from 'focus-trap-react';
 import { Avatar, Box, config, Icon, Icons, Text, type RectCords } from 'folds';
@@ -51,7 +51,9 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
   const { items: sidebarItems } = useShownSidebarItems();
   const [anchor, setAnchor] = useState<RectCords>();
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const refocusRef = useRef(false);
+  const open = anchor !== undefined;
 
   useEffect(() => {
     if (anchor || !refocusRef.current) return;
@@ -63,10 +65,11 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
     () => sidebarItems.flatMap((item) => (typeof item === 'string' ? [item] : item.content)),
     [sidebarItems]
   );
-  const switchableSpaces = useMemo(
-    () => buildSwitchableSpaceItems(mx, railSpaceIds, joinedRoomIds, roomToParents),
-    [joinedRoomIds, mx, railSpaceIds, roomToParents]
-  );
+  const switchableSpaces = useMemo(() => {
+    void open;
+    void spaceName;
+    return buildSwitchableSpaceItems(mx, railSpaceIds, joinedRoomIds, roomToParents);
+  }, [joinedRoomIds, mx, open, railSpaceIds, roomToParents, spaceName]);
 
   if (switchableSpaces.length <= 1) {
     return (
@@ -80,12 +83,31 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
   }
 
   const label = t('spaceThreads.header.switchSpace');
-  const open = anchor !== undefined;
   const handleSelect = (targetSpaceId: string) => {
-    setAnchor(undefined);
-    if (targetSpaceId !== space.roomId) {
-      void navigate(getSpaceThreadsPath(getCanonicalAliasOrRoomId(mx, targetSpaceId)));
+    if (targetSpaceId === space.roomId) {
+      refocusRef.current = true;
+      setAnchor(undefined);
+      return;
     }
+    setAnchor(undefined);
+    void navigate(getSpaceThreadsPath(getCanonicalAliasOrRoomId(mx, targetSpaceId)));
+  };
+
+  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const items = [
+      ...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
+    ];
+    if (items.length === 0) return;
+    event.preventDefault();
+    const current = items.findIndex((item) => item === document.activeElement);
+    const last = items.length - 1;
+    let next: number;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = last;
+    else if (event.key === 'ArrowDown') next = current < 0 || current === last ? 0 : current + 1;
+    else next = current <= 0 ? last : current - 1;
+    items[next]?.focus();
   };
 
   return (
@@ -98,7 +120,10 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
         open ? (
           <FocusTrap
             focusTrapOptions={{
-              initialFocus: false,
+              initialFocus: () =>
+                menuRef.current?.querySelector<HTMLElement>(
+                  '[aria-checked="true"], [role="menuitemradio"]'
+                ) ?? false,
               returnFocusOnDeactivate: false,
               onDeactivate: () => setAnchor(undefined),
               escapeDeactivates: (event) => {
@@ -109,9 +134,11 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
             }}
           >
             <Menu
+              ref={menuRef}
               role="menu"
               aria-label={label}
               className={css.SpaceSwitcherMenu}
+              onKeyDown={handleMenuKeyDown}
               data-space-switcher-menu="true"
             >
               <div className={css.SpaceSwitcherScroll}>
@@ -173,7 +200,7 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
         className={css.SpaceSwitcherButton}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={label}
+        aria-label={`${spaceName}, ${label}`}
         data-space-switcher-button="true"
         onClick={(event) =>
           setAnchor(open ? undefined : event.currentTarget.getBoundingClientRect())

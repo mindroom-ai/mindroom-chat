@@ -3,7 +3,7 @@ import { sortRoomIdsByName } from '../../lib/nameOrder';
 import { isSpace } from '../../matrix/room';
 import { getJoinedSubspaces } from '../../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents } from '../../matrix/types/room';
-import { getSpaceRoomSections } from '../../sidebar/space/spaceRoomSections';
+import { getSpaceRoomSections } from '../spaceRoomSections';
 import { revealDirectionControls } from '../../ui/directional';
 import {
   buildCrossRoomThreadIndexEntry,

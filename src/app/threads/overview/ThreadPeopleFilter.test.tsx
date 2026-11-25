@@ -260,4 +260,45 @@ describe('the People dropdown', () => {
     expect(textOf('@ghost:example.org')).toContain('ghost');
     expect(imgSrcOf('@ghost:example.org')).toBeUndefined();
   });
+
+  it('disambiguates colliding display names across separate rooms with Matrix IDs', () => {
+    const makeRoomWith = (roomId: string, userId: string, rawDisplayName: string) =>
+      ({
+        roomId,
+        getMember: (id: string) =>
+          id === userId ? { rawDisplayName, getMxcAvatarUrl: () => undefined } : null,
+      }) as unknown as Room;
+
+    const alexA = '@alex-a:example.org';
+    const alexB = '@alex-b:example.org';
+    const roomA = makeRoomWith('!a:example.org', alexA, 'Alex');
+    const roomB = makeRoomWith('!b:example.org', alexB, 'Alex');
+    const collidingRecords = new Map([
+      ['$1', record('$1', [alexA])],
+      ['$2', record('$2', [alexB])],
+    ]);
+
+    act(() => {
+      renderer = create(
+        <ThreadPeopleFilter
+          rooms={[roomA, roomB]}
+          records={collidingRecords}
+          selected={undefined}
+          onToggle={vi.fn()}
+          onClear={vi.fn()}
+        />
+      );
+    });
+    open();
+
+    const textOf = (userId: string) =>
+      byData('data-person-option')
+        .find((node) => node.props['data-person-option'] === userId)!
+        .findAllByType('span')
+        .map((node) => node.children.join(''))
+        .join(' ');
+
+    expect(textOf(alexA)).toContain(`Alex (${alexA})`);
+    expect(textOf(alexB)).toContain(`Alex (${alexB})`);
+  });
 });
