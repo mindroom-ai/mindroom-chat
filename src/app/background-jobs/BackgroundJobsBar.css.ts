@@ -614,6 +614,16 @@ export const FoldedToggle = style({
     '&:focus-visible': { outline: 'none' },
     '&:focus-visible::before': keyboardRing,
   },
+  // A finger gets 44 px.
+  '@media': {
+    '(pointer: coarse)': {
+      selectors: {
+        '&::before': {
+          insetBlock: `min(calc(-1 * ${config.space.S100}), calc((100% - 44px) / 2))`,
+        },
+      },
+    },
+  },
 });
 
 export const FoldedActions = style({

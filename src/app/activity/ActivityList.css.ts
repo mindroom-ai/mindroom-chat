@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { globalTouchTarget, touchTarget } from '../ui/styles/touchTarget';
 
 const { space, radii, borderWidth } = config;
 /** A flex column, and a flex row centred across, the two layouts the list is built of. */
@@ -19,9 +20,14 @@ export const Header = style({
   columnGap: space.S200,
   padding: `${space.S200} ${space.S300}`,
 });
+// Header icon buttons sit 8 px (`S200`) from the switch and from each other: 4 px (`S100`) inline
+// keeps neighbours disjoint while reaching 44 px tall.
+globalTouchTarget(`${Header} > button`, space.S100);
 
 /** The Unread label beside its switch; a press on either toggles it. */
 export const Toggle = style({ ...strip, columnGap: space.S100, cursor: 'pointer' });
+// The switch is 44 px wide already; to a finger it reaches 44 px tall too.
+globalTouchTarget(`${Toggle} > [role="switch"]`, '0px');
 
 export const Tabs = style({
   ...strip,
@@ -31,6 +37,9 @@ export const Tabs = style({
   padding: `${space.S100} ${space.S300}`,
   borderBlockEnd: hairline,
 });
+// Tabs sit 4 px (`S100`) apart in a sideways scroller; each reaches halfway across the gap and
+// fills the strip vertically up to its clip edge.
+globalTouchTarget(`${Tabs} > [role="tab"]`, '2px');
 
 /** The rows, a little apart, so the tinted ones that wait for an answer read as cards. */
 // Positioned: a row that left fades at its old place in the list (`useListMotion`).
@@ -161,6 +170,15 @@ export const Actions = style({
   paddingBlockStart: space.S100,
   // The answer that replaces the buttons repeats the label: it wraps the same way.
   overflowWrap: 'anywhere',
+  // To a finger each 32 px action button reaches 6 px up and down (44 px); 12 px (`S300`) between
+  // wrapped rows keeps neighbours disjoint, and 8 px (`S200`) above (plus `Body`'s 2 px rowGap)
+  // leaves room below `ApprovalArguments` or `OpenButton`.
+  '@media': {
+    '(pointer: coarse)': {
+      rowGap: space.S300,
+      paddingBlockStart: space.S200,
+    },
+  },
 });
 
 /**
@@ -169,17 +187,20 @@ export const Actions = style({
  * label's lines over the button above and the one below. A long word, such as a path, wraps too
  * rather than run past the button's sides.
  */
-export const ActionButton = style({
-  selectors: {
-    '&&': {
-      height: 'auto',
-      minBlockSize: toRem(32),
-      paddingBlock: toRem(6),
-      textAlign: 'start',
-      overflowWrap: 'anywhere',
+export const ActionButton = style([
+  touchTarget('2px'),
+  {
+    selectors: {
+      '&&': {
+        height: 'auto',
+        minBlockSize: toRem(32),
+        paddingBlock: toRem(6),
+        textAlign: 'start',
+        overflowWrap: 'anywhere',
+      },
     },
   },
-});
+]);
 
 /**
  * The footer's count of hidden runs: it takes the room its button leaves, so the button keeps
@@ -192,6 +213,7 @@ export const ShowMore = style({
   justifyContent: 'center',
   padding: `${space.S200} ${space.S300}`,
 });
+globalTouchTarget(`${ShowMore} > button`, '22px');
 
 export const Footer = style({
   ...strip,
