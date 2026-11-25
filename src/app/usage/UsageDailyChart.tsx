@@ -216,7 +216,7 @@ export function UsageDailyChart({
                 className={css.ActionButton}
                 data-testid="hide-dominant-btn"
                 aria-pressed={hidingDominant}
-                aria-label={dominantTooltip}
+                aria-description={dominantTooltip}
                 title={dominantTooltip}
                 onClick={() => setHideDominant((prev) => !prev)}
               >

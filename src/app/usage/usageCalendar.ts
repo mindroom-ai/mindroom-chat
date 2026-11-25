@@ -18,24 +18,40 @@ export const sum = (values: Iterable<number>): number => {
   return total;
 };
 
+const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 const utcDayFromMs = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
-const utcMsFromDay = (isoDay: string): number => Date.parse(`${isoDay}T00:00:00Z`);
+const utcMsFromDay = (isoDay: string): number => {
+  if (!ISO_DAY_RE.test(isoDay)) return Number.NaN;
+  const year = Number(isoDay.slice(0, 4));
+  const month = Number(isoDay.slice(5, 7));
+  const day = Number(isoDay.slice(8, 10));
+  const ms = Date.UTC(year, month - 1, day);
+  if (!Number.isFinite(ms)) return Number.NaN;
+  const d = new Date(ms);
+  return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month && d.getUTCDate() === day
+    ? ms
+    : Number.NaN;
+};
 
 /**
- * Builds 7 consecutive UTC calendar days anchored at max(checked_at UTC date, latest daily_7d day),
+ * Builds 7 consecutive UTC calendar days anchored at max(checked_at UTC date, latest valid daily_7d day),
  * filling missing days with 0 tokens and unknown (null) cost.
  */
 export const buildUsageCalendar7d = (snapshot: ProviderUsageSnapshot): CalendarDaySlot[] => {
   const checkedMs = Date.parse(snapshot.checked_at);
   let anchorDay = Number.isFinite(checkedMs) ? utcDayFromMs(checkedMs) : '';
+  const byDay = new Map<string, DailyAccountUsage>();
   for (const entry of snapshot.daily_7d) {
+    if (!Number.isFinite(utcMsFromDay(entry.day))) continue;
+    byDay.set(entry.day, entry);
     if (entry.day > anchorDay) anchorDay = entry.day;
   }
   if (!anchorDay) return [];
 
   const anchorMs = utcMsFromDay(anchorDay);
-  const byDay = new Map<string, DailyAccountUsage>(snapshot.daily_7d.map((d) => [d.day, d]));
+  if (!Number.isFinite(anchorMs)) return [];
   const slots: CalendarDaySlot[] = [];
 
   for (let offset = CALENDAR_DAYS - 1; offset >= 0; offset -= 1) {
@@ -51,6 +67,27 @@ export const buildUsageCalendar7d = (snapshot: ProviderUsageSnapshot): CalendarD
     );
   }
   return slots;
+};
+
+/**
+ * Aligns a model/agent daily_tokens_7d series (ordered 1:1 with snapshot.daily_7d) onto the 7-slot
+ * UTC calendar, filling inactive calendar days with 0.
+ */
+export const alignDailySeriesToCalendar7d = (
+  series: readonly number[] | undefined,
+  daily7d: readonly DailyAccountUsage[],
+  calendar: readonly CalendarDaySlot[]
+): number[] | undefined => {
+  if (!series || series.length === 0) return undefined;
+  if (series.length !== daily7d.length || calendar.length === 0) return [...series];
+  const byDay = new Map<string, number>();
+  for (let i = 0; i < daily7d.length; i += 1) {
+    const entry = daily7d[i];
+    if (entry && Number.isFinite(utcMsFromDay(entry.day))) {
+      byDay.set(entry.day, series[i] ?? 0);
+    }
+  }
+  return calendar.map((slot) => byDay.get(slot.day) ?? 0);
 };
 
 export const dayTotalTokens = (slot: CalendarDaySlot): number =>
@@ -154,15 +191,18 @@ export const formatUsd = (amount: number, language: string): string =>
     maximumFractionDigits: 2,
   }).format(amount);
 
-export const formatShortUsd = (amount: number, language: string): string =>
-  new Intl.NumberFormat(language, {
+export const formatShortUsd = (amount: number, language: string): string => {
+  if (amount > 0 && amount < 0.01) return `<${formatUsd(0.01, language)}`;
+  if (amount >= 0.01 && amount < 10) return formatUsd(amount, language);
+  return new Intl.NumberFormat(language, {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     ...(amount >= 1000
       ? { notation: 'compact' as const, maximumFractionDigits: 1 }
-      : { maximumFractionDigits: amount === 0 || amount >= 10 ? 0 : 1 }),
+      : { maximumFractionDigits: 0 }),
   }).format(amount);
+};
 
 export const formatSignedPercent = (ratio: number, language: string): string =>
   new Intl.NumberFormat(language, {

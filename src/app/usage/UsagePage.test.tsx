@@ -150,7 +150,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="total-tokens-7d"]')?.textContent).toBe('31.6M');
     expect(container.querySelector('[data-testid="token-mix-card"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="cache-savings-badge"]')?.textContent).toContain(
-      'Saved ~$6.9 via cache'
+      'Saved ~$6.85 via cache'
     );
 
     // Only the 3 subscription accounts render quota cards; PAYG Anthropic is NOT an empty card.
@@ -167,8 +167,19 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(claudeCard.querySelector('[data-pace-tone="ahead"]')?.textContent).toBe('+14% ahead');
     expect(claudeCard.querySelector('[data-pace-tone="on_pace"]')?.textContent).toBe('On pace');
     expect(claudeCard.textContent).toContain('m6');
-    expect(claudeCard.textContent).toContain('+2');
-    expect(claudeCard.querySelector('[title="m7, m8"]')).not.toBeNull();
+    expect(claudeCard.textContent).not.toContain('m7');
+    const chipsToggle = claudeCard.querySelector<HTMLButtonElement>('[data-model-chips-toggle]')!;
+    expect(chipsToggle.textContent).toBe('+2');
+    expect(chipsToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(chipsToggle.getAttribute('title')).toBe('m7, m8');
+    act(() => chipsToggle.click());
+    expect(chipsToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(chipsToggle.textContent).toBe('Hide');
+    expect(claudeCard.textContent).toContain('m7');
+    expect(claudeCard.textContent).toContain('m8');
+    act(() => chipsToggle.click());
+    expect(chipsToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(claudeCard.textContent).not.toContain('m7');
 
     const codexCard = container.querySelector('[data-account-card="codex:default"]')!;
     expect(codexCard.querySelector('[data-pace-tone="behind"]')?.textContent).toBe(
@@ -199,6 +210,16 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       '2026-11-22',
       '2026-11-23',
     ]);
+    // Invalid daily_7d dates are ignored defensively without throwing RangeError.
+    const invalidDatesSnap = {
+      ...snapshot,
+      daily_7d: [
+        { day: '2026-13-01', by_account: { 'openrouter:1': 100 }, unattributed_tokens: 0 },
+        { day: '2026-02-30', by_account: { 'openrouter:1': 100 }, unattributed_tokens: 0 },
+      ],
+    };
+    expect(buildUsageCalendar7d(invalidDatesSnap)).toHaveLength(7);
+
     // Missing gap days (Nov 19 = slot 2, Nov 21 = slot 4) are filled with 0 tokens and null (unknown) cost.
     for (const gapIndex of [2, 4]) {
       expect(calendar[gapIndex]?.unattributed_tokens).toBe(0);
@@ -359,18 +380,21 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(drawer().textContent).toContain('$4.45');
     expect(drawer().textContent).toContain('7,650,000 tok');
 
-    // Hide dominant button has descriptive aria-label naming dominant account and hides it on click.
+    // Hide dominant keeps visible text as accessible name and puts account hint in title + aria-description.
     const hideBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="hide-dominant-btn"]'
     )!;
     expect(hideBtn.getAttribute('aria-pressed')).toBe('false');
-    expect(hideBtn.getAttribute('aria-label')).toContain('OpenRouter');
+    expect(hideBtn.getAttribute('aria-label')).toBeNull();
+    expect(hideBtn.getAttribute('title')).toContain('OpenRouter');
+    expect(hideBtn.getAttribute('aria-description')).toContain('OpenRouter');
     expect(hideBtn.textContent).toBe('Hide dominant');
 
     act(() => hideBtn.click());
     expect(hideBtn.getAttribute('aria-pressed')).toBe('true');
     expect(hideBtn.textContent).toBe('Reset filter');
-    expect(hideBtn.getAttribute('aria-label')).toContain('OpenRouter');
+    expect(hideBtn.getAttribute('aria-label')).toBeNull();
+    expect(hideBtn.getAttribute('aria-description')).toContain('OpenRouter');
     expect(drawer().querySelector('[data-day-account="openrouter:1"]')).toBeNull();
     expect(drawer().textContent).toContain('$1.08');
 
@@ -429,12 +453,19 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(firstModelBtn.textContent).toContain('google/gemini-3-pro');
     expect(firstModelBtn.getAttribute('aria-expanded')).toBe('false');
 
-    // Expand model row -> inline drawer with share, sparkline, and 4-part mini token mix.
+    // Expand model row -> inline drawer with share, 7-slot calendar-aligned sparkline (0 dips on gaps 2 & 4), and mini token mix.
     act(() => firstModelBtn.click());
     expect(firstModelBtn.getAttribute('aria-expanded')).toBe('true');
     const drawer = container.querySelector('[data-testid="breakdown-drawer"]')!;
     expect(drawer.textContent).toContain('Share of 7d spend');
-    expect(drawer.querySelector('[data-sparkline]')).not.toBeNull();
+    const modelSparkPts = drawer
+      .querySelector('[data-sparkline] polyline')
+      ?.getAttribute('points')
+      ?.trim()
+      .split(/\s+/);
+    expect(modelSparkPts).toHaveLength(7);
+    expect(modelSparkPts?.[2]?.endsWith(',18.0')).toBe(true);
+    expect(modelSparkPts?.[4]?.endsWith(',18.0')).toBe(true);
     expect(drawer.textContent).toContain('Cache read');
 
     // Keyboard ArrowRight switches Models -> Agents, focuses Agents tab, and updates aria-labelledby.
@@ -450,6 +481,30 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="where-usage-goes"]')?.textContent).toContain(
       '310 runs'
     );
+
+    // Expanding an Agent row also renders a 7-slot calendar-aligned sparkline with 0 dips on gap days.
+    const firstAgentBtn = container.querySelector<HTMLButtonElement>('[data-breakdown-row]')!;
+    act(() => firstAgentBtn.click());
+    const agentSparkPts = container
+      .querySelector('[data-testid="breakdown-drawer"] [data-sparkline] polyline')
+      ?.getAttribute('points')
+      ?.trim()
+      .split(/\s+/);
+    expect(agentSparkPts).toHaveLength(7);
+    expect(agentSparkPts?.[2]?.endsWith(',18.0')).toBe(true);
+    expect(agentSparkPts?.[4]?.endsWith(',18.0')).toBe(true);
+
+    // In RTL direction, ArrowRight moves visually right (Agents -> Models) and ArrowLeft moves visually left (Models -> Agents).
+    container.style.direction = 'rtl';
+    act(() => {
+      agentsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(modelsTab.getAttribute('aria-selected')).toBe('true');
+    act(() => {
+      modelsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
+    expect(agentsTab.getAttribute('aria-selected')).toBe('true');
+    container.style.direction = '';
 
     // Keyboard End jumps straight to Accounts tab.
     act(() => {
@@ -753,10 +808,11 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(formatSignedPercent(0.3, 'tr')).toBe('+%30');
 
     expect(formatShortUsd(0, 'en')).toBe('$0');
-    expect(formatShortUsd(3, 'en')).toBe('$3');
-    expect(formatShortUsd(3.24, 'en')).toBe('$3.2');
-    expect(formatShortUsd(48.4, 'en')).toBe('$48');
-    expect(formatShortUsd(1600, 'en')).toBe('$1.6K');
+    expect(formatShortUsd(0.004, 'en')).toBe('<$0.01');
+    expect(formatShortUsd(0.04, 'en')).toBe('$0.04');
+    expect(formatShortUsd(2.45, 'en')).toBe('$2.45');
+    expect(formatShortUsd(42, 'en')).toBe('$42');
+    expect(formatShortUsd(1250, 'en')).toBe('$1.3K');
   });
 
   it('renders loading, empty-accounts, empty-daily, zero-day, and zero-mix states cleanly', () => {

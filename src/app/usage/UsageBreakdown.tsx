@@ -10,6 +10,7 @@ import type {
 import { accountDisplayTitle, providerAccentColor } from './QuotaBar';
 import {
   accountSubtitle,
+  alignDailySeriesToCalendar7d,
   type CalendarDaySlot,
   formatCompactTokens,
   formatShare,
@@ -69,7 +70,7 @@ const buildBreakdown = (
             tokens: m.tokens_7d,
             cost: m.cost_usd_7d,
             mix: m.token_mix_7d,
-            spark: m.daily_tokens_7d,
+            spark: alignDailySeriesToCalendar7d(m.daily_tokens_7d, snapshot.daily_7d, calendar),
           };
         })
         .sort(sortBySpendThenTokens),
@@ -89,7 +90,7 @@ const buildBreakdown = (
           tokens: g.tokens_7d,
           cost: g.cost_usd_7d,
           mix: g.token_mix_7d,
-          spark: g.daily_tokens_7d,
+          spark: alignDailySeriesToCalendar7d(g.daily_tokens_7d, snapshot.daily_7d, calendar),
         }))
         .sort(sortBySpendThenTokens),
     };
@@ -190,10 +191,13 @@ export function UsageBreakdown({
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (availableTabs.length <= 1) return;
+    const isRtl = window.getComputedStyle(event.currentTarget).direction === 'rtl';
+    const step = isRtl ? -1 : 1;
     let nextIndex: number | undefined;
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % availableTabs.length;
+    if (event.key === 'ArrowRight')
+      nextIndex = (index + step + availableTabs.length) % availableTabs.length;
     else if (event.key === 'ArrowLeft')
-      nextIndex = (index - 1 + availableTabs.length) % availableTabs.length;
+      nextIndex = (index - step + availableTabs.length) % availableTabs.length;
     else if (event.key === 'Home') nextIndex = 0;
     else if (event.key === 'End') nextIndex = availableTabs.length - 1;
     if (nextIndex === undefined) return;

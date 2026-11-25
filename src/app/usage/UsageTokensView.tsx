@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderUsageSnapshot, TokenMix } from './providerUsageProtocol';
 import { formatWholePercent } from './QuotaBar';
@@ -21,19 +22,29 @@ export { formatCompactTokens, formatShortUsd, formatUsd } from './usageCalendar'
 const MIX_COLORS = ['#22c58b', '#f0a53a', '#7c6af7', '#ec4899'] as const;
 
 export function ModelChips({ keys, max = 6 }: { keys: readonly string[]; max?: number }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
   if (keys.length === 0) return null;
   const hidden = keys.slice(max);
+  const shown = expanded ? keys : keys.slice(0, max);
   return (
     <div className={css.ChipRow}>
-      {keys.slice(0, max).map((key) => (
+      {shown.map((key) => (
         <span key={key} className={css.ModelChip}>
           {key}
         </span>
       ))}
       {hidden.length > 0 && (
-        <span className={css.ModelChip} title={hidden.join(', ')}>
-          +{hidden.length}
-        </span>
+        <button
+          type="button"
+          className={css.ModelChipButton}
+          data-model-chips-toggle=""
+          aria-expanded={expanded}
+          title={expanded ? t('mindroomUi.usage.hide') : hidden.join(', ')}
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? t('mindroomUi.usage.hide') : `+${hidden.length}`}
+        </button>
       )}
     </div>
   );

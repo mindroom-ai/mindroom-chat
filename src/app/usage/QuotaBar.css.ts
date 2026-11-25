@@ -99,7 +99,7 @@ export const PaceBadge = style({
   color: color.Surface.OnContainer,
   selectors: {
     '&[data-pace-tone="ahead"]': {
-      color: color.Success.Main,
+      color: color.Success.OnContainer,
       borderColor: color.Success.ContainerLine,
       backgroundColor: color.Success.Container,
     },

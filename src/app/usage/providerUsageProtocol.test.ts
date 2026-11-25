@@ -97,9 +97,15 @@ describe('providerUsageProtocol', () => {
     badCheckedAt.checked_at = 'not-a-date';
     expect(parseProviderUsageResponse(badCheckedAt)).toBeUndefined();
 
-    const badDay = clone(contractFixture);
-    badDay.daily_7d[0]!.day = '11/17/2026';
-    expect(parseProviderUsageResponse(badDay)).toBeUndefined();
+    for (const invalidDay of ['11/17/2026', '2026-13-01', '2026-02-30', '2026-02-29']) {
+      const badDay = clone(contractFixture);
+      badDay.daily_7d[0]!.day = invalidDay;
+      expect(parseProviderUsageResponse(badDay)).toBeUndefined();
+    }
+
+    const validLeapDay = clone(contractFixture);
+    validLeapDay.daily_7d[0]!.day = '2024-02-29';
+    expect(parseProviderUsageResponse(validLeapDay)?.daily_7d[0]?.day).toBe('2024-02-29');
   });
 
   it('rejects out-of-range percentages, non-finite numbers, and negative totals', () => {

@@ -86,6 +86,19 @@ export type ProviderUsageSnapshot = {
 
 const MAX_BYTES = 65536;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const isValidIsoDay = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !ISO_DAY.test(v)) return false;
+  const year = Number(v.slice(0, 4));
+  const month = Number(v.slice(5, 7));
+  const day = Number(v.slice(8, 10));
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    Number.isFinite(d.getTime()) &&
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() + 1 === month &&
+    d.getUTCDate() === day
+  );
+};
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const isUnavailableReason = (v: unknown): v is UnavailableReason =>
@@ -249,13 +262,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
 };
 
 const parseDaily = (raw: unknown): DailyAccountUsage | undefined => {
-  if (
-    !isRec(raw) ||
-    typeof raw.day !== 'string' ||
-    !ISO_DAY.test(raw.day) ||
-    !nonNeg(raw.unattributed_tokens)
-  )
-    return undefined;
+  if (!isRec(raw) || !isValidIsoDay(raw.day) || !nonNeg(raw.unattributed_tokens)) return undefined;
   const byAccount = parseAccountNumberMap(raw.by_account);
   if (!byAccount) return undefined;
   const costByAccount = parseAccountNumberMap(raw.cost_by_account);

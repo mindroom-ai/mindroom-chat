@@ -144,7 +144,7 @@ export const PillBadge = style({
   fontVariantNumeric: 'tabular-nums',
   selectors: {
     '&[data-tone="ok"]': {
-      color: color.Success.Main,
+      color: color.Success.OnContainer,
       borderColor: color.Success.ContainerLine,
       backgroundColor: color.Success.Container,
     },
@@ -282,6 +282,17 @@ export const ModelChip = style({
   fontFamily: MONO,
   maxInlineSize: '100%',
   ...truncate,
+});
+export const ModelChipButton = style({
+  ...pill,
+  borderRadius: config.radii.R300,
+  fontFamily: MONO,
+  fontWeight: config.fontWeight.W500,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '&:focus-visible': focusRing,
+  },
 });
 
 export const Segmented = style({
