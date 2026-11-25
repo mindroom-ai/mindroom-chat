@@ -40,6 +40,7 @@ import {
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { isEventId } from '../lib/matrixIds';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
@@ -306,25 +307,31 @@ export function RoomView({
     });
   }, [columnOpen, focusConversation, phone, unlessCardTakesFocus]);
 
-  // The open thread's banner (or read-only cross-room fork draft banner).
-  const threadBanner = crossRoomFork ? (
-    <CrossRoomForkDraftBanner
-      sourceRoom={crossRoomFork.sourceRoom}
-      targetRoom={room}
-      onBack={handleExitCrossRoomFork}
-    />
-  ) : (
-    openThreadId && (
-      <ThreadContextBanner
-        room={room}
-        threadId={openThreadId}
-        summaryInfo={threadState.threadSummaryInfo}
-        onExitThread={threadState.handleExitThread}
-        onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-        onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
+  const onShowBeside = columnFills && threadLayout.roomy ? showBeside : undefined;
+  const onShowFull = columnFills || besideWhileSecond ? undefined : showFull;
+  const isSameRoomForkDraft = !crossRoomFork && Boolean(openThreadId && isEventId(forkAt));
+  // The open thread's banner (or read-only draft banner for same-room and cross-room fork drafts).
+  const threadBanner =
+    crossRoomFork || isSameRoomForkDraft ? (
+      <CrossRoomForkDraftBanner
+        sourceRoom={crossRoomFork ? crossRoomFork.sourceRoom : room}
+        targetRoom={room}
+        onBack={crossRoomFork ? handleExitCrossRoomFork : threadState.handleExitThread}
+        onShowBeside={onShowBeside}
+        onShowFull={onShowFull}
       />
-    )
-  );
+    ) : (
+      openThreadId && (
+        <ThreadContextBanner
+          room={room}
+          threadId={openThreadId}
+          summaryInfo={threadState.threadSummaryInfo}
+          onExitThread={threadState.handleExitThread}
+          onShowBeside={onShowBeside}
+          onShowFull={onShowFull}
+        />
+      )
+    );
   const timelineProps: RoomTimelineProps = {
     room,
     // The event the address names is the thread's, unless it asks for it in the room.

@@ -46,6 +46,8 @@ describe('ThreadForkDivider', () => {
       );
     });
 
+    const wrapper = renderer.root.findByProps({ 'data-fork-divider-variant': 'forked' });
+    expect(wrapper).toBeDefined();
     const button = renderer.root.findByType('button');
     expect(text(button)).toBe('Forked from Plan the trip to Lisbon');
 
@@ -84,7 +86,8 @@ describe('ThreadForkDivider in a fork draft', () => {
       );
     });
 
-    expect(text(renderer.root)).toBe('Forking Plan the trip to Lisbon');
+    expect(renderer.root.findByProps({ 'data-fork-divider-variant': 'forking' })).toBeDefined();
+    expect(text(renderer.root)).toBe('Draft · send a message below to start this fork');
     expect(renderer.root.findAllByType('button')).toHaveLength(0);
   });
 
@@ -101,7 +104,8 @@ describe('ThreadForkDivider in a fork draft', () => {
       );
     });
 
-    expect(text(renderer.root)).toBe('Forking Plan the trip to Lisbon into Project Beta');
+    expect(renderer.root.findByProps({ 'data-fork-divider-variant': 'forking' })).toBeDefined();
+    expect(text(renderer.root)).toBe('Draft · send a message below to fork into Project Beta');
     expect(renderer.root.findAllByType('button')).toHaveLength(0);
   });
 });
@@ -128,7 +132,7 @@ describe('ThreadForkDivider for cross-room forks', () => {
       }),
       hasEncryptionStateEvent: () => false,
       getMember: () => null,
-    } as unknown as Room);
+    }) as unknown as Room;
 
   it('shows "Forked from <title> in <room>" and navigates to the parent room when joined', () => {
     navigation.navigateRoomThread.mockClear();
@@ -175,6 +179,7 @@ describe('ThreadForkDivider for cross-room forks', () => {
       );
     });
 
+    expect(renderer.root.findByProps({ 'data-fork-divider-variant': 'forked' })).toBeDefined();
     expect(text(renderer.root)).toBe('Forked from another room');
     expect(renderer.root.findAllByType('button')).toHaveLength(0);
     expect(cachedRootSpy).not.toHaveBeenCalled();

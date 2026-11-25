@@ -104,10 +104,23 @@ test(
     await expect.poll(() => params(page).get('forkAt'), { timeout: TIMEOUT }).toBe(secondId);
     expect(params(page).get('threadId')).toBe(rootId);
 
-    // The draft: the thread up to the fork point, the Forking line under it, and the composer.
-    const forking = column(page).getByText(`Forking ${ROOT}`, { exact: true });
+    // The draft: draft banner, softened parent context up to the fork point, dashed draft divider, and highlighted composer.
+    await expect(column(page).locator('[data-fork-draft-banner="true"]')).toBeVisible({
+      timeout: TIMEOUT,
+    });
+    const forking = column(page).getByText('Draft · send a message below to start this fork', {
+      exact: true,
+    });
     await expect(forking).toBeVisible({ timeout: TIMEOUT });
-    await expect(placeholder(page)).toHaveText('Continue in a new thread', { timeout: TIMEOUT });
+    await expect(column(page).locator('[data-fork-divider-variant="forking"]')).toBeVisible({
+      timeout: TIMEOUT,
+    });
+    await expect(column(page).locator('[data-fork-draft-composer="true"]')).toBeVisible({
+      timeout: TIMEOUT,
+    });
+    await expect(placeholder(page)).toHaveText('Send first message to create fork…', {
+      timeout: TIMEOUT,
+    });
     await expect(rowById(page, rootId)).toBeVisible();
     await expect(rowById(page, firstId)).toBeVisible();
     await expect(rowById(page, secondId)).toBeVisible();

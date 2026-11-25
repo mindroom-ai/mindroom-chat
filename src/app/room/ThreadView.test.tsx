@@ -497,6 +497,15 @@ describe('a fork draft', () => {
     const focus = vi.spyOn(ReactEditor, 'focus');
     render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
     expect(state.timeline).toMatchObject({ threadId: THREAD, forkAt: '$point' });
+    render(<>{state.timeline?.threadHeader}</>);
+    const draftBanner = document.querySelector('[data-fork-draft-banner="true"]');
+    expect(draftBanner).not.toBeNull();
+    expect(draftBanner?.hasAttribute('data-cross-room-fork-banner')).toBe(false);
+    expect(screen.getByText('Forking thread')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.getByText('Not created yet. Send a message below to start this forked thread.')
+    ).toBeDefined();
     // From the start: text typed while the thread loads belongs to the draft, never to the thread.
     expect(state.composer).toMatchObject({
       threadId: undefined,
@@ -590,9 +599,15 @@ describe('a fork draft', () => {
       forkFrom: { roomId: sourceRoom.roomId, threadId: THREAD, eventId: '$point' },
     });
 
-    // Draft header shows "Forking from Project Alpha", Back button, and agent-not-in-source warning.
+    // Draft header shows "Forking from Project Alpha", DRAFT badge, hint, Back button, and agent warning.
     render(<>{state.timeline?.threadHeader}</>);
+    const crossBanner = document.querySelector('[data-fork-draft-banner="true"]');
+    expect(crossBanner?.getAttribute('data-cross-room-fork-banner')).toBe('true');
     expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.getByText('Not in Project Beta yet. Send a message below to create this thread.')
+    ).toBeDefined();
     expect(document.querySelector('[data-cross-room-fork-agent-warning]')?.textContent).toContain(
       'Project Alpha'
     );

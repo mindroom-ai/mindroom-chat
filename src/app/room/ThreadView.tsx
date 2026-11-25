@@ -221,11 +221,11 @@ export function ThreadView({
 
   const resolvedHeader =
     header ??
-    (isCrossRoomDraft ? (
+    (forkFrom ? (
       <CrossRoomForkDraftBanner
         sourceRoom={readRoom}
         targetRoom={room}
-        onBack={onExitCrossRoomFork}
+        onBack={isCrossRoomDraft ? onExitCrossRoomFork : undefined}
       />
     ) : undefined);
 

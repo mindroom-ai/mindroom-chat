@@ -117,6 +117,7 @@ import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
 import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
 import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
+import { ForkDraftPrefixRow } from './RoomTimeline.css';
 import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
@@ -2212,6 +2213,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
+    forkDraftPrefixClassName: forkAt ? ForkDraftPrefixRow : undefined,
     turnFolds,
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,
