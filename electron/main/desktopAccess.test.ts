@@ -826,13 +826,13 @@ describe('desktopAccess', () => {
     });
     expect(loadConsent(userDataDir).managedLoginItem).toBe(false);
 
-    // Tray shows Full Access label and clicking Revoke Full Access works without a renderer gesture.
+    // Tray shows Full Access label and clicking Revoke All Access works without a renderer gesture.
     const lastMenuCall = electronMocks.Menu.buildFromTemplate.mock.calls.at(-1)?.[0] as Array<{
       label?: string;
       click?: () => void;
     }>;
     expect(lastMenuCall?.[0]?.label).toBe('MindRoom · Full Access (Alpha)');
-    expect(lastMenuCall?.[1]?.label).toBe('Revoke Full Access');
+    expect(lastMenuCall?.[1]?.label).toBe('Revoke All Access');
 
     // Downgrade ctrl-a back to restricted with timed control lease.
     fake.calls.length = 0;
@@ -1934,5 +1934,179 @@ describe('desktopAccess', () => {
     expect((await access.pair(pairReq)).ok).toBe(true);
     now += 180_001;
     expect(await access.abortSetup(key)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+  });
+
+  it('skips grant_control on a shell-only bridge and restores or applies grant_shell cleanly', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    setControllerFullAccess(userDataDir, 'ctrl-shell-only', { agentName: 'ShellBot' });
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const shellOnlyStatus = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 4,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-shell-only',
+            user_id: '@agent:mindroom.chat',
+            device_id: 'DEV_SH',
+            ed25519: 'ed_sh',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['shellbot'],
+          },
+        ],
+        allowed_app_ids: [],
+        file_roots: [],
+        shell_enabled: true,
+      },
+      bridge: { state: 'stopped', active_action: null, last_error: null },
+      shell: {
+        enabled: true,
+        ready: true,
+        pending: null,
+        auto_approve_remaining_seconds: 0,
+        auto_approve_until_revoked: false,
+        active_request_id: null,
+        handles: [],
+        controllers: {},
+      },
+    });
+    const fake = createFakeBridgeClient(shellOnlyStatus);
+    const baseRequest = fake.client.request;
+    fake.client.request = vi.fn(async (action: string, params?: Record<string, unknown>) => {
+      if (action === 'grant_control' && fake.currentStatus().config.allowed_app_ids.length === 0) {
+        throw new DesktopHelperError('gui_unavailable', 'Desktop GUI is unavailable.');
+      }
+      return baseRequest(action, params);
+    }) as typeof fake.client.request;
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    // Boot auto-start restores grant_shell without calling grant_control.
+    await access.start();
+    expect(fake.calls.map((c) => c.action)).toEqual(['status', 'start', 'grant_shell']);
+    expect(fake.calls[2]?.parameters).toEqual({
+      until_revoked: true,
+      controller_key: 'ctrl-shell-only',
+    });
+
+    // Restricted updateLimits on a shell-only bridge skips grant_control and applies grant_shell.
+    fake.calls.length = 0;
+    access.noteGesture();
+    const updated = await access.updateLimits({
+      controllerKey: 'ctrl-shell-only',
+      mode: 'restricted',
+      allowedAppIds: [],
+      shellEnabled: true,
+      controlDurationSeconds: 900,
+      shellAutoApproveSeconds: 900,
+    });
+    expect(updated.ok).toBe(true);
+    expect(fake.calls).toEqual([
+      {
+        action: 'grant_shell',
+        parameters: { duration_seconds: 900, controller_key: 'ctrl-shell-only' },
+      },
+    ]);
+  });
+
+  it('respects explicit fileRoots in finishSetup even when mode is full and preserves them when omitted', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const existing = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 2,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-full-roots',
+            user_id: '@agent:mindroom.chat',
+            device_id: 'DEV_R',
+            ed25519: 'ed_r',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['code'],
+          },
+        ],
+        allowed_app_ids: ['primary-screen'],
+        file_roots: ['/Users/demo/old'],
+        shell_enabled: true,
+      },
+      bridge: { state: 'control', active_action: null, last_error: null },
+      shell: {
+        enabled: true,
+        ready: true,
+        pending: null,
+        auto_approve_remaining_seconds: 0,
+        auto_approve_until_revoked: true,
+        active_request_id: null,
+        handles: [],
+        controllers: {},
+      },
+    });
+    const fake = createFakeBridgeClient(existing);
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access.start();
+    fake.calls.length = 0;
+
+    // Explicit fileRoots replaces existing roots instead of unioning.
+    access.noteGesture();
+    const replaced = await access.finishSetup({
+      controllerKey: 'ctrl-full-roots',
+      agentName: 'Code',
+      mode: 'full',
+      fileRoots: ['/Users/demo/new'],
+    });
+    expect(replaced.ok).toBe(true);
+    expect(fake.currentStatus().config.file_roots).toEqual(['/Users/demo/new']);
+
+    // Omitting fileRoots preserves the existing roots.
+    access.noteGesture();
+    const preserved = await access.finishSetup({
+      controllerKey: 'ctrl-full-roots',
+      agentName: 'Code',
+      mode: 'full',
+    });
+    expect(preserved.ok).toBe(true);
+    expect(fake.currentStatus().config.file_roots).toEqual(['/Users/demo/new']);
   });
 });

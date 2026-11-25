@@ -138,7 +138,8 @@ const ensureHelperSession = async (
   runUia: UiaRunner,
   onSignIn: () => void
 ): Promise<void> => {
-  const session = unwrapDesktopResult(await access.status()).status?.pairing;
+  const helperStatus = unwrapDesktopResult(await access.status()).status;
+  const session = helperStatus?.pairing;
   const { homeserver, userId, cloudflareAccess } = target;
   const signedIn =
     session?.session_state === 'ready' &&
@@ -146,6 +147,11 @@ const ensureHelperSession = async (
     session.homeserver !== null &&
     sameHomeserver(session.homeserver, homeserver);
   if (signedIn) return;
+  if (session?.session_state === 'ready' && (helperStatus?.config.controllers.length ?? 0) > 0) {
+    throw new Error(
+      'Another Matrix account still has paired agents on this Mac. Revoke All Access in Settings -> This Mac before switching accounts.'
+    );
+  }
   onSignIn();
   const minted = await mintDesktopLoginToken(mx, runUia, {
     homeserverUrl: homeserver,

@@ -118,6 +118,23 @@ rl.on('line', (line) => {
   if (req.action === 'crash') {
     process.exit(2);
   }
+  const grantedStatus = {
+    ...baseStatus,
+    bridge: { state: 'observe_only', active_action: null, last_error: null },
+    permissions: {
+      accessibility: { state: 'granted', can_request: false, recovery: null },
+      screen_recording: { state: 'granted', can_request: false, recovery: null },
+      gui_permissions_ready: true,
+    },
+  };
+  if (req.action === 'status' && req.parameters.unwrapped === true) {
+    write({ type: 'response', request_id: req.request_id, ok: true, result: grantedStatus });
+    return;
+  }
+  if (req.action === 'status' || req.action === 'start') {
+    write({ type: 'response', request_id: req.request_id, ok: true, result: { status: grantedStatus } });
+    return;
+  }
   write({ type: 'response', request_id: req.request_id, ok: true, result: { status: baseStatus } });
 });
 rl.on('close', () => process.exit(0));
@@ -289,6 +306,47 @@ describe('DesktopBridgeProcess', () => {
     await expect(pending).rejects.toMatchObject({ code: 'helper_exited' });
     expect(proc.isRunning()).toBe(false);
     expect(exits).toEqual([{ code: 2, unexpected: true }]);
+  });
+
+  it('normalizes nested native_host.py permissions in request(status) and request(start) replies', async () => {
+    const dir = makeTempDir();
+    const helperBin = writeFakeHelper(dir);
+    const proc = new DesktopBridgeProcess({
+      binaryPath: helperBin,
+      configPath: path.join(dir, 'config.yaml'),
+      storagePath: path.join(dir, 'data'),
+    });
+
+    await proc.start();
+    try {
+      const wrappedStatus = await proc.request<{ status: DesktopAccessHelperStatus }>('status', {});
+      expect(wrappedStatus.status.permissions).toEqual({
+        accessibility: 'granted',
+        screen_recording: 'granted',
+        gui_permissions_ready: true,
+      });
+      expect(proc.lastStatus()?.permissions.screen_recording).toBe('granted');
+
+      const unwrappedStatus = await proc.request<DesktopAccessHelperStatus>('status', {
+        unwrapped: true,
+      });
+      expect(unwrappedStatus.permissions).toEqual({
+        accessibility: 'granted',
+        screen_recording: 'granted',
+        gui_permissions_ready: true,
+      });
+      expect(proc.lastStatus()?.permissions.screen_recording).toBe('granted');
+
+      const started = await proc.request<{ status: DesktopAccessHelperStatus }>('start', {});
+      expect(started.status.permissions).toEqual({
+        accessibility: 'granted',
+        screen_recording: 'granted',
+        gui_permissions_ready: true,
+      });
+      expect(proc.lastStatus()?.permissions.screen_recording).toBe('granted');
+    } finally {
+      await proc.stop();
+    }
   });
 });
 

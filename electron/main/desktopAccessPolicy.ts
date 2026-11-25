@@ -58,13 +58,16 @@ export const reapplyConsentedGrants = async (
   status: DesktopAccessHelperStatus,
   consent: DesktopAccessConsentStore
 ): Promise<void> => {
+  const hasGuiApps = status.config.allowed_app_ids.length > 0;
   for (const ctrl of status.config.controllers) {
     if (isControllerFullAccess(consent, ctrl.controller_key)) {
-      await client.request('grant_control', {
-        until_revoked: true,
-        scope: 'computer',
-        controller_key: ctrl.controller_key,
-      });
+      if (hasGuiApps) {
+        await client.request('grant_control', {
+          until_revoked: true,
+          scope: 'computer',
+          controller_key: ctrl.controller_key,
+        });
+      }
       if (status.shell.enabled) {
         await client.request('grant_shell', {
           until_revoked: true,
@@ -76,6 +79,7 @@ export const reapplyConsentedGrants = async (
 };
 
 type BoundedGrantOpts = {
+  hasGuiApps?: boolean;
   controlDurationSeconds?: number;
   revokeControl?: boolean;
   shellAutoApproveSeconds?: number;
@@ -88,13 +92,15 @@ export const applyBoundedGrants = async (
   controllerKey: string,
   opts: BoundedGrantOpts
 ): Promise<void> => {
-  if (opts.revokeControl) {
-    await client.request('revoke_control', { controller_key: controllerKey });
-  } else if (opts.controlDurationSeconds !== undefined) {
-    await client.request('grant_control', {
-      duration_seconds: opts.controlDurationSeconds,
-      controller_key: controllerKey,
-    });
+  if (opts.hasGuiApps !== false) {
+    if (opts.revokeControl) {
+      await client.request('revoke_control', { controller_key: controllerKey });
+    } else if (opts.controlDurationSeconds !== undefined) {
+      await client.request('grant_control', {
+        duration_seconds: opts.controlDurationSeconds,
+        controller_key: controllerKey,
+      });
+    }
   }
   if (opts.revokeShell) {
     await client.request('revoke_shell', { controller_key: controllerKey });
@@ -173,7 +179,7 @@ export const applyFinishSetup = async (
       'primary-screen',
       ...(req.allowedAppIds ?? []),
     ]);
-    const roots = unique([...current.config.file_roots, ...(req.fileRoots ?? [])]);
+    const roots = unique(req.fileRoots ?? current.config.file_roots);
     const satisfied =
       isBridgeRunning(current) &&
       current.config.enabled &&
@@ -219,7 +225,9 @@ export const applyFinishSetup = async (
       await reapplyConsentedGrants(ctx.client, started, ctx.loadConsent());
     }
   } else {
-    await ctx.client.request('revoke_control', { controller_key: req.controllerKey });
+    if (current.config.allowed_app_ids.length > 0) {
+      await ctx.client.request('revoke_control', { controller_key: req.controllerKey });
+    }
     if ((ctx.getLatest() ?? current).shell.enabled) {
       await ctx.client.request('revoke_shell', { controller_key: req.controllerKey });
     }
@@ -228,6 +236,7 @@ export const applyFinishSetup = async (
   if (isBridgeRunning(latest)) {
     await applyBoundedGrants(ctx.client, req.controllerKey, {
       ...req,
+      hasGuiApps: latest.config.allowed_app_ids.length > 0,
       ...(latest.shell.enabled
         ? {}
         : { shellAutoApproveSeconds: undefined, shellAutoApproveUntilRevoked: undefined }),
@@ -268,6 +277,7 @@ export const applyUpdateLimits = async (
     if (req.controllerKey && req.mode !== 'full' && isBridgeRunning(latest)) {
       await applyBoundedGrants(ctx.client, req.controllerKey, {
         ...req,
+        hasGuiApps: latest.config.allowed_app_ids.length > 0,
         ...(latest.shell.enabled
           ? {}
           : {
@@ -286,9 +296,11 @@ export const applyUpdateLimits = async (
     ctx.saveFullConsent(req.controllerKey, req.agentName);
   } else if (req.controllerKey && isBridgeRunning(latest)) {
     const shellActive = latest.shell.enabled;
+    const hasGuiApps = latest.config.allowed_app_ids.length > 0;
     await applyBoundedGrants(ctx.client, req.controllerKey, {
       ...req,
-      ...(req.mode === 'restricted' && req.controlDurationSeconds === undefined
+      hasGuiApps,
+      ...(hasGuiApps && req.mode === 'restricted' && req.controlDurationSeconds === undefined
         ? { revokeControl: true }
         : {}),
       ...(shellActive

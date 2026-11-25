@@ -486,7 +486,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
                           mx,
                           pairedController.controller_key,
                           selectedAgent.userId,
-                          selectedAgent.agentName
+                          pairedController.allowed_agent_names[0] ?? selectedAgent.agentName
                         ),
                       () => setJustPaired(false)
                     )

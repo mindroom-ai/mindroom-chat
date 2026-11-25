@@ -85,7 +85,8 @@ export type DesktopBridgeProcessOptions = {
 };
 
 type PendingRequest = {
-  resolve: (value: Record<string, unknown>) => void;
+  action: string;
+  resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -234,6 +235,7 @@ export class DesktopBridgeProcess {
         reject(new DesktopHelperError('timeout', `Desktop helper timed out on ${action}.`));
       }, timeoutMs);
       this.pending.set(requestId, {
+        action,
         resolve: (value) => resolve(value as T),
         reject,
         timer,
@@ -289,11 +291,12 @@ export class DesktopBridgeProcess {
     });
   }
 
-  private applyStatus(raw: unknown): void {
+  private applyStatus(raw: unknown): DesktopAccessHelperStatus | null {
     const normalized = normalizeHelperStatus(raw);
-    if (!normalized) return;
+    if (!normalized) return null;
     this.cachedStatus = normalized;
     this.onStatus?.(normalized);
+    return normalized;
   }
 
   private handleResponse(frame: Record<string, unknown>): void {
@@ -306,7 +309,16 @@ export class DesktopBridgeProcess {
 
     if (frame.ok === true) {
       const result = isRecord(frame.result) ? frame.result : {};
-      if ('status' in result) this.applyStatus(result.status);
+      if ('status' in result) {
+        const normalized = this.applyStatus(result.status);
+        entry.resolve(normalized ? { ...result, status: normalized } : result);
+        return;
+      }
+      if (entry.action === 'status') {
+        const normalized = this.applyStatus(result);
+        entry.resolve(normalized ?? result);
+        return;
+      }
       entry.resolve(result);
       return;
     }

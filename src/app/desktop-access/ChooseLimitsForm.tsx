@@ -158,7 +158,8 @@ export function ChooseLimitsForm({
   const dt = useDesktopT();
   const fullScreenLabelId = useId();
   const shellEnabledLabelId = useId();
-  const savedApps = snapshot?.status?.config.allowed_app_ids ?? [];
+  const config = snapshot?.status?.config;
+  const savedApps = config?.allowed_app_ids ?? [];
   const otherHasFullAccess = Object.keys(snapshot?.consent ?? {}).some(
     (key) => key !== controllerKey
   );
@@ -173,7 +174,9 @@ export function ChooseLimitsForm({
     () => snapshot?.status?.config.shell_enabled ?? true
   );
   const [fullScreen, setFullScreen] = useState<boolean>(() =>
-    savedApps.length > 0 ? savedApps.includes(PRIMARY_SCREEN) : true
+    savedApps.length > 0
+      ? savedApps.includes(PRIMARY_SCREEN)
+      : config?.state !== 'ready' || !config.enabled
   );
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>(() =>
     savedApps.filter((id) => id !== PRIMARY_SCREEN)
@@ -237,13 +240,20 @@ export function ChooseLimitsForm({
 
   const handleFullScreenChange = (next: boolean) => {
     setFullScreen(next);
-    if (guiChoice === 'full' && !next) setGuiChoice('1h');
+    if (!next) {
+      if (selectedAppIds.length === 0) setGuiChoice('observe');
+      else if (guiChoice === 'full') setGuiChoice('1h');
+    }
   };
 
   const toggleApp = (bundleId: string) => {
-    setSelectedAppIds((prev) =>
-      prev.includes(bundleId) ? prev.filter((id) => id !== bundleId) : [...prev, bundleId]
-    );
+    const next = selectedAppIds.includes(bundleId)
+      ? selectedAppIds.filter((id) => id !== bundleId)
+      : [...selectedAppIds, bundleId];
+    setSelectedAppIds(next);
+    if (!fullScreen && next.length === 0 && guiChoice !== 'observe') {
+      setGuiChoice('observe');
+    }
   };
 
   const addFolder = async () => {

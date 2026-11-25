@@ -90,7 +90,7 @@ export const createDesktopAccessTray = (
     instance.setToolTip(statusLabel);
     const menu = Menu.buildFromTemplate([
       { label: statusLabel, enabled: false },
-      { label: 'Revoke Full Access', click: callbacks.onRevokeAll },
+      { label: 'Revoke All Access', click: callbacks.onRevokeAll },
       { type: 'separator' },
       { label: 'Open MindRoom Chat', click: callbacks.onOpenMainWindow },
       { label: 'Computer Access Settings...', click: callbacks.onOpenSettings },

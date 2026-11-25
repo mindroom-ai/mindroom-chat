@@ -704,6 +704,105 @@ describe('DesktopAccessModal', () => {
       )?.controller_key
     ).toBe('ctrl:server-a');
   });
+
+  it('keeps Full screen off when reopening a shell-only config and drops GUI control to Observe only when turning Full screen off with no apps', async () => {
+    const shellOnly = makeSnapshot({
+      allowedAppIds: [],
+      fileRoots: [],
+      shellEnabled: true,
+      controllers: [
+        {
+          controller_key: 'ctrl:code',
+          user_id: '@mindroom_code:example.org',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:example.org'],
+          allowed_agent_names: ['code'],
+        },
+      ],
+    });
+    const access = makeDesktopAccessMock(shellOnly);
+    vi.mocked(access.updateLimits).mockResolvedValueOnce({ ok: true, value: shellOnly });
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      agentUserId: '@mindroom_code:example.org',
+      agentName: 'code',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+
+    const fullScreenSwitch = within(sharedSection).getByRole('switch', {
+      name: 'Full screen (primary-screen)',
+    });
+    expect(fullScreenSwitch.getAttribute('aria-checked')).toBe('false');
+
+    // Selecting Full Access turns Full screen on; turning Full screen back off with no apps drops GUI control to Observe only.
+    fireEvent.click(
+      within(perAgentSection).getByRole('radio', { name: 'Full Access until revoked' })
+    );
+    expect(fullScreenSwitch.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(fullScreenSwitch);
+    expect(fullScreenSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(
+      within(perAgentSection)
+        .getByRole('radio', { name: 'Observe only' })
+        .getAttribute('aria-checked')
+    ).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save limits' }));
+    await waitFor(() => {
+      expect(access.updateLimits).toHaveBeenCalledWith({
+        controllerKey: 'ctrl:code',
+        agentName: 'code',
+        mode: 'restricted',
+        allowedAppIds: [],
+        fileRoots: [],
+        shellEnabled: true,
+        shellAutoApproveUntilRevoked: true,
+      });
+    });
+  });
+
+  it('passes stored controller allowed_agent_names[0] when disconnecting a namespaced agent', async () => {
+    const paired = makeSnapshot({
+      controllers: [
+        {
+          controller_key: 'ctrl:writer',
+          user_id: '@mindroom_writer_ab12:example.org',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:example.org'],
+          allowed_agent_names: ['writer'],
+        },
+      ],
+    });
+    makeDesktopAccessMock(paired);
+    mocks.disconnectAgentFromThisMac.mockResolvedValueOnce(makeSnapshot());
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      agentUserId: '@mindroom_writer_ab12:example.org',
+      agentName: 'writer_ab12',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => {
+      expect(mocks.disconnectAgentFromThisMac).toHaveBeenCalledWith(
+        mocks.mx,
+        'ctrl:writer',
+        '@mindroom_writer_ab12:example.org',
+        'writer'
+      );
+    });
+  });
 });
 
 describe('IncomingPairInviteModal', () => {

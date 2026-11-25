@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthenticationCancelled } from '../account/uia/useAuthenticatedAction';
 import type {
   DesktopAccessBridge,
+  DesktopAccessControllerConfig,
   DesktopAccessSnapshot,
   DesktopBridge,
   DesktopShellEvent,
@@ -41,6 +42,7 @@ const makeSnapshot = (overrides?: {
   homeserver?: string | null;
   userId?: string | null;
   accessibility?: 'granted' | 'missing' | 'unknown';
+  controllers?: DesktopAccessControllerConfig[];
 }): DesktopAccessSnapshot => ({
   availability: 'available',
   helperRunning: true,
@@ -50,7 +52,7 @@ const makeSnapshot = (overrides?: {
       state: 'ready',
       revision: 1,
       enabled: true,
-      controllers: [],
+      controllers: overrides?.controllers ?? [],
       allowed_app_ids: ['primary-screen'],
       file_roots: [],
       shell_enabled: true,
@@ -367,6 +369,49 @@ describe('pairAgentOnThisMac', () => {
       cloudflareAccess: false,
       replace: true,
     });
+  });
+
+  it('refuses silent session replacement when another Matrix account still has paired controllers', async () => {
+    const existingController: DesktopAccessControllerConfig = {
+      controller_key: 'ctrl:other-account',
+      user_id: '@mindroom_other:mindroom.chat',
+      device_id: 'OTHER_DEV',
+      ed25519: 'other-ed25519',
+      allowed_requester_ids: ['@other:mindroom.chat'],
+      allowed_agent_names: ['other'],
+    };
+
+    for (const mismatch of [
+      { userId: '@other:mindroom.chat' },
+      { homeserver: 'https://other.example' },
+    ]) {
+      tokenMock.mintDesktopLoginToken.mockClear();
+      const mock = createMockBridge(
+        makeSnapshot({
+          sessionState: 'ready',
+          controllers: [existingController],
+          ...mismatch,
+        })
+      );
+
+      await expect(
+        pairAgentOnThisMac(
+          mockMx,
+          {
+            agentUserId: '@mindroom_general:mindroom.chat',
+            agentName: 'general',
+            mode: 'full',
+          },
+          directRunUia
+        )
+      ).rejects.toThrow(
+        'Another Matrix account still has paired agents on this Mac. Revoke All Access in Settings -> This Mac before switching accounts.'
+      );
+
+      expect(tokenMock.mintDesktopLoginToken).not.toHaveBeenCalled();
+      expect(mock.desktopAccess.login).not.toHaveBeenCalled();
+      expect(mock.desktopAccess.pair).not.toHaveBeenCalled();
+    }
   });
 
   it('aborts cleanly on UIA cancellation and surfaces ineligible offer errors', async () => {
