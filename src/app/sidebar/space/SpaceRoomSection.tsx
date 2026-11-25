@@ -33,13 +33,13 @@ import { getSpaceSearchRooms } from '../../matrix/state/useSpaceSearchRooms';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import type { SpaceMenuGroupsProps } from '../../spaces/SpaceActions';
 import { moveSpaceRoom } from '../../spaces/lobby/spaceChildren';
+import { getDescendantSubspaces, getSpaceRoomSections } from './spaceRoomSections';
 import {
   type SpaceSectionTreeNode,
   buildSpaceSectionTree,
   collectShortcutRoomIds,
-  getDescendantSubspaces,
-  getSpaceRoomSections,
-} from './spaceRoomSections';
+  findSelectedDescendantSection,
+} from './spaceSectionTree';
 import {
   type RenderedSpaceRoomSection,
   buildRenderedSpaceSections,
@@ -287,8 +287,6 @@ export type SpaceRoomSectionProps = {
   subtreeShownRoomIds?: readonly string[];
   /** Nesting depth (0 for top-level Home spaces and direct Space sub-spaces). */
   depth?: number;
-  /** Whether any enclosing ancestor space section is collapsed. */
-  ancestorClosed?: boolean;
   spaceId: string;
   spaceIdOrAlias: string;
   selectedRoomId: string | undefined;
@@ -312,7 +310,6 @@ export function SpaceRoomSection({
   childNodes = EMPTY_CHILD_NODES,
   subtreeShownRoomIds,
   depth = 0,
-  ancestorClosed = false,
   spaceId,
   spaceIdOrAlias,
   selectedRoomId,
@@ -334,44 +331,57 @@ export function SpaceRoomSection({
 
   const { className: sectionDropClassName, ...sectionDropProps } = sectionDrop;
   const resolvedPinMode = typeof pinMode === 'function' ? pinMode(section) : pinMode;
-  const effectivelyClosed = section.closed || ancestorClosed;
-  const listedRoomIds = effectivelyClosed
-    ? section.shownRoomIds.filter((roomId) => roomId === selectedRoomId)
-    : section.listedRoomIds;
-  const visibleChildren = effectivelyClosed
-    ? selectedRoomId !== undefined
-      ? childNodes.filter((child) => child.subtreeShownRoomIds.includes(selectedRoomId))
-      : []
-    : childNodes;
+  const selectedDescendantOwner =
+    section.closed &&
+    selectedRoomId !== undefined &&
+    !section.listedRoomIds.includes(selectedRoomId)
+      ? findSelectedDescendantSection(childNodes, selectedRoomId)
+      : undefined;
+  const listedRoomIds =
+    selectedDescendantOwner && selectedRoomId !== undefined
+      ? [...section.listedRoomIds, selectedRoomId]
+      : section.listedRoomIds;
+  const visibleChildren = section.closed ? EMPTY_CHILD_NODES : childNodes;
   const unreadShownRoomIds = subtreeShownRoomIds ?? section.shownRoomIds;
 
   const previewPath = roomPath ?? ((roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId));
 
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
-  const rowProps = (room: Room) => ({
+  const rowProps = (room: Room, showTimes = section.showTimes) => ({
     room,
     selected: room.roomId === selectedRoomId,
     linkPath: previewPath(getCanonicalAliasOrRoomId(client, room.roomId)),
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
     spaceId: roomPath ? undefined : spaceId,
-    activityTimestamp: section.showTimes ? getRoomActivityTimestamp(room) || undefined : undefined,
+    activityTimestamp: showTimes ? getRoomActivityTimestamp(room) || undefined : undefined,
   });
   const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
 
+  const listOwnerSpaceId =
+    selectedDescendantOwner && section.listedRoomIds.length === 0
+      ? selectedDescendantOwner.spaceId
+      : section.spaceId;
+
   const roomRows = (
     <SortableRoomList
-      listId={section.spaceId}
+      listId={listOwnerSpaceId}
       roomIds={listedRoomIds}
       onReorder={(order) => onReorder(section.spaceId, order)}
-      reorderDisabled={section.mode === 'recent'}
+      reorderDisabled={section.mode === 'recent' || Boolean(selectedDescendantOwner)}
     >
       {listedRoomIds.map((roomId) => {
         const room = client.getRoom(roomId);
-        return room ? (
+        if (!room) return null;
+        const owner =
+          selectedDescendantOwner && roomId === selectedRoomId ? selectedDescendantOwner : section;
+        return (
           <Fragment key={roomId}>
-            <SortableRoomRow {...rowProps(room)} removeFromSpaceId={section.spaceId} />
-            {!effectivelyClosed && (
+            <SortableRoomRow
+              {...rowProps(room, owner.showTimes)}
+              removeFromSpaceId={owner.spaceId}
+            />
+            {!section.closed && (
               <SubRoomRows
                 parent={room}
                 tree={section.tree}
@@ -380,7 +390,7 @@ export function SpaceRoomSection({
               />
             )}
           </Fragment>
-        ) : null;
+        );
       })}
     </SortableRoomList>
   );
@@ -392,7 +402,7 @@ export function SpaceRoomSection({
       {...sectionDropProps}
       className={classNames(sectionDropClassName, !section.isRoot && css.SpaceSectionNode)}
       data-depth={section.isRoot ? undefined : depth}
-      data-expanded={!section.isRoot && !effectivelyClosed ? 'true' : undefined}
+      data-expanded={!section.isRoot && !section.closed ? 'true' : undefined}
     >
       <SpaceSectionHeader
         space={sectionSpace}
@@ -421,7 +431,6 @@ export function SpaceRoomSection({
                   childNodes={child.children}
                   subtreeShownRoomIds={child.subtreeShownRoomIds}
                   depth={depth + 1}
-                  ancestorClosed={effectivelyClosed}
                   spaceId={roomPath ? child.section.spaceId : spaceId}
                   spaceIdOrAlias={roomPath ? child.section.spaceId : spaceIdOrAlias}
                   selectedRoomId={selectedRoomId}

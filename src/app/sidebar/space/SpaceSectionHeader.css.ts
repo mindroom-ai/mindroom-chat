@@ -23,31 +23,31 @@ export const Header = style({
 const activeHeader = (extra = '') =>
   `${Header}${extra}:is(:hover, :focus-within, [data-menu-open="true"])`;
 
-/** Collapsed unread indicator wrapper: right-aligned at rest, fades out when actions reveal. */
+/** Collapsed unread indicator wrapper: right-aligned at rest, fades only when actions reveal. */
 export const UnreadSlot = style({
   display: 'inline-flex',
   alignItems: 'center',
   flexShrink: 0,
   transition: revealTransition,
   selectors: {
-    [`${activeHeader()} &`]: { opacity: 0 },
+    [`${activeHeader('[data-actions-count]')} &`]: { opacity: 0 },
   },
   '@media': {
     '(hover: none)': {
       selectors: {
-        [`${activeHeader()} &`]: { opacity: 1 },
+        [`${activeHeader('[data-actions-count]')} &`]: { opacity: 1 },
       },
     },
   },
 });
 
-/** Quiet unread dot for Home space sections (works on all light/dark palettes). */
+/** Quiet unread dot for Home space sections (>= 3:1 contrast across all 23 palettes). */
 export const QuietUnreadDot = style({
   display: 'block',
   width: toRem(5),
   height: toRem(5),
   borderRadius: config.radii.Pill,
-  backgroundColor: 'color-mix(in srgb, currentColor 45%, transparent)',
+  backgroundColor: 'color-mix(in srgb, currentColor 72%, transparent)',
 });
 
 /** Clean accent dot for Home space sections with mentions or highlights (no outer ring). */
@@ -66,8 +66,11 @@ export const QuietHighlightDot = style({
  */
 export const HeaderButton = style({
   vars: { [actionsEndPad]: toRem(4) },
-  paddingInlineEnd: actionsEndPad,
   selectors: {
+    // Higher specificity beats CategoryButton's `padding: 4px` regardless of CSS chunk order.
+    [`${Header}[data-actions-count] &&`]: {
+      paddingInlineEnd: actionsEndPad,
+    },
     [`${activeHeader('[data-actions-count="1"]')} &, ${Header}[data-empty-add="true"][data-actions-count="1"] &`]:
       { vars: { [actionsEndPad]: toRem(32) } },
     [`${activeHeader('[data-actions-count="2"]')} &, ${Header}[data-empty-add="true"][data-actions-count="2"] &`]:
@@ -81,7 +84,11 @@ export const HeaderButton = style({
   },
   '@media': {
     '(hover: none)': {
-      paddingInlineEnd: toRem(4),
+      selectors: {
+        [`${Header}[data-actions-count] &&`]: {
+          paddingInlineEnd: toRem(4),
+        },
+      },
     },
     '(pointer: coarse)': {
       selectors: {

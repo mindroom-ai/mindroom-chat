@@ -950,8 +950,8 @@ describe('Space navigation', () => {
     expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(mountsBeforeToggle);
     expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(unmountsBeforeToggle);
 
-    // Collapsing the parent organizer hides nested Research Group, rolls up its unread dot,
-    // and reveals only the selected branch when a descendant room is active.
+    // Collapsing the parent organizer hides nested Research Group headers, rolls up its unread
+    // dot, and keeps only the active descendant room row visible (preserving its owning space).
     const organizerButton = () =>
       sectionButtons().find((node) => node.props['data-category-id'] === organizerCategoryId)!;
     act(() => {
@@ -972,6 +972,28 @@ describe('Space navigation', () => {
       makeNavCategoryId(space, 'room'),
       makeNavCategoryId(space, 'subspace', design),
       organizerCategoryId,
+    ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      readingList,
+    ]);
+    expect(
+      rows().find((node) => node.props['data-row-room'] === readingList)?.props[
+        'data-remove-from-space'
+      ]
+    ).toBe(research);
+    expect(shortcutCalls.at(-1)).toEqual([joined, designReview, readingList]);
+    expect(unreadDots(organizerButton())).toHaveLength(0);
+
+    // Expanding the parent restores nested Research Group and its rooms cleanly.
+    act(() => {
+      organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
+    });
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
       researchCategoryId,
     ]);
     expect(rows().map((node) => node.props['data-row-room'])).toEqual([
@@ -979,16 +1001,19 @@ describe('Space navigation', () => {
       designReview,
       readingList,
     ]);
-    expect(shortcutCalls.at(-1)).toEqual([joined, designReview, readingList]);
-    expect(unreadDots(organizerButton())).toHaveLength(0);
 
+    // Collapsing again after selection moves elsewhere hides the descendant row completely.
     selected.roomId = undefined;
     rerender();
+    act(() => {
+      organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
+    });
     expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
       makeNavCategoryId(space, 'room'),
       makeNavCategoryId(space, 'subspace', design),
       organizerCategoryId,
     ]);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([joined, designReview]);
   });
 
   it('validates cross-section moves, calls moveSpaceRoom, guards in-flight moves, and appends only to manual targets', async () => {

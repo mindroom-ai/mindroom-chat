@@ -3,13 +3,16 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import {
-  buildSpaceSectionTree,
-  collectShortcutRoomIds,
   getCollapsedSectionUnread,
   getDescendantSubspaces,
   getHomeSpaceSections,
   getSpaceRoomSections,
 } from './spaceRoomSections';
+import {
+  buildSpaceSectionTree,
+  collectShortcutRoomIds,
+  findSelectedDescendantSection,
+} from './spaceSectionTree';
 
 const SPACE_CREATE = { getContent: () => ({ type: 'm.space' }) };
 
@@ -475,6 +478,8 @@ describe('buildSpaceSectionTree', () => {
     expect(team.children.map((node) => node.section.spaceId)).toEqual(['!sub']);
     expect(team.children[0]?.subtreeShownRoomIds).toEqual(['!shared', '!r2', '!r3']);
     expect(team.children[0]?.children.map((node) => node.section.spaceId)).toEqual(['!deep']);
+    expect(findSelectedDescendantSection(team.children, '!r3')?.spaceId).toBe('!deep');
+    expect(findSelectedDescendantSection(team.children, '!r0')).toBeUndefined();
   });
 
   it('breaks mutual cycles safely without dropping nodes', () => {

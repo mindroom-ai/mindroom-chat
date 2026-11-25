@@ -5,6 +5,7 @@ import { reachesSpaceDirectly } from '../../matrix/state/spaceAncestors';
 import { getJoinedSubspaces, getSpaceOwnRooms } from '../../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import { type AttachedNode, attachSpaceSectionNodes } from './spaceSectionTree';
 
 export type SpaceRoomSection = {
   /** The space whose rooms this section lists (`rootSpaceId` for the top Rooms section). */
@@ -32,98 +33,6 @@ type DescendantSubspaceEntry = {
   spaceId: string;
   parentSpaceId: string;
   ancestorSpaceIds: string[];
-};
-
-type TreeAttachable = {
-  spaceId: string;
-  isRoot: boolean;
-  ancestorSpaceIds: readonly string[];
-};
-
-type AttachedNode<T extends TreeAttachable> = {
-  section: T;
-  children: AttachedNode<T>[];
-};
-
-const attachSpaceSectionNodes = <T extends TreeAttachable>(
-  sections: readonly T[]
-): AttachedNode<T>[] => {
-  const nodes: AttachedNode<T>[] = sections.map((section) => ({ section, children: [] }));
-  const nonRootBySpaceId = new Map<string, AttachedNode<T>>();
-  nodes.forEach((node) => {
-    if (!node.section.isRoot && !nonRootBySpaceId.has(node.section.spaceId)) {
-      nonRootBySpaceId.set(node.section.spaceId, node);
-    }
-  });
-
-  const attachedParent = new Map<AttachedNode<T>, AttachedNode<T>>();
-  const wouldCreateCycle = (node: AttachedNode<T>, candidate: AttachedNode<T>): boolean => {
-    let current: AttachedNode<T> | undefined = candidate;
-    while (current) {
-      if (current === node) return true;
-      current = attachedParent.get(current);
-    }
-    return false;
-  };
-
-  const roots: AttachedNode<T>[] = [];
-  nodes.forEach((node) => {
-    let parent: AttachedNode<T> | undefined;
-    if (!node.section.isRoot) {
-      for (const ancestorId of node.section.ancestorSpaceIds) {
-        const candidate = nonRootBySpaceId.get(ancestorId);
-        if (candidate && !wouldCreateCycle(node, candidate)) {
-          parent = candidate;
-          break;
-        }
-      }
-    }
-    if (parent) {
-      attachedParent.set(node, parent);
-      parent.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  });
-  return roots;
-};
-
-export type SpaceSectionTreeInput = {
-  spaceId: string;
-  isRoot: boolean;
-  ancestorSpaceIds: readonly string[];
-  closed: boolean;
-  listedRoomIds: readonly string[];
-  shownRoomIds: readonly string[];
-};
-
-export type SpaceSectionTreeNode<T extends SpaceSectionTreeInput> = {
-  section: T;
-  children: SpaceSectionTreeNode<T>[];
-  subtreeShownRoomIds: string[];
-};
-
-/**
- * Arranges flat rendered space sections into a cycle-safe forest: each non-root section attaches
- * under its nearest present non-root ancestor, and each node carries the deduplicated ordered
- * union of visible rooms across its subtree.
- */
-export const buildSpaceSectionTree = <T extends SpaceSectionTreeInput>(
-  sections: readonly T[]
-): SpaceSectionTreeNode<T>[] => {
-  const hydrate = (node: AttachedNode<T>): SpaceSectionTreeNode<T> => {
-    const children = node.children.map(hydrate);
-    const seen = new Set<string>(node.section.shownRoomIds);
-    children.forEach((child) => {
-      child.subtreeShownRoomIds.forEach((roomId) => seen.add(roomId));
-    });
-    return {
-      section: node.section,
-      children,
-      subtreeShownRoomIds: Array.from(seen),
-    };
-  };
-  return attachSpaceSectionNodes(sections).map(hydrate);
 };
 
 /**
@@ -466,72 +375,4 @@ export const getCollapsedSectionUnread = (
   });
   if (!hasUnread) return undefined;
   return highlight ? COLLAPSED_HIGHLIGHT : COLLAPSED_UNREAD;
-};
-
-export type ShortcutRoomSection = {
-  closed: boolean;
-  listedRoomIds: readonly string[];
-  shownRoomIds: readonly string[];
-};
-
-export type ShortcutRoomEntry =
-  | ShortcutRoomSection
-  | {
-      section: ShortcutRoomSection;
-      children: readonly ShortcutRoomEntry[];
-      subtreeShownRoomIds?: readonly string[];
-    };
-
-const isShortcutTreeEntry = (
-  entry: ShortcutRoomEntry
-): entry is {
-  section: ShortcutRoomSection;
-  children: readonly ShortcutRoomEntry[];
-  subtreeShownRoomIds?: readonly string[];
-} => 'section' in entry;
-
-/**
- * Deduplicated room IDs across rendered sections or tree nodes for keyboard room-stepping,
- * preserving first occurrence in rendered order and skipping rooms hidden under any collapsed
- * ancestor (while still including the lone visible selected room, if shown).
- */
-export const collectShortcutRoomIds = (
-  entries: readonly ShortcutRoomEntry[],
-  selectedRoomId?: string
-): string[] => {
-  const result: string[] = [];
-  const seen = new Set<string>();
-  const push = (roomId: string) => {
-    if (seen.has(roomId)) return;
-    seen.add(roomId);
-    result.push(roomId);
-  };
-  const visit = (entry: ShortcutRoomEntry, ancestorClosed: boolean) => {
-    const section = isShortcutTreeEntry(entry) ? entry.section : entry;
-    const closed = section.closed || ancestorClosed;
-    const rooms = closed
-      ? selectedRoomId !== undefined
-        ? section.shownRoomIds.filter((id) => id === selectedRoomId)
-        : section.closed
-          ? section.listedRoomIds
-          : []
-      : section.shownRoomIds;
-    rooms.forEach(push);
-    if (!isShortcutTreeEntry(entry)) return;
-    if (!closed) {
-      entry.children.forEach((child) => visit(child, false));
-    } else if (selectedRoomId !== undefined) {
-      entry.children.forEach((child) => {
-        if (
-          !isShortcutTreeEntry(child) ||
-          !child.subtreeShownRoomIds ||
-          child.subtreeShownRoomIds.includes(selectedRoomId)
-        ) {
-          visit(child, true);
-        }
-      });
-    }
-  };
-  entries.forEach((entry) => visit(entry, false));
-  return result;
 };

@@ -202,6 +202,10 @@ test('default-collapses mixed Home spaces with unread roll-up, nests sub-spaces,
   await expect(weeklyRow.locator('[data-room-activity-time]')).toBeVisible();
   // Mark Sketches read by opening it briefly (its unread count badge takes the trailing slot while unread).
   await homeNav(page).locator(`[data-room-id="${sketches}"]`).click();
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
   await expect(
     homeNav(page).locator(`[data-room-id="${sketches}"] [data-room-activity-time]`)
   ).toBeVisible();
