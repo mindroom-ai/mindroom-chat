@@ -2136,6 +2136,7 @@ describe('desktopAccess', () => {
     allowedAppIds?: string[];
     axTrusted?: boolean;
     screenRecording?: 'granted' | 'missing';
+    diskScreenStatus?: string;
     fullConsent?: boolean;
   }) => {
     let now = 1_000_000;
@@ -2187,6 +2188,7 @@ describe('desktopAccess', () => {
       resolution: { availability: 'available', binaryPath: '/fake/helper' },
       now: () => now,
       isTrustedAccessibilityClient: () => axTrusted,
+      getScreenMediaAccessStatus: () => opts?.diskScreenStatus ?? 'not-determined',
       openExternal,
       createBridgeProcess: ({ onStatus }) => {
         fake.setOnStatus(onStatus);
@@ -2256,6 +2258,21 @@ describe('desktopAccess', () => {
     h2.access.noteGesture();
     const manualRes = await h2.access.requestPermission('screen_recording');
     expect(manualRes.ok && manualRes.value.relaunchRequired).toBe(true);
+
+    // Already granted on disk (relaunchRequired: true) -> skip reopening Screen Recording Settings.
+    const hRelaunch = makeAutoPermHarness({
+      axTrusted: true,
+      screenRecording: 'missing',
+      diskScreenStatus: 'granted',
+    });
+    hRelaunch.access.noteGesture();
+    const resRelaunch = await hRelaunch.access.finishSetup({
+      controllerKey: 'ctrl-demo',
+      mode: 'full',
+    });
+    expect(resRelaunch.ok && resRelaunch.value.relaunchRequired).toBe(true);
+    expect(hRelaunch.permCalls()).toEqual([]);
+    expect(hRelaunch.openExternal).not.toHaveBeenCalled();
 
     const h3 = makeAutoPermHarness({ axTrusted: true, screenRecording: 'granted' });
     h3.access.noteGesture();

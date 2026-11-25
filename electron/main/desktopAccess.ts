@@ -355,22 +355,24 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       autoScreenRecordingUntil = -Infinity;
       return;
     }
-    const { permissions } = readPermissions(status);
+    const { permissions, relaunchRequired } = readPermissions(status);
     try {
       if (permissions.accessibility !== 'granted') {
         await requestPermissionInternal(client, 'accessibility');
         const current = latestStatus ?? status;
+        const nextPermissions = readPermissions(current);
         if (
           client.isRunning() &&
           hasGuiControllers(current) &&
-          readPermissions(current).permissions.screen_recording !== 'granted'
+          nextPermissions.permissions.screen_recording !== 'granted' &&
+          !nextPermissions.relaunchRequired
         ) {
           autoScreenRecordingUntil = now() + AUTO_SCREEN_RECORDING_WINDOW_MS;
         }
         return;
       }
       autoScreenRecordingUntil = -Infinity;
-      if (permissions.screen_recording !== 'granted') {
+      if (permissions.screen_recording !== 'granted' && !relaunchRequired) {
         await requestPermissionInternal(client, 'screen_recording', {
           markRelaunchOnPending: false,
         });
@@ -392,10 +394,10 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       autoScreenRecordingUntil = -Infinity;
       return;
     }
-    const { permissions } = readPermissions(status);
+    const { permissions, relaunchRequired } = readPermissions(status);
     if (permissions.accessibility !== 'granted') return;
     autoScreenRecordingUntil = -Infinity;
-    if (bridge?.isRunning() && permissions.screen_recording !== 'granted') {
+    if (bridge?.isRunning() && permissions.screen_recording !== 'granted' && !relaunchRequired) {
       void requestPermissionInternal(bridge, 'screen_recording', {
         markRelaunchOnPending: false,
       })
