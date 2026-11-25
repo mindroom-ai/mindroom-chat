@@ -494,4 +494,14 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     await flushKeys([ROOM_INTRO_KEY, ...rangeKeys('$inserted-', 8), ...rows]);
     expect(scrollElement.scrollTop).toBe(0);
   });
+
+  it('keeps scroll offset put on a same-count reorder moving the first content row to the end', async () => {
+    const rows = rangeKeys('$ev-', 50);
+    const { scrollElement, flushKeys } = await mountTimeline({
+      initialKeys: [ROOM_INTRO_KEY, ...rows],
+      initialScrollTop: 20,
+    });
+    await flushKeys([ROOM_INTRO_KEY, ...rows.slice(1), rows[0]!]);
+    expect(scrollElement.scrollTop).toBe(20);
+  });
 });
