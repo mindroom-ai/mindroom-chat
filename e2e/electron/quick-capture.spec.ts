@@ -152,12 +152,11 @@ test('closing main window after hiding Quick Capture exits cleanly on Linux', as
     const child = app.process();
     const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
       (resolve, reject) => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
         const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
           clearTimeout(timer);
           resolve({ code, signal });
         };
-        timer = setTimeout(() => {
+        const timer = setTimeout(() => {
           child.off('exit', onExit);
           reject(new Error('Electron process did not exit within 10s after main window closed'));
         }, 10_000);

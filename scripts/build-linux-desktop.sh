@@ -67,7 +67,7 @@ smoke_launch() {
     APPIMAGE="$appimage_path" HOME="$refuse_home" XDG_CONFIG_HOME="$refuse_home/.config" \
     XDG_CACHE_HOME="$refuse_home/.cache" XDG_DATA_HOME="$refuse_home/.local/share" \
     XDG_RUNTIME_DIR="$refuse_home/runtime" \
-    timeout -k 5 -s TERM 10 "$extracted_apprun" --no-sandbox --ozone-platform=headless --disable-gpu \
+    timeout -k 5 -s TERM 30 "$extracted_apprun" --no-sandbox --ozone-platform=headless --disable-gpu \
     >"$refuse_log" 2>&1
   refuse_rc=$?
   set -e
@@ -101,7 +101,7 @@ smoke_launch() {
     XDG_CACHE_HOME="$smoke_home/.cache" XDG_DATA_HOME="$smoke_home/.local/share" \
     XDG_RUNTIME_DIR="$smoke_home/runtime" \
     xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" \
-    timeout -k 5 -s TERM 6 "$extracted_bin" --no-sandbox --disable-gpu --password-store=basic \
+    timeout -k 5 -s TERM 10 "$extracted_bin" --no-sandbox --disable-gpu --password-store=basic \
     >"$smoke_log" 2>&1
   smoke_rc=$?
   set -e
