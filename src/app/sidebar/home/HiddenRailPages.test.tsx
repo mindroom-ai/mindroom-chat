@@ -85,7 +85,6 @@ describe('HiddenRailPages', () => {
     state.shown = {
       ...ALL,
       direct: false,
-      direct: false,
       threads: false,
       canvases: false,
       usage: false,

@@ -610,7 +610,12 @@
       "failed": "تعذر بدء الدردشة. حاول مرة أخرى."
     },
     "homeNav": {
-      "options": "خيارات الرئيسية"
+      "options": "خيارات الرئيسية",
+      "addRooms": "إضافة غرف",
+      "directMessages": "الرسائل المباشرة",
+      "newDirectMessage": "رسالة مباشرة جديدة",
+      "showAllDirectMessages": "عرض الكل (⁨{{count}}⁩)",
+      "agents": "الوكلاء"
     },
     "directNav": {
       "options": "خيارات الرسائل المباشرة"

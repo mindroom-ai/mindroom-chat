@@ -545,7 +545,12 @@
       "failed": "无法开始聊天，请重试。"
     },
     "homeNav": {
-      "options": "首页选项"
+      "options": "首页选项",
+      "addRooms": "添加房间",
+      "directMessages": "私信",
+      "newDirectMessage": "新建私信",
+      "showAllDirectMessages": "显示全部 ({{count}})",
+      "agents": "代理"
     },
     "directNav": {
       "options": "私信选项"

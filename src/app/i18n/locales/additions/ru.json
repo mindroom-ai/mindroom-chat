@@ -584,7 +584,12 @@
       "failed": "Не удалось начать чат. Повторите попытку."
     },
     "homeNav": {
-      "options": "Параметры главной"
+      "options": "Параметры главной",
+      "addRooms": "Добавить комнаты",
+      "directMessages": "Личные сообщения",
+      "newDirectMessage": "Новое личное сообщение",
+      "showAllDirectMessages": "Показать все ({{count}})",
+      "agents": "Агенты"
     },
     "directNav": {
       "options": "Параметры личных сообщений"

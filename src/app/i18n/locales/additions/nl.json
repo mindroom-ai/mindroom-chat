@@ -558,7 +558,12 @@
       "failed": "De chat kon niet worden gestart. Probeer het opnieuw."
     },
     "homeNav": {
-      "options": "Opties voor Home"
+      "options": "Opties voor Home",
+      "addRooms": "Kamers toevoegen",
+      "directMessages": "Directe berichten",
+      "newDirectMessage": "Nieuw direct bericht",
+      "showAllDirectMessages": "Alles tonen ({{count}})",
+      "agents": "Agenten"
     },
     "directNav": {
       "options": "Opties voor directe berichten"

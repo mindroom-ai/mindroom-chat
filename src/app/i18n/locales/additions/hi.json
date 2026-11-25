@@ -558,7 +558,12 @@
       "failed": "चैट शुरू नहीं हो सकी। फिर से कोशिश करें।"
     },
     "homeNav": {
-      "options": "होम विकल्प"
+      "options": "होम विकल्प",
+      "addRooms": "रूम जोड़ें",
+      "directMessages": "सीधे संदेश",
+      "newDirectMessage": "नया सीधा संदेश",
+      "showAllDirectMessages": "सभी दिखाएँ ({{count}})",
+      "agents": "एजेंट"
     },
     "directNav": {
       "options": "सीधे संदेश विकल्प"

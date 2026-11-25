@@ -21,7 +21,11 @@ import { addRoomIdToMDirect, getMxIdLocalPart } from '../../matrix/matrix';
 import { agentRoomState } from '../../matrix/protocol/agentRoomState';
 import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
-import { canSendMessageInRoom, getMemberAvatarMxc, getMemberRawDisplayName } from '../../matrix/room';
+import {
+  canSendMessageInRoom,
+  getMemberAvatarMxc,
+  getMemberRawDisplayName,
+} from '../../matrix/room';
 import { navigationRoomsAtom } from '../../matrix/state/archivedRooms';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import type { MDirectContent } from '../../matrix/types/accountData';

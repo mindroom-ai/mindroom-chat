@@ -571,7 +571,12 @@
       "failed": "Não foi possível iniciar a conversa. Tente novamente."
     },
     "homeNav": {
-      "options": "Opções do Início"
+      "options": "Opções do Início",
+      "addRooms": "Adicionar salas",
+      "directMessages": "Mensagens diretas",
+      "newDirectMessage": "Nova mensagem direta",
+      "showAllDirectMessages": "Mostrar tudo ({{count}})",
+      "agents": "Agentes"
     },
     "directNav": {
       "options": "Opções das mensagens diretas"

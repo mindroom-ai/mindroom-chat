@@ -590,33 +590,44 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     // Dropping back to 2 members switches back to the person avatar.
     act(() => dm.setCounts(2, 0));
     expect(
-      renderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined)
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
+      )
     ).toHaveLength(0);
 
     // Adding a third member switches back to the count avatar.
     act(() => dm.setCounts(4, 0));
     expect(
-      renderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 4)
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 4
+      )
     ).toHaveLength(1);
   });
 
   it('renders a muted "you" tag only for self-DMs (memberCount === 1)', () => {
     const selfDm = makeDirectRoom(1, 0);
     const selfRenderer = renderRoomNavItem({ room: selfDm, direct: true, showAvatar: true });
-    const selfTags = selfRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true');
+    const selfTags = selfRenderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+    );
     expect(selfTags).toHaveLength(1);
     expect(selfTags[0]!.children).toEqual(['you']);
 
     const oneToOne = makeDirectRoom(2, 0);
     const oneToOneRenderer = renderRoomNavItem({ room: oneToOne, direct: true, showAvatar: true });
     expect(
-      oneToOneRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true')
+      oneToOneRenderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+      )
     ).toHaveLength(0);
 
     const groupDm = makeDirectRoom(3, 0);
     const groupRenderer = renderRoomNavItem({ room: groupDm, direct: true, showAvatar: true });
     expect(
-      groupRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true')
+      groupRenderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+      )
     ).toHaveLength(0);
   });
 
@@ -631,10 +642,15 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
 
     testState.unread = { total: 1, highlight: 0 };
     useRoomNameMock.mockClear();
-    const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true, showDraft: true }, store);
+    const renderer = renderRoomNavItem(
+      { room: dm, direct: true, showAvatar: true, showDraft: true },
+      store
+    );
 
     const pencils = () =>
-      renderer.root.findAll((node) => node.type === 'i' && node.props['data-draft-indicator'] === 'true');
+      renderer.root.findAll(
+        (node) => node.type === 'i' && node.props['data-draft-indicator'] === 'true'
+      );
 
     expect(pencils()).toHaveLength(0);
     const rendersAfterMount = useRoomNameMock.mock.calls.length;

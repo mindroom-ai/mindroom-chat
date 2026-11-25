@@ -545,7 +545,12 @@
       "failed": "チャットを開始できませんでした。もう一度試してください。"
     },
     "homeNav": {
-      "options": "ホームのオプション"
+      "options": "ホームのオプション",
+      "addRooms": "ルームを追加",
+      "directMessages": "ダイレクトメッセージ",
+      "newDirectMessage": "新しいダイレクトメッセージ",
+      "showAllDirectMessages": "すべて表示 ({{count}})",
+      "agents": "エージェント"
     },
     "directNav": {
       "options": "ダイレクトメッセージのオプション"

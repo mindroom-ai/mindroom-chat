@@ -571,7 +571,12 @@
       "failed": "Impossible de démarrer la discussion. Réessayez."
     },
     "homeNav": {
-      "options": "Options de l’accueil"
+      "options": "Options de l’accueil",
+      "addRooms": "Ajouter des salles",
+      "directMessages": "Messages directs",
+      "newDirectMessage": "Nouveau message direct",
+      "showAllDirectMessages": "Tout afficher ({{count}})",
+      "agents": "Agents"
     },
     "directNav": {
       "options": "Options des messages directs"

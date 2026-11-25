@@ -558,7 +558,12 @@
       "failed": "চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।"
     },
     "homeNav": {
-      "options": "হোম বিকল্প"
+      "options": "হোম বিকল্প",
+      "addRooms": "রুম যোগ করুন",
+      "directMessages": "সরাসরি বার্তা",
+      "newDirectMessage": "নতুন সরাসরি বার্তা",
+      "showAllDirectMessages": "সব দেখান ({{count}})",
+      "agents": "এজেন্ট"
     },
     "directNav": {
       "options": "সরাসরি বার্তার বিকল্প"

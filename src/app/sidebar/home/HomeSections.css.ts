@@ -1,0 +1,42 @@
+import { style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
+
+/** Subtle section icon leading the chevron in Home's Direct messages and Agents headers. */
+export const SectionIcon = style({
+  opacity: config.opacity.P500,
+  flexShrink: 0,
+});
+
+/** Soft rounded tile behind the `+` icon on inline Home rows (`+ Add rooms`, `+ New direct message`). */
+export const InlinePlusAvatar = style({
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+});
+
+/** Small green dot on the bottom-end corner of an agent avatar while the agent has an active run. */
+export const AgentActiveRunDot = style({
+  position: 'absolute',
+  insetInlineEnd: toRem(-2),
+  insetBlockEnd: toRem(-2),
+  inlineSize: toRem(8),
+  blockSize: toRem(8),
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Success.Main,
+  boxShadow: `0 0 0 ${toRem(1.5)} ${color.Background.Container}`,
+  pointerEvents: 'none',
+  '@media': {
+    '(forced-colors: active)': {
+      border: '2px solid Highlight',
+    },
+  },
+});
+
+/** Muted inline toggle row (`Show all (N)` / `Show less`) inside Direct messages. */
+export const ToggleMoreRow = style({
+  opacity: config.opacity.P500,
+});
+
+/** Full-width search field at the top of populated Home, spaced by the parent column gap. */
+export const PopulatedSearchField = style({
+  inlineSize: '100%',
+});

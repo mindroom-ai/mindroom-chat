@@ -208,9 +208,9 @@ test('the unlock dialog sits in the middle of a phone, and a tap beside it close
   expect(box.x + box.width / 2).toBeCloseTo(width / 2, 0);
   await dialog.getByText('Enter your recovery password').tap();
   await expect(dialog).toBeVisible();
-  // The tap lands on the backdrop over Join a Room, whose dialog must not open once Unlock is gone.
-  const beneath = await second.getByText('Join a Room', { exact: true }).boundingBox();
-  if (!beneath) throw new Error('Join a Room is not on the page');
+  // The tap lands on the backdrop over Add rooms, whose menu must not open once Unlock is gone.
+  const beneath = await second.locator('[data-home-room-action="add"]').boundingBox();
+  if (!beneath) throw new Error('Add rooms is not on the page');
   await second.touchscreen.tap(beneath.x + beneath.width / 2, beneath.y + beneath.height / 2);
   await expect(dialog).toHaveCount(0);
   await second.waitForTimeout(1_000);

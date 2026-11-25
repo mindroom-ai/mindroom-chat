@@ -545,7 +545,12 @@
       "failed": "無法開始聊天，請再試一次。"
     },
     "homeNav": {
-      "options": "首頁選項"
+      "options": "首頁選項",
+      "addRooms": "新增房間",
+      "directMessages": "私訊",
+      "newDirectMessage": "新增私訊",
+      "showAllDirectMessages": "顯示全部 ({{count}})",
+      "agents": "代理"
     },
     "directNav": {
       "options": "私訊選項"

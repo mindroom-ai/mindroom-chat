@@ -545,7 +545,12 @@
       "failed": "채팅을 시작하지 못했습니다. 다시 시도하세요."
     },
     "homeNav": {
-      "options": "홈 옵션"
+      "options": "홈 옵션",
+      "addRooms": "방 추가",
+      "directMessages": "다이렉트 메시지",
+      "newDirectMessage": "새 다이렉트 메시지",
+      "showAllDirectMessages": "모두 보기 ({{count}})",
+      "agents": "에이전트"
     },
     "directNav": {
       "options": "다이렉트 메시지 옵션"

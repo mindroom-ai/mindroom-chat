@@ -558,7 +558,12 @@
       "failed": "Sohbet başlatılamadı. Tekrar deneyin."
     },
     "homeNav": {
-      "options": "Ana sayfa seçenekleri"
+      "options": "Ana sayfa seçenekleri",
+      "addRooms": "Oda ekle",
+      "directMessages": "Doğrudan mesajlar",
+      "newDirectMessage": "Yeni doğrudan mesaj",
+      "showAllDirectMessages": "Tümünü göster ({{count}})",
+      "agents": "Ajanlar"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"

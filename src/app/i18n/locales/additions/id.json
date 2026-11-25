@@ -545,7 +545,12 @@
       "failed": "Obrolan tidak dapat dimulai. Coba lagi."
     },
     "homeNav": {
-      "options": "Opsi Beranda"
+      "options": "Opsi Beranda",
+      "addRooms": "Tambah ruang",
+      "directMessages": "Pesan langsung",
+      "newDirectMessage": "Pesan langsung baru",
+      "showAllDirectMessages": "Tampilkan semua ({{count}})",
+      "agents": "Agen"
     },
     "directNav": {
       "options": "Opsi pesan langsung"

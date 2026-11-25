@@ -35,6 +35,21 @@ for (const [themeId, width] of [
       readAccountData('m.direct'),
     ]);
     const rooms: string[] = [];
+    let archivedForEmptyHome: string[] = [];
+    const setRoomArchived = (roomId: string, archived: boolean) =>
+      matrixFetch(
+        homeserver,
+        '/user/' +
+          encodeURIComponent(session.userId) +
+          '/rooms/' +
+          encodeURIComponent(roomId) +
+          '/account_data/io.mindroom.archived',
+        {
+          method: 'PUT',
+          accessToken: session.accessToken,
+          body: JSON.stringify({ archived }),
+        }
+      );
     try {
       await setAccountData(
         homeserver,
@@ -180,9 +195,8 @@ for (const [themeId, width] of [
       const joined = await matrixFetch<{ joined_rooms: string[] }>(homeserver, '/joined_rooms', {
         accessToken: session.accessToken,
       });
-      await setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', {
-        '@avery:example.org': joined.joined_rooms,
-      });
+      archivedForEmptyHome = joined.joined_rooms;
+      await Promise.all(archivedForEmptyHome.map((roomId) => setRoomArchived(roomId, true)));
       await navigate('/home/');
       await expect(panel.getByText('No Rooms', { exact: true })).toBeVisible();
       const emptyHome = await expectFloatingNavHeader(
@@ -194,6 +208,8 @@ for (const [themeId, width] of [
       await expect(
         panel.getByRole('button', { name: 'Create Room', exact: true })
       ).toBeInViewport();
+      await Promise.all(archivedForEmptyHome.map((roomId) => setRoomArchived(roomId, false)));
+      archivedForEmptyHome = [];
       await setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', {
         ...savedDirects,
         '@avery:example.org': rooms.slice(16),
@@ -255,6 +271,7 @@ for (const [themeId, width] of [
           savedSettings
         ),
         setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', savedDirects),
+        ...archivedForEmptyHome.map((roomId) => setRoomArchived(roomId, false)),
         ...rooms.map(async (roomId) => {
           await matrixFetch(homeserver, '/rooms/' + encodeURIComponent(roomId) + '/leave', {
             method: 'POST',

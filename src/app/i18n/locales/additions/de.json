@@ -558,7 +558,12 @@
       "failed": "Der Chat konnte nicht gestartet werden. Versuche es erneut."
     },
     "homeNav": {
-      "options": "Optionen für die Startseite"
+      "options": "Optionen für die Startseite",
+      "addRooms": "Räume hinzufügen",
+      "directMessages": "Direktnachrichten",
+      "newDirectMessage": "Neue Direktnachricht",
+      "showAllDirectMessages": "Alle anzeigen ({{count}})",
+      "agents": "Agenten"
     },
     "directNav": {
       "options": "Optionen für Direktnachrichten"

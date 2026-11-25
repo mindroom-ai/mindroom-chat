@@ -571,7 +571,12 @@
       "failed": "Impossibile avviare la chat. Riprova."
     },
     "homeNav": {
-      "options": "Opzioni della Home"
+      "options": "Opzioni della Home",
+      "addRooms": "Aggiungi stanze",
+      "directMessages": "Messaggi diretti",
+      "newDirectMessage": "Nuovo messaggio diretto",
+      "showAllDirectMessages": "Mostra tutti ({{count}})",
+      "agents": "Agenti"
     },
     "directNav": {
       "options": "Opzioni dei messaggi diretti"

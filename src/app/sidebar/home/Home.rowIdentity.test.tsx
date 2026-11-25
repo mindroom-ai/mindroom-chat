@@ -125,8 +125,24 @@ vi.mock('../../ui/nav/useClosedNavCategories', async () => {
   const closed = atom(new Set<string>());
   return { useClosedNavCategoriesAtom: () => closed };
 });
-vi.mock('../../matrix/state/archivedRooms', () => ({
-  useVisibleRooms: (roomIds: string[]) => roomIds,
+vi.mock('../../matrix/state/archivedRooms', async () => {
+  const { atom } = await import('jotai');
+  return {
+    useVisibleRooms: (roomIds: string[]) => roomIds,
+    navigationRoomsAtom: atom<string[]>([]),
+  };
+});
+vi.mock('../direct/useDirectRooms', () => ({
+  useDirectRooms: () => [],
+  useDirectRoomIds: () => [],
+}));
+vi.mock('./homeAgents', () => ({
+  useHomeAgents: () => [],
+  startDirectChat: vi.fn(),
+  agentNameIn: (_room: unknown, userId: string) => userId,
+}));
+vi.mock('../../settings/railButtons', () => ({
+  useRailButtons: () => ({ direct: true }),
 }));
 vi.mock('../threads/ThreadNavCategory', () => ({
   ThreadNavCategory: () => null,

@@ -1,0 +1,316 @@
+import type { Room } from 'matrix-js-sdk';
+import { describe, expect, it } from 'vitest';
+import type { HomeAgent } from './homeAgents';
+import {
+  dedupeRoomIds,
+  HOME_AGENTS_CATEGORY_ID,
+  HOME_DIRECT_CATEGORY_ID,
+  isAgentOneToOneDirectRoom,
+  selectVisibleDirectRooms,
+  splitHomeDirectSections,
+} from './homeDirectSections';
+
+const ME = '@maya:example.org';
+const LIAM = '@liam:example.org';
+const NORA = '@nora:example.org';
+const DEV_AGENT = '@mindroom_dev:example.org';
+const RESEARCHER = '@mindroom_researcher:example.org';
+const CUSTOM_AGENT = '@helper_bot:example.org';
+
+type MockDirectRoomOptions = {
+  roomId: string;
+  name?: string;
+  joined: number;
+  invited?: number;
+  partnerId?: string;
+  partnerDisplayName?: string;
+  partnerAvatarMxc?: string;
+  lastActiveTs?: number;
+  members?: Array<{ userId: string; membership: string; rawDisplayName?: string }>;
+};
+
+const makeRoom = ({
+  roomId,
+  name = roomId,
+  joined,
+  invited = 0,
+  partnerId,
+  partnerDisplayName,
+  partnerAvatarMxc,
+  lastActiveTs = 0,
+  members,
+}: MockDirectRoomOptions): Room =>
+  ({
+    roomId,
+    name,
+    myUserId: ME,
+    getJoinedMemberCount: () => joined,
+    getInvitedMemberCount: () => invited,
+    getLastActiveTimestamp: () => lastActiveTs,
+    getAvatarFallbackMember: () =>
+      partnerId
+        ? {
+            userId: partnerId,
+            rawDisplayName: partnerDisplayName,
+            getMxcAvatarUrl: () => partnerAvatarMxc ?? null,
+          }
+        : null,
+    getMember: (userId: string) => {
+      if (userId === partnerId) {
+        return {
+          userId,
+          rawDisplayName: partnerDisplayName ?? '',
+          getMxcAvatarUrl: () => partnerAvatarMxc ?? null,
+        };
+      }
+      return members?.find((m) => m.userId === userId) ?? null;
+    },
+    getMembers: () =>
+      members ?? [
+        { userId: ME, membership: 'join' },
+        ...(partnerId ? [{ userId: partnerId, membership: invited > 0 ? 'invite' : 'join' }] : []),
+      ],
+  }) as unknown as Room;
+
+const makeHomeAgent = (
+  overrides: Partial<HomeAgent> & Pick<HomeAgent, 'userId' | 'name'>
+): HomeAgent => ({
+  roomIds: ['!general:example.org'],
+  lastUsedTs: 0,
+  ...overrides,
+});
+
+describe('homeDirectSections', () => {
+  it('places Direct messages and Agents category IDs in the mindroom namespace', () => {
+    expect(HOME_DIRECT_CATEGORY_ID).toBe('mindroom|home-direct');
+    expect(HOME_AGENTS_CATEGORY_ID).toBe('mindroom|home-agents');
+    expect(HOME_DIRECT_CATEGORY_ID.startsWith('home|')).toBe(false);
+    expect(HOME_AGENTS_CATEGORY_ID.startsWith('home|')).toBe(false);
+  });
+
+  it('classifies 1:1 agent DMs separately from human 1:1 DMs, group DMs (even with agents), and self-DMs', () => {
+    const humanDm = makeRoom({ roomId: '!dm-liam:example.org', joined: 2, partnerId: LIAM });
+    const invitedHumanDm = makeRoom({
+      roomId: '!dm-nora:example.org',
+      joined: 1,
+      invited: 1,
+      partnerId: NORA,
+    });
+    const agentDm = makeRoom({ roomId: '!dm-dev:example.org', joined: 2, partnerId: DEV_AGENT });
+    const invitedAgentDm = makeRoom({
+      roomId: '!dm-researcher:example.org',
+      joined: 1,
+      invited: 1,
+      partnerId: RESEARCHER,
+    });
+    const customAgentDm = makeRoom({
+      roomId: '!dm-custom:example.org',
+      joined: 2,
+      partnerId: CUSTOM_AGENT,
+    });
+    const groupDmWithAgent = makeRoom({
+      roomId: '!dm-group-agent:example.org',
+      joined: 3,
+      partnerId: DEV_AGENT,
+    });
+    const groupDmWithInvitedAgent = makeRoom({
+      roomId: '!dm-group-invited:example.org',
+      joined: 2,
+      invited: 1,
+      partnerId: DEV_AGENT,
+    });
+    const selfDm = makeRoom({
+      roomId: '!dm-self:example.org',
+      joined: 1,
+      partnerId: ME,
+    });
+    const selfDmWithStalePartner = makeRoom({
+      roomId: '!dm-self-left:example.org',
+      joined: 1,
+      partnerId: DEV_AGENT,
+    });
+
+    const homeAgentIds = new Set([CUSTOM_AGENT]);
+
+    expect(isAgentOneToOneDirectRoom(humanDm, homeAgentIds)).toBe(false);
+    expect(isAgentOneToOneDirectRoom(invitedHumanDm, homeAgentIds)).toBe(false);
+    expect(isAgentOneToOneDirectRoom(agentDm, homeAgentIds)).toBe(true);
+    expect(isAgentOneToOneDirectRoom(invitedAgentDm, homeAgentIds)).toBe(true);
+    expect(isAgentOneToOneDirectRoom(customAgentDm, homeAgentIds)).toBe(true);
+    expect(isAgentOneToOneDirectRoom(groupDmWithAgent, homeAgentIds)).toBe(false);
+    expect(isAgentOneToOneDirectRoom(groupDmWithInvitedAgent, homeAgentIds)).toBe(false);
+    expect(isAgentOneToOneDirectRoom(selfDm, homeAgentIds)).toBe(false);
+    expect(isAgentOneToOneDirectRoom(selfDmWithStalePartner, homeAgentIds)).toBe(false);
+  });
+
+  it('merges useHomeAgents with unlisted 1:1 agent DMs and orders agents by recency', () => {
+    const liamDm = makeRoom({
+      roomId: '!dm-liam:example.org',
+      joined: 2,
+      partnerId: LIAM,
+      lastActiveTs: 9000,
+    });
+    const groupWithAgent = makeRoom({
+      roomId: '!dm-design-group:example.org',
+      joined: 3,
+      partnerId: DEV_AGENT,
+      lastActiveTs: 8500,
+    });
+    const selfDm = makeRoom({
+      roomId: '!dm-self:example.org',
+      joined: 1,
+      partnerId: ME,
+      lastActiveTs: 8000,
+    });
+    const devDm = makeRoom({
+      roomId: '!dm-dev:example.org',
+      joined: 2,
+      partnerId: DEV_AGENT,
+      partnerDisplayName: 'DevAgent',
+      lastActiveTs: 4000,
+    });
+    const unlistedAgentDm = makeRoom({
+      roomId: '!dm-researcher:example.org',
+      joined: 2,
+      partnerId: RESEARCHER,
+      partnerDisplayName: 'Researcher',
+      partnerAvatarMxc: 'mxc://example.org/researcher',
+      lastActiveTs: 7000,
+    });
+
+    const devAgent = makeHomeAgent({
+      userId: DEV_AGENT,
+      name: 'DevAgent',
+      avatarMxc: 'mxc://example.org/dev',
+      direct: { roomId: '!dm-dev:example.org', waiting: false },
+      lastUsedTs: 2000,
+    });
+    const writerAgent = makeHomeAgent({
+      userId: '@mindroom_writer:example.org',
+      name: 'Writer',
+      lastUsedTs: 6000,
+    });
+
+    const result = splitHomeDirectSections(
+      [liamDm, groupWithAgent, selfDm, unlistedAgentDm, devDm],
+      [writerAgent, devAgent]
+    );
+
+    expect(result.humanDms.map((r) => r.roomId)).toEqual([
+      '!dm-liam:example.org',
+      '!dm-design-group:example.org',
+      '!dm-self:example.org',
+    ]);
+    expect(
+      result.agents.map((a) => ({
+        userId: a.userId,
+        name: a.name,
+        dmRoomId: a.dmRoom?.roomId,
+        directRoomId: a.directRoomId,
+        avatarMxc: a.avatarMxc,
+        lastActivityTs: a.lastActivityTs,
+      }))
+    ).toEqual([
+      {
+        userId: RESEARCHER,
+        name: 'Researcher',
+        dmRoomId: '!dm-researcher:example.org',
+        directRoomId: '!dm-researcher:example.org',
+        avatarMxc: 'mxc://example.org/researcher',
+        lastActivityTs: 7000,
+      },
+      {
+        userId: '@mindroom_writer:example.org',
+        name: 'Writer',
+        dmRoomId: undefined,
+        directRoomId: undefined,
+        avatarMxc: undefined,
+        lastActivityTs: 6000,
+      },
+      {
+        userId: DEV_AGENT,
+        name: 'DevAgent',
+        dmRoomId: '!dm-dev:example.org',
+        directRoomId: '!dm-dev:example.org',
+        avatarMxc: 'mxc://example.org/dev',
+        lastActivityTs: 4000,
+      },
+    ]);
+    expect(result.agentDmRoomIds).toEqual(['!dm-researcher:example.org', '!dm-dev:example.org']);
+  });
+
+  it('keeps duplicate 1:1 agent DMs out of humanDms while attaching the most recently active DM', () => {
+    const newer = makeRoom({
+      roomId: '!dm-dev-new:example.org',
+      joined: 2,
+      partnerId: DEV_AGENT,
+      lastActiveTs: 5000,
+    });
+    const older = makeRoom({
+      roomId: '!dm-dev-old:example.org',
+      joined: 2,
+      partnerId: DEV_AGENT,
+      lastActiveTs: 1000,
+    });
+    const result = splitHomeDirectSections([newer, older], []);
+    expect(result.humanDms).toEqual([]);
+    expect(result.agents).toHaveLength(1);
+    expect(result.agents[0]?.dmRoom?.roomId).toBe('!dm-dev-new:example.org');
+  });
+
+  it('caps Direct messages at 5 + selected when > 6 and expands all when requested', () => {
+    const six = Array.from({ length: 6 }, (_, i) =>
+      makeRoom({ roomId: `!dm-${i + 1}:example.org`, joined: 2, partnerId: `@u${i}:example.org` })
+    );
+    expect(selectVisibleDirectRooms(six, undefined, false)).toEqual({
+      rooms: six,
+      capped: false,
+    });
+
+    const eight = [
+      ...six,
+      makeRoom({ roomId: '!dm-7:example.org', joined: 2, partnerId: '@u7:example.org' }),
+      makeRoom({ roomId: '!dm-8:example.org', joined: 2, partnerId: '@u8:example.org' }),
+    ];
+
+    const collapsedNoSelection = selectVisibleDirectRooms(eight, undefined, false);
+    expect(collapsedNoSelection.capped).toBe(true);
+    expect(collapsedNoSelection.rooms.map((r) => r.roomId)).toEqual([
+      '!dm-1:example.org',
+      '!dm-2:example.org',
+      '!dm-3:example.org',
+      '!dm-4:example.org',
+      '!dm-5:example.org',
+    ]);
+
+    // Selected room past index 5 stays visible under the compact cap.
+    const collapsedWithLateSelection = selectVisibleDirectRooms(eight, '!dm-8:example.org', false);
+    expect(collapsedWithLateSelection.capped).toBe(true);
+    expect(collapsedWithLateSelection.rooms.map((r) => r.roomId)).toEqual([
+      '!dm-1:example.org',
+      '!dm-2:example.org',
+      '!dm-3:example.org',
+      '!dm-4:example.org',
+      '!dm-5:example.org',
+      '!dm-8:example.org',
+    ]);
+
+    // Selected room within the first 5 is not duplicated.
+    const collapsedWithEarlySelection = selectVisibleDirectRooms(eight, '!dm-3:example.org', false);
+    expect(collapsedWithEarlySelection.rooms.map((r) => r.roomId)).toHaveLength(5);
+
+    // Expanded shows every room.
+    const expanded = selectVisibleDirectRooms(eight, '!dm-8:example.org', true);
+    expect(expanded.capped).toBe(false);
+    expect(expanded.rooms.map((r) => r.roomId)).toHaveLength(8);
+  });
+
+  it('deduplicates room IDs while preserving rendered visual order', () => {
+    expect(dedupeRoomIds(['!a', '!b'], ['!b', '!c'], ['!a', '!d'])).toEqual([
+      '!a',
+      '!b',
+      '!c',
+      '!d',
+    ]);
+  });
+});

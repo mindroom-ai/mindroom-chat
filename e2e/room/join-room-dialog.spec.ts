@@ -71,13 +71,23 @@ const seed = async () => {
   return { viewer, listed, unlisted };
 };
 
+const clickJoinRoomAction = async (page: Page) => {
+  const trigger = page
+    .locator('[data-home-room-action="join"], [data-home-room-action="add"]')
+    .first();
+  await trigger.click();
+  if ((await trigger.getAttribute('data-home-room-action')) === 'add') {
+    await page.locator('[data-home-room-action="join"]').click();
+  }
+};
+
 const openDialog = async (page: Page, viewer: Account): Promise<Locator> => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: viewer.username,
     password: PASSWORD,
   });
-  await page.locator('[data-home-room-action="join"]').click();
+  await clickJoinRoomAction(page);
   const dialog = page.getByRole('dialog', { name: 'Join a Room' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -191,7 +201,7 @@ test('Open goes to a joined room and the Explore link to Explore', async ({ page
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(/\/home\/(!|%21)/);
 
-  await page.locator('[data-home-room-action="join"]').click();
+  await clickJoinRoomAction(page);
   dialog = page.getByRole('dialog', { name: 'Join a Room' });
   await dialog.getByRole('link', { name: 'Browse more on Explore' }).click();
   await expect(dialog).toBeHidden();
@@ -221,7 +231,7 @@ test('saves the dialog in dark and light themes and at a phone width', async ({ 
     }, themeId);
     await page.goto('/home/');
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
-    await page.locator('[data-home-room-action="join"]').click();
+    await clickJoinRoomAction(page);
     const dialog = page.getByRole('dialog', { name: 'Join a Room' });
     for (const room of listed) await expect(rowOf(dialog, room.name)).toBeVisible();
     // The sync pill can come back while the dialog opens; the picture waits for it to go.
