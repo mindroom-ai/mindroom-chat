@@ -16,6 +16,7 @@ module.exports = {
   // and the userData profile folder as "MindRoom Chat" (not "mindroom-client").
   extraMetadata: {
     productName: 'MindRoom Chat',
+    desktopName: 'mindroom-chat.desktop',
     ...(marketingVersion ? { version: marketingVersion } : {}),
   },
   directories: {
@@ -31,10 +32,6 @@ module.exports = {
     'dist/**/*',
     'package.json',
     '!node_modules/**/*',
-  ],
-  extraResources: [
-    { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
-    { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
   ],
   mac: {
     // electron-builder 26.18.0 rejects a top-level `zip` key in schema validation;
@@ -56,6 +53,10 @@ module.exports = {
     icon: 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png',
     category: 'public.app-category.social-networking',
     notarize: sign,
+    extraResources: [
+      { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+      { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
+    ],
     target: [
       { target: 'dmg', arch: ['universal'] },
       { target: 'zip', arch: ['arm64', 'x64'] },
@@ -69,6 +70,11 @@ module.exports = {
       NSAudioCaptureUsageDescription:
         'MindRoom needs audio capture access to share system audio during screen sharing.',
       ITSAppUsesNonExemptEncryption: false,
+    },
+    publish: {
+      provider: 'generic',
+      url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
+      useMultipleRangeRequest: false,
     },
   },
   dmg: {
@@ -85,6 +91,33 @@ module.exports = {
       { x: 480, y: 160, type: 'link', path: '/Applications' },
     ],
   },
+  linux: {
+    executableName: 'mindroom-chat',
+    icon: 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png',
+    category: 'Network',
+    maintainer: 'MindRoom <support@mindroom.chat>',
+    vendor: 'MindRoom',
+    desktop: {
+      entry: {
+        Name: 'MindRoom Chat',
+        Comment: 'Open-source Matrix client for MindRoom',
+        Categories: 'Network;InstantMessaging;Chat;',
+        StartupWMClass: 'mindroom-chat',
+      },
+    },
+    target: ['AppImage', 'deb'],
+    publish: {
+      provider: 'generic',
+      url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/linux-feed',
+      useMultipleRangeRequest: false,
+    },
+  },
+  appImage: {
+    artifactName: 'MindRoom-Chat-${arch}.AppImage',
+  },
+  deb: {
+    artifactName: 'MindRoom-Chat-${arch}.deb',
+  },
   electronFuses: {
     runAsNode: false,
     enableCookieEncryption: true,
@@ -94,10 +127,5 @@ module.exports = {
     onlyLoadAppFromAsar: true,
     grantFileProtocolExtraPrivileges: false,
     resetAdHocDarwinSignature: !sign,
-  },
-  publish: {
-    provider: 'generic',
-    url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
-    useMultipleRangeRequest: false,
   },
 };

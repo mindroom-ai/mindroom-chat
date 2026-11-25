@@ -101,6 +101,8 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     });
     const unsigned = loadBuilderConfig({ MARKETING_VERSION: '', MINDROOM_DESKTOP_SIGN: '0' });
 
+    expect(signed.extraResources).toBeUndefined();
+    expect(signed.publish).toBeUndefined();
     expect(signed).toMatchObject({
       appId: 'chat.mindroom.app',
       productName: 'MindRoom Chat',
@@ -108,21 +110,16 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       asar: true,
       npmRebuild: false,
       buildVersion: '2026.11.9',
-      publish: {
-        provider: 'generic',
-        url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
-        useMultipleRangeRequest: false,
+      extraMetadata: {
+        productName: 'MindRoom Chat',
+        desktopName: 'mindroom-chat.desktop',
+        version: '2026.11.9',
       },
-      extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
       files: expect.arrayContaining([
         '!build/electron/mindroom-screenshot-helper',
         '!build/electron/mindroom-trackpad-swipe.node',
       ]),
-      extraResources: [
-        { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
-        { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
-      ],
       mac: {
         artifactName: 'MindRoom-Chat-${arch}-mac.${ext}',
         bundleShortVersion: '2026.11.9',
@@ -134,12 +131,47 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         entitlements: 'electron/entitlements.mac.plist',
         entitlementsInherit: 'electron/entitlements.helper.plist',
         signIgnore: ['Contents/Helpers/MindRoom Desktop Helper\\.app(/|$)'],
+        extraResources: [
+          { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+          {
+            from: 'build/electron/mindroom-trackpad-swipe.node',
+            to: 'mindroom-trackpad-swipe.node',
+          },
+        ],
         target: [
           { target: 'dmg', arch: ['universal'] },
           { target: 'zip', arch: ['arm64', 'x64'] },
         ],
+        publish: {
+          provider: 'generic',
+          url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
+          useMultipleRangeRequest: false,
+        },
       },
       dmg: { artifactName: 'MindRoom-Chat.dmg', title: 'MindRoom Chat', writeUpdateInfo: false },
+      linux: {
+        executableName: 'mindroom-chat',
+        icon: 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png',
+        category: 'Network',
+        maintainer: 'MindRoom <support@mindroom.chat>',
+        vendor: 'MindRoom',
+        desktop: {
+          entry: {
+            Name: 'MindRoom Chat',
+            Comment: 'Open-source Matrix client for MindRoom',
+            Categories: 'Network;InstantMessaging;Chat;',
+            StartupWMClass: 'mindroom-chat',
+          },
+        },
+        target: ['AppImage', 'deb'],
+        publish: {
+          provider: 'generic',
+          url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/linux-feed',
+          useMultipleRangeRequest: false,
+        },
+      },
+      appImage: { artifactName: 'MindRoom-Chat-${arch}.AppImage' },
+      deb: { artifactName: 'MindRoom-Chat-${arch}.deb' },
     });
 
     expect(signed.files).toContain('!build/electron/MindRoom Desktop Helper.app/**');
@@ -170,10 +202,17 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     };
     expect(signed.electronFuses).toEqual({ ...baseFuses, resetAdHocDarwinSignature: false });
     expect(unsigned.electronFuses).toEqual({ ...baseFuses, resetAdHocDarwinSignature: true });
-    expect(unsigned.extraMetadata).toEqual({ productName: 'MindRoom Chat' });
+    expect(unsigned.extraMetadata).toEqual({
+      productName: 'MindRoom Chat',
+      desktopName: 'mindroom-chat.desktop',
+    });
     expect(unsigned.mac).toMatchObject({ notarize: false, forceCodeSigning: false });
     expect(rawConfig).not.toContain('CFBundleURLTypes');
+    expect(rawConfig).not.toContain('MimeType');
     expect(rawConfig).not.toContain('provisioningProfile');
+    expect((JSON.parse(read('package.json')) as { homepage?: string }).homepage).toBe(
+      'https://github.com/mindroom-ai/mindroom-chat'
+    );
 
     for (const plist of ['electron/entitlements.mac.plist', 'electron/entitlements.helper.plist']) {
       const xml = read(plist);
