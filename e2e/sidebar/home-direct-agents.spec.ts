@@ -13,6 +13,7 @@ import {
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
+  sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
 
@@ -93,6 +94,8 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
   // Create unspaced room, space + nested room, 1:1 human DM, group DM, self-DM, and 1:1 agent DM.
   const general = await createRoom(HOMESERVER, viewer.accessToken, {
     name: 'general',
+    // Invitees get the creator's power, so the agents may publish their io.mindroom.server state.
+    preset: 'trusted_private_chat',
     invite: [devAgent.userId, researcher.userId],
   });
   const engineering = await createRoom(HOMESERVER, viewer.accessToken, {
@@ -116,6 +119,25 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
     joinRoom(HOMESERVER, liam.accessToken, groupDm),
     joinRoom(HOMESERVER, sora.accessToken, groupDm),
     joinRoom(HOMESERVER, devAgent.accessToken, devDm),
+  ]);
+
+  await Promise.all([
+    sendStateEvent(
+      HOMESERVER,
+      devAgent.accessToken,
+      general,
+      'io.mindroom.server',
+      devAgent.userId,
+      { role: 'Builds features' }
+    ),
+    sendStateEvent(
+      HOMESERVER,
+      researcher.accessToken,
+      general,
+      'io.mindroom.server',
+      researcher.userId,
+      { role: 'Answers research questions' }
+    ),
   ]);
 
   await setAccountData(HOMESERVER, viewer.accessToken, viewer.userId, 'm.direct', {

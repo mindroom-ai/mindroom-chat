@@ -6,6 +6,7 @@ import { EventType, RoomEvent, RoomStateEvent, type MatrixClient, type Room } fr
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
 import { BlockType } from '../../editor/types';
 import { isRecord } from '../../lib/isRecord';
+import { localDigits } from '../../lib/localDigits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { IconTooltip } from '../../ui/IconTooltip';
@@ -113,8 +114,20 @@ const nodeHasDraftContent = (node: unknown): boolean => {
 export const hasMeaningfulDraftContent = (draft: readonly unknown[]): boolean =>
   draft.some(nodeHasDraftContent);
 
-/** Isolated pencil mark subscribed to this room's local composer draft so typing re-renders only this mark. */
-export function RoomDraftMark({ room }: { room: Room }) {
+/**
+ * Isolated pencil mark and accessible hidden description subscribed to this room's local composer
+ * draft so typing re-renders only this mark. Hiding the visual icon on hover/focus preserves the
+ * `aria-describedby` draft status for keyboard and screen-reader users.
+ */
+export function RoomDraftMark({
+  room,
+  descriptionId,
+  showIcon,
+}: {
+  room: Room;
+  descriptionId: string;
+  showIcon: boolean;
+}) {
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const userId = mx.getUserId?.() ?? room.myUserId ?? '';
@@ -126,21 +139,28 @@ export function RoomDraftMark({ room }: { room: Room }) {
     [userId, room.roomId]
   );
   const draft = useAtomValue(draftAtom);
-  if (!hasMeaningfulDraftContent(draft)) return null;
+  const hasDraft = hasMeaningfulDraftContent(draft);
   const label = t('featureUi.roomNav.roomNavItem.draft');
   return (
-    <IconTooltip label={label}>
-      {(triggerRef) => (
-        <Icon
-          ref={triggerRef}
-          src={Icons.Pencil}
-          size="50"
-          aria-label={label}
-          data-draft-indicator="true"
-          style={{ opacity: config.opacity.P500 }}
-        />
+    <>
+      {hasDraft && showIcon && (
+        <IconTooltip label={label}>
+          {(triggerRef) => (
+            <Icon
+              ref={triggerRef}
+              src={Icons.Pencil}
+              size="50"
+              aria-hidden="true"
+              data-draft-indicator="true"
+              style={{ opacity: config.opacity.P500 }}
+            />
+          )}
+        </IconTooltip>
       )}
-    </IconTooltip>
+      <span id={descriptionId} hidden>
+        {hasDraft ? label : undefined}
+      </span>
+    </>
   );
 }
 
@@ -170,7 +190,7 @@ export function GroupCountAvatar({
   count: number;
   descriptionId: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <>
       <Avatar
@@ -181,7 +201,7 @@ export function GroupCountAvatar({
         aria-hidden="true"
       >
         <Text as="span" size="L400">
-          {count}
+          {localDigits(`${count}`, i18n.language)}
         </Text>
       </Avatar>
       <span id={descriptionId} hidden>

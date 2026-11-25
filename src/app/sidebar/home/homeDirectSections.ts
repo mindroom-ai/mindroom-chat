@@ -1,5 +1,9 @@
 import type { Room } from 'matrix-js-sdk';
-import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
+import {
+  isMindroomAgentUserIdForViewer,
+  isMindroomOwnerUserId,
+} from '../../matrix/protocol/agentIdentity';
+import { roomTrustedAgents } from '../../matrix/protocol/agentRoomState';
 import { getDirectPartnerId } from '../../matrix/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { getDirectActiveMemberCount, getMDirectPartnerId } from '../room-nav/DirectRoomRowExtras';
@@ -58,7 +62,8 @@ export const getDirectPartnerUserId = (
 
 /**
  * Whether `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs and the router owner
- * account, with a partner matching MindRoom agent identity or `homeAgentIds`).
+ * account, with a partner matching same-homeserver MindRoom agent identity, `homeAgentIds`, or
+ * the room's trusted MindRoom roster).
  */
 export const isAgentOneToOneDirectRoom = (
   room: Room,
@@ -70,7 +75,11 @@ export const isAgentOneToOneDirectRoom = (
   const partnerId = getDirectPartnerUserId(room, mDirect);
   if (!partnerId || partnerId === room.myUserId) return false;
   if (isMindroomOwnerUserId(partnerId)) return false;
-  return isMindroomAgentUserId(partnerId) || homeAgentIds.has(partnerId);
+  return (
+    isMindroomAgentUserIdForViewer(partnerId, room.myUserId) ||
+    homeAgentIds.has(partnerId) ||
+    (Boolean(room.currentState) && roomTrustedAgents(room).has(partnerId))
+  );
 };
 
 /**

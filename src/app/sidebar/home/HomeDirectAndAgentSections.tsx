@@ -1,4 +1,4 @@
-import { type MouseEventHandler, useRef, useState } from 'react';
+import { type MouseEventHandler, useCallback, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -60,16 +60,13 @@ function AgentActiveRunDot({
 /** Agent row for an agent without a live DM room yet; clicking opens or starts its 1:1 DM in Home. */
 function HomeAgentStartRow({
   agent,
-  homeRoomPath,
-  roomVersion,
+  onStart,
 }: {
   agent: HomeSidebarAgent;
-  homeRoomPath: (roomId: string) => string;
-  roomVersion: string | undefined;
+  onStart: (agent: HomeSidebarAgent) => Promise<void> | undefined;
 }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const navigate = useNavigate();
   const useAuthentication = useMediaAuthentication();
   const alive = useAlive();
   const [pending, setPending] = useState(false);
@@ -88,23 +85,16 @@ function HomeAgentStartRow({
     : undefined;
 
   const handleSelect = () => {
-    if (agent.directRoomId) {
-      void navigate(homeRoomPath(agent.directRoomId));
-      return;
-    }
     if (startingRef.current) return;
+    const task = onStart(agent);
+    if (!task) return;
     startingRef.current = true;
     setPending(true);
     setFailed(false);
-    startDirectChat(client, agent.userId, roomVersion)
-      .then(
-        (roomId) => {
-          if (alive()) void navigate(homeRoomPath(roomId));
-        },
-        () => {
-          if (alive()) setFailed(true);
-        }
-      )
+    task
+      .catch(() => {
+        if (alive()) setFailed(true);
+      })
       .finally(() => {
         startingRef.current = false;
         if (alive()) setPending(false);
@@ -273,7 +263,25 @@ export function HomeAgentsSection({
   notificationPreferences,
 }: HomeAgentsSectionProps) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
+  const navigate = useNavigate();
+  const alive = useAlive();
   const roomVersion = useCapabilities()['m.room_versions']?.default;
+
+  // Navigation lives on the section so a live m.direct sync swapping HomeAgentStartRow for
+  // RoomNavItem before startDirectChat resolves does not cancel navigation.
+  const handleStartAgent = useCallback(
+    (agent: HomeSidebarAgent): Promise<void> | undefined => {
+      if (agent.directRoomId) {
+        void navigate(homeRoomPath(agent.directRoomId));
+        return undefined;
+      }
+      return startDirectChat(client, agent.userId, roomVersion).then((roomId) => {
+        if (alive()) void navigate(homeRoomPath(roomId));
+      });
+    },
+    [alive, client, homeRoomPath, navigate, roomVersion]
+  );
 
   return (
     <NavCategory data-testid="home-agents-section">
@@ -289,14 +297,7 @@ export function HomeAgentsSection({
       {visibleAgents.map((agent) => {
         const { dmRoom } = agent;
         if (!dmRoom) {
-          return (
-            <HomeAgentStartRow
-              key={agent.userId}
-              agent={agent}
-              homeRoomPath={homeRoomPath}
-              roomVersion={roomVersion}
-            />
-          );
+          return <HomeAgentStartRow key={agent.userId} agent={agent} onStart={handleStartAgent} />;
         }
         return (
           <RoomNavItem

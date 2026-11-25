@@ -523,6 +523,85 @@ describe('HomeAgentsSection', () => {
       )
     ).toHaveLength(0);
   });
+
+  it('still navigates when m.direct sync swaps HomeAgentStartRow for RoomNavItem before startDirectChat resolves', async () => {
+    let resolveChat!: (roomId: string) => void;
+    state.startDirectChat.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveChat = resolve;
+      })
+    );
+
+    const store = makeUnreadStore();
+    const pendingAgent: HomeSidebarAgent = {
+      userId: '@mindroom_dev:example.org',
+      name: 'DevAgent',
+      lastActivityTs: 2000,
+    };
+
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <HomeAgentsSection
+            visibleAgents={[pendingAgent]}
+            agentDmRoomIds={[]}
+            closed={false}
+            selectedRoomId={undefined}
+            onCategoryClick={vi.fn()}
+            homeRoomPath={(id) => `/home/${id}`}
+            notificationPreferences={new Map()}
+          />
+        </Provider>
+      );
+    });
+
+    const startButton = renderer!.root.find(
+      (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
+    );
+    act(() => {
+      startButton.props.onClick();
+    });
+    expect(state.startDirectChat).toHaveBeenCalledTimes(1);
+
+    // Live m.direct sync arrives before startDirectChat resolves, swapping the start button for RoomNavItem.
+    const liveRoom = makeRoom('!dm-synced:example.org');
+    act(() => {
+      renderer!.update(
+        <Provider store={store}>
+          <HomeAgentsSection
+            visibleAgents={[
+              {
+                ...pendingAgent,
+                dmRoom: liveRoom,
+                directRoomId: liveRoom.roomId,
+              },
+            ]}
+            agentDmRoomIds={[liveRoom.roomId]}
+            closed={false}
+            selectedRoomId={undefined}
+            onCategoryClick={vi.fn()}
+            homeRoomPath={(id) => `/home/${id}`}
+            notificationPreferences={new Map()}
+          />
+        </Provider>
+      );
+    });
+    expect(
+      renderer!.root.findAll(
+        (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (n) => typeof n.type === 'string' && n.props['data-room-row'] === '!dm-synced:example.org'
+      )
+    ).toHaveLength(1);
+
+    await act(async () => {
+      resolveChat('!dm-synced:example.org');
+    });
+    expect(state.navigate).toHaveBeenCalledWith('/home/!dm-synced:example.org');
+  });
 });
 
 describe('useHomeAddRoomsMenu', () => {

@@ -29,6 +29,10 @@ type MockDirectRoomOptions = {
   partnerAvatarMxc?: string;
   lastActiveTs?: number;
   members?: Array<{ userId: string; membership: string; rawDisplayName?: string }>;
+  stateEvents?: Record<
+    string,
+    Array<{ stateKey: string; sender: string; content: Record<string, unknown> }>
+  >;
 };
 
 const makeRoom = ({
@@ -41,6 +45,7 @@ const makeRoom = ({
   partnerAvatarMxc,
   lastActiveTs = 0,
   members,
+  stateEvents,
 }: MockDirectRoomOptions): Room =>
   ({
     roomId,
@@ -61,12 +66,24 @@ const makeRoom = ({
       if (userId === partnerId) {
         return {
           userId,
+          membership: invited > 0 ? 'invite' : 'join',
           rawDisplayName: partnerDisplayName ?? '',
           getMxcAvatarUrl: () => partnerAvatarMxc ?? null,
         };
       }
       return members?.find((m) => m.userId === userId) ?? null;
     },
+    currentState: stateEvents
+      ? {
+          getStateEvents: (eventType: string) =>
+            (stateEvents[eventType] ?? []).map((ev) => ({
+              getStateKey: () => ev.stateKey,
+              getSender: () => ev.sender,
+              getContent: () => ev.content,
+              isRedacted: () => false,
+            })),
+        }
+      : undefined,
     getMembers: () =>
       members ?? [
         { userId: ME, membership: 'join' },
@@ -324,6 +341,47 @@ describe('homeDirectSections', () => {
       { userId: DEV_AGENT, dmRoomId: '!dm-lazy-dev:example.org' },
       { userId: CUSTOM_AGENT, dmRoomId: '!dm-lazy-custom:example.org' },
       { userId: '@mindroom_router_helper:example.org', dmRoomId: '!dm-router-agent:example.org' },
+    ]);
+  });
+
+  it('keeps foreign-homeserver mindroom_* partners in humanDms and classifies trusted-roster custom agents into agents', () => {
+    const foreignSpoofDm = makeRoom({
+      roomId: '!dm-foreign:example.org',
+      joined: 2,
+      partnerId: '@mindroom_dev:foreign.example',
+      lastActiveTs: 4000,
+    });
+    const routerId = '@mindroom_router:example.org';
+    const rosteredCustomId = '@studio_helper:example.org';
+    const rosteredCustomDm = makeRoom({
+      roomId: '!dm-rostered:example.org',
+      joined: 2,
+      partnerId: rosteredCustomId,
+      partnerDisplayName: 'Studio Helper',
+      lastActiveTs: 3000,
+      stateEvents: {
+        'm.room.power_levels': [
+          {
+            stateKey: '',
+            sender: routerId,
+            content: { users_default: 0, state_default: 50, users: { [routerId]: 100 } },
+          },
+        ],
+        'io.mindroom.router': [{ stateKey: '', sender: routerId, content: { user_id: routerId } }],
+        'io.mindroom.accounts': [
+          {
+            stateKey: routerId,
+            sender: routerId,
+            content: { accounts: [rosteredCustomId] },
+          },
+        ],
+      },
+    });
+
+    const result = splitHomeDirectSections([foreignSpoofDm, rosteredCustomDm], []);
+    expect(result.humanDms.map((r) => r.roomId)).toEqual(['!dm-foreign:example.org']);
+    expect(result.agents.map((a) => ({ userId: a.userId, dmRoomId: a.dmRoom?.roomId }))).toEqual([
+      { userId: rosteredCustomId, dmRoomId: '!dm-rostered:example.org' },
     ]);
   });
 

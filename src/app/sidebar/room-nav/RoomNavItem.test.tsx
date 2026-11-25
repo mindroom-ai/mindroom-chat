@@ -22,6 +22,7 @@ const testState = vi.hoisted(() => ({
   useRelativeTime: vi.fn((ts: number, format?: string) => `${format}:${ts}`),
   activeCall: undefined as ActiveCall | undefined,
   setHover: undefined as ((hovering: boolean) => void) | undefined,
+  setFocusWithin: undefined as ((focused: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
       ? `https://media.example.org/${mxc.slice('mxc://example.org/'.length)}`
@@ -74,7 +75,14 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('react-aria', () => ({
-  useFocusWithin: () => ({ focusWithinProps: {} }),
+  useFocusWithin: ({
+    onFocusWithinChange,
+  }: {
+    onFocusWithinChange: (focused: boolean) => void;
+  }) => {
+    testState.setFocusWithin = onFocusWithinChange;
+    return { focusWithinProps: {} };
+  },
   useHover: ({ onHoverChange }: { onHoverChange: (hovering: boolean) => void }) => {
     testState.setHover = onHoverChange;
     return { hoverProps: {} };
@@ -634,6 +642,26 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(updatedDescription.children).toEqual(['4 members']);
   });
 
+  it('formats the group DM count avatar with locale-native digits', async () => {
+    const i18n = (await import('../../i18n/i18n')).default;
+    const prevLang = i18n.language;
+    await act(async () => {
+      await i18n.changeLanguage('bn');
+    });
+    try {
+      const dm = makeDirectRoom(3, 0);
+      const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true });
+      const countAvatar = renderer.root.find(
+        (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 3
+      );
+      expect(countAvatar.findByType('span').children).toEqual(['৩']);
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage(prevLang);
+      });
+    }
+  });
+
   it('renders a muted "you" tag only for verified self-DMs listed under myUserId in m.direct', () => {
     const selfDm = makeDirectRoom(1, 0, '!dm-self:example.org');
     testState.mDirectContent = { '@me:example.org': ['!dm-self:example.org'] };
@@ -727,18 +755,41 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(pencils()[0]!.props.src).toBe('Pencil');
     expect(useRoomNameMock.mock.calls.length).toBe(rendersAfterMount);
 
-    // Hovering the row hides the pencil so options take the trailing slot.
+    const draftDescriptionText = () => {
+      const ids =
+        (renderer.root.findByType('a').props['aria-describedby'] as string | undefined)?.split(
+          ' '
+        ) ?? [];
+      return ids
+        .flatMap((id) =>
+          renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
+        )
+        .flatMap((node) => node.children);
+    };
+
+    expect(pencils()[0]!.props['aria-hidden']).toBe('true');
+    expect(draftDescriptionText()).toEqual(['Draft']);
+
+    // Hovering or focusing the row hides the visual pencil for options, while keeping "Draft" in aria-describedby.
     act(() => testState.setHover?.(true));
     expect(pencils()).toHaveLength(0);
-
-    // Leaving hover restores it; clearing the draft removes it without re-rendering RoomNavItem.
+    expect(draftDescriptionText()).toEqual(['Draft']);
     act(() => testState.setHover?.(false));
     expect(pencils()).toHaveLength(1);
+
+    act(() => testState.setFocusWithin?.(true));
+    expect(pencils()).toHaveLength(0);
+    expect(draftDescriptionText()).toEqual(['Draft']);
+    act(() => testState.setFocusWithin?.(false));
+    expect(pencils()).toHaveLength(1);
+
+    // Clearing the draft removes both the pencil and the hidden description without re-rendering RoomNavItem.
     const rendersBeforeClear = useRoomNameMock.mock.calls.length;
     act(() => {
       store.set(draftAtom, []);
     });
     expect(pencils()).toHaveLength(0);
+    expect(draftDescriptionText()).toEqual([]);
     expect(useRoomNameMock.mock.calls.length).toBe(rendersBeforeClear);
   });
 

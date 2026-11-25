@@ -152,7 +152,8 @@ type RoomNavLinkProps = {
   maybeSelfDirect: boolean;
   fallbackAvatarMxc?: string;
   avatarBadge?: AvatarBadgeProp;
-  showDraftMark: boolean;
+  showDraft: boolean;
+  showDraftIcon: boolean;
   selected: boolean;
   hasUnread: boolean;
   /** Unread badge or muted mark at the end of the row. */
@@ -174,7 +175,8 @@ function RoomNavLink({
   maybeSelfDirect,
   fallbackAvatarMxc,
   avatarBadge,
-  showDraftMark,
+  showDraft,
+  showDraftIcon,
   selected,
   hasUnread,
   status,
@@ -186,6 +188,7 @@ function RoomNavLink({
   const inCall = useInCall(room.roomId);
   const callStatusId = useId();
   const groupCountId = useId();
+  const draftStatusId = useId();
   const avatarBadgeDescId = useId();
   const callStatus = inCall ? t('featureUi.calls.transcription.inCall') : undefined;
   const hasGroupCount = Boolean(
@@ -197,6 +200,7 @@ function RoomNavLink({
     [
       inCall ? callStatusId : undefined,
       hasGroupCount ? groupCountId : undefined,
+      showDraft ? draftStatusId : undefined,
       hasDynamicBadgeDesc ? avatarBadgeDescId : undefined,
     ]
       .filter(Boolean)
@@ -233,7 +237,9 @@ function RoomNavLink({
           </span>
           <BackgroundJobsMark room={room} />
           {callStatus && <CallMark id={callStatusId} label={callStatus} />}
-          {showDraftMark && <RoomDraftMark room={room} />}
+          {showDraft && (
+            <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={showDraftIcon} />
+          )}
           {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
         </Box>
       </NavItemContent>
@@ -353,7 +359,8 @@ export function RoomNavItem({
         maybeSelfDirect={Boolean(direct) && directMemberCount === 1}
         fallbackAvatarMxc={fallbackAvatarMxc}
         avatarBadge={avatarBadge}
-        showDraftMark={Boolean(showDraft && !showOptions)}
+        showDraft={Boolean(showDraft)}
+        showDraftIcon={!showOptions}
         selected={selected}
         hasUnread={Boolean(unread)}
         status={status}
