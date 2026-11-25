@@ -1537,7 +1537,9 @@
       "jobTotal_one": "{{count}} background job",
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
-      "jobTotalFinished_other": "{{count}} background jobs finished"
+      "jobTotalFinished_other": "{{count}} background jobs finished",
+      "reviewApprovalFor": "Review approval: {{tool}}",
+      "checkingApproval": "Checking approval…"
     },
     "workflowRun": {
       "title": "Workflow",

@@ -1537,7 +1537,9 @@
       "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
-      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "reviewApprovalFor": "অনুমোদন পর্যালোচনা করুন: {{tool}}",
+      "checkingApproval": "অনুমোদন পরীক্ষা করা হচ্ছে…"
     },
     "workflowRun": {
       "title": "ওয়ার্কফ্লো",

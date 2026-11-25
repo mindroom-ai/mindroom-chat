@@ -1490,7 +1490,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 个后台任务",
-      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成",
+      "reviewApprovalFor": "审核批准：{{tool}}",
+      "checkingApproval": "正在检查批准…"
     },
     "workflowRun": {
       "title": "工作流",
