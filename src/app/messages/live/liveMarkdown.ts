@@ -324,11 +324,11 @@ export const loadLiveMarkdown = (): Promise<void> => {
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
 export const renderLiveMarkdown = (
   md: string,
-  options?: { allowHtmlComments?: boolean }
+  options?: { commonMarkHtml?: boolean }
 ): string | undefined => {
   if (!renderer || !rendererWithoutFootnotes) return undefined;
   const lf = md.replace(/\r\n?/g, '\n');
-  const prepared = options?.allowHtmlComments
+  const prepared = options?.commonMarkHtml
     ? lf
     : transformOutsideFencedCode(lf, escapeHtmlBlockOpeners);
   const normalized = transformOutsideFencedCode(prepared, separateSupportedBlockHtml);

@@ -203,17 +203,17 @@ describe('useMarkdownHtml', () => {
     expect(shown.querySelector('li strong')?.textContent).toBe('one');
   });
 
-  it('keeps line-start HTML comments escaped by default and strips them with stripHtmlComments', async () => {
+  it('keeps line-start HTML comments escaped by default and strips them with commonMarkHtml', async () => {
     const md = '<!-- note -->\n**after**';
     const { result, rerender } = renderHook(
-      ({ stripHtmlComments }: { stripHtmlComments?: boolean }) =>
-        useMarkdownHtml(md, stripHtmlComments === undefined ? undefined : { stripHtmlComments }),
-      { initialProps: { stripHtmlComments: undefined as boolean | undefined } }
+      ({ commonMarkHtml }: { commonMarkHtml?: boolean }) =>
+        useMarkdownHtml(md, commonMarkHtml === undefined ? undefined : { commonMarkHtml }),
+      { initialProps: { commonMarkHtml: undefined as boolean | undefined } }
     );
     await waitFor(() => expect(result.current).toBeDefined());
     expect(elementsOf(result.current ?? '').textContent).toContain('<!-- note -->');
 
-    rerender({ stripHtmlComments: true });
+    rerender({ commonMarkHtml: true });
     await waitFor(() => {
       const shown = elementsOf(result.current ?? '');
       expect(shown.textContent?.trim()).toBe('after');
@@ -257,7 +257,7 @@ describe('useMarkdownHtml', () => {
       '<!-- after-close --><script>alert(2)</script>',
     ].join('\n');
 
-    const { result } = renderHook(() => useMarkdownHtml(md, { stripHtmlComments: true }));
+    const { result } = renderHook(() => useMarkdownHtml(md, { commonMarkHtml: true }));
     await waitFor(() => expect(result.current).toBeDefined());
     const html = result.current ?? '';
     const shown = elementsOf(html);

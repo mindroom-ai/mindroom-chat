@@ -135,7 +135,7 @@ and `IconTooltip`, an icon button's tooltip, placed so too.
 For text, such as an agent's, that a plugin shows as the app does, `ui` also has `useMarkdownHtml(markdown)`, the HTML of `markdown` as the app renders an agent's reply while it streams: sanitized, with the link schemes `messageRendering.additionalAllowedUriSchemes` in `config.json` adds;
 undefined until the app's Markdown renderer has loaded, which it starts loading, and rendered again once it has;
 its images keep only `mxc://` sources unless the plugin passes `useMarkdownHtml(markdown, { imageSource })`, whose mapping decides which other images load and from where: it gets an image's source and returns the absolute `https:` URL without a username or password to load it from, or undefined, and an image without such a URL is dropped;
-with `{ stripHtmlComments: true }` (since version 71), line-start HTML comments (`<!-- ... -->`) are parsed as CommonMark HTML comments and stripped by sanitization instead of escaped as text, while comments inside fenced, indented or inline code stay literal;
+with `{ commonMarkHtml: true }` (since version 71), line-start raw HTML follows CommonMark before sanitization: HTML comments (`<!-- ... -->`), declarations, processing instructions and disallowed tags are parsed as HTML and stripped or discarded by the sanitizer rather than escaped as literal text (while raw HTML inside fenced, indented or inline code stays literal), and an unclosed HTML comment or line-start tag block runs per CommonMark rules;
 `sanitizeHtml(html)`, `html` with only what the app keeps of a message's HTML, under the app's default policy, which a plugin cannot loosen: no script, event handler or `javascript:` link, and images only from `mxc://` sources, which `mxcUrlToHttp` turns into ones a browser loads;
 and `replaceMatrixUserIdsWithDisplayNames(room, text)`, `text` with the Matrix user ID of each member of `room` replaced by the name the app shows for them there, also before trailing punctuation, as thread previews show an agent's message, which names people by their IDs;
 other IDs stay.
@@ -264,7 +264,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 68 thread details' `onClose`
 - version 69 side panels' `placement: 'none'`
 - version 70 side panels' `frameControls: 'own'` and `PanelFrame`'s localized `fillLabel`/`foldLabel`
-- version 71 `useMarkdownHtml`'s `stripHtmlComments`
+- version 71 `useMarkdownHtml`'s `commonMarkHtml`
 
 ## Page zoom
 

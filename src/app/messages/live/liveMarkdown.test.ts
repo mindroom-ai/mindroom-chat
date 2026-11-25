@@ -166,31 +166,31 @@ describe('live reply Markdown', () => {
     expect(withCodeBlock).toContain('<code>[^1]: Not a definition.\n</code>');
   });
 
-  it('keeps HTML comments and blocks unescaped for CommonMark parsing only when allowHtmlComments is true', () => {
+  it('keeps HTML comments and blocks unescaped for CommonMark parsing only when commonMarkHtml is true', () => {
     expect(renderLiveMarkdown('<!-- note -->\n**after**')).toBe(
       '<p>&lt;!-- note --&gt;<br>\n<strong>after</strong></p>\n'
     );
-    expect(renderLiveMarkdown('<!-- note -->\n**after**', { allowHtmlComments: true })).toBe(
+    expect(renderLiveMarkdown('<!-- note -->\n**after**', { commonMarkHtml: true })).toBe(
       '<!-- note -->\n<p><strong>after</strong></p>\n'
     );
     expect(
       renderLiveMarkdown('<!-- <script>alert(1)</script> -->\n**after**', {
-        allowHtmlComments: true,
+        commonMarkHtml: true,
       })
     ).toBe('<!-- <script>alert(1)</script> -->\n<p><strong>after</strong></p>\n');
     expect(
-      renderLiveMarkdown('<!-- note --><script>alert(1)</script>', { allowHtmlComments: true })
+      renderLiveMarkdown('<!-- note --><script>alert(1)</script>', { commonMarkHtml: true })
     ).toBe('<!-- note -->&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(
-      renderLiveMarkdown('<script>alert(1)</script>\n\n**after**', { allowHtmlComments: true })
+      renderLiveMarkdown('<script>alert(1)</script>\n\n**after**', { commonMarkHtml: true })
     ).toBe('&lt;script&gt;alert(1)&lt;/script&gt;\n<p><strong>after</strong></p>\n');
 
-    const doctype = renderLiveMarkdown('<!DOCTYPE html>\n**after**', { allowHtmlComments: true });
+    const doctype = renderLiveMarkdown('<!DOCTYPE html>\n**after**', { commonMarkHtml: true });
     expect(doctype).toBe('<!DOCTYPE html>\n<p><strong>after</strong></p>\n');
     expect(sanitizeCustomHtml(doctype ?? '').trim()).toBe('<p><strong>after</strong></p>');
 
     const processingInstruction = renderLiveMarkdown('<?php echo 1; ?>\n**after**', {
-      allowHtmlComments: true,
+      commonMarkHtml: true,
     });
     expect(processingInstruction).toBe('<?php echo 1; ?>\n<p><strong>after</strong></p>\n');
     expect(sanitizeCustomHtml(processingInstruction ?? '').trim()).toBe(
@@ -200,20 +200,20 @@ describe('live reply Markdown', () => {
 
   it('parses multiline HTML comments across disallowed tags, fenced code, and list items', () => {
     const pictureComment = renderLiveMarkdown('<!-- <picture>\n</picture> -->\n\n## Setup', {
-      allowHtmlComments: true,
+      commonMarkHtml: true,
     });
     expect(pictureComment).toBe('<!-- <picture>\n</picture> -->\n<h2>Setup</h2>\n');
     expect(sanitizeCustomHtml(pictureComment ?? '').trim()).toBe('<h2>Setup</h2>');
 
     const scriptComment = renderLiveMarkdown('<!-- note\n<script>x</script>\n-->\n\n## After', {
-      allowHtmlComments: true,
+      commonMarkHtml: true,
     });
     expect(scriptComment).toBe('<!-- note\n<script>x</script>\n-->\n<h2>After</h2>\n');
     expect(sanitizeCustomHtml(scriptComment ?? '').trim()).toBe('<h2>After</h2>');
 
     const fencedInComment = renderLiveMarkdown(
       ['<!-- <figure>', '```sh', 'npm test', '```', '</figure> -->', '', '## Install'].join('\n'),
-      { allowHtmlComments: true }
+      { commonMarkHtml: true }
     );
     expect(fencedInComment).toBe(
       '<!-- <figure>\n```sh\nnpm test\n```\n</figure> -->\n<h2>Install</h2>\n'
@@ -224,7 +224,7 @@ describe('live reply Markdown', () => {
 
     const listComment = renderLiveMarkdown(
       ['- <!-- <picture>', '  </picture> -->', '', '## Setup'].join('\n'),
-      { allowHtmlComments: true }
+      { commonMarkHtml: true }
     );
     expect(listComment).toBe(
       '<ul>\n<li>\n<!-- <picture>\n</picture> -->\n</li>\n</ul>\n<h2>Setup</h2>\n'
@@ -236,17 +236,17 @@ describe('live reply Markdown', () => {
 
     const afterPictureComment = renderLiveMarkdown(
       '<!-- <picture>\n</picture> -->\n<picture>after</picture>',
-      { allowHtmlComments: true }
+      { commonMarkHtml: true }
     );
     expect(afterPictureComment).toBe(
       '<!-- <picture>\n</picture> -->\n<p><picture>after</picture></p>\n'
     );
     expect(sanitizeCustomHtml(afterPictureComment ?? '').trim()).toBe('<p>after</p>');
 
-    expect(renderLiveMarkdown('<!-->\n**after**', { allowHtmlComments: true })).toBe(
+    expect(renderLiveMarkdown('<!-->\n**after**', { commonMarkHtml: true })).toBe(
       '<!-->\n<p><strong>after</strong></p>\n'
     );
-    expect(renderLiveMarkdown('<!--->\n**after**', { allowHtmlComments: true })).toBe(
+    expect(renderLiveMarkdown('<!--->\n**after**', { commonMarkHtml: true })).toBe(
       '<!--->\n<p><strong>after</strong></p>\n'
     );
   });
@@ -273,7 +273,7 @@ describe('live reply Markdown', () => {
       'Use `<!-- slot -->` here',
       '<p>Use <code>&lt;!-- slot --&gt;</code> here</p>\n',
     ],
-  ])('preserves comments inside %s when allowHtmlComments is true', (_name, md, html) => {
-    expect(renderLiveMarkdown(md, { allowHtmlComments: true })).toBe(html);
+  ])('preserves comments inside %s when commonMarkHtml is true', (_name, md, html) => {
+    expect(renderLiveMarkdown(md, { commonMarkHtml: true })).toBe(html);
   });
 });
