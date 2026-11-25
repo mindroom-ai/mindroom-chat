@@ -208,7 +208,7 @@ vi.mock('../../lib/hooks/useScreenSize', () => ({
 vi.mock('../../command-palette/CommandPaletteSearchField', () => ({
   CommandPaletteSearchField: () => React.createElement('div', { 'data-find-anything': true }),
 }));
-vi.mock('../../command-palette/CommandPaletteSearchField.css', () => ({ NavSearchField: 'nav' }));
+vi.mock('../../ui/SearchField.css', () => ({ NavSearchField: 'nav' }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getRoom: (roomId: string) => {

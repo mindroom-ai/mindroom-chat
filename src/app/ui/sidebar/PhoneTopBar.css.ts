@@ -1,7 +1,7 @@
 import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { touchTarget } from '../ui/styles/touchTarget';
-import { railWidth } from '../ui/sidebar/SidebarItem.css';
+import { touchTarget } from '../styles/touchTarget';
+import { railWidth } from './SidebarItem.css';
 
 /** The top row's height; the drawer starts below it and the call shortcut, if present. */
 export const phoneTopBarHeight = toRem(52);

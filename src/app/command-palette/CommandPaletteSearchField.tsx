@@ -7,7 +7,7 @@ import {
   getCommandPaletteAriaKeyShortcuts,
   getCommandPaletteShortcutLabel,
 } from '../shortcuts/paletteShortcut';
-import * as css from './CommandPaletteSearchField.css';
+import * as css from '../ui/SearchField.css';
 
 type CommandPaletteSearchFieldProps = {
   /** Sizes and places the field where it sits, such as the phone top bar's touch target. */

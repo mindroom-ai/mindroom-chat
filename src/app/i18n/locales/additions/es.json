@@ -2138,7 +2138,7 @@
       },
       "pinAndTag": {
         "title": "Fijar y etiquetar",
-        "text": "«Fijar hilo» mantiene un hilo al principio de la lista. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
+        "text": "Pulsa la chincheta en una tarjeta, o «Fijar hilo» en «Opciones del hilo» (⋯), para mantener un hilo arriba. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
       },
       "filters": {
         "title": "Los filtros ocultan los hilos resueltos",

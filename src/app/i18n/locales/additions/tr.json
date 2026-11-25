@@ -2069,7 +2069,7 @@
       },
       "pinAndTag": {
         "title": "Sabitleyin ve etiketleyin",
-        "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
+        "text": "Bir konuyu en üstte tutmak için karttaki raptiyeye basın ya da “Konu seçenekleri” (⋯) menüsünden “Konuyu sabitle” öğesini seçin. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
       },
       "filters": {
         "title": "Filtreler çözülen konuları gizler",

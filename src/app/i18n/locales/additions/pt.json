@@ -2138,7 +2138,7 @@
       },
       "pinAndTag": {
         "title": "Fixar e etiquetar",
-        "text": "Fixar tópico mantém um tópico no topo da lista. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
+        "text": "Prima o alfinete num cartão, ou Fixar tópico em Opções do tópico (⋯), para manter um tópico no topo. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
       },
       "filters": {
         "title": "Os filtros ocultam os tópicos resolvidos",

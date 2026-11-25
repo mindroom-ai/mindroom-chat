@@ -231,4 +231,14 @@ describe('thread filter bar modes', () => {
     });
     expect(byData('data-test-rooms-filter')).toHaveLength(1);
   });
+
+  it('lets simpleModeOverride force Simple or Advanced mode regardless of stored setting', () => {
+    renderBar(false, { simpleModeOverride: true });
+    expect(byData('data-simple-unresolved-toggle')).toHaveLength(1);
+    expect(byData('data-search-toggle')).toHaveLength(0);
+
+    renderBar(true, { simpleModeOverride: false });
+    expect(byData('data-simple-unresolved-toggle')).toHaveLength(0);
+    expect(byData('data-search-toggle')).toHaveLength(1);
+  });
 });

@@ -11,6 +11,10 @@ export type TourPart =
   | `title:${SampleThreadId}`
   | `options:${SampleThreadId}`
   | 'resolveButton'
+  | 'pinButton'
+  | 'pinnedSection'
+  | 'menuPin'
+  | 'menuTags'
   | 'menuSnooze'
   | 'filterButton'
   | 'filterBar'
@@ -55,6 +59,8 @@ export type TourScene = {
   thread?: { messages: readonly SampleMessage[] };
   /** The part the step is about, which the spotlight rings; none for the whole list. */
   spotlight?: TourPart;
+  /** Uses touch card actions (`phone || hasNoHover()`) instead of desktop hover buttons. */
+  touchCards: boolean;
 };
 
 /** The phase of `start` in which the message is typed into the composer. */
@@ -69,19 +75,22 @@ const toTop = (cards: readonly SceneCard[], top: SampleThreadId): readonly Scene
 ];
 
 /** The room as every step starts from it: the list, with nothing open. */
-const room = (cards: readonly SceneCard[]): TourScene => ({
-  view: 'list',
-  header: true,
-  composer: true,
-  typed: 0,
-  pinned: [],
-  cards,
-  roomMenu: false,
-  filterBar: false,
-  unresolvedOnly: true,
-  bell: false,
-  activity: false,
-});
+const roomWith =
+  (touchCards: boolean) =>
+  (cards: readonly SceneCard[]): TourScene => ({
+    view: 'list',
+    header: true,
+    composer: true,
+    typed: 0,
+    pinned: [],
+    cards,
+    roomMenu: false,
+    filterBar: false,
+    unresolvedOnly: true,
+    bell: false,
+    activity: false,
+    touchCards,
+  });
 
 /** The room before the tour's thread is started, newest first. */
 const BEFORE: readonly SceneCard[] = [
@@ -115,18 +124,27 @@ const WITH_RESOLVED: readonly SceneCard[] = AFTER_REPLY.map(({ id, state }) =>
 /** The list after the vendor thread was resolved, as the second and third chapter show it. */
 const TIDY: readonly SceneCard[] = [card('launch'), card('budget'), card('website')];
 const TAGGED: readonly SceneCard[] = TIDY.map(({ id }) => card(id, { tags: true }));
+/** Before `budget` is tagged: the other cards already carry tags so the new tag stands out. */
+const TAGGED_OTHERS: readonly SceneCard[] = TIDY.map(({ id }) =>
+  card(id, id === 'budget' ? {} : { tags: true })
+);
 
 const QUESTION: SampleMessage = { sender: 'you', text: 'typed' };
 const ANSWER: SampleMessage = { sender: 'writer', text: 'launchReply' };
 
-/** The new thread, open, with the room's list behind it. */
-const openThread = (messages: readonly SampleMessage[], launch: SampleCardState): TourScene => ({
-  ...room(withLaunch(launch)),
-  view: 'thread',
-  thread: { messages },
-});
-
-const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourScene[] => {
+const scenesOf = (
+  step: TourStepId,
+  phone: boolean,
+  typedLength: number,
+  touchCards: boolean
+): TourScene[] => {
+  const room = roomWith(touchCards);
+  /** The new thread, open, with the room's list behind it. */
+  const openThread = (messages: readonly SampleMessage[], launch: SampleCardState): TourScene => ({
+    ...room(withLaunch(launch)),
+    view: 'thread',
+    thread: { messages },
+  });
   switch (step) {
     case 'conversation':
       return [{ ...room(BEFORE), spotlight: 'card:budget' }];
@@ -195,7 +213,7 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
           ...room(AFTER_REPLY),
           actionsOn: 'vendor',
           // A touch screen has no check on the card: the card is swiped.
-          spotlight: phone ? 'card:vendor' : 'resolveButton',
+          spotlight: touchCards ? 'card:vendor' : 'resolveButton',
         },
         { ...room(WITH_RESOLVED), spotlight: 'card:vendor' },
         room(TIDY),
@@ -214,19 +232,31 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
       ];
     }
     case 'snooze': {
-      // A phone's cards always show their Thread options button; a wider screen's show it with
-      // the card's other buttons while the pointer is on the card.
-      const pointed: TourScene = { ...room(TIDY), actionsOn: phone ? undefined : 'launch' };
+      // Touch cards always show their Thread options button; hover cards show it with the card's
+      // other buttons while the pointer is on the card.
+      const pointed: TourScene = { ...room(TIDY), actionsOn: touchCards ? undefined : 'launch' };
       return [
         { ...pointed, spotlight: 'options:launch' },
         { ...pointed, menuOn: 'launch', spotlight: 'menuSnooze' },
       ];
     }
-    case 'pinAndTag':
+    case 'pinAndTag': {
+      const pinned = toTop(TAGGED_OTHERS, 'budget');
       return [
-        { ...room(TAGGED), spotlight: 'card:budget' },
+        touchCards
+          ? { ...room(TAGGED_OTHERS), menuOn: 'budget', spotlight: 'menuPin' }
+          : { ...room(TAGGED_OTHERS), actionsOn: 'budget', spotlight: 'pinButton' },
+        { ...room(pinned), pinned: ['budget'], spotlight: 'pinnedSection' },
+        {
+          ...room(pinned),
+          pinned: ['budget'],
+          actionsOn: touchCards ? undefined : 'budget',
+          menuOn: 'budget',
+          spotlight: 'menuTags',
+        },
         { ...room(toTop(TAGGED, 'budget')), pinned: ['budget'], spotlight: 'card:budget' },
       ];
+    }
     case 'views':
       return [
         { ...room(TIDY), roomMenu: phone, spotlight: 'viewSwitch' },
@@ -250,9 +280,10 @@ export const sceneOf = (
   step: TourStepId,
   phase: number,
   phone: boolean,
-  typedLength: number
+  typedLength: number,
+  touchCards = phone
 ): TourScene => {
-  const scenes = scenesOf(step, phone, typedLength);
+  const scenes = scenesOf(step, phone, typedLength, touchCards);
   const scene = scenes[Math.max(0, Math.min(phase, scenes.length - 1))];
   if (!scene) throw new Error(`The tour's step ${step} has no scene`);
   return scene;

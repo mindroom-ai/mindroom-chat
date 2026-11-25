@@ -1,5 +1,5 @@
 import { useState, type MouseEvent, type RefCallback } from 'react';
-import { Badge, Icon, Icons, Text } from 'folds';
+import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,24 +8,12 @@ import {
   SidebarItemBadge,
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
-import { UnreadBadge } from '../../ui/UnreadBadge';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useActivitySelected } from '../../routes/useActivitySelected';
 import { getActivityPath } from '../../routes/pathUtils';
 import { useActivityBadge } from '../../activity/useActivityRows';
 import { ActivityPopover } from '../../activity/ActivityPopover';
-
-/** The bell's count: red while something waits for an answer, else the quiet unread chip. */
-export function ActivityBadge({ count, needsYou }: { count: number; needsYou: boolean }) {
-  if (!needsYou) return <UnreadBadge count={count} />;
-  return (
-    <Badge variant="Critical" fill="Solid" radii="Pill" size="400" data-activity-badge="needs-you">
-      <Text as="span" size="L400">
-        {count > 99 ? '99+' : count}
-      </Text>
-    </Badge>
-  );
-}
+import { ActivityBadge } from '../../activity/ActivityBadge';
 
 type ActivityTabProps = {
   /** The navigation panel's handler of a section button; with false it shows a panel it hid. */

@@ -2069,7 +2069,7 @@
       },
       "pinAndTag": {
         "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "text": "Press the pin on a card, or Pin thread in Thread options (⋯), to keep a thread at the top. Edit tags in Thread options labels a thread, and you can filter by tag."
       },
       "filters": {
         "title": "Filters hide resolved threads",
