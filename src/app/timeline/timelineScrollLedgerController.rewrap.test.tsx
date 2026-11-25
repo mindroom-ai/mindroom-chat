@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
@@ -21,9 +21,9 @@ type Options = {
   observeElementRect: (instance: Instance, onRect: (rect: Rect) => void) => void;
 };
 type Correction = (
-  item: { end: number; index: number },
+  item: { key: number; start: number; end: number; index: number },
   delta: number,
-  instance: { scrollOffset: number; scrollDirection: 'backward' | null; scrollElement: object }
+  instance: { scrollOffset: number; itemSizeCache: Map<number, number> }
 ) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without them */
@@ -50,12 +50,6 @@ vi.mock('@tanstack/react-virtual', () => ({
   },
 }));
 
-vi.mock('./scrollQuiescence', () => ({
-  hasActiveWindowTouches: () => false,
-  isIOSWebKitDevice: () => false,
-  waitForScrollQuiescence: () => new Promise<void>(() => {}),
-}));
-
 /**
  * The ledger of a room of 40 rows whose reader is at the newest one, the commits it rendered, and
  * whether each took its rows as wrapped anew.
@@ -79,13 +73,10 @@ const mount = () => {
   const inRowReport: boolean[] = [];
   function Harness() {
     const controller = useTimelineScrollLedgerController({
-      alive: () => true,
       estimateSize: () => 100,
       getItemKey: (index) => index,
       getScrollElement: () => scrollElement as unknown as HTMLDivElement,
       itemCount: 40,
-      pendingRoomFoldPxRef: useRef(0),
-      roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
     });
     const rewrapped = controller.unrenderedRewrap();
@@ -99,17 +90,15 @@ const mount = () => {
   const root = createRoot(document.createElement('div'));
   flushSync(() => root.render(<Harness />));
   const options = virtualizer.options as Options;
-  const correct = (
-    row: { end: number; index: number },
-    delta: number,
-    // While the reader scrolls back no correction is written: the ledger takes a row's above them.
-    scrollDirection: 'backward' | null = 'backward'
-  ): boolean =>
-    (virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction)(row, delta, {
-      scrollOffset: scrollElement.scrollTop,
-      scrollDirection,
-      scrollElement,
-    });
+  const correct = (row: { end: number; index: number }, delta: number): boolean =>
+    (virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction)(
+      { key: row.index, start: row.end - 100, ...row },
+      delta,
+      {
+        scrollOffset: scrollElement.scrollTop,
+        itemSizeCache: new Map([[row.index, 100]]),
+      }
+    );
   // The observer's callback returns, and the microtasks it queued run before the paint.
   const callbackReturns = async () => {
     await Promise.resolve();
@@ -225,21 +214,6 @@ it('sees a new width that crosses no whole pixel', async () => {
   unmount();
 });
 
-it('takes the rows of a later render as they are', async () => {
-  const { commits, layout, reportRows, unmount } = mount();
-  await reportRows();
-  // A row above the reader wraps anew, and the ledger takes its growth: it renders in a later
-  // task, after the paint, when the rows of that report are no longer the ones being rendered.
-  layout.width = 640;
-  await reportRows({ end: 3000, index: 20 });
-  expect(commits).toEqual([]);
-  await new Promise((resolve) => {
-    setTimeout(resolve, 50);
-  });
-  expect(commits).toEqual([false]);
-  unmount();
-});
-
 it('takes the permission back when the corrections of one report add up to nothing', async () => {
   const {
     callbackReturns,
@@ -255,9 +229,9 @@ it('takes the permission back when the corrections of one report add up to nothi
   // 22 px. virtual-core corrects the scroll position for each, and the two cancel out.
   layout.width = 640;
   measure();
-  expect(correct({ end: 3000, index: 20 }, 22, null)).toBe(true);
+  expect(correct({ end: 3000, index: 20 }, 22)).toBe(true);
   measure();
-  expect(correct({ end: 2900, index: 19 }, -22, null)).toBe(true);
+  expect(correct({ end: 2900, index: 19 }, -22)).toBe(true);
   await callbackReturns();
   expect(commits).toEqual([true]);
   await reportScrollArea();

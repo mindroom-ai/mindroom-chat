@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -89,7 +90,12 @@ import {
 } from './roomEventOpenController';
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
-import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import {
+  clearVirtualizerHoldOffset,
+  hasPendingVirtualizerAnchor,
+  readVirtualizerHoldOffset,
+  useTimelineScrollLedgerController,
+} from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
@@ -159,20 +165,21 @@ import {
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
+import {
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+  THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+} from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
-  heldListHeight,
   isNearLatestEnd,
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
-  useRowsGeneration,
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
@@ -204,7 +211,6 @@ import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './me
 import {
   NO_RENDERED_ROOM_ROWS,
   forgetFormedFoldHeights,
-  exposedFoldRowsPxOfRender,
   useMembershipFoldRowSizes,
   useMembershipFolds,
   useRoomRowWindow,
@@ -314,7 +320,7 @@ const useTimelineDisplaySettings = () => ({
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
  * Full (classic) views show the room timeline, the threaded one with a thread badge under each
  * thread root and the classic one with the replies inline; inside a thread, the root and its
- * replies. Rows are virtualized, and an offset ledger keeps the reader's rows still when rows
+ * replies. Rows are virtualized, and scroll anchoring keeps the reader's rows still when rows
  * land above them.
  *
  * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
@@ -1203,46 +1209,26 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadIdRef,
     timeline,
   });
-  const {
-    paginator,
-    pendingRoomFoldPxRef,
-    roomFoldWindowRef,
-    roomFoldPriceRef,
-    settledRoomPage,
-    getRoomRowElement,
-  } = useRoomWindowPaginator({
-    alive,
-    roomRows,
-    roomRowsRef,
-    activeTimelineRange,
-    activeRangeRef,
-    loadedRangeOfRef,
-    threadIdRef,
-    firstRoomTimelineRef,
-    lastRoomTimelineRef,
-    scrollRef,
-    setTimeline,
-    paginateRoom,
-    suppressFocusPaginationRef,
-    windowLimit,
-    getScrollElement,
-    deferAutomaticPagination: automaticFill.defer,
-    // The Threads view, newest first, lists every thread from the room's thread list: history
-    // brings it only the messages without a thread, as the reader reaches them.
-    readAhead: !latestAtTop,
-  });
-
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
   const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
-  // The virtual list and its offset ledger.
-  const itemCount = threadId ? threadEvents.length + threadLeadingOffset : roomWindowRows.length;
   const showRoomIntro =
     !threadId &&
     liveTimelineLinked &&
     activeTimelineRange.start === 0 &&
     !canPaginateRoomBack &&
     !roomHasMoreCachedBack;
+  const hasRoomLeadingIntro = showRoomIntro && !latestAtTop;
+  // Oldest-first rooms always keep one leading item 0 with one stable key (`[+all]` alone, or
+  // `{roomIntro}{expandAllToggle}` once start loads) so mounting the intro grows item 0 in place.
+  const hasRoomLeadingTile =
+    !threadId && !latestAtTop && (hasRoomLeadingIntro || roomWindowRows.length > 0);
+  const roomLeadingOffset = hasRoomLeadingTile ? 1 : 0;
+  const roomLeadingOffsetRef = useLatestRef(roomLeadingOffset);
+  // The virtual list and its scroll anchoring.
+  const itemCount = threadId
+    ? threadEvents.length + threadLeadingOffset
+    : roomWindowRows.length + roomLeadingOffset;
   const showRoomBackSentinel =
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
@@ -1287,6 +1273,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     showThreadRepliesInRoom,
     threadEvents,
     hasThreadLoadOlder: showThreadLoadOlder,
+    hasRoomIntro: hasRoomLeadingTile,
     roomWindowRows,
     windowStart: activeTimelineRange.start,
     roomRowsRef,
@@ -1296,24 +1283,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hiddenIds: threadHiddenIds,
     membershipFoldsRef,
     renderedRoomRowsRef,
+    // Fixed per form factor so splitter drags do not re-estimate unmeasured rows above the reader.
+    columnWidth: phone ? undefined : 960,
   });
-  // For the ledger to take with this render: the rows of a closed fold that came apart above the
-  // reader's view.
-  const exposedRoomRowsPx = exposedFoldRowsPxOfRender(
-    renderedRoomRowsRef.current,
-    {
-      view: membershipFolds.view,
-      foldedRows: roomProjection.foldedRows,
-      windowRows: roomWindowRows,
-      pinnedIds: membershipPinnedIds,
-    },
-    estimateSize
-  );
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
-  // Replaced room rows (not added ones) start the ledger over, as another room does.
-  const rowsGeneration = useRowsGeneration(timeline.linkedTimelines);
   // The Threads view, newest first, keeps a reader who scrolled down where they are while rows land
   // above them: threads that arrive at its top, and in a message link's window (where leaving a
   // thread opened from a link comes back) pages of newer history. A reader at the top sees them
@@ -1325,29 +1300,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   }, [getScrollElement]);
   const latestPinAsked = useLatestPinAsked(scrollToBottomRef);
   const ledger = useTimelineScrollLedgerController({
-    alive,
     anchorRoomRows: latestAtTop && !latestPinAsked ? anchorBelowLatestEnd : undefined,
     estimateSize,
     getItemKey,
     getScrollElement,
     itemCount,
-    pendingRoomFoldPxRef,
-    exposedRoomRowsPx,
-    // virtual-core renders at once when the reader scrolls, which can come before the update of
-    // a window widened over older rows: that render keeps the window the fold was priced for.
-    roomFoldHeld: activeTimelineRange === roomFoldWindowRef.current,
-    roomFoldPriceRef,
+    latestAtTop,
     roomId: room.roomId,
-    rowsKey: threadId ? undefined : rowsGeneration,
     threadId,
     pinThreadLeadingItem: showThreadLoadOlder,
-    leadingKey:
-      !threadId && roomSurfaceShown && !latestAtTop
-        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-        : '',
-    automaticFill: roomSurfaceShown
-      ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
-      : undefined,
+    anchorSkipLeading: threadId
+      ? threadLeadingOffset + (threadEvents[0]?.getId() === threadId ? 1 : 0)
+      : roomLeadingOffset,
+    canLoadOlder: !latestAtTop && (threadId ? showThreadLoadOlder : showRoomBackSentinel),
+    automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
@@ -1355,45 +1321,41 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ? () => virtualizerRef.current.cancelScroll()
     : undefined;
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
-  const { virtualInnerRef, readRowFoldPx } = ledger;
+  const { virtualInnerRef } = ledger;
   const pendingListShrinkPx = useCallback(
-    () =>
-      listShrinkNotRendered(
-        virtualInnerRef.current,
-        virtualizerRef.current.measurementsCache,
-        readRowFoldPx()
-      ),
-    [readRowFoldPx, virtualInnerRef, virtualizerRef]
+    () => listShrinkNotRendered(virtualInnerRef.current, virtualizerRef.current.measurementsCache),
+    [virtualInnerRef, virtualizerRef]
   );
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
   // list's bottom edge where it is and the next one takes the new height: moving it there would
   // resize the scroll content, which the scrollbar, the minimap and the follow-growth observer
   // watch, after the rows inside it were reported, and WebKit then reports "ResizeObserver loop
-  // completed with undelivered notifications". A correction the ledger took in the same pass moves
-  // the list's top (its negative top margin) in that render, so the held height takes the
-  // difference; the rows paint where they belong either way.
+  // completed with undelivered notifications".
   // A row that changed size in place renders the rows after it the same way.
   // That render keeps the rows it had, too, and the next one mounts the rows the window gained:
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
   // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
-  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`): a
-  // list held over them ends below or above its newest row for a frame, where a thread that
-  // opens pinned and showed its rows, and the next render moved them.
+  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`), and
+  // renders that change itemCount or carry an upstream `pendingScrollAnchor` (otherwise holding the
+  // old list height clamps `_willUpdate()`'s anchor scrollTop write against the shorter box).
+  const prevItemCountRef = useRef(itemCount);
+  const itemCountChanged = prevItemCountRef.current !== itemCount;
+  useLayoutEffect(() => {
+    prevItemCountRef.current = itemCount;
+  });
   const renderedList = ledger.virtualInnerRef.current?.style;
-  const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
-  const heldList =
+  const beforePaint = ledger.unrenderedRowMove();
+  const deferRowReport =
+    !itemCountChanged &&
+    !hasPendingVirtualizerAnchor(virtualizer) &&
     beforePaint &&
-    ledger.unrenderedInRowReport() &&
-    !ledger.unrenderedRewrap() &&
-    renderedList?.height
-      ? renderedList
-      : undefined;
-  const listHeight = heldList
-    ? heldListHeight(heldList, ledger.ledgerPxAtRender)
-    : virtualizer.getTotalSize();
+    ledger.unrenderedInRowReport();
+  const heldList =
+    deferRowReport && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
+  const listHeight = heldList ? Number.parseFloat(heldList.height) : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
     threadEvents,
@@ -1413,8 +1375,32 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId ? undefined : roomWindowRows,
     membershipFolds.view,
     renderedRoomRowsRef,
-    ledger.virtualInnerRef
+    roomLeadingOffset
   );
+
+  // After useTimelineScrollLedgerController so virtual-core's _willUpdate() applies anchorTo: 'end'
+  // scrollTop shifts in useLayoutEffect before useVirtualPaginator checks backSentinel visibility
+  // and trims rows below view.
+  const { paginator, settledRoomPage, getRoomRowElement } = useRoomWindowPaginator({
+    alive,
+    roomRows,
+    roomRowsRef,
+    activeTimelineRange,
+    activeRangeRef,
+    loadedRangeOfRef,
+    firstRoomTimelineRef,
+    lastRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom,
+    suppressFocusPaginationRef,
+    windowLimit,
+    getScrollElement,
+    deferAutomaticPagination: automaticFill.defer,
+    // The Threads view, newest first, lists every thread from the room's thread list: history
+    // brings it only the messages without a thread, as the reader reaches them.
+    readAhead: !latestAtTop,
+  });
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1431,7 +1417,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     virtualizerRef,
     threadEventIndexMapRef,
     threadLeadingOffsetRef,
-    onJump: ledger.endSettleDiscardWatch,
+    roomLeadingOffsetRef,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
   const cancelThreadBottomSettle = useCallback(
@@ -1449,11 +1435,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     onFirstGesture: forceRender,
     onThreadTakeover: onPrependBegin,
   });
+  const clearHoldOffset = useCallback(
+    () => clearVirtualizerHoldOffset(virtualizerRef.current),
+    [virtualizerRef]
+  );
   const scrollThreadToEnd = useCallback(
     (smooth = false) => {
+      clearHoldOffset();
       virtualizerRef.current.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
     },
-    [virtualizerRef]
+    [clearHoldOffset, virtualizerRef]
   );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
@@ -1524,6 +1515,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     retryPagination,
     roomId: room.roomId,
     scrollRef,
+    onBottomPin: clearHoldOffset,
     scrollThreadToEnd: threadId ? scrollThreadToEnd : undefined,
     scrollThreadEventIntoView,
     scrollToBottomRef,
@@ -1893,12 +1885,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>(undefined);
   const mountedRowKeys = mountedRowKeysRef.current;
   const virtualItems =
-    beforePaint && mountedRowKeys
+    deferRowReport && mountedRowKeys
       ? windowItems.filter((item) => mountedRowKeys.has(item.key))
       : windowItems;
   useLayoutEffect(() => {
     mountedRowKeysRef.current = new Set(virtualItems.map((item) => item.key));
   });
+  const deferredRowReportRender = !!heldList || virtualItems.length !== windowItems.length;
+  useEffect(() => {
+    if (deferredRowReportRender) forceRender();
+  }, [deferredRowReportRender, forceRender]);
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
@@ -1952,7 +1948,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,
-    takeSettledScrollTop: ledger.takeSettledScrollTop,
   });
 
   const minimap = useRoomTimelineMinimap({
@@ -2166,11 +2161,39 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       onLoadOlder={handleLoadOlderThread}
     />
   ) : undefined;
+  // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
+  const showJumpToUnread =
+    !latestAtTop &&
+    offersJumpToUnread({
+      threadId,
+      unreadInfo,
+      roomUnread,
+      unreadMarkerShown,
+    });
+  // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
+  // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
+  // to the line's start and they keep clear of it there.
+  const expandAllToggle = roomWindowRows.length > 0 && (
+    <ExpandAllLine
+      expanded={expandAll}
+      onToggle={handleToggleExpandAll}
+      atStart={phone && showJumpToUnread}
+    />
+  );
+  const roomIntro =
+    showRoomIntro &&
+    (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
   const tiles = renderTimelineTiles({
     virtualItems,
     threadId,
     threadEvents,
     threadLoadOlderNode,
+    roomIntroNode: hasRoomLeadingTile ? (
+      <>
+        {hasRoomLeadingIntro && roomIntro}
+        {expandAllToggle}
+      </>
+    ) : undefined,
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
@@ -2193,40 +2216,28 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
-    ledgerPxAtRender: ledger.ledgerPxAtRender,
   });
-
-  // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
-  const showJumpToUnread =
-    !latestAtTop &&
-    offersJumpToUnread({
-      threadId,
-      unreadInfo,
-      roomUnread,
-      unreadMarkerShown,
-    });
-  // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
-  // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
-  // to the line's start and they keep clear of it there.
-  const expandAllToggle = itemCount > 0 && (
-    <ExpandAllLine
-      expanded={expandAll}
-      onToggle={handleToggleExpandAll}
-      atStart={phone && showJumpToUnread}
-    />
-  );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
-  // history is at the bottom. The sentinel above the rows sits inside the list, at its top, where
-  // its first row is: rows the offset ledger holds above the reader count as loaded.
-  const roomIntro =
-    showRoomIntro &&
-    (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
+  // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
+  // (-_holdOffset while virtual-core holds a prepend), so held rows above the reader count as loaded.
+  const holdOffset = readVirtualizerHoldOffset(virtualizer);
+  const backHeadroomPx =
+    !latestAtTop && readerScrolledRef.current.value
+      ? (virtualizer.measurementsCache[
+          Math.min(THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS, itemCount - 1)
+        ]?.start ?? 0)
+      : 0;
+  const topSentinelStyle =
+    holdOffset !== 0 || backHeadroomPx > 1
+      ? {
+          ...listTopSentinelStyle,
+          ...(holdOffset !== 0 ? { insetBlockStart: -holdOffset } : undefined),
+          ...(backHeadroomPx > 1 ? { height: backHeadroomPx } : undefined),
+        }
+      : listTopSentinelStyle;
   const backSentinel = showRoomBackSentinel && (
-    <div
-      ref={paginator.observeBackAnchor}
-      style={latestAtTop ? { height: 1 } : listTopSentinelStyle}
-    />
+    <div ref={paginator.observeBackAnchor} style={latestAtTop ? { height: 1 } : topSentinelStyle} />
   );
   const frontSentinel = showRoomFrontSentinel && (
     <div
@@ -2274,10 +2285,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
-            <div ref={ledger.leadingRef}>
-              {!latestAtTop && roomIntro}
-              {expandAllToggle}
-            </div>
+            latestAtTop && expandAllToggle
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>

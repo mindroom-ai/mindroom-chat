@@ -7,6 +7,8 @@ import {
   flushAsyncWork,
   makeEvent,
   makeRoom,
+  makeTimeline,
+  roomIntroType,
   scrollType,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -134,6 +136,43 @@ describe('RoomTimeline layout', () => {
       // Keeps folds' 8px inline-end gutter on the scroller so message hover toolbars stay clear of InsetScrollbar.
       const scroll = renderer!.root.findByType(scrollType);
       expect(scroll.props.size).toBe('300');
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('renders the room intro before [+all] inside item 0, and keeps [+all] in item 0 mid-history', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { ExpandAllLine } = await import('../RoomTimelineOverlays');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const readOrder = (renderer: ReturnType<typeof create>) =>
+      renderer.root
+        .findAll((node) => node.type === roomIntroType || node.type === ExpandAllLine)
+        .map((node) => (node.type === roomIntroType ? 'intro' : 'toggle'));
+
+    // At the start of an oldest-first room (no back token): intro and toggle render together in item 0.
+    const roomAtStart = makeRoom({ liveEvents: [makeEvent('$m1')] });
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room: roomAtStart }));
+        await flushAsyncWork(1);
+      });
+      expect(readOrder(renderer!)).toEqual(['intro', 'toggle']);
+      const virtualInner = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(virtualInner.findAllByType(ExpandAllLine)).toHaveLength(1);
+
+      // Mid-history (no intro yet): [+all] stays inside item 0 with the same stable leading key.
+      const roomMidHistory = makeRoom({
+        liveTimeline: makeTimeline([makeEvent('$m2')], { backwardToken: 'tok-back' }),
+      });
+      await act(async () => {
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room: roomMidHistory }));
+        await flushAsyncWork(1);
+      });
+      expect(readOrder(renderer!)).toEqual(['toggle']);
+      const virtualInnerMid = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(virtualInnerMid.findAllByType(ExpandAllLine)).toHaveLength(1);
     } finally {
       act(() => renderer?.unmount());
     }

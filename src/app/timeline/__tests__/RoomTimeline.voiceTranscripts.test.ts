@@ -370,7 +370,8 @@ it('does not show pending for a voice root whose unloaded replies are bundled', 
   const room = makeRoomWithState({ liveEvents: [voice], joinedMembers: [VIEWER, AGENT] });
   const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
-  roomTimelineVirtualizerState.virtualIndexes = [0];
+  // Virtual item 0 is the room intro; item 1 is $voice.
+  roomTimelineVirtualizerState.virtualIndexes = [0, 1];
   await act(async () => {
     renderer = create(React.createElement(Harness, { room, initialViewMode: 'classic' }));
     await flushAsyncWork();

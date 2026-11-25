@@ -78,7 +78,6 @@ const tileRows = (
         : { index: forkingIndex, node: <hr data-forking="true" /> },
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
-    ledgerPxAtRender: 0,
   });
   let renderer: ReturnType<typeof create> | undefined;
   act(() => {

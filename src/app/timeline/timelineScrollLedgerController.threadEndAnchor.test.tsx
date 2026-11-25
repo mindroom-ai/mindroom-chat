@@ -91,8 +91,6 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     }) {
       void tick;
       const scrollRef = useRef<HTMLDivElement | null>(scrollElement);
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef(() => ROW_HEIGHT);
       const alive = useCallback(() => true, []);
       const getScrollElement = useCallback(() => scrollElement, []);
       const backController = useThreadBackPaginationController();
@@ -103,13 +101,10 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
       useEffect(() => startOpen(), [startOpen]);
 
       const controller = useTimelineScrollLedgerController({
-        alive,
         estimateSize: () => ROW_HEIGHT,
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
         roomId: '!room:example.org',
         threadId: '$thread-1',
       });
@@ -284,5 +279,30 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     render(prepended);
 
     expect(scrollElement.scrollTop).toBe(4520 + 10 * ROW_HEIGHT);
+  });
+
+  it('does not apply pastEndCorrection in threads when collapsing a visible penultimate reply', async () => {
+    const { scrollElement, getVirtualizer, render } = await mountThread();
+    const v = getVirtualizer();
+    // Release the opening pin, expand penultimate row 48 to 720px (row 49 is 80px), and position
+    // row 48 at viewport y = 120px (scrollTop = 4800, document y = HEADER_PX + 4800 = 4920).
+    scrollElement.dispatchEvent(new Event('pointerdown'));
+    v.resizeItem(48, 720);
+    v.resizeItem(49, 80);
+    render();
+    scrollElement.scrollTop = 4800;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    render();
+    expect(HEADER_PX + 4800 - scrollElement.scrollTop).toBe(120);
+
+    // Collapsing row 48 from 720px -> 120px (-600px) must not run pastEndCorrection and push it
+    // offscreen to 720px; the browser's own max-scroll clamp leaves it visible at 280px.
+    v.resizeItem(48, 120);
+    render();
+    const maxScrollAfter = Math.max(0, scrollElement.scrollHeight - VIEWPORT_HEIGHT);
+    const clampedTop = Math.min(scrollElement.scrollTop, maxScrollAfter);
+    const visualTopAfter = HEADER_PX + 4800 - clampedTop;
+    expect(scrollElement.scrollTop).toBe(4800);
+    expect(visualTopAfter).toBe(280);
   });
 });

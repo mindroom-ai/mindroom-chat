@@ -1,11 +1,5 @@
-# Two independent upstream fixes (see docs/dev/tanstack-wheel-hold-upstream.md):
-# PR 1: Hold scrollTop writes in _holdOffset during live wheel gestures on
-#   anchorTo: 'end' lists (150ms re-armed timer when targetWindow is present,
-#   deferring 50ms while scrollTop moves up to 1s total) and flush via
-#   _flushHoldIfReady so WebKit wheel replay cannot fight prepend/resize writes.
-# PR 2: Reconcile unseen live scrollTop mutations in applyScrollAdjustment.
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..a2ee4ab 100644
+index 186f79e..50e1015 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -18,7 +12,47 @@ index 186f79e..a2ee4ab 100644
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -508,6 +511,12 @@ class Virtualizer {
+@@ -247,7 +250,11 @@ class Virtualizer {
+         if ((state == null ? void 0 : state.phase) === "queued" && scrollClassifier.flingCaught(state.samples ?? [])) {
+           this.scrollState = null;
+         }
++        const heldBefore = this._holdOffset;
+         this._flushHoldIfReady(true);
++        if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
++          this.notify(true);
++        }
+         this._writeAwaitingCommand();
+         this._retryClampedAdjustment();
+       }
+@@ -386,6 +393,8 @@ class Virtualizer {
+         anchorTo: "start",
+         followOnAppend: false,
+         scrollEndThreshold: 1,
++        holdScrollDuringWheel: false,
++        anchorSkipLeading: 0,
+         isScrollingResetDelay: 150,
+         enabled: true,
+         isRtl: false,
+@@ -414,9 +423,16 @@ class Virtualizer {
+         const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
+         if (didEdgeKeysChange) {
+           edgeKeysChanged = true;
+-          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
++          // PR 4: skip caller-declared leading items while unchanged and the next item starts in the top half of the viewport.
++          const scrollOffset = this.getScrollOffset();
++          let item = prevCount > 0 ? this.getVirtualItemForOffset(scrollOffset) ?? measurements[0] : null;
++          while (item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++            const next = measurements[item.index + 1];
++            if (!next || next.start >= scrollOffset + this.getSize() / 2) break;
++            item = next;
++          }
+           if (item) {
+-            anchor = [item.key, this.getScrollOffset() - item.start];
++            anchor = [item.key, scrollOffset - item.start];
+           }
+           const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+           if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+@@ -508,6 +524,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -31,7 +65,7 @@ index 186f79e..a2ee4ab 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +634,42 @@ class Virtualizer {
+@@ -625,9 +647,46 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -40,7 +74,7 @@ index 186f79e..a2ee4ab 100644
 -            this._iosGesture.listen(this.scrollElement)
 +            this._iosGesture.listen(el)
            );
-+          // PR 1: hold scrollTop writes during live wheel gestures on end-anchored lists.
++          // PR 1: opt-in hold of scrollTop writes during live wheel gestures.
 +          const scheduleWheelFlush = (delay) => {
 +            if (!this.targetWindow) return;
 +            this._wheelLive = true;
@@ -57,14 +91,18 @@ index 186f79e..a2ee4ab 100644
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
 +              if (live !== null && this._holdOffset !== 0) {
-+                this.scrollOffset = Math.max(0, live + this._holdOffset);
++                this.scrollOffset = live + this._holdOffset;
 +              }
++              const heldBefore = this._holdOffset;
 +              this._flushHoldIfReady(true);
++              if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
++                this.notify(true);
++              }
 +              this._retryClampedAdjustment();
 +            }, delay);
 +          };
 +          const onWheel = () => {
-+            if (this.options.anchorTo !== "end") return;
++            if (!this.options.holdScrollDuringWheel) return;
 +            if (!this._wheelLive) this._wheelSince = this.now();
 +            scheduleWheelFlush(150);
 +          };
@@ -75,16 +113,42 @@ index 186f79e..a2ee4ab 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,7 +747,7 @@ class Virtualizer {
+@@ -705,19 +764,31 @@ class Virtualizer {
        }
        return null;
      };
 -    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll;
-+    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.anchorTo === "end");
++    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.holdScrollDuringWheel);
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
-@@ -1492,14 +1534,16 @@ class Virtualizer {
+       if (!this.scrollElement || !this.options.enabled) return;
+       if (!this._canWriteScroll()) return;
+       if (((_a = this.scrollState) == null ? void 0 : _a.phase) === "smooth") return;
+-      this._holdOffset = 0;
++      // PR 3: never flush a negative hold past scrollTop 0 (which would clamp scrollTop and snap rows).
++      const cmd = this.getCommandWrittenOffset();
++      const live = cmd === null ? this._readElementOffset() : null;
++      const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0;
++      if (nextHold === this._holdOffset) return;
++      this._holdOffset = nextHold;
++      if (nextHold < 0) {
++        this.scrollOffset = nextHold;
++        this._clampedAdjustment = null;
++        this._scrollToOffset(nextHold);
++        this.notify(sync);
++        return;
++      }
+       if (this.scrollOffset !== null && this.scrollOffset < 0) {
+         this.scrollOffset = 0;
+       }
+       this.notify(sync);
+-      const target = this.getCommandWrittenOffset() ?? this.getScrollOffset();
++      const target = cmd ?? this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(target);
+       this._scrollToOffset(target);
+     };
+@@ -1492,15 +1563,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
@@ -99,12 +163,40 @@ index 186f79e..a2ee4ab 100644
        });
        if (this.scrollOffset !== null) {
 -        if (this.pendingWrite === write) this.scrollOffset += delta;
+-        if (this.scrollOffset < 0) this.scrollOffset = 0;
 +        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
-         if (this.scrollOffset < 0) this.scrollOffset = 0;
++        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;
+     }
+diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.d.cts b/node_modules/@tanstack/virtual-core/dist/cjs/index.d.cts
+index dace069..4c7555f 100644
+--- a/node_modules/@tanstack/virtual-core/dist/cjs/index.d.cts
++++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.d.cts
+@@ -85,6 +85,8 @@ export interface VirtualizerOptions<TScrollElement extends Element | Window, TIt
+     anchorTo?: ScrollAnchor;
+     followOnAppend?: FollowOnAppend;
+     scrollEndThreshold?: number;
++    holdScrollDuringWheel?: boolean;
++    anchorSkipLeading?: number;
+     isScrollingResetDelay?: number;
+     useScrollendEvent?: boolean;
+     enabled?: boolean;
+diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.d.ts b/node_modules/@tanstack/virtual-core/dist/esm/index.d.ts
+index 159bbd6..cce95a0 100644
+--- a/node_modules/@tanstack/virtual-core/dist/esm/index.d.ts
++++ b/node_modules/@tanstack/virtual-core/dist/esm/index.d.ts
+@@ -85,6 +85,8 @@ export interface VirtualizerOptions<TScrollElement extends Element | Window, TIt
+     anchorTo?: ScrollAnchor;
+     followOnAppend?: FollowOnAppend;
+     scrollEndThreshold?: number;
++    holdScrollDuringWheel?: boolean;
++    anchorSkipLeading?: number;
+     isScrollingResetDelay?: number;
+     useScrollendEvent?: boolean;
+     enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..598bf58 100644
+index ef861e1..f038274 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -117,7 +209,47 @@ index ef861e1..598bf58 100644
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -507,6 +510,12 @@ class Virtualizer {
+@@ -246,7 +249,11 @@ class Virtualizer {
+         if ((state == null ? void 0 : state.phase) === "queued" && flingCaught(state.samples ?? [])) {
+           this.scrollState = null;
+         }
++        const heldBefore = this._holdOffset;
+         this._flushHoldIfReady(true);
++        if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
++          this.notify(true);
++        }
+         this._writeAwaitingCommand();
+         this._retryClampedAdjustment();
+       }
+@@ -385,6 +392,8 @@ class Virtualizer {
+         anchorTo: "start",
+         followOnAppend: false,
+         scrollEndThreshold: 1,
++        holdScrollDuringWheel: false,
++        anchorSkipLeading: 0,
+         isScrollingResetDelay: 150,
+         enabled: true,
+         isRtl: false,
+@@ -413,9 +422,16 @@ class Virtualizer {
+         const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
+         if (didEdgeKeysChange) {
+           edgeKeysChanged = true;
+-          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
++          // PR 4: skip caller-declared leading items while unchanged and the next item starts in the top half of the viewport.
++          const scrollOffset = this.getScrollOffset();
++          let item = prevCount > 0 ? this.getVirtualItemForOffset(scrollOffset) ?? measurements[0] : null;
++          while (item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++            const next = measurements[item.index + 1];
++            if (!next || next.start >= scrollOffset + this.getSize() / 2) break;
++            item = next;
++          }
+           if (item) {
+-            anchor = [item.key, this.getScrollOffset() - item.start];
++            anchor = [item.key, scrollOffset - item.start];
+           }
+           const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+           if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+@@ -507,6 +523,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -130,7 +262,7 @@ index ef861e1..598bf58 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +633,42 @@ class Virtualizer {
+@@ -624,9 +646,46 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -139,7 +271,7 @@ index ef861e1..598bf58 100644
 -            this._iosGesture.listen(this.scrollElement)
 +            this._iosGesture.listen(el)
            );
-+          // PR 1: hold scrollTop writes during live wheel gestures on end-anchored lists.
++          // PR 1: opt-in hold of scrollTop writes during live wheel gestures.
 +          const scheduleWheelFlush = (delay) => {
 +            if (!this.targetWindow) return;
 +            this._wheelLive = true;
@@ -156,14 +288,18 @@ index ef861e1..598bf58 100644
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
 +              if (live !== null && this._holdOffset !== 0) {
-+                this.scrollOffset = Math.max(0, live + this._holdOffset);
++                this.scrollOffset = live + this._holdOffset;
 +              }
++              const heldBefore = this._holdOffset;
 +              this._flushHoldIfReady(true);
++              if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
++                this.notify(true);
++              }
 +              this._retryClampedAdjustment();
 +            }, delay);
 +          };
 +          const onWheel = () => {
-+            if (this.options.anchorTo !== "end") return;
++            if (!this.options.holdScrollDuringWheel) return;
 +            if (!this._wheelLive) this._wheelSince = this.now();
 +            scheduleWheelFlush(150);
 +          };
@@ -174,16 +310,42 @@ index ef861e1..598bf58 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,7 +746,7 @@ class Virtualizer {
+@@ -704,19 +763,31 @@ class Virtualizer {
        }
        return null;
      };
 -    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll;
-+    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.anchorTo === "end");
++    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.holdScrollDuringWheel);
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
-@@ -1491,14 +1533,16 @@ class Virtualizer {
+       if (!this.scrollElement || !this.options.enabled) return;
+       if (!this._canWriteScroll()) return;
+       if (((_a = this.scrollState) == null ? void 0 : _a.phase) === "smooth") return;
+-      this._holdOffset = 0;
++      // PR 3: never flush a negative hold past scrollTop 0 (which would clamp scrollTop and snap rows).
++      const cmd = this.getCommandWrittenOffset();
++      const live = cmd === null ? this._readElementOffset() : null;
++      const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0;
++      if (nextHold === this._holdOffset) return;
++      this._holdOffset = nextHold;
++      if (nextHold < 0) {
++        this.scrollOffset = nextHold;
++        this._clampedAdjustment = null;
++        this._scrollToOffset(nextHold);
++        this.notify(sync);
++        return;
++      }
+       if (this.scrollOffset !== null && this.scrollOffset < 0) {
+         this.scrollOffset = 0;
+       }
+       this.notify(sync);
+-      const target = this.getCommandWrittenOffset() ?? this.getScrollOffset();
++      const target = cmd ?? this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(target);
+       this._scrollToOffset(target);
+     };
+@@ -1491,15 +1562,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
@@ -198,7 +360,9 @@ index ef861e1..598bf58 100644
        });
        if (this.scrollOffset !== null) {
 -        if (this.pendingWrite === write) this.scrollOffset += delta;
+-        if (this.scrollOffset < 0) this.scrollOffset = 0;
 +        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
-         if (this.scrollOffset < 0) this.scrollOffset = 0;
++        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;
+     }

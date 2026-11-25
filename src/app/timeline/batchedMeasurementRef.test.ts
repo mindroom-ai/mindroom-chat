@@ -6,7 +6,6 @@ import {
   createScrollMountMeasurement,
   measureMountedRows,
 } from './batchedMeasurementRef';
-import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -231,6 +230,52 @@ describe('batched virtualizer measurement ref', () => {
     dispose();
   });
 
+  it('batches a multi-row mount pass through _resizeBatch into a single notify', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    virtualizer.scrollOffset = 600;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = true;
+
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(0, ref);
+    mount(1, ref);
+    mount(2, ref);
+    mount(3, ref);
+    await Promise.resolve();
+
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.itemSizeCache.get(3)).toBe(80);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(virtualizer, true);
+    dispose();
+  });
+
+  it('measures new rows once in _resizeBatch during a held or live-wheel prepend even if isScrolling timed out', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    virtualizer.scrollOffset = 600;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = false;
+    (virtualizer as unknown as { _wheelLive?: boolean })._wheelLive = true;
+
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(0, ref);
+    mount(1, ref);
+    mount(2, ref);
+    mount(3, ref);
+    expect(notify).not.toHaveBeenCalled();
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+    await Promise.resolve();
+
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.itemSizeCache.get(3)).toBe(80);
+    expect(notify).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
   it('skips rows that React removed before the measurement ran', async () => {
     const { virtualizer, mount, dispose } = setup();
     virtualizer.isScrolling = true;
@@ -239,27 +284,6 @@ describe('batched virtualizer measurement ref', () => {
     row.remove();
     await Promise.resolve();
     expect(virtualizer.itemSizeCache.has(0)).toBe(false);
-    dispose();
-  });
-
-  it('folds an iOS correction above the viewport into the ledger without a scroll write', async () => {
-    const { virtualizer, mount, scrollToFn, dispose } = setup();
-    const onDroppedCorrection = vi.fn();
-    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
-      isIOSWebKitDevice: () => true,
-      onDroppedCorrection,
-    });
-    virtualizer.scrollElement!.scrollTop = 1_000;
-    virtualizer.scrollOffset = 1_000;
-    // Desktop applies a forward correction as a scroll write; only iOS folds it.
-    virtualizer.scrollDirection = 'forward';
-    virtualizer.isScrolling = true;
-    scrollToFn.mockClear();
-
-    mount(0, createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)));
-    await Promise.resolve();
-    expect(onDroppedCorrection).toHaveBeenCalledWith(30);
-    expect(scrollToFn).not.toHaveBeenCalled();
     dispose();
   });
 });

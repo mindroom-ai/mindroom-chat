@@ -333,7 +333,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       let renderer: ReturnType<typeof create> | undefined;
 
       settingsState.prefetchDepth = 10000;
-      roomTimelineVirtualizerState.virtualIndexes = [195, 196, 197, 198, 199];
+      // +1 for the leading item 0 (`[+all]` toggle / roomIntro).
+      roomTimelineVirtualizerState.virtualIndexes = [196, 197, 198, 199, 200];
 
       try {
         await act(async () => {
@@ -361,7 +362,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         });
 
         expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
-        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(200);
+        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(201);
         expect(getRenderedEventIds(renderer!)).toEqual([
           '$event-295',
           '$event-296',
@@ -667,13 +668,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       }
     });
 
-    it('folds a room virtual-range prepend into the offset ledger with zero scroll writes', async () => {
-      // Room-ledger port (2026-07-07, PR #90 branch): the paginator's
-      // onRangeChange hands the exact prepended span, so the fold is
-      // direct arithmetic — no DOM anchor capture, no coarse scrollTo,
-      // no rAF rect correction (all three DELETED). 100 prepended items
-      // at the flat room estimate (compact 96) fold to exactly 9600px,
-      // delivered by the shared at-rest settle as one scrollTop shift.
+    it('delegates room backward range prepend anchoring to virtual-core anchorTo: end without a margin ledger', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
       const events = Array.from({ length: 300 }, (_value, index) =>
         makeEvent(`$event-${index}`, { ts: index })
@@ -760,20 +755,13 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           await flushAsyncWork();
         });
 
-        // The fold lands in the range-change commit: margin = -100 x 96.
-        expect(innerElement.style.marginTop).toBe('-9600px');
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
-
-        // At-rest settle (150ms quiescence, fake clock): ONE exactly-
-        // cancelling scrollTop shift, margin back to zero, still no
-        // scrollTo — the reconcile-loop-racing restore is gone.
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(250);
-          await flushAsyncWork(5);
+        // Upstream anchorTo: 'end' owns prepend anchoring: no marginTop offset ledger is applied.
+        expect(innerElement.style.marginTop).toBeUndefined();
+        expect(roomTimelineVirtualizerState.lastOptions).toMatchObject({
+          anchorTo: 'end',
+          scrollEndThreshold: -1,
+          count: 301,
         });
-        expect(scrollElement.scrollTop).toBe(9600);
-        expect(innerElement.style.marginTop).toBe('');
-        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         act(() => {
           renderer?.unmount();

@@ -41,10 +41,10 @@ describe('cacheProbe', () => {
   });
 
   it('reads one counter without allocating a snapshot', () => {
-    countCacheProbe('ledgerBoundarySettles', 3);
+    countCacheProbe('threadAutoPaginateBackFired', 3);
 
-    expect(getCacheProbeCounter('ledgerBoundarySettles')).toBe(3);
-    expect(getCacheProbeCounter('ledgerQuiescenceSettles')).toBe(0);
+    expect(getCacheProbeCounter('threadAutoPaginateBackFired')).toBe(3);
+    expect(getCacheProbeCounter('threadPaginateBackCacheMisses')).toBe(0);
   });
 
   it('resets all counters', () => {

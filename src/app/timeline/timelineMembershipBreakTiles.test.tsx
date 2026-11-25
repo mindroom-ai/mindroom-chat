@@ -126,7 +126,6 @@ const windowTiles = (
     membershipFolds: { view, toggle },
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
-    ledgerPxAtRender: 0,
   });
   return { tiles, roomWindowRows, projection, range, view };
 };

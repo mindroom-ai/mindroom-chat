@@ -6,6 +6,7 @@ import {
   estimateFormattedBodyPx,
   estimateMessageRowHeight,
   estimateRoomRowHeight,
+  roomWrapCharsForWidth,
 } from './timelineRowEstimate';
 
 const MINUTE = 60_000;
@@ -197,6 +198,27 @@ describe('estimateRoomRowHeight', () => {
   it('adds the date separator above the first message of a new day', () => {
     const tomorrow = makeEvent({ id: '$tomorrow', ts: first.getTs() + 24 * 60 * MINUTE });
     expect(estimateRoomRowHeight(tomorrow, first)).toBe(68 + 34);
+  });
+
+  it('wraps room row estimates at the desktop column width instead of narrow thread width', () => {
+    expect(roomWrapCharsForWidth(undefined)).toBe(48);
+    expect(roomWrapCharsForWidth(390)).toBe(48);
+    expect(roomWrapCharsForWidth(960)).toBe(108);
+
+    const fourMediumLines = makeEvent({
+      id: '$step',
+      sender: '@mindroom_dev:example.org',
+      content: {
+        msgtype: 'm.text',
+        body: 'Step 1/3 for turn #56: inspecting room scroll ledger measurements.\n'.repeat(4),
+      },
+    });
+    const narrow = estimateRoomRowHeight(fourMediumLines, first);
+    const desktop = estimateRoomRowHeight(fourMediumLines, first, {
+      wrapChars: roomWrapCharsForWidth(960),
+    });
+    expect(desktop).toBeLessThan(narrow);
+    expect(narrow - desktop).toBe(80);
   });
 
   it('shows membership and name changes as one line and other state as nothing', () => {

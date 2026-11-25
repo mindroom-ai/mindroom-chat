@@ -31,9 +31,6 @@ vi.mock('./app/theme/themeBootstrap', () => ({
 vi.mock('./app/theme/appliedTheme', () => ({
   applyAppTheme: vi.fn(),
 }));
-vi.mock('./app/timeline/rideTraceRecorder', () => ({
-  bootstrapRideTraceFlagFromUrl: vi.fn(),
-}));
 vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
   migratePrefetchSettingsStorage: vi.fn(),
 }));
