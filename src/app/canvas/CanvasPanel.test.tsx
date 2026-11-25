@@ -595,6 +595,58 @@ describe('CanvasPanel', () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
   });
 
+  it('flushes an active countdown send before closing', async () => {
+    const onClose = vi.fn(() => {
+      // The send must reach the SDK before the parent unmounts the panel on close.
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+    render({ onClose });
+    await postGesture('Pro plan', { plan: 'pro' });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => button('[aria-label="Close canvas"]').click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
+      label: 'Pro plan',
+      data: { plan: 'pro' },
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    await later(CANVAS_UNDO_DELAY_MS);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes without sending when the countdown is paused after inspecting Data', async () => {
+    const onClose = vi.fn();
+    render({ onClose });
+    await postGesture('Pro plan', { plan: 'pro' });
+    await act(async () => button('[data-canvas-inspect]').click());
+
+    await act(async () => button('[aria-label="Close canvas"]').click());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the panel open showing the refusal error if flushing on close throws synchronously', async () => {
+    const onClose = vi.fn();
+    render({ onClose });
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('offline');
+    });
+    await postGesture('Pro plan', { plan: 'pro' });
+
+    await act(async () => button('[aria-label="Close canvas"]').click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(status()).toBe('Could not send your response. Try again.');
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+
+    // Now paused, so closing again exits without resending.
+    await act(async () => button('[aria-label="Close canvas"]').click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the pending snapshot until the user sends or discards it', async () => {
     // Even right after a real click, a canvas cannot swap what the user is reviewing.
     Object.defineProperty(navigator, 'userActivation', {

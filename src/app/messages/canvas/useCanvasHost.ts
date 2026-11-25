@@ -415,11 +415,11 @@ export function useCanvasHost({
     [mx, room, updateStaged]
   );
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback((): boolean => {
     const currentStaged = stagedNow.current;
-    if (!currentStaged || currentStaged.phase === 'arming' || busyNow.current) return;
+    if (!currentStaged || currentStaged.phase === 'arming' || busyNow.current) return false;
     const { submission } = currentStaged;
-    if (uploadingSubmission.current === submission) return;
+    if (uploadingSubmission.current === submission) return false;
     const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
     const content = buildCanvasResponseContent(target, submission);
     setSendError(false);
@@ -433,8 +433,11 @@ export function useCanvasHost({
       touched.current = true;
     };
     if (canvasResponseFitsInEvent(content)) {
-      if (!deliver(content, label, submission)) refused();
-      return;
+      if (!deliver(content, label, submission)) {
+        refused();
+        return false;
+      }
+      return true;
     }
     // Too large for one event: upload the whole answer and send a preview that points at it,
     // as MindRoom sends long replies. The snapshot stays until the preview is handed to the SDK,
@@ -455,6 +458,7 @@ export function useCanvasHost({
         uploadingSubmission.current = undefined;
         setUploading(false);
       });
+    return true;
   }, [busyNow, deliver, mx, pauseCountdown, room, t, target]);
 
   const sendNow = useLatestRef(handleSend);

@@ -105,6 +105,12 @@ export function CanvasPanel({
     host.chosen();
     onSelectVersion?.(current);
   };
+  const handleClose = () => {
+    // Flush an active auto-send countdown before unmounting so closing does not drop an answer
+    // the user saw as sending; stay open if the SDK refuses synchronously.
+    if (host.countingDown && !host.send()) return;
+    onClose();
+  };
 
   return (
     <aside className={css.Panel} aria-label={t('mindroomUi.canvas.panelLabel')}>
@@ -164,7 +170,7 @@ export function CanvasPanel({
             </div>
           </div>
         )}
-        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
+        <PanelHeaderControls onClose={handleClose} closeLabel={t('mindroomUi.canvas.close')}>
           {onToggleExpanded && !frame && (
             <IconTooltip label={t('mindroomUi.canvas.expand')}>
               {(triggerRef) => (
