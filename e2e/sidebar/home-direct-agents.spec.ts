@@ -64,22 +64,35 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
 }) => {
   test.setTimeout(240_000);
 
-  // Register invented personas and agents.
-  const viewer = await registerDisposableUser(`hda_maya_${RUN}`, PASSWORD);
-  const liam = await registerDisposableUser(`hda_liam_${RUN}`, PASSWORD);
-  const sora = await registerDisposableUser(`hda_sora_${RUN}`, PASSWORD);
-  const devAgent = await registerAgentAccount(HOMESERVER, `dev_${RUN}`);
-  const researcher = await registerAgentAccount(HOMESERVER, `researcher_${RUN}`);
+  // Register invented personas and 7 invented agents (exceeding the 6-item Agents compact cap).
+  const agentSpecs = [
+    { slug: 'dev', name: 'DevAgent', role: 'Builds features' },
+    { slug: 'researcher', name: 'Researcher', role: 'Answers research questions' },
+    { slug: 'reviewer', name: 'Reviewer', role: 'Reviews pull requests' },
+    { slug: 'planner', name: 'Planner', role: 'Plans project milestones' },
+    { slug: 'triage', name: 'TriageBot', role: 'Triages incoming issues' },
+    { slug: 'docs', name: 'DocsHelper', role: 'Maintains documentation' },
+    { slug: 'release', name: 'ReleaseBot', role: 'Coordinates releases' },
+  ] as const;
+
+  const [viewer, liam, sora, ...agents] = await Promise.all([
+    registerDisposableUser(`hda_maya_${RUN}`, PASSWORD),
+    registerDisposableUser(`hda_liam_${RUN}`, PASSWORD),
+    registerDisposableUser(`hda_sora_${RUN}`, PASSWORD),
+    ...agentSpecs.map((spec) => registerAgentAccount(HOMESERVER, `${spec.slug}_${RUN}`)),
+  ]);
+  const devAgent = agents[0]!;
 
   await Promise.all([
     setDisplayName(viewer.accessToken, viewer.userId, 'Maya Patel'),
     setDisplayName(liam.accessToken, liam.userId, "Liam O'Connor"),
     setDisplayName(sora.accessToken, sora.userId, 'Sora Takahashi'),
-    setDisplayName(devAgent.accessToken, devAgent.userId, 'DevAgent'),
-    setDisplayName(researcher.accessToken, researcher.userId, 'Researcher'),
+    ...agents.map((agent, index) =>
+      setDisplayName(agent.accessToken, agent.userId, agentSpecs[index]!.name)
+    ),
   ]);
 
-  // Create unspaced room, space + nested room, 1:1 human DM, group DM, self-DM, and 1:1 agent DM.
+  // Create unspaced room, two spaces + rooms, 1:1 human DM, group DM, self-DM, and 1:1 agent DM.
   const createDm = (invite?: string[], name?: string) =>
     createPrivateRoom(HOMESERVER, viewer.accessToken, {
       preset: 'trusted_private_chat',
@@ -91,15 +104,18 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
     name: 'general',
     // Invitees get the creator's power, so the agents may publish their io.mindroom.server state.
     preset: 'trusted_private_chat',
-    invite: [devAgent.userId, researcher.userId],
+    invite: agents.map((agent) => agent.userId),
   });
-  const engineering = await createPrivateSpace(HOMESERVER, viewer.accessToken, {
-    name: 'Engineering',
-  });
-  const designReview = await createPrivateRoom(HOMESERVER, viewer.accessToken, {
-    name: 'design-review',
-  });
-  await addRoomToSpace(HOMESERVER, viewer.accessToken, engineering, designReview);
+  const [engineering, designReview, product, roadmap] = await Promise.all([
+    createPrivateSpace(HOMESERVER, viewer.accessToken, { name: 'Engineering' }),
+    createPrivateRoom(HOMESERVER, viewer.accessToken, { name: 'design-review' }),
+    createPrivateSpace(HOMESERVER, viewer.accessToken, { name: 'Product' }),
+    createPrivateRoom(HOMESERVER, viewer.accessToken, { name: 'roadmap' }),
+  ]);
+  await Promise.all([
+    addRoomToSpace(HOMESERVER, viewer.accessToken, engineering, designReview),
+    addRoomToSpace(HOMESERVER, viewer.accessToken, product, roadmap),
+  ]);
 
   const liamDm = await createDm([liam.userId]);
   const groupDm = await createDm([liam.userId, sora.userId]);
@@ -107,32 +123,20 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
   const devDm = await createDm([devAgent.userId]);
 
   await Promise.all([
-    joinRoom(HOMESERVER, devAgent.accessToken, general),
-    joinRoom(HOMESERVER, researcher.accessToken, general),
+    ...agents.map((agent) => joinRoom(HOMESERVER, agent.accessToken, general)),
     joinRoom(HOMESERVER, liam.accessToken, liamDm),
     joinRoom(HOMESERVER, liam.accessToken, groupDm),
     joinRoom(HOMESERVER, sora.accessToken, groupDm),
     joinRoom(HOMESERVER, devAgent.accessToken, devDm),
   ]);
 
-  await Promise.all([
-    sendStateEvent(
-      HOMESERVER,
-      devAgent.accessToken,
-      general,
-      'io.mindroom.server',
-      devAgent.userId,
-      { role: 'Builds features' }
-    ),
-    sendStateEvent(
-      HOMESERVER,
-      researcher.accessToken,
-      general,
-      'io.mindroom.server',
-      researcher.userId,
-      { role: 'Answers research questions' }
-    ),
-  ]);
+  await Promise.all(
+    agents.map((agent, index) =>
+      sendStateEvent(HOMESERVER, agent.accessToken, general, 'io.mindroom.server', agent.userId, {
+        role: agentSpecs[index]!.role,
+      })
+    )
+  );
 
   await setAccountData(HOMESERVER, viewer.accessToken, viewer.userId, 'm.direct', {
     [liam.userId]: [liamDm, groupDm],
@@ -193,15 +197,26 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
   await page.mouse.move(0, 0);
   await expect(groupRow.locator('[data-draft-indicator="true"]')).toBeVisible({ timeout: 15_000 });
 
-  // Verify Engineering space sits between Rooms and Direct messages, and Agents shows DevAgent + Researcher.
+  // Verify Engineering and Product spaces sit between Rooms and Direct messages, and Agents caps at 5 + Show all (7).
   await expect(nav.locator(`button[data-category-id="home|space|${engineering}"]`)).toBeVisible();
+  await expect(nav.locator(`button[data-category-id="home|space|${product}"]`)).toBeVisible();
   const devRow = roomLink(agentsSection, devDm);
   await expect(agentsSection.getByText('Researcher', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
   await expect(devRow).toBeVisible({ timeout: 30_000 });
   await expect(devRow).toContainText('DevAgent');
+  const agentsCapToggle = agentsSection.locator('[data-home-agents-action="toggle-all"]');
+  await expect(agentsCapToggle).toHaveText('Show all (7)', { timeout: 30_000 });
+  await expect(agentsSection.getByText('TriageBot', { exact: true })).toHaveCount(0);
   await captureShot(page, 'home-expanded');
+
+  await agentsCapToggle.click();
+  await expect(agentsCapToggle).toHaveText('Show less');
+  await expect(agentsSection.getByText('TriageBot', { exact: true })).toBeVisible();
+  await agentsCapToggle.click();
+  await expect(agentsCapToggle).toHaveText('Show all (7)');
+  await expect(agentsSection.getByText('TriageBot', { exact: true })).toHaveCount(0);
 
   await devRow.click();
   await expect.poll(() => decodeURIComponent(new URL(page.url()).pathname)).toBe(`/home/${devDm}`);

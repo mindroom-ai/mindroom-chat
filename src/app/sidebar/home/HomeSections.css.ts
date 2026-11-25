@@ -1,7 +1,8 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { CategoryButton } from '../room-nav/RoomNavCategoryButton.css';
 
-/** Subtle section icon leading the chevron in Home's Direct messages and Agents headers. */
+/** Subtle muted icon inside Home's compact section cap toggle row (`Show all` / `Show less`). */
 export const SectionIcon = style({
   opacity: config.opacity.P500,
   flexShrink: 0,
@@ -38,3 +39,26 @@ export const AgentStartError = style({
 export const PopulatedSearchField = style({
   inlineSize: '100%',
 });
+
+/** Top divider separating Home's secondary sections (Direct messages, Agents, Threads) from rooms/spaces. */
+export const SecondarySectionGroup = style({
+  borderBlockStart: '1px solid color-mix(in srgb, currentColor 10%, transparent)',
+  paddingBlockStart: config.space.S200,
+});
+
+/**
+ * Cap collapsed category touch-target vertical reach inside the 2px secondary stack (matching
+ * SpaceSectionHeader.css.ts) so Threads' ::after hit area cannot overlap collapsed Agents above it.
+ * Repeating CategoryButton via :is() gives (0,4,1) specificity, beating CategoryButton's (0,3,1)
+ * touchTarget rule regardless of CSS chunk order.
+ */
+globalStyle(
+  `${SecondarySectionGroup} ${CategoryButton}:is(${CategoryButton})[aria-expanded="false"]::after`,
+  {
+    '@media': {
+      '(pointer: coarse)': {
+        insetBlock: 'min(0px, max(calc((100% - 44px) / 2), -1px))',
+      },
+    },
+  }
+);

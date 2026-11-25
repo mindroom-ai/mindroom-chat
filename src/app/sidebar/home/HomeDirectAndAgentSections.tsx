@@ -19,6 +19,7 @@ import { getDirectCreatePath } from '../../routes/pathUtils';
 import { ownDirectionLine } from '../../ui/directional';
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
+import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { startDirectChat } from './homeAgents';
 import {
   HOME_AGENTS_CATEGORY_ID,
@@ -142,6 +143,41 @@ function HomeAgentStartRow({
   );
 }
 
+/** Shared compact-cap toggle row (`Show all (N)` / `Show less`) for Direct messages and Agents. */
+function HomeSectionCapToggle({
+  kind,
+  count,
+  showAll,
+  onToggle,
+}: {
+  kind: 'dm' | 'agents';
+  count: number;
+  showAll: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <NavItem radii="400" variant="Background">
+      <NavButton
+        aria-expanded={showAll}
+        data-home-dm-action={kind === 'dm' ? 'toggle-all' : undefined}
+        data-home-agents-action={kind === 'agents' ? 'toggle-all' : undefined}
+        onClick={onToggle}
+      >
+        <HomeActionRowContent
+          icon={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
+          iconClassName={css.SectionIcon}
+          label={
+            showAll
+              ? t('mindroomUi.notices.showLess')
+              : t('featureUi.homeNav.showAllDirectMessages', { count })
+          }
+        />
+      </NavButton>
+    </NavItem>
+  );
+}
+
 export type HomeDirectSectionProps = {
   /** Direct rooms currently visible in the section (already resolved for collapse and compact cap). */
   visibleRooms: readonly Room[];
@@ -170,13 +206,15 @@ export function HomeDirectSection({
 }: HomeDirectSectionProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const showCapToggle = !closed && allRoomIds.length > HOME_DIRECT_COMPACT_LIMIT;
-
   return (
-    <NavCategory data-testid="home-direct-section">
+    <NavCategory
+      data-testid="home-direct-section"
+      className={spaceSectionCss.SpaceSectionNode}
+      data-depth="0"
+      data-expanded={!closed || visibleRooms.length > 0 ? 'true' : undefined}
+    >
       <HomeSectionHeader
         label={t('featureUi.homeNav.directMessages')}
-        icon={Icons.Message}
         categoryId={HOME_DIRECT_CATEGORY_ID}
         closed={closed}
         roomIds={allRoomIds}
@@ -198,20 +236,13 @@ export function HomeDirectSection({
           showAvatar
         />
       ))}
-      {showCapToggle && (
-        <NavItem radii="400" variant="Background">
-          <NavButton data-home-dm-action="toggle-all" onClick={onToggleShowAll}>
-            <HomeActionRowContent
-              icon={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
-              iconClassName={css.SectionIcon}
-              label={
-                showAll
-                  ? t('mindroomUi.notices.showLess')
-                  : t('featureUi.homeNav.showAllDirectMessages', { count: allRoomIds.length })
-              }
-            />
-          </NavButton>
-        </NavItem>
+      {!closed && allRoomIds.length > HOME_DIRECT_COMPACT_LIMIT && (
+        <HomeSectionCapToggle
+          kind="dm"
+          count={allRoomIds.length}
+          showAll={showAll}
+          onToggle={onToggleShowAll}
+        />
       )}
       {!closed && (
         <NavItem radii="400" variant="Background">
@@ -229,11 +260,15 @@ export function HomeDirectSection({
 }
 
 export type HomeAgentsSectionProps = {
-  /** Agents currently visible in the section (already resolved for collapsed state). */
+  /** Agents currently visible in the section (already resolved for collapse and compact cap). */
   visibleAgents: readonly HomeSidebarAgent[];
+  /** Total agents in this section, for the compact cap toggle count. */
+  totalCount: number;
   agentDmRoomIds: readonly string[];
   closed: boolean;
   selectedRoomId: string | undefined;
+  showAll: boolean;
+  onToggleShowAll: () => void;
   onCategoryClick: MouseEventHandler<HTMLElement>;
   homeRoomPath: (roomId: string) => string;
   notificationPreferences: RoomsNotificationPreferences;
@@ -242,9 +277,12 @@ export type HomeAgentsSectionProps = {
 /** Collapsible Agents section on Home: opens or starts each agent's 1:1 DM while staying in Home. */
 export function HomeAgentsSection({
   visibleAgents,
+  totalCount,
   agentDmRoomIds,
   closed,
   selectedRoomId,
+  showAll,
+  onToggleShowAll,
   onCategoryClick,
   homeRoomPath,
   notificationPreferences,
@@ -271,10 +309,14 @@ export function HomeAgentsSection({
   );
 
   return (
-    <NavCategory data-testid="home-agents-section">
+    <NavCategory
+      data-testid="home-agents-section"
+      className={spaceSectionCss.SpaceSectionNode}
+      data-depth="0"
+      data-expanded={!closed || visibleAgents.length > 0 ? 'true' : undefined}
+    >
       <HomeSectionHeader
         label={t('featureUi.homeNav.agents')}
-        icon={Icons.Category}
         categoryId={HOME_AGENTS_CATEGORY_ID}
         closed={closed}
         roomIds={agentDmRoomIds}
@@ -307,6 +349,14 @@ export function HomeAgentsSection({
           />
         );
       })}
+      {!closed && totalCount > HOME_DIRECT_COMPACT_LIMIT && (
+        <HomeSectionCapToggle
+          kind="agents"
+          count={totalCount}
+          showAll={showAll}
+          onToggle={onToggleShowAll}
+        />
+      )}
     </NavCategory>
   );
 }
