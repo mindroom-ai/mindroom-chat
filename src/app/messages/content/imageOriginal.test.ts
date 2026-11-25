@@ -112,7 +112,7 @@ describe('imageOriginal', () => {
     expect(await load('mxc://ex/shared')).toEqual({ src: 'blob:img-2', downloadBlob: heic });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(2);
 
-    // Plaintext hits the conversion cache; encrypted HEIC bypasses it so decrypted pixels are not cached.
+    // Plaintext hits the conversion cache; encrypted HEIC is cached per key and IV, never across them.
     expect(await load('mxc://ex/shared')).toEqual({ src: 'blob:img-3', downloadBlob: heic });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(2);
 
@@ -124,6 +124,9 @@ describe('imageOriginal', () => {
     };
     await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo });
     await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo });
+    expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(3);
+    const otherKey = { ...encInfo, key: { ...encInfo.key, k: 'other' } };
+    await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo: otherKey });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(4);
   });
 
