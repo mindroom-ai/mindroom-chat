@@ -24,7 +24,8 @@ import { COMPOSER_NAME } from './composerName';
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
  * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default the
- * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port.
+ * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port,
+ * unless E2E_REQUIRE_AGENT_STACK=1 is set (in which case missing prerequisites throw instead of skipping).
  * E2E_PLUGIN_DIRS adds plugin directories to the stack (stack.py's docstring), and a stack started with other ones
  * restarts.
  */
@@ -111,6 +112,7 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   if (result.status === 0) return JSON.parse(result.stdout) as AgentStack;
   const message = (result.stderr || String(result.error ?? '')).trim();
   if (
+    process.env.E2E_REQUIRE_AGENT_STACK !== '1' &&
     [EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS, EXIT_NO_TERMINALS].includes(
       result.status ?? -1
     )
