@@ -1127,6 +1127,95 @@ class AliveTests(unittest.TestCase):
         self.assertFalse(stack.alive(process.pid, "marker", process=process))
 
 
+class PrepareSourceTests(unittest.TestCase):
+    LFS_POINTER = "version https://git-lfs.github.com/spec/v1\noid sha256:" + "0" * 64 + "\nsize 123\n"
+    FAKE_UV = '#!/bin/sh\necho "$*" >> "$FAKE_UV_LOG"\n'
+    FAILING_GIT_LFS = '#!/bin/sh\necho "$*" >> "$FAKE_GIT_LFS_LOG"\necho "git-lfs should not be invoked" >&2\nexit 99\n'
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.checkout = self.root / "mindroom"
+        for relpath, content in (
+            (".gitattributes", "*.png filter=lfs diff=lfs merge=lfs -text\n"),
+            ("pyproject.toml", "[project]\nname = 'mindroom'\n"),
+            ("assets/logo.png", self.LFS_POINTER),
+            ("avatars/spaces/root_space.png", self.LFS_POINTER),
+        ):
+            path = self.checkout / relpath
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        git = ["git", "-C", str(self.checkout), "-c", "user.name=Test", "-c", "user.email=test@example.org"]
+        no_lfs = [
+            "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=",
+            "-c", "filter.lfs.smudge=", "-c", "filter.lfs.required=false",
+        ]
+        for command in (
+            ["init", "-q"],
+            [*no_lfs, "add", "."],
+            [*no_lfs, "-c", "commit.gpgsign=false", "commit", "-qm", "source"],
+            ["config", "filter.lfs.process", "git-lfs filter-process"],
+            ["config", "filter.lfs.smudge", "git-lfs smudge -- %f"],
+            ["config", "filter.lfs.required", "true"],
+        ):
+            subprocess.run([*git, *command], check=True)
+        self.sha = stack.git(self.checkout, "rev-parse", "HEAD")
+        (self.root / "bin").mkdir()
+        for name, body in (("uv", self.FAKE_UV), ("git-lfs", self.FAILING_GIT_LFS)):
+            script = self.root / "bin" / name
+            script.write_text(body)
+            script.chmod(0o755)
+        environment = {
+            "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}",
+            "E2E_AGENT_STACK_ROOT": str(self.root / "stacks"),
+            "FAKE_UV_LOG": str(self.root / "uv.log"),
+            "FAKE_GIT_LFS_LOG": str(self.root / "git-lfs.log"),
+        }
+        for patcher in (mock.patch.dict(os.environ, environment), mock.patch.object(stack, "log")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_source_is_archived_once_without_lfs_or_avatars(self) -> None:
+        source = stack.prepare_source(self.checkout, self.sha)
+        self.assertEqual(stack.prepare_source(self.checkout, self.sha), source)
+        self.assertEqual((source / "pyproject.toml").read_text(), "[project]\nname = 'mindroom'\n")
+        self.assertEqual((source / "assets" / "logo.png").read_text(), self.LFS_POINTER)
+        self.assertFalse((source / "avatars").exists())
+        self.assertTrue((source / ".complete").exists())
+        self.assertEqual(len((self.root / "uv.log").read_text().splitlines()), 1)
+        self.assertFalse((self.root / "git-lfs.log").exists())
+
+    def test_a_failed_or_truncated_archive_raises_stack_error_without_complete(self) -> None:
+        bad_sha = "0" * 40
+        with self.assertRaises(stack.StackError) as raised:
+            stack.prepare_source(self.checkout, bad_sha)
+        self.assertIn("fatal:", str(raised.exception))
+        self.assertFalse((self.root / "stacks" / "src" / bad_sha / ".complete").exists())
+
+        truncated = io.BytesIO()
+        with tarfile.open(fileobj=truncated, mode="w|") as tar:
+            info = tarfile.TarInfo("pyproject.toml")
+            info.size = 1024
+            tar.addfile(info, io.BytesIO(b"x" * 1024))
+        real_popen = subprocess.Popen
+        script = (
+            "import sys; sys.stdout.buffer.write(bytes.fromhex(sys.argv[1])); "
+            "print('stream aborted', file=sys.stderr); sys.exit(1)"
+        )
+        with mock.patch.object(
+            stack.subprocess,
+            "Popen",
+            side_effect=lambda _cmd, **kwargs: real_popen(
+                [sys.executable, "-c", script, truncated.getvalue()[:600].hex()], **kwargs
+            ),
+        ):
+            with self.assertRaises(stack.StackError) as raised:
+                stack.prepare_source(self.checkout, self.sha)
+        self.assertIn("stream aborted", str(raised.exception))
+        self.assertFalse((self.root / "stacks" / "src" / self.sha / ".complete").exists())
+
+
 class WorkerImageTests(unittest.TestCase):
     DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 
