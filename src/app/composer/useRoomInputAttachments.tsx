@@ -61,11 +61,8 @@ import {
   getRoomInputPasteMarkerFileNames,
   isRoomInputPasteMarkerElement,
 } from './RoomInputExtensions';
-import {
-  DEFAULT_MEDIA_COMPRESSION,
-  isMediaCompressionPreset,
-  type MediaCompressionPreset,
-} from '../preferences/mediaCompression';
+import { isEligibleImageForCompression } from '../lib/media/mediaCompressionEligibility';
+import { getImageCompressionSpec } from '../preferences/mediaCompression';
 import { settingsAtom } from '../preferences/settings';
 import { useMediaCompression, type PendingVideoCompression } from './useMediaCompression';
 
@@ -109,6 +106,10 @@ type RoomInputAttachments = {
     items: readonly TUploadItem[],
     targetRoomId?: string
   ) => Promise<TUploadItem[]>;
+  /** Whether any pasted/dropped/picked files are currently staging (e.g. inline image compression). */
+  hasPendingStaging: () => boolean;
+  /** Resolves once all currently in-flight `stageFiles` operations have finished staging. */
+  waitForPendingStaging: () => Promise<void>;
   /** Whether the upload board card list is currently expanded. */
   boardOpen: boolean;
   onPaste: (event: ClipboardEvent<HTMLElement>) => void;
@@ -333,6 +334,8 @@ export const useRoomInputAttachments = ({
       items.forEach((item) => {
         if (item.compression?.status === 'compressing') {
           item.compression.cancel();
+          roomUploadAtomFamily.remove(item.file);
+          return;
         }
         const upload = store.get(roomUploadAtomFamily(item.file));
         if (upload.status !== UploadStatus.Loading) return;
@@ -533,12 +536,39 @@ export const useRoomInputAttachments = ({
   const restorePastesRef = useRef(restorePastes);
   restorePastesRef.current = restorePastes;
 
+  const pendingStaging = useRef(new Set<Promise<void>>());
+  const hasPendingStaging = useCallback(() => pendingStaging.current.size > 0, []);
+  const waitForPendingStaging = useCallback(async (): Promise<void> => {
+    while (pendingStaging.current.size > 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.allSettled([...pendingStaging.current]);
+    }
+  }, []);
+
+  const replaceEnrolled = useCallback((oldFile: TUploadContent, replacement: TUploadItem) => {
+    claims.forEach((claim) => {
+      let changed = false;
+      claim.ref.current = claim.ref.current.map((entry) => {
+        if (entry.file !== oldFile) return entry;
+        changed = true;
+        return replacement;
+      });
+      if (changed) claim.sync();
+    });
+  }, []);
+
   const getTargetAtom = useCallback(
     (targetRoomId: string) => composerUploadItemsAtom(listKey(targetRoomId), view),
     [listKey, view]
   );
 
-  const compression = useMediaCompression({
+  const {
+    compressInlineImages,
+    prepareVideoCompression,
+    useOriginal: restoreOriginal,
+    waitForCompression: awaitCompression,
+    waitingForCompression,
+  } = useMediaCompression({
     mx,
     store,
     current,
@@ -550,15 +580,24 @@ export const useRoomInputAttachments = ({
     uploadAtomFamily: roomUploadAtomFamily,
     keepNames,
     syncUploadWatches,
-    syncEnrolled,
+    replaceEnrolled,
     notify,
   });
 
-  // Commits deferred staged files to `targetRoom` at Send time: waits for active compressions,
-  // encrypts iff `targetRoom` is encrypted, resets transient errors for retry, and blocks files
-  // over the server's size limit.
+  const waitForCompression = useCallback(
+    async (items: readonly TUploadItem[], targetRoomId?: string): Promise<TUploadItem[]> => {
+      await waitForPendingStaging();
+      return awaitCompression(items, targetRoomId);
+    },
+    [awaitCompression, waitForPendingStaging]
+  );
+
+  // Commits staged files to `targetRoom` at Send time: waits for in-flight staging and active
+  // compressions, then (when deferred) encrypts iff `targetRoom` is encrypted, resets transient
+  // errors for retry, and blocks files over the server's size limit.
   const prepareForSend = useCallback(
     async (targetRoom: Room, explicitItems?: TUploadItem[]): Promise<TUploadItem[]> => {
+      await waitForPendingStaging();
       const targetAtom = getTargetAtom(targetRoom.roomId);
       const enrolledSet = new Set(enrolled.current.map((entry) => entry.file));
       const candidates =
@@ -568,7 +607,7 @@ export const useRoomInputAttachments = ({
 
       const hasCompressing = candidates.some((item) => item.compression?.status === 'compressing');
       const resolvedCandidates = hasCompressing
-        ? await compression.waitForCompression(candidates, targetRoom.roomId)
+        ? await awaitCompression(candidates, targetRoom.roomId)
         : candidates;
       if (!deferUpload || resolvedCandidates.length === 0) return resolvedCandidates;
 
@@ -644,7 +683,7 @@ export const useRoomInputAttachments = ({
     },
     [
       access,
-      compression,
+      awaitCompression,
       deferUpload,
       getTargetAtom,
       maxUploadSize,
@@ -653,6 +692,7 @@ export const useRoomInputAttachments = ({
       store,
       syncEnrolled,
       syncUploadWatches,
+      waitForPendingStaging,
     ]
   );
 
@@ -693,68 +733,77 @@ export const useRoomInputAttachments = ({
     // composer still shows it once they are prepared.
     async (files: File[], asked?: { roomId: string; draftKey?: string }) => {
       if (files.length === 0) return;
-      const targetRoomId = asked?.roomId ?? current.current.roomId;
-      const targetRoom =
-        (asked && typeof mx.getRoom === 'function' ? mx.getRoom(targetRoomId) : undefined) ??
-        current.current.room;
-      let preset: MediaCompressionPreset = DEFAULT_MEDIA_COMPRESSION;
-      try {
-        const raw = (store.get(settingsAtom) as { mediaCompression?: unknown } | undefined)
-          ?.mediaCompression;
-        if (isMediaCompressionPreset(raw)) preset = raw;
-      } catch {
-        preset = DEFAULT_MEDIA_COMPRESSION;
-      }
+      const run = (async () => {
+        const targetRoomId = asked?.roomId ?? current.current.roomId;
+        const targetRoom =
+          (asked && typeof mx.getRoom === 'function' ? mx.getRoom(targetRoomId) : undefined) ??
+          current.current.room;
+        const preset = store.get(settingsAtom).mediaCompression;
 
-      const videoJobs: Array<{ index: number; job: PendingVideoCompression }> = [];
-      const inlineFiles: Array<{ index: number; file: File }> = [];
-      files.forEach((file, index) => {
-        const job = compression.prepareVideoCompression(file, preset, targetRoom, targetRoomId);
-        if (job) videoJobs.push({ index, job });
-        else inlineFiles.push({ index, file });
-      });
-
-      const stagedItems = new Array<TUploadItem>(files.length);
-      if (inlineFiles.length > 0) {
-        const hasEligibleImages = inlineFiles.some((entry) =>
-          compression.canCompressImage(entry.file, preset)
-        );
-        const compressed = hasEligibleImages
-          ? await compression.compressInlineImages(
-              inlineFiles.map((entry) => entry.file),
-              preset
-            )
-          : inlineFiles.map((entry) => ({ file: entry.file, compression: undefined }));
-        const prepared = await prepareLocalItems(compressed.map((entry) => entry.file));
-        prepared.forEach((item, idx) => {
-          const originalIndex = inlineFiles[idx]!.index;
-          const itemCompression = compressed[idx]?.compression;
-          stagedItems[originalIndex] =
-            itemCompression && !item.prepError ? { ...item, compression: itemCompression } : item;
+        const videoJobs: Array<{ index: number; job: PendingVideoCompression }> = [];
+        const inlineFiles: Array<{ index: number; file: File }> = [];
+        files.forEach((file, index) => {
+          const job = prepareVideoCompression(file, preset, targetRoom, targetRoomId);
+          if (job) videoJobs.push({ index, job });
+          else inlineFiles.push({ index, file });
         });
-      }
 
-      if (!mounted.current) {
-        videoJobs.forEach(({ job }) => job.discard());
-        return;
-      }
-      if (
-        asked &&
-        (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
-      ) {
-        videoJobs.forEach(({ job }) => job.discard());
-        // eslint-disable-next-line no-console
-        console.warn('[composer] files not attached: the conversation changed');
-        return;
-      }
+        const stagedItems = new Array<TUploadItem>(files.length);
+        if (inlineFiles.length > 0) {
+          const hasEligibleImages =
+            getImageCompressionSpec(preset) !== undefined &&
+            inlineFiles.some((entry) => isEligibleImageForCompression(entry.file, maxUploadSize));
+          const compressed = hasEligibleImages
+            ? await compressInlineImages(
+                inlineFiles.map((entry) => entry.file),
+                preset
+              )
+            : inlineFiles.map((entry) => ({ file: entry.file, compression: undefined }));
+          const prepared = await prepareLocalItems(compressed.map((entry) => entry.file));
+          prepared.forEach((item, idx) => {
+            const originalIndex = inlineFiles[idx]!.index;
+            const itemCompression = compressed[idx]?.compression;
+            stagedItems[originalIndex] =
+              itemCompression && !item.prepError ? { ...item, compression: itemCompression } : item;
+          });
+        }
 
-      videoJobs.forEach(({ index, job }) => {
-        stagedItems[index] = job.placeholder;
-      });
-      access.append(targetRoomId, stagedItems);
-      videoJobs.forEach(({ job }) => job.start());
+        if (!mounted.current) {
+          videoJobs.forEach(({ job }) => job.discard());
+          return;
+        }
+        if (
+          asked &&
+          (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
+        ) {
+          videoJobs.forEach(({ job }) => job.discard());
+          // eslint-disable-next-line no-console
+          console.warn('[composer] files not attached: the conversation changed');
+          return;
+        }
+
+        videoJobs.forEach(({ index, job }) => {
+          stagedItems[index] = job.placeholder;
+        });
+        access.append(targetRoomId, stagedItems);
+        videoJobs.forEach(({ job }) => job.start());
+      })();
+      pendingStaging.current.add(run);
+      try {
+        await run;
+      } finally {
+        pendingStaging.current.delete(run);
+      }
     },
-    [access, compression, mx, prepareLocalItems, store]
+    [
+      access,
+      compressInlineImages,
+      maxUploadSize,
+      mx,
+      prepareLocalItems,
+      prepareVideoCompression,
+      store,
+    ]
   );
 
   const pastePlainText = useCallback(
@@ -969,8 +1018,8 @@ export const useRoomInputAttachments = ({
                   replaceItem(fileItem, { ...fileItem, metadata })
                 }
                 onRemove={(file) => access.remove(current.current.roomId, [file])}
-                onUseOriginal={(fileItem) => void compression.useOriginal(fileItem)}
-                canUseOriginal={!enrolledFiles.has(item.file)}
+                onUseOriginal={(fileItem) => void restoreOriginal(fileItem)}
+                canUseOriginal={!enrolledFiles.has(item.file) && !waitingForCompression}
               />
             ))}
           </UploadBoardContent>
@@ -984,7 +1033,9 @@ export const useRoomInputAttachments = ({
     board,
     hasSendableFiles,
     prepareForSend,
-    waitForCompression: compression.waitForCompression,
+    waitForCompression,
+    hasPendingStaging,
+    waitForPendingStaging,
     boardOpen,
     onPaste,
     onEditorChange,

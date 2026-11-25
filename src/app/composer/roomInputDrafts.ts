@@ -20,7 +20,7 @@ import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
-import { abortAllMediaCompressions } from './useMediaCompression';
+import { abortAllMediaCompressions } from './mediaCompressionJobs';
 import {
   captureDiscardsInFlightAtom,
   endLiveCapturesOfAccount,

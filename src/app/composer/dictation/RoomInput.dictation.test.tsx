@@ -219,6 +219,9 @@ vi.mock('../useRoomInputAttachments', () => ({
     lostPastes: false,
     dismissLostPastes: vi.fn(),
     settlePastes: () => true,
+    hasPendingStaging: () => false,
+    waitForPendingStaging: async () => undefined,
+    prepareForSend: vi.fn(async (_room: unknown, items: unknown[] = []) => items),
   }),
 }));
 vi.mock('../useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));

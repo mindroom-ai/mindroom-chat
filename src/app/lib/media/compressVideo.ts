@@ -14,7 +14,8 @@ import {
   type InputAudioTrack,
   type InputVideoTrack,
 } from 'mediabunny';
-import { getFileNameWithoutExt, getMimeTypeBase } from '../mimeTypes';
+import { getFileNameWithoutExt } from '../mimeTypes';
+import { isEligibleVideoForCompression } from './mediaCompressionEligibility';
 
 export type CompressVideoOptions = {
   maxLongEdge: number;
@@ -31,7 +32,6 @@ export type CompressedVideoResult = {
   compressedSize: number;
 };
 
-const MIN_COMPRESS_BYTES = 1024 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const SAVINGS_RATIO_THRESHOLD = 0.95;
 const PROGRESS_THROTTLE_MS = 100;
@@ -204,7 +204,7 @@ const runVideoCompression = async (
     });
 
     const output = new Output({
-      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+      format: new Mp4OutputFormat({ fastStart: false }),
       target,
     });
 
@@ -306,12 +306,9 @@ export const compressVideo = async (
   file: File,
   options: CompressVideoOptions
 ): Promise<CompressedVideoResult | undefined> => {
-  const mime = getMimeTypeBase(file.type);
-  if (!mime.startsWith('video/')) return undefined;
-
   const targetBitrate = Math.round(options.videoBitrate);
   if (
-    file.size <= 0 ||
+    !isEligibleVideoForCompression(file, options.maxUploadSize) ||
     !Number.isFinite(options.maxLongEdge) ||
     options.maxLongEdge <= 0 ||
     !Number.isFinite(options.maxFps) ||
@@ -319,16 +316,6 @@ export const compressVideo = async (
     !Number.isFinite(targetBitrate) ||
     targetBitrate <= 0
   ) {
-    return undefined;
-  }
-
-  if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') {
-    return undefined;
-  }
-
-  const exceedsMaxUploadSize =
-    options.maxUploadSize !== undefined && file.size > options.maxUploadSize;
-  if (file.size < MIN_COMPRESS_BYTES && !exceedsMaxUploadSize) {
     return undefined;
   }
 

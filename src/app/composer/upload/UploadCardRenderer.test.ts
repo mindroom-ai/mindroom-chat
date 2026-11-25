@@ -304,6 +304,7 @@ describe('upload card renderers', () => {
         status: 'compressing' as const,
         progressAtom,
         cancel: vi.fn(),
+        useOriginal: vi.fn(),
         done: Promise.resolve(undefined),
       },
     };

@@ -541,9 +541,12 @@ vi.mock('../../preferences/useSetting', () => ({
   useSetting: () => [false, vi.fn()],
 }));
 
-vi.mock('../../preferences/settings', () => ({
-  settingsAtom: {},
-}));
+vi.mock('../../preferences/settings', async () => {
+  const { atom: createAtom } = await import('jotai');
+  return {
+    settingsAtom: createAtom({ mediaCompression: 'balanced' }),
+  };
+});
 
 vi.mock('../../lib/dom', () => ({
   getDataTransferFiles: (dataTransfer: DataTransfer) => {
@@ -5883,6 +5886,7 @@ describe('RoomInput media compression send and voice invariants', () => {
         status: 'compressing',
         progressAtom: atom(0.4),
         cancel: vi.fn(),
+        useOriginal: vi.fn(),
         done: new Promise(() => {}),
       },
     });
@@ -5899,6 +5903,70 @@ describe('RoomInput media compression send and voice invariants', () => {
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['voice.m4a']);
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([placeholder]);
+
+    renderer.unmount();
+  });
+
+  it('waits for in-flight paste image staging on immediate Enter so caption never sends without the screenshot', async () => {
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
+
+    const screenshot = makeSizedFile('screenshot.png', 'image/png', 180 * 1024);
+    const compressedShot = makeSizedFile('screenshot.webp', 'image/webp', 35 * 1024);
+    const imageGate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mediaCompressionMocks.compressImage.mockImplementationOnce(() => imageGate.promise);
+
+    // Type caption, paste screenshot (inline compression is still running), and immediately hit Enter.
+    stageComposerText('Look at this bug');
+    resetEditorOnNextSend();
+    const uploadDeferred = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(uploadDeferred.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$img-evt' })
+      .mockResolvedValueOnce({ event_id: '$txt-evt' });
+
+    act(() => {
+      fileInputState.onDrop?.([screenshot]);
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    let submitPromise!: Promise<void>;
+    await act(async () => {
+      submitPromise = submitComposer();
+      await Promise.resolve();
+    });
+    // Nothing sent yet while image compression / staging is still in flight.
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    // Inline image compression completes -> screenshot uploads -> sends screenshot then caption!
+    await act(async () => {
+      imageGate.resolve({
+        file: compressedShot,
+        originalSize: screenshot.size,
+        compressedSize: compressedShot.size,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    expect(mxState.uploadContent.mock.calls[0]![0]).toBe(compressedShot);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      uploadDeferred.resolve({ content_uri: 'mxc://mindroom/screenshot' });
+      await submitPromise;
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['screenshot.webp', 'Look at this bug']);
 
     renderer.unmount();
   });

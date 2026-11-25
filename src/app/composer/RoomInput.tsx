@@ -661,6 +661,12 @@ export function RoomInput({
           }
           if (settlePastes() !== true) return;
         }
+        if (attachments.hasPendingStaging()) {
+          await attachments.waitForPendingStaging();
+          if (!mountedRef.current || dictationHandoffRef.current.composerKey !== startKey) {
+            return;
+          }
+        }
         const { composerKey: _composerKey, ...live } = dictationHandoffRef.current;
         if (isLocalEchoEventId(live.threadId) || (live.ask && !live.ask.canSend())) return;
         const detached = dictation.detachForSend();
@@ -682,7 +688,7 @@ export function RoomInput({
           restoreRootModelDraft: (target, content) =>
             getModelController(mx).restoreRootModelDraft(target, content),
           uploadItem: transport.uploadItem,
-          prepareAttachmentsForSend: live.ask ? attachments.prepareForSend : undefined,
+          prepareAttachmentsForSend: attachments.prepareForSend,
           clearReplyDraft,
           resetComposer: composer.resetText,
           stopTyping: () => sendTypingStatus(false),
@@ -739,12 +745,14 @@ export function RoomInput({
       if (settled !== true && !(await settled)) return;
       if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
       const textContent = takeText();
+      const pendingStaging = attachments.hasPendingStaging();
       // With nothing to send on Home, there is no send to track.
-      if (ask && !textContent && !attachments.hasSendableFiles) return;
+      if (ask && !textContent && !attachments.hasSendableFiles && !pendingStaging) return;
       const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
       if (
         ask &&
         !attachments.hasSendableFiles &&
+        !pendingStaging &&
         hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
       ) {
         return;
@@ -783,8 +791,8 @@ export function RoomInput({
         );
         const existingQueue = pendingCompressionQueuesRef.current.get(textKey);
 
-        if (hasCompressing || existingQueue) {
-          if (!textContent && batchCandidates.length === 0) return;
+        if (pendingStaging || hasCompressing || existingQueue) {
+          if (!textContent && batchCandidates.length === 0 && !pendingStaging) return;
           if (
             hasPasteMarkerInText(
               textContent,
@@ -847,6 +855,22 @@ export function RoomInput({
 
           try {
             await previousWait;
+            if (pendingStaging) {
+              await attachments.waitForPendingStaging();
+              const afterStage = attachments.access.snapshot(sendContext.roomId);
+              const afterEnrolled = new Set(afterStage.enrolled.map((item) => item.file));
+              const existingFiles = new Set(batchCandidates.map((item) => item.file));
+              const newlyStaged = afterStage.staged.filter(
+                (item) =>
+                  !item.prepError &&
+                  !item.metadata.mindroomPasteAttachment &&
+                  !afterEnrolled.has(item.file) &&
+                  !claimedFiles.has(item.file) &&
+                  !existingFiles.has(item.file)
+              );
+              newlyStaged.forEach((item) => claimedFiles.add(item.file));
+              batchCandidates.push(...newlyStaged);
+            }
             const fileItems =
               batchCandidates.length > 0
                 ? await attachments.waitForCompression(batchCandidates, sendContext.roomId)
@@ -909,7 +933,7 @@ export function RoomInput({
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
       try {
-        if (ask && attachments.hasSendableFiles) {
+        if (ask && (attachments.hasSendableFiles || pendingStaging)) {
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
           if (textContent) {
             pendingFallback = composer.snapshotText();

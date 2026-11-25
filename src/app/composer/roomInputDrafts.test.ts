@@ -16,7 +16,7 @@ import {
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
 import { confirmedVoiceThreadId } from './RoomInputExtensions';
-import * as mediaCompression from './useMediaCompression';
+import * as mediaCompressionJobs from './mediaCompressionJobs';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -317,11 +317,16 @@ describe('composerOfferAtom', () => {
 });
 
 describe('forgetComposerStateOfSession media compression cleanup', () => {
-  it('aborts active media compressions when composer session state is forgotten', () => {
-    const abortSpy = vi.spyOn(mediaCompression, 'abortAllMediaCompressions');
+  it('aborts active media compressions and runs cleanup callbacks when session state is forgotten', () => {
+    const abortSpy = vi.spyOn(mediaCompressionJobs, 'abortAllMediaCompressions');
+    const controller = new AbortController();
+    const onAbort = vi.fn();
+    mediaCompressionJobs.registerMediaCompressionJob(controller, onAbort);
     try {
       forgetComposerStateOfSession(createStore());
       expect(abortSpy).toHaveBeenCalledTimes(1);
+      expect(controller.signal.aborted).toBe(true);
+      expect(onAbort).toHaveBeenCalledTimes(1);
     } finally {
       abortSpy.mockRestore();
     }

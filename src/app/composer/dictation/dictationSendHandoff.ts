@@ -13,6 +13,7 @@ import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
 import { listSessions } from '../../matrix/session/sessions';
+import type { TUploadContent } from '../../matrix/matrix';
 import { isUploadItemReady, UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
@@ -210,11 +211,7 @@ export const handoffComposerDictationSend = (
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
   const { staged, enrolled } = attachments.snapshot();
   const enrolledFiles = new Set(enrolled.map((item) => item.file));
-  const stagedSnapshot = staged.filter(
-    (item) =>
-      (params.prepareAttachmentsForSend ? !item.prepError : isUploadItemReady(item)) &&
-      !enrolledFiles.has(item.file)
-  );
+  const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
   const rootModel =
     !ask &&
     !params.forkFrom &&
@@ -227,9 +224,10 @@ export const handoffComposerDictationSend = (
   if (stagedSnapshot.length > 0) {
     attachments.enroll(stagedSnapshot);
     // Deferred composers (Home) wait until Send commits to encrypt and upload for the target room.
-    if (!params.prepareAttachmentsForSend) {
+    if (!ask) {
       const roomEncrypted = room.hasEncryptionStateEvent();
       stagedSnapshot.forEach((item) => {
+        if (!isUploadItemReady(item)) return;
         if (roomEncrypted && !item.encInfo) return;
         if (store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Idle) {
           void params.uploadItem(item).catch(() => undefined);
@@ -271,8 +269,10 @@ export const startDetachedDictationSend = (
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
   const { roomId, replyDraft } = sendContext;
   const sameAccount = captureAccountGuard(store);
-  const enrolledFileRefs = new Set(input.stagedSnapshot.map((item) => item.file));
+  const enrolledFileRefs = new Set<TUploadContent>(input.stagedSnapshot.map((item) => item.file));
+  const resolvedItems = new Map<TUploadContent, TUploadItem | undefined>();
   let aborted = false;
+  let cleanedUp = false;
   let accountRestored = false;
   const journalId = session.getJournalId();
   let currentEntry!: DetachedDictationSend;
@@ -280,16 +280,45 @@ export const startDetachedDictationSend = (
     if (journalId) void deleteCapture(journalId).catch(() => undefined);
   };
 
-  const getActiveStaged = (): TUploadItem[] => {
+  input.stagedSnapshot.forEach((item) => {
+    if (item.compression?.status !== 'compressing') return;
+    void item.compression.done.then((replacement) => {
+      resolvedItems.set(item.file, replacement);
+      if (!replacement) return;
+      enrolledFileRefs.add(replacement.file);
+      if (aborted || cleanedUp) attachments.clearEnrollment([replacement.file]);
+    });
+  });
+
+  const getActiveStaged = (keepPendingCompressing = false): TUploadItem[] => {
     if (input.stagedSnapshot.length === 0) return [];
-    if (!input.tracksEnrollment) return input.stagedSnapshot;
+    if (!input.tracksEnrollment) {
+      return input.stagedSnapshot.flatMap((item) => {
+        const current = resolvedItems.has(item.file) ? resolvedItems.get(item.file) : item;
+        return current && !current.prepError ? [current] : [];
+      });
+    }
     const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
-    return input.stagedSnapshot
-      .map((item) => enrolledByFile.get(item.file))
-      .filter((item): item is TUploadItem => item !== undefined && !item.prepError);
+    const result: TUploadItem[] = [];
+    for (const item of input.stagedSnapshot) {
+      if (resolvedItems.has(item.file)) {
+        const settled = resolvedItems.get(item.file);
+        const live = settled ? enrolledByFile.get(settled.file) : undefined;
+        if (live && !live.prepError) result.push(live);
+        continue;
+      }
+      if (keepPendingCompressing && item.compression?.status === 'compressing') {
+        result.push(item);
+        continue;
+      }
+      const live = enrolledByFile.get(item.file);
+      if (live && !live.prepError) result.push(live);
+    }
+    return result;
   };
 
   const clearEnrollments = () => {
+    cleanedUp = true;
     if (enrolledFileRefs.size > 0) attachments.clearEnrollment([...enrolledFileRefs]);
   };
 
@@ -416,27 +445,35 @@ export const startDetachedDictationSend = (
           [MID_TURN_MODE_KEY]: input.midTurnMode,
         }
       : undefined;
-    const hasCompressingSnapshot = input.stagedSnapshot.some(
-      (item) => item.compression?.status === 'compressing'
-    );
-    const activeStaged = hasCompressingSnapshot
-      ? (
-          await Promise.all(
-            input.stagedSnapshot.map((item) =>
-              item.compression?.status === 'compressing' ? item.compression.done : item
-            )
-          )
+    let activeStaged = getActiveStaged(true);
+    if (
+      !input.prepareAttachmentsForSend &&
+      activeStaged.some((item) => item.compression?.status === 'compressing')
+    ) {
+      const settled = await Promise.all(
+        activeStaged.map((item) =>
+          item.compression?.status === 'compressing' ? item.compression.done : item
         )
-          .map((item) => {
-            if (!item) return undefined;
-            if (!input.tracksEnrollment) return !item.prepError ? item : undefined;
-            const live = attachments
-              .snapshot(roomId)
-              .enrolled.find((entry) => entry.file === item.file);
-            return live && !live.prepError ? live : undefined;
-          })
-          .filter((item): item is TUploadItem => item !== undefined)
-      : getActiveStaged();
+      );
+      settled.forEach((item) => {
+        if (item) enrolledFileRefs.add(item.file);
+      });
+      if (aborted || !sameAccount()) {
+        clearEnrollments();
+        if (journalId) releaseCapture(journalId);
+        restoreDocOnAccountSwitch();
+        removeEntry();
+        return;
+      }
+      const enrolledByFile = input.tracksEnrollment
+        ? new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]))
+        : undefined;
+      activeStaged = settled.flatMap((item) => {
+        if (!item) return [];
+        const live = enrolledByFile ? enrolledByFile.get(item.file) : item;
+        return live && !live.prepError ? [live] : [];
+      });
+    }
     if (!textContent && activeStaged.length === 0) {
       restoreDraftAndCleanup(input.docSnapshot);
       deleteJournal();
@@ -469,16 +506,17 @@ export const startDetachedDictationSend = (
         textContent,
         prepareForSend: (targetRoom, items) =>
           input.prepareAttachmentsForSend!(targetRoom, items ?? activeStaged),
-        uploadItem: input.uploadItem
-          ? (item) =>
-              input.uploadItem!(item).then(
-                () =>
-                  attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
-                    ? item
-                    : undefined,
-                () => undefined
-              )
-          : undefined,
+        uploadItem:
+          ask && input.uploadItem
+            ? (item) =>
+                input.uploadItem!(item).then(
+                  () =>
+                    attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
+                      ? item
+                      : undefined,
+                  () => undefined
+                )
+            : undefined,
         onPrepared: (prepared) => {
           prepared.forEach((item) => enrolledFileRefs.add(item.file));
         },
@@ -492,6 +530,15 @@ export const startDetachedDictationSend = (
         return;
       }
       sendStaged = result.uploadedItems;
+      if (!ask && input.uploadItem) {
+        const roomEncrypted = liveRoom.hasEncryptionStateEvent();
+        sendStaged.forEach((item) => {
+          if (roomEncrypted && !item.encInfo) return;
+          if (store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Idle) {
+            void input.uploadItem!(item).catch(() => undefined);
+          }
+        });
+      }
       const sendSet = new Set(sendStaged.map((item) => item.file));
       const dropped = [...enrolledFileRefs].filter((file) => !sendSet.has(file));
       if (dropped.length > 0) attachments.clearEnrollment(dropped);
@@ -555,6 +602,8 @@ export const startDetachedDictationSend = (
       console.warn('[dictation-send] could not send dictated message', error);
       if (!textConsumed && sameAccount() && !aborted) {
         restoreDraftAndCleanup(mergedFallback);
+      } else if (sameAccount()) {
+        clearEnrollments();
       }
       onTextConsumed();
     } finally {

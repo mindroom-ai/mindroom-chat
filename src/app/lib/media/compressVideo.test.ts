@@ -267,7 +267,7 @@ describe('compressVideo', () => {
       formats: [FORMAT_TOKENS.MP4, FORMAT_TOKENS.QTFF, FORMAT_TOKENS.WEBM, FORMAT_TOKENS.MATROSKA],
       source: expect.objectContaining({ blob: source }),
     });
-    expect(mocks.state.mp4Formats[0]?.options).toEqual({ fastStart: 'in-memory' });
+    expect(mocks.state.mp4Formats[0]?.options).toEqual({ fastStart: false });
     expect(mocks.state.initCalls[0]).toMatchObject({
       showWarnings: false,
       video: { codec: 'avc', bitrate: 2_500_000, width: 1920, height: 1080, fit: 'contain' },
@@ -501,12 +501,16 @@ describe('compressVideo', () => {
     expect(mocks.state.initCalls).toHaveLength(0);
     expect(mocks.state.inputs[0]?.dispose).toHaveBeenCalledTimes(1);
 
-    mocks.state.nextDuration = 10;
+    // Duration-less MediaRecorder WebM relies on incremental fastStart: false writes to enforce the 64 MiB cap live.
+    mocks.state.nextDuration = null;
     mocks.state.onExecute = async (_conversion, target) => {
       target.emitWrite(0, SIXTY_FOUR_MIB + 1);
       target.buffer = new ArrayBuffer(500_000);
     };
-    expect(await compressVideo(makeVideoFile(100 * ONE_MIB), BALANCED)).toBeUndefined();
+    expect(
+      await compressVideo(makeVideoFile(100 * ONE_MIB, 'recording.webm', 'video/webm'), BALANCED)
+    ).toBeUndefined();
+    expect(mocks.state.mp4Formats.at(-1)?.options).toEqual({ fastStart: false });
     expect(mocks.state.conversions.at(-1)?.cancel).toHaveBeenCalledTimes(1);
     expect(mocks.state.targets.at(-1)?.listeners.size).toBe(0);
 

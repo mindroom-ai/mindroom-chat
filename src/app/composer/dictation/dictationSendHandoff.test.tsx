@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider, createStore } from 'jotai';
+import { Provider, atom, createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { createEditor, Node, Transforms, type Descendant, type Editor } from 'slate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1630,5 +1630,319 @@ describe('dictationSendHandoff', () => {
     );
     expect(editor.children.map((n) => Node.string(n)).join('\n')).toBe('Must survive failed send');
     view.unmount();
+  });
+
+  it('keeps compressing video in normal-room dictation, awaits compression via prepareAttachmentsForSend, starts idle upload, and sends video with caption', async () => {
+    const store = createStore();
+    const room = makeRoom('!video-room:example.org', 'Video Room', false);
+    const rawVideo = new File(['raw'], 'clip.mov', { type: 'video/quicktime' });
+    const compressedVideo = new File(['mp4'], 'clip.mp4', { type: 'video/mp4' });
+    const doneDef = deferred<TUploadItem | undefined>();
+    const placeholder: TUploadItem = {
+      file: rawVideo,
+      originalFile: rawVideo,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.4),
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+        done: doneDef.promise,
+      },
+    };
+    const compressedItem: TUploadItem = {
+      file: compressedVideo,
+      originalFile: compressedVideo,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: { status: 'compressed', sourceFile: rawVideo, originalSize: rawVideo.size },
+    };
+
+    let staged: TUploadItem[] = [placeholder];
+    let enrolled: TUploadItem[] = [];
+    const attachments: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged,
+        enrolled: [...enrolled],
+        uploads: staged.map((i) => ({ file: i.file, status: UploadStatus.Idle })),
+      }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn((items) => {
+        enrolled = [...enrolled, ...items];
+      }),
+      clearEnrollment: vi.fn((files) => {
+        enrolled = enrolled.filter((i) => !files.includes(i.file));
+      }),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+
+    const prepareAttachmentsForSend = vi.fn(async (_r: Room, items: TUploadItem[]) => {
+      const settled = await Promise.all(
+        items.map((item) =>
+          item.compression?.status === 'compressing' ? item.compression.done : item
+        )
+      );
+      return settled.filter((item): item is TUploadItem => item !== undefined);
+    });
+    const uploadItem = vi.fn(() => new Promise<string>(() => {}));
+    const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
+      async () => undefined
+    );
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    const s = makeMockSession();
+    const key = getRoomInputDraftKey('@alice:example.org', room.roomId);
+
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room,
+        session: s.session,
+        ownerKey: key,
+        attachments,
+        sessions: { startSendSession, restoreText: vi.fn() },
+        prepareAttachmentsForSend,
+      }),
+      editor,
+      room,
+      roomId: room.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: () => undefined,
+      uploadItem,
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+
+    // Compressing placeholder is enrolled at handoff, and upload does NOT start while compressing.
+    expect(enrolled).toEqual([placeholder]);
+    expect(uploadItem).not.toHaveBeenCalled();
+
+    // Dictation finishes while video is still compressing.
+    await act(async () => {
+      s.resolveFinish({ status: 'completed', text: 'Here is the screen recording' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(prepareAttachmentsForSend).toHaveBeenCalledWith(room, [placeholder]);
+    expect(startSendSession).not.toHaveBeenCalled();
+
+    // Video compression completes -> replaces placeholder -> non-blocking upload kicks off -> sends together!
+    staged = [compressedItem];
+    enrolled = [compressedItem];
+    await act(async () => {
+      doneDef.resolve(compressedItem);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(uploadItem).toHaveBeenCalledWith(compressedItem);
+    expect(startSendSession).toHaveBeenCalledTimes(1);
+    const call = startSendSession.mock.calls[0]![0]!;
+    expect(call.batch?.fileItems).toEqual([compressedItem]);
+    expect(call.textContent?.body).toBe('Here is the screen recording');
+    expect(call.completeWithinCall).toBe(false);
+  });
+
+  it('clears enrollment for prepared/replaced files in Home Ask dictation when send fails or dictation cancels', async () => {
+    const store = createStore();
+    const encRoom = makeRoom('!home-enc:example.org', 'Encrypted Home Target', true);
+
+    // Case A: video compresses -> prepareAttachmentsForSend encrypts -> startSendSession fails -> all enrollments cleared.
+    const rawVideo = new File(['raw'], 'ask.mov', { type: 'video/quicktime' });
+    const compressedVideo = new File(['mp4'], 'ask.mp4', { type: 'video/mp4' });
+    const encVideo = new File(['enc'], 'ask.mp4', { type: 'application/octet-stream' });
+    const doneDefA = deferred<TUploadItem | undefined>();
+    const placeholderA: TUploadItem = {
+      file: rawVideo,
+      originalFile: rawVideo,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.5),
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+        done: doneDefA.promise,
+      },
+    };
+    const compressedItemA: TUploadItem = {
+      file: compressedVideo,
+      originalFile: compressedVideo,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: { status: 'compressed', sourceFile: rawVideo, originalSize: rawVideo.size },
+    };
+    const encItemA: TUploadItem = {
+      file: encVideo,
+      originalFile: compressedVideo,
+      encInfo: { v: 'v2' } as never,
+      metadata: { markedAsSpoiler: false },
+      compression: compressedItemA.compression,
+    };
+
+    let stagedA: TUploadItem[] = [placeholderA];
+    let enrolledA: TUploadItem[] = [];
+    const attachmentsA: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged: stagedA,
+        enrolled: [...enrolledA],
+        uploads: stagedA.map((i) => ({ file: i.file, status: UploadStatus.Idle })),
+      }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn((items) => {
+        enrolledA = [...enrolledA, ...items];
+      }),
+      clearEnrollment: vi.fn((files) => {
+        enrolledA = enrolledA.filter((i) => !files.includes(i.file));
+      }),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+
+    const prepareA = vi.fn(async (_r: Room, items: TUploadItem[]) => {
+      await Promise.all(
+        items.map((item) =>
+          item.compression?.status === 'compressing' ? item.compression.done : item
+        )
+      );
+      stagedA = [encItemA];
+      enrolledA = [encItemA];
+      return [encItemA];
+    });
+    const startSendSessionA = vi.fn(async () => {
+      throw new Error('network error');
+    });
+    const editorA = withInlineElements(createEditor());
+    editorA.children = makeDoc();
+    const sA = makeMockSession();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room: encRoom,
+        session: sA.session,
+        ownerKey: 'home-ask-fail-a',
+        parseCommands: false,
+        ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true },
+        attachments: attachmentsA,
+        sessions: { startSendSession: startSendSessionA, restoreText: vi.fn() },
+        prepareAttachmentsForSend: prepareA,
+      }),
+      editor: editorA,
+      room: encRoom,
+      roomId: encRoom.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: () => undefined,
+      uploadItem: vi.fn(async () => 'mxc://example.org/enc-video'),
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+
+    await act(async () => {
+      sA.resolveFinish({ status: 'completed', text: 'Analyze this video' });
+      await Promise.resolve();
+      stagedA = [compressedItemA];
+      enrolledA = [compressedItemA];
+      doneDefA.resolve(compressedItemA);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(startSendSessionA).toHaveBeenCalledTimes(1));
+    expect(enrolledA).toEqual([]);
+
+    // Case B: compression replaces placeholder before dictation is cancelled -> replaced file is cleared from enrollment.
+    const rawVideoB = new File(['rawB'], 'cancel.mov', { type: 'video/quicktime' });
+    const compressedVideoB = new File(['mp4B'], 'cancel.mp4', { type: 'video/mp4' });
+    const doneDefB = deferred<TUploadItem | undefined>();
+    const placeholderB: TUploadItem = {
+      file: rawVideoB,
+      originalFile: rawVideoB,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.2),
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+        done: doneDefB.promise,
+      },
+    };
+    const compressedItemB: TUploadItem = {
+      file: compressedVideoB,
+      originalFile: compressedVideoB,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: { status: 'compressed', sourceFile: rawVideoB, originalSize: rawVideoB.size },
+    };
+    let stagedB: TUploadItem[] = [placeholderB];
+    let enrolledB: TUploadItem[] = [];
+    const attachmentsB: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged: stagedB,
+        enrolled: [...enrolledB],
+        uploads: [],
+      }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn((items) => {
+        enrolledB = [...enrolledB, ...items];
+      }),
+      clearEnrollment: vi.fn((files) => {
+        enrolledB = enrolledB.filter((i) => !files.includes(i.file));
+      }),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+    const editorB = withInlineElements(createEditor());
+    editorB.children = makeDoc();
+    const sB = makeMockSession();
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room: encRoom,
+        session: sB.session,
+        ownerKey: 'home-ask-cancel-b',
+        parseCommands: false,
+        ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true },
+        attachments: attachmentsB,
+        sessions: { startSendSession: vi.fn(), restoreText: vi.fn() },
+        prepareAttachmentsForSend: vi.fn(async (_r, items) => items),
+      }),
+      editor: editorB,
+      room: encRoom,
+      roomId: encRoom.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: () => undefined,
+      uploadItem: vi.fn(async () => 'mxc://unused'),
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+    expect(enrolledB).toEqual([placeholderB]);
+    await act(async () => {
+      stagedB = [compressedItemB];
+      enrolledB = [compressedItemB];
+      doneDefB.resolve(compressedItemB);
+      await Promise.resolve();
+      sB.resolveFinish({ status: 'cancelled' });
+      await Promise.resolve();
+    });
+    expect(enrolledB).toEqual([]);
+    warnSpy.mockRestore();
   });
 });

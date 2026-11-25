@@ -1,5 +1,6 @@
 import { loadImageElement, supportsWebpEncode } from '../dom';
 import { getFileNameWithoutExt, getMimeTypeBase } from '../mimeTypes';
+import { isEligibleImageForCompression } from './mediaCompressionEligibility';
 
 export type CompressImageOptions = {
   maxLongEdge: number;
@@ -13,20 +14,11 @@ export type CompressedImageResult = {
   compressedSize: number;
 };
 
-const MIN_COMPRESS_BYTES = 32 * 1024;
 const PNG_HEADER_PROBE_BYTES = 64 * 1024;
 const WEBP_HEADER_PROBE_BYTES = 64;
 const SAVINGS_RATIO_THRESHOLD = 0.95;
 
-const SKIPPED_MIME_TYPES = new Set([
-  'image/svg+xml',
-  'image/gif',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/apng',
-]);
-
-const ALPHA_CAPABLE_MIMES = new Set(['image/png', 'image/webp', 'image/avif']);
+const ALPHA_CAPABLE_MIMES = new Set(['image/png', 'image/webp']);
 
 const OUTPUT_EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
@@ -161,15 +153,14 @@ export const compressImage = async (
   file: File,
   options: CompressImageOptions
 ): Promise<CompressedImageResult | undefined> => {
-  const mime = getMimeTypeBase(file.type);
-  if (!mime.startsWith('image/') || SKIPPED_MIME_TYPES.has(mime)) return undefined;
-  if (file.size <= 0 || !Number.isFinite(options.maxLongEdge) || options.maxLongEdge <= 0) {
+  if (
+    !isEligibleImageForCompression(file, options.maxUploadSize) ||
+    !Number.isFinite(options.maxLongEdge) ||
+    options.maxLongEdge <= 0
+  ) {
     return undefined;
   }
-
-  const exceedsMaxUploadSize =
-    options.maxUploadSize !== undefined && file.size > options.maxUploadSize;
-  if (file.size < MIN_COMPRESS_BYTES && !exceedsMaxUploadSize) return undefined;
+  const mime = getMimeTypeBase(file.type);
 
   try {
     if (mime === 'image/png' && (await isApngOrMalformedPng(file))) return undefined;

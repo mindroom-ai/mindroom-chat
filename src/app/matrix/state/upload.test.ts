@@ -72,6 +72,7 @@ describe('isUploadItemReady', () => {
           status: 'compressing',
           progressAtom: atom(0.5),
           cancel: vi.fn(),
+          useOriginal: vi.fn(),
           done: Promise.resolve(undefined),
         },
       })

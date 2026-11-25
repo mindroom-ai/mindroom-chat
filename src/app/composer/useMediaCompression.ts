@@ -1,7 +1,10 @@
-import { useCallback, useRef, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { atom, type createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { getMimeTypeBase } from '../lib/mimeTypes';
+import {
+  isEligibleImageForCompression,
+  isEligibleVideoForCompression,
+} from '../lib/media/mediaCompressionEligibility';
 import type { TUploadContent } from '../matrix/matrix';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import {
@@ -15,83 +18,12 @@ import {
   getImageCompressionSpec,
   getVideoCompressionSpec,
   type MediaCompressionPreset,
-  type VideoCompressionSpec,
 } from '../preferences/mediaCompression';
+import { getMediaCompressionGeneration, registerMediaCompressionJob } from './mediaCompressionJobs';
 import type { StagedList } from './roomInputDrafts';
 
 const IMAGE_COMPRESSION_CONCURRENCY = 2;
-const MIN_IMAGE_COMPRESS_BYTES = 32 * 1024;
-const MIN_VIDEO_COMPRESS_BYTES = 1024 * 1024;
-
-const SKIPPED_IMAGE_MIMES = new Set([
-  'image/svg+xml',
-  'image/gif',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/apng',
-]);
-
-// Plain module-level Set (never a Jotai atom) so account switches can abort active jobs
-// without introducing untracked account state.
-const activeControllers = new Set<AbortController>();
-let abortGeneration = 0;
-
-/** Aborts and clears every in-flight media compression job (called on session switch/logout). */
-export const abortAllMediaCompressions = (): void => {
-  abortGeneration += 1;
-  const controllers = [...activeControllers];
-  activeControllers.clear();
-  controllers.forEach((controller) => controller.abort());
-};
-
-// Keep both compressors behind dynamic imports so they contribute 0 bytes to the initial bundle.
-const loadCompressImage = () => import('../lib/media/compressImage');
-const loadCompressVideo = () => import('../lib/media/compressVideo');
-
-const mapWithConcurrency = async <T, R>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>
-): Promise<R[]> => {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const runWorker = async () => {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      // eslint-disable-next-line no-await-in-loop
-      results[index] = await worker(items[index]!, index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
-  return results;
-};
-
-const isEligibleImageFile = (file: File, maxUploadSize: number | undefined): boolean => {
-  const mime = getMimeTypeBase(file.type);
-  if (!mime.startsWith('image/') || SKIPPED_IMAGE_MIMES.has(mime)) return false;
-  const exceedsMaxUploadSize = maxUploadSize !== undefined && file.size > maxUploadSize;
-  return file.size >= MIN_IMAGE_COMPRESS_BYTES || exceedsMaxUploadSize;
-};
-
-const getEligibleVideoSpec = (
-  file: File,
-  preset: MediaCompressionPreset,
-  maxUploadSize: number | undefined
-): VideoCompressionSpec | undefined => {
-  const spec = getVideoCompressionSpec(preset);
-  if (!spec) return undefined;
-  if (!getMimeTypeBase(file.type).startsWith('video/')) return undefined;
-  if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') {
-    return undefined;
-  }
-  const exceedsMaxUploadSize = maxUploadSize !== undefined && file.size > maxUploadSize;
-  if (file.size < MIN_VIDEO_COMPRESS_BYTES && !exceedsMaxUploadSize) return undefined;
-  return spec;
-};
-
-const getLiveRoom = (mx: MatrixClient, roomId: string, fallback: Room): Room =>
-  typeof mx.getRoom === 'function' ? (mx.getRoom(roomId) ?? fallback) : fallback;
+const DEFAULT_META = { markedAsSpoiler: false };
 
 export type CompressedInlineFile = {
   file: File;
@@ -121,8 +53,302 @@ export type UseMediaCompressionOptions = {
   uploadAtomFamily: UploadAtomFamily;
   keepNames: (roomId: string) => void;
   syncUploadWatches: () => void;
-  syncEnrolled?: () => void;
+  replaceEnrolled?: (oldFile: TUploadContent, replacement: TUploadItem) => void;
   notify: () => void;
+};
+
+type OptsRef = RefObject<UseMediaCompressionOptions>;
+
+const prepareItemFile = async (
+  opts: UseMediaCompressionOptions,
+  file: File,
+  roomId: string,
+  fallbackRoom: Room
+): Promise<TUploadItem | undefined> => {
+  if (opts.deferUpload) {
+    return { file, originalFile: file, encInfo: undefined, metadata: DEFAULT_META };
+  }
+  const liveRoom =
+    typeof opts.mx.getRoom === 'function'
+      ? (opts.mx.getRoom(roomId) ?? fallbackRoom)
+      : fallbackRoom;
+  const [created] = await createRoomUploadItems([file], liveRoom, () => DEFAULT_META);
+  return created;
+};
+
+const replaceStagedItem = (
+  opts: UseMediaCompressionOptions,
+  targetAtom: StagedList,
+  roomId: string,
+  liveItem: TUploadItem,
+  replacement: TUploadItem
+): void => {
+  const { store, owners, enrolled, uploadAtomFamily } = opts;
+  if (replacement.file !== liveItem.file) {
+    const owner = owners.current.get(liveItem.file);
+    if (owners.current.delete(liveItem.file)) owners.current.set(replacement.file, owner);
+  }
+  const nextUploadAtom = uploadAtomFamily(replacement.file);
+  if (replacement.prepError) {
+    store.set(nextUploadAtom, { error: replacement.prepError });
+  } else if (
+    replacement.compression?.status !== 'compressing' &&
+    store.get(nextUploadAtom).status === UploadStatus.Error
+  ) {
+    store.set(nextUploadAtom, { status: UploadStatus.Idle });
+  }
+  store.set(targetAtom, { type: 'REPLACE', item: liveItem, replacement });
+  if (opts.replaceEnrolled) opts.replaceEnrolled(liveItem.file, replacement);
+  else enrolled.current = enrolled.current.map((e) => (e.file === liveItem.file ? replacement : e));
+  if (replacement.file !== liveItem.file) uploadAtomFamily.remove(liveItem.file);
+  opts.keepNames(roomId);
+  opts.syncUploadWatches();
+  opts.notify();
+};
+
+const createPendingJob = (
+  optsRef: OptsRef,
+  file: File,
+  roomId: string,
+  targetAtom: StagedList,
+  initialProgress: number,
+  allowUseOriginal: boolean,
+  metadata: TUploadItem['metadata'] = DEFAULT_META
+) => {
+  const controller = new AbortController();
+  const startGen = getMediaCompressionGeneration();
+  let preferOriginal = false;
+  let started = false;
+  let finished = false;
+  let unregister: (() => void) | undefined;
+  let resolveDone!: (item: TUploadItem | undefined) => void;
+  const done = new Promise<TUploadItem | undefined>((r) => {
+    resolveDone = r;
+  });
+  const settle = (item: TUploadItem | undefined) => {
+    if (finished) return;
+    finished = true;
+    unregister?.();
+    unregister = undefined;
+    resolveDone(item);
+  };
+  const progressAtom = atom(initialProgress);
+  const compression: Extract<UploadCompression, { status: 'compressing' }> = {
+    status: 'compressing',
+    progressAtom,
+    cancel: () => {
+      preferOriginal = false;
+      controller.abort();
+      settle(undefined);
+    },
+    useOriginal: () => {
+      if (!allowUseOriginal || finished) return;
+      preferOriginal = true;
+      controller.abort();
+    },
+    done,
+  };
+  const findLive = () => {
+    const opts = optsRef.current;
+    const stale =
+      getMediaCompressionGeneration() !== startGen ||
+      (controller.signal.aborted && !preferOriginal) ||
+      opts.getTargetAtom(roomId) !== targetAtom;
+    return stale
+      ? undefined
+      : opts.store.get(targetAtom).find((e) => e.compression === compression);
+  };
+  const placeholder: TUploadItem = {
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata,
+    compression,
+  };
+  return {
+    signal: controller.signal,
+    compression,
+    placeholder,
+    setProgress: (p: number) => {
+      if (!controller.signal.aborted) optsRef.current.store.set(progressAtom, p);
+    },
+    findLive,
+    wantsOriginal: () => preferOriginal,
+    discard: () => {
+      if (!started) compression.cancel();
+    },
+    run: (work: () => Promise<void>) => {
+      if (started || finished) return Promise.resolve();
+      started = true;
+      unregister = registerMediaCompressionJob(controller, () => {
+        optsRef.current.uploadAtomFamily.remove(file);
+        settle(undefined);
+      });
+      return work().catch(() => settle(undefined));
+    },
+    commit: (prepared: TUploadItem | undefined, nextCompression?: UploadCompression) => {
+      const liveAfter = findLive();
+      if (!prepared || !liveAfter) return settle(undefined);
+      const replacement: TUploadItem = {
+        ...prepared,
+        metadata: liveAfter.metadata,
+        ...(nextCompression && !prepared.prepError ? { compression: nextCompression } : {}),
+      };
+      replaceStagedItem(optsRef.current, targetAtom, roomId, liveAfter, replacement);
+      settle(replacement);
+    },
+  };
+};
+
+const runInlineImageCompression = async (
+  optsRef: OptsRef,
+  files: readonly File[],
+  preset: MediaCompressionPreset
+): Promise<CompressedInlineFile[]> => {
+  const spec = getImageCompressionSpec(preset);
+  const maxSize = optsRef.current.maxUploadSize;
+  const eligible = spec
+    ? files.flatMap((f, i) => (isEligibleImageForCompression(f, maxSize) ? [i] : []))
+    : [];
+  if (!spec || eligible.length === 0) return files.map((file) => ({ file }));
+
+  // Keep image compressor behind a dynamic import so it contributes 0 bytes to the initial bundle.
+  const mod = await import('../lib/media/compressImage').catch((error: unknown) => {
+    // eslint-disable-next-line no-console
+    console.warn('[composer] could not load image compression, using original', error);
+    return undefined;
+  });
+  if (!mod) return files.map((file) => ({ file }));
+
+  const entries: CompressedInlineFile[] = files.map((file) => ({ file }));
+  let next = 0;
+  const run = async () => {
+    while (next < eligible.length) {
+      const idx = eligible[next]!;
+      next += 1;
+      const sourceFile = files[idx]!;
+      // eslint-disable-next-line no-await-in-loop
+      const res = await mod.compressImage(sourceFile, { ...spec, maxUploadSize: maxSize });
+      if (res) {
+        entries[idx] = {
+          file: res.file,
+          compression: { status: 'compressed', sourceFile, originalSize: res.originalSize },
+        };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(IMAGE_COMPRESSION_CONCURRENCY, eligible.length) }, run)
+  );
+  return entries;
+};
+
+const createVideoCompressionJob = (
+  optsRef: OptsRef,
+  rawFile: File,
+  preset: MediaCompressionPreset,
+  targetRoom: Room,
+  roomId: string
+): PendingVideoCompression | undefined => {
+  const spec = getVideoCompressionSpec(preset);
+  if (!spec || !isEligibleVideoForCompression(rawFile, optsRef.current.maxUploadSize)) {
+    return undefined;
+  }
+  const targetAtom = optsRef.current.getTargetAtom(roomId);
+  const job = createPendingJob(optsRef, rawFile, roomId, targetAtom, 0, true);
+
+  return {
+    placeholder: job.placeholder,
+    discard: job.discard,
+    start: () => {
+      void job.run(async () => {
+        // Keep video compressor behind a dynamic import so mediabunny contributes 0 bytes to initial.
+        const result = job.signal.aborted
+          ? undefined
+          : await import('../lib/media/compressVideo')
+              .then(({ compressVideo }) =>
+                compressVideo(rawFile, {
+                  ...spec,
+                  maxUploadSize: optsRef.current.maxUploadSize,
+                  signal: job.signal,
+                  onProgress: job.setProgress,
+                })
+              )
+              .catch((error: unknown) => {
+                if (!job.signal.aborted) {
+                  // eslint-disable-next-line no-console
+                  console.warn('[composer] could not load or run video compression', error);
+                }
+                return undefined;
+              });
+
+        if (!job.findLive()) return job.commit(undefined);
+        let usedCompressed = !job.wantsOriginal() && result !== undefined;
+        let prepared = await prepareItemFile(
+          optsRef.current,
+          usedCompressed ? result!.file : rawFile,
+          roomId,
+          targetRoom
+        );
+        // If "Use original" was clicked while encrypting the compressed file, re-prepare rawFile.
+        if (usedCompressed && job.wantsOriginal() && job.findLive()) {
+          usedCompressed = false;
+          prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
+        }
+        const nextCompression: UploadCompression | undefined = job.wantsOriginal()
+          ? { status: 'original' }
+          : usedCompressed
+            ? { status: 'compressed', sourceFile: rawFile, originalSize: result!.originalSize }
+            : undefined;
+        job.commit(prepared, nextCompression);
+      });
+    },
+  };
+};
+
+const restoreOriginalItem = async (
+  optsRef: OptsRef,
+  waitingCountRef: RefObject<number>,
+  item: TUploadItem
+): Promise<void> => {
+  const opts = optsRef.current;
+  if (waitingCountRef.current > 0 || opts.enrolled.current.some((e) => e.file === item.file)) {
+    return;
+  }
+  if (item.compression?.status === 'compressing') {
+    item.compression.useOriginal();
+    await item.compression.done;
+    return;
+  }
+  if (item.compression?.status !== 'compressed') return;
+
+  const { roomId, room } = opts.current.current;
+  const targetAtom = opts.getTargetAtom(roomId);
+  const liveBefore = opts.store.get(targetAtom).find((e) => e.file === item.file);
+  if (!liveBefore || liveBefore.compression?.status !== 'compressed') return;
+
+  const currentUpload = opts.store.get(opts.uploadAtomFamily(liveBefore.file));
+  if (currentUpload.status === UploadStatus.Loading) {
+    opts.mx.cancelUpload(currentUpload.promise);
+    opts.store.set(opts.uploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
+  }
+
+  const { sourceFile } = liveBefore.compression;
+  const job = createPendingJob(
+    optsRef,
+    sourceFile,
+    roomId,
+    targetAtom,
+    1,
+    false,
+    liveBefore.metadata
+  );
+  // Synchronously replace so pressing Send during encryption awaits `done` and sends the original.
+  replaceStagedItem(opts, targetAtom, roomId, liveBefore, job.placeholder);
+  await job.run(async () => {
+    const prepared = await prepareItemFile(optsRef.current, sourceFile, roomId, room);
+    job.commit(prepared, { status: 'original' });
+  });
 };
 
 /**
@@ -130,455 +356,62 @@ export type UseMediaCompressionOptions = {
  * inline image compression (concurrency 2), async video transcoding with progress,
  * per-item "Use original" override, and waiting for active compressions on Send.
  */
-export const useMediaCompression = ({
-  mx,
-  store,
-  current,
-  deferUpload,
-  maxUploadSize,
-  owners,
-  enrolled,
-  getTargetAtom,
-  uploadAtomFamily,
-  keepNames,
-  syncUploadWatches,
-  syncEnrolled,
-  notify,
-}: UseMediaCompressionOptions) => {
-  const deferUploadRef = useRef(deferUpload);
-  deferUploadRef.current = deferUpload;
-  const maxUploadSizeRef = useRef(maxUploadSize);
-  maxUploadSizeRef.current = maxUploadSize;
+export const useMediaCompression = (options: UseMediaCompressionOptions) => {
+  const optsRef = useRef(options);
+  optsRef.current = options;
+  const mountedRef = useRef(true);
+  const waitingCountRef = useRef(0);
+  const [waitingForCompression, setWaitingForCompression] = useState(false);
 
-  const pendingVideoJobs = useRef(new Map<UploadCompression, () => void>());
-  const restoringOriginal = useRef(new Set<TUploadContent>());
-  const replacedFiles = useRef(new WeakMap<TUploadContent, TUploadContent>());
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-  const replaceStagedItem = useCallback(
-    ({
-      targetAtom,
-      targetRoomId,
-      liveItem,
-      replacement,
-    }: {
-      targetAtom: StagedList;
-      targetRoomId: string;
-      liveItem: TUploadItem;
-      replacement: TUploadItem;
-    }) => {
-      if (replacement.file !== liveItem.file) {
-        const hasOwner = owners.current.has(liveItem.file);
-        const owner = owners.current.get(liveItem.file);
-        owners.current.delete(liveItem.file);
-        if (hasOwner) owners.current.set(replacement.file, owner);
-      }
-
-      if (replacement.prepError) {
-        store.set(uploadAtomFamily(replacement.file), { error: replacement.prepError });
-      } else if (store.get(uploadAtomFamily(replacement.file)).status === UploadStatus.Error) {
-        store.set(uploadAtomFamily(replacement.file), { status: UploadStatus.Idle });
-      }
-
-      store.set(targetAtom, { type: 'REPLACE', item: liveItem, replacement });
-
-      let enrollmentChanged = false;
-      enrolled.current = enrolled.current.map((entry) => {
-        if (entry.file !== liveItem.file) return entry;
-        enrollmentChanged = true;
-        return replacement;
-      });
-      if (enrollmentChanged) syncEnrolled?.();
-
-      if (replacement.file !== liveItem.file) {
-        uploadAtomFamily.remove(liveItem.file);
-      }
-
-      keepNames(targetRoomId);
-      syncUploadWatches();
-      notify();
-    },
-    [enrolled, keepNames, notify, owners, store, syncEnrolled, syncUploadWatches, uploadAtomFamily]
-  );
-
-  const canCompressImage = useCallback(
-    (file: File, preset: MediaCompressionPreset): boolean =>
-      getImageCompressionSpec(preset) !== undefined &&
-      isEligibleImageFile(file, maxUploadSizeRef.current),
-    []
-  );
-
-  const compressInlineImages = useCallback(
-    async (
-      files: readonly File[],
-      preset: MediaCompressionPreset
-    ): Promise<CompressedInlineFile[]> => {
-      const spec = getImageCompressionSpec(preset);
-      const maxSize = maxUploadSizeRef.current;
-      if (!spec || files.length === 0) {
-        return files.map((file) => ({ file }));
-      }
-
-      const eligibleIndices: number[] = [];
-      files.forEach((file, index) => {
-        if (isEligibleImageFile(file, maxSize)) eligibleIndices.push(index);
-      });
-      if (eligibleIndices.length === 0) {
-        return files.map((file) => ({ file }));
-      }
-
-      let compressImageFn: (typeof import('../lib/media/compressImage'))['compressImage'];
-      try {
-        ({ compressImage: compressImageFn } = await loadCompressImage());
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[composer] could not load image compression, using original', error);
-        return files.map((file) => ({ file }));
-      }
-
-      const entries: CompressedInlineFile[] = files.map((file) => ({ file }));
-      await mapWithConcurrency(eligibleIndices, IMAGE_COMPRESSION_CONCURRENCY, async (index) => {
-        const rawFile = files[index]!;
-        const result = await compressImageFn(rawFile, { ...spec, maxUploadSize: maxSize });
-        if (!result) return;
-        entries[index] = {
-          file: result.file,
-          compression: {
-            status: 'compressed',
-            sourceFile: rawFile,
-            originalSize: result.originalSize,
-          },
-        };
-      });
-      return entries;
-    },
-    []
-  );
-
-  const prepareVideoCompression = useCallback(
-    (
-      rawFile: File,
-      preset: MediaCompressionPreset,
-      targetRoom: Room,
-      targetRoomId: string
-    ): PendingVideoCompression | undefined => {
-      const spec = getEligibleVideoSpec(rawFile, preset, maxUploadSizeRef.current);
-      if (!spec) return undefined;
-
-      const progressAtom = atom(0);
-      const controller = new AbortController();
-      const startGeneration = abortGeneration;
-      let preferOriginal = false;
-      let started = false;
-      let finished = false;
-      let resolveDone!: (item: TUploadItem | undefined) => void;
-      const done = new Promise<TUploadItem | undefined>((resolve) => {
-        resolveDone = resolve;
-      });
-
-      const settleDone = (item: TUploadItem | undefined) => {
-        if (finished) return;
-        finished = true;
-        activeControllers.delete(controller);
-        pendingVideoJobs.current.delete(compression);
-        resolveDone(item);
-      };
-
-      const cancel = () => {
-        if (finished) return;
-        controller.abort();
-        if (!started) settleDone(undefined);
-      };
-
-      const compression: Extract<UploadCompression, { status: 'compressing' }> = {
-        status: 'compressing',
-        progressAtom,
-        cancel,
-        done,
-      };
-
-      const placeholder: TUploadItem = {
-        file: rawFile,
-        originalFile: rawFile,
-        encInfo: undefined,
-        metadata: { markedAsSpoiler: false },
-        compression,
-      };
-
-      pendingVideoJobs.current.set(compression, () => {
-        preferOriginal = true;
-        controller.abort();
-      });
-
-      const discard = () => {
-        if (started) return;
-        cancel();
-      };
-
-      const start = () => {
-        if (started || finished) return;
-        started = true;
+  const methods = useMemo(
+    () => ({
+      compressInlineImages: (files: readonly File[], preset: MediaCompressionPreset) =>
+        runInlineImageCompression(optsRef, files, preset),
+      prepareVideoCompression: (
+        file: File,
+        preset: MediaCompressionPreset,
+        room: Room,
+        id: string
+      ) => createVideoCompressionJob(optsRef, file, preset, room, id),
+      useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, waitingCountRef, item),
+      waitForCompression: async (
+        items: readonly TUploadItem[],
+        targetRoomId: string = optsRef.current.current.current.roomId
+      ): Promise<TUploadItem[]> => {
+        const { getTargetAtom, store } = optsRef.current;
         const targetAtom = getTargetAtom(targetRoomId);
-        activeControllers.add(controller);
-
-        void (async () => {
-          try {
-            let result: Awaited<
-              ReturnType<(typeof import('../lib/media/compressVideo'))['compressVideo']>
-            >;
-            try {
-              if (!controller.signal.aborted) {
-                const { compressVideo } = await loadCompressVideo();
-                if (!controller.signal.aborted) {
-                  result = await compressVideo(rawFile, {
-                    ...spec,
-                    maxUploadSize: maxUploadSizeRef.current,
-                    signal: controller.signal,
-                    onProgress: (progress) => {
-                      if (!controller.signal.aborted) {
-                        store.set(progressAtom, progress);
-                      }
-                    },
-                  });
-                }
-              }
-            } catch (error) {
-              if (!controller.signal.aborted) {
-                // eslint-disable-next-line no-console
-                console.warn('[composer] could not load or run video compression', error);
-              }
-            }
-
-            if (abortGeneration !== startGeneration) {
-              settleDone(undefined);
-              return;
-            }
-            if (controller.signal.aborted && !preferOriginal) {
-              settleDone(undefined);
-              return;
-            }
-            if (getTargetAtom(targetRoomId) !== targetAtom) {
-              settleDone(undefined);
-              return;
-            }
-
-            const findLive = () =>
-              store.get(targetAtom).find((entry) => entry.compression === compression);
-            const liveBefore = findLive();
-            if (!liveBefore) {
-              settleDone(undefined);
-              return;
-            }
-
-            const prepareFile = async (
-              effectiveFile: File,
-              metadata: TUploadItem['metadata']
-            ): Promise<TUploadItem | undefined> => {
-              if (deferUploadRef.current) {
-                return {
-                  file: effectiveFile,
-                  originalFile: effectiveFile,
-                  encInfo: undefined,
-                  metadata,
-                };
-              }
-              const liveRoom = getLiveRoom(mx, targetRoomId, targetRoom);
-              const [created] = await createRoomUploadItems(
-                [effectiveFile],
-                liveRoom,
-                () => metadata
-              );
-              return created;
-            };
-
-            let usedCompressed = !preferOriginal && result !== undefined;
-            let prepared = await prepareFile(
-              usedCompressed ? result!.file : rawFile,
-              liveBefore.metadata
-            );
-
-            // If "Use original" was clicked during encryption of the compressed file, re-prepare rawFile.
-            if (
-              usedCompressed &&
-              preferOriginal &&
-              abortGeneration === startGeneration &&
-              getTargetAtom(targetRoomId) === targetAtom
-            ) {
-              const liveNow = findLive();
-              if (liveNow) {
-                usedCompressed = false;
-                prepared = await prepareFile(rawFile, liveNow.metadata);
-              }
-            }
-
-            if (
-              abortGeneration !== startGeneration ||
-              (controller.signal.aborted && !preferOriginal) ||
-              getTargetAtom(targetRoomId) !== targetAtom
-            ) {
-              settleDone(undefined);
-              return;
-            }
-
-            const liveAfter = findLive();
-            if (!prepared || !liveAfter) {
-              settleDone(undefined);
-              return;
-            }
-
-            const nextCompression: UploadCompression | undefined = preferOriginal
-              ? { status: 'original' }
-              : usedCompressed
-                ? {
-                    status: 'compressed',
-                    sourceFile: rawFile,
-                    originalSize: result!.originalSize,
-                  }
-                : undefined;
-
-            const replacement: TUploadItem = {
-              ...prepared,
-              metadata: liveAfter.metadata,
-              ...(nextCompression && !prepared.prepError ? { compression: nextCompression } : {}),
-            };
-
-            replaceStagedItem({
-              targetAtom,
-              targetRoomId,
-              liveItem: liveAfter,
-              replacement,
-            });
-            settleDone(replacement);
-          } catch {
-            settleDone(undefined);
-          }
-        })();
-      };
-
-      return { placeholder, start, discard };
-    },
-    [getTargetAtom, mx, replaceStagedItem, store]
-  );
-
-  const useOriginal = useCallback(
-    async (item: TUploadItem): Promise<void> => {
-      if (item.compression?.status === 'compressing') {
-        const requestOriginal = pendingVideoJobs.current.get(item.compression);
-        if (!requestOriginal) return;
-        requestOriginal();
-        await item.compression.done;
-        return;
-      }
-
-      if (item.compression?.status !== 'compressed') return;
-      if (enrolled.current.some((entry) => entry.file === item.file)) return;
-      if (restoringOriginal.current.has(item.file)) return;
-
-      const startGeneration = abortGeneration;
-      const { roomId: targetRoomId, room: targetRoom } = current.current;
-      const targetAtom = getTargetAtom(targetRoomId);
-      const liveBefore = store.get(targetAtom).find((entry) => entry.file === item.file);
-      if (!liveBefore || liveBefore.compression?.status !== 'compressed') return;
-
-      const { sourceFile } = liveBefore.compression;
-      restoringOriginal.current.add(liveBefore.file);
-      try {
-        const currentUpload = store.get(uploadAtomFamily(liveBefore.file));
-        if (currentUpload.status === UploadStatus.Loading) {
-          mx.cancelUpload(currentUpload.promise);
-          store.set(uploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
+        const hasCompressing = items.some((item) => item.compression?.status === 'compressing');
+        if (hasCompressing) {
+          waitingCountRef.current += 1;
+          if (mountedRef.current) setWaitingForCompression(true);
         }
-
-        let prepared: TUploadItem | undefined;
-        if (deferUploadRef.current) {
-          prepared = {
-            file: sourceFile,
-            originalFile: sourceFile,
-            encInfo: undefined,
-            metadata: liveBefore.metadata,
-          };
-        } else {
-          const liveRoom = getLiveRoom(mx, targetRoomId, targetRoom);
-          const [created] = await createRoomUploadItems(
-            [sourceFile],
-            liveRoom,
-            () => liveBefore.metadata
+        try {
+          const resolved = await Promise.all(
+            items.map((i) => (i.compression?.status === 'compressing' ? i.compression.done : i))
           );
-          prepared = created;
+          if (optsRef.current.getTargetAtom(targetRoomId) !== targetAtom) return [];
+          const liveByFile = new Map(store.get(targetAtom).map((e) => [e.file, e]));
+          return resolved.flatMap((i) => {
+            const live = i && liveByFile.get(i.file);
+            return live && isUploadItemReady(live) ? [live] : [];
+          });
+        } finally {
+          if (hasCompressing) {
+            waitingCountRef.current -= 1;
+            if (mountedRef.current) setWaitingForCompression(waitingCountRef.current > 0);
+          }
         }
-
-        if (abortGeneration !== startGeneration || getTargetAtom(targetRoomId) !== targetAtom) {
-          return;
-        }
-        if (enrolled.current.some((entry) => entry.file === liveBefore.file)) return;
-
-        const liveAfter = store.get(targetAtom).find((entry) => entry.file === liveBefore.file);
-        if (!prepared || !liveAfter) return;
-
-        const replacement: TUploadItem = {
-          ...prepared,
-          metadata: liveAfter.metadata,
-          ...(prepared.prepError ? {} : { compression: { status: 'original' as const } }),
-        };
-
-        if (replacement.file !== liveAfter.file) {
-          replacedFiles.current.set(liveAfter.file, replacement.file);
-        }
-
-        replaceStagedItem({
-          targetAtom,
-          targetRoomId,
-          liveItem: liveAfter,
-          replacement,
-        });
-      } finally {
-        restoringOriginal.current.delete(liveBefore.file);
-      }
-    },
-    [current, enrolled, getTargetAtom, mx, replaceStagedItem, store, uploadAtomFamily]
+      },
+    }),
+    []
   );
 
-  const waitForCompression = useCallback(
-    async (
-      items: readonly TUploadItem[],
-      targetRoomId: string = current.current.roomId
-    ): Promise<TUploadItem[]> => {
-      const targetAtom = getTargetAtom(targetRoomId);
-      const resolved = await Promise.all(
-        items.map((item) =>
-          item.compression?.status === 'compressing' ? item.compression.done : Promise.resolve(item)
-        )
-      );
-      if (getTargetAtom(targetRoomId) !== targetAtom) return [];
-
-      const liveByFile = new Map(store.get(targetAtom).map((entry) => [entry.file, entry]));
-      const followReplacement = (file: TUploadContent): TUploadContent => {
-        let currentFile = file;
-        const seen = new Set<TUploadContent>();
-        while (replacedFiles.current.has(currentFile) && !seen.has(currentFile)) {
-          seen.add(currentFile);
-          currentFile = replacedFiles.current.get(currentFile)!;
-        }
-        return currentFile;
-      };
-
-      const ready: TUploadItem[] = [];
-      for (const item of resolved) {
-        if (!item) continue;
-        const live = liveByFile.get(followReplacement(item.file));
-        if (live && isUploadItemReady(live)) {
-          ready.push(live);
-        }
-      }
-      return ready;
-    },
-    [current, getTargetAtom, store]
-  );
-
-  return {
-    canCompressImage,
-    compressInlineImages,
-    prepareVideoCompression,
-    useOriginal,
-    waitForCompression,
-  };
+  return { ...methods, waitingForCompression };
 };
