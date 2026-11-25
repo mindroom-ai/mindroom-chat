@@ -83,7 +83,8 @@ vi.mock('../computer/useAgentServers', () => ({
 }));
 
 const OPEN_LABEL = 'Open Connections';
-const NO_BACKEND = 'Set your MindRoom server under Computers to use Connections.';
+const NO_BACKEND =
+  'Set your MindRoom server under Settings → Agents & servers (Advanced) to use Connections.';
 const BLOCKED =
   'Your browser blocked the Connections window. Allow pop-ups for this site and try again.';
 

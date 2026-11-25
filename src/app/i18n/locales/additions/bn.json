@@ -421,6 +421,7 @@
       },
       "sidebar": {
         "title": "সাইডবার",
+        "navigation": "নেভিগেশন",
         "threads": "সাইডবারে থ্রেড দেখান",
         "threadsDescription": "সব রুমের থ্রেড এক তালিকায়। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
         "canvasesDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
@@ -450,14 +451,15 @@
       "menu": {
         "groups": {
           "you": "আপনি",
-          "app": "এই অ্যাপ",
-          "agents": "এজেন্ট ও সংযোগ",
-          "help": "সহায়তা ও উন্নত"
+          "app": "অ্যাপ",
+          "mindroom": "MindRoom",
+          "system": "সিস্টেম"
         },
         "pages": {
           "privacy": "গোপনীয়তা ও নিরাপত্তা",
           "language": "ভাষা ও অঞ্চল",
-          "storage": "স্টোরেজ ও অফলাইন"
+          "storage": "স্টোরেজ ও অফলাইন",
+          "agentsServers": "এজেন্ট ও সার্ভার"
         }
       },
       "search": {
@@ -472,7 +474,9 @@
       "advanced": "উন্নত",
       "sections": {
         "display": "প্রদর্শন",
-        "privacy": "গোপনীয়তা"
+        "privacy": "গোপনীয়তা",
+        "replying": "উত্তর দেওয়া",
+        "connectionsComputers": "সংযোগ ও কম্পিউটার"
       },
       "computers": {
         "inUse": "ব্যবহৃত সার্ভার",
@@ -1217,6 +1221,21 @@
         "sourceLabel": "উৎস {{source}}",
         "triageLabel": "ট্রায়াজ: {{reason}}",
         "payloadLabel": "ইভেন্ট পেলোড JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}}টি করণীয় প্রস্তুত",
+        "readyCount_other": "{{count}}টি করণীয় প্রস্তুত",
+        "hide": "লুকান",
+        "show": "দেখান",
+        "copyId": "করণীয় আইডি {{id}} কপি করুন",
+        "moreItems_one": "+আরও {{count}}টি করণীয় আইটেম",
+        "moreItems_other": "+আরও {{count}}টি করণীয় আইটেম",
+        "priority": {
+          "critical": "গুরুতর",
+          "high": "উচ্চ",
+          "medium": "মাঝারি",
+          "low": "নিম্ন"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} কাজ করেছে",

@@ -159,7 +159,7 @@
         "title": "已連線的帳戶",
         "description": "在您的 MindRoom 伺服器上連線代理程式使用的帳戶，例如 Google 或 GitHub。",
         "open": "開啟連線",
-        "noBackend": "請在「電腦」中設定您的 MindRoom 伺服器，以使用連線。",
+        "noBackend": "請在設定 → 代理程式與伺服器（進階）中設定您的 MindRoom 伺服器，以使用連線。",
         "blocked": "瀏覽器封鎖了連線視窗。請允許此網站的彈出式視窗，然後再試一次。"
       }
     }

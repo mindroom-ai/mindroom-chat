@@ -408,6 +408,7 @@
       },
       "sidebar": {
         "title": "侧边栏",
+        "navigation": "导航",
         "threads": "在侧边栏显示讨论串",
         "threadsDescription": "所有房间的讨论串集中在一个列表中。隐藏后，可从首页的 ⋮ 菜单打开。",
         "canvasesDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。隐藏后，可从首页的 ⋮ 菜单打开。",
@@ -437,14 +438,15 @@
       "menu": {
         "groups": {
           "you": "你",
-          "app": "此应用",
-          "agents": "智能体与连接",
-          "help": "帮助与高级"
+          "app": "应用",
+          "mindroom": "MindRoom",
+          "system": "系统"
         },
         "pages": {
           "privacy": "隐私与安全",
           "language": "语言与地区",
-          "storage": "存储与离线"
+          "storage": "存储与离线",
+          "agentsServers": "智能体与服务器"
         }
       },
       "search": {
@@ -459,7 +461,9 @@
       "advanced": "高级",
       "sections": {
         "display": "显示",
-        "privacy": "隐私"
+        "privacy": "隐私",
+        "replying": "回复",
+        "connectionsComputers": "连接与计算机"
       },
       "computers": {
         "inUse": "正在使用的服务器",
@@ -1198,6 +1202,19 @@
         "sourceLabel": "来源 {{source}}",
         "triageLabel": "分流：{{reason}}",
         "payloadLabel": "事件载荷 JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 项待办就绪",
+        "hide": "隐藏",
+        "show": "显示",
+        "copyId": "复制待办 ID {{id}}",
+        "moreItems_other": "+另外 {{count}} 项可执行待办",
+        "priority": {
+          "critical": "紧急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
       },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",

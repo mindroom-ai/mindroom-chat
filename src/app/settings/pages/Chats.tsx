@@ -9,38 +9,7 @@ import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
 import { GlobalPacks } from '../../emoji/settings/GlobalPacks';
 import { ServerPack } from '../../emoji/settings/ServerPack';
 import { UserPack } from '../../emoji/settings/UserPack';
-import { SettingTile } from '../../ui/SettingTile';
-import { ChoiceButton } from '../../ui/settings/ChoiceButton';
-import { useSetting } from '../../preferences/useSetting';
-import { settingsAtom } from '../../preferences/settings';
-import { MID_TURN_CHOICES } from '../../composer/ComposerSendButton';
 import { formatShortcut } from '../../shortcuts/shortcuts';
-
-/** The mode a tap on Send or Enter sends with while an agent replies; a hold picks another. */
-function MidTurnSendTile() {
-  const { t } = useTranslation();
-  const [mode, setMode] = useSetting(settingsAtom, 'midTurnSend');
-  const label = t('composer.midTurn.settingTitle');
-
-  return (
-    <SettingTile
-      focusId="midTurnSend"
-      title={label}
-      description={t('composer.midTurn.settingDescription')}
-      after={
-        <ChoiceButton
-          label={label}
-          value={mode}
-          choices={MID_TURN_CHOICES.map((choice) => ({
-            value: choice.mode,
-            label: t(choice.label),
-          }))}
-          onChoose={setMode}
-        />
-      }
-    />
-  );
-}
 
 /** The composer's keys, what the timeline shows, and the emoji and sticker packs. */
 export function Chats({ requestClose }: SettingsPageProps) {
@@ -73,7 +42,6 @@ export function Chats({ requestClose }: SettingsPageProps) {
           setting="isMarkdown"
           title={t('settings.general.editor.markdownFormatting')}
         />
-        <MidTurnSendTile />
       </SettingsSection>
       <SettingsSection title={t('settings.general.messages.sectionTitle')}>
         <SettingSwitchTile
@@ -85,18 +53,6 @@ export function Chats({ requestClose }: SettingsPageProps) {
           focusId="hideNickAvatarEvents"
           setting="hideNickAvatarEvents"
           title={t('settings.general.messages.hideProfileChange')}
-        />
-        <SettingSwitchTile
-          focusId="showToolCalls"
-          setting="showToolCalls"
-          title={t('mindroomUi.messages.showToolCalls')}
-          description={t('mindroomUi.messages.showToolCallsDescription')}
-        />
-        <SettingSwitchTile
-          focusId="showUsageDetails"
-          setting="showUsageDetails"
-          title={t('mindroomUi.subagents.showUsageDetails')}
-          description={t('mindroomUi.subagents.showUsageDetailsDescription')}
         />
         <SettingSwitchTile
           focusId="mediaAutoLoad"

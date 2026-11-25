@@ -67,8 +67,8 @@ function AccountSettingSwitch({ focusId, setting, title, description }: AccountS
 }
 
 /**
- * The "Sidebar" group at the top of Settings → General: a switch for each icon rail button the
- * deployment offers, in rail order, backed by `io.mindroom.settings` account data. Each
+ * Settings › Sidebar: switches for each icon rail button the deployment offers, split into
+ * Navigation and MindRoom sections and backed by `io.mindroom.settings` account data. Each
  * description says where the button's page stays reachable while it is hidden.
  */
 export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProps) {
@@ -76,67 +76,97 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
   const offered = useOfferedRailButtons();
   const shortcut = getCommandPaletteShortcutLabel();
   const helpShortcut = formatShortcut('help');
-  const switches: Array<[RailButton, string, string]> = [
-    [
-      'threads',
-      t('featureUi.settings.sidebar.threads'),
-      t('featureUi.settings.sidebar.threadsDescription'),
-    ],
-    [
-      'canvases',
-      t('settings.general.interface.showCanvasesInSidebar'),
-      t('featureUi.settings.sidebar.canvasesDescription'),
-    ],
-    [
-      'usage',
-      t('featureUi.settings.sidebar.usage'),
-      t('featureUi.settings.sidebar.usageDescription'),
-    ],
-    [
-      'explore',
-      t('featureUi.settings.sidebar.explore'),
-      t('featureUi.settings.sidebar.exploreDescription'),
-    ],
-    [
-      'createSpace',
-      t('featureUi.settings.sidebar.createSpace'),
-      t('featureUi.settings.sidebar.createSpaceDescription', { shortcut }),
-    ],
-    [
-      'search',
-      t('featureUi.settings.sidebar.search'),
-      t('featureUi.settings.sidebar.searchDescription', { shortcut }),
-    ],
-    [
-      'localMindroom',
-      t('featureUi.settings.sidebar.localMindroom'),
-      t('featureUi.settings.sidebar.localMindroomDescription'),
-    ],
-    [
-      'help',
-      t('featureUi.settings.sidebar.help'),
-      t('featureUi.settings.sidebar.helpDescription', { shortcut, helpShortcut }),
-    ],
+  const sections: Array<{
+    id: 'navigation' | 'mindroom';
+    title: string;
+    switches: Array<[RailButton, string, string]>;
+  }> = [
+    {
+      id: 'navigation',
+      title: t('featureUi.settings.sidebar.navigation'),
+      switches: [
+        [
+          'threads',
+          t('featureUi.settings.sidebar.threads'),
+          t('featureUi.settings.sidebar.threadsDescription'),
+        ],
+        [
+          'explore',
+          t('featureUi.settings.sidebar.explore'),
+          t('featureUi.settings.sidebar.exploreDescription'),
+        ],
+        [
+          'createSpace',
+          t('featureUi.settings.sidebar.createSpace'),
+          t('featureUi.settings.sidebar.createSpaceDescription', { shortcut }),
+        ],
+        [
+          'search',
+          t('featureUi.settings.sidebar.search'),
+          t('featureUi.settings.sidebar.searchDescription', { shortcut }),
+        ],
+        [
+          'help',
+          t('featureUi.settings.sidebar.help'),
+          t('featureUi.settings.sidebar.helpDescription', { shortcut, helpShortcut }),
+        ],
+      ],
+    },
+    {
+      id: 'mindroom',
+      title: t('featureUi.settings.menu.groups.mindroom'),
+      switches: [
+        [
+          'canvases',
+          t('settings.general.interface.showCanvasesInSidebar'),
+          t('featureUi.settings.sidebar.canvasesDescription'),
+        ],
+        [
+          'usage',
+          t('featureUi.settings.sidebar.usage'),
+          t('featureUi.settings.sidebar.usageDescription'),
+        ],
+        [
+          'localMindroom',
+          t('featureUi.settings.sidebar.localMindroom'),
+          t('featureUi.settings.sidebar.localMindroomDescription'),
+        ],
+      ],
+    },
   ];
 
   return (
-    <Box direction="Column" gap="100">
-      <Text size="L400" data-settings-heading="">
-        {t('featureUi.settings.sidebar.title')}
-      </Text>
-      <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
-        {switches
-          .filter(([button]) => offered[button])
-          .map(([button, title, description]) => (
-            <AccountSettingSwitch
-              key={button}
-              focusId={SIDEBAR_SWITCH_SETTINGS[button]}
-              setting={RAIL_BUTTON_SETTING[button]}
-              title={title}
-              description={description}
-            />
-          ))}
-      </SequenceCard>
-    </Box>
+    <>
+      {sections
+        .map(({ id, title, switches }) => ({
+          id,
+          title,
+          switches: switches.filter(([button]) => offered[button]),
+        }))
+        .filter(({ switches }) => switches.length > 0)
+        .map(({ id, title, switches }) => (
+          <Box key={id} direction="Column" gap="100">
+            <Text size="L400" data-settings-heading="">
+              {title}
+            </Text>
+            <SequenceCard
+              className={className}
+              variant="SurfaceVariant"
+              direction="Column"
+              gap="400"
+            >
+              {switches.map(([button, label, description]) => (
+                <AccountSettingSwitch
+                  key={button}
+                  focusId={SIDEBAR_SWITCH_SETTINGS[button]}
+                  setting={RAIL_BUTTON_SETTING[button]}
+                  title={label}
+                  description={description}
+                />
+              ))}
+            </SequenceCard>
+          </Box>
+        ))}
+    </>
   );
 }

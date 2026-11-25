@@ -180,7 +180,7 @@ describe('useSpaceRoomSections inherited Custom snapshot', () => {
     // Root is empty; inheriting !sub shows [Zebra, Alder] in Recent mode.
     expect(sectionOf('!root').orderedTop).toEqual([]);
     expect(sectionOf('!sub').orderedTop).toEqual(['!zebra', '!alder']);
-    expect(sectionOf('!sub').sort?.overridden).toBe(false);
+    expect(sectionOf('!sub').sort?.inherit?.overridden).toBe(false);
 
     // Switching root to Custom freezes !sub's [Zebra, Alder] with mode "inherit" in one write,
     // without touching !overridden, !shadowed (inherits from !overridden), or !savedSub.
@@ -196,7 +196,7 @@ describe('useSpaceRoomSections inherited Custom snapshot', () => {
       },
     });
     expect(sectionOf('!sub').mode).toBe('manual');
-    expect(sectionOf('!sub').sort?.overridden).toBe(false);
+    expect(sectionOf('!sub').sort?.inherit?.overridden).toBe(false);
     expect(sectionOf('!sub').orderedTop).toEqual(['!zebra', '!alder']);
 
     // Switching root back to A to Z and Recent still carries down to !sub.

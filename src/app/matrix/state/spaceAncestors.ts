@@ -24,3 +24,29 @@ export const getAncestorSpaceIds = (parentsByRoom: ParentsByRoom, roomId: string
 /** Whether `roomId` sits in `spaceId`, directly or through nested Spaces and chat rooms. */
 export const isInSpace = (parentsByRoom: ParentsByRoom, roomId: string, spaceId: string): boolean =>
   getAncestorSpaceIds(parentsByRoom, roomId).includes(spaceId);
+
+/**
+ * Whether `roomId` reaches a parent matching `isTarget` directly or solely through parents
+ * matching `canTraverse` (never crossing through another space).
+ */
+export const reachesSpaceDirectly = (
+  roomId: string,
+  parentsByRoom: ParentsByRoom,
+  isTarget: (parentId: string) => boolean,
+  canTraverse: (parentId: string) => boolean
+): boolean => {
+  const visited = new Set<string>([roomId]);
+  const queue = [roomId];
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    const parents = current ? parentsByRoom.get(current) : undefined;
+    if (!parents) continue;
+    for (const parentId of parents) {
+      if (isTarget(parentId)) return true;
+      if (visited.has(parentId) || !canTraverse(parentId)) continue;
+      visited.add(parentId);
+      queue.push(parentId);
+    }
+  }
+  return false;
+};

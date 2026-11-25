@@ -434,6 +434,7 @@
       },
       "sidebar": {
         "title": "Barra lateral",
+        "navigation": "Navegação",
         "threads": "Mostrar Tópicos na barra lateral",
         "threadsDescription": "Os tópicos de todas as salas numa só lista. Se os ocultar, abra-os no menu ⋮ do Início.",
         "canvasesDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. Se o ocultar, abra-os no menu ⋮ do Início.",
@@ -463,14 +464,15 @@
       "menu": {
         "groups": {
           "you": "Você",
-          "app": "Esta aplicação",
-          "agents": "Agentes e ligações",
-          "help": "Ajuda e avançado"
+          "app": "Aplicação",
+          "mindroom": "MindRoom",
+          "system": "Sistema"
         },
         "pages": {
           "privacy": "Privacidade e segurança",
           "language": "Idioma e região",
-          "storage": "Armazenamento e offline"
+          "storage": "Armazenamento e offline",
+          "agentsServers": "Agentes e servidores"
         }
       },
       "search": {
@@ -485,7 +487,9 @@
       "advanced": "Avançado",
       "sections": {
         "display": "Apresentação",
-        "privacy": "Privacidade"
+        "privacy": "Privacidade",
+        "replying": "Respostas",
+        "connectionsComputers": "Ligações e computadores"
       },
       "computers": {
         "inUse": "Servidor em utilização",
@@ -1236,6 +1240,23 @@
         "sourceLabel": "Origem {{source}}",
         "triageLabel": "Triagem: {{reason}}",
         "payloadLabel": "Carga do evento JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} tarefa pronta",
+        "readyCount_many": "{{count}} tarefas prontas",
+        "readyCount_other": "{{count}} tarefas prontas",
+        "hide": "Ocultar",
+        "show": "Mostrar",
+        "copyId": "Copiar ID da tarefa {{id}}",
+        "moreItems_one": "+{{count}} outro item acionável",
+        "moreItems_many": "+{{count}} outros itens acionáveis",
+        "moreItems_other": "+{{count}} outros itens acionáveis",
+        "priority": {
+          "critical": "Crítica",
+          "high": "Alta",
+          "medium": "Média",
+          "low": "Baixa"
+        }
       },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",

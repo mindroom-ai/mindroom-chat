@@ -192,6 +192,9 @@ vi.mock('../SkillReviewMarker', () => ({
 vi.mock('../TriggerWakeMarker', () => ({
   TriggerWakeMarker: () => null,
 }));
+vi.mock('../TodoPokeMarker', () => ({
+  TodoPokeMarker: () => null,
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
 }));

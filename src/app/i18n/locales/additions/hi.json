@@ -421,6 +421,7 @@
       },
       "sidebar": {
         "title": "साइडबार",
+        "navigation": "नेविगेशन",
         "threads": "साइडबार में थ्रेड दिखाएँ",
         "threadsDescription": "सभी रूम के थ्रेड एक सूची में। छिपे होने पर इन्हें होम के ⋮ मेनू से खोलें।",
         "canvasesDescription": "आपके एजेंटों के बनाए इंटरैक्टिव पैनल के लिए एक बटन दिखाएँ, जैसे ही कोई पैनल हो। छिपे होने पर इन्हें होम के ⋮ मेनू से खोलें।",
@@ -450,14 +451,15 @@
       "menu": {
         "groups": {
           "you": "आप",
-          "app": "यह ऐप",
-          "agents": "एजेंट और कनेक्शन",
-          "help": "सहायता और उन्नत"
+          "app": "ऐप",
+          "mindroom": "MindRoom",
+          "system": "सिस्टम"
         },
         "pages": {
           "privacy": "गोपनीयता और सुरक्षा",
           "language": "भाषा और क्षेत्र",
-          "storage": "स्टोरेज और ऑफ़लाइन"
+          "storage": "स्टोरेज और ऑफ़लाइन",
+          "agentsServers": "एजेंट और सर्वर"
         }
       },
       "search": {
@@ -472,7 +474,9 @@
       "advanced": "उन्नत",
       "sections": {
         "display": "डिस्प्ले",
-        "privacy": "गोपनीयता"
+        "privacy": "गोपनीयता",
+        "replying": "जवाब देना",
+        "connectionsComputers": "कनेक्शन और कंप्यूटर"
       },
       "computers": {
         "inUse": "उपयोग में सर्वर",
@@ -1217,6 +1221,21 @@
         "sourceLabel": "स्रोत {{source}}",
         "triageLabel": "ट्रायज: {{reason}}",
         "payloadLabel": "इवेंट पेलोड JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} कार्य तैयार",
+        "readyCount_other": "{{count}} कार्य तैयार",
+        "hide": "छिपाएँ",
+        "show": "दिखाएँ",
+        "copyId": "कार्य आईडी {{id}} कॉपी करें",
+        "moreItems_one": "+{{count}} और करने योग्य आइटम",
+        "moreItems_other": "+{{count}} और करने योग्य आइटम",
+        "priority": {
+          "critical": "गंभीर",
+          "high": "उच्च",
+          "medium": "मध्यम",
+          "low": "निम्न"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",

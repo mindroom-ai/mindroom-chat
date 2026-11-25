@@ -50,10 +50,8 @@ export type SettingsContext = {
 export const SETTINGS_GROUPS = [
   { id: 'you', labelKey: 'featureUi.settings.menu.groups.you' },
   { id: 'app', labelKey: 'featureUi.settings.menu.groups.app' },
-  { id: 'agents', labelKey: 'featureUi.settings.menu.groups.agents' },
-  { id: 'rooms', labelKey: 'nav.rooms' },
-  { id: 'server', labelKey: 'serverAccounts.group' },
-  { id: 'help', labelKey: 'featureUi.settings.menu.groups.help' },
+  { id: 'mindroom', labelKey: 'featureUi.settings.menu.groups.mindroom' },
+  { id: 'system', labelKey: 'featureUi.settings.menu.groups.system' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: TranslationKey }>;
 
 export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
@@ -95,6 +93,7 @@ export const SETTINGS_PAGES = [
     aliases: ['general'],
   },
   { id: 'chats', group: 'app', labelKey: 'nav.chats', aliases: ['emojis-stickers'] },
+  { id: 'archived-rooms', group: 'app', labelKey: 'archivedRooms.title' },
   { id: 'sidebar', group: 'app', labelKey: 'featureUi.settings.sidebar.title' },
   {
     id: 'plugins',
@@ -104,42 +103,39 @@ export const SETTINGS_PAGES = [
   },
   { id: 'language', group: 'app', labelKey: 'featureUi.settings.menu.pages.language' },
   {
-    id: 'connections',
-    group: 'agents',
-    labelKey: 'settings.general.connections.title',
-    // The apps have no pop-up window to sign the portal in with.
-    hidden: (context) => context.native,
+    id: 'mindroom',
+    group: 'mindroom',
+    labelKey: 'featureUi.settings.menu.pages.agentsServers',
+    aliases: ['connections', 'computers'],
   },
-  { id: 'computers', group: 'agents', labelKey: 'settings.general.computers.sectionTitle' },
   {
     id: 'thisMac',
-    group: 'agents',
+    group: 'mindroom',
     labelKey: 'featureUi.desktopAccess.settings.sectionTitle',
     aliases: ['mac', 'computer access', 'desktop control', 'shell'],
     hidden: (context) => !context.desktopAccess,
   },
   {
     id: 'mindroom.local-mindroom',
-    group: 'agents',
+    group: 'mindroom',
     labelKey: 'mindroomUi.local-mindroom.localMindroom.localMindroom',
     aliases: ['local-mindroom'],
     hidden: (context) => !context.localMindroom,
   },
-  { id: 'archived-rooms', group: 'rooms', labelKey: 'archivedRooms.title' },
+  { id: 'storage', group: 'system', labelKey: 'featureUi.settings.menu.pages.storage' },
   {
     id: 'server-accounts',
-    group: 'server',
+    group: 'system',
     labelKey: 'serverAccounts.title',
     hidden: (context) => !context.serverAdmin,
   },
-  { id: 'storage', group: 'help', labelKey: 'featureUi.settings.menu.pages.storage' },
   {
     id: 'developer-tools',
-    group: 'help',
+    group: 'system',
     labelKey: 'settings.nav.developerTools',
     aliases: ['developer'],
   },
-  { id: 'about', group: 'help', labelKey: 'settings.nav.about' },
+  { id: 'about', group: 'system', labelKey: 'settings.nav.about' },
 ] as const satisfies readonly PageDefinition[];
 
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number]['id'];
@@ -196,12 +192,13 @@ export const SIDEBAR_SWITCH_SETTINGS = {
 
 const sidebarSwitch = (
   button: keyof typeof SIDEBAR_SWITCH_SETTINGS,
+  group: TranslationKey,
   labelKey: TranslationKey,
   descriptionKey: TranslationKey
 ): SettingDefinition => ({
   id: SIDEBAR_SWITCH_SETTINGS[button],
   page: 'sidebar',
-  group: `${SIDEBAR}.title`,
+  group,
   labelKey,
   descriptionKey,
   keywordsKey: `${KEYWORDS}.sidebar`,
@@ -456,7 +453,7 @@ export const SETTINGS = [
     scope: 'device',
     advanced: true,
   },
-  // This app: Appearance
+  // App: Appearance
   {
     id: 'systemTheme',
     page: 'appearance',
@@ -519,7 +516,7 @@ export const SETTINGS = [
     scope: 'device',
     advanced: true,
   },
-  // This app: Chats
+  // App: Chats
   {
     id: 'enterForNewline',
     page: 'chats',
@@ -547,15 +544,6 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
-    id: 'midTurnSend',
-    page: 'chats',
-    group: 'settings.general.editor.sectionTitle',
-    labelKey: 'composer.midTurn.settingTitle',
-    descriptionKey: 'composer.midTurn.settingDescription',
-    keywordsKey: `${KEYWORDS}.midTurn`,
-    scope: 'account',
-  },
-  {
     id: 'hideMembershipEvents',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',
@@ -569,24 +557,6 @@ export const SETTINGS = [
     group: 'settings.general.messages.sectionTitle',
     labelKey: 'settings.general.messages.hideProfileChange',
     keywordsKey: `${KEYWORDS}.timeline`,
-    scope: 'account',
-  },
-  {
-    id: 'showToolCalls',
-    page: 'chats',
-    group: 'settings.general.messages.sectionTitle',
-    labelKey: 'mindroomUi.messages.showToolCalls',
-    descriptionKey: 'mindroomUi.messages.showToolCallsDescription',
-    keywordsKey: `${KEYWORDS}.timeline`,
-    scope: 'account',
-  },
-  {
-    id: 'showUsageDetails',
-    page: 'chats',
-    group: 'settings.general.messages.sectionTitle',
-    labelKey: 'mindroomUi.subagents.showUsageDetails',
-    descriptionKey: 'mindroomUi.subagents.showUsageDetailsDescription',
-    keywordsKey: `${KEYWORDS}.usage`,
     scope: 'account',
   },
   {
@@ -630,20 +600,59 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.emoji`,
     scope: 'room-shared',
   },
-  // This app: Sidebar
-  sidebarSwitch('threads', `${SIDEBAR}.threads`, `${SIDEBAR}.threadsDescription`),
+  // App: Archived Rooms
+  {
+    id: 'archivedRooms',
+    page: 'archived-rooms',
+    labelKey: 'archivedRooms.title',
+    keywordsKey: `${KEYWORDS}.archive`,
+    scope: 'room-personal',
+  },
+  // App: Sidebar
+  sidebarSwitch(
+    'threads',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.threads`,
+    `${SIDEBAR}.threadsDescription`
+  ),
+  sidebarSwitch(
+    'explore',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.explore`,
+    `${SIDEBAR}.exploreDescription`
+  ),
+  sidebarSwitch(
+    'createSpace',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.createSpace`,
+    `${SIDEBAR}.createSpaceDescription`
+  ),
+  sidebarSwitch(
+    'search',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.search`,
+    `${SIDEBAR}.searchDescription`
+  ),
+  sidebarSwitch('help', `${SIDEBAR}.navigation`, `${SIDEBAR}.help`, `${SIDEBAR}.helpDescription`),
   sidebarSwitch(
     'canvases',
+    'featureUi.settings.menu.groups.mindroom',
     'settings.general.interface.showCanvasesInSidebar',
     `${SIDEBAR}.canvasesDescription`
   ),
-  sidebarSwitch('usage', `${SIDEBAR}.usage`, `${SIDEBAR}.usageDescription`),
-  sidebarSwitch('explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
-  sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
-  sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
-  sidebarSwitch('localMindroom', `${SIDEBAR}.localMindroom`, `${SIDEBAR}.localMindroomDescription`),
-  sidebarSwitch('help', `${SIDEBAR}.help`, `${SIDEBAR}.helpDescription`),
-  // This app: Plugins
+  sidebarSwitch(
+    'usage',
+    'featureUi.settings.menu.groups.mindroom',
+    `${SIDEBAR}.usage`,
+    `${SIDEBAR}.usageDescription`
+  ),
+  sidebarSwitch(
+    'localMindroom',
+    'featureUi.settings.menu.groups.mindroom',
+    `${SIDEBAR}.localMindroom`,
+    `${SIDEBAR}.localMindroomDescription`
+  ),
+  // App: Plugins
   {
     id: 'plugins',
     page: 'plugins',
@@ -652,7 +661,7 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.plugins`,
     scope: 'account',
   },
-  // This app: Language & region
+  // App: Language & region
   {
     id: 'language',
     page: 'language',
@@ -678,11 +687,38 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.time`,
     scope: 'account',
   },
-  // Agents & connections
+  // MindRoom: Agents & servers
+  {
+    id: 'midTurnSend',
+    page: 'mindroom',
+    group: 'featureUi.settings.sections.replying',
+    labelKey: 'composer.midTurn.settingTitle',
+    descriptionKey: 'composer.midTurn.settingDescription',
+    keywordsKey: `${KEYWORDS}.midTurn`,
+    scope: 'account',
+  },
+  {
+    id: 'showToolCalls',
+    page: 'mindroom',
+    group: 'settings.general.messages.sectionTitle',
+    labelKey: 'mindroomUi.messages.showToolCalls',
+    descriptionKey: 'mindroomUi.messages.showToolCallsDescription',
+    keywordsKey: `${KEYWORDS}.timeline`,
+    scope: 'account',
+  },
+  {
+    id: 'showUsageDetails',
+    page: 'mindroom',
+    group: 'settings.general.messages.sectionTitle',
+    labelKey: 'mindroomUi.subagents.showUsageDetails',
+    descriptionKey: 'mindroomUi.subagents.showUsageDetailsDescription',
+    keywordsKey: `${KEYWORDS}.usage`,
+    scope: 'account',
+  },
   {
     id: 'connectedAccounts',
-    page: 'connections',
-    group: 'settings.general.connections.sectionTitle',
+    page: 'mindroom',
+    group: 'featureUi.settings.sections.connectionsComputers',
     labelKey: 'settings.general.connections.title',
     descriptionKey: 'settings.general.connections.description',
     keywordsKey: `${KEYWORDS}.connections`,
@@ -691,22 +727,22 @@ export const SETTINGS = [
   },
   {
     id: 'computerServerInUse',
-    page: 'computers',
-    group: 'settings.general.computers.sectionTitle',
+    page: 'mindroom',
+    group: 'featureUi.settings.sections.connectionsComputers',
     labelKey: 'featureUi.settings.computers.inUse',
     keywordsKey: `${KEYWORDS}.computers`,
     scope: 'device',
   },
   {
     id: 'computerServer',
-    page: 'computers',
-    group: 'settings.general.computers.sectionTitle',
+    page: 'mindroom',
     labelKey: 'settings.general.computers.apiUrl',
     descriptionKey: 'settings.general.computers.description',
     keywordsKey: `${KEYWORDS}.computers`,
     scope: 'device',
     advanced: true,
   },
+  // MindRoom: This Mac
   {
     id: 'thisMacAccess',
     page: 'thisMac',
@@ -727,6 +763,7 @@ export const SETTINGS = [
     scope: 'device',
     hidden: (context) => !context.desktopAccess,
   },
+  // MindRoom: Local MindRoom
   {
     id: 'pairLocalMindroom',
     page: 'mindroom.local-mindroom',
@@ -745,15 +782,7 @@ export const SETTINGS = [
     scope: 'account',
     hidden: (context) => !context.localMindroom,
   },
-  // Rooms
-  {
-    id: 'archivedRooms',
-    page: 'archived-rooms',
-    labelKey: 'archivedRooms.title',
-    keywordsKey: `${KEYWORDS}.archive`,
-    scope: 'room-personal',
-  },
-  // Help & advanced
+  // System
   {
     id: 'prefetchScope',
     page: 'storage',

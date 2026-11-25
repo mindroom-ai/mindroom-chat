@@ -103,6 +103,9 @@ vi.mock('../renderAgentMessageContent', () => ({
 vi.mock('../../TriggerWakeMarker', () => ({
   TriggerWakeMarker: () => null,
 }));
+vi.mock('../../TodoPokeMarker', () => ({
+  TodoPokeMarker: () => null,
+}));
 
 vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',

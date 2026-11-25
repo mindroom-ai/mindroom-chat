@@ -473,6 +473,7 @@
       },
       "sidebar": {
         "title": "الشريط الجانبي",
+        "navigation": "التنقل",
         "threads": "إظهار سلاسل المحادثات في الشريط الجانبي",
         "threadsDescription": "سلاسل المحادثات من كل الغرف في قائمة واحدة. عند إخفائها، افتحها من القائمة ⋮ في الرئيسية.",
         "canvasesDescription": "إظهار زر للوحات التفاعلية التي أنشأها وكلاؤك، بمجرد وجود واحدة. عند إخفائها، افتحها من القائمة ⋮ في الرئيسية.",
@@ -502,14 +503,15 @@
       "menu": {
         "groups": {
           "you": "أنت",
-          "app": "هذا التطبيق",
-          "agents": "الوكلاء والاتصالات",
-          "help": "المساعدة والإعدادات المتقدمة"
+          "app": "التطبيق",
+          "mindroom": "MindRoom",
+          "system": "النظام"
         },
         "pages": {
           "privacy": "الخصوصية والأمان",
           "language": "اللغة والمنطقة",
-          "storage": "التخزين ووضع عدم الاتصال"
+          "storage": "التخزين ووضع عدم الاتصال",
+          "agentsServers": "الوكلاء والخوادم"
         }
       },
       "search": {
@@ -524,7 +526,9 @@
       "advanced": "متقدم",
       "sections": {
         "display": "العرض",
-        "privacy": "الخصوصية"
+        "privacy": "الخصوصية",
+        "replying": "الرد",
+        "connectionsComputers": "الاتصالات وأجهزة الكمبيوتر"
       },
       "computers": {
         "inUse": "الخادم المستخدم",
@@ -1293,6 +1297,29 @@
         "sourceLabel": "المصدر ⁨{{source}}⁩",
         "triageLabel": "الفرز: ⁨{{reason}}⁩",
         "payloadLabel": "حمولة الحدث JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_zero": "⁨{{count}}⁩ مهام جاهزة",
+        "readyCount_one": "مهمة واحدة جاهزة (⁨{{count}}⁩)",
+        "readyCount_two": "مهمتان جاهزتان (⁨{{count}}⁩)",
+        "readyCount_few": "⁨{{count}}⁩ مهام جاهزة",
+        "readyCount_many": "⁨{{count}}⁩ مهمة جاهزة",
+        "readyCount_other": "⁨{{count}}⁩ مهمة جاهزة",
+        "hide": "إخفاء",
+        "show": "إظهار",
+        "copyId": "نسخ معرّف المهمة ⁨{{id}}⁩",
+        "moreItems_zero": "+⁨{{count}}⁩ عناصر إضافية قابلة للتنفيذ",
+        "moreItems_one": "+عنصر إضافي واحد قابل للتنفيذ (⁨{{count}}⁩)",
+        "moreItems_two": "+عنصران إضافيان قابلان للتنفيذ (⁨{{count}}⁩)",
+        "moreItems_few": "+⁨{{count}}⁩ عناصر إضافية قابلة للتنفيذ",
+        "moreItems_many": "+⁨{{count}}⁩ عنصرًا إضافيًا قابلًا للتنفيذ",
+        "moreItems_other": "+⁨{{count}}⁩ عنصر إضافي قابل للتنفيذ",
+        "priority": {
+          "critical": "حرج",
+          "high": "مرتفع",
+          "medium": "متوسط",
+          "low": "منخفض"
+        }
       },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",

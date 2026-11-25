@@ -32,11 +32,10 @@ describe('getSettingsMenuItems', () => {
       'Privacy & security',
       'Appearance',
       'Chats',
+      'Archived Rooms',
       'Sidebar',
       'Language & region',
-      'Connected accounts',
-      'Computers',
-      'Archived Rooms',
+      'Agents & servers',
       'Storage & offline',
       'Developer Tools',
       'About',
@@ -50,13 +49,16 @@ describe('getSettingsMenuItems', () => {
       );
 
     expect(shown(false)).toBeUndefined();
-    expect(shown(true)).toMatchObject({ name: 'Server accounts', group: 'server' });
+    expect(shown(true)).toMatchObject({ name: 'Server accounts', group: 'system' });
   });
 
-  it('leaves Connections out of the apps, which cannot open its window', () => {
+  it('keeps Agents & servers on native apps', () => {
     const items = getSettingsMenuItems(false, t, true);
 
-    expect(items.some((item) => item.page === SettingsPages.ConnectionsPage)).toBe(false);
+    expect(items.find((item) => item.page === SettingsPages.MindroomPage)).toMatchObject({
+      name: 'Agents & servers',
+      group: 'mindroom',
+    });
   });
 
   it('shows Plugins under app between Sidebar and Language when hasPlugins is true', () => {
@@ -76,6 +78,28 @@ describe('getSettingsMenuItems', () => {
       pages.indexOf(SettingsPages.PluginsPage) + 1
     );
   });
+
+  it('shows This Mac under mindroom between Agents & servers and Local MindRoom when desktopAccess is true', () => {
+    const withoutDesktopAccess = getSettingsMenuItems(true, t, false, false, false, false, false);
+    expect(withoutDesktopAccess.some((item) => item.page === SettingsPages.ThisMacPage)).toBe(
+      false
+    );
+
+    const withDesktopAccess = getSettingsMenuItems(true, t, false, false, false, false, true);
+    const pages = withDesktopAccess.map((item) => item.page);
+    expect(withDesktopAccess.find((item) => item.page === SettingsPages.ThisMacPage)).toMatchObject(
+      {
+        name: 'This Mac',
+        group: 'mindroom',
+      }
+    );
+    expect(pages.indexOf(SettingsPages.ThisMacPage)).toBe(
+      pages.indexOf(SettingsPages.MindroomPage) + 1
+    );
+    expect(pages.indexOf(LOCAL_MINDROOM_SETTINGS_PAGE)).toBe(
+      pages.indexOf(SettingsPages.ThisMacPage) + 1
+    );
+  });
 });
 
 describe('resolveSettingsInitialPage', () => {
@@ -91,6 +115,12 @@ describe('resolveSettingsInitialPage', () => {
     );
     expect(resolveSettingsInitialPage('devices', ScreenSize.Mobile, false)).toBe(
       SettingsPages.PrivacyPage
+    );
+    expect(resolveSettingsInitialPage('connections', ScreenSize.Desktop, false)).toBe(
+      SettingsPages.MindroomPage
+    );
+    expect(resolveSettingsInitialPage('computers', ScreenSize.Desktop, false)).toBe(
+      SettingsPages.MindroomPage
     );
   });
 

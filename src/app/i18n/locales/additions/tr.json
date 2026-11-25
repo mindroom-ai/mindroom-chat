@@ -421,6 +421,7 @@
       },
       "sidebar": {
         "title": "Kenar çubuğu",
+        "navigation": "Gezinme",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
@@ -450,14 +451,15 @@
       "menu": {
         "groups": {
           "you": "Siz",
-          "app": "Bu uygulama",
-          "agents": "Ajanlar ve bağlantılar",
-          "help": "Yardım ve gelişmiş"
+          "app": "Uygulama",
+          "mindroom": "MindRoom",
+          "system": "Sistem"
         },
         "pages": {
           "privacy": "Gizlilik ve güvenlik",
           "language": "Dil ve bölge",
-          "storage": "Depolama ve çevrimdışı"
+          "storage": "Depolama ve çevrimdışı",
+          "agentsServers": "Ajanlar ve sunucular"
         }
       },
       "search": {
@@ -472,7 +474,9 @@
       "advanced": "Gelişmiş",
       "sections": {
         "display": "Görünüm",
-        "privacy": "Gizlilik"
+        "privacy": "Gizlilik",
+        "replying": "Yanıtlama",
+        "connectionsComputers": "Bağlantılar ve bilgisayarlar"
       },
       "computers": {
         "inUse": "Kullanılan sunucu",
@@ -1217,6 +1221,21 @@
         "sourceLabel": "Kaynak {{source}}",
         "triageLabel": "Triyaj: {{reason}}",
         "payloadLabel": "Olay yükü JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} görev hazır",
+        "readyCount_other": "{{count}} görev hazır",
+        "hide": "Gizle",
+        "show": "Göster",
+        "copyId": "Görev kimliğini kopyala: {{id}}",
+        "moreItems_one": "+{{count}} uygulanabilir öğe daha",
+        "moreItems_other": "+{{count}} uygulanabilir öğe daha",
+        "priority": {
+          "critical": "Kritik",
+          "high": "Yüksek",
+          "medium": "Orta",
+          "low": "Düşük"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",

@@ -410,7 +410,7 @@ describe('SecretRequestCard', () => {
       expect(input()).toBeNull();
       expect(text()).toContain('Entering keys is not available on this server.');
       expect(text()).toContain(
-        'To enter keys here, save your MindRoom server in Settings → Computers.'
+        'To enter keys here, save your MindRoom server in Settings → Agents & servers.'
       );
       expect(env.clientSessions).not.toHaveBeenCalled();
     };
