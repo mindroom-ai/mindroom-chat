@@ -1287,7 +1287,7 @@ it('renders a workflow run job row with title, counts, usage cells, and Stop', (
 });
 
 it('opens approval review from the folded waiting pill without toggling, and keeps it open until closed or the room changes', () => {
-  state.jobs = [job('a', { status: 'awaiting_approval', toolCallId: 'call-a' })];
+  state.jobs = [job('a', { status: 'awaiting_approval' })];
   render(null);
   const pill = container.querySelector<HTMLButtonElement>('[data-job-review-approval]');
   expect(pill).not.toBeNull();
@@ -1302,7 +1302,6 @@ it('opens approval review from the folded waiting pill without toggling, and kee
   expect(
     container.querySelector('[data-testid="job-approval-dialog"]')?.getAttribute('data-job-id')
   ).toBe('a');
-  expect(reviewDialog.lastProps?.job.toolCallId).toBe('call-a');
   expect(reviewDialog.lastProps?.viewThreadId).toBeNull();
   expect(reviewDialog.lastProps?.returnFocus.current).toBe(pill);
 

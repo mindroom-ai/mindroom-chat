@@ -34,12 +34,12 @@ type JobApprovalDialogProps = {
 };
 
 /**
- * Matches only pending approvals provably owned by this job: its own `jobId` (or any waiting
- * workflow node's `node.job`), its `toolCallId`, or a direct workflow `backgroundRunId`.
+ * Matches only pending approvals whose authoritative `approval.jobId` belongs to this job
+ * (or any waiting workflow node's `node.job`).
  */
 export const matchJobApprovals = (
   pending: readonly ThreadApprovalRecord[],
-  job: Pick<BackgroundJobsBarItem, 'jobId' | 'toolCallId' | 'workflow' | 'workflowRun'>
+  job: Pick<BackgroundJobsBarItem, 'jobId' | 'workflowRun'>
 ): ThreadApprovalRecord[] => {
   const jobIds = new Set<string>([job.jobId]);
   job.workflowRun?.graph.nodes.forEach((node) => {
@@ -47,12 +47,8 @@ export const matchJobApprovals = (
       jobIds.add(node.job);
     }
   });
-  const workflowRunId = job.workflow || undefined;
   return pending.filter(
-    ({ approval }) =>
-      (approval.jobId !== null && jobIds.has(approval.jobId)) ||
-      (job.toolCallId !== undefined && approval.toolCallId === job.toolCallId) ||
-      (workflowRunId !== undefined && approval.backgroundRunId === workflowRunId)
+    (record) => record.approval.jobId !== null && jobIds.has(record.approval.jobId)
   );
 };
 

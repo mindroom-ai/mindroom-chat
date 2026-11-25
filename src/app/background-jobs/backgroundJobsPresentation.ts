@@ -9,8 +9,6 @@ import { plainToolName } from './toolNames';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
-  // A tool job's call, as the agent reply's tool trace and approval card name it.
-  toolCallId?: string;
   // The job's own name, for its row, its Stop button and errors.
   name: string;
   plainName?: string;
@@ -197,7 +195,6 @@ export const presentBackgroundJobs = (
     const name = jobName(job, t, joined.workflowRun);
     return {
       jobId: job.jobId,
-      ...(job.toolCallId ? { toolCallId: job.toolCallId } : {}),
       name,
       ...(!details && job.kind !== 'subagent' && !isWorkflow
         ? { plainName: plainToolName(name, t) }

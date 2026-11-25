@@ -110,7 +110,6 @@ const editApproval = (origin: MatrixEvent, eventId: string, status: 'approved' |
 
 const makeJob = (overrides: Partial<BackgroundJobsBarItem> = {}): BackgroundJobsBarItem => ({
   jobId: 'job-alpha',
-  toolCallId: 'call-alpha',
   name: 'run_sample_check',
   waiting: true,
   stopping: false,
@@ -144,7 +143,7 @@ describe('matchJobApprovals', () => {
   it.each<[string, Partial<BackgroundJobsBarItem>, MatrixEvent[], string[]]>([
     [
       'exact jobId match (tool / sub-agent)',
-      { jobId: 'job-alpha', toolCallId: undefined },
+      { jobId: 'job-alpha' },
       [
         approvalEvent('$other', { background_run_id: 'tool-job:job-beta' }),
         approvalEvent('$match', { background_run_id: 'tool-job:job-alpha' }),
@@ -152,45 +151,34 @@ describe('matchJobApprovals', () => {
       ['$match'],
     ],
     [
-      'exact toolCallId match',
-      { jobId: 'job-different', toolCallId: 'call-alpha' },
+      'shared toolCallId returns only job A card, not a foreground card with jobId null',
+      { jobId: 'job-a' },
       [
-        approvalEvent('$other', { tool_call_id: 'call-other' }),
-        approvalEvent('$match', { tool_call_id: 'call-alpha' }),
+        approvalEvent('$fg-same-call', { tool_call_id: 'call_1', tool_name: 'foreground_tool' }),
+        approvalEvent('$job-a', { background_run_id: 'tool-job:job-a', tool_call_id: 'call_1' }),
       ],
-      ['$match'],
+      ['$job-a'],
     ],
     [
-      'workflow waiting node job match ignoring an unrelated foreground approval',
-      { jobId: 'job-wf', toolCallId: undefined, workflow: 'wf-1234', workflowRun },
+      'workflow waiting node job match ignoring running nodes and foreground approvals',
+      { jobId: 'job-wf', workflow: 'wf-1234', workflowRun },
       [
         approvalEvent('$foreground', { tool_name: 'foreground_tool' }),
+        approvalEvent('$running-node', { background_run_id: 'tool-job:job-running-node' }),
         approvalEvent('$wf-step', { background_run_id: 'tool-job:job-wf-step' }),
       ],
       ['$wf-step'],
     ],
     [
-      'direct workflow script approval matching backgroundRunId === job.workflow',
-      { jobId: 'job-wf', toolCallId: undefined, workflow: 'wf-1234' },
-      [
-        approvalEvent('$foreground', { tool_name: 'foreground_tool' }),
-        approvalEvent('$wf-direct', { background_run_id: 'wf-1234' }),
-      ],
-      ['$wf-direct'],
-    ],
-    [
-      'unrelated tagged card returns empty',
-      { jobId: 'job-target', toolCallId: 'call-target' },
+      'unrelated jobId, reused toolCallId, non-tool-job background_run_id, and foreground return empty',
+      { jobId: 'job-target', workflow: 'wf-1234' },
       [
         approvalEvent('$other-job', { background_run_id: 'tool-job:job-other' }),
-        approvalEvent('$other-call', { tool_call_id: 'call-other' }),
+        approvalEvent('$fg-reused-call', { tool_call_id: 'call_1' }),
+        approvalEvent('$wf-direct', { background_run_id: 'wf-1234' }),
+        approvalEvent('$script-run', { background_run_id: 'script-1234' }),
+        approvalEvent('$foreground', { tool_name: 'foreground_tool' }),
       ],
-      [],
-    ],
-    [
-      'unrelated untagged foreground card returns empty',
-      { jobId: 'job-target', toolCallId: undefined },
-      [approvalEvent('$foreground', { tool_name: 'foreground_tool' })],
       [],
     ],
   ])('%s', (_name, job, events, expected) => {
@@ -295,7 +283,7 @@ describe('JobApprovalDialog', () => {
   });
 
   it('reuses an existing ThreadApprovalProvider for the same thread and submits Deny', async () => {
-    const matching = approvalEvent('$reuse-appr', { tool_call_id: 'call-alpha' });
+    const matching = approvalEvent('$reuse-appr', { background_run_id: 'tool-job:job-alpha' });
     mocks.backfill.mockResolvedValueOnce({ events: [matching], repairedEventIds: [] });
 
     const onClose = vi.fn();
@@ -304,7 +292,7 @@ describe('JobApprovalDialog', () => {
         <ThreadApprovalProvider room={room} threadId="$thread-1">
           <JobApprovalDialog
             room={room}
-            job={makeJob({ jobId: 'different-job-id', toolCallId: 'call-alpha' })}
+            job={makeJob()}
             viewThreadId="$thread-1"
             onClose={onClose}
             returnFocus={createRef<HTMLElement | null>()}
@@ -347,7 +335,7 @@ describe('JobApprovalDialog', () => {
       events: [approvalEvent('$fg-only', { tool_name: 'foreground_tool' })],
       repairedEventIds: [],
     });
-    await renderDialog({ job: makeJob({ jobId: 'job-target', toolCallId: undefined }) });
+    await renderDialog({ job: makeJob({ jobId: 'job-target' }) });
     expect(dialogText()).toContain('Some requests are no longer available.');
     expect(dialogText()).not.toContain('foreground_tool');
     expect(buttonByText('Open thread')).toBeTruthy();
@@ -383,7 +371,7 @@ describe('JobApprovalDialog', () => {
     );
 
     await renderDialog({
-      job: makeJob({ jobId: 'job-room', toolCallId: undefined, threadId: null }),
+      job: makeJob({ jobId: 'job-room', threadId: null }),
     });
     expect(dialogText()).toContain('room_sample_tool');
     expect(dialogText()).not.toContain('forged_tool');
