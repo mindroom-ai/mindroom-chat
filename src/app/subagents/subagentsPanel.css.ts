@@ -40,7 +40,7 @@ export const DetailLayer = style({
 export const Heading = style({
   display: 'flex',
   flexDirection: 'column',
-  flex: '1 1 0',
+  flex: '1 1 5rem',
   minWidth: 0,
 });
 
