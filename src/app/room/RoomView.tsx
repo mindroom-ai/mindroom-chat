@@ -179,48 +179,62 @@ export function RoomView({
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
-  const [peekingRoom, setPeekingRoom] = useState(false);
+  const [peekingRoom, setPeekingRoom] = useState<{ focusEventId?: string } | null>(null);
   const columnFillsRef = useRef(false);
   const crossRoomForkRef = useRef(Boolean(crossRoomFork));
   crossRoomForkRef.current = Boolean(crossRoomFork);
 
-  const enterLiveRoomPeek = useCallback((): LiveThreadBackUnder | null => {
-    const stage = pageRef.current;
-    const under = areaRef.current;
-    if (!columnFillsRef.current || crossRoomForkRef.current || !stage || !under) return null;
-    const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
-    if (!over) return null;
+  const enterLiveRoomPeek = useCallback(
+    (focusEventId?: string): LiveThreadBackUnder | null => {
+      const stage = pageRef.current;
+      const under = areaRef.current;
+      if (!columnFillsRef.current || crossRoomForkRef.current || !stage || !under) return null;
+      const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
+      if (!over) return null;
 
-    const savedReturnPlace = threadReturnPlaceRef.current;
-    const savedCompactScroll = compactRoomScrollStateRef.current.get(roomId);
+      const savedReturnPlace = threadReturnPlaceRef.current;
+      const savedCompactScroll = compactRoomScrollStateRef.current.get(roomId);
 
-    stage.setAttribute(SWIPE_THREAD_STAGE, '');
-    under.setAttribute(SWIPE_UNDER_THREAD, '');
-    try {
-      flushSync(() => setPeekingRoom(true));
-    } catch (error) {
-      stage.removeAttribute(SWIPE_THREAD_STAGE);
-      under.removeAttribute(SWIPE_UNDER_THREAD);
-      throw error;
-    }
+      stage.setAttribute(SWIPE_THREAD_STAGE, '');
+      under.setAttribute(SWIPE_UNDER_THREAD, '');
+      try {
+        flushSync(() => setPeekingRoom({ focusEventId }));
+      } catch (error) {
+        stage.removeAttribute(SWIPE_THREAD_STAGE);
+        under.removeAttribute(SWIPE_UNDER_THREAD);
+        throw error;
+      }
 
-    return {
-      stage,
-      over,
-      under,
-      exit(committed) {
-        if (!pageRef.current) return;
-        if (!committed || columnFillsRef.current) {
-          flushSync(() => setPeekingRoom(false));
-          threadReturnPlaceRef.current = savedReturnPlace;
-          if (savedCompactScroll) compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
-          else compactRoomScrollStateRef.current.delete(roomId);
-          return;
-        }
-        setPeekingRoom(false);
-      },
-    };
-  }, [roomId]);
+      return {
+        stage,
+        over,
+        under,
+        exit(committed) {
+          if (!pageRef.current) {
+            stage.removeAttribute(SWIPE_THREAD_STAGE);
+            under.removeAttribute(SWIPE_UNDER_THREAD);
+            return;
+          }
+          if (!committed || columnFillsRef.current) {
+            flushSync(() => setPeekingRoom(null));
+            stage.removeAttribute(SWIPE_THREAD_STAGE);
+            under.removeAttribute(SWIPE_UNDER_THREAD);
+            threadReturnPlaceRef.current = savedReturnPlace;
+            if (savedCompactScroll) {
+              compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
+            } else {
+              compactRoomScrollStateRef.current.delete(roomId);
+            }
+            return;
+          }
+          stage.removeAttribute(SWIPE_THREAD_STAGE);
+          under.removeAttribute(SWIPE_UNDER_THREAD);
+          setPeekingRoom(null);
+        },
+      };
+    },
+    [roomId]
+  );
 
   const threadState = useRoomViewThreadState({
     room,
@@ -249,9 +263,10 @@ export function RoomView({
   const columnFills =
     columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   columnFillsRef.current = columnFills;
-  const peekingOnly = columnFills && peekingRoom;
+  const peekingOnly = columnFills && peekingRoom !== null;
+  const peekFocusEventId = peekingOnly ? peekingRoom.focusEventId : undefined;
   useEffect(() => {
-    if (!columnFills) setPeekingRoom(false);
+    if (!columnFills) setPeekingRoom(null);
   }, [columnFills]);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
@@ -405,12 +420,13 @@ export function RoomView({
     );
   const timelineProps: RoomTimelineProps = {
     room,
-    // The event the address names is the thread's, unless it asks for it in the room.
-    eventId: openThreadId && !focusEventInRoom ? undefined : eventId,
-    focusEventInRoom,
-    entryKey,
-    entryPushed,
-    entryReturned,
+    // The event the address names is the thread's, unless it asks for it in the room (or a
+    // live-peek swipe is previewing a direct-exit focus target).
+    eventId: peekFocusEventId ?? (openThreadId && !focusEventInRoom ? undefined : eventId),
+    focusEventInRoom: peekFocusEventId ? true : focusEventInRoom,
+    entryKey: peekFocusEventId ? undefined : entryKey,
+    entryPushed: peekFocusEventId ? false : entryPushed,
+    entryReturned: peekFocusEventId ? false : entryReturned,
     hasMindroomAgents,
     summaryMap: threadState.summaryMap,
     onStoreThreadSummary: threadState.storeThreadSummary,
@@ -475,7 +491,7 @@ export function RoomView({
             />
           )
         }
-        collapsed={columnFills && !peekingRoom}
+        collapsed={columnFills && peekingRoom === null}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />

@@ -847,8 +847,6 @@ export const createThreadBackSwipeScene = ({
         })();
 
   if (live) {
-    live.stage.setAttribute(SWIPE_THREAD_STAGE, '');
-    live.under.setAttribute(SWIPE_UNDER_THREAD, '');
     live.over.setAttribute(SWIPE_OVER_THREAD, '');
   } else {
     if (matchedRoom) under.setAttribute(SWIPE_PREVIEW, 'under');
@@ -900,9 +898,7 @@ export const createThreadBackSwipeScene = ({
     live.over.removeAttribute('data-swiping');
     live.over.removeAttribute('data-swipe-shadow');
     clearInlineTranslate(live.under);
-    live.under.removeAttribute(SWIPE_UNDER_THREAD);
     live.under.removeAttribute('data-swiping');
-    live.stage.removeAttribute(SWIPE_THREAD_STAGE);
     live.exit(committed);
   };
 

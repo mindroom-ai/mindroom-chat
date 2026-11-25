@@ -62,7 +62,8 @@ const state = vi.hoisted(() => ({
   openFocus: [] as [string, boolean | undefined][],
   // The threads of the Compact cards the room's messages show while no thread is open.
   cards: undefined as string[] | undefined,
-  enterLiveRoomPeek: undefined as (() => LiveThreadBackUnder | null) | undefined,
+  enterLiveRoomPeek: undefined as
+    ((focusEventId?: string) => LiveThreadBackUnder | null) | undefined,
   timelineMounts: 0,
   headerProps: [] as Array<{ passive?: boolean; openThreadId?: string; threadId?: string }>,
 }));
@@ -87,7 +88,9 @@ vi.mock('../event-store/engine/engineContext', () => ({
 }));
 const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
-  useRoomViewThreadState: (opts: { enterLiveRoomPeek?: () => LiveThreadBackUnder | null }) => {
+  useRoomViewThreadState: (opts: {
+    enterLiveRoomPeek?: (focusEventId?: string) => LiveThreadBackUnder | null;
+  }) => {
     state.enterLiveRoomPeek = opts.enterLiveRoomPeek;
     return {
       viewMode: 'compact',
@@ -1059,6 +1062,8 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   act(() => {
     live!.exit(false);
   });
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
   expect(screen.queryByTestId('messages')).toBeNull();
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(returnPlace);
   expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(compactScroll);
@@ -1093,10 +1098,75 @@ it('live room peek keeps ConversationLayout mounted continuously on commit and r
     live!.exit(true);
   });
   // ConversationLayout stayed continuously mounted through commit (no remount).
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
   expect(state.timelineMounts).toBe(2);
   expect(screen.getByTestId('messages')).toBeDefined();
   expect(live!.under.inert).toBe(false);
   expect(live!.under.hasAttribute('aria-hidden')).toBe(false);
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   expect(screen.getByTestId('room-header').dataset.passive).toBe('false');
+});
+
+it('live room peek forwards direct-exit focus props when focusEventId is provided and omits them when undefined', () => {
+  state.thread = undefined;
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  const savedCompactScroll = { scrollTop: 240, anchors: [{ key: '$other', offset: 12 }] };
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, savedCompactScroll);
+
+  state.thread = '$thread';
+  rerender(
+    tree(
+      {
+        eventId: '$reply',
+        focusEventInRoom: false,
+        entryKey: 'k-thread',
+        entryPushed: true,
+        entryReturned: true,
+      },
+      ScreenSize.Mobile
+    )
+  );
+
+  // 1. Direct exit (!returnsToRoom): passes focusEventId as room focus target with cleared route flags.
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.('$thread') ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: '$thread',
+    focusEventInRoom: true,
+    entryKey: undefined,
+    entryPushed: false,
+    entryReturned: false,
+  });
+
+  // Simulate CompactRoomView overwriting compactRoomScrollStateRef during peek, then cancel.
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, {
+    scrollTop: 1,
+    anchors: [{ key: '$thread', offset: 160 }],
+  });
+  act(() => {
+    live!.exit(false);
+  });
+  expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(
+    savedCompactScroll
+  );
+
+  // 2. Returning to an existing room history entry (returnsToRoom): omits focus override.
+  act(() => {
+    live = state.enterLiveRoomPeek?.(undefined) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
 });

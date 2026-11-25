@@ -2329,14 +2329,21 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     });
     unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
 
-    const exit = vi.fn();
+    const exit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
     const onCommit = vi.fn();
     const scene = createThreadBackSwipeScene({
       key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
       fromLocationKey: 'k-thread',
       onCommit,
       dirSign: 1,
-      enterLiveUnder: () => ({ stage: liveStage, over, under, exit }),
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit };
+      },
     });
     expect(scene).not.toBeNull();
     expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
@@ -2414,13 +2421,20 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     page.append(liveStage);
 
     // 1. Cancelled drag cleans up styles, attributes, dim, shield, and calls exit(false).
-    const cancelExit = vi.fn();
+    const cancelExit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
     const cancelScene = createThreadBackSwipeScene({
       key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
       fromLocationKey: 'k-cancel',
       onCommit: vi.fn(),
       dirSign: 1,
-      enterLiveUnder: () => ({ stage: liveStage, over, under, exit: cancelExit }),
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit: cancelExit };
+      },
     });
     cancelScene!.update(90, 90 / 390);
     await cancelScene!.settle(false, 0, 90);
@@ -2440,13 +2454,20 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(cancelExit).toHaveBeenCalledWith(false);
 
     // 2. Committed drag whose handoff skips (e.g. drawer opens or timeout fires) restores over.
-    const skipExit = vi.fn();
+    const skipExit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
     const skipScene = createThreadBackSwipeScene({
       key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
       fromLocationKey: 'k-skip',
       onCommit: vi.fn(),
       dirSign: 1,
-      enterLiveUnder: () => ({ stage: liveStage, over, under, exit: skipExit }),
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit: skipExit };
+      },
     });
     await skipScene!.settle(true, 0, 260);
     skipScene!.commit();

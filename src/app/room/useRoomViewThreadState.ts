@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react';
 import { UNSAFE_LocationContext } from 'react-router-dom';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
@@ -78,7 +79,7 @@ import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
-  enterLiveRoomPeek?: () => LiveThreadBackUnder | null;
+  enterLiveRoomPeek?: (focusEventId?: string) => LiveThreadBackUnder | null;
   eventId?: string;
   hasMindroomAgents?: boolean;
   room: Room;
@@ -362,21 +363,26 @@ export const useRoomViewThreadState = ({
     [locationKey]
   );
 
+  const enterLiveRoomPeekRef = useLatestRef(enterLiveRoomPeek);
+
   const beginThreadBackSwipe = useCallback(
     ({ dirSign }: { dirSign: 1 | -1 }) => {
       if (!effectiveThreadId) return null;
-      const { returnsToSpaceThreads } = resolveThreadExit();
+      const { returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
       return createThreadBackSwipeScene({
         key: { sessionId, roomId, threadId: effectiveThreadId },
         fromLocationKey: resolveFromLocationKey(),
         onCommit: handleExitThread,
         dirSign,
-        enterLiveUnder: returnsToSpaceThreads ? undefined : enterLiveRoomPeek,
+        enterLiveUnder: returnsToSpaceThreads
+          ? undefined
+          : () =>
+              enterLiveRoomPeekRef.current?.(returnsToRoom ? undefined : effectiveThreadId) ?? null,
       });
     },
     [
       effectiveThreadId,
-      enterLiveRoomPeek,
+      enterLiveRoomPeekRef,
       handleExitThread,
       resolveFromLocationKey,
       resolveThreadExit,

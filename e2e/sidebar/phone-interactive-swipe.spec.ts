@@ -54,7 +54,26 @@ type Place = { path: string; room: string | null; thread: string | null };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (engine: Engine, label: string): Promise<Seed> => {
+const EXTRA_GARDEN_THREADS = [
+  'Compost bay hinges came loose on the east bin; anyone have brass screws handy?',
+  'Rain barrel diverter filter needs a quick rinse before Thursday showers.',
+  'Greenhouse roof vent latch sticks above 24 degrees; oiled it for now.',
+  'Raised bed cedar boards arrive Tuesday morning by the south alley.',
+  'Drip line timers reset to 6:15 AM for the herb beds and strawberry troughs.',
+  'Cold frame polycarbonate panel has a hairline crack on the north hinge.',
+  'Tool shed padlock combo updated for spring; check the pinned note inside.',
+  'Berry net hoops are stacked behind the potting bench if anyone needs two.',
+  'Pollinator border bulbs are sprouting early along the sunny fence line.',
+  'Garlic scapes should be ready to snip by next weekend; bring shears.',
+  'Leaf mold bin is sifted and ready for top-dressing the perennial beds.',
+  'Watering can spouts are back on the pegboard after the gasket swap.',
+];
+
+const seed = async (
+  engine: Engine,
+  label: string,
+  options?: { extraGardenThreads?: boolean }
+): Promise<Seed> => {
   const username = `iswipe_${engine[0]}_${label}_${RUN}`;
   const reader = await matrixFetch<{ user_id: string; access_token: string }>(
     HOMESERVER,
@@ -121,6 +140,13 @@ const seed = async (engine: Engine, label: string): Promise<Seed> => {
     garden,
     text('Saturday mulch drop starts at 9:00 by the north gate. Bring wheelbarrows if you can.')
   );
+  if (options?.extraGardenThreads) {
+    for (const body of EXTRA_GARDEN_THREADS) {
+      // Sequential sends ensure every newer thread sorts above `gardenRoot` in Compact view.
+      // eslint-disable-next-line no-await-in-loop
+      await say(garden, text(body));
+    }
+  }
 
   const harbor = await create('Harbor Plans', [agent.userId]);
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
@@ -669,7 +695,7 @@ for (const engine of ENGINES) {
     test.setTimeout(240_000);
     const own = engine === 'webkit' ? await launchWebKit() : browser;
     try {
-      const seeded = await seed(engine, 'fallback');
+      const seeded = await seed(engine, 'fallback', { extraGardenThreads: true });
       const { garden, gardenRoot } = seeded;
       const { context, page } = await signIn(own, seeded);
       try {
@@ -761,7 +787,21 @@ for (const engine of ENGINES) {
         await expect(
           page.getByRole('banner').getByRole('heading', { name: 'Garden Club', exact: true })
         ).toBeVisible();
-        await expect(page.getByText('Seed order for spring')).toBeVisible();
+        const focusedCard = page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first();
+        await expect(
+          focusedCard,
+          'directly opened older thread card is placed in viewport after commit'
+        ).toBeInViewport();
+        await expect
+          .poll(
+            () =>
+              page.locator('[data-compact-room-view="true"]').evaluate((view) => ({
+                overflows: view.scrollHeight > view.clientHeight,
+                scrolled: view.scrollTop > 0,
+              })),
+            { message: 'compact list scrolled down to reveal the initially offscreen older card' }
+          )
+          .toEqual({ overflows: true, scrolled: true });
 
         // No double-slide: stays in Garden Club with the drawer closed.
         await page.waitForTimeout(500);
