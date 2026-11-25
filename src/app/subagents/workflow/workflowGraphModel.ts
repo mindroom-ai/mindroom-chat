@@ -308,29 +308,41 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
   return { bands, sessionsById, peerBridgesByGroup, stepCount };
 };
 
-const collectBandIds = (items: readonly WorkflowGraphItem[], out: string[]) => {
+const collectItemIds = (items: readonly WorkflowFlowItem[], out: string[]) => {
   for (const item of items) {
     if (item.type === 'group') {
       out.push(item.group.id);
-      collectBandIds(item.items, out);
+      collectItemIds(item.items, out);
+    } else if (item.type === 'plumb_group') {
+      for (const node of item.nodes) out.push(node.id);
     } else {
       out.push(item.node.id);
-      if (item.children) collectBandIds(item.children, out);
+      if (item.children) collectItemIds(item.children, out);
     }
   }
 };
 
-/** True when all items in `prev` started before the earliest item in `next` (no backwards arrow). */
-export const bandPrecedesBand = (prev: WorkflowGraphBand, next: WorkflowGraphBand): boolean => {
+const itemsPrecedeItems = (
+  prev: readonly WorkflowFlowItem[],
+  next: readonly WorkflowFlowItem[]
+): boolean => {
   const prevIds: string[] = [];
   const nextIds: string[] = [];
-  collectBandIds(prev.items, prevIds);
-  collectBandIds(next.items, nextIds);
+  collectItemIds(prev, prevIds);
+  collectItemIds(next, nextIds);
   if (!prevIds.length || !nextIds.length) return false;
   prevIds.sort(compareIds);
   nextIds.sort(compareIds);
   return compareIds(prevIds[prevIds.length - 1]!, nextIds[0]!) < 0;
 };
+
+/** True when all nodes in `prev` started before the earliest node in `next` (no backwards arrow). */
+export const itemPrecedesItem = (prev: WorkflowFlowItem, next: WorkflowFlowItem): boolean =>
+  itemsPrecedeItems([prev], [next]);
+
+/** True when all items in `prev` band started before the earliest item in `next` band. */
+export const bandPrecedesBand = (prev: WorkflowGraphBand, next: WorkflowGraphBand): boolean =>
+  itemsPrecedeItems(prev.items, next.items);
 
 const foldPriority = (item: WorkflowGraphItem): [number, number] => {
   if (item.type === 'group') {

@@ -20,6 +20,7 @@ import {
   groupFlowItems,
   isCollapsiblePlumbingItem,
   isLiveWorkflowNodeStatus,
+  itemPrecedesItem,
   type WorkflowGraphBand,
   type WorkflowGraphItem,
   type WorkflowPeerBridge,
@@ -252,24 +253,18 @@ const WorkflowPlumbingChip = memo(function WorkflowPlumbingChip({
 
 function PlumbingGroupPill({ nodes, ctx }: { nodes: readonly WorkflowRunNode[]; ctx: RenderCtx }) {
   const [expanded, setExpanded] = useState(false);
-  const [dismissedSelection, setDismissedSelection] = useState<string | null>(null);
-  const hasSelected = nodes.some((n) => n.id === ctx.selectedId);
-  const open = expanded || (hasSelected && dismissedSelection !== ctx.selectedId);
   return (
     <div className={css.CenterWrap}>
       <button
         type="button"
         className={css.PlumbingPill}
-        aria-expanded={open}
-        onClick={() => {
-          setExpanded(!open);
-          setDismissedSelection(open ? ctx.selectedId : null);
-        }}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((cur) => !cur)}
       >
         <span className={css.NodeDot.completed} aria-hidden />
         <span>{ctx.t('mindroomUi.workflowRun.panel.setupSteps', { count: nodes.length })}</span>
       </button>
-      {open &&
+      {expanded &&
         nodes.map((node) => (
           <WorkflowPlumbingChip
             key={node.id}
@@ -395,7 +390,12 @@ function WorkflowFlowList({ items, ctx }: { items: readonly WorkflowGraphItem[];
                 : item.node.id
           }
         >
-          {idx > 0 && <FlowArrowSvg />}
+          {idx > 0 &&
+            (itemPrecedesItem(flowItems[idx - 1]!, item) ? (
+              <FlowArrowSvg />
+            ) : (
+              <div className={css.ItemGap} aria-hidden="true" />
+            ))}
           {item.type === 'group' ? (
             <WorkflowGroupBox group={item.group} items={item.items} ctx={ctx} />
           ) : item.type === 'plumb_group' ? (

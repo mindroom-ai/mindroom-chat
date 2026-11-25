@@ -230,7 +230,7 @@ export function WorkflowPanel({
           />
         </PanelHeaderControls>
       </header>
-      {entry && (
+      {entry && graph && (
         <div
           className={css.TabBar}
           role="tablist"
@@ -273,7 +273,7 @@ export function WorkflowPanel({
             {errorBanner}
           </Text>
         )}
-        {!entry && (
+        {(!entry || !graph) && (
           <Text size="T300" priority="300" className={css.Empty}>
             {t('mindroomUi.workflowRun.panel.waitingForUpdate')}
           </Text>
@@ -283,7 +283,7 @@ export function WorkflowPanel({
             {t('mindroomUi.workflowRun.panel.stale', { time: staleRelative })}
           </Text>
         )}
-        {entry && (
+        {entry && graph && (
           <div
             role="tabpanel"
             id={`${tabsId}-panel-${activeTab}`}

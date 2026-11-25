@@ -10,7 +10,6 @@ import {
 
 const { space, radii, borderWidth, fontSize, lineHeight, opacity } = config;
 const line = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
-const variantLine = `${borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`;
 const focusRing = { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 1 } as const;
 const truncate = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
 const smallType = { fontSize: fontSize.T200, lineHeight: lineHeight.T200 } as const;
@@ -19,30 +18,30 @@ const flexRow = { display: 'flex', alignItems: 'center' } as const;
 const panelBody = createContainer();
 const groupBox = createContainer();
 const widePanel = `${panelBody} (min-width: 36rem)`;
+const stickyWide = { position: 'sticky', insetBlockStart: 0 } as const;
 const twoCols = `${groupBox} (min-width: 20rem)`;
 const threeCols = `${groupBox} (min-width: 34rem)`;
 const sessionRing = {
   borderColor: color.Primary.ContainerLine,
   boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}`,
 } as const;
-const surfaceCard = {
-  border: line,
-  backgroundColor: color.Surface.Container,
-  color: color.Surface.OnContainer,
-} as const;
-const variantCard = {
-  border: variantLine,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-} as const;
-const surfacePressed = {
+const cardOf = (c: typeof color.Surface) => ({
+  border: `${borderWidth.B300} solid ${c.ContainerLine}`,
+  backgroundColor: c.Container,
+  color: c.OnContainer,
+});
+const hoverOf = (c: typeof color.Surface) => ({
+  '&:hover': { backgroundColor: c.ContainerHover },
+  '&:focus-visible': focusRing,
+});
+const pressedOf = (c: typeof color.Surface) => ({
   borderColor: color.Primary.Main,
-  backgroundColor: color.Surface.ContainerActive,
-} as const;
-const variantPressed = {
-  borderColor: color.Primary.Main,
-  backgroundColor: color.SurfaceVariant.ContainerActive,
-} as const;
+  backgroundColor: c.ContainerActive,
+});
+const [surfaceCard, variantCard] = [cardOf(color.Surface), cardOf(color.SurfaceVariant)];
+const [surfaceHover, variantHover] = [hoverOf(color.Surface), hoverOf(color.SurfaceVariant)];
+const surfacePressed = pressedOf(color.Surface);
+const variantPressed = pressedOf(color.SurfaceVariant);
 
 export { Empty, Panel, VisuallyHidden };
 
@@ -84,8 +83,7 @@ export const TabBar = style({
   ...flexRow,
   flex: 'none',
   gap: space.S100,
-  paddingInline: space.S300,
-  paddingBlock: space.S100,
+  padding: `${space.S100} ${space.S300}`,
   borderBlockEnd: line,
   overflowX: 'auto',
 });
@@ -100,14 +98,8 @@ export const TabButton = style([
     fontWeight: 500,
     cursor: 'pointer',
     selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-      '&:focus-visible': focusRing,
-      '&[aria-selected="true"]': {
-        backgroundColor: color.Primary.Container,
-        color: color.Primary.OnContainer,
-        borderColor: color.Primary.ContainerLine,
-        fontWeight: 600,
-      },
+      ...variantHover,
+      '&[aria-selected="true"]': { ...cardOf(color.Primary), fontWeight: 600 },
     },
   },
 ]);
@@ -138,29 +130,25 @@ export const InspectorPane = style([
   {
     padding: space.S300,
     '@container': {
-      [widePanel]: {
-        position: 'sticky',
-        insetBlockStart: 0,
-        maxBlockSize: 'calc(100vh - 8rem)',
-        overflowY: 'auto',
-      },
+      [widePanel]: { ...stickyWide, maxBlockSize: 'calc(100vh - 8rem)', overflowY: 'auto' },
     },
   },
 ]);
+globalStyle(`${InspectorPane} > *`, { flexShrink: 0 });
 export const InspectorEmpty = style({
   display: 'none',
   alignItems: 'center',
   justifyContent: 'center',
   textAlign: 'center',
-  paddingInline: space.S300,
-  paddingBlock: space.S500,
+  padding: `${space.S500} ${space.S300}`,
   borderRadius: radii.R400,
   border: `${borderWidth.B300} dashed ${color.Surface.ContainerLine}`,
   color: color.Surface.OnContainer,
-  '@container': { [widePanel]: { display: 'flex', position: 'sticky', insetBlockStart: 0 } },
+  '@container': { [widePanel]: { ...stickyWide, display: 'flex' } },
 });
 
 export const KpiGrid = style({
+  flexShrink: 0,
   display: 'grid',
   gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
   borderRadius: radii.R300,
@@ -182,9 +170,7 @@ export const ErrorBox = style([
   {
     padding: space.S200,
     borderRadius: radii.R300,
-    border: `${borderWidth.B300} solid ${color.Critical.ContainerLine}`,
-    backgroundColor: color.Critical.Container,
-    color: color.Critical.OnContainer,
+    ...cardOf(color.Critical),
     overflowWrap: 'anywhere',
     maxBlockSize: toRem(220),
     overflowY: 'auto',
@@ -211,10 +197,7 @@ export const PeerLinkButton = style({
   borderRadius: radii.R300,
   textAlign: 'start',
   cursor: 'pointer',
-  selectors: {
-    '&:hover': { backgroundColor: color.Surface.ContainerHover },
-    '&:focus-visible': focusRing,
-  },
+  selectors: surfaceHover,
 });
 
 export const GraphCanvas = style([Stack, { gap: 0 }]);
@@ -236,6 +219,7 @@ export const FlowConnector = style({
   paddingBlock: toRem(2),
 });
 export const BandGap = style({ blockSize: space.S300 });
+export const ItemGap = style({ blockSize: space.S200 });
 export const ForkJoinSvg = style({ display: 'block', inlineSize: '100%', blockSize: toRem(18) });
 export const ConnectorPath = style({
   fill: 'none',
@@ -307,14 +291,19 @@ export const CountBadge = style([
     ...surfaceCard,
     ...tabular,
     flexShrink: 0,
-    paddingInline: space.S200,
-    paddingBlock: toRem(2),
+    padding: `${toRem(2)} ${space.S200}`,
     fontWeight: 600,
   },
 ]);
 export const PeerBridgePill = style([
   CountBadge,
-  { border: `${borderWidth.B300} dashed ${color.Primary.ContainerLine}`, fontWeight: 400 },
+  {
+    border: `${borderWidth.B300} dashed ${color.Primary.ContainerLine}`,
+    fontWeight: 400,
+    maxInlineSize: '100%',
+    flexWrap: 'wrap',
+    overflowWrap: 'anywhere',
+  },
 ]);
 
 export const Chip = style([
@@ -328,8 +317,7 @@ export const Chip = style([
     overflow: 'hidden',
     ...variantCard,
     selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-      '&:focus-visible': focusRing,
+      ...variantHover,
       '&[data-session-highlighted="true"]': sessionRing,
       '&[aria-pressed="true"]': variantPressed,
       [`${GroupBox} &`]: surfaceCard,
@@ -369,8 +357,7 @@ export const SessionBadge = style([
   {
     flexShrink: 0,
     maxInlineSize: toRem(120),
-    paddingInline: space.S100,
-    paddingBlock: toRem(1),
+    padding: `${toRem(1)} ${space.S100}`,
     borderRadius: radii.Pill,
     backgroundColor: color.Primary.Container,
     color: color.Primary.OnContainer,
@@ -381,8 +368,7 @@ export const ErrorPill = style([
   {
     alignSelf: 'flex-start',
     maxInlineSize: '100%',
-    paddingInline: space.S200,
-    paddingBlock: toRem(2),
+    padding: `${toRem(2)} ${space.S200}`,
     borderRadius: radii.R300,
     backgroundColor: color.Critical.Container,
     color: color.Critical.OnContainer,
@@ -398,8 +384,7 @@ export const PlumbingPill = style([
     border: `${borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
     cursor: 'pointer',
     selectors: {
-      '&:hover': { backgroundColor: color.Surface.ContainerHover },
-      '&:focus-visible': focusRing,
+      ...surfaceHover,
       '&[aria-pressed="true"]': { ...surfacePressed, borderStyle: 'solid' },
     },
   },
@@ -415,7 +400,9 @@ export const IndentRail = style([
 ]);
 export const StepRow = style({
   ...flexRow,
-  gap: space.S200,
+  flexWrap: 'wrap',
+  columnGap: space.S200,
+  rowGap: toRem(2),
   inlineSize: '100%',
   padding: `${space.S100} ${space.S200}`,
   borderRadius: radii.R300,
@@ -426,14 +413,24 @@ export const StepRow = style({
   cursor: 'pointer',
   ...smallType,
   selectors: {
-    '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-    '&:focus-visible': focusRing,
+    ...variantHover,
     '&[data-session-highlighted="true"]': { borderColor: color.Primary.ContainerLine },
-    '&[aria-pressed="true"]': {
-      borderColor: color.Primary.Main,
-      backgroundColor: color.SurfaceVariant.ContainerActive,
-    },
+    '&[aria-pressed="true"]': variantPressed,
   },
+});
+export const StepRowHead = style({
+  ...flexRow,
+  gap: space.S200,
+  flex: '1 1 8rem',
+  minInlineSize: '6rem',
+  maxInlineSize: '100%',
+});
+export const StepRowBadges = style({
+  ...flexRow,
+  flexWrap: 'wrap',
+  gap: space.S100,
+  marginInlineStart: 'auto',
+  maxInlineSize: '100%',
 });
 export const MessageList = style([Stack, { margin: 0, padding: 0, listStyle: 'none' }]);
 export const MessageRow = style({

@@ -11,6 +11,7 @@ import {
   formatWorkflowModelLabel,
   groupFlowItems,
   isCollapsiblePlumbingItem,
+  itemPrecedesItem,
   layoutWorkflowRunGraph,
   nodeResultPreview,
   shortNodeError,
@@ -455,6 +456,29 @@ describe('workflowGraphModel', () => {
       })
     );
     expect(bandPrecedesBand(forward.bands[0]!, forward.bands[1]!)).toBe(true);
+
+    // Overlapping session subtree (n1 -> turns n2, n5) next to sibling agent n3 suppresses backwards arrow.
+    const overlapping = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', { kind: 'session', phase: 0, turns: 2 }),
+          makeNode('n2', { kind: 'turn', phase: 0, session: 'n1' }),
+          makeNode('n3', { kind: 'agent', phase: 0 }),
+          makeNode('n5', { kind: 'turn', phase: 0, session: 'n1' }),
+        ],
+      })
+    );
+    expect(overlapping.bands[0]!.items).toHaveLength(2);
+    expect(itemPrecedesItem(overlapping.bands[0]!.items[0]!, overlapping.bands[0]!.items[1]!)).toBe(
+      false
+    );
+    expect(
+      itemPrecedesItem(
+        { type: 'node', node: makeNode('n1') },
+        { type: 'node', node: makeNode('n2') }
+      )
+    ).toBe(true);
   });
 
   it('attaches a session turn to its emitted group when its parent session node was omitted', () => {

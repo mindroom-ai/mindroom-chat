@@ -1058,7 +1058,7 @@ describe('WorkflowPanel', () => {
     const setupChild1 = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
     expect(setupChild1).toBeTruthy();
     expect(document.querySelector('[data-workflow-chip-id="n2"]')).toBeTruthy();
-    // Selecting a child does not block collapsing the setup-steps group on toggle click.
+    // Clicking the setup-steps toggle collapses the group cleanly even while a child is selected.
     fireEvent.click(setupChild1);
     expect(document.querySelector('[data-workflow-node-details="n1"]')).toBeTruthy();
     fireEvent.click(setupToggle);
@@ -1277,7 +1277,9 @@ describe('WorkflowPanel', () => {
           makeNode('n2', {
             label: 'Publish',
             phase: null,
-            status: 'running',
+            status: 'completed',
+            cached: true,
+            endedAt: 1795389760,
           }),
         ],
       }),
@@ -1296,12 +1298,54 @@ describe('WorkflowPanel', () => {
     const flowPanel = screen.getByRole('tabpanel');
     expect(flowPanel.querySelectorAll('svg')).toHaveLength(0);
 
-    // Steps tab renders visible non-color status notes alongside screen-reader status labels.
+    // Steps tab renders visible non-color status cues AND includes Reused in screen-reader status text.
     fireEvent.click(screen.getAllByRole('tab')[1]!);
     const compileRow = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
     const publishRow = document.querySelector('[data-workflow-chip-id="n2"]') as HTMLElement;
     expect(within(compileRow).getByText('Waiting for a message')).toBeTruthy();
-    expect(within(publishRow).getByText('Running')).toBeTruthy();
+    expect(within(publishRow).getByText('Reused from the last run')).toBeTruthy();
+    expect(publishRow.textContent).toContain('(Done, Reused from the last run)');
+  });
+
+  it('waits without rendering empty 0-count tabs when entry summary exists before graph arrives', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const summaryOnlyCard: WorkflowRunCard = {
+      run: RUN,
+      jobId: 'job-wf-live',
+      requester: VIEWER,
+      title: 'Pending graph run',
+      status: 'running',
+      counts: {
+        queued: 1,
+        running: 1,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+      usage: { inputTokens: 0, outputTokens: 0, toolCalls: 0, costUnknown: false },
+      phases: ['Audit'],
+      attempt: 1,
+      startedAt: 1795389735,
+      endedAt: null,
+      error: null,
+      large: false,
+    };
+    getWorkflowRunStore(mx).showCard(ROOM_ID, AGENT, summaryOnlyCard, Date.now());
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Pending graph run' })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText("Waiting for the run's next update…")).toBeTruthy();
   });
 
   it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {

@@ -134,11 +134,11 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
   );
   const errorBadge = node.status === 'failed' ? formatNodeErrorBadge(node.error, t) : undefined;
   const statusLabel = workflowNodeStatusLabel(node.status, t, node.waitingOn);
-  const visibleStatus = node.cached
-    ? t('mindroomUi.workflowRun.node.reused')
-    : node.status !== 'completed' && !errorBadge
-      ? statusLabel
-      : undefined;
+  const reusedLabel = node.cached ? t('mindroomUi.workflowRun.node.reused') : undefined;
+  const srStatus = reusedLabel ? `${statusLabel}, ${reusedLabel}` : statusLabel;
+  const visibleStatus =
+    reusedLabel ?? (node.status !== 'completed' && !errorBadge ? statusLabel : undefined);
+  const hasBadges = Boolean(sessionLabel || errorBadge || visibleStatus || elapsed);
   return (
     <button
       type="button"
@@ -149,27 +149,33 @@ const WorkflowStepRow = memo(function WorkflowStepRow({
       data-session-highlighted={sessionHighlighted || undefined}
       onClick={() => onSelect(node.id)}
     >
-      <span className={css.NodeDot[node.status]} aria-hidden />
-      <span className={css.ChipLabel} {...ownDirectionLine}>
-        {node.label}
+      <span className={css.StepRowHead}>
+        <span className={css.NodeDot[node.status]} aria-hidden />
+        <span className={css.ChipLabel} {...ownDirectionLine}>
+          {node.label}
+        </span>
       </span>
-      <span className={css.VisuallyHidden}>{` (${statusLabel})`}</span>
-      {sessionLabel && (
-        <span className={css.SessionBadge} {...ownDirectionLine}>
-          @{sessionLabel}
+      <span className={css.VisuallyHidden}>{` (${srStatus})`}</span>
+      {hasBadges && (
+        <span className={css.StepRowBadges}>
+          {sessionLabel && (
+            <span className={css.SessionBadge} {...ownDirectionLine}>
+              @{sessionLabel}
+            </span>
+          )}
+          {errorBadge && (
+            <span className={css.ErrorPill} {...ownDirectionLine}>
+              {errorBadge}
+            </span>
+          )}
+          {visibleStatus && (
+            <span className={css.StepStatusNote} aria-hidden="true">
+              {visibleStatus}
+            </span>
+          )}
+          {elapsed && <span className={css.MutedNum}>{elapsed}</span>}
         </span>
       )}
-      {errorBadge && (
-        <span className={css.ErrorPill} {...ownDirectionLine}>
-          {errorBadge}
-        </span>
-      )}
-      {visibleStatus && (
-        <span className={css.StepStatusNote} aria-hidden="true">
-          {visibleStatus}
-        </span>
-      )}
-      {elapsed && <span className={`${css.MutedNum} ${css.EndAlign}`}>{elapsed}</span>}
     </button>
   );
 });
