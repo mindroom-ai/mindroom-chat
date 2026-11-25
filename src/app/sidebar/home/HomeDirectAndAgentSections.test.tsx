@@ -272,18 +272,21 @@ describe('HomeDirectSection', () => {
       );
 
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(8);
+    expect(toggle().props['aria-expanded']).toBe(true);
     expect(toggle().findByType('span').children).toEqual(['Show less']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     const headerPlus = renderer!.root.find(
@@ -601,18 +604,21 @@ describe('HomeAgentsSection', () => {
       );
 
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(8);
+    expect(toggle().props['aria-expanded']).toBe(true);
     expect(toggle().findByType('span').children).toEqual(['Show less']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     // Collapsing hides the cap toggle; no toggle appears when totalCount <= 6.

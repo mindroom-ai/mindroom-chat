@@ -159,6 +159,7 @@ function HomeSectionCapToggle({
   return (
     <NavItem radii="400" variant="Background">
       <NavButton
+        aria-expanded={showAll}
         data-home-dm-action={kind === 'dm' ? 'toggle-all' : undefined}
         data-home-agents-action={kind === 'agents' ? 'toggle-all' : undefined}
         onClick={onToggle}
