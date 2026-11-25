@@ -17,8 +17,8 @@ import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { useHomeRooms } from '../../matrix/state/useHomeRooms';
+import { AccountDataEvent } from '../../matrix/types/accountData';
 import { StateEvent, type RoomToParents } from '../../matrix/types/room';
-import { spaceOrderAtomFor } from '../../spaces/sidebarOrder';
 import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
 import { useHomeRoomSections } from './useHomeRoomSections';
@@ -165,8 +165,8 @@ describe('useHomeRoomSections', () => {
     return { state, closedAtom };
   };
 
-  it('default-collapses mixed Home spaces, nests sectionTree, reorders live with spaceOrderAtomFor, and persists toggle across reload', () => {
-    const { client } = makeRealClient({
+  it('default-collapses mixed Home spaces, nests sectionTree, reorders live with io.mindroom.spaces, and persists toggle across reload', async () => {
+    const { client, setAccountData } = makeRealClient({
       '!notes': { name: 'Personal Notes', createdAt: 100 },
       '!work': { name: 'Work', space: true, createdAt: 200 },
       '!planning': { name: 'Weekly Planning', createdAt: 300 },
@@ -193,8 +193,6 @@ describe('useHomeRoomSections', () => {
       '!dm',
     ];
     const store = makeStore(joined, parents, ['!dm']);
-    // Reset local space order for this account before mounting.
-    store.set(spaceOrderAtomFor(ME), { type: 'REORDER', order: [] });
 
     const { state } = mount(client, store);
 
@@ -223,9 +221,9 @@ describe('useHomeRoomSections', () => {
       '!planning',
     ]);
 
-    // Live rail reorder via spaceOrderAtomFor moves Garden Club ahead of Work (and Design Team stays nested under Work).
-    act(() => {
-      store.set(spaceOrderAtomFor(ME), { type: 'REORDER', order: ['!garden', '!work'] });
+    // Live rail reorder via io.mindroom.spaces moves Garden Club ahead of Work (and Design Team stays nested under Work).
+    await act(async () => {
+      await setAccountData(AccountDataEvent.MindroomSpaces, { sidebar: ['!garden', '!work'] });
     });
     expect(state.sections.sectionTree.map((node) => node.section.spaceId)).toEqual([
       '!garden',
@@ -284,7 +282,6 @@ describe('useHomeRoomSections', () => {
       '!beta': ['!design'],
       '!yankee': ['!design'],
     });
-    store.set(spaceOrderAtomFor(ME), { type: 'REORDER', order: [] });
 
     const { state } = mount(client, store);
     const sectionOf = (spaceId: string) =>
@@ -378,7 +375,6 @@ describe('useHomeRoomSections', () => {
         '!plants': ['!garden'],
       }
     );
-    store.set(spaceOrderAtomFor(ME), { type: 'REORDER', order: ['!work', '!garden'] });
 
     const { state } = mount(client, store);
     const design = state.sections.sections.find((section) => section.spaceId === '!design')!;

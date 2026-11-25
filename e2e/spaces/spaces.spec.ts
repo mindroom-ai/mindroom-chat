@@ -26,12 +26,17 @@ const signIn = (page: Page, username: string) =>
 const createPublicRoom = (accessToken: string, name: string, space = false) =>
   createRoom(HOMESERVER, accessToken, { name, preset: 'public_chat', space });
 
-/** The rail's space buttons, top to bottom, by the room ID each carries. */
-const railSpaceIds = (page: Page) =>
+/** The rail's visible entries, top to bottom: room IDs for spaces and `folder:<id>` for folders. */
+const railEntries = (page: Page) =>
   page
     .getByRole('group', { name: 'Spaces' })
-    .locator('[data-id]')
-    .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('data-id')));
+    .locator('button[data-id], button[data-folder-id]')
+    .evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const folderId = button.getAttribute('data-folder-id');
+        return folderId ? `folder:${folderId}` : button.getAttribute('data-id');
+      })
+    );
 
 const lobbyCard = (page: Page, name: string) =>
   page.locator('[data-lobby-entry]').filter({ has: page.getByText(name, { exact: true }) });
@@ -235,37 +240,64 @@ test('the rail lists spaces in their saved order and reorders them by drag and d
     sidebar: [third, first],
   });
 
+  const readSavedSidebar = async () => {
+    const content = await matrixFetch<{ sidebar?: unknown[] }>(
+      HOMESERVER,
+      `/user/${encodeURIComponent(owner.userId)}/account_data/io.mindroom.spaces`,
+      { accessToken: owner.accessToken }
+    );
+    return content.sidebar;
+  };
+
   await signIn(page, owner.username);
-  await expect.poll(() => railSpaceIds(page), { timeout: 30_000 }).toEqual([third, first, second]);
+  await expect.poll(() => railEntries(page), { timeout: 30_000 }).toEqual([third, first, second]);
   const rail = page.getByRole('group', { name: 'Spaces' });
   const button = (spaceId: string) => rail.locator(`button[data-id="${spaceId}"]`);
 
-  // A plain move stays on this device: the saved order does not change.
+  // Plain space reorders sync across devices in io.mindroom.spaces account data.
   await dragOnto(page, button(second), button(third), 'above');
-  await expect.poll(() => railSpaceIds(page)).toEqual([second, third, first]);
+  await expect.poll(() => railEntries(page)).toEqual([second, third, first]);
+  await expect.poll(readSavedSidebar).toEqual([second, third, first]);
 
   // Ctrl (Command on a Mac) with Shift and an arrow key moves the focused space.
   await button(first).focus();
   await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
-  await expect.poll(() => railSpaceIds(page)).toEqual([second, first, third]);
+  await expect.poll(() => railEntries(page)).toEqual([second, first, third]);
+  await expect.poll(readSavedSidebar).toEqual([second, first, third]);
 
   // Dropping a space on another groups both in a folder, which every device sees.
   await dragOnto(page, button(third), button(second), 'middle');
   const folder = rail.locator('button[data-folder-id]');
   await expect(folder).toBeVisible();
-  await expect
-    .poll(async () => {
-      const content = await matrixFetch<{ sidebar?: unknown[] }>(
-        HOMESERVER,
-        `/user/${encodeURIComponent(owner.userId)}/account_data/io.mindroom.spaces`,
-        { accessToken: owner.accessToken }
-      );
-      return content.sidebar?.find((entry) => typeof entry === 'object');
-    })
-    .toMatchObject({ content: [second, third] });
+  const folderId = defined(await folder.getAttribute('data-folder-id'), 'a folder ID');
+  const folderKey = `folder:${folderId}`;
+  const expectedFolder = { id: folderId, content: [second, third] };
+  await expect.poll(() => railEntries(page)).toEqual([folderKey, first]);
+  await expect.poll(readSavedSidebar).toEqual([expectedFolder, first]);
   await page.screenshot({ path: testInfo.outputPath('rail-folder-closed.png') });
   await folder.click();
   await expect(button(second)).toBeVisible();
   await expect(button(third)).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('rail-folder-open.png') });
+
+  // Close the folder, then drag it below the lowest space.
+  await folder.click();
+  await expect(button(second)).toBeHidden();
+  await dragOnto(page, folder, button(first), 'below');
+  await expect.poll(() => railEntries(page)).toEqual([first, folderKey]);
+  await expect.poll(readSavedSidebar).toEqual([first, expectedFolder]);
+  await page.screenshot({ path: testInfo.outputPath('rail-folder-below-space.png') });
+
+  // Move the folder back above the space, then drag the lowest space above the folder.
+  await dragOnto(page, folder, button(first), 'above');
+  await expect.poll(() => railEntries(page)).toEqual([folderKey, first]);
+  await expect.poll(readSavedSidebar).toEqual([expectedFolder, first]);
+
+  await dragOnto(page, button(first), folder, 'above');
+  await expect.poll(() => railEntries(page)).toEqual([first, folderKey]);
+  await expect.poll(readSavedSidebar).toEqual([first, expectedFolder]);
+
+  // Reloading keeps the synced order from io.mindroom.spaces.
+  await page.reload();
+  await expect.poll(() => railEntries(page), { timeout: 30_000 }).toEqual([first, folderKey]);
 });
