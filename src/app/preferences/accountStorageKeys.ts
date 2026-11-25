@@ -5,8 +5,8 @@ import { pendingRoamingSettingsKeyPrefix } from './roamingSettings';
  * and signing out (`clearUserUiState`) removes the same keys, so each key is stated once.
  */
 
-/** The order of the account's spaces in the sidebar. */
-export const spaceOrderStorageKey = (userId: string): string =>
+/** Retired per-device space order key; kept so sign-out still removes leftovers from earlier versions. */
+const legacySpaceOrderStorageKey = (userId: string): string =>
   `mindroom.sidebar.spaceOrder:${userId}`;
 
 /** The account's choice to collapse the page navigation (room list) panel. */
@@ -59,7 +59,7 @@ export const dictationAvailabilityStorageKey = (userId: string): string =>
 
 /** Every key above of one account. */
 export const accountStorageKeys = (userId: string): string[] => [
-  spaceOrderStorageKey(userId),
+  legacySpaceOrderStorageKey(userId),
   getDesktopPageNavCollapsedStorageKey(userId),
   getWelcomeSetupFirstSeenStorageKey(userId),
   recoveryPromptSnoozeStorageKey(userId),
