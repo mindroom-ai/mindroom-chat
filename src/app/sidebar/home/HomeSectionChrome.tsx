@@ -1,4 +1,10 @@
-import { type MouseEvent, type MouseEventHandler, useCallback, useState } from 'react';
+import {
+  type MouseEvent,
+  type MouseEventHandler,
+  type ReactNode,
+  useCallback,
+  useState,
+} from 'react';
 import { Avatar, Box, Icon, Icons, Text, type IconSrc, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
@@ -20,6 +26,7 @@ export function HomeActionRowContent({
   tintedTile = false,
   iconClassName,
   quiet = true,
+  after,
 }: {
   icon: IconSrc;
   label: string;
@@ -28,6 +35,8 @@ export function HomeActionRowContent({
   iconClassName?: string;
   /** Use muted `300` text priority (default for inline rows); empty-state rows omit priority. */
   quiet?: boolean;
+  /** Optional trailing slot aligned to the end edge (such as a hidden-unread badge). */
+  after?: ReactNode;
 }) {
   return (
     <NavItemContent>
@@ -39,9 +48,12 @@ export function HomeActionRowContent({
         >
           <Icon size="100" src={icon} className={iconClassName} />
         </Avatar>
-        <Text as="span" size="Inherit" priority={quiet ? '300' : undefined} truncate>
-          {label}
-        </Text>
+        <Box as="span" grow="Yes">
+          <Text as="span" size="Inherit" priority={quiet ? '300' : undefined} truncate>
+            {label}
+          </Text>
+        </Box>
+        {after}
       </Box>
     </NavItemContent>
   );

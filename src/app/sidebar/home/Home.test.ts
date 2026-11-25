@@ -51,6 +51,7 @@ const {
     sectionDropIds: [] as string[],
     closedState: { atom: undefined as ClosedNavCategoriesAtom | undefined },
     homeState: {
+      userId: '@alice:example.org',
       directRooms: [] as Array<Record<string, unknown>>,
       homeAgents: [] as Array<Record<string, unknown>>,
       directTabShown: true,
@@ -295,7 +296,7 @@ const getMockClient = (): EventEmitter => {
           removeListener: vi.fn(),
         };
       },
-      getSafeUserId: () => '@alice:example.org',
+      getSafeUserId: () => homeState.userId,
       getAccountData: () => undefined,
     });
   }
@@ -698,10 +699,12 @@ describe('Home', () => {
     navigate.mockReset();
     groupProps.length = 0;
     sectionDropIds.length = 0;
+    homeState.userId = '@alice:example.org';
     homeState.directRooms = [];
     homeState.homeAgents = [];
     homeState.directTabShown = true;
     homeState.selectedRoomId = undefined;
+    vi.unstubAllGlobals();
     focusTrapState.options = undefined;
     fakeAnchorEvent.currentTarget.focus.mockReset();
     shortcutCalls.length = 0;
@@ -1432,10 +1435,11 @@ describe('Home', () => {
     expect(customDm.listenerCount(RoomEvent.Summary)).toBe(0);
   });
 
-  it('promotes a sole DM-only agent above a shared-room agent on live RoomEvent.Timeline and skips re-splits once already first', () => {
+  it('ranks live agent DMs above room-only agents, promotes on live RoomEvent.Timeline, and skips re-splits once already first', () => {
     const client = getMockClient();
     let dmLastActive = 1000;
     let lastActiveReads = 0;
+    const firstDm = makeDm('!dm-first:example.org', '@mindroom_first:example.org', 2, 2000);
     const unlistedMembers = [
       { userId: '@alice:example.org', membership: 'join' },
       { userId: '@mindroom_unlisted:example.org', membership: 'join' },
@@ -1464,10 +1468,10 @@ describe('Home', () => {
         userId: '@mindroom_shared:example.org',
         name: 'Shared Agent',
         roomIds: ['!room:example.org'],
-        lastUsedTs: 2000,
+        lastUsedTs: 5000,
       },
     ];
-    homeState.directRooms = [unlistedDm] as unknown as Array<Record<string, unknown>>;
+    homeState.directRooms = [firstDm, unlistedDm];
     const { renderer } = renderHome(['!room:example.org']);
 
     const agentOrder = () =>
@@ -1485,7 +1489,11 @@ describe('Home', () => {
             .map((n) => n.props['data-home-agent-id'] ?? n.props['data-room-nav-item'])
         );
 
-    expect(agentOrder()).toEqual(['@mindroom_shared:example.org', '!dm-unlisted:example.org']);
+    expect(agentOrder()).toEqual([
+      '!dm-first:example.org',
+      '!dm-unlisted:example.org',
+      '@mindroom_shared:example.org',
+    ]);
 
     // State events and edits on the DM do not trigger a re-split.
     lastActiveReads = 0;
@@ -1509,7 +1517,7 @@ describe('Home', () => {
     });
     expect(lastActiveReads).toBe(0);
 
-    // A newer live reply in the sole DM promotes the unlisted agent to #1 above the shared-room agent.
+    // A newer live reply in the second DM promotes it to #1 above the other live DM.
     dmLastActive = 3000;
     act(() => {
       client.emit(
@@ -1521,7 +1529,11 @@ describe('Home', () => {
         { liveEvent: true }
       );
     });
-    expect(agentOrder()).toEqual(['!dm-unlisted:example.org', '@mindroom_shared:example.org']);
+    expect(agentOrder()).toEqual([
+      '!dm-unlisted:example.org',
+      '!dm-first:example.org',
+      '@mindroom_shared:example.org',
+    ]);
 
     // Once already #1 in Agents, a subsequent live reply does not trigger an extra re-split.
     lastActiveReads = 0;
@@ -1537,9 +1549,84 @@ describe('Home', () => {
       );
     });
     expect(lastActiveReads).toBe(0);
-    expect(agentOrder()).toEqual(['!dm-unlisted:example.org', '@mindroom_shared:example.org']);
+    expect(agentOrder()).toEqual([
+      '!dm-unlisted:example.org',
+      '!dm-first:example.org',
+      '@mindroom_shared:example.org',
+    ]);
 
     act(() => renderer.unmount());
     expect(client.listenerCount(RoomEvent.Timeline)).toBe(0);
+  });
+
+  it('persists Show all per section per user across remounts and live user switches', () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    });
+    homeState.directRooms = [
+      ...Array.from({ length: 7 }, (_, i) =>
+        makeDm(`!dm-h${i + 1}:example.org`, `@user${i + 1}:example.org`, 2, 7000 - i * 100)
+      ),
+      ...Array.from({ length: 7 }, (_, i) =>
+        makeDm(`!dm-a${i + 1}:example.org`, `@mindroom_a${i + 1}:example.org`, 2, 7000 - i * 100)
+      ),
+    ];
+
+    const rowCount = (renderer: ReactTestRenderer, testId: string) =>
+      renderer.root
+        .findByProps({ 'data-testid': testId })
+        .findAll((n) => typeof n.type === 'string' && 'data-room-nav-item' in n.props).length;
+    const dmToggle = (renderer: ReactTestRenderer) =>
+      renderer.root.find(
+        (n) => n.type === 'button' && n.props['data-home-dm-action'] === 'toggle-all'
+      );
+    const agentToggle = (renderer: ReactTestRenderer) =>
+      renderer.root.find(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      );
+
+    const first = renderHome(['!room:example.org']);
+    expect(rowCount(first.renderer, 'home-direct-section')).toBe(5);
+    expect(rowCount(first.renderer, 'home-agents-section')).toBe(5);
+    act(() => {
+      (dmToggle(first.renderer).props.onClick as () => void)();
+    });
+    expect(rowCount(first.renderer, 'home-direct-section')).toBe(7);
+    expect(rowCount(first.renderer, 'home-agents-section')).toBe(5);
+    act(() => first.renderer.unmount());
+
+    // Remounting as Alice restores expanded Direct messages while keeping Agents compact.
+    const second = renderHome(['!room:example.org']);
+    expect(rowCount(second.renderer, 'home-direct-section')).toBe(7);
+    expect(rowCount(second.renderer, 'home-agents-section')).toBe(5);
+
+    // Switching userId while mounted reads Bob's state and isolates Bob's toggles.
+    homeState.userId = '@bob:example.org';
+    act(() => {
+      second.renderer.update(
+        React.createElement(Provider, { store: second.store }, React.createElement(Home))
+      );
+    });
+    expect(rowCount(second.renderer, 'home-direct-section')).toBe(5);
+    expect(rowCount(second.renderer, 'home-agents-section')).toBe(5);
+    act(() => {
+      (agentToggle(second.renderer).props.onClick as () => void)();
+    });
+    expect(rowCount(second.renderer, 'home-direct-section')).toBe(5);
+    expect(rowCount(second.renderer, 'home-agents-section')).toBe(7);
+
+    // Switching back to Alice restores Alice's independent section preferences.
+    homeState.userId = '@alice:example.org';
+    act(() => {
+      second.renderer.update(
+        React.createElement(Provider, { store: second.store }, React.createElement(Home))
+      );
+    });
+    expect(rowCount(second.renderer, 'home-direct-section')).toBe(7);
+    expect(rowCount(second.renderer, 'home-agents-section')).toBe(5);
+    act(() => second.renderer.unmount());
   });
 });

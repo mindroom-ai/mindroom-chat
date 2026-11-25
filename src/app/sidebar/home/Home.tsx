@@ -72,9 +72,11 @@ import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSectio
 import {
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
+  readExpandedHomeDirectSections,
   selectRenderedAgents,
   selectRenderedDirectRooms,
   splitHomeDirectSections,
+  writeExpandedHomeDirectSections,
 } from './homeDirectSections';
 import {
   type HomeAddRoomsMenu,
@@ -264,8 +266,27 @@ export function Home() {
   // A phone's top bar holds the same field.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
-  const [showAllDms, setShowAllDms] = useState(false);
-  const [showAllAgents, setShowAllAgents] = useState(false);
+  const userId = client.getSafeUserId();
+  const [expandedState, setExpandedState] = useState(() => ({
+    userId,
+    ids: readExpandedHomeDirectSections(userId),
+  }));
+  useEffect(() => {
+    setExpandedState((prev) =>
+      prev.userId === userId ? prev : { userId, ids: readExpandedHomeDirectSections(userId) }
+    );
+  }, [userId]);
+  const expandedIds =
+    expandedState.userId === userId ? expandedState.ids : readExpandedHomeDirectSections(userId);
+  const toggleExpandedDirectSection = (categoryId: string) => {
+    const next = new Set(expandedIds);
+    if (next.has(categoryId)) next.delete(categoryId);
+    else next.add(categoryId);
+    writeExpandedHomeDirectSections(userId, next);
+    setExpandedState({ userId, ids: next });
+  };
+  const showAllDms = expandedIds.has(HOME_DIRECT_CATEGORY_ID);
+  const showAllAgents = expandedIds.has(HOME_AGENTS_CATEGORY_ID);
 
   const {
     allVisibleHomeRooms,
@@ -355,7 +376,7 @@ export function Home() {
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
-  const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(client.getSafeUserId(), 'home'), {
+  const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(userId, 'home'), {
     getScrollElement: () => listScrollRef.current,
     count: listedRoomIds.length,
     // A room's tile grows with the sub-rooms under it, so its height goes with the room.
@@ -488,7 +509,7 @@ export function Home() {
                   closed={directClosed}
                   selectedRoomId={selectedRoomId}
                   showAll={showAllDms}
-                  onToggleShowAll={() => setShowAllDms((prev) => !prev)}
+                  onToggleShowAll={() => toggleExpandedDirectSection(HOME_DIRECT_CATEGORY_ID)}
                   onCategoryClick={onCategoryClick}
                   homeRoomPath={homeRoomPath}
                   notificationPreferences={notificationPreferences}
@@ -502,7 +523,7 @@ export function Home() {
                   closed={agentsClosed}
                   selectedRoomId={selectedRoomId}
                   showAll={showAllAgents}
-                  onToggleShowAll={() => setShowAllAgents((prev) => !prev)}
+                  onToggleShowAll={() => toggleExpandedDirectSection(HOME_AGENTS_CATEGORY_ID)}
                   onCategoryClick={onCategoryClick}
                   homeRoomPath={homeRoomPath}
                   notificationPreferences={notificationPreferences}

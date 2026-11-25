@@ -1,5 +1,6 @@
-import { type MouseEventHandler, useCallback, useRef, useState } from 'react';
+import { type MouseEventHandler, useCallback, useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icons, Spinner, Text } from 'folds';
+import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
@@ -15,13 +16,16 @@ import {
   type useRoomsNotificationPreferencesContext,
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { mxcUrlToHttp } from '../../matrix/matrix';
+import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread';
 import { getDirectCreatePath } from '../../routes/pathUtils';
 import { ownDirectionLine } from '../../ui/directional';
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
+import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { startDirectChat } from './homeAgents';
 import {
+  getHiddenSectionUnread,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
   HOME_DIRECT_COMPACT_LIMIT,
@@ -31,6 +35,8 @@ import { HomeActionRowContent, HomeSectionHeader } from './HomeSectionChrome';
 import * as css from './HomeSections.css';
 
 const AGENT_AVATAR_SIZE = 96;
+const EMPTY_ROOM_IDS: readonly string[] = [];
+const EMPTY_UNREAD_KEY_ATOM = atom((): string | undefined => undefined);
 type RoomsNotificationPreferences = ReturnType<typeof useRoomsNotificationPreferencesContext>;
 
 /** Small green dot overlaid on an agent's avatar while `useRoomActiveRuns` reports an active run. */
@@ -148,18 +154,41 @@ function HomeSectionCapToggle({
   kind,
   count,
   showAll,
+  hiddenRoomIds,
   onToggle,
 }: {
   kind: 'dm' | 'agents';
   count: number;
   showAll: boolean;
+  hiddenRoomIds: readonly string[];
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
+  const hiddenUnreadKeyAtom = useMemo(
+    () =>
+      !showAll && hiddenRoomIds.length > 0
+        ? atom((get) => {
+            const unread = getHiddenSectionUnread(hiddenRoomIds, get(navigationRoomToUnreadAtom));
+            return unread ? `${unread.total}:${unread.highlight ? 1 : 0}` : undefined;
+          })
+        : EMPTY_UNREAD_KEY_ATOM,
+    [showAll, hiddenRoomIds]
+  );
+  const hiddenUnreadKey = useAtomValue(hiddenUnreadKeyAtom);
+  const hiddenUnread = hiddenUnreadKey
+    ? { total: Number(hiddenUnreadKey.split(':')[0]), highlight: hiddenUnreadKey.endsWith(':1') }
+    : undefined;
+  const label = showAll
+    ? t('mindroomUi.notices.showLess')
+    : t('featureUi.homeNav.showAllDirectMessages', { count });
+
   return (
     <NavItem radii="400" variant="Background">
       <NavButton
         aria-expanded={showAll}
+        aria-label={
+          hiddenUnread ? t('featureUi.spaceNav.subspaceUnread', { name: label }) : undefined
+        }
         data-home-dm-action={kind === 'dm' ? 'toggle-all' : undefined}
         data-home-agents-action={kind === 'agents' ? 'toggle-all' : undefined}
         onClick={onToggle}
@@ -167,10 +196,15 @@ function HomeSectionCapToggle({
         <HomeActionRowContent
           icon={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
           iconClassName={css.SectionIcon}
-          label={
-            showAll
-              ? t('mindroomUi.notices.showLess')
-              : t('featureUi.homeNav.showAllDirectMessages', { count })
+          label={label}
+          after={
+            hiddenUnread && (
+              <UnreadBadgeCenter>
+                <span data-unread="" data-highlight={hiddenUnread.highlight ? 'true' : undefined}>
+                  <UnreadBadge count={hiddenUnread.total} highlight={hiddenUnread.highlight} dm />
+                </span>
+              </UnreadBadgeCenter>
+            )
           }
         />
       </NavButton>
@@ -206,6 +240,11 @@ export function HomeDirectSection({
 }: HomeDirectSectionProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const hiddenRoomIds = useMemo(() => {
+    if (closed || showAll || allRoomIds.length <= HOME_DIRECT_COMPACT_LIMIT) return EMPTY_ROOM_IDS;
+    const visibleIds = new Set(visibleRooms.map((room) => room.roomId));
+    return allRoomIds.filter((roomId) => !visibleIds.has(roomId));
+  }, [closed, showAll, allRoomIds, visibleRooms]);
   return (
     <NavCategory
       data-testid="home-direct-section"
@@ -241,6 +280,7 @@ export function HomeDirectSection({
           kind="dm"
           count={allRoomIds.length}
           showAll={showAll}
+          hiddenRoomIds={hiddenRoomIds}
           onToggle={onToggleShowAll}
         />
       )}
@@ -308,6 +348,14 @@ export function HomeAgentsSection({
     [alive, client, homeRoomPath, navigate, roomVersion]
   );
 
+  const hiddenRoomIds = useMemo(() => {
+    if (closed || showAll || totalCount <= HOME_DIRECT_COMPACT_LIMIT) return EMPTY_ROOM_IDS;
+    const visibleIds = new Set(
+      visibleAgents.flatMap((agent) => (agent.dmRoom ? [agent.dmRoom.roomId] : []))
+    );
+    return agentDmRoomIds.filter((roomId) => !visibleIds.has(roomId));
+  }, [closed, showAll, totalCount, agentDmRoomIds, visibleAgents]);
+
   return (
     <NavCategory
       data-testid="home-agents-section"
@@ -354,6 +402,7 @@ export function HomeAgentsSection({
           kind="agents"
           count={totalCount}
           showAll={showAll}
+          hiddenRoomIds={hiddenRoomIds}
           onToggle={onToggleShowAll}
         />
       )}

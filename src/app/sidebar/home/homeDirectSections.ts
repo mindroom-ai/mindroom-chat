@@ -1,4 +1,5 @@
 import type { Room } from 'matrix-js-sdk';
+import { getLocalStorageItem, setLocalStorageItem } from '../../lib/state/atomWithLocalStorage';
 import {
   isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
@@ -6,6 +7,7 @@ import {
 import { roomBoundRoster } from '../../matrix/protocol/agentRoomState';
 import { getDirectActiveMemberCount, getDirectPartnerId } from '../../matrix/room';
 import { getMDirectPartnerId } from '../../matrix/state/mDirectList';
+import type { RoomToUnread } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { agentNameIn, type HomeAgent } from './homeAgents';
 
@@ -16,6 +18,11 @@ export const HOME_AGENTS_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-agent
 /** Direct messages and Agents lists stay compact above this count, showing the first 5 plus any selected room. */
 export const HOME_DIRECT_COMPACT_LIMIT = 6;
 export const HOME_DIRECT_COMPACT_PREVIEW = 5;
+
+const expandedSectionsKey = (userId: string): string => `homeExpandedDirectSections:${userId}`;
+const EXPANDED_SECTION_IDS = new Set([HOME_DIRECT_CATEGORY_ID, HOME_AGENTS_CATEGORY_ID]);
+
+export type HiddenSectionUnread = { readonly total: number; readonly highlight: boolean };
 
 export type HomeSidebarAgent = {
   userId: string;
@@ -30,7 +37,7 @@ export type HomeSidebarAgent = {
 export type HomeDirectSections = {
   /** Human 1:1 DMs, group DMs (> 2 active members), self-DMs, and secondary duplicate agent DMs. */
   humanDms: Room[];
-  /** Agents from `useHomeAgents` plus any 1:1 agent DM whose agent was not listed, by recency. */
+  /** Agents from `useHomeAgents` plus any unlisted 1:1 agent DM, live DMs first by DM recency. */
   agents: HomeSidebarAgent[];
   /** Room IDs of the 1:1 agent DMs rendered in `agents`, in rendered order. */
   agentDmRoomIds: string[];
@@ -94,7 +101,8 @@ export const getOneToOneAgentPartnerId = (
 
 /**
  * Splits joined direct rooms into Home's Direct messages section and Agents section, merging in
- * `homeAgents` (which may not have a DM yet) and ordering agents by recency.
+ * `homeAgents` (which may not have a DM yet) with live 1:1 agent DMs ranked ahead of agents
+ * without a live DM.
  *
  * Conservation invariant: every room in `directRooms` appears strictly once across `humanDms` and
  * `agentDmRoomIds`. When multiple 1:1 DMs exist for the same agent, the newest attaches to the
@@ -150,8 +158,12 @@ export const splitHomeDirectSections = (
     });
   }
 
+  const dmLastActiveTs = (agent: HomeSidebarAgent): number =>
+    agent.dmRoom?.getLastActiveTimestamp?.() ?? 0;
   agents.sort(
     (a, b) =>
+      Number(Boolean(b.dmRoom)) - Number(Boolean(a.dmRoom)) ||
+      dmLastActiveTs(b) - dmLastActiveTs(a) ||
       b.lastActivityTs - a.lastActivityTs ||
       a.name.localeCompare(b.name) ||
       a.userId.localeCompare(b.userId)
@@ -225,3 +237,43 @@ export const selectRenderedAgents = (
     limit,
     previewCount
   );
+
+/** Aggregated unread count and highlight across rooms hidden behind a section's compact cap. */
+export const getHiddenSectionUnread = (
+  hiddenRoomIds: readonly string[],
+  unreads: RoomToUnread
+): HiddenSectionUnread | undefined => {
+  let hasUnread = false;
+  let total = 0;
+  let highlight = false;
+  for (const roomId of hiddenRoomIds) {
+    const unread = unreads.get(roomId);
+    if (!unread) continue;
+    hasUnread = true;
+    total += unread.total ?? 0;
+    highlight ||= unread.highlight > 0;
+  }
+  return hasUnread ? { total, highlight } : undefined;
+};
+
+/** Reads the user's persisted `Show all` Home direct/agent section IDs from localStorage. */
+export const readExpandedHomeDirectSections = (userId: string): Set<string> => {
+  const stored = userId ? getLocalStorageItem<unknown>(expandedSectionsKey(userId), []) : [];
+  return new Set(
+    Array.isArray(stored)
+      ? stored.filter((id): id is string => typeof id === 'string' && EXPANDED_SECTION_IDS.has(id))
+      : []
+  );
+};
+
+/** Persists the user's `Show all` Home direct/agent section IDs to localStorage. */
+export const writeExpandedHomeDirectSections = (
+  userId: string,
+  expanded: ReadonlySet<string>
+): void => {
+  if (!userId) return;
+  setLocalStorageItem(
+    expandedSectionsKey(userId),
+    Array.from(expanded).filter((id) => EXPANDED_SECTION_IDS.has(id))
+  );
+};
