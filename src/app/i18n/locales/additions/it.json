@@ -393,6 +393,9 @@
     },
     "space": {
       "overview": "Panoramica dello spazio"
+    },
+    "footnote": {
+      "backToReference": "Torna al riferimento"
     }
   },
   "featureUi": {

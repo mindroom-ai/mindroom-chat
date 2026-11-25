@@ -16,7 +16,7 @@ export const sanitizeText = (text: string): string =>
 // can turn a message back into Markdown when editing.
 const INLINE_TAGS = ['b', 'code', 'del', 'em', 'font', 'i', 's', 'span', 'strike', 'strong', 'u'];
 const SCRIPT_TAGS = ['sub', 'sup'];
-const BLOCK_TAGS = ['blockquote', 'br', 'details', 'div', 'hr', 'p', 'pre', 'summary'];
+const BLOCK_TAGS = ['blockquote', 'br', 'details', 'div', 'hr', 'p', 'pre', 'section', 'summary'];
 const HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 const LIST_TAGS = ['li', 'ol', 'ul'];
 const TABLE_TAGS = ['caption', 'table', 'tbody', 'td', 'th', 'thead', 'tr'];
@@ -50,6 +50,16 @@ const FORBIDDEN_URL_SCHEMES = new Set([
   'resource',
 ]);
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const FOOTNOTE_ID = /^fn(?:ref)?\d+(?::\d+)?$/;
+const FOOTNOTE_HREF = /^#fn(?:ref)?\d+(?::\d+)?$/;
+
+/** Whether `value` is a markdown-it-footnote anchor ID (`fn1`, `fnref1`, `fnref1:1`). */
+export const isFootnoteId = (value: string | undefined): value is `fn${string}` =>
+  typeof value === 'string' && FOOTNOTE_ID.test(value);
+
+/** Whether `value` is a markdown-it-footnote fragment href (`#fn1`, `#fnref1`, `#fnref1:1`). */
+export const isFootnoteHref = (value: string | undefined): value is `#${string}` =>
+  typeof value === 'string' && FOOTNOTE_HREF.test(value);
 
 const withDataMd = (tags: string[]): Record<string, string[]> =>
   Object.fromEntries(tags.map((tag) => [tag, ['data-md']]));
@@ -59,9 +69,10 @@ const BASE_ATTRIBUTES: Record<string, string[]> = {
   ...withDataMd(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'p', 'hr']),
   font: [...MATRIX_COLOR_ATTRIBUTES, 'color', 'style', 'data-md'],
   span: [...MATRIX_COLOR_ATTRIBUTES, 'data-md', 'data-mx-spoiler', 'style'],
-  // `rel` and `target` are kept for the values `linkInNewTab` writes.
-  a: ['data-md', 'href', 'name', 'rel', 'target'],
+  // `rel` and `target` are kept for the values `linkInNewTab` writes; `id` is restricted to footnotes.
+  a: ['data-md', 'href', 'id', 'name', 'rel', 'target'],
   img: ['alt', 'data-mx-emoticon', 'height', 'src', 'title', 'width'],
+  li: ['data-md', 'id'],
   ol: ['data-md', 'start'],
   // `data-label` names a code block (the label row above it).
   code: ['class', 'data-md', 'data-label'],
@@ -95,6 +106,16 @@ export const customHtmlSanitizerPolicy: {
   },
 };
 
+const BASE_CLASSES: Record<string, string[]> = {
+  code: ['language-*'],
+  sup: ['footnote-ref'],
+  hr: ['footnotes-sep'],
+  section: ['footnotes'],
+  ol: ['footnotes-list'],
+  li: ['footnote-item'],
+  a: ['footnote-backref'],
+};
+
 const BASE_STYLES: Record<string, Record<string, RegExp[]>> = {
   '*': {
     color: [HEX_COLOR],
@@ -116,10 +137,28 @@ const colorToStyle: Transformer = (tagName, attribs) => {
   };
 };
 
-const linkInNewTab: Transformer = (tagName, attribs) => ({
+const stripNonFootnoteId = (attribs: Record<string, string>): Record<string, string> => {
+  if (!('id' in attribs) || isFootnoteId(attribs.id)) return attribs;
+  const { id: _id, ...rest } = attribs;
+  return rest;
+};
+
+const footnoteIdOnly: Transformer = (tagName, attribs) => ({
   tagName,
-  attribs: { ...attribs, target: '_blank', rel: 'noreferrer noopener' },
+  attribs: stripNonFootnoteId(attribs),
 });
+
+const linkInNewTab: Transformer = (tagName, attribs) => {
+  const cleaned = stripNonFootnoteId(attribs);
+  if (isFootnoteHref(cleaned.href)) {
+    const { target: _target, rel: _rel, ...rest } = cleaned;
+    return { tagName, attribs: rest };
+  }
+  return {
+    tagName,
+    attribs: { ...cleaned, target: '_blank', rel: 'noreferrer noopener' },
+  };
+};
 
 // Images come only from the media repository (`mxc://`); a relative or other URL would make every
 // reader's browser fetch from wherever the sender chose.
@@ -158,6 +197,7 @@ const mappedImage =
 
 const BASE_TRANSFORMS: Record<string, Transformer> = {
   a: linkInNewTab,
+  li: footnoteIdOnly,
   img: mxcImageOnly,
   font: colorToStyle,
   span: colorToStyle,
@@ -181,6 +221,23 @@ const mergeAttributes = (
       ...(merged[tag] ?? []),
       ...attributes.filter((item) => !names.has(typeof item === 'string' ? item : item.name)),
     ];
+  });
+  return merged;
+};
+
+const mergeClasses = (
+  base: Record<string, string[]>,
+  extra: IOptions['allowedClasses']
+): NonNullable<IOptions['allowedClasses']> => {
+  const merged: NonNullable<IOptions['allowedClasses']> = { ...base };
+  if (!extra) return merged;
+  Object.entries(extra).forEach(([tag, classes]) => {
+    const existing = merged[tag];
+    if (classes === true || existing === true) {
+      merged[tag] = true;
+    } else if (Array.isArray(classes)) {
+      merged[tag] = Array.isArray(existing) ? [...new Set([...existing, ...classes])] : classes;
+    }
   });
   return merged;
 };
@@ -279,10 +336,7 @@ const buildOptions = ({
       policy?.allowedAttributes
     ),
     allowedStyles: mergeStyles(BASE_STYLES, policy?.allowedStyles),
-    allowedClasses: {
-      code: ['language-*'],
-      ...(policy?.allowedClasses ?? {}),
-    },
+    allowedClasses: mergeClasses(BASE_CLASSES, policy?.allowedClasses),
     allowedSchemes: allowedLinkSchemes(additionalAllowedUriSchemes),
     allowedSchemesByTag: { img: imageSource ? ['mxc', 'https'] : ['mxc'] },
     allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],

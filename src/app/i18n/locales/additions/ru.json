@@ -405,6 +405,9 @@
     },
     "space": {
       "overview": "Обзор пространства"
+    },
+    "footnote": {
+      "backToReference": "Вернуться к ссылке"
     }
   },
   "featureUi": {

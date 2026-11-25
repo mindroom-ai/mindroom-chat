@@ -393,6 +393,9 @@
     },
     "space": {
       "overview": "Resumen del espacio"
+    },
+    "footnote": {
+      "backToReference": "Volver a la referencia"
     }
   },
   "featureUi": {

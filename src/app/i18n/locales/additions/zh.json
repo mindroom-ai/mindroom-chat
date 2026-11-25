@@ -369,6 +369,9 @@
     },
     "space": {
       "overview": "空间概览"
+    },
+    "footnote": {
+      "backToReference": "返回引用处"
     }
   },
   "featureUi": {

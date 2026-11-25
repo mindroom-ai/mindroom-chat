@@ -369,6 +369,9 @@
     },
     "space": {
       "overview": "스페이스 개요"
+    },
+    "footnote": {
+      "backToReference": "참조 위치로 돌아가기"
     }
   },
   "featureUi": {

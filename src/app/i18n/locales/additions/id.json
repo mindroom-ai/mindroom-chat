@@ -369,6 +369,9 @@
     },
     "space": {
       "overview": "Ikhtisar space"
+    },
+    "footnote": {
+      "backToReference": "Kembali ke referensi"
     }
   },
   "featureUi": {

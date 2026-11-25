@@ -381,6 +381,9 @@
     },
     "space": {
       "overview": "Space overview"
+    },
+    "footnote": {
+      "backToReference": "Back to reference"
     }
   },
   "featureUi": {

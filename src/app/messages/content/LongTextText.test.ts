@@ -121,6 +121,7 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
   MathBlock: 'MathBlock',
 }));
 
+vi.mock('../../rich-text/Footnote.css', () => ({}));
 vi.mock('../../rich-text/Callout.css', () => ({
   Callout: ({ tone }: { tone?: string } = {}) => `Callout-${tone ?? ''}`,
   Header: ({ tone }: { tone?: string } = {}) => `CalloutHeader-${tone ?? ''}`,
