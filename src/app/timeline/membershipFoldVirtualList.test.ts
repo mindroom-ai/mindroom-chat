@@ -85,17 +85,11 @@ const joins = (prefix: string, count: number) =>
  * offset ledger is the scroll position here: the height it takes moves the reader with the rows.
  * What a render has it take is that render's own until it commits: the next render starts from
  * the last commit again.
- *
- * `leadingPx` of other content (the room's intro) is above the list in the scroll area, and bars
- * cover `insetPx` of the scroll area's top. The list knows of neither: it takes the scroll
- * offset for its own.
  */
 const roomList = (initial: {
   loaded: MatrixEvent[];
   stateRange: TimelineRange;
   compact?: boolean;
-  leadingPx?: number;
-  insetPx?: number;
 }) => {
   let { loaded, stateRange } = initial;
   const openIds = new Set<string>();
