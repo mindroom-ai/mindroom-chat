@@ -224,17 +224,154 @@ describe('liquid glass rendering lifecycle', () => {
     expect(document.querySelector('filter')).toBeNull();
   });
 
-  it('splits and recombines nearby optical scales for chromatic rim separation', () => {
+  it('builds a single-pass SVG refraction filter with duplicated blur edges', () => {
     cleanup = attachLiquidGlass(element);
     show(true);
+    const blurs = [...document.querySelectorAll('feGaussianBlur')];
+    expect(blurs).toHaveLength(1);
+    expect(blurs[0]!.getAttribute('edgeMode')).toBe('duplicate');
+    expect(blurs[0]!.getAttribute('stdDeviation')).toBe('3');
     const displacements = [...document.querySelectorAll('feDisplacementMap')];
-    expect(displacements).toHaveLength(3);
-    const scales = displacements.map((node) => Number(node.getAttribute('scale')));
-    expect(scales[0]).toBeLessThan(scales[1]!);
-    expect(scales[2]).toBeGreaterThan(scales[1]!);
-    expect(scales[2]! / scales[0]!).toBeLessThan(1.05);
+    expect(displacements).toHaveLength(1);
+    expect(displacements[0]!.getAttribute('in')).toBe('softened');
+    expect(displacements[0]!.getAttribute('in2')).toBe('displacement');
+    expect(Number(displacements[0]!.getAttribute('scale'))).toBeGreaterThan(0);
     expect(document.querySelectorAll('feImage')).toHaveLength(1);
-    expect(document.querySelectorAll('feBlend')).toHaveLength(2);
+    expect(document.querySelectorAll('feColorMatrix')).toHaveLength(0);
+    expect(document.querySelectorAll('feBlend')).toHaveLength(0);
+  });
+
+  it('tracks all four corner radii and parses elliptical pairs and percentages independently', () => {
+    const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
+    const mountSurface = (radii: [string, string, string, string]) => {
+      const node = document.createElement('div');
+      [
+        node.style.borderTopLeftRadius,
+        node.style.borderTopRightRadius,
+        node.style.borderBottomRightRadius,
+        node.style.borderBottomLeftRadius,
+      ] = radii;
+      Object.defineProperties(node, {
+        offsetWidth: { value: 180 },
+        offsetHeight: { value: 80 },
+      });
+      document.body.append(node);
+      const detach = attachLiquidGlass(node);
+      notifyVisibility(
+        [{ target: node, isIntersecting: true } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+      vi.runAllTimers();
+      return () => {
+        detach();
+        node.remove();
+      };
+    };
+
+    toDataURL.mockClear();
+    const detachBase = mountSurface(['20px', '20px', '0px', '0px']);
+    expect(toDataURL).toHaveBeenCalledTimes(1);
+
+    // Elliptical "20px 10px" uses the leading 20px radius and hits the same map cache entry.
+    const detachElliptical = mountSurface(['20px 10px', '20px', '0px', '0px']);
+    expect(toDataURL).toHaveBeenCalledTimes(1);
+
+    // Changing only a bottom corner via "%" produces a distinct cache key and displacement map.
+    const detachPercent = mountSurface(['20px', '20px', '0px', '50%']);
+    expect(toDataURL).toHaveBeenCalledTimes(2);
+
+    detachPercent();
+    detachElliptical();
+    detachBase();
+  });
+
+  it('uses fractional ResizeObserver borderBoxSize rounded up to avoid right/bottom clipping', () => {
+    const observe = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = callback;
+        }
+
+        observe = observe;
+
+        disconnect() {}
+      }
+    );
+    const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
+    cleanup = attachLiquidGlass(element);
+    expect(observe).toHaveBeenCalledWith(element, { box: 'border-box' });
+    const entry = {
+      target: element,
+      borderBoxSize: [{ inlineSize: 240.3, blockSize: 80.2 }],
+    } as unknown as ResizeObserverEntry;
+    notifyResize([entry], {} as ResizeObserver);
+    show(true);
+    expect(document.querySelector('filter')?.getAttribute('width')).toBe('241');
+    expect(document.querySelector('filter')?.getAttribute('height')).toBe('81');
+    expect(document.querySelector('feImage')?.getAttribute('width')).toBe('241');
+    expect(document.querySelector('feImage')?.getAttribute('height')).toBe('81');
+
+    toDataURL.mockClear();
+    notifyResize([entry], {} as ResizeObserver);
+    vi.runAllTimers();
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
+
+  it('shares one matchMedia watcher across surfaces and removes listeners on last detach', () => {
+    const matchMediaSpy = vi.fn((query: string) => ({
+      get matches() {
+        return preferences.get(query) ?? false;
+      },
+      media: query,
+      addEventListener: (_event: string, listener: () => void) => preferenceListeners.add(listener),
+      removeEventListener: (_event: string, listener: () => void) =>
+        preferenceListeners.delete(listener),
+    }));
+    vi.stubGlobal('matchMedia', matchMediaSpy);
+
+    const second = document.createElement('div');
+    document.body.append(second);
+    for (const node of [element, second]) {
+      vi.spyOn(node, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 100,
+      } as DOMRect);
+    }
+
+    const detachFirst = attachLiquidGlass(element, { refraction: false });
+    const detachSecond = attachLiquidGlass(second, { refraction: false });
+    expect(matchMediaSpy).toHaveBeenCalledTimes(4);
+    expect(preferenceListeners.size).toBe(1);
+
+    element.dispatchEvent(new MouseEvent('pointermove', { clientX: 100, clientY: 50 }));
+    second.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 25 }));
+    vi.runAllTimers();
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('50%');
+    expect(second.style.getPropertyValue('--liquid-glass-light-x')).toBe('75%');
+
+    setPreference('(prefers-reduced-motion: reduce)', true);
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('');
+    expect(second.style.getPropertyValue('--liquid-glass-light-x')).toBe('');
+
+    detachFirst();
+    expect(preferenceListeners.size).toBe(1);
+    setPreference('(prefers-reduced-motion: reduce)', false);
+    second.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 25 }));
+    vi.runAllTimers();
+    expect(second.style.getPropertyValue('--liquid-glass-light-x')).toBe('75%');
+
+    detachSecond();
+    expect(preferenceListeners.size).toBe(0);
+
+    // Re-attaching after the last detach initializes a fresh watcher.
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    expect(matchMediaSpy).toHaveBeenCalledTimes(8);
+    expect(preferenceListeners.size).toBe(1);
+    second.remove();
   });
 
   it('drops the stale filter during rapid resizes and rasterizes only once after settling', () => {

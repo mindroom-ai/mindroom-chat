@@ -1,7 +1,7 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { IEncryptedFile } from '../types/common';
-import { STREAM_STATUS_KEY } from './aiRun';
+import { STREAM_STATUS_KEY, SUPPRESS_PUSH_KEY } from './aiRun';
 
 export type ToolApprovalScope = {
   id: string;
@@ -562,8 +562,15 @@ export const buildToolApprovalRevocationContent = (
 
 // Failed SDK decryption presents as m.room.message / m.bad.encrypted until keys arrive.
 // A streamed reply or its edit keeps its stream status in the clear; no approval has one, so an
-// unreadable reply is no unreadable approval history (P2-e2ee-F003).
-export const isUndecryptedApprovalCandidate = (event: MatrixEvent): boolean =>
-  !event.isRedacted() &&
-  (event.getType() === 'm.room.encrypted' || event.isDecryptionFailure()) &&
-  event.getWireContent?.()?.[STREAM_STATUS_KEY] === undefined;
+// unreadable reply is no unreadable approval history (P2-e2ee-F003). Neither does any tool
+// approval suppress push notifications, so encrypted events carrying `io.mindroom.suppress_push:
+// true` in cleartext (such as thread summaries or working notices) cannot be unreadable approval
+// history.
+export const isUndecryptedApprovalCandidate = (event: MatrixEvent): boolean => {
+  if (event.isRedacted()) return false;
+  if (event.getType() !== 'm.room.encrypted' && !event.isDecryptionFailure()) return false;
+  const wireContent = event.getWireContent?.();
+  return (
+    wireContent?.[STREAM_STATUS_KEY] === undefined && wireContent?.[SUPPRESS_PUSH_KEY] !== true
+  );
+};

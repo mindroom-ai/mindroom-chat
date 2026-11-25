@@ -38,7 +38,22 @@ export const MessageAvatarWithModel = style({
 });
 
 /** The reaction chips under a message. */
-export const ReactionsContainer = style({ paddingBlockStart: config.space.S100 });
+export const ReactionsContainer = style({
+  paddingBlockStart: config.space.S100,
+  // 28 px reaction pills reach 8 px up and down on coarse pointers: 16 px (`S400`) between wrapped
+  // rows keeps layers disjoint, and 8 px (`S200`) above clears the message line. `&&` overrides
+  // Folds `<Box gap="200">` regardless of CSS chunk order.
+  '@media': {
+    '(pointer: coarse)': {
+      selectors: {
+        '&&': {
+          rowGap: config.space.S400,
+          paddingBlockStart: config.space.S200,
+        },
+      },
+    },
+  },
+});
 
 // The reply's Stop holds Stop reply and Stopping… in one cell, so it keeps the wider one's size.
 export const StopLabels = style({ display: 'inline-grid' });

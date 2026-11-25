@@ -497,6 +497,15 @@ describe('a fork draft', () => {
     const focus = vi.spyOn(ReactEditor, 'focus');
     render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
     expect(state.timeline).toMatchObject({ threadId: THREAD, forkAt: '$point' });
+    render(<>{state.timeline?.threadHeader}</>);
+    const draftBanner = document.querySelector('[data-fork-draft-banner="true"]');
+    expect(draftBanner).not.toBeNull();
+    expect(draftBanner?.hasAttribute('data-cross-room-fork-banner')).toBe(false);
+    expect(screen.getByText('Forking thread')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.getByText('Not created yet. Send a message below to start this forked thread.')
+    ).toBeDefined();
     // From the start: text typed while the thread loads belongs to the draft, never to the thread.
     expect(state.composer).toMatchObject({
       threadId: undefined,
@@ -590,9 +599,15 @@ describe('a fork draft', () => {
       forkFrom: { roomId: sourceRoom.roomId, threadId: THREAD, eventId: '$point' },
     });
 
-    // Draft header shows "Forking from Project Alpha", Back button, and agent-not-in-source warning.
+    // Draft header shows "Forking from Project Alpha", DRAFT badge, hint, Back button, and agent warning.
     render(<>{state.timeline?.threadHeader}</>);
+    const crossBanner = document.querySelector('[data-fork-draft-banner="true"]');
+    expect(crossBanner?.getAttribute('data-cross-room-fork-banner')).toBe('true');
     expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.getByText('Not in Project Beta yet. Send a message below to create this thread.')
+    ).toBeDefined();
     expect(document.querySelector('[data-cross-room-fork-agent-warning]')?.textContent).toContain(
       'Project Alpha'
     );
@@ -636,5 +651,34 @@ describe('a fork draft', () => {
     expect(store.get(shownConversationViewsAtom)).toEqual([]);
     expect(state.composerHidden).toBe(true);
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('suppresses draft compose prompts in timeline and fallback banner when the user cannot post', () => {
+    state.mayPost = false;
+    const sourceRoom = new Room('!alpha:example.org', mx, '@alice:example.org');
+    sourceRoom.name = 'Project Alpha';
+    room.name = 'Project Beta';
+    const onBack = vi.fn();
+
+    render(
+      <ThreadView
+        room={room}
+        sourceRoom={sourceRoom}
+        threadId={THREAD}
+        forkAt="$point"
+        onExitCrossRoomFork={onBack}
+      />
+    );
+
+    expect(state.timeline?.canCompose).toBe(false);
+    expect(state.composer).toBeUndefined();
+    render(<>{state.timeline?.threadHeader}</>);
+    expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.queryByText('Not in Project Beta yet. Send a message below to create this thread.')
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });

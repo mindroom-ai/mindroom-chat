@@ -500,9 +500,10 @@ export const Empty = style([
 const triggerSize = toRem(32);
 
 // The button at the start of the composer: the model's logo in the glass frame of the buttons
-// after it, the same 32 px square, 44 px tall and 36 px wide to a finger.
+// after it, the same 32 px square, 44 px tall and 40 px wide to a finger (4 px gap + 1 px
+// divider + 4 px gap = 9 px to the next button, so 4 px stays on its side of the hairline).
 export const Trigger = style([
-  touchTarget('2px'),
+  touchTarget('4px'),
   {
     flexShrink: 0,
     minInlineSize: triggerSize,

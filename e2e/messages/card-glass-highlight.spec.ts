@@ -5,6 +5,7 @@ const highlight = (surface: Locator) =>
   surface.evaluate((element) => ({
     x: (element as HTMLElement).style.getPropertyValue('--liquid-glass-light-x'),
     background: getComputedStyle(element).backgroundImage,
+    rimBackground: getComputedStyle(element, '::before').backgroundImage,
   }));
 
 for (const theme of ['light', 'dark']) {
@@ -53,13 +54,16 @@ for (const theme of ['light', 'dark']) {
       for (const id of ids) {
         const host = page.getByTestId(id);
         const surface = id === 'link' ? host : host.locator(':scope > *').first();
+        await expect(surface).toHaveCSS('background-image', 'none');
         await surface.hover({ position: { x: 12, y: 12 } });
         await expect.poll(async () => (await highlight(surface)).x).not.toBe('');
         const first = await highlight(surface);
+        expect(first.background).toBe('none');
         await surface.hover({ position: { x: 120, y: 18 } });
         await expect
-          .poll(async () => (await highlight(surface)).background)
-          .not.toBe(first.background);
+          .poll(async () => (await highlight(surface)).rimBackground)
+          .not.toBe(first.rimBackground);
+        await expect(surface).toHaveCSS('background-image', 'none');
         await expect(surface).not.toHaveAttribute('data-liquid-glass', 'active');
         await page.mouse.move(0, 0);
         await expect.poll(async () => (await highlight(surface)).x).toBe('');
@@ -69,6 +73,9 @@ for (const theme of ['light', 'dark']) {
         await page.emulateMedia({ reducedMotion: 'no-preference', contrast: 'more' });
         await surface.hover({ position: { x: 12, y: 12 } });
         await expect(surface).toHaveCSS('background-image', 'none');
+        expect(
+          await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+        ).toBe('none');
         await page.emulateMedia({ contrast: 'no-preference' });
       }
       if (fixture === 'messages') {

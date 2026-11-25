@@ -1,4 +1,12 @@
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -40,7 +48,13 @@ import {
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
-import { useRoomViewThreadState } from './useRoomViewThreadState';
+import { isEventId } from '../lib/matrixIds';
+import {
+  SWIPE_THREAD_STAGE,
+  SWIPE_UNDER_THREAD,
+  type LiveThreadBackUnder,
+} from '../navigation/phonePageSlide';
+import { useRoomViewThreadState, type LiveRoomPeekFocus } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
@@ -65,7 +79,10 @@ const COLUMN_STYLE: CSSProperties = {
   minWidth: 0,
 };
 
-export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilterState'> & {
+export type RoomViewProps = Omit<
+  RoomViewHeaderProps,
+  'threadId' | 'threadFilterState' | 'passive'
+> & {
   room: Room;
   eventId?: string;
   threadId?: string;
@@ -162,7 +179,75 @@ export function RoomView({
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
-  const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
+  const [peekingRoom, setPeekingRoom] = useState<{ focusEventId?: string } | null>(null);
+  const columnFillsRef = useRef(false);
+  const crossRoomForkRef = useRef(Boolean(crossRoomFork));
+  crossRoomForkRef.current = Boolean(crossRoomFork);
+
+  const enterLiveRoomPeek = useCallback(
+    (peekFocus?: LiveRoomPeekFocus): LiveThreadBackUnder | null => {
+      const stage = pageRef.current;
+      const under = areaRef.current;
+      if (!columnFillsRef.current || crossRoomForkRef.current || !stage || !under) return null;
+      const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
+      if (!over) return null;
+
+      const savedReturnPlace = threadReturnPlaceRef.current;
+      const savedCompactScroll = compactRoomScrollStateRef.current.get(roomId);
+      const hasSavedReturnPlace = savedReturnPlace?.roomId === roomId;
+      const focusEventId =
+        peekFocus && (!peekFocus.onlyIfUnsaved || (!savedCompactScroll && !hasSavedReturnPlace))
+          ? peekFocus.eventId
+          : undefined;
+
+      stage.setAttribute(SWIPE_THREAD_STAGE, '');
+      under.setAttribute(SWIPE_UNDER_THREAD, '');
+      try {
+        flushSync(() => setPeekingRoom({ focusEventId }));
+      } catch (error) {
+        stage.removeAttribute(SWIPE_THREAD_STAGE);
+        under.removeAttribute(SWIPE_UNDER_THREAD);
+        throw error;
+      }
+
+      return {
+        stage,
+        over,
+        under,
+        exit(committed) {
+          if (!pageRef.current) {
+            stage.removeAttribute(SWIPE_THREAD_STAGE);
+            under.removeAttribute(SWIPE_UNDER_THREAD);
+            return;
+          }
+          if (!committed || columnFillsRef.current) {
+            flushSync(() => setPeekingRoom(null));
+            stage.removeAttribute(SWIPE_THREAD_STAGE);
+            under.removeAttribute(SWIPE_UNDER_THREAD);
+            threadReturnPlaceRef.current = savedReturnPlace;
+            if (savedCompactScroll) {
+              compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
+            } else {
+              compactRoomScrollStateRef.current.delete(roomId);
+            }
+            return;
+          }
+          stage.removeAttribute(SWIPE_THREAD_STAGE);
+          under.removeAttribute(SWIPE_UNDER_THREAD);
+          setPeekingRoom(null);
+        },
+      };
+    },
+    [roomId]
+  );
+
+  const threadState = useRoomViewThreadState({
+    room,
+    threadId,
+    eventId,
+    hasMindroomAgents,
+    enterLiveRoomPeek,
+  });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
   const handleExitCrossRoomFork = useCallback(() => {
     onExitCrossRoomFork?.();
@@ -182,6 +267,12 @@ export function RoomView({
   // the page, over the room's conversation, which goes.
   const columnFills =
     columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
+  columnFillsRef.current = columnFills;
+  const peekingOnly = columnFills && peekingRoom !== null;
+  const peekFocusEventId = peekingOnly ? peekingRoom.focusEventId : undefined;
+  useEffect(() => {
+    if (!columnFills) setPeekingRoom(null);
+  }, [columnFills]);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
@@ -306,33 +397,41 @@ export function RoomView({
     });
   }, [columnOpen, focusConversation, phone, unlessCardTakesFocus]);
 
-  // The open thread's banner (or read-only cross-room fork draft banner).
-  const threadBanner = crossRoomFork ? (
-    <CrossRoomForkDraftBanner
-      sourceRoom={crossRoomFork.sourceRoom}
-      targetRoom={room}
-      onBack={handleExitCrossRoomFork}
-    />
-  ) : (
-    openThreadId && (
-      <ThreadContextBanner
-        room={room}
-        threadId={openThreadId}
-        summaryInfo={threadState.threadSummaryInfo}
-        onExitThread={threadState.handleExitThread}
-        onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-        onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
+  const onShowBeside = columnFills && threadLayout.roomy ? showBeside : undefined;
+  const onShowFull = columnFills || besideWhileSecond ? undefined : showFull;
+  const isSameRoomForkDraft = !crossRoomFork && Boolean(openThreadId && isEventId(forkAt));
+  // The open thread's banner (or read-only draft banner for same-room and cross-room fork drafts).
+  const threadBanner =
+    crossRoomFork || isSameRoomForkDraft ? (
+      <CrossRoomForkDraftBanner
+        sourceRoom={crossRoomFork ? crossRoomFork.sourceRoom : room}
+        targetRoom={room}
+        canCompose={composerShown}
+        onBack={crossRoomFork ? handleExitCrossRoomFork : threadState.handleExitThread}
+        onShowBeside={onShowBeside}
+        onShowFull={onShowFull}
       />
-    )
-  );
+    ) : (
+      openThreadId && (
+        <ThreadContextBanner
+          room={room}
+          threadId={openThreadId}
+          summaryInfo={threadState.threadSummaryInfo}
+          onExitThread={threadState.handleExitThread}
+          onShowBeside={onShowBeside}
+          onShowFull={onShowFull}
+        />
+      )
+    );
   const timelineProps: RoomTimelineProps = {
     room,
-    // The event the address names is the thread's, unless it asks for it in the room.
-    eventId: openThreadId && !focusEventInRoom ? undefined : eventId,
-    focusEventInRoom,
-    entryKey,
-    entryPushed,
-    entryReturned,
+    // The event the address names is the thread's, unless it asks for it in the room (or a
+    // live-peek swipe is previewing a direct-exit focus target).
+    eventId: peekFocusEventId ?? (openThreadId && !focusEventInRoom ? undefined : eventId),
+    focusEventInRoom: peekFocusEventId ? true : focusEventInRoom,
+    entryKey: peekFocusEventId ? undefined : entryKey,
+    entryPushed: peekFocusEventId ? false : entryPushed,
+    entryReturned: peekFocusEventId ? false : entryReturned,
     hasMindroomAgents,
     summaryMap: threadState.summaryMap,
     onStoreThreadSummary: threadState.storeThreadSummary,
@@ -371,13 +470,14 @@ export function RoomView({
           <>
             <RoomViewHeader
               hasMindroomAgents={hasMindroomAgents}
-              openThreadId={openThreadId}
+              openThreadId={peekingOnly ? undefined : openThreadId}
+              passive={peekingOnly}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
               canEditSchedule={composerShown && !hidden}
               {...headerProps}
             />
-            <RoomHeaderSlot room={room} headerRef={headerRef} />
+            {!peekingOnly && <RoomHeaderSlot room={room} headerRef={headerRef} />}
           </>
         )}
         timeline={<RoomTimeline {...timelineProps} />}
@@ -396,7 +496,7 @@ export function RoomView({
             />
           )
         }
-        collapsed={columnFills}
+        collapsed={columnFills && peekingRoom === null}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />

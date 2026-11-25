@@ -70,6 +70,8 @@ export type RoomTimelineProps = {
   forkAt?: string;
   /** In a cross-room fork draft, the destination room that "Fork from here" and the divider target. */
   forkTargetRoom?: Room;
+  /** Whether the user can send messages in the destination room; suppresses draft compose prompts when false. */
+  canCompose?: boolean;
 };
 
 /**

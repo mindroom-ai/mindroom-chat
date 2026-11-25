@@ -6,6 +6,13 @@ export const LOW_QUOTA_THRESHOLD = 15;
 export const UNAVAILABLE_REASONS = ['unsupported', 'not_signed_in', 'probe_failed'] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
+export type TokenMix = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+};
+
 export type ProviderUsageWindow = {
   id: string;
   kind: string;
@@ -31,12 +38,35 @@ export type ProviderAccountUsage = {
   tokens_7d: number;
   cost_usd_7d: number | null;
   cost_estimated: boolean;
+  token_mix_7d?: TokenMix;
 };
 
 export type DailyAccountUsage = {
   day: string;
   by_account: Record<string, number>;
   unattributed_tokens: number;
+  cost_by_account?: Record<string, number>;
+  unattributed_cost_usd?: number | null;
+};
+
+export type ModelUsage7d = {
+  provider: string;
+  model: string;
+  account_id?: string | null;
+  tokens_7d: number;
+  cost_usd_7d: number | null;
+  run_count: number;
+  token_mix_7d?: TokenMix;
+  daily_tokens_7d?: number[];
+};
+
+export type AgentUsage7d = {
+  entity: string;
+  tokens_7d: number;
+  cost_usd_7d: number | null;
+  run_count: number;
+  token_mix_7d?: TokenMix;
+  daily_tokens_7d?: number[];
 };
 
 export type ProviderUsageSnapshot = {
@@ -48,10 +78,27 @@ export type ProviderUsageSnapshot = {
   daily_7d: DailyAccountUsage[];
   unattributed_tokens_7d: number;
   unattributed_cost_usd_7d: number | null;
+  token_mix_7d?: TokenMix;
+  cache_savings_usd_7d?: number | null;
+  top_models_7d?: ModelUsage7d[];
+  top_agents_7d?: AgentUsage7d[];
 };
 
 const MAX_BYTES = 65536;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const isValidIsoDay = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !ISO_DAY.test(v)) return false;
+  const year = Number(v.slice(0, 4));
+  const month = Number(v.slice(5, 7));
+  const day = Number(v.slice(8, 10));
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    Number.isFinite(d.getTime()) &&
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() + 1 === month &&
+    d.getUTCDate() === day
+  );
+};
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const isUnavailableReason = (v: unknown): v is UnavailableReason =>
@@ -73,6 +120,57 @@ const bounded = (v: unknown): v is Record<string, unknown> => {
   } catch {
     return false;
   }
+};
+
+const parseAccountNumberMap = (raw: unknown): Record<string, number> | undefined => {
+  if (!isRec(raw)) return undefined;
+  const entries = Object.entries(raw);
+  if (entries.length > 64) return undefined;
+  const out: Record<string, number> = {};
+  for (const [id, value] of entries) {
+    if (!str(id) || UNSAFE_KEYS.has(id) || !nonNeg(value)) return undefined;
+    out[id] = value;
+  }
+  return out;
+};
+
+/** Optional additive parsers omit malformed data rather than failing the core v1 snapshot. */
+const parseOptCostUsd = (raw: unknown): number | null | undefined =>
+  raw === null ? null : nonNeg(raw) ? raw : undefined;
+
+const parseOptTokenMix = (raw: unknown): TokenMix | undefined => {
+  if (
+    !isRec(raw) ||
+    !nonNeg(raw.input_tokens) ||
+    !nonNeg(raw.output_tokens) ||
+    !nonNeg(raw.cache_read_tokens) ||
+    !nonNeg(raw.cache_write_tokens)
+  )
+    return undefined;
+  return {
+    input_tokens: raw.input_tokens,
+    output_tokens: raw.output_tokens,
+    cache_read_tokens: raw.cache_read_tokens,
+    cache_write_tokens: raw.cache_write_tokens,
+  };
+};
+
+const parseOptDailyTokens = (raw: unknown): number[] | undefined =>
+  Array.isArray(raw) && raw.length <= 31 && raw.every(nonNeg) ? [...raw] : undefined;
+
+const parseOptList = <T>(
+  raw: unknown,
+  max: number,
+  parseItem: (item: unknown) => T | undefined
+): T[] | undefined => {
+  if (!Array.isArray(raw) || raw.length > max) return undefined;
+  const items: T[] = [];
+  for (const entry of raw) {
+    const parsed = parseItem(entry);
+    if (!parsed) return undefined;
+    items.push(parsed);
+  }
+  return items;
 };
 
 const parseWindow = (raw: unknown): ProviderUsageWindow | undefined => {
@@ -127,14 +225,13 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
   const accountLabel = optNullStr(raw.account_label);
   const plan = optNullStr(raw.plan);
   if (accountLabel === false || plan === false) return undefined;
-  let unavailableReason: UnavailableReason | null | undefined;
-  if (raw.unavailable_reason === undefined || raw.unavailable_reason === null) {
-    unavailableReason = raw.unavailable_reason;
-  } else if (isUnavailableReason(raw.unavailable_reason)) {
-    unavailableReason = raw.unavailable_reason;
-  } else {
-    return undefined;
-  }
+  const unavailableReason =
+    raw.unavailable_reason === undefined || raw.unavailable_reason === null
+      ? raw.unavailable_reason
+      : isUnavailableReason(raw.unavailable_reason)
+        ? raw.unavailable_reason
+        : false;
+  if (unavailableReason === false) return undefined;
   if (raw.checked_at !== undefined && raw.checked_at !== null && !isoTime(raw.checked_at))
     return undefined;
   const windows: ProviderUsageWindow[] = [];
@@ -145,6 +242,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     winIds.add(w.id);
     windows.push(w);
   }
+  const tokenMix = parseOptTokenMix(raw.token_mix_7d);
   return {
     id: raw.id,
     provider: raw.provider,
@@ -159,26 +257,60 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     tokens_7d: raw.tokens_7d,
     cost_usd_7d: raw.cost_usd_7d,
     cost_estimated: raw.cost_estimated,
+    ...(tokenMix !== undefined ? { token_mix_7d: tokenMix } : {}),
   };
 };
 
 const parseDaily = (raw: unknown): DailyAccountUsage | undefined => {
+  if (!isRec(raw) || !isValidIsoDay(raw.day) || !nonNeg(raw.unattributed_tokens)) return undefined;
+  const byAccount = parseAccountNumberMap(raw.by_account);
+  if (!byAccount) return undefined;
+  const costByAccount = parseAccountNumberMap(raw.cost_by_account);
+  const unattributedCost = parseOptCostUsd(raw.unattributed_cost_usd);
+  return {
+    day: raw.day,
+    by_account: byAccount,
+    unattributed_tokens: raw.unattributed_tokens,
+    ...(costByAccount !== undefined ? { cost_by_account: costByAccount } : {}),
+    ...(unattributedCost !== undefined ? { unattributed_cost_usd: unattributedCost } : {}),
+  };
+};
+
+const parseUsageStats = (raw: Record<string, unknown>) => {
   if (
-    !isRec(raw) ||
-    typeof raw.day !== 'string' ||
-    !ISO_DAY.test(raw.day) ||
-    !isRec(raw.by_account) ||
-    !nonNeg(raw.unattributed_tokens)
+    !nonNeg(raw.tokens_7d) ||
+    !(raw.cost_usd_7d === null || nonNeg(raw.cost_usd_7d)) ||
+    !nonNeg(raw.run_count)
   )
     return undefined;
-  const entries = Object.entries(raw.by_account);
-  if (entries.length > 64) return undefined;
-  const byAccount: Record<string, number> = {};
-  for (const [id, tokens] of entries) {
-    if (!str(id) || UNSAFE_KEYS.has(id) || !nonNeg(tokens)) return undefined;
-    byAccount[id] = tokens;
-  }
-  return { day: raw.day, by_account: byAccount, unattributed_tokens: raw.unattributed_tokens };
+  const tokenMix = parseOptTokenMix(raw.token_mix_7d);
+  const dailyTokens = parseOptDailyTokens(raw.daily_tokens_7d);
+  return {
+    tokens_7d: raw.tokens_7d,
+    cost_usd_7d: raw.cost_usd_7d,
+    run_count: raw.run_count,
+    ...(tokenMix !== undefined ? { token_mix_7d: tokenMix } : {}),
+    ...(dailyTokens !== undefined ? { daily_tokens_7d: dailyTokens } : {}),
+  };
+};
+
+const parseModelUsage = (raw: unknown): ModelUsage7d | undefined => {
+  if (!isRec(raw) || !str(raw.provider, 64) || !str(raw.model, 128)) return undefined;
+  const accountId = optNullStr(raw.account_id);
+  const stats = parseUsageStats(raw);
+  if (accountId === false || !stats) return undefined;
+  return {
+    provider: raw.provider,
+    model: raw.model,
+    ...(accountId !== undefined ? { account_id: accountId } : {}),
+    ...stats,
+  };
+};
+
+const parseAgentUsage = (raw: unknown): AgentUsage7d | undefined => {
+  if (!isRec(raw) || !str(raw.entity, 128)) return undefined;
+  const stats = parseUsageStats(raw);
+  return stats ? { entity: raw.entity, ...stats } : undefined;
 };
 
 export const parseProviderUsageResponse = (raw: unknown): ProviderUsageSnapshot | undefined => {
@@ -210,6 +342,10 @@ export const parseProviderUsageResponse = (raw: unknown): ProviderUsageSnapshot 
     if (!day) return undefined;
     daily.push(day);
   }
+  const tokenMix = parseOptTokenMix(raw.token_mix_7d);
+  const cacheSavings = parseOptCostUsd(raw.cache_savings_usd_7d);
+  const topModels = parseOptList(raw.top_models_7d, 32, parseModelUsage);
+  const topAgents = parseOptList(raw.top_agents_7d, 32, parseAgentUsage);
   return {
     version: 1,
     request_id: raw.request_id,
@@ -219,6 +355,10 @@ export const parseProviderUsageResponse = (raw: unknown): ProviderUsageSnapshot 
     daily_7d: daily,
     unattributed_tokens_7d: raw.unattributed_tokens_7d,
     unattributed_cost_usd_7d: raw.unattributed_cost_usd_7d,
+    ...(tokenMix !== undefined ? { token_mix_7d: tokenMix } : {}),
+    ...(cacheSavings !== undefined ? { cache_savings_usd_7d: cacheSavings } : {}),
+    ...(topModels !== undefined ? { top_models_7d: topModels } : {}),
+    ...(topAgents !== undefined ? { top_agents_7d: topAgents } : {}),
   };
 };
 

@@ -161,11 +161,24 @@ test(
       `Forking from ${ALPHA_NAME}`,
       { timeout: TIMEOUT }
     );
-    const forkingDivider = column(page).getByText(`Forking ${ROOT} into ${BETA_NAME}`, {
-      exact: true,
+    await expect(column(page).locator('[data-fork-draft-banner="true"]')).toContainText('Draft', {
+      timeout: TIMEOUT,
     });
+    const forkingDivider = column(page).getByText(
+      `Draft · send a message below to fork into ${BETA_NAME}`,
+      { exact: true }
+    );
     await expect(forkingDivider).toBeVisible({ timeout: TIMEOUT });
-    await expect(placeholder(page)).toHaveText('Continue in a new thread', { timeout: TIMEOUT });
+    await expect(column(page).locator('[data-fork-divider-variant="forking"]')).toBeVisible({
+      timeout: TIMEOUT,
+    });
+    await expect(column(page).locator('[data-fork-draft-composer="true"]')).toBeVisible({
+      timeout: TIMEOUT,
+    });
+    await expect(placeholder(page)).toHaveText(
+      `Send first message to create fork in ${BETA_NAME}…`,
+      { timeout: TIMEOUT }
+    );
     await expect(rowById(page, rootId)).toBeVisible();
     await expect(rowById(page, firstId)).toBeVisible();
     await expect(rowById(page, secondId)).toBeVisible();

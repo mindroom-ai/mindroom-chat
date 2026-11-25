@@ -160,6 +160,8 @@ export const resolveLogicalDirectionSign = (element?: Element | null): 1 | -1 =>
   return 1;
 };
 
+export const SWIPE_SETTLE_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
+
 export const isReducedMotion = (): boolean => {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return false;
@@ -212,7 +214,7 @@ export const animateSwipeElements = async (
 
     const anim = element.animate(keyframes, {
       duration: durationMs,
-      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      easing: SWIPE_SETTLE_EASING,
       fill: 'forwards',
     });
     started.push({ anim, element, finalFrame });

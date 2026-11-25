@@ -39,16 +39,22 @@ import { Header as SidePanelHeader } from '../../ui/panels/SidePanel.css';
 import { useAgentProfile } from '../AgentAvatar';
 import { Failure } from '../subagentsPanel.css';
 import { WorkflowGraphView } from './WorkflowGraph';
-import {
-  isLiveWorkflowNodeStatus,
-  layoutWorkflowRunGraph,
-  nodeDisplayName,
-} from './workflowGraphModel';
+import { isLiveWorkflowNodeStatus, layoutWorkflowRunGraph } from './workflowGraphModel';
 import { WorkflowInspectorEmpty, WorkflowNodeInspector } from './WorkflowInspector';
+import { WorkflowMessagesTab } from './WorkflowMessages';
 import * as css from './workflowPanel.css';
 
 type WorkflowTab = 'flow' | 'steps' | 'messages' | 'log';
 const TABS: readonly WorkflowTab[] = ['flow', 'steps', 'messages', 'log'];
+const NARROW_SPLIT_REM = 36;
+const isNarrowSplit = (split: HTMLElement | null): boolean => {
+  if (!split) return false;
+  const rootPx =
+    typeof getComputedStyle === 'function'
+      ? Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      : 16;
+  return split.getBoundingClientRect().width < NARROW_SPLIT_REM * rootPx;
+};
 
 const OMITTED_ROWS = [
   ['queued', 'mindroomUi.workflowRun.panel.omitted.queued'],
@@ -91,25 +97,45 @@ export function WorkflowPanel({
   const now = useLiveClock(isLive);
   const [activeTab, setActiveTab] = useState<WorkflowTab>('flow');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const tabRefs = useRef<Partial<Record<WorkflowTab, HTMLButtonElement | null>>>({});
+  const splitRef = useRef<HTMLDivElement | null>(null);
+  const inspectorRef = useRef<HTMLElement | null>(null);
+  const scrollInspectorRef = useRef(false);
+  const focusInspectorRef = useRef(false);
 
   useEffect(() => {
+    scrollInspectorRef.current = false;
+    focusInspectorRef.current = false;
     setActiveTab('flow');
     setSelectedId(null);
     setErrorBanner(null);
   }, [room.roomId, run]);
 
-  const handleSelect = useCallback(
-    (id: string) => setSelectedId((cur) => (cur === id ? null : id)),
-    []
-  );
+  const handleSelect = useCallback((id: string) => {
+    const next = selectedIdRef.current === id ? null : id;
+    if (next !== null) scrollInspectorRef.current = true;
+    setSelectedId(next);
+  }, []);
+  const selectNode = useCallback((id: string) => setSelectedId(id), []);
+  const jumpToNode = useCallback((id: string) => {
+    scrollInspectorRef.current = true;
+    focusInspectorRef.current = true;
+    setSelectedId(id);
+    setActiveTab('flow');
+  }, []);
   const subagentsByRun = useMemo(
     () => new Map<string, SubagentRun>(subagentRuns.map((s) => [s.run, s])),
     [subagentRuns]
   );
+  const scriptLabel = t('mindroomUi.workflowRun.node.script');
   const graph = entry?.graph;
-  const layout = useMemo(() => (graph ? layoutWorkflowRunGraph(graph) : null), [graph]);
+  const layout = useMemo(
+    () => (graph ? layoutWorkflowRunGraph(graph, scriptLabel) : null),
+    [graph, scriptLabel]
+  );
   const staleRelative = useRelativeTime(entry?.stale ? entry.lastFrameAt : undefined);
   const agentProfile = useAgentProfile(room, entry?.agent ?? '');
   const runJob = jobs.find((job) => job.kind === 'workflow' && job.workflow === run);
@@ -120,6 +146,23 @@ export function WorkflowPanel({
     [graph?.nodes]
   );
   const selectedNode = selectedId ? nodesById.get(selectedId) : undefined;
+  useEffect(() => {
+    if (!selectedNode) return;
+    const el = inspectorRef.current;
+    if (focusInspectorRef.current && activeTab === 'flow') {
+      focusInspectorRef.current = false;
+      el?.focus({ preventScroll: true });
+    }
+    if (scrollInspectorRef.current) {
+      scrollInspectorRef.current = false;
+      if (el && isNarrowSplit(splitRef.current) && typeof el.scrollIntoView === 'function') {
+        const reducedMotion =
+          typeof window !== 'undefined' &&
+          Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+        el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+      }
+    }
+  }, [activeTab, selectedNode]);
   const selectedSessionId = selectedNode
     ? (selectedNode.session ?? (selectedNode.kind === 'session' ? selectedNode.id : null))
     : null;
@@ -136,15 +179,24 @@ export function WorkflowPanel({
   );
 
   const edges = graph?.edges ?? [];
+  const messages = graph?.messages ?? [];
   const logLines = graph?.log ?? [];
-  const messageCount = edges.reduce((sum, e) => sum + e.count, 0);
+  const edgeTotal = edges.reduce((sum, e) => sum + e.count, 0);
+  const messageCount = messages.length > 0 ? messages.length : edgeTotal;
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
   const hasOmitted = Boolean(omitted && Object.values(omitted).some(Boolean));
   const omittedSteps = omitted
     ? omitted.queued + omitted.running + omitted.waiting + omitted.completed + omitted.failed
     : 0;
+  const omittedMessages = omitted?.messages ?? 0;
   const omittedEdges = omitted?.edges ?? 0;
+  const omittedMessageTab =
+    messages.length > 0
+      ? omittedMessages
+      : edgeTotal > 0
+        ? omittedEdges
+        : omittedMessages + omittedEdges;
   const omittedLog = omitted?.log ?? 0;
   const askAgentLine = entry
     ? t('mindroomUi.workflowRun.panel.askAgent', { agent: agentProfile.name || entry.agent })
@@ -183,7 +235,7 @@ export function WorkflowPanel({
     },
     messages: {
       label: t('mindroomUi.workflowRun.node.messages'),
-      countText: tabCountText(messageCount, omittedEdges),
+      countText: tabCountText(messageCount, omittedMessageTab),
     },
     log: {
       label: t('mindroomUi.workflowRun.panel.log'),
@@ -292,7 +344,7 @@ export function WorkflowPanel({
             className={css.TabPanel}
           >
             {showSplit && (
-              <div className={css.SplitLayout}>
+              <div ref={splitRef} className={css.SplitLayout}>
                 <div className={css.Band}>
                   {layout && layout.bands.length > 0 && (
                     <WorkflowGraphView
@@ -325,9 +377,11 @@ export function WorkflowPanel({
                     }
                     nodesById={nodesById}
                     edges={edges}
+                    messages={messages}
                     now={now}
                     canStop={canStopNode}
-                    onSelect={handleSelect}
+                    inspectorRef={inspectorRef}
+                    onSelect={selectNode}
                     onStopNode={(jobId) => void stopNode(jobId)}
                   />
                 ) : (
@@ -337,49 +391,15 @@ export function WorkflowPanel({
             )}
             {(activeTab === 'flow' || activeTab === 'steps') && !showSplit && omittedNotice}
             {activeTab === 'messages' && (
-              <>
-                {edges.length > 0 ? (
-                  <ul className={css.MessageList}>
-                    {edges.map((e) => {
-                      const fromName = nodeDisplayName(nodesById, e.from);
-                      const toName = nodeDisplayName(nodesById, e.to);
-                      return (
-                        <li key={`${e.from}->${e.to}`} className={css.MessageRow}>
-                          <span dir="ltr" aria-hidden="true">
-                            <bdi>{fromName}</bdi> → <bdi>{toName}</bdi>
-                          </span>
-                          <span className={css.CountBadge} aria-hidden="true">
-                            {localDigits(String(e.count), language)}
-                          </span>
-                          <span className={css.VisuallyHidden}>
-                            {t('mindroomUi.workflowRun.node.routeTo', {
-                              from: fromName,
-                              to: toName,
-                              count: e.count,
-                            })}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  omittedEdges === 0 && (
-                    <Text size="T200" priority="300" className={css.Empty}>
-                      {t('mindroomUi.workflowRun.panel.noMessages')}
-                    </Text>
-                  )
-                )}
-                {omittedEdges > 0 && (
-                  <div className={css.InsetBox}>
-                    <Text size="T200" priority="300">
-                      {t('mindroomUi.workflowRun.panel.omittedEdges', { count: omittedEdges })}
-                    </Text>
-                    <Text size="T200" priority="300">
-                      {askAgentLine}
-                    </Text>
-                  </div>
-                )}
-              </>
+              <WorkflowMessagesTab
+                messages={messages}
+                edges={edges}
+                nodesById={nodesById}
+                omittedMessages={omittedMessages}
+                omittedEdges={omittedEdges}
+                askAgentLine={askAgentLine}
+                onJumpToNode={jumpToNode}
+              />
             )}
             {activeTab === 'log' && (
               <>

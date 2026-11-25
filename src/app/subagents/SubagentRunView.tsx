@@ -513,7 +513,7 @@ export function SubagentRunView({
             <IconButton
               size="300"
               radii="300"
-              variant="SurfaceVariant"
+              variant="Surface"
               fill="None"
               aria-label={t('threadActions.open')}
               title={t('threadActions.open')}
@@ -532,7 +532,7 @@ export function SubagentRunView({
             <IconButton
               size="300"
               radii="300"
-              variant="SurfaceVariant"
+              variant="Surface"
               fill="None"
               className={css.HeaderStop}
               aria-label={stopLabel}

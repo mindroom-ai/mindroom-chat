@@ -143,6 +143,11 @@ export type RoomViewHeaderProps = {
   pluginPanels?: readonly Pick<SidePanel, 'id' | 'label' | 'icon' | 'placement'>[];
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
+  /**
+   * Renders visually without registering shortcuts, room commands, or dialog side effects while
+   * peeking an inert room behind a sliding thread.
+   */
+  passive?: boolean;
 };
 
 // A count on a button's top end corner, out of the pointer's way, in a badge tall enough for its
@@ -255,6 +260,7 @@ export function RoomViewHeader({
   onPanelToggle,
   pluginPanels = [],
   pluginActions = [],
+  passive = false,
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -309,7 +315,7 @@ export function RoomViewHeader({
   const roomTriggers = useRoomTriggers(room);
   const { refetch: refetchRoomTriggers } = roomTriggers;
   const triggersDialog = useAtomValue(roomTriggersDialogAtom);
-  const triggersOpen = triggersDialog?.roomId === room.roomId;
+  const triggersOpen = !passive && triggersDialog?.roomId === room.roomId;
   const openTriggers = (opener?: HTMLButtonElement) => {
     store.set(roomTriggersDialogAtom, { roomId: room.roomId, opener });
   };
@@ -320,14 +326,14 @@ export function RoomViewHeader({
   useEffect(() => {
     if (triggersOpen) void refetchRoomTriggers();
   }, [triggersOpen, triggersDialog, refetchRoomTriggers]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    if (passive) return undefined;
+    return () => {
       if (store.get(roomTriggersDialogAtom)?.roomId === room.roomId) {
         store.set(roomTriggersDialogAtom, undefined);
       }
-    },
-    [room.roomId, store]
-  );
+    };
+  }, [passive, room.roomId, store]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -350,11 +356,15 @@ export function RoomViewHeader({
 
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
-  useShortcut('members', () => {
-    if (behindPanel) return false;
-    toggleMembers();
-    return true;
-  });
+  useShortcut(
+    'members',
+    () => {
+      if (behindPanel) return false;
+      toggleMembers();
+      return true;
+    },
+    !passive
+  );
   const membersLabel = membersVisible
     ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
     : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
@@ -707,7 +717,7 @@ export function RoomViewHeader({
       run: () => setShowToolCalls(!showToolCalls),
     });
   }
-  useRoomCommands(commands);
+  useRoomCommands(commands, !passive);
   const promoted = selectPhoneHeaderActions(
     slots,
     entries

@@ -243,9 +243,9 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
   // The row's title is its way there, from anywhere on the row but its buttons: here a press on
-  // its pill.
+  // its model label (the waiting pill opens approval review instead).
   await expect(child.locator('[data-job-open]')).toHaveText('List every caller of schedule_retry');
-  await child.getByText('Waiting for approval', { exact: true }).click({ force: true });
+  await child.locator('[data-job-model]').click({ force: true });
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
   // Beside the panel the bar is narrower: the columns stay.

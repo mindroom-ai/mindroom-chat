@@ -99,3 +99,14 @@ it('orders requests chronologically across different timezone offsets', () => {
     )
   ).toEqual(['$second', '$first']);
 });
+
+it('collects room-level approvals when threadId is null', () => {
+  const roomLevel = make('$room-level');
+  roomLevel.event.content!.thread_id = null;
+  const threaded = make('$threaded');
+  expect(
+    collectThreadApprovals([roomLevel, threaded], '!room:example.org', null).map(
+      (record) => record.eventId
+    )
+  ).toEqual(['$room-level']);
+});

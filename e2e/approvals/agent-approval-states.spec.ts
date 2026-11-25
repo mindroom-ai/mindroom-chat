@@ -42,6 +42,19 @@ const waitForApproval = (
     { timeout, description: `a ${status} tool approval` }
   );
 
+const hasShellToolTrace = (event: MatrixEvent): boolean => {
+  const trace = event.content['io.mindroom.tool_trace'] as { events?: unknown } | undefined;
+  return (
+    Array.isArray(trace?.events) &&
+    trace.events.some(
+      (entry) =>
+        !!entry &&
+        typeof entry === 'object' &&
+        (entry as { tool_name?: unknown }).tool_name === 'run_shell_command'
+    )
+  );
+};
+
 /** The helper's reply in the thread that made the shell call, once its call shows in the reply. */
 const waitForShellReply = (stack: AgentStack, rootId: string): Promise<MatrixEvent> =>
   waitForThreadEvent(
@@ -50,7 +63,7 @@ const waitForShellReply = (stack: AgentStack, rootId: string): Promise<MatrixEve
     (event) =>
       event.sender === stack.agents.helper &&
       event.type === 'm.room.message' &&
-      bodyOf(event).includes('run_shell_command'),
+      (hasShellToolTrace(event) || bodyOf(event).includes('run_shell_command')),
     { description: "the helper's reply with its shell call" }
   );
 

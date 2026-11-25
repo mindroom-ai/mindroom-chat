@@ -403,6 +403,7 @@ describe('presentBackgroundJobs, rich rows', () => {
         groups: [],
         nodes: [],
         edges: [],
+        messages: [],
         log: [],
         omitted: {
           queued: 0,
@@ -414,6 +415,7 @@ describe('presentBackgroundJobs, rich rows', () => {
           groups: 0,
           phases: 0,
           log: 0,
+          messages: 0,
         },
       },
       lastFrameAt: 1000,

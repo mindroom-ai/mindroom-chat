@@ -134,7 +134,7 @@ export function CanvasPanel({
                     disabled={host.locked || versions.current <= 1}
                     size="300"
                     radii="300"
-                    variant="SurfaceVariant"
+                    variant="Surface"
                     fill="None"
                   >
                     <Icon size="200" src={Icons.ChevronLeft} data-directional />
@@ -156,7 +156,7 @@ export function CanvasPanel({
                     disabled={host.locked || versions.current >= versions.total}
                     size="300"
                     radii="300"
-                    variant="SurfaceVariant"
+                    variant="Surface"
                     fill="None"
                   >
                     <Icon size="200" src={Icons.ChevronRight} data-directional />
@@ -164,6 +164,7 @@ export function CanvasPanel({
                 )}
               </IconTooltip>
             </div>
+            <span className={css.VersionSeparator} aria-hidden="true" />
           </div>
         )}
         <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
@@ -177,7 +178,7 @@ export function CanvasPanel({
                   aria-pressed={expanded}
                   size="300"
                   radii="300"
-                  variant="SurfaceVariant"
+                  variant="Surface"
                   fill="None"
                 >
                   <Icon size="200" src={expanded ? ShrinkIcon : ExpandIcon} />

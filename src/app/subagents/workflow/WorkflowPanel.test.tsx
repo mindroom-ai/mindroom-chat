@@ -36,6 +36,7 @@ const emptyOmitted = {
   groups: 0,
   phases: 0,
   log: 0,
+  messages: 0,
 };
 
 const makeNode = (id: string, overrides: Partial<WorkflowRunNode> = {}): WorkflowRunNode => ({
@@ -101,6 +102,7 @@ const makeSnapshotFrame = (
     groups: [],
     nodes: [],
     edges: [],
+    messages: [],
     log: [],
     omitted: emptyOmitted,
     ...graph,
@@ -613,6 +615,7 @@ describe('WorkflowPanel', () => {
         groups: [],
         nodes: [makeNode('n1', { label: 'Check auth', status: 'failed', error: 'Mismatch' })],
         edges: [],
+        messages: [],
         log: [],
         omitted: emptyOmitted,
       },
@@ -670,6 +673,7 @@ describe('WorkflowPanel', () => {
         groups: [],
         nodes: [makeNode('n1', { label: 'Audit auth', status: 'completed', endedAt: 1795389790 })],
         edges: [],
+        messages: [],
         log: [],
         omitted: emptyOmitted,
       },
@@ -793,7 +797,7 @@ describe('WorkflowPanel', () => {
     expect(within(turnChip()).getByText('$0.99')).toBeTruthy();
   });
 
-  it('renders nested workflow groups under their caller, translates inspector status, and disables unavailable Open', () => {
+  it('renders nested workflow groups under their caller, translates inspector status, and omits unavailable Open', () => {
     const { mx, room } = makeClient();
     const store = createStore();
     getWorkflowRunStore(mx).ingest(
@@ -835,9 +839,7 @@ describe('WorkflowPanel', () => {
     const details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
     expect(within(details).getByText('May have run')).toBeTruthy();
     expect(within(details).queryByText('indeterminate')).toBeNull();
-    expect(within(details).getByRole<HTMLButtonElement>('button', { name: 'Open' }).disabled).toBe(
-      true
-    );
+    expect(within(details).queryByRole('button', { name: 'Open' })).toBeNull();
     expect(within(details).getByText('Details are no longer available after reload.')).toBeTruthy();
   });
 
@@ -871,8 +873,10 @@ describe('WorkflowPanel', () => {
       </JotaiProvider>
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(sendEvent).not.toHaveBeenCalled();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm run again' }));
     });
     expect(sendEvent).toHaveBeenCalledWith(
       ROOM_ID,
@@ -1564,5 +1568,532 @@ describe('WorkflowPanel', () => {
     );
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Stop agent' })).toBeNull();
+  });
+
+  it('renders Messages tab text, clickable node jumps, omitted.messages, inspector messages, and send->script fallback', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'designer',
+            name: 'designer',
+            status: 'completed',
+            turns: 1,
+            endedAt: 1795389740,
+          }),
+          makeNode('n4', {
+            kind: 'turn',
+            label: 'Design pass',
+            name: 'design-turn',
+            session: 's1',
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n5', {
+            kind: 'agent',
+            label: 'Review pass',
+            name: 'reviewer',
+            status: 'completed',
+            endedAt: 1795389770,
+          }),
+        ],
+        messages: [
+          {
+            seq: 1,
+            from: null,
+            fromName: 'script',
+            to: 's1',
+            toName: 'designer',
+            text: 'Use the warm palette.',
+            sentAt: 1795389742,
+          },
+          {
+            seq: 2,
+            from: 'n4',
+            fromName: 'designer',
+            to: 'n5',
+            toName: 'reviewer',
+            text: 'Ready for review.',
+            sentAt: 1795389755,
+          },
+        ],
+        omitted: { ...emptyOmitted, messages: 4 },
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[2]!.textContent).toBe('Messages 2+');
+
+    fireEvent.click(tabs[2]!);
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(items[0]!).getByText('Use the warm palette.')).toBeTruthy();
+    expect(within(items[0]!).queryByRole('button', { name: 'script' })).toBeNull();
+    expect(items[0]!.querySelector('time')).toBeTruthy();
+    expect(within(items[1]!).getByText('Ready for review.')).toBeTruthy();
+    expect(screen.getByText('4 messages omitted.')).toBeTruthy();
+
+    // Clicking a node endpoint jumps to Flow tab and opens its Inspector with actual message snippets.
+    fireEvent.click(within(items[1]!).getByRole('button', { name: 'designer' }));
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+    const details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(details).getByText('Ready for review.')).toBeTruthy();
+    const sessionSection = details.querySelector(
+      '[data-workflow-session-messages="s1"]'
+    ) as HTMLElement;
+    expect(within(sessionSection).getByText('Use the warm palette.')).toBeTruthy();
+
+    // Clicking the peer message inside Inspector jumps to reviewer (n5).
+    fireEvent.click(within(details).getByRole('button', { name: /Ready for review\./ }));
+    expect(document.querySelector('[data-workflow-node-details="n5"]')).toBeTruthy();
+  });
+
+  it('falls back to edges with script label for send nodes and renders persisted node.preview after reload without Open', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n8', {
+            kind: 'send',
+            label: 'send -> designer',
+            name: null,
+            status: 'completed',
+            endedAt: 1795389745,
+          }),
+          makeNode('n10', {
+            kind: 'agent',
+            label: 'Design pass',
+            name: 'designer',
+            status: 'completed',
+            run: 'stale-subagent-run',
+            preview: 'Persisted redacted summary.',
+            endedAt: 1795389760,
+          }),
+        ],
+        edges: [{ from: 'n8', to: 'n10', count: 1 }],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Design pass/ }));
+    const details = document.querySelector('[data-workflow-node-details="n10"]') as HTMLElement;
+    expect(details.querySelector('pre')?.textContent).toBe('Persisted redacted summary.');
+    expect(within(details).queryByRole('button', { name: 'Open' })).toBeNull();
+    expect(
+      within(details).getByText('Full transcript is no longer available after reload.')
+    ).toBeTruthy();
+    expect(within(details).getByText('Messages from script: 1')).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole('tab')[2]!);
+    const routeItem = screen.getByRole('listitem');
+    expect(routeItem.querySelector('[dir="ltr"]')?.textContent).toBe('script → designer');
+  });
+
+  it('keeps Phase 4 spawned turns in Phase 4, puts @session in ChipMeta, uses single odd 3-item join prong, and scrolls Inspector on narrow click', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Phase 3', 'Phase 4'],
+        groups: [
+          { id: 'g3', kind: 'foreach', phase: 0, parent: null, total: 3, done: 3, failed: 0 },
+        ],
+        nodes: [
+          makeNode('n10', {
+            kind: 'session',
+            label: 'designer',
+            name: 'designer',
+            phase: 0,
+            status: 'completed',
+            turns: 2,
+            startedAt: 1795389740,
+            endedAt: 1795389740,
+          }),
+          makeNode('n11', {
+            kind: 'turn',
+            label: 'Propose hero layout',
+            phase: 0,
+            group: 'g3',
+            session: 'n10',
+            status: 'completed',
+            endedAt: 1795389750,
+          }),
+          makeNode('n12', {
+            kind: 'agent',
+            label: 'Check accessibility',
+            phase: 0,
+            group: 'g3',
+            status: 'completed',
+            endedAt: 1795389751,
+          }),
+          makeNode('n13', {
+            kind: 'agent',
+            label: 'Audit performance',
+            phase: 0,
+            group: 'g3',
+            status: 'completed',
+            endedAt: 1795389752,
+          }),
+          makeNode('n15', {
+            kind: 'turn',
+            label: 'Polish final copy',
+            phase: 1,
+            group: null,
+            session: 'n10',
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    const scrollIntoView = vi.fn();
+    let splitWidth = 420;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+      width: splitWidth,
+      height: 400,
+      top: 0,
+      left: 0,
+      right: splitWidth,
+      bottom: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }));
+    const origScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(
+        <JotaiProvider store={store}>
+          <MatrixClientProvider value={mx}>
+            <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+          </MatrixClientProvider>
+        </JotaiProvider>
+      );
+
+      // Phase 4 turn stays in Phase 4 section and redundant 0s session n10 is omitted.
+      expect(document.querySelector('[data-workflow-chip-id="n10"]')).toBeNull();
+      const phase4Heading = screen.getByRole('heading', { name: 'Phase 4' });
+      const phase4Section = phase4Heading.closest('section') as HTMLElement;
+      expect(within(phase4Section).getByRole('button', { name: /Polish final copy/ })).toBeTruthy();
+
+      // @designer badge lives in ChipMeta (2nd span child of chip), NOT inside ChipTop (1st span child).
+      const turn11 = document.querySelector('[data-workflow-chip-id="n11"]') as HTMLElement;
+      const chipTop = turn11.children[0] as HTMLElement;
+      const chipMeta = turn11.children[1] as HTMLElement;
+      expect(chipTop.textContent).not.toContain('@designer');
+      expect(chipMeta.textContent).toContain('@designer');
+
+      // 3-item For each join SVG renders a single left-to-center curve in its 2-column mid group.
+      const groupEl = document.querySelector('[data-workflow-group-id="g3"]') as HTMLElement;
+      const svgs = groupEl.querySelectorAll('svg');
+      const joinSvg = svgs[svgs.length - 1]!;
+      const twoMidGroup = joinSvg.querySelectorAll('g')[1]!;
+      const midPaths = Array.from(twoMidGroup.querySelectorAll('path'), (p) => p.getAttribute('d'));
+      expect(midPaths).toEqual(['M 25 0 C 25 9, 50 9, 50 18']);
+
+      // Clicking Phase 3 turn highlights Phase 4 sibling turn AND smoothly scrolls Inspector in narrow view.
+      fireEvent.click(turn11);
+      const turn15 = document.querySelector('[data-workflow-chip-id="n15"]') as HTMLElement;
+      expect(turn15.dataset.sessionHighlighted).toBe('true');
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+
+      // Reduced-motion preference scrolls with behavior: 'auto'.
+      scrollIntoView.mockClear();
+      const origMatchMedia = window.matchMedia;
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as typeof window.matchMedia;
+      try {
+        fireEvent.click(turn15);
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest' });
+      } finally {
+        window.matchMedia = origMatchMedia;
+      }
+
+      // Wide split (>= 36rem) does NOT scroll Inspector on click.
+      scrollIntoView.mockClear();
+      splitWidth = 720;
+      fireEvent.click(turn11);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = origScrollIntoView;
+    }
+  });
+
+  it('keeps uncovered Inspector edge links for broadcasts (to: null) and aged-out messages', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Early step',
+            name: 'early',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n2', {
+            label: 'Second step',
+            name: 'second',
+            status: 'completed',
+            endedAt: 1795389742,
+          }),
+          makeNode('n4', {
+            label: 'Backend',
+            name: 'backend',
+            status: 'completed',
+            endedAt: 1795389750,
+          }),
+          makeNode('n5', {
+            label: 'Frontend',
+            name: 'frontend',
+            status: 'completed',
+            endedAt: 1795389755,
+          }),
+        ],
+        edges: [
+          { from: 'n1', to: 'n2', count: 2 },
+          { from: 'n4', to: 'n5', count: 1 },
+        ],
+        messages: [
+          {
+            seq: 51,
+            from: 'n4',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema update.',
+            sentAt: 1795389752,
+          },
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Broadcast sender keeps both the broadcast message and its uncovered aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Backend/ }));
+    const n4Details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(n4Details).getByText('Broadcast schema update.')).toBeTruthy();
+    expect(within(n4Details).getByText('Messages to frontend: 1')).toBeTruthy();
+
+    // Recipient of broadcast still sees the uncovered incoming edge link.
+    fireEvent.click(within(n4Details).getByRole('button', { name: 'Messages to frontend: 1' }));
+    const n5Details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    expect(within(n5Details).getByText('Messages from backend: 1')).toBeTruthy();
+
+    // Early node whose messages aged out of the 50-message window still shows its aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Early step/ }));
+    const n1Details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
+    expect(within(n1Details).getByText('Messages to second: 2')).toBeTruthy();
+  });
+
+  it('computes Messages tab + suffix accurately for broadcasts, omitted messages, and edge-only fallbacks, keeps partial route counts, and focuses labeled Inspector on jump', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    const nodes = [
+      makeNode('n1', {
+        label: 'Backend',
+        name: 'backend',
+        status: 'completed',
+        endedAt: 1795389760,
+      }),
+      makeNode('n2', {
+        label: 'Frontend',
+        name: 'frontend',
+        status: 'completed',
+        endedAt: 1795389765,
+      }),
+      makeNode('n3', { label: 'QA', name: 'qa', status: 'completed', endedAt: 1795389766 }),
+    ];
+
+    // 1 broadcast message to 2 recipients (2 edges) with omitted.messages === 0 shows 'Messages 1' (no '+').
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes,
+        edges: [
+          { from: 'n1', to: 'n2', count: 1 },
+          { from: 'n1', to: 'n3', count: 1 },
+        ],
+        messages: [
+          {
+            seq: 1,
+            from: 'n1',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema.',
+            sentAt: 1795389750,
+          },
+        ],
+        omitted: emptyOmitted,
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 1');
+
+    // Broadcast + direct message to n2 (edge count 2, 1 matching preview) keeps aggregate route count 2 in n2 Inspector.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [
+              { from: 'n1', to: 'n2', count: 2 },
+              { from: 'n1', to: 'n3', count: 1 },
+            ],
+            messages: [
+              {
+                seq: 1,
+                from: 'n1',
+                fromName: 'backend',
+                to: null,
+                toName: 'all',
+                text: 'Broadcast schema.',
+                sentAt: 1795389750,
+              },
+              {
+                seq: 2,
+                from: 'n1',
+                fromName: 'backend',
+                to: 'n2',
+                toName: 'frontend',
+                text: 'Direct follow-up.',
+                sentAt: 1795389755,
+              },
+            ],
+            omitted: emptyOmitted,
+          },
+          {},
+          2
+        ),
+        Date.now() + 5
+      );
+    });
+
+    // Ordinary Flow chip click keeps focus on the clicked chip (does not steal focus to Inspector).
+    const backendChip = screen.getByRole('button', { name: /Backend/ });
+    backendChip.focus();
+    fireEvent.click(backendChip);
+    expect(document.activeElement).toBe(backendChip);
+
+    // Explicit jump from Messages tab moves focus to the labeled Inspector container.
+    fireEvent.click(screen.getAllByRole('tab')[2]!);
+    fireEvent.click(screen.getByRole('button', { name: 'frontend' }));
+    const n2Inspector = document.querySelector('[data-workflow-node-details="n2"]') as HTMLElement;
+    expect(n2Inspector.getAttribute('tabindex')).toBe('-1');
+    expect(n2Inspector.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Frontend' })).toBe(n2Inspector);
+    expect(document.activeElement).toBe(n2Inspector);
+    expect(within(n2Inspector).getByText('Direct follow-up.')).toBeTruthy();
+    expect(within(n2Inspector).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // 50 retained messages with omitted.messages === 1 renders 'Messages 50+'.
+    const fiftyMessages = Array.from({ length: 50 }, (_, i) => ({
+      seq: i + 2,
+      from: 'n1',
+      fromName: 'backend',
+      to: 'n2',
+      toName: 'frontend',
+      text: `msg-${i + 2}`,
+      sentAt: 1795389740 + i,
+    }));
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [{ from: 'n1', to: 'n2', count: 51 }],
+            messages: fiftyMessages,
+            omitted: { ...emptyOmitted, messages: 1 },
+          },
+          {},
+          3
+        ),
+        Date.now() + 10
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 50+');
+
+    // Edge-only fallback with omitted.edges === 0 and omitted.messages === 2 does not append '+'.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [{ from: 'n1', to: 'n2', count: 3 }],
+            messages: [],
+            omitted: { ...emptyOmitted, edges: 0, messages: 2 },
+          },
+          {},
+          4
+        ),
+        Date.now() + 20
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 3');
   });
 });

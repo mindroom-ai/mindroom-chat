@@ -22,6 +22,7 @@ import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
 import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
 import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
+import { ForkDraftPrefixRow } from './RoomTimeline.css';
 import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
@@ -80,7 +81,16 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
 const NOOP_SEED_PORT: ThreadSeedOpenPort = { waitForExistingOrQueued: () => undefined };
 
 export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { threadId: string }) {
-  const { room, eventId, threadId, summaryMap, onStoreThreadSummary, viewMode, forkAt } = props;
+  const {
+    room,
+    eventId,
+    threadId,
+    summaryMap,
+    onStoreThreadSummary,
+    viewMode,
+    forkAt,
+    canCompose: canComposeDraft = true,
+  } = props;
   const crossRoomForkTarget =
     props.forkTargetRoom?.roomId !== room.roomId ? props.forkTargetRoom : undefined;
   const env = useTimelineEnvironment();
@@ -733,7 +743,7 @@ export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { th
         }
       : undefined;
   const forkingDivider =
-    shownForkPoint && forkPointIndex !== undefined
+    canComposeDraft && shownForkPoint && forkPointIndex !== undefined
       ? {
           index: forkPointIndex,
           node: (
@@ -806,6 +816,7 @@ export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { th
         isHiddenByPluginId,
         forkDivider,
         forkingDivider,
+        forkDraftPrefixClassName: forkAt ? ForkDraftPrefixRow : undefined,
         turnFolds,
       }}
     />

@@ -12,6 +12,7 @@ import { useJoinedRoom } from '../../matrix/hooks/useJoinedRoom';
 import { useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { ForkIcon } from '../../messages/ForkIcon';
+import { revealDirectionControls } from '../../ui/directional';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import * as css from './ThreadForkDivider.css';
 
@@ -63,52 +64,34 @@ function JoinedThreadForkDivider({
   parent,
   root,
   summaryInfo,
-  variant,
   isCrossRoom,
-  targetRoomName,
 }: {
   parentRoom: Room;
   parent: ThreadForkRef;
   root?: MatrixEvent;
   summaryInfo?: ThreadSummaryInfo;
-  variant: 'forked' | 'forking';
   isCrossRoom: boolean;
-  targetRoomName?: string;
 }) {
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(parentRoom, parent.threadId, root, summaryInfo);
-  const parentRoomName = parentRoom.name || parentRoom.roomId;
-  const text =
-    variant === 'forking'
-      ? targetRoomName
-        ? t('threadFork.forkingIntoRoom', { title, room: targetRoomName })
-        : t('threadFork.forking', { title })
-      : isCrossRoom
-      ? t('threadFork.forkedFromInRoom', { title, room: parentRoomName })
-      : t('threadFork.forkedFrom', { title });
-  const label = (
-    <>
-      <Icon size="100" src={ForkIcon} aria-hidden="true" />
-      <Text as="span" size="L400" truncate>
-        {text}
-      </Text>
-    </>
-  );
+  const parentRoomName = revealDirectionControls(parentRoom.name || parentRoom.roomId);
+  const text = isCrossRoom
+    ? t('threadFork.forkedFromInRoom', { title, room: parentRoomName })
+    : t('threadFork.forkedFrom', { title });
   return (
-    <div className={css.Divider}>
+    <div className={css.Divider} data-fork-divider-variant="forked">
       <span className={css.Rule} aria-hidden />
-      {variant === 'forking' ? (
-        <span className={css.Label}>{label}</span>
-      ) : (
-        <button
-          type="button"
-          className={css.Link}
-          onClick={() => navigateRoomThread(parentRoom.roomId, parent.threadId, parent.eventId)}
-        >
-          {label}
-        </button>
-      )}
+      <button
+        type="button"
+        className={css.Link}
+        onClick={() => navigateRoomThread(parentRoom.roomId, parent.threadId, parent.eventId)}
+      >
+        <Icon size="100" src={ForkIcon} aria-hidden="true" />
+        <Text as="span" size="L400" truncate>
+          {text}
+        </Text>
+      </button>
       <span className={css.Rule} aria-hidden />
     </div>
   );
@@ -118,8 +101,8 @@ function JoinedThreadForkDivider({
  * The line between a fork's parent messages and its own: "Forked from <the parent's title>" (or
  * "Forked from <title> in <room>" across rooms), which opens the parent thread at the fork point,
  * or static "Forked from another room" when the parent room is not joined. In a fork draft
- * (`variant` `forking`) it sits under the fork point of the thread on screen: "Forking <its title>"
- * (or "Forking <its title> into <targetRoomName>"), which goes nowhere.
+ * (`variant` `forking`) it sits under the fork point as a dashed Warning draft boundary pointing
+ * to the composer below.
  */
 export function ThreadForkDivider({
   room,
@@ -142,17 +125,26 @@ export function ThreadForkDivider({
   const { t } = useTranslation();
   const isCrossRoom = Boolean(parent.roomId && parent.roomId !== room.roomId);
   const parentRoom = useForkParentRoom(room, parent.roomId);
-  if (!parentRoom) {
+  if (variant === 'forking' || !parentRoom) {
+    const forking = variant === 'forking';
+    const text = forking
+      ? targetRoomName
+        ? t('threadFork.forkingIntoRoom', { room: revealDirectionControls(targetRoomName) })
+        : t('threadFork.forking')
+      : t('threadFork.forkedFromAnotherRoom');
     return (
-      <div className={css.Divider}>
-        <span className={css.Rule} aria-hidden />
+      <div
+        className={forking ? css.DividerForking : css.Divider}
+        data-fork-divider-variant={forking ? 'forking' : 'forked'}
+      >
+        <span className={forking ? css.RuleForking : css.Rule} aria-hidden />
         <span className={css.Label}>
           <Icon size="100" src={ForkIcon} aria-hidden="true" />
           <Text as="span" size="L400" truncate>
-            {t('threadFork.forkedFromAnotherRoom')}
+            {text}
           </Text>
         </span>
-        <span className={css.Rule} aria-hidden />
+        <span className={forking ? css.RuleForking : css.Rule} aria-hidden />
       </div>
     );
   }
@@ -162,9 +154,7 @@ export function ThreadForkDivider({
       parent={parent}
       root={root}
       summaryInfo={summaryInfo}
-      variant={variant}
       isCrossRoom={isCrossRoom}
-      targetRoomName={targetRoomName}
     />
   );
 }

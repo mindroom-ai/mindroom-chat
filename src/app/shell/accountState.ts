@@ -20,6 +20,7 @@ import {
 import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { replacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
+import { pendingRailButtonsAtom } from '../settings/railButtons';
 import {
   pendingRoamingSettingsAtom,
   roamingAccountContentAtom,
@@ -103,6 +104,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   (store) => store.set(roomIdToTypingMembersAtom, { type: 'RESET' }),
   (store) => store.set(roomToUnreadAtom, { type: 'RESET', unreadInfos: [] }),
   toInitial(accountSettingsAtom),
+  toInitial(pendingRailButtonsAtom),
   toInitial(roamingAccountContentAtom),
   toInitial(pendingRoamingSettingsAtom),
   // Built by the pages from the account's rooms and people.
