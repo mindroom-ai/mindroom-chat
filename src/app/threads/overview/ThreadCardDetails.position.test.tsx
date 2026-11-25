@@ -101,8 +101,9 @@ it('repositions inside the viewport when a lazy-only detail grows after opening 
   const layer = document.querySelector('[data-thread-card-details]');
   const positioned = layer?.firstElementChild;
   if (!(positioned instanceof HTMLElement)) throw new Error('Details did not open');
+  const popOutPx = (value?: string) => value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
   expect(positioned.textContent).toBe('');
-  expect(positioned.style.left).toBe('970px');
+  expect(popOutPx(positioned.style.left)).toBe('970px');
 
   await act(async () => {
     resolveDetail?.({ default: Loaded });
@@ -112,8 +113,8 @@ it('repositions inside the viewport when a lazy-only detail grows after opening 
   act(() => {
     for (const observer of observers) observer.resize();
   });
-  // The 300px surface now ends at x970, instead of overflowing to x1270.
-  // jsdom's CSS parser rejects left: unset, so check the new right-edge alignment.
-  expect(positioned.style.right).toBe('30px');
-  expect(positioned.style.top).toBe('66px');
+  // The 300px surface now starts at x670 and ends at x970, instead of overflowing to x1270.
+  expect(popOutPx(positioned.style.left)).toBe('670px');
+  expect(positioned.style.right).toBe('unset');
+  expect(popOutPx(positioned.style.top)).toBe('66px');
 });

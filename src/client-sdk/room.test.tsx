@@ -319,16 +319,20 @@ describe('useOpenUserProfile, useShownUserProfile, useCloseUserProfile and UserP
     const card = screen.getByRole('dialog', { name: BOB });
     expect(card.querySelector('h2')?.textContent).toBe('Bob Builder');
     expect(card.textContent).toContain(BOB);
+    const popOutPx = (value?: string) =>
+      value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
     // Under the anchor, lined up with its start, as a mention pill's card opens.
-    expect(card.parentElement?.style.top).toBe('228px');
-    expect(card.parentElement?.style.left).toBe('100px');
+    expect(popOutPx(card.parentElement?.style.top)).toBe('228px');
+    expect(popOutPx(card.parentElement?.style.left)).toBe('100px');
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    // On the side it is given: its end 8 pixels before the anchor's start.
+    // On the side it is given: its end 8 pixels before the anchor's start (x100 - 8 = 92px).
     fireEvent.click(screen.getByRole('button', { name: 'Bob on the left' }));
-    expect(screen.getByRole('dialog', { name: BOB }).parentElement?.style.right).toBe('932px');
+    expect(popOutPx(screen.getByRole('dialog', { name: BOB }).parentElement?.style.left)).toBe(
+      '92px'
+    );
   });
 
   it('names the floating card that is open, and closes it', () => {

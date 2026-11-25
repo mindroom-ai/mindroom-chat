@@ -217,15 +217,17 @@ describe("ThreadActionsMenu's thread details", () => {
       const Loaded = () => <div data-loaded-detail>Loaded details</div>;
       const { Detail, load } = deferredDetail(Loaded);
       renderMenu(Detail, anchor);
+      const popOutPx = (value?: string) =>
+        value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
       const positioned = menu().parentElement;
       if (!positioned) throw new Error('The menu has no pop-out');
-      expect(positioned.style.top).toBe('354px');
+      expect(popOutPx(positioned.style.top)).toBe('354px');
 
       await load();
       expect(positioned.textContent).toContain('Loaded details');
       resizeSurfaces();
       // Below the trigger the 600px menu would end at y954, past the 768px viewport.
-      expect(positioned.style.top).toBe('38px');
+      expect(popOutPx(positioned.style.top)).toBe('38px');
     }
   );
 

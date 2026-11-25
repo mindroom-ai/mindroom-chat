@@ -745,8 +745,10 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         ? '[aria-label="Choose an agent to call"]'
         : '[role="dialog"][aria-label="Pinned Messages"]';
       const content = host.querySelector(selector)!;
+      const popOutPx = (value?: string) =>
+        value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
       const positioner = content.parentElement!;
-      expect(positioner.style.right).toBe('100px');
+      expect(popOutPx(positioner.style.left)).toBe('250px');
       bounds.mockReturnValue(new DOMRect(206, 10, 40, 40));
       if (isCall) {
         pins.ids = ['$pinned:example.org'];
@@ -756,7 +758,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       }
       await Promise.resolve();
       await nextFrame();
-      expect(positioner.style.right).toBe('144px');
+      expect(popOutPx(positioner.style.left)).toBe('206px');
       expect(host.querySelector(selector)).toBe(content);
       expect(host.querySelector(pinButton)).not.toBeNull();
     } finally {
@@ -1156,12 +1158,14 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         const submenu = () => host.querySelector('[role="menu"][aria-label="Notifications"]');
         const menu = submenu()!;
         if (action === 'move') {
-          expect(menu.parentElement?.style.top).toBe('10px');
+          const popOutPx = (value?: string) =>
+            value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
+          expect(popOutPx(menu.parentElement?.style.top)).toBe('10px');
           bounds.mockReturnValue(new DOMRect(250, 54, 40, 40));
           window.dispatchEvent(new Event('scroll'));
           await nextFrame();
           expect(submenu()).toBe(menu);
-          expect(menu.parentElement?.style.top).toBe('54px');
+          expect(popOutPx(menu.parentElement?.style.top)).toBe('54px');
         } else {
           const mute = Array.from(
             menu.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')

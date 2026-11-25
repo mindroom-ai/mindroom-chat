@@ -443,15 +443,18 @@ describe('RoomModelSettingTile', () => {
     });
     const { rerender } = renderTile(MODEL_DEF, createCatalog({ ...NO_CATALOG, loading: true }));
     const dialog = open();
+    const popOutPx = (value?: string) =>
+      value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
     const placed = dialog.parentElement!.parentElement!;
-    expect(placed.style.top).toBe('535px');
-    expect(placed.style.bottom).not.toBe('70px');
+    expect(popOutPx(placed.style.top)).toBe('535px');
+    expect(placed.style.bottom).toBe('unset');
 
     height = 344;
     rerender(tile(MODEL_DEF, createCatalog()));
     act(() => resized.forEach((callback) => callback()));
-    // Beside the button now, their bottom edges level, so every row is on screen.
-    expect(placed.style.bottom).toBe('70px');
+    // Beside the button now, bottom edges level at y530 (530 - 344 = 186px), so every row fits.
+    expect(popOutPx(placed.style.top)).toBe('186px');
+    expect(placed.style.bottom).toBe('unset');
     expect(screen.getByRole('dialog', { name: 'Model' })).toBe(dialog);
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
