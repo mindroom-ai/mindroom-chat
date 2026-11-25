@@ -418,6 +418,7 @@ export const renderTimelineTiles = ({
   joinsQuietMarkerRun,
   forkDivider,
   forkingDivider,
+  forkDraftPrefixClassName,
   turnFolds,
   membershipFolds,
   threadLoadOlderNode,
@@ -462,6 +463,8 @@ export const renderTimelineTiles = ({
   forkDivider?: { index: number; node: ReactNode };
   /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
   forkingDivider?: { index: number; node: ReactNode };
+  /** In a fork draft, class styling each read-only parent context row above the fork divider. */
+  forkDraftPrefixClassName?: string;
   /** The open thread's folded turns (`threadTurnFolds.ts`) and what their breaks do on a click. */
   turnFolds?: { view: ThreadTurnFoldView; toggle: (fold: ThreadTurnFold) => void };
   /** The room's folded membership runs (`membershipFolds.ts`) and what their breaks do on a click. */
@@ -603,7 +606,13 @@ export const renderTimelineTiles = ({
                 {forkDivider?.index === eventIndex && forkDivider.node}
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
-                {rendered}
+                {forkDraftPrefixClassName ? (
+                  <div className={forkDraftPrefixClassName} data-fork-draft-prefix="true">
+                    {rendered}
+                  </div>
+                ) : (
+                  rendered
+                )}
                 {forkingHere && forkingDivider.node}
               </>
             );

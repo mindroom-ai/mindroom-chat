@@ -408,6 +408,10 @@ it("opens a fork draft in the thread's column at the fork point its address name
   // The fork point is the address's event too, which the thread's view loads around.
   renderView({ eventId: '$point', forkAt: '$point' });
   expect(column()?.dataset).toMatchObject({ thread: '$thread', event: '$point', forkAt: '$point' });
+  const draftBanner = document.querySelector('[data-fork-draft-banner="true"]');
+  expect(draftBanner).not.toBeNull();
+  expect(draftBanner?.hasAttribute('data-cross-room-fork-banner')).toBe(false);
+  expect(screen.getByRole('button', { name: 'Show the thread beside the messages' })).toBeDefined();
 });
 
 it("shows the thread in its own column beside the room's messages once chosen, as it opens", () => {
@@ -603,9 +607,7 @@ it('shows a thread that is not found as such, with the way back, instead of its 
   expect(notice.getByRole('heading', { name: 'Thread not found' })).toBeDefined();
   const backButton = notice.getByRole('button', { name: 'Back' });
   backButton.focus();
-  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
-    false
-  );
+  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(false);
   expect(document.activeElement).toBe(backButton);
   fireEvent.click(backButton);
   expect(back).toHaveBeenCalledOnce();

@@ -117,6 +117,7 @@ import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
 import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
 import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
+import { ForkDraftPrefixRow } from './RoomTimeline.css';
 import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
@@ -293,6 +294,8 @@ export type RoomTimelineProps = {
   forkAt?: string;
   /** In a cross-room fork draft, the destination room that "Fork from here" and the divider target. */
   forkTargetRoom?: Room;
+  /** Whether the user can send messages in the destination room; suppresses draft compose prompts when false. */
+  canCompose?: boolean;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -390,6 +393,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadHeaderGapAbove = false,
     forkAt,
     forkTargetRoom,
+    canCompose: canComposeDraft = true,
   } = props;
   const crossRoomForkTarget =
     forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
@@ -2161,7 +2165,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       : undefined;
   // A fork draft's line under its fork point, the last row it shows.
   const forkingDivider =
-    threadId && shownForkPoint && forkPointIndex !== undefined
+    canComposeDraft && threadId && shownForkPoint && forkPointIndex !== undefined
       ? {
           index: forkPointIndex,
           node: (
@@ -2243,6 +2247,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
+    forkDraftPrefixClassName: forkAt ? ForkDraftPrefixRow : undefined,
     turnFolds,
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,

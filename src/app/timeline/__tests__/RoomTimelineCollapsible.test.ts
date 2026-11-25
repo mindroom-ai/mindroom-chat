@@ -350,6 +350,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
 
 vi.mock('../RoomTimeline.css', () => ({
   ExpandAllToggle: 'ExpandAllToggle',
+  ForkDraftPrefixRow: 'ForkDraftPrefixRow',
   FloatingAction: 'FloatingAction',
   JumpToLatestButton: 'JumpToLatestButton',
   JumpToLatestFloat: 'JumpToLatestFloat',

@@ -89,6 +89,7 @@ const {
       | undefined,
     props: undefined as
       | {
+          className?: string;
           onPaste?: (evt: {
             clipboardData: DataTransfer;
             preventDefault: () => void;
@@ -264,7 +265,7 @@ vi.mock('folds', () => {
     Tooltip: () => null,
     TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
       children(() => undefined),
-    color: { Critical: { Main: 'red' } },
+    color: { Critical: { Main: 'red' }, Warning: { Main: 'amber' } },
     config: {
       space: new Proxy(
         {},
@@ -285,6 +286,7 @@ vi.mock('../../editor/output', () => ({
 }));
 vi.mock('../../editor/Editor', () => ({
   CustomEditor: ({
+    className,
     style,
     top,
     before,
@@ -296,6 +298,7 @@ vi.mock('../../editor/Editor', () => ({
     onDrop,
     placeholder,
   }: {
+    className?: string;
     style?: React.CSSProperties;
     placeholder?: string;
     top?: React.ReactNode;
@@ -307,7 +310,15 @@ vi.mock('../../editor/Editor', () => ({
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
     onDrop?: (evt: { preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, onDrop, placeholder };
+    customEditorState.props = {
+      className,
+      onChange,
+      onKeyDown,
+      onKeyUp,
+      onPaste,
+      onDrop,
+      placeholder,
+    };
     return React.createElement(
       'div',
       { style },
@@ -4894,7 +4905,12 @@ describe('RoomInput in a fork draft', () => {
     const onRoomMessageSent = vi.fn(() => true);
     const { renderer } = await renderRoomInput(store, { forkFrom, onRoomMessageSent });
 
-    expect(customEditorState.props?.placeholder).toBe('Continue in a new thread');
+    const { ComposerForkDraft } = await import('../RoomInput.css');
+    expect(customEditorState.props?.placeholder).toBe('Send first message to create fork…');
+    expect(customEditorState.props?.className).toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
     stageComposerText('Try Porto instead');
     await submitComposer();
 
@@ -4907,6 +4923,28 @@ describe('RoomInput in a fork draft', () => {
     expect(content).not.toHaveProperty('m.relates_to');
     expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
 
+    renderer.unmount();
+  });
+
+  it('names the destination room in a cross-room fork draft placeholder and omits draft styling outside forks', async () => {
+    const store = createStore();
+    const { ComposerForkDraft } = await import('../RoomInput.css');
+    const { renderer } = await renderRoomInput(store, {
+      forkFrom: { roomId: '!source:example.org', threadId: '$parent', eventId: '$point' },
+    });
+    expect(customEditorState.props?.placeholder).toBe(
+      `Send first message to create fork in ${ROOM_ID}…`
+    );
+    expect(customEditorState.props?.className).toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
+
+    await updateRoomInput(renderer, store, { threadId: '$parent' });
+    expect(customEditorState.props?.className ?? '').not.toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(0);
     renderer.unmount();
   });
 
