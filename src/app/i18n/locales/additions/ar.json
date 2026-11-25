@@ -50,6 +50,11 @@
       "fileCount_many": "⁨{{count}}⁩ ملفًا",
       "fileCount_other": "⁨{{count}}⁩ ملف"
     },
+    "uploadCardRenderer": {
+      "compressing": "جارٍ الضغط...",
+      "useOriginal": "استخدام الأصل",
+      "compressedSize": "⁨{{originalSize}}⁩ ← ⁨{{compressedSize}}⁩"
+    },
     "passwordInput": {
       "show": "إظهار كلمة المرور",
       "hide": "إخفاء كلمة المرور"

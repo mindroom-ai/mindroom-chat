@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 個のファイル"
     },
+    "uploadCardRenderer": {
+      "compressing": "圧縮中...",
+      "useOriginal": "元ファイルを使用",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "パスワードを表示",
       "hide": "パスワードを隠す"

@@ -1,5 +1,5 @@
 import React, { createRef } from 'react';
-import { Provider, createStore } from 'jotai';
+import { Provider, atom, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createEditor, Transforms } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +24,16 @@ import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
 const diagnostics = vi.hoisted(() => ({ buildDiagnosticsExport: vi.fn() }));
+const mediaCompressMocks = vi.hoisted(() => ({
+  compressImage: vi.fn(),
+  compressVideo: vi.fn(),
+}));
+vi.mock('../lib/media/compressImage', () => ({
+  compressImage: (...args: unknown[]) => mediaCompressMocks.compressImage(...args),
+}));
+vi.mock('../lib/media/compressVideo', () => ({
+  compressVideo: (...args: unknown[]) => mediaCompressMocks.compressVideo(...args),
+}));
 vi.mock('../diagnostics/diagnosticsExport', () => diagnostics);
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
@@ -676,6 +686,148 @@ describe('attachment staging ownership', () => {
       );
     } finally {
       prepSpy.mockRestore();
+    }
+  });
+
+  it('compresses images inline on paste, tracks compressing hasSendableFiles, awaits compression in prepareForSend, cancels on remove, and updates canUseOriginal reactively', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+    mediaCompressMocks.compressImage.mockReset();
+    mediaCompressMocks.compressVideo.mockReset();
+
+    const makeSized = (name: string, type: string, size: number) => {
+      const f = new File(['x'], name, { type });
+      Object.defineProperty(f, 'size', { value: size });
+      return f;
+    };
+
+    try {
+      // 1. Inline image compression via paste on Home Ask (deferUpload: true).
+      const rawImg = makeSized('shot.png', 'image/png', 100 * 1024);
+      const compressedImg = makeSized('shot.webp', 'image/webp', 20 * 1024);
+      mediaCompressMocks.compressImage.mockResolvedValueOnce({
+        file: compressedImg,
+        originalSize: rawImg.size,
+        compressedSize: compressedImg.size,
+      });
+
+      const homeKey = 'home-compress';
+      const harness = renderHarness(async () => [], {
+        stagedListKey: homeKey,
+        deferUpload: true,
+        view: HOME_ASK_VIEW,
+        draftKey: homeKey,
+      });
+
+      await act(async () => {
+        harness.feature.onPaste({
+          clipboardData: { files: [rawImg], items: [], getData: () => '' },
+          preventDefault: vi.fn(),
+        } as never);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const stagedImg = harness.feature.access.snapshot().staged[0];
+      expect(stagedImg).toMatchObject({
+        file: compressedImg,
+        originalFile: compressedImg,
+        compression: {
+          status: 'compressed',
+          sourceFile: rawImg,
+          originalSize: rawImg.size,
+        },
+      });
+
+      // Reactive canUseOriginal updates when enrolled changes.
+      const cardBefore = harness.renderer.root.findByType(UploadCardRenderer);
+      expect(cardBefore.props.canUseOriginal).toBe(true);
+      act(() => harness.feature.access.enroll([stagedImg!]));
+      expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(false);
+      act(() => harness.feature.access.clearEnrollment([stagedImg!.file]));
+      expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
+
+      // Clean out image before testing video prepareForSend.
+      act(() => harness.feature.access.remove(ROOM_ID, [stagedImg!.file]));
+
+      // 2. Async video compression + Home Ask prepareForSend awaiting compression + encryption.
+      const rawVideo = makeSized('screen.mov', 'video/quicktime', 4 * 1024 * 1024);
+      const compressedVideo = makeSized('screen.mp4', 'video/mp4', 700 * 1024);
+      const encVideo = makeSized('screen.mp4', 'application/octet-stream', 700 * 1024);
+      let resolveVideo!: (val: unknown) => void;
+      mediaCompressMocks.compressVideo.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveVideo = resolve;
+          })
+      );
+
+      await act(async () => {
+        harness.feature.onPaste({
+          clipboardData: { files: [rawVideo], items: [], getData: () => '' },
+          preventDefault: vi.fn(),
+        } as never);
+        await Promise.resolve();
+      });
+
+      expect(harness.feature.access.snapshot().staged[0]?.compression?.status).toBe('compressing');
+      expect(harness.feature.hasSendableFiles).toBe(true);
+      expect(harness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(1);
+
+      const encRoom = makeTestRoom('!enc-home:example.org', true);
+      const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
+        {
+          file: encVideo,
+          originalFile: compressedVideo,
+          encInfo: { v: 'v2' } as never,
+          metadata: { markedAsSpoiler: false },
+        },
+      ]);
+
+      let preparedPromise!: Promise<TUploadItem[]>;
+      act(() => {
+        preparedPromise = harness.feature.prepareForSend(encRoom);
+      });
+      await act(async () => {
+        resolveVideo({
+          file: compressedVideo,
+          originalSize: rawVideo.size,
+          compressedSize: compressedVideo.size,
+        });
+        await preparedPromise;
+      });
+      const prepared = await preparedPromise;
+      expect(prepared).toHaveLength(1);
+      expect(prepared[0]).toMatchObject({
+        file: encVideo,
+        originalFile: compressedVideo,
+        encInfo: { v: 'v2' },
+        compression: { status: 'compressed', sourceFile: rawVideo, originalSize: rawVideo.size },
+      });
+      prepSpy.mockRestore();
+
+      // 3. Removing a compressing placeholder cancels compression immediately.
+      const cancelSpy = vi.fn();
+      const pendingFile = makeSized('cancel.mov', 'video/quicktime', 2 * 1024 * 1024);
+      const placeholder: TUploadItem = {
+        file: pendingFile,
+        originalFile: pendingFile,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+        compression: {
+          status: 'compressing',
+          progressAtom: atom(0.2),
+          cancel: cancelSpy,
+          done: Promise.resolve(undefined),
+        },
+      };
+      act(() => {
+        harness.feature.access.append(ROOM_ID, [placeholder]);
+        harness.feature.access.remove(ROOM_ID, [pendingFile]);
+      });
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

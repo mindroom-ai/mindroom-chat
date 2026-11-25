@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} फ़ाइल",
       "fileCount_other": "{{count}} फ़ाइलें"
     },
+    "uploadCardRenderer": {
+      "compressing": "कंप्रेस किया जा रहा है...",
+      "useOriginal": "मूल फ़ाइल उपयोग करें",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "पासवर्ड दिखाएँ",
       "hide": "पासवर्ड छिपाएँ"

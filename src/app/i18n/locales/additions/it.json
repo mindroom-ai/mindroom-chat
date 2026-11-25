@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} file",
       "fileCount_other": "{{count}} file"
     },
+    "uploadCardRenderer": {
+      "compressing": "Compressione...",
+      "useOriginal": "Usa originale",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Mostra password",
       "hide": "Nascondi password"

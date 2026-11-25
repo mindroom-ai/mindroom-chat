@@ -31,7 +31,9 @@ export const hasSendableStagedFiles = ({
   if (staged.length === 0) return false;
   const uploadByFile = new Map(uploads.map((upload) => [upload.file, upload]));
   return staged.some(
-    (item) => !item.prepError && uploadByFile.get(item.file)?.status !== UploadStatus.Error
+    (item) =>
+      item.compression?.status === 'compressing' ||
+      (!item.prepError && uploadByFile.get(item.file)?.status !== UploadStatus.Error)
   );
 };
 

@@ -16,6 +16,7 @@ import {
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
 import { confirmedVoiceThreadId } from './RoomInputExtensions';
+import * as mediaCompression from './useMediaCompression';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -312,5 +313,17 @@ describe('composerOfferAtom', () => {
     voice('~echo', true);
     expect(store.get(state)).toBe('busy');
     store.set(pendingVoiceSendDraftAtom, undefined);
+  });
+});
+
+describe('forgetComposerStateOfSession media compression cleanup', () => {
+  it('aborts active media compressions when composer session state is forgotten', () => {
+    const abortSpy = vi.spyOn(mediaCompression, 'abortAllMediaCompressions');
+    try {
+      forgetComposerStateOfSession(createStore());
+      expect(abortSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      abortSpy.mockRestore();
+    }
   });
 });

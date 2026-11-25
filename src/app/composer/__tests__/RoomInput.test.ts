@@ -4,7 +4,7 @@ import {
   threadModelContent,
   type ThreadModelContent,
 } from '../../matrix/protocol/threadModel';
-import { type Atom, Provider, createStore } from 'jotai';
+import { atom, type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
@@ -50,6 +50,17 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../matrix/matrix';
+
+const mediaCompressionMocks = vi.hoisted(() => ({
+  compressImage: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+  compressVideo: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+}));
+vi.mock('../../lib/media/compressImage', () => ({
+  compressImage: (...args: unknown[]) => mediaCompressionMocks.compressImage(...args),
+}));
+vi.mock('../../lib/media/compressVideo', () => ({
+  compressVideo: (...args: unknown[]) => mediaCompressionMocks.compressVideo(...args),
+}));
 
 vi.mock('idb', async (importOriginal) => {
   const actual = await importOriginal<typeof idb>();
@@ -897,13 +908,14 @@ const createDeferred = <T>() => {
 
 const createUploadItem = (
   file: File,
-  options: Partial<Pick<TUploadItem, 'metadata' | 'prepError'>> = {}
+  options: Partial<Pick<TUploadItem, 'metadata' | 'prepError' | 'compression'>> = {}
 ): TUploadItem => ({
   file,
   originalFile: file,
   encInfo: undefined,
   metadata: options.metadata ?? { markedAsSpoiler: false },
   ...(options.prepError ? { prepError: options.prepError } : {}),
+  ...(options.compression ? { compression: options.compression } : {}),
 });
 
 const stageUploadItems = (
@@ -5724,6 +5736,132 @@ describe("RoomInput as Home's ask field", () => {
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(3);
     expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
+  });
+});
+
+describe('RoomInput media compression send and voice invariants', () => {
+  const makeSizedFile = (name: string, type: string, size: number) => {
+    const file = new File(['v'], name, { type });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  };
+
+  afterEach(() => {
+    mediaCompressionMocks.compressImage.mockReset();
+    mediaCompressionMocks.compressImage.mockResolvedValue(undefined);
+    mediaCompressionMocks.compressVideo.mockReset();
+    mediaCompressionMocks.compressVideo.mockResolvedValue(undefined);
+    vi.unstubAllGlobals();
+  });
+
+  it('waits for compressing video on Send, sends video before caption, and queues follow-up text behind it', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
+
+    const rawVideo = makeSizedFile('demo.mov', 'video/quicktime', 4 * 1024 * 1024);
+    const compressedVideo = makeSizedFile('demo.mp4', 'video/mp4', 600 * 1024);
+    const videoGate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mediaCompressionMocks.compressVideo.mockImplementationOnce(() => videoGate.promise);
+
+    await act(async () => {
+      fileInputState.onDrop?.([rawVideo]);
+      await Promise.resolve();
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]?.compression?.status).toBe(
+      'compressing'
+    );
+
+    // User types caption and hits Send while video is still compressing.
+    stageComposerText('First caption');
+    resetEditorOnNextSend();
+    const uploadDeferred = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(uploadDeferred.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$vid-evt' })
+      .mockResolvedValueOnce({ event_id: '$cap-evt' })
+      .mockResolvedValueOnce({ event_id: '$follow-evt' });
+
+    let firstSubmit!: Promise<void>;
+    await act(async () => {
+      firstSubmit = submitComposer();
+      await Promise.resolve();
+    });
+    // Nothing uploaded or sent yet while compression is in flight.
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    // User types a follow-up message and hits Send before compression finishes: must NOT overtake video!
+    stageComposerText('Follow-up text');
+    resetEditorOnNextSend();
+    let secondSubmit!: Promise<void>;
+    await act(async () => {
+      secondSubmit = submitComposer();
+      await Promise.resolve();
+    });
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    // Compression finishes -> starts uploading compressed video -> send order: video, caption, follow-up!
+    await act(async () => {
+      videoGate.resolve({
+        file: compressedVideo,
+        originalSize: rawVideo.size,
+        compressedSize: compressedVideo.size,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    expect(mxState.uploadContent.mock.calls[0]![0]).toBe(compressedVideo);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      uploadDeferred.resolve({ content_uri: 'mxc://mindroom/compressed-vid' });
+      await Promise.all([firstSubmit, secondSubmit]);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(3));
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['demo.mp4', 'First caption', 'Follow-up text']);
+
+    renderer.unmount();
+  });
+
+  it('ignores compressing placeholders during voice send so unencrypted placeholders are never grabbed', async () => {
+    const store = createStore();
+    const rawVideo = makeSizedFile('unready.mov', 'video/quicktime', 3 * 1024 * 1024);
+    const placeholder = createUploadItem(rawVideo, {
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.4),
+        cancel: vi.fn(),
+        done: new Promise(() => {}),
+      },
+    });
+    stageUploadItems(store, [placeholder]);
+
+    const { renderer } = await renderRoomInput(store, { encryptedRoom: true });
+    await openVoiceRecorder(renderer);
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 420);
+    await submitComposer();
+
+    // Only the voice recording was uploaded and sent; the compressing placeholder stayed staged.
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['voice.m4a']);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([placeholder]);
+
     renderer.unmount();
   });
 });

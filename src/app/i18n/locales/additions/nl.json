@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} bestand",
       "fileCount_other": "{{count}} bestanden"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimeren...",
+      "useOriginal": "Origineel gebruiken",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Wachtwoord tonen",
       "hide": "Wachtwoord verbergen"

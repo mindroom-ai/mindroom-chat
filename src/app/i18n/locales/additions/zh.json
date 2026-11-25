@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 个文件"
     },
+    "uploadCardRenderer": {
+      "compressing": "正在压缩...",
+      "useOriginal": "使用原文件",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "显示密码",
       "hide": "隐藏密码"

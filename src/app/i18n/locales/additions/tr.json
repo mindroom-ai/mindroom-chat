@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} dosya",
       "fileCount_other": "{{count}} dosya"
     },
+    "uploadCardRenderer": {
+      "compressing": "Sıkıştırılıyor...",
+      "useOriginal": "Orijinali kullan",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Parolayı göster",
       "hide": "Parolayı gizle"

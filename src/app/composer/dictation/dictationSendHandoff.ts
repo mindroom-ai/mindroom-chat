@@ -13,7 +13,7 @@ import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
 import { listSessions } from '../../matrix/session/sessions';
-import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
+import { isUploadItemReady, UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
@@ -210,7 +210,11 @@ export const handoffComposerDictationSend = (
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
   const { staged, enrolled } = attachments.snapshot();
   const enrolledFiles = new Set(enrolled.map((item) => item.file));
-  const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
+  const stagedSnapshot = staged.filter(
+    (item) =>
+      (params.prepareAttachmentsForSend ? !item.prepError : isUploadItemReady(item)) &&
+      !enrolledFiles.has(item.file)
+  );
   const rootModel =
     !ask &&
     !params.forkFrom &&
@@ -412,7 +416,27 @@ export const startDetachedDictationSend = (
           [MID_TURN_MODE_KEY]: input.midTurnMode,
         }
       : undefined;
-    const activeStaged = getActiveStaged();
+    const hasCompressingSnapshot = input.stagedSnapshot.some(
+      (item) => item.compression?.status === 'compressing'
+    );
+    const activeStaged = hasCompressingSnapshot
+      ? (
+          await Promise.all(
+            input.stagedSnapshot.map((item) =>
+              item.compression?.status === 'compressing' ? item.compression.done : item
+            )
+          )
+        )
+          .map((item) => {
+            if (!item) return undefined;
+            if (!input.tracksEnrollment) return !item.prepError ? item : undefined;
+            const live = attachments
+              .snapshot(roomId)
+              .enrolled.find((entry) => entry.file === item.file);
+            return live && !live.prepError ? live : undefined;
+          })
+          .filter((item): item is TUploadItem => item !== undefined)
+      : getActiveStaged();
     if (!textContent && activeStaged.length === 0) {
       restoreDraftAndCleanup(input.docSnapshot);
       deleteJournal();

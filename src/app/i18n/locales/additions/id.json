@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} file"
     },
+    "uploadCardRenderer": {
+      "compressing": "Mengompresi...",
+      "useOriginal": "Gunakan asli",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Tampilkan kata sandi",
       "hide": "Sembunyikan kata sandi"

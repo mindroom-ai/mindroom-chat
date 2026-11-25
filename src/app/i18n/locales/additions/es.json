@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} archivos",
       "fileCount_other": "{{count}} archivos"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimiendo...",
+      "useOriginal": "Usar original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Mostrar contraseña",
       "hide": "Ocultar contraseña"

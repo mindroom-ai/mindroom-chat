@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "파일 {{count}}개"
     },
+    "uploadCardRenderer": {
+      "compressing": "압축 중...",
+      "useOriginal": "원본 사용",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "비밀번호 표시",
       "hide": "비밀번호 숨기기"

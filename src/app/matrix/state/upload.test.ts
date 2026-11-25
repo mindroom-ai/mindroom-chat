@@ -3,7 +3,8 @@ import { Provider, createStore } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { createUploadAtom, UploadStatus, useBindUploadAtom } from './upload';
+import { atom } from 'jotai';
+import { createUploadAtom, isUploadItemReady, UploadStatus, useBindUploadAtom } from './upload';
 
 describe('useBindUploadAtom', () => {
   it('blocks guarded upload starts without calling Matrix uploadContent', async () => {
@@ -38,5 +39,42 @@ describe('useBindUploadAtom', () => {
       status: UploadStatus.Error,
       error: blockUploadError,
     });
+  });
+});
+
+describe('isUploadItemReady', () => {
+  it('returns false for prepError or compressing items and true for ready/compressed/original items', () => {
+    const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+    const base = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    expect(isUploadItemReady(base)).toBe(true);
+    expect(
+      isUploadItemReady({
+        ...base,
+        compression: { status: 'compressed', sourceFile: file, originalSize: 100 },
+      })
+    ).toBe(true);
+    expect(isUploadItemReady({ ...base, compression: { status: 'original' } })).toBe(true);
+    expect(
+      isUploadItemReady({
+        ...base,
+        prepError: new MatrixError({ errcode: 'M_UNKNOWN', error: 'prep failed' }),
+      })
+    ).toBe(false);
+    expect(
+      isUploadItemReady({
+        ...base,
+        compression: {
+          status: 'compressing',
+          progressAtom: atom(0.5),
+          cancel: vi.fn(),
+          done: Promise.resolve(undefined),
+        },
+      })
+    ).toBe(false);
   });
 });
