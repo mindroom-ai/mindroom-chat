@@ -1,4 +1,5 @@
 // @ts-check
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,3 +41,20 @@ if (!fs.existsSync(distDir)) {
   throw new Error(`Missing built web bundle at ${distDir}: run \`npm run build:ios\` first`);
 }
 fs.writeFileSync(path.join(distDir, 'canvas-frame.html'), CANVAS_FRAME_HTML, 'utf8');
+
+if (process.platform === 'darwin' && process.env.MINDROOM_SKIP_TRACKPAD_ADDON_BUILD !== '1') {
+  const addonOut = path.join(root, 'build/electron/mindroom-trackpad-swipe.node');
+  const inputs = [
+    path.join(root, 'electron/native/trackpad_swipe.mm'),
+    path.join(root, 'scripts/build-trackpad-swipe-addon.sh'),
+    path.join(root, 'node_modules/node-api-headers/include/node_api.h'),
+  ];
+  const outMtime = fs.existsSync(addonOut) ? fs.statSync(addonOut).mtimeMs : 0;
+  const stale = inputs.some((file) => !fs.existsSync(file) || fs.statSync(file).mtimeMs > outMtime);
+  if (stale) {
+    execFileSync('bash', [path.join(root, 'scripts/build-trackpad-swipe-addon.sh')], {
+      cwd: root,
+      stdio: 'inherit',
+    });
+  }
+}

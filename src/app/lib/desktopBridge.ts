@@ -6,7 +6,7 @@ export type DesktopShellEvent =
   | { type: 'window-focus'; focused: boolean }
   | { type: 'update-status' }
   | { type: 'swipe-tracking'; enabled: boolean }
-  | { type: 'scroll-gesture'; phase: 'begin' | 'end' }
+  | { type: 'scroll-gesture'; phase: 'begin' | 'end' | 'cancel' }
   | { type: 'swipe'; direction: 'left' | 'right' };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };

@@ -27,6 +27,7 @@ on:
     paths:
       - electron/**
       - scripts/build-desktop-app.sh
+      - scripts/build-trackpad-swipe-addon.sh
       - scripts/desktop-latest-yml.mjs
       - scripts/macos-dmg/**
       - scripts/macos-publish-appcast.sh
@@ -34,6 +35,7 @@ on:
       - src/app/lib/nativeShell.ts
       - src/app/lib/hooks/useDocumentFocusChange.ts
       - src/app/native/**
+      - src/app/navigation/desktopHistorySwipe*
       - src/app/quick-capture/**
       - src/app/composer/voice/liveVoiceRecording.ts
       - src/app/shortcuts/shortcuts.ts

@@ -71,7 +71,7 @@ build_screenshot_helper() {
 }
 
 verify_signed_artifacts() {
-  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app helper
+  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app helper addon addon_archs
   require_files "$dmg" "$arm64_zip" "$x64_zip"
 
   verify_codesign_identity "$dmg" 0
@@ -89,8 +89,14 @@ verify_signed_artifacts() {
     [[ -d "$app" ]] || die "Unpacked $arch ZIP does not contain MindRoom Chat.app: $zip"
     helper="$app/Contents/Resources/mindroom-screenshot-helper"
     [[ -s "$helper" ]] || die "Unpacked $arch app is missing screenshot helper: $helper"
+    addon="$app/Contents/Resources/mindroom-trackpad-swipe.node"
+    [[ -s "$addon" ]] || die "Unpacked $arch app is missing trackpad swipe addon: $addon"
+    addon_archs=$(lipo -archs "$addon")
+    [[ " $addon_archs " == *" arm64 "* && " $addon_archs " == *" x86_64 "* ]] \
+      || die "Unpacked $arch trackpad swipe addon is not universal (arm64 + x86_64): $addon_archs"
     verify_codesign_identity "$app" 1
     verify_codesign_identity "$helper" 1
+    verify_codesign_identity "$addon" 0
     xcrun stapler validate "$app"
     spctl --assess --type execute "$app"
   done
@@ -121,8 +127,9 @@ expected_outputs=(
 
 if [[ "$mode" == "unsigned" ]]; then
   rm -rf "$out_dir"
-  npm run build:desktop
+  MINDROOM_SKIP_TRACKPAD_ADDON_BUILD=1 npm run build:desktop
   build_screenshot_helper
+  bash scripts/build-trackpad-swipe-addon.sh
   CSC_IDENTITY_AUTO_DISCOVERY=false MINDROOM_DESKTOP_SIGN=0 \
     npx electron-builder --mac --config electron/builder.config.cjs --publish never
   require_files "${expected_outputs[@]}"
@@ -145,8 +152,9 @@ notary_password=$APPLE_APP_SPECIFIC_PASSWORD
 unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
 
 rm -rf "$out_dir"
-npm run build:desktop
+MINDROOM_SKIP_TRACKPAD_ADDON_BUILD=1 npm run build:desktop
 build_screenshot_helper
+bash scripts/build-trackpad-swipe-addon.sh
 
 # electron-builder 26.18.0 rejects CSC_NAME values that begin with
 # "Developer ID Application:", so pass the identity suffix after that prefix.
