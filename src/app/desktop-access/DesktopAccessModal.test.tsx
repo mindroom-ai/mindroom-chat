@@ -769,6 +769,66 @@ describe('DesktopAccessModal', () => {
     });
   });
 
+  it('keeps shell-only initial GUI choice as Observe only even when controller has Full Access consent and preserves allowedAppIds=[] on immediate save', async () => {
+    const shellOnlyWithFullConsent = makeSnapshot({
+      allowedAppIds: [],
+      fileRoots: [],
+      shellEnabled: true,
+      controllers: [
+        {
+          controller_key: 'ctrl:code',
+          user_id: '@mindroom_code:example.org',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:example.org'],
+          allowed_agent_names: ['code'],
+        },
+      ],
+      consent: { 'ctrl:code': { mode: 'full', grantedAt: 1000, agentName: 'code' } },
+    });
+    const access = makeDesktopAccessMock(shellOnlyWithFullConsent);
+    vi.mocked(access.updateLimits).mockResolvedValueOnce({
+      ok: true,
+      value: shellOnlyWithFullConsent,
+    });
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      agentUserId: '@mindroom_code:example.org',
+      agentName: 'code',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+
+    expect(
+      within(perAgentSection)
+        .getByRole('radio', { name: 'Observe only' })
+        .getAttribute('aria-checked')
+    ).toBe('true');
+    expect(
+      within(sharedSection)
+        .getByRole('switch', { name: 'Full screen (primary-screen)' })
+        .getAttribute('aria-checked')
+    ).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save limits' }));
+    await waitFor(() => {
+      expect(access.updateLimits).toHaveBeenCalledWith({
+        controllerKey: 'ctrl:code',
+        agentName: 'code',
+        mode: 'restricted',
+        allowedAppIds: [],
+        fileRoots: [],
+        shellEnabled: true,
+        shellAutoApproveUntilRevoked: true,
+      });
+    });
+  });
+
   it('passes stored controller allowed_agent_names[0] when disconnecting a namespaced agent', async () => {
     const paired = makeSnapshot({
       controllers: [

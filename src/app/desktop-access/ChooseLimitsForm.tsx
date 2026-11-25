@@ -43,6 +43,10 @@ const initialGuiChoice = (
   controllerKey?: string
 ): GuiControlChoice => {
   if (!controllerKey) return 'observe';
+  const config = snapshot?.status?.config;
+  if (config?.state === 'ready' && config.enabled && config.allowed_app_ids.length === 0) {
+    return 'observe';
+  }
   if (isControllerFullAccess(snapshot, controllerKey)) return 'full';
   const auth = snapshot?.status?.authority.controllers[controllerKey];
   if (auth?.control_available && auth.lease_remaining_seconds > 1200) return '1h';
