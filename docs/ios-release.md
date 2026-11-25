@@ -116,7 +116,7 @@ The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and 
 
 `scripts/android-ci-version.mjs` maps each calendar release tag `vYYYY.M.N` to `versionName = YYYY.M.N` and `versionCode = (year - 2000) * 1_000_000 + month * 10_000 + n` (for example, `v2026.11.424` -> `26110424`). Starting in `26110xxx` guarantees every calver release sits strictly above the highest legacy Google Play `versionCode` (`4120899`, from `v4.12.6-mindroom.299`) while staying strictly monotonic across `n` (`0..9999`), month, and year rollovers up to Google Play's `2_100_000_000` limit.
 
-Publishing requires five repository secrets — `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — and setting the repository variable `ANDROID_PLAY_PUBLISH=true` enables automatic `internal` track uploads from `.github/workflows/release.yml`.
+Publishing requires five repository secrets — `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — and setting the repository variable `ANDROID_PLAY_PUBLISH=true` enables automatic `internal` track uploads from `.github/workflows/release.yml`. Manual `alpha` dispatch is for tags not yet uploaded to Play (promote an already-uploaded `internal` release in Play Console instead of re-uploading the same `versionCode`), and only tags containing `scripts/android-ci-version.mjs` can be built by `android.yml`.
 
 ## Moving the App Store app to this repository
 

@@ -199,6 +199,15 @@ jobs:
       - name: Compute Android version metadata
         id: version
         run: node scripts/android-ci-version.mjs "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Build web bundle
+        env:
+          MINDROOM_BUILD_VERSION: ${{ inputs.tag }}
+          MINDROOM_RELEASE_VERSION: ${{ inputs.tag }}
+        run: npm run build:android
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+      - name: Verify synced web assets
+        run: test -s android/app/src/main/assets/public/config.json
       - name: Configure Android upload keystore
         env:
           ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -232,14 +241,6 @@ jobs:
             fs.writeFileSync(process.env.PROPS_PATH, `${lines.join("\n")}\n`, { mode: 0o600 });
           '
           chmod 600 "$props"
-      - name: Build web bundle
-        env:
-          MINDROOM_RELEASE_VERSION: ${{ inputs.tag }}
-        run: npm run build:android
-      - name: Sync Capacitor Android project
-        run: npx cap sync android
-      - name: Verify synced web assets
-        run: test -s android/app/src/main/assets/public/config.json
       - name: Build signed release AAB
         working-directory: android
         env:
