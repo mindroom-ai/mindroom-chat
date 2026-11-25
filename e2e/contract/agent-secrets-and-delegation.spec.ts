@@ -40,7 +40,7 @@ test('saves discovered server in Settings and completes a secret request round t
     await expect(settingsDialog.getByText('Server in use', { exact: true })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(settingsDialog.getByText(stack.apiUrl, { exact: true })).toBeVisible({
+    await expect(settingsDialog.getByText(stack.apiUrl, { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
 
