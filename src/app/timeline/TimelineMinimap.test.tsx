@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
+import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { TimelineMinimap } from './TimelineMinimap';
+import { TimelineMinimap, useTimelineMinimapInView } from './TimelineMinimap';
+import {
+  TIMELINE_MINIMAP_MAX_SLOTS,
+  TimelineMinimapItem,
+  resolveTimelineMinimapSlotIndex,
+} from './timelineMinimapViewModel';
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 const ITEMS = [
@@ -12,6 +19,13 @@ const ITEMS = [
   { id: '$b', userText: 'Second turn', agentText: 'Second reply' },
   { id: '$c', userText: 'Third turn', agentText: 'Third reply' },
 ];
+
+const makeItems = (count: number): TimelineMinimapItem[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `$m${index}`,
+    userText: `Turn ${index + 1}`,
+    agentText: `Reply ${index + 1}`,
+  }));
 
 const mockRailRect = (rail: HTMLElement) => {
   rail.getBoundingClientRect = () =>
@@ -313,5 +327,158 @@ describe('TimelineMinimap', () => {
 
     fireEvent.pointerUp(rail, { ...p, clientX: 8, clientY: 200 });
     expect(selectionBlocked()).toBe(false);
+  });
+
+  it('toggles data-expanded on hover, drag, focus, blur, and pointer leave', () => {
+    render(<TimelineMinimap items={ITEMS} stripMap={new Map()} onSelect={vi.fn()} />);
+    const rail = screen.getByRole('slider');
+    mockRailRect(rail);
+
+    expect(rail.getAttribute('data-expanded')).toBe('false');
+
+    fireEvent.pointerMove(rail, { pointerId: 1, isPrimary: true, buttons: 0, clientY: 150 });
+    expect(rail.getAttribute('data-expanded')).toBe('true');
+    fireEvent.pointerLeave(rail, { pointerId: 1 });
+    expect(rail.getAttribute('data-expanded')).toBe('false');
+
+    fireEvent.focus(rail);
+    expect(rail.getAttribute('data-expanded')).toBe('true');
+    fireEvent.blur(rail);
+    expect(rail.getAttribute('data-expanded')).toBe('false');
+
+    const p = { pointerId: 2, isPrimary: true, button: 0, buttons: 1 };
+    fireEvent.pointerDown(rail, { ...p, clientX: 8, clientY: 100 });
+    expect(rail.getAttribute('data-expanded')).toBe('true');
+    fireEvent.pointerUp(rail, { ...p, clientX: 120, clientY: 100 });
+    expect(rail.getAttribute('data-expanded')).toBe('false');
+  });
+
+  it('caps rendered stripes at 44, shows position counter only when bucketed, and scrubs exact items', () => {
+    const onSelect = vi.fn();
+    const onScrub = vi.fn();
+    const stripMap = new Map<string, HTMLSpanElement>();
+    const exactCapItems = makeItems(TIMELINE_MINIMAP_MAX_SLOTS);
+    const { container, rerender } = render(
+      <TimelineMinimap
+        items={exactCapItems}
+        stripMap={stripMap}
+        onSelect={onSelect}
+        onScrub={onScrub}
+      />
+    );
+    const rail = screen.getByRole('slider');
+    mockRailRect(rail);
+
+    expect(container.querySelectorAll('[data-minimap-strip]')).toHaveLength(
+      TIMELINE_MINIMAP_MAX_SLOTS
+    );
+    fireEvent.focus(rail);
+    expect(screen.getByText('Turn 1')).toBeTruthy();
+    expect(screen.queryByText(`1 / ${TIMELINE_MINIMAP_MAX_SLOTS}`)).toBeNull();
+    fireEvent.blur(rail);
+
+    const largeItems = makeItems(200);
+    rerender(
+      <TimelineMinimap
+        items={largeItems}
+        stripMap={stripMap}
+        onSelect={onSelect}
+        onScrub={onScrub}
+      />
+    );
+    expect(container.querySelectorAll('[data-minimap-strip]')).toHaveLength(
+      TIMELINE_MINIMAP_MAX_SLOTS
+    );
+    expect(stripMap.size).toBe(TIMELINE_MINIMAP_MAX_SLOTS);
+    expect(rail.getAttribute('aria-valuemax')).toBe('199');
+    expect(rail.style.height).toContain('344px');
+
+    const p = { pointerId: 4, isPrimary: true, button: 0, buttons: 1 };
+    fireEvent.pointerDown(rail, { ...p, clientX: 8, clientY: 100 });
+    expect(onSelect).toHaveBeenCalledWith(largeItems[0]);
+    expect(screen.getByText('1 / 200')).toBeTruthy();
+
+    fireEvent.pointerMove(rail, { ...p, clientX: 8, clientY: 150 });
+    expect(onScrub).toHaveBeenLastCalledWith(largeItems[100]);
+    expect(screen.getByText('101 / 200')).toBeTruthy();
+    expect(screen.getByText('Turn 101')).toBeTruthy();
+
+    fireEvent.pointerMove(rail, { ...p, clientX: 8, clientY: 200 });
+    expect(onScrub).toHaveBeenLastCalledWith(largeItems[199]);
+    expect(screen.getByText('200 / 200')).toBeTruthy();
+    expect(screen.getByText('Turn 200')).toBeTruthy();
+
+    fireEvent.pointerUp(rail, { ...p, clientX: 120, clientY: 200 });
+    expect(screen.queryByText('200 / 200')).toBeNull();
+
+    fireEvent.focus(rail);
+    fireEvent.keyDown(rail, { key: 'ArrowDown' });
+    expect(screen.getByText('2 / 200')).toBeTruthy();
+    fireEvent.keyDown(rail, { key: 'End' });
+    expect(screen.getByText('200 / 200')).toBeTruthy();
+  });
+
+  it('lights up the bucketed slot when a member item is in view and clears it when scrolled away', () => {
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      rafQueue.push(callback);
+      return rafQueue.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    const flushRaf = () => {
+      while (rafQueue.length > 0) {
+        rafQueue.shift()!(0);
+      }
+    };
+
+    const items = makeItems(200);
+    let scrollOffset = 10000;
+
+    function InViewHarness() {
+      const scrollRef = useRef<HTMLDivElement>(null);
+      const [stripMap] = useState(() => new Map<string, HTMLSpanElement>());
+      useTimelineMinimapInView(scrollRef, items, stripMap, true);
+      return (
+        <>
+          <div ref={scrollRef} data-testid="scroll-root">
+            {items.map((item) => (
+              <div key={item.id} data-message-id={item.id} />
+            ))}
+          </div>
+          <TimelineMinimap items={items} stripMap={stripMap} onSelect={vi.fn()} />
+        </>
+      );
+    }
+
+    const { container } = render(<InViewHarness />);
+    const scrollRoot = screen.getByTestId('scroll-root');
+    scrollRoot.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 100, left: 0, right: 400, width: 400, height: 100 }) as DOMRect;
+    scrollRoot.querySelectorAll<HTMLElement>('[data-message-id]').forEach((node, index) => {
+      node.getBoundingClientRect = () =>
+        ({
+          top: index * 100 - scrollOffset,
+          bottom: (index + 1) * 100 - scrollOffset,
+          left: 0,
+          right: 400,
+          width: 400,
+          height: 100,
+        }) as DOMRect;
+    });
+
+    const strips = Array.from(container.querySelectorAll<HTMLSpanElement>('[data-minimap-strip]'));
+    const midSlot = resolveTimelineMinimapSlotIndex(100, items.length, TIMELINE_MINIMAP_MAX_SLOTS);
+    const lastSlot = TIMELINE_MINIMAP_MAX_SLOTS - 1;
+
+    flushRaf();
+    expect(strips[midSlot]?.dataset.inView).toBe('true');
+    expect(strips[0]?.dataset.inView).toBe('false');
+    expect(strips[lastSlot]?.dataset.inView).toBe('false');
+
+    scrollOffset = 19900;
+    fireEvent.scroll(scrollRoot);
+    flushRaf();
+    expect(strips[midSlot]?.dataset.inView).toBe('false');
+    expect(strips[lastSlot]?.dataset.inView).toBe('true');
   });
 });

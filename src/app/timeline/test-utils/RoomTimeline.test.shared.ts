@@ -658,6 +658,7 @@ vi.mock('../TimelineMinimap.css', () => ({
     Active: 'MinimapStripActive',
   },
   MinimapPreviewCard: 'MinimapPreviewCard',
+  MinimapPreviewMeta: 'MinimapPreviewMeta',
   MinimapPreviewTitle: 'MinimapPreviewTitle',
   MinimapPreviewBody: 'MinimapPreviewBody',
 }));

@@ -13,10 +13,13 @@ import {
 } from 'react';
 import { blockSelection } from '../ui/dragSelection';
 import {
+  TIMELINE_MINIMAP_MAX_SLOTS,
   TIMELINE_MINIMAP_MIN_ITEMS,
   TimelineMinimapItem,
   resolveTimelineMinimapHeightStyle,
   resolveTimelineMinimapIndexFromPointer,
+  resolveTimelineMinimapSlotCount,
+  resolveTimelineMinimapSlotIndex,
   resolveTimelineMinimapTopPercent,
 } from './timelineMinimapViewModel';
 import * as css from './TimelineMinimap.css';
@@ -43,7 +46,11 @@ export const useTimelineMinimapInView = (
     const scrollElement = scrollRef.current;
     if (!enabled || !scrollElement || items.length < TIMELINE_MINIMAP_MIN_ITEMS) return undefined;
 
-    const itemIds = new Set(items.map((item) => item.id));
+    const slotCount = resolveTimelineMinimapSlotCount(items.length);
+    const itemSlotById = new Map<string, number>();
+    items.forEach((item, index) => {
+      itemSlotById.set(item.id, resolveTimelineMinimapSlotIndex(index, items.length, slotCount));
+    });
     let frame = 0;
     const update = () => {
       frame = 0;
@@ -55,25 +62,26 @@ export const useTimelineMinimapInView = (
       const anchors: { id: string; top: number }[] = [];
       scrollElement.querySelectorAll<HTMLElement>('[data-message-id]').forEach((element) => {
         const messageId = element.getAttribute('data-message-id');
-        if (messageId && itemIds.has(messageId)) {
+        if (messageId && itemSlotById.has(messageId)) {
           anchors.push({ id: messageId, top: element.getBoundingClientRect().top });
         }
       });
       anchors.sort((a, b) => a.top - b.top);
-      const inViewIds = new Set<string>();
+      const inViewSlots = new Set<number>();
       anchors.forEach((anchor, index) => {
         const rangeEnd =
           index + 1 < anchors.length ? anchors[index + 1]!.top : Number.POSITIVE_INFINITY;
         if (rangeEnd > containerRect.top && anchor.top < containerRect.bottom) {
-          inViewIds.add(anchor.id);
+          const slotIndex = itemSlotById.get(anchor.id);
+          if (slotIndex !== undefined) inViewSlots.add(slotIndex);
         }
       });
-      items.forEach((item) => {
-        const strip = stripMap.get(item.id);
-        if (!strip) return;
-        const next = inViewIds.has(item.id) ? 'true' : 'false';
+      for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+        const strip = stripMap.get(String(slotIndex));
+        if (!strip) continue;
+        const next = inViewSlots.has(slotIndex) ? 'true' : 'false';
         if (strip.dataset.inView !== next) strip.dataset.inView = next;
-      });
+      }
     };
     const schedule = () => {
       if (frame === 0) frame = requestAnimationFrame(update);
@@ -182,8 +190,13 @@ export function TimelineMinimap({
     };
   }, [scrollRef, shouldHide]);
 
+  const slotCount = resolveTimelineMinimapSlotCount(items.length);
   const resolvedActiveIndex =
     activeIndex !== null && activeIndex < items.length ? activeIndex : null;
+  const activeSlotIndex =
+    resolvedActiveIndex === null
+      ? null
+      : resolveTimelineMinimapSlotIndex(resolvedActiveIndex, items.length, slotCount);
   const activeItem = resolvedActiveIndex === null ? null : (items[resolvedActiveIndex] ?? null);
   const activeTopPercent =
     resolvedActiveIndex === null
@@ -236,6 +249,7 @@ export function TimelineMinimap({
           ref={railRef}
           type="button"
           className={css.MinimapRail}
+          data-expanded={resolvedActiveIndex !== null ? 'true' : 'false'}
           style={{ height: resolveTimelineMinimapHeightStyle(items.length) }}
           role="slider"
           aria-label={t('mindroomUi.threads.timelineMinimap.jumpToMessage')}
@@ -344,28 +358,29 @@ export function TimelineMinimap({
             }
           }}
         >
-          {items.map((item, index) => {
+          {Array.from({ length: slotCount }, (_, slotIndex) => {
+            const slotKey = String(slotIndex);
             const distance =
-              resolvedActiveIndex === null ? null : Math.abs(index - resolvedActiveIndex);
+              activeSlotIndex === null ? null : Math.abs(slotIndex - activeSlotIndex);
             return (
               <span
-                key={item.id}
+                key={slotIndex}
                 aria-hidden="true"
                 className={resolveStripClass(distance)}
                 data-in-view="false"
                 data-minimap-strip
                 ref={(node) => {
                   if (node) {
-                    stripMap.set(item.id, node);
+                    stripMap.set(slotKey, node);
                   } else {
-                    stripMap.delete(item.id);
+                    stripMap.delete(slotKey);
                   }
                 }}
-                style={{ top: `${resolveTimelineMinimapTopPercent(index, items.length)}%` }}
+                style={{ top: `${resolveTimelineMinimapTopPercent(slotIndex, slotCount)}%` }}
               />
             );
           })}
-          {activeItem && (
+          {activeItem && resolvedActiveIndex !== null && (
             <span
               className={css.MinimapPreviewCard}
               style={{
@@ -373,6 +388,11 @@ export function TimelineMinimap({
                 transform: `translateY(${activeTooltipTranslate})`,
               }}
             >
+              {items.length > TIMELINE_MINIMAP_MAX_SLOTS && (
+                <span className={css.MinimapPreviewMeta}>
+                  {`${(resolvedActiveIndex + 1).toLocaleString()} / ${items.length.toLocaleString()}`}
+                </span>
+              )}
               <span className={css.MinimapPreviewTitle}>
                 {activeItem.userText ?? t('mindroomUi.threads.timelineMinimap.message')}
               </span>

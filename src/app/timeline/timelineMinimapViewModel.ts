@@ -9,6 +9,7 @@ import { matchesEnum } from '../lib/matchesEnum';
 
 export const TIMELINE_MINIMAP_ITEM_SPACING = 8;
 export const TIMELINE_MINIMAP_MIN_ITEMS = 2;
+export const TIMELINE_MINIMAP_MAX_SLOTS = 44;
 export const TIMELINE_MINIMAP_MAX_HEIGHT_CSS = 'calc(100vh - 18rem)';
 
 export type TimelineMinimapItem = {
@@ -28,8 +29,27 @@ export type TimelineMinimapEvent = {
   isRedacted?(): boolean;
 };
 
+export const resolveTimelineMinimapSlotCount = (itemCount: number): number =>
+  Math.max(0, Math.min(itemCount, TIMELINE_MINIMAP_MAX_SLOTS));
+
+export const resolveTimelineMinimapSlotIndex = (
+  itemIndex: number,
+  itemCount: number,
+  slotCount: number
+): number => {
+  if (itemCount <= 1 || slotCount <= 1) {
+    return 0;
+  }
+  const clampedIndex = Math.max(0, Math.min(itemIndex, itemCount - 1));
+  if (slotCount >= itemCount) {
+    return clampedIndex;
+  }
+  return Math.min(slotCount - 1, Math.floor((clampedIndex * slotCount) / itemCount));
+};
+
 export const resolveTimelineMinimapHeightStyle = (itemCount: number): string => {
-  const naturalHeight = Math.max(1, (itemCount - 1) * TIMELINE_MINIMAP_ITEM_SPACING);
+  const slotCount = resolveTimelineMinimapSlotCount(itemCount);
+  const naturalHeight = Math.max(1, (slotCount - 1) * TIMELINE_MINIMAP_ITEM_SPACING);
   return `min(${naturalHeight}px, ${TIMELINE_MINIMAP_MAX_HEIGHT_CSS})`;
 };
 
