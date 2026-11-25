@@ -5,7 +5,9 @@ import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
 
 const canvasPanel = createContainer();
-const narrowPanel = `${canvasPanel} (max-width: 380px)`;
+// Wrap the version row before SidePanel.Header would push PanelHeaderControls onto row 2 (which
+// would strand VersionSeparator at the end of row 1); expressed in rem so it scales with pageZoom.
+const narrowPanel = `${canvasPanel} (max-width: 26rem)`;
 
 export const Panel = style([
   SidePanelPanel,
@@ -99,6 +101,6 @@ export const VersionSeparator = style({
 
 export const Version = style({
   whiteSpace: 'nowrap',
-  paddingInline: config.space.S100,
+  paddingInline: toRem(2),
   fontVariantNumeric: 'tabular-nums',
 });
