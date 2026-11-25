@@ -32,13 +32,20 @@ globalTouchTarget(`${Toggle} > [role="switch"]`, '0px');
 export const Tabs = style({
   ...strip,
   overflowX: 'auto',
+  overflowY: 'hidden',
   scrollbarWidth: 'none',
   columnGap: space.S100,
   padding: `${space.S100} ${space.S300}`,
   borderBlockEnd: hairline,
+  // Room inside the sideways scroller's clip so 24 px tabs reach 44 px vertically without scrolling.
+  '@media': {
+    '(pointer: coarse)': {
+      paddingBlock: '10px',
+    },
+  },
 });
 // Tabs sit 4 px (`S100`) apart in a sideways scroller; each reaches halfway across the gap and
-// fills the strip vertically up to its clip edge.
+// 44 px vertically inside the strip's coarse padding.
 globalTouchTarget(`${Tabs} > [role="tab"]`, '2px');
 
 /** The rows, a little apart, so the tinted ones that wait for an answer read as cards. */
