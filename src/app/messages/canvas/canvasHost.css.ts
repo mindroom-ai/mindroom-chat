@@ -53,9 +53,10 @@ export const AnswerCard = style({
   width: '100%',
   selectors: {
     '&[data-auto-send]': { borderColor: color.Primary.ContainerLine },
-    '&:focus:not(:focus-visible)': { outline: 'none' },
   },
-  ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: '2px' },
+  // Programmatic tabIndex={-1} focus target: suppress the outer ring so it never stacks
+  // a second purple line above CountdownTrack (child buttons keep their own :focus-visible).
+  ':focus': { outline: 'none' },
 });
 
 export const CountdownTrack = style({
