@@ -4,7 +4,11 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ROOM_INTRO_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
+import {
+  EXPAND_ALL_LINE_ESTIMATE_PX,
+  ROOM_INTRO_ESTIMATE_PX,
+  ROOM_INTRO_KEY,
+} from './roomTimelineRows';
 import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
 import {
   readVirtualizerHoldOffset,
@@ -100,11 +104,13 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     initialScrollTop = 1200,
     withRowJumps = false,
     latestAtTop = false,
+    initialScrollMargin = 0,
   }: {
     initialKeys?: string[];
     initialScrollTop?: number;
     withRowJumps?: boolean;
     latestAtTop?: boolean;
+    initialScrollMargin?: number;
   } = {}) => {
     const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
     const prevActEnv = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -159,18 +165,28 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     } = {};
     const pins = { current: { count: 0, smooth: false } };
 
-    function RoomHarness({ keys, tick }: { keys: string[]; tick: number }) {
+    function RoomHarness({
+      keys,
+      tick,
+      scrollMargin = 0,
+      introEstimate = ROOM_INTRO_ESTIMATE_PX,
+    }: {
+      keys: string[];
+      tick: number;
+      scrollMargin?: number;
+      introEstimate?: number;
+    }) {
       void tick;
       const getScrollElement = useCallback(() => scrollElement, []);
       const controller = useTimelineScrollLedgerController({
-        estimateSize: (index = 0) =>
-          keys[index] === ROOM_INTRO_KEY ? ROOM_INTRO_ESTIMATE_PX : ROW_HEIGHT,
+        estimateSize: (index = 0) => (keys[index] === ROOM_INTRO_KEY ? introEstimate : ROW_HEIGHT),
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
         latestAtTop,
         anchorRoomRows: latestAtTop ? () => true : undefined,
         roomId: '!room:example.org',
+        scrollMargin,
       });
       mounted.virtualizer = controller.virtualizer;
       totalHeight = controller.virtualizer.getTotalSize();
@@ -237,11 +253,27 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     }
 
     let currentKeys = initialKeys;
+    let currentMargin = initialScrollMargin;
+    let currentIntroEstimate = ROOM_INTRO_ESTIMATE_PX;
     let tick = 0;
-    const render = (nextKeys = currentKeys) => {
+    const render = (
+      nextKeys = currentKeys,
+      opts?: { scrollMargin?: number; introEstimate?: number }
+    ) => {
       currentKeys = nextKeys;
+      if (opts?.scrollMargin !== undefined) currentMargin = opts.scrollMargin;
+      if (opts?.introEstimate !== undefined) currentIntroEstimate = opts.introEstimate;
       tick += 1;
-      flushSync(() => root.render(<RoomHarness keys={currentKeys} tick={tick} />));
+      flushSync(() =>
+        root.render(
+          <RoomHarness
+            keys={currentKeys}
+            tick={tick}
+            scrollMargin={currentMargin}
+            introEstimate={currentIntroEstimate}
+          />
+        )
+      );
     };
 
     render();
@@ -358,5 +390,21 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
     expect(scrollElement.scrollTop).toBe(1400);
     expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
+  });
+
+  it('anchors without jumping when outer expand-all scrollMargin moves into roomIntro item 0', async () => {
+    const rows = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
+    const { scrollElement, render } = await mountRoom({
+      initialKeys: rows,
+      initialScrollTop: 1200,
+      initialScrollMargin: EXPAND_ALL_LINE_ESTIMATE_PX,
+    });
+    // Outer [+all] (22px) unmounts (scrollMargin 22 -> 0) as item 0 ({roomIntro}{expandAllToggle},
+    // estimated 160.5 + 22 = 182.5px) prepends: scrollTop must advance by +160.5px, not +182.5px.
+    render([ROOM_INTRO_KEY, ...rows], {
+      scrollMargin: 0,
+      introEstimate: ROOM_INTRO_ESTIMATE_PX + EXPAND_ALL_LINE_ESTIMATE_PX,
+    });
+    expect(scrollElement.scrollTop).toBeCloseTo(1200 + ROOM_INTRO_ESTIMATE_PX, 1);
   });
 });

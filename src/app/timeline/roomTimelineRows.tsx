@@ -189,7 +189,7 @@ export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
 const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
 export const ROOM_INTRO_KEY = '__room_intro__';
 /** Height of `ExpandAllLine` (`paddingBlockStart` 4 px + 18 px button) rendered under `roomIntro`. */
-const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
+export const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
 // Non-integer so virtual-core records the first DOM measurement even when RoomIntro matches.
 export const ROOM_INTRO_ESTIMATE_PX = 160 + ROOM_ROW_UNMEASURED_PX;
 
@@ -425,6 +425,7 @@ export const renderTimelineTiles = ({
   membershipFolds,
   threadLoadOlderNode,
   roomIntroNode,
+  scrollMargin = 0,
   unreadMarkerRef,
   measureElement,
 }: {
@@ -435,6 +436,8 @@ export const renderTimelineTiles = ({
   threadLoadOlderNode?: ReactNode;
   /** When set in a room, index 0 renders the room start intro as a virtual tile. */
   roomIntroNode?: ReactNode;
+  /** Offset of the virtual list from the scroll container start (outer expand-all line). */
+  scrollMargin?: number;
   roomWindowRows: MatrixEvent[];
   roomRowEntries: TimelineEventEntry[];
   windowStart: number;
@@ -523,7 +526,7 @@ export const renderTimelineTiles = ({
           key={item.key}
           ref={measureElement}
           virtualItem={item}
-          style={{ top: item.start }}
+          style={{ top: item.start - scrollMargin }}
         >
           {leadingNode}
         </VirtualTile>
@@ -619,7 +622,7 @@ export const renderTimelineTiles = ({
         key={item.key}
         ref={measureElement}
         virtualItem={item}
-        style={{ top: item.start }}
+        style={{ top: item.start - scrollMargin }}
       >
         <div data-room-row-index={threadId ? undefined : eventIndex}>
           {foldClosed && context?.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}

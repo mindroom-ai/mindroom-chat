@@ -51,6 +51,7 @@ export type TimelineScrollLedgerControllerOptions = {
   threadId?: string;
   /** Keep thread virtual item 0 (Load Older) mounted while scrolled down. */
   pinThreadLeadingItem?: boolean;
+  scrollMargin?: number;
   automaticFill?: {
     geometryReader: MutableRefObject<() => string | undefined>;
   };
@@ -126,6 +127,7 @@ export const useTimelineScrollLedgerController = ({
   roomId,
   threadId,
   pinThreadLeadingItem = false,
+  scrollMargin = 0,
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const virtualInnerRef = useRef<HTMLDivElement>(null);
@@ -154,9 +156,7 @@ export const useTimelineScrollLedgerController = ({
       ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, priceRoomRowForAnchor)
       : 0;
 
-  // Core only notifies when visible indices change. A height-only resize
-  // inside one tall row must still refresh the pixel buffer. Reuse its
-  // observer, which remains attached when room/thread views share a scroller.
+  // Height-only resizes inside a tall row must refresh the pixel buffer; reuse the rect observer.
   const [, setViewportResizeTick] = useState(0);
   const observeThreadHeightRef = useRef(!!threadId);
   useInsertionEffect(() => {
@@ -246,6 +246,7 @@ export const useTimelineScrollLedgerController = ({
     getScrollElement,
     estimateSize,
     overscan: 10,
+    ...(scrollMargin ? { scrollMargin } : {}),
     ...(anchorToEnd
       ? { anchorTo: 'end' as const, scrollEndThreshold: -1, holdScrollDuringWheel }
       : {}),
@@ -425,8 +426,7 @@ export const useTimelineScrollLedgerController = ({
     };
   }, [automaticFill, getScrollElement, virtualizer]);
 
-  // Configure only the committed virtualizer; abandoned renders must not
-  // mutate the live instance.
+  // Configure only the committed virtualizer; abandoned renders must not mutate it.
   useInsertionEffect(() => {
     if (resettingView) {
       viewKeyRef.current = viewKey;
