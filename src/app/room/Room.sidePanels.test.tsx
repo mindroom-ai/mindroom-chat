@@ -134,27 +134,37 @@ vi.mock('../members/useMembersDrawer', async () => {
   const membersOpenAtom = atom(false);
   return { membersOpenAtom, useMembersDrawer: () => useAtom(membersOpenAtom) };
 });
-vi.mock('../computer/ComputerPanel', () => ({
-  ComputerPanel: (props: typeof state.computer) => {
-    state.computer = props;
-    return null;
-  },
-}));
+vi.mock('../computer/ComputerPanel', async () => {
+  const { PanelHeaderControls } = await import('../ui/panels/PanelFrame');
+  return {
+    ComputerPanel: (props: typeof state.computer) => {
+      state.computer = props;
+      return <PanelHeaderControls />;
+    },
+  };
+});
 vi.mock('../canvas/RoomCanvasPanel', () => ({
   RoomCanvasPanel: (props: typeof state.canvas) => {
     state.canvas = props;
     return <div data-testid="room-canvas-panel" />;
   },
 }));
-vi.mock('../calls/CallPanel', () => ({ CallPanel: () => null }));
-vi.mock('../calls/transcription/LiveTranscriptPanel', () => ({ LiveTranscriptPanel: () => null }));
-vi.mock('../subagents/SubagentsPanel', () => ({
-  SubagentsPanel: ({ onClose }: { onClose: () => void }) => (
-    <button type="button" onClick={onClose}>
-      Close the sub-agents
-    </button>
-  ),
-}));
+vi.mock('../calls/CallPanel', async () => {
+  const { PanelHeaderControls } = await import('../ui/panels/PanelFrame');
+  return { CallPanel: () => <PanelHeaderControls /> };
+});
+vi.mock('../calls/transcription/LiveTranscriptPanel', async () => {
+  const { PanelHeaderControls } = await import('../ui/panels/PanelFrame');
+  return { LiveTranscriptPanel: () => <PanelHeaderControls /> };
+});
+vi.mock('../subagents/SubagentsPanel', async () => {
+  const { PanelHeaderControls } = await import('../ui/panels/PanelFrame');
+  return {
+    SubagentsPanel: ({ onClose }: { onClose: () => void }) => (
+      <PanelHeaderControls onClose={onClose} closeLabel="Close the sub-agents" />
+    ),
+  };
+});
 vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../canvas/canvasIndex')>()),
   useConversationCanvases: () => [],

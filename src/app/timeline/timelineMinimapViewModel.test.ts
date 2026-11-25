@@ -3,7 +3,10 @@ import {
   deriveTimelineMinimapItems,
   resolveTimelineMinimapHeightStyle,
   resolveTimelineMinimapIndexFromPointer,
+  resolveTimelineMinimapSlotCount,
+  resolveTimelineMinimapSlotIndex,
   resolveTimelineMinimapTopPercent,
+  TIMELINE_MINIMAP_MAX_SLOTS,
   TimelineMinimapEvent,
 } from './timelineMinimapViewModel';
 import {
@@ -32,9 +35,77 @@ const agentMessage = (id: string, body: string): TimelineMinimapEvent =>
   makeEvent({ id, sender: '@mindroom_assistant:server', content: { msgtype: 'm.text', body } });
 
 describe('minimap geometry', () => {
-  it('caps rail height at the max height css', () => {
+  it('caps rail height at the slot cap and max height css', () => {
     expect(resolveTimelineMinimapHeightStyle(5)).toBe('min(32px, calc(100vh - 18rem))');
     expect(resolveTimelineMinimapHeightStyle(1)).toBe('min(1px, calc(100vh - 18rem))');
+    expect(resolveTimelineMinimapHeightStyle(TIMELINE_MINIMAP_MAX_SLOTS)).toBe(
+      'min(344px, calc(100vh - 18rem))'
+    );
+    expect(resolveTimelineMinimapHeightStyle(200)).toBe('min(344px, calc(100vh - 18rem))');
+    expect(resolveTimelineMinimapHeightStyle(2400)).toBe('min(344px, calc(100vh - 18rem))');
+  });
+
+  it('caps rendered slot count at TIMELINE_MINIMAP_MAX_SLOTS', () => {
+    expect(resolveTimelineMinimapSlotCount(-3)).toBe(0);
+    expect(resolveTimelineMinimapSlotCount(0)).toBe(0);
+    expect(resolveTimelineMinimapSlotCount(12)).toBe(12);
+    expect(resolveTimelineMinimapSlotCount(TIMELINE_MINIMAP_MAX_SLOTS)).toBe(
+      TIMELINE_MINIMAP_MAX_SLOTS
+    );
+    expect(resolveTimelineMinimapSlotCount(200)).toBe(TIMELINE_MINIMAP_MAX_SLOTS);
+  });
+
+  it('maps item indices 1:1 below the cap and proportionally above it', () => {
+    expect(resolveTimelineMinimapSlotIndex(0, 0, 0)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(0, 1, 1)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(5, 10, 1)).toBe(0);
+
+    expect(resolveTimelineMinimapSlotIndex(-2, 10, 10)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(0, 10, 10)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(4, 10, 10)).toBe(4);
+    expect(resolveTimelineMinimapSlotIndex(9, 10, 10)).toBe(9);
+    expect(resolveTimelineMinimapSlotIndex(15, 10, 10)).toBe(9);
+
+    const itemCount = 200;
+    const slotCount = TIMELINE_MINIMAP_MAX_SLOTS;
+    expect(resolveTimelineMinimapSlotIndex(-5, itemCount, slotCount)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(0, itemCount, slotCount)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(1, TIMELINE_MINIMAP_MAX_SLOTS + 1, slotCount)).toBe(1);
+    expect(resolveTimelineMinimapSlotIndex(100, itemCount, slotCount)).toBe(22);
+    expect(resolveTimelineMinimapSlotIndex(itemCount - 1, itemCount, slotCount)).toBe(
+      slotCount - 1
+    );
+    expect(resolveTimelineMinimapSlotIndex(500, itemCount, slotCount)).toBe(slotCount - 1);
+
+    const seenSlots = new Set<number>();
+    let previousSlot = 0;
+    for (let index = 0; index < itemCount; index += 1) {
+      const slot = resolveTimelineMinimapSlotIndex(index, itemCount, slotCount);
+      expect(slot).toBeGreaterThanOrEqual(previousSlot);
+      expect(slot).toBeLessThan(slotCount);
+      seenSlots.add(slot);
+      previousSlot = slot;
+    }
+    expect(seenSlots.size).toBe(slotCount);
+  });
+
+  it('activates the exact stripe when hovering every stripe center at 45 turns', () => {
+    const itemCount = TIMELINE_MINIMAP_MAX_SLOTS + 1;
+    const slotCount = TIMELINE_MINIMAP_MAX_SLOTS;
+    const railTop = 100;
+    const railHeight = 344;
+
+    for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+      const topPercent = resolveTimelineMinimapTopPercent(slotIndex, slotCount);
+      const itemIndex = resolveTimelineMinimapIndexFromPointer({
+        itemCount,
+        railTop,
+        railHeight,
+        pointerY: railTop + (topPercent / 100) * railHeight,
+      });
+      expect(itemIndex).not.toBeNull();
+      expect(resolveTimelineMinimapSlotIndex(itemIndex!, itemCount, slotCount)).toBe(slotIndex);
+    }
   });
 
   it('spreads stripes evenly across the rail', () => {

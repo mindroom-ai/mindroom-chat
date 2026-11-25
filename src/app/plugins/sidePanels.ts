@@ -54,20 +54,29 @@ export type SidePanel = {
   opensOverMembers?: true;
   /**
    * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
-   * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
+   * room draws none: no title, Close, splitter or folded edge tab. The component reads and sets its
    * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
    * phone's conversation it hides the room header and the panel's toggle with it, so the component
    * offers a way out of its own: Hide, or a Close that calls `close` of {@link useRoomSidePanel}.
    */
   frame?: 'own';
   /**
-   * `own`: its `Component` shows the panel's name and a Close itself (Close calls `close` of
+   * `own`: its `Component` renders its own title row and Close (which calls `close` of
    * {@link useRoomSidePanel}), and the room draws no title row above it. Unlike `frame: 'own'`, the
-   * room still draws its box: the splitter, the remembered width and the frame strip (Fill, Fold)
-   * on desktop, and the phone cover. While its code loads and after it failed, the room draws the
-   * title row with Close, so it can always be closed. With `frame: 'own'` too, `frame` wins.
+   * room still keeps its box: the splitter, the remembered width, the folded edge tab on desktop,
+   * and the phone cover. Unless `frameControls: 'own'` is also set, the room keeps its 40 px open
+   * frame strip (Fill, Fold) beside the conversation so existing `title: 'own'` panels do not lose
+   * frame controls. While its code loads and after it failed, the room draws the title row with
+   * Close, so it can always be closed. With `frame: 'own'` too, `frame` wins.
    */
   title?: 'own';
+  /**
+   * `own`: with `title: 'own'`, tells the room that `Component` renders Fill and Fold via
+   * `usePanelFrame()` inside its own header, so the room omits the 40 px open frame strip while
+   * keeping the folded edge tab, splitter, remembered width, and phone cover. Ignored without
+   * `title: 'own'` or when `frame: 'own'` is set.
+   */
+  frameControls?: 'own';
 };
 
 /** Whether a plugin's contribution is a side panel; the build does not type-check plugins. */
@@ -81,7 +90,8 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   (value.placement === undefined || PANEL_PLACEMENTS.includes(value.placement)) &&
   (value.opensOverMembers === undefined || value.opensOverMembers === true) &&
   (value.frame === undefined || value.frame === 'own') &&
-  (value.title === undefined || value.title === 'own');
+  (value.title === undefined || value.title === 'own') &&
+  (value.frameControls === undefined || value.frameControls === 'own');
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };

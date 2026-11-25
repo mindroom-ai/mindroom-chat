@@ -2575,9 +2575,6 @@
         "downloadOriginal": "Özgün dosyayı indir",
         "replyDetails": "Yanıt ayrıntıları"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "Mesaj ekleri"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "Yapıştırılan metin",
         "open": "Aç",

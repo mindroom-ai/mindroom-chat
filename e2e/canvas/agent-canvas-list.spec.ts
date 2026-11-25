@@ -140,7 +140,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
   await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(fixture.rootId)}`));
   const panel = page.getByRole('complementary', { name: 'Canvas panel' });
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Expand canvas' })).toHaveAttribute(
+  await expect(panel.getByRole('button', { name: 'Fill the room with Canvas' })).toHaveAttribute(
     'aria-pressed',
     'true'
   );

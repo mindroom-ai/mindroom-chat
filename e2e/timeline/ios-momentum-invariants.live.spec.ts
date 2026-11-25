@@ -82,15 +82,14 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       body: 'iOS momentum invariants root',
     });
     for (let i = 1; i <= REPLY_COUNT; i += 1) {
-      // Mixed heights on purpose: short one-liners, long fold-worthy walls
-      // of text, AND agent-style extras messages (always-expanded, never
-      // fold — the tallest rows real threads have). Fresh territory must
+      // Mixed heights on purpose: short one-liners, medium multi-line
+      // replies, and long fold-worthy walls of text. Fresh territory must
       // carry realistic estimate error: that is the condition every device
       // report shared.
-      const isExtras = i % 5 === 0;
+      const isMedium = i % 5 === 0;
       const body =
         // eslint-disable-next-line no-nested-ternary
-        isExtras
+        isMedium
           ? `agent answer ${i}\n${Array.from(
               { length: 12 },
               (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
@@ -106,25 +105,6 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
         body,
-        ...(isExtras
-          ? {
-              'com.mindroom.message_extras': {
-                version: 2,
-                sections: [
-                  {
-                    title: `Tool call ${i}.1`,
-                    content_type: 'text/markdown',
-                    content: `tool output for reply ${i}, section 1`,
-                  },
-                  {
-                    title: `Tool call ${i}.2`,
-                    content_type: 'text/markdown',
-                    content: `tool output for reply ${i}, section 2`,
-                  },
-                ],
-              },
-            }
-          : {}),
         'm.relates_to': {
           rel_type: 'm.thread',
           event_id: rootId,
@@ -867,10 +847,10 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     for (let i = 1; i <= PREPEND_REPLY_COUNT; i += 1) {
       // Same mixed-height fixture as the momentum stream: the prepended
       // page must carry realistic estimate error into the anchor restore.
-      const isExtras = i % 5 === 0;
+      const isMedium = i % 5 === 0;
       const body =
         // eslint-disable-next-line no-nested-ternary
-        isExtras
+        isMedium
           ? `agent answer ${i}\n${Array.from(
               { length: 12 },
               (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
@@ -886,20 +866,6 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
         body,
-        ...(isExtras
-          ? {
-              'com.mindroom.message_extras': {
-                version: 2,
-                sections: [
-                  {
-                    title: `Tool call ${i}.1`,
-                    content_type: 'text/markdown',
-                    content: `tool output for reply ${i}, section 1`,
-                  },
-                ],
-              },
-            }
-          : {}),
         'm.relates_to': {
           rel_type: 'm.thread',
           event_id: rootId,

@@ -1,16 +1,25 @@
-import { style } from '@vanilla-extract/css';
+import { createContainer, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { HeaderPill } from '../ui/panels/PanelFrame.css';
+import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
-export { Header, Panel } from '../ui/panels/SidePanel.css';
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
 
-export const TitleGroup = style({
-  flex: '1 1 auto',
-  minWidth: 0,
-});
+const canvasPanel = createContainer();
 
-export const Controls = style({
-  flex: '0 0 auto',
+export const Panel = style([
+  SidePanelPanel,
+  {
+    containerName: canvasPanel,
+    containerType: 'inline-size',
+  },
+]);
+
+export { Header } from '../ui/panels/SidePanel.css';
+
+export const TitleGroup = style({
+  flex: '1 1 5rem',
+  minWidth: 0,
 });
 
 export const Title = style({
@@ -29,7 +38,7 @@ export const FrameWrap = style({
 });
 
 export const Frame = style({
-  backgroundColor: color.Background.Container,
+  backgroundColor: color.Surface.Container,
   border: 'none',
   display: 'block',
   height: '100%',
@@ -41,7 +50,6 @@ export const Frame = style({
 });
 
 export const Footer = style({
-  borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   display: 'flex',
   flexDirection: 'column',
   flex: '0 0 auto',
@@ -52,6 +60,21 @@ export const Footer = style({
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
 });
 
+export const VersionRow = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  '@container': {
+    [`${canvasPanel} (max-width: 380px)`]: {
+      order: 1,
+      flex: '1 0 100%',
+    },
+  },
+});
+
+export const VersionPill = HeaderPill;
+
 export const Version = style({
   whiteSpace: 'nowrap',
+  paddingInline: config.space.S100,
 });

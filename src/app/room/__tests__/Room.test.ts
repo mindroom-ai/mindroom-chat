@@ -196,10 +196,11 @@ vi.mock('../../lib/portalOverlay', () => ({
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
 vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
-// The frame's strip draws with folds, which this test mocks; Room.sidePanels.test.tsx presses it.
+// The frame's edge tab and header pill draw with folds, which this test mocks; Room.sidePanels.test.tsx presses them.
 vi.mock('../../ui/panels/PanelFrame', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/panels/PanelFrame')>()),
   PanelFrameStrip: () => null,
+  PanelHeaderControls: () => null,
 }));
 
 vi.mock('jotai', async () => {

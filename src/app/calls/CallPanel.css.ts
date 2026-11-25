@@ -19,14 +19,10 @@ const tinted = (group: { Container: string; OnContainer: string }): StyleRule =>
 });
 
 /** A hairline of the panel's line color, for the edge it is put on. */
-const hairline = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
+const hairline = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 
 // It fills its column, and the room's width on phones, where it covers the conversation.
 export const Panel = style([SidePanelPanel, { flexGrow: 1, containerType: 'inline-size' }]);
-
-// The floating window draws the edge around the call view; the side column's start line would
-// double it.
-export const InWindow = style({ selectors: { '&&': { borderInlineStart: 'none' } } });
 
 // The title bar answers its own width: one too narrow for a readable title beside all five buttons
 // (176 px with their gaps) drops the speaker switch first.
@@ -47,7 +43,7 @@ const clearOfGrips: StyleRule = {
 
 export const WindowHeader = style(clearOfGrips);
 
-export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 auto' }));
+export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 5rem' }));
 
 export const HeaderButtons = style(
   lined('row', space.S100, { flexShrink: 0, alignItems: 'center' })

@@ -100,27 +100,6 @@ const useCutOffNameTooltip = (
   return [anchor, { onPointerEnter, onPointerLeave: close, onPointerDown: close }] as const;
 };
 
-/** A clock after the room's name while an agent runs a background job in the room. */
-function BackgroundJobsMark({ room }: { room: Room }) {
-  const { t } = useTranslation();
-  const running = useRoomBackgroundJobs(room).total;
-  if (running === 0) return null;
-  const label = t('mindroomUi.backgroundJobs.inRoom');
-  return (
-    <IconTooltip label={label}>
-      {(triggerRef) => (
-        <Icon
-          ref={triggerRef}
-          src={Icons.Clock}
-          size="50"
-          aria-label={label}
-          style={{ opacity: config.opacity.P500 }}
-        />
-      )}
-    </IconTooltip>
-  );
-}
-
 /** A phone after the room's name while this device is in a call there. */
 function CallMark({ id, label }: { id: string; label: string }) {
   return (
@@ -143,6 +122,61 @@ function CallMark({ id, label }: { id: string; label: string }) {
   );
 }
 
+type RoomNavTrailingProps = {
+  room: Room;
+  callStatus?: string;
+  callStatusId: string;
+  showDraft: boolean;
+  showDraftIcon: boolean;
+  draftStatusId: string;
+  status: React.ReactNode;
+  showOptions: boolean;
+};
+
+/**
+ * Trailing marks and status slot. Isolates `useRoomBackgroundJobs` in a leaf component and
+ * reserves `UnreadBadgeCenter` at rest while marks show so clocks and calls align across rows.
+ */
+function RoomNavTrailing(props: RoomNavTrailingProps) {
+  const {
+    room,
+    callStatus,
+    callStatusId,
+    showDraft,
+    showDraftIcon,
+    draftStatusId,
+    status,
+    showOptions,
+  } = props;
+  const { t } = useTranslation();
+  const hasBackgroundJobs = useRoomBackgroundJobs(room).total > 0;
+  const hasMarks = hasBackgroundJobs || Boolean(callStatus);
+  const reserveStatusSlot = Boolean(status) || (hasMarks && !showOptions);
+  const jobsLabel = hasBackgroundJobs ? t('mindroomUi.backgroundJobs.inRoom') : undefined;
+  return (
+    <>
+      {jobsLabel && (
+        <IconTooltip label={jobsLabel}>
+          {(triggerRef) => (
+            <Icon
+              ref={triggerRef}
+              src={Icons.Clock}
+              size="50"
+              aria-label={jobsLabel}
+              style={{ opacity: config.opacity.P500 }}
+            />
+          )}
+        </IconTooltip>
+      )}
+      {callStatus && <CallMark id={callStatusId} label={callStatus} />}
+      {showDraft && (
+        <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={showDraftIcon} />
+      )}
+      {reserveStatusSlot && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
+    </>
+  );
+}
+
 type RoomNavLinkProps = {
   to: string;
   room: Room;
@@ -158,6 +192,7 @@ type RoomNavLinkProps = {
   hasUnread: boolean;
   /** Unread badge or muted mark at the end of the row. */
   status: React.ReactNode;
+  showOptions: boolean;
   /** The line holding the name, to tell whether it is cut off. */
   nameRef: React.Ref<HTMLSpanElement>;
   /** Pointer handlers that show the cut-off name in full. */
@@ -180,6 +215,7 @@ function RoomNavLink({
   selected,
   hasUnread,
   status,
+  showOptions,
   nameRef,
   pointerProps,
   subRoom,
@@ -235,12 +271,16 @@ function RoomNavLink({
             </Text>
             {maybeSelfDirect && <SelfDirectTag room={room} />}
           </span>
-          <BackgroundJobsMark room={room} />
-          {callStatus && <CallMark id={callStatusId} label={callStatus} />}
-          {showDraft && (
-            <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={showDraftIcon} />
-          )}
-          {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
+          <RoomNavTrailing
+            room={room}
+            callStatus={callStatus}
+            callStatusId={callStatusId}
+            showDraft={showDraft}
+            showDraftIcon={showDraftIcon}
+            draftStatusId={draftStatusId}
+            status={status}
+            showOptions={showOptions}
+          />
         </Box>
       </NavItemContent>
     </NavLink>
@@ -364,6 +404,7 @@ export function RoomNavItem({
         selected={selected}
         hasUnread={Boolean(unread)}
         status={status}
+        showOptions={showOptions}
         nameRef={nameRef}
         pointerProps={namePointerProps}
         subRoom={subRoom}

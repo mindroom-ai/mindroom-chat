@@ -4,6 +4,7 @@ import { Body, Empty, Panel, StatusDot } from '../subagentsPanel.css';
 
 const { space, radii, borderWidth } = config;
 const line = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
+const variantLine = `${borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`;
 export { Body, Empty, Panel };
 
 export const NodeDot = {
@@ -59,7 +60,7 @@ export const InsetBox = style([
     gap: space.S200,
     padding: space.S200,
     borderRadius: radii.R400,
-    border: line,
+    border: variantLine,
     backgroundColor: color.SurfaceVariant.Container,
   },
 ]);
@@ -71,14 +72,25 @@ export const Chip = style([
     padding: space.S200,
     textAlign: 'start',
     borderRadius: radii.R400,
-    border: line,
-    backgroundColor: color.Surface.Container,
-    color: color.Surface.OnContainer,
+    border: variantLine,
+    backgroundColor: color.SurfaceVariant.Container,
+    color: color.SurfaceVariant.OnContainer,
     cursor: 'pointer',
     selectors: {
-      '&:hover': { backgroundColor: color.Surface.ContainerHover },
+      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
       '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 1 },
       '&[aria-pressed="true"]': {
+        borderColor: color.Primary.Main,
+        backgroundColor: color.SurfaceVariant.ContainerActive,
+      },
+      // Chips inside a SurfaceVariant GroupBox step back to Surface for crisp nested contrast.
+      [`${GroupBox} &`]: {
+        border: line,
+        backgroundColor: color.Surface.Container,
+        color: color.Surface.OnContainer,
+      },
+      [`${GroupBox} &:hover`]: { backgroundColor: color.Surface.ContainerHover },
+      [`${GroupBox} &[aria-pressed="true"]`]: {
         borderColor: color.Primary.Main,
         backgroundColor: color.Surface.ContainerActive,
       },
@@ -107,7 +119,7 @@ export const ChipMeta = style({
   rowGap: toRem(2),
   fontSize: config.fontSize.T200,
   lineHeight: config.lineHeight.T200,
-  color: color.Surface.OnContainer,
+  color: 'inherit',
   opacity: config.opacity.P400,
 });
 export const ChipNote = style({

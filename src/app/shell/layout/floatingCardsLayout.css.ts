@@ -1,5 +1,5 @@
 import { globalStyle } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 import {
   FloatingShell,
   PageDivider,
@@ -78,7 +78,7 @@ globalStyle(
 );
 
 // The conversation's minimap keeps off the card's edge, where it would read as a splitter grip.
-globalStyle(`${FloatingShell} ${MinimapContainer}`, { insetInlineStart: config.space.S100 });
+globalStyle(`${FloatingShell} ${MinimapContainer}`, { insetInlineStart: toRem(2) });
 
 // The card's gap now separates the list from the page, so rows end S300 before the column's edge:
 // the open row's highlight sits as far from the card as from the rail. The list's scrollbar moves

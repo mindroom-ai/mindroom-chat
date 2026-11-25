@@ -2735,9 +2735,6 @@
         "downloadOriginal": "تنزيل الملف الأصلي",
         "replyDetails": "تفاصيل الرد"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "ملحقات الرسالة"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "نص ملصق",
         "open": "فتح",

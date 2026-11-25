@@ -2569,9 +2569,6 @@
         "downloadOriginal": "下载原版",
         "replyDetails": "回复详情"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "消息附加信息"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "粘贴的文本",
         "open": "打开",

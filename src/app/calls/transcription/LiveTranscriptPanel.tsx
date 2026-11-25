@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Icon, IconButton, Icons, Text } from 'folds';
+import { Text } from 'folds';
+import { PanelHeaderControls } from '../../ui/panels/PanelFrame';
 import { useActiveCall } from '../callStore';
 import { LiveTranscriptBody } from './LiveTranscriptBody';
 import { PauseControl } from './PauseControl';
 import { useLiveTranscript } from './useLiveTranscript';
 import * as panelCss from '../CallPanel.css';
-import * as css from './LiveTranscriptPanel.css';
 
 /** The panel reads the live call this often while it shows a call this device is not in. */
 const READ_MS = 2_000;
@@ -40,18 +40,12 @@ export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: ()
             </Text>
           )}
         </div>
-        <div className={css.HeaderActions}>
+        <PanelHeaderControls
+          onClose={onClose}
+          closeLabel={t('featureUi.calls.transcription.close')}
+        >
           {pausable && state === 'live' && call && <PauseControl room={room} small />}
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('featureUi.calls.transcription.close')}
-            onClick={onClose}
-          >
-            <Icon size="200" src={Icons.Cross} />
-          </IconButton>
-        </div>
+        </PanelHeaderControls>
       </header>
       <LiveTranscriptBody room={callRoom} view={view} className={panelCss.Body} />
     </section>

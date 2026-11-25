@@ -37,12 +37,11 @@ vi.mock('./LongTextText', () => ({
 // alone, as a reply that arrives without its HTML does, so the agent's Markdown body renders as
 // MindRoom writes it.
 vi.mock('./MsgTypeRenderers', async () => {
-  const MText = ({ content, renderBody, renderAfterBody }: any) =>
+  const MText = ({ content, renderBody }: any) =>
     React.createElement(
       'div',
       null,
-      renderBody({ body: content.body, customBody: content.formatted_body }),
-      renderAfterBody
+      renderBody({ body: content.body, customBody: content.formatted_body })
     );
   return { MEmote: () => null, MNotice: MText, MText };
 });
@@ -141,15 +140,6 @@ vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   Text: 'TranscribingText',
   Wave: 'TranscribingWave',
   WaveBar: 'TranscribingWaveBar',
-}));
-vi.mock('../MessageExtras.css.ts', () => ({
-  Extras: 'Extras',
-  Section: 'Section',
-  Summary: 'Summary',
-  Content: 'Content',
-  PlainText: 'PlainText',
-  Markdown: 'Markdown',
-  Html: 'Html',
 }));
 
 const htmlReactParserOptions: HTMLReactParserOptions = {};

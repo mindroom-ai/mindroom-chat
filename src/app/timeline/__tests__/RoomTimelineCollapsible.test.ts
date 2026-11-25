@@ -368,6 +368,7 @@ vi.mock('../TimelineMinimap.css', () => ({
     Active: 'MinimapStripActive',
   },
   MinimapPreviewCard: 'MinimapPreviewCard',
+  MinimapPreviewMeta: 'MinimapPreviewMeta',
   MinimapPreviewTitle: 'MinimapPreviewTitle',
   MinimapPreviewBody: 'MinimapPreviewBody',
 }));
@@ -1508,30 +1509,6 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapsibleForEvent(renderer, '$encrypted-summary').props.expansionKey).toBe(
       '$encrypted-summary'
     );
-  });
-
-  it('uses always-expanded mode for messages with MindRoom extras', async () => {
-    const { getCollapsibleMessageMode } = await import('../threadCollapsibleMessages');
-    const eventWithExtras = makeEvent('$extras', {
-      content: {
-        body: 'Message with extras',
-        msgtype: 'm.text',
-        'com.mindroom.message_extras': {
-          version: 1,
-          sections: [
-            {
-              title: 'Evidence',
-              content_type: 'text/plain',
-              content: 'extra payload',
-            },
-          ],
-        },
-      },
-    });
-
-    expect(
-      getCollapsibleMessageMode(eventWithExtras.getId(), eventWithExtras.getContent(), new Set())
-    ).toBe('always-expanded');
   });
 
   it('keeps long-text sidecar messages folded — hydration must not auto-expand them', async () => {

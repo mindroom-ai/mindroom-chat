@@ -11,11 +11,6 @@ import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
-import { MessageExtras } from '../MessageExtras';
-import {
-  MINDROOM_MESSAGE_EXTRAS_KEY,
-  parseMessageExtras,
-} from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import {
@@ -139,7 +134,6 @@ export type RenderAgentMessageContentOptions = {
   htmlReactParserOptions: HTMLReactParserOptions; // turns formatted_body HTML into React nodes
   linkifyOpts: LinkifyOpts; // links bare URLs in plain-text bodies
   renderUrlsPreview?: (urls: string[]) => ReactNode;
-  showMessageExtras?: boolean;
   hydrateLongText?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
@@ -252,7 +246,6 @@ export const renderAgentMessageContent = ({
   htmlReactParserOptions,
   linkifyOpts,
   renderUrlsPreview,
-  showMessageExtras = false,
   hydrateLongText = true,
   readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
@@ -500,28 +493,6 @@ export const renderAgentMessageContent = ({
     );
   };
 
-  const renderMessageExtras = (
-    extrasContent: Record<string, unknown>,
-    fallbackContents: Record<string, unknown>[] = []
-  ) => {
-    if (!showMessageExtras) return undefined;
-
-    const extrasSource = [extrasContent, ...fallbackContents].find(
-      (candidate) => MINDROOM_MESSAGE_EXTRAS_KEY in candidate
-    );
-    const extras = extrasSource && parseMessageExtras(extrasSource);
-    if (!extrasSource || !extras) return undefined;
-
-    return (
-      <MessageExtras
-        extras={extras}
-        htmlReactParserOptions={htmlReactParserOptions}
-        markerContent={extrasSource}
-        toolRows={toolRows}
-      />
-    );
-  };
-
   const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
     getMessageStateSuffixRenderer({
       edited,
@@ -631,7 +602,6 @@ export const renderAgentMessageContent = ({
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
           renderBody={() => <TranscribingPlaceholder />}
-          renderAfterBody={renderMessageExtras(content)}
         />
       );
     }
@@ -652,7 +622,6 @@ export const renderAgentMessageContent = ({
               false
             )
           }
-          renderAfterBody={renderMessageExtras(content)}
         />
       );
     }
@@ -674,9 +643,6 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
-          renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(extrasContent, [content, fallbackContent])
-          }
           renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
@@ -719,7 +685,6 @@ export const renderAgentMessageContent = ({
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
-          renderAfterBody={renderMessageExtras(renderableContent)}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -743,9 +708,6 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
-          renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(extrasContent, [content, fallbackContent])
-          }
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -761,7 +723,6 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -820,9 +781,6 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
-          renderAfterBody={(extrasContent, fallbackContent) =>
-            renderMessageExtras(extrasContent, [content, fallbackContent])
-          }
           renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
@@ -838,7 +796,6 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );

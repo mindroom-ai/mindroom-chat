@@ -196,6 +196,12 @@ TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
 SHELL_WITHOUT_WORKER = ("src/mindroom/config/models.py", "allow_shell_without_worker")
 # A commit whose models take a `reasoning` block (MindRoom #4119); a stub stack on it gets a third model with levels.
 REASONING_LEVELS = ("src/mindroom/config/models.py", "class ReasoningConfig")
+# A commit whose voice config has `dictation` for streaming composer dictation.
+VOICE_DICTATION = ("src/mindroom/config/voice.py", "dictation_enabled")
+# A commit with the temporary_secrets toolkit (`request_temporary_secret`).
+TEMPORARY_SECRETS = ("src/mindroom/tools/__init__.py", "temporary_secrets")
+# A commit whose agents accept `delegate_to` for subagent delegation.
+AGENT_DELEGATE_TO = ("src/mindroom/config/agent.py", "delegate_to")
 # The stub model with reasoning levels, which the model picker's effort column runs a thread on.
 REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
@@ -774,20 +780,21 @@ def calls_yaml(calls: dict | None, transcription: dict | None = None) -> str:
     return section
 
 
-def voice_yaml(transcription: dict | None, stub_url: str) -> str:
-    """The speech-to-text that call transcripts use: OpenAI's, or the stand-in of stub_model.py."""
+def voice_yaml(transcription: dict | None, stub_url: str, dictation: bool = False) -> str:
+    """The speech-to-text that call transcripts (and dictation) use: OpenAI's, or the stand-in of stub_model.py."""
     if not transcription:
         return ""
+    dictation_line = "  dictation: true\n" if dictation else ""
     if transcription["stt"] == "real":
-        return """
+        return f"""
 voice:
-  stt:
+{dictation_line}  stt:
     provider: openai
     credentials_service: openai
 """
     return f"""
 voice:
-  stt:
+{dictation_line}  stt:
     provider: openai_compatible
     host: {stub_url}
     model: {STUB_STT_MODEL}
@@ -820,6 +827,9 @@ def config_yaml(
     shell_without_worker: bool = False,
     extra_agents: int = 0,
     reasoning_levels: bool = False,
+    dictation: bool = False,
+    temporary_secrets: bool = False,
+    delegate_to_scout: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -892,14 +902,16 @@ def config_yaml(
         )
     else:
         models = stub_models_yaml(stub_url, reasoning_levels)
+        stub_tools = agent_tools + ("\n      - temporary_secrets" if temporary_secrets else "")
+        helper_delegate = "    delegate_to: [scout]\n" if delegate_to_scout else ""
         agents = f"""  helper:
     display_name: Helper
     role: Test agent driven by a stub model
     model: default
     rooms: [lobby]
     tools:
-{agent_tools}
-{helper_terminals}  scout:
+{stub_tools}
+{helper_delegate}{helper_terminals}  scout:
     display_name: Scout
     role: Second test agent on the deep stub model
     model: deep
@@ -941,7 +953,7 @@ room_defaults:
 
 timezone: UTC
 memory: none
-{plugins}{calls_yaml(calls, transcription)}{voice_yaml(transcription, stub_url)}"""
+{plugins}{calls_yaml(calls, transcription)}{voice_yaml(transcription, stub_url, dictation)}"""
 
 
 SHELL_REVIEW = '''import json
@@ -1333,6 +1345,9 @@ def start(
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
     reasoning_levels = args.model == "stub" and commit_mentions(checkout, sha, *REASONING_LEVELS)
+    dictation = bool(transcription) and commit_mentions(checkout, sha, *VOICE_DICTATION)
+    temporary_secrets = args.model == "stub" and commit_mentions(checkout, sha, *TEMPORARY_SECRETS)
+    delegate_to_scout = args.model == "stub" and commit_mentions(checkout, sha, *AGENT_DELEGATE_TO)
     config_path.write_text(
         config_yaml(
             args.model,
@@ -1347,6 +1362,9 @@ def start(
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
             args.agents,
             reasoning_levels,
+            dictation=dictation,
+            temporary_secrets=temporary_secrets,
+            delegate_to_scout=delegate_to_scout,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"

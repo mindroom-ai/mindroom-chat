@@ -20,7 +20,6 @@ import {
   takeLeadingToolRefs,
   trimLeadingToolRefBoundary,
 } from '../agent-run/toolRefDom';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { PasteMarker, parsePasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
 import { subagentToolStartedAt } from '../../matrix/protocol/subagentFrame';
 import {
@@ -55,7 +54,6 @@ import {
   ToolCallClockContext,
   ToolCallMessageContext,
   ToolCallsFoldContext,
-  ToolApprovalsByNameContext,
   ToolCallState,
   useFoldedToolCalls,
   withFailures,
@@ -433,8 +431,7 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
   const eventId = useContext(ToolCallMessageContext)?.eventId;
   const context = useThreadApprovals();
   const secrets = useInlineSecretRequests(eventId);
-  const byName = useContext(ToolApprovalsByNameContext);
-  const inputs = [eventId, context?.records, context?.now, secrets, byName];
+  const inputs = [eventId, context?.records, context?.now, secrets];
   if (reply.last?.inputs.every((input, index) => input === inputs[index])) return reply.last.states;
 
   const secretMarkers = secretRequestMarkers(reply, secrets);
@@ -469,7 +466,7 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
             ),
           }))
       : [];
-  const resolved = resolveToolCallStates(calls, approvals, byName);
+  const resolved = resolveToolCallStates(calls, approvals);
   const states = new Map(loaded.map((tool, index) => [tool.index, resolved[index]!]));
   reply.last = { inputs, states };
   return states;
@@ -750,23 +747,10 @@ const valueHasMarkerCandidate = (value: unknown): boolean =>
   typeof value === 'string' &&
   (value.includes(MINDROOM_TOOL_REF_ICON) || value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
 
-const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean => {
-  if (isToolTraceV2(content)) return true;
-  if (valueHasMarkerCandidate(content.formatted_body)) return true;
-  if (valueHasMarkerCandidate(content.body)) return true;
-
-  const extras = content[MINDROOM_MESSAGE_EXTRAS_KEY];
-  if (extras && typeof extras === 'object') {
-    const { sections } = extras as { sections?: unknown };
-    if (Array.isArray(sections)) {
-      return sections.some((section) =>
-        valueHasMarkerCandidate((section as { content?: unknown } | null)?.content)
-      );
-    }
-  }
-
-  return false;
-};
+const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean =>
+  isToolTraceV2(content) ||
+  valueHasMarkerCandidate(content.formatted_body) ||
+  valueHasMarkerCandidate(content.body);
 
 const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,

@@ -120,8 +120,9 @@ vi.mock('../../ui/nav/NavItem', async () => {
 vi.mock('../../ui/UnreadBadge', async () => {
   const reactModule = await import('react');
   return {
-    UnreadBadge: () => reactModule.createElement('span'),
-    UnreadBadgeCenter: ({ children }: { children: React.ReactNode }) => children,
+    UnreadBadge: () => reactModule.createElement('span', { 'data-testid': 'unread-badge' }),
+    UnreadBadgeCenter: ({ children }: { children?: React.ReactNode }) =>
+      reactModule.createElement('span', { 'data-testid': 'unread-badge-center' }, children),
   };
 });
 
@@ -288,28 +289,28 @@ afterEach(() => {
 const findByTestId = (renderer: ReactTestRenderer, testId: string) =>
   renderer.root.findAll((node) => node.props['data-testid'] === testId);
 
+const markCall = (
+  callRoomId: string,
+  originRoomId?: string,
+  phase: CallState['phase'] = 'connected'
+) => {
+  const subscribe = vi.fn(() => () => undefined);
+  testState.activeCall = {
+    kind: originRoomId ? 'agent' : 'room',
+    origin: originRoomId ? { roomId: originRoomId } : undefined,
+    call: {
+      room: { roomId: callRoomId },
+      subscribe,
+      getState: () => ({ phase }),
+    },
+  } as unknown as ActiveCall;
+  return subscribe;
+};
+
 describe('RoomNavItem call badge', () => {
   afterEach(() => {
     testState.activeCall = undefined;
   });
-
-  const markCall = (
-    callRoomId: string,
-    originRoomId?: string,
-    phase: CallState['phase'] = 'connected'
-  ) => {
-    const subscribe = vi.fn(() => () => undefined);
-    testState.activeCall = {
-      kind: originRoomId ? 'agent' : 'room',
-      origin: originRoomId ? { roomId: originRoomId } : undefined,
-      call: {
-        room: { roomId: callRoomId },
-        subscribe,
-        getState: () => ({ phase }),
-      },
-    } as unknown as ActiveCall;
-    return subscribe;
-  };
   const badge = (renderer: ReactTestRenderer) =>
     renderer.root.findAll((node) => node.type === 'i' && node.props.src === 'Phone');
 
@@ -514,6 +515,57 @@ describe('RoomNavItem background jobs', () => {
     act(() => testState.setHover?.(true));
 
     expect(jobsIndicators(renderer)).toHaveLength(1);
+  });
+});
+
+describe('RoomNavItem trailing status slot', () => {
+  afterEach(() => {
+    testState.backgroundJobs = [];
+    testState.unread = undefined;
+    testState.activeCall = undefined;
+  });
+
+  const statusSlots = (renderer: ReactTestRenderer) =>
+    findByTestId(renderer, 'unread-badge-center');
+
+  it('omits the status slot on a plain quiet row', () => {
+    expect(statusSlots(renderRoomNavItem())).toHaveLength(0);
+  });
+
+  it('reserves the status slot on a read row with background jobs and drops it on hover', () => {
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    const renderer = renderRoomNavItem();
+    expect(statusSlots(renderer)).toHaveLength(1);
+    expect(statusSlots(renderer)[0]!.children).toEqual([]);
+
+    act(() => testState.setHover?.(true));
+    expect(statusSlots(renderer)).toHaveLength(0);
+    expect(renderer.root.findAll((n) => n.type === 'i' && n.props.src === 'Clock')).toHaveLength(1);
+  });
+
+  it('reserves the status slot on a read row in a call and drops it on hover', () => {
+    markCall(room.roomId);
+    const renderer = renderRoomNavItem();
+    expect(statusSlots(renderer)).toHaveLength(1);
+
+    act(() => testState.setHover?.(true));
+    expect(statusSlots(renderer)).toHaveLength(0);
+    expect(renderer.root.findAll((n) => n.type === 'i' && n.props.src === 'Phone')).toHaveLength(1);
+  });
+
+  it('keeps one status slot with the unread badge on an unread row with jobs and drops it on hover', () => {
+    testState.unread = { total: 4, highlight: 0 };
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    const renderer = renderRoomNavItem();
+    expect(statusSlots(renderer)).toHaveLength(1);
+    expect(
+      statusSlots(renderer)[0]!.findAll((n) => n.props['data-testid'] === 'unread-badge')
+    ).toHaveLength(1);
+
+    act(() => testState.setHover?.(true));
+    expect(statusSlots(renderer)).toHaveLength(0);
+    expect(findByTestId(renderer, 'unread-badge')).toHaveLength(0);
+    expect(renderer.root.findAll((n) => n.type === 'i' && n.props.src === 'Clock')).toHaveLength(1);
   });
 });
 

@@ -22,6 +22,12 @@ describe('isSidePanel', () => {
     }
     expect(isSidePanel({ ...panel('pr', 'Pull Requests'), placement: 'top' })).toBe(false);
   });
+
+  it('accepts frameControls own and rejects unknown values', () => {
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: undefined })).toBe(true);
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: 'own' })).toBe(true);
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: 'host' })).toBe(false);
+  });
 });
 
 describe('usePluginSidePanels', () => {

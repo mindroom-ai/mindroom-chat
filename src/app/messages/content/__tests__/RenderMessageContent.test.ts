@@ -308,7 +308,6 @@ describe('RenderMessageContent', () => {
           threadId: '$thread-root',
           msgType: 'm.notice',
           ts: 0,
-          showMessageExtras: true,
           getContent: (() => ({
             msgtype: 'm.notice',
             body: 'Summary body',
@@ -331,7 +330,6 @@ describe('RenderMessageContent', () => {
         eventId: '$approval',
         threadId: '$thread-root',
         msgType: 'm.notice',
-        showMessageExtras: true,
         content: expect.objectContaining({
           body: 'Summary body',
         }),

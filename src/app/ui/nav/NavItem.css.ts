@@ -170,8 +170,12 @@ export const NavItemOptionsReveal = style([
   },
 ]);
 
-/** The width of a row's one options button (folds IconButton size 300) and its end padding. */
-const OPTIONS_WIDTH = `calc(${toRem(32)} + ${config.space.S100})`;
+/**
+ * Trailing clearance while the options button is revealed: 24px slot + S200 gap (32px), which
+ * stacks with NavItemContent's S200 end padding (40px total) to match UnreadBadgeCenter (24px) +
+ * row gap (S200) + NavItemContent end padding (S200) while clearing the 28px options button.
+ */
+const OPTIONS_WIDTH = `calc(${toRem(24)} + ${config.space.S200})`;
 globalStyle(
   `${NavItemRow}:has(> ${NavItemOptionsReveal}[data-shown=true]) > :not(${NavItemOptionsReveal})`,
   {
