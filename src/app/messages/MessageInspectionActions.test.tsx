@@ -20,10 +20,11 @@ vi.mock('folds', () => ({
   Modal: ({
     children,
     role,
+    appearance,
     'aria-modal': ariaModal,
     'aria-label': ariaLabel,
-  }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role={role} aria-modal={ariaModal} aria-label={ariaLabel}>
+  }: React.HTMLAttributes<HTMLDivElement> & { appearance?: string }) => (
+    <div role={role} aria-modal={ariaModal} aria-label={ariaLabel} data-appearance={appearance}>
       {children}
     </div>
   ),
@@ -81,6 +82,7 @@ describe('MessageSourceCodeItem', () => {
     await act(() => renderer.root.findByType('button').props.onClick());
     expect(findDialog().props['aria-modal']).toBe('true');
     expect(findDialog().props['aria-label']).toBe('Source Code');
+    expect(findDialog().props['data-appearance']).toBe('plain');
     expect(findDialog().findByProps({ 'data-viewer-name': 'Source Code' })).toBeDefined();
     await act(async () => {
       await language.changeLanguage('es');
@@ -124,5 +126,6 @@ describe('MessageReadReceiptItem', () => {
     );
     expect(dialog.props['aria-modal']).toBe('true');
     expect(dialog.props['aria-label']).toBe('Read receipts');
+    expect(dialog.props['data-appearance']).toBeUndefined();
   });
 });

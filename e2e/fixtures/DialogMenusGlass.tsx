@@ -42,6 +42,7 @@ export function DialogMenusGlass() {
   if (viewer) {
     return (
       <Modal
+        appearance={viewer === 'pack' ? undefined : 'plain'}
         style={{ position: 'fixed', inset: 16, width: 'auto', height: 'auto', maxWidth: 'none' }}
       >
         {viewer === 'pack' ? (

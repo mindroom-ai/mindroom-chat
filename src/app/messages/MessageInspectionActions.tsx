@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Icons, type IconSrc } from 'folds';
-import { Modal } from '../ui/glass/GlassPrimitives';
+import { Modal, type SurfaceAppearance } from '../ui/glass/GlassPrimitives';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ModalLayer } from '../ui/ModalLayer';
 import { EventSourceViewer } from './viewers/EventSourceViewer';
@@ -13,12 +13,20 @@ type MenuDialogItemProps = {
   label: string;
   /** The dialog's accessible name. */
   dialogLabel: string;
+  modalAppearance?: SurfaceAppearance;
   onClose?: () => void;
   renderDialog: (requestClose: () => void) => React.ReactNode;
 };
 
 /** A message menu item that opens a modal; closing the modal also closes the menu. */
-function MenuDialogItem({ icon, label, dialogLabel, onClose, renderDialog }: MenuDialogItemProps) {
+function MenuDialogItem({
+  icon,
+  label,
+  dialogLabel,
+  modalAppearance,
+  onClose,
+  renderDialog,
+}: MenuDialogItemProps) {
   const [open, setOpen] = useState(false);
   // Leaving the dialog also dismisses the menu that opened it.
   const close = () => {
@@ -36,6 +44,7 @@ function MenuDialogItem({ icon, label, dialogLabel, onClose, renderDialog }: Men
         <Modal
           variant="Surface"
           size="500"
+          appearance={modalAppearance}
           role="dialog"
           aria-modal="true"
           aria-label={dialogLabel}
@@ -65,6 +74,7 @@ export function MessageSourceCodeItem({
     <MenuDialogItem
       label={t('mindroomUi.messages.messageInspectionActions.viewSource')}
       dialogLabel={sourceCode}
+      modalAppearance="plain"
       icon={Icons.BlockCode}
       onClose={onClose}
       renderDialog={(requestClose) => (

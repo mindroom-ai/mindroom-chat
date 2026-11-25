@@ -3,6 +3,7 @@ import type { FocusTrapProps } from 'focus-trap-react';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { stopPropagation } from '../../lib/keyboard';
 import { PhoneModal, PhoneOverlayCenter } from '../../ui/Modal500.css';
+import type { SurfaceAppearance } from '../../ui/glass/GlassPrimitives';
 
 // Attachment viewers (image, text, PDF) get most of the window, past the modal's usual size cap.
 const WINDOW_BOX: CSSProperties = {
@@ -18,17 +19,19 @@ type ViewerFrame = {
   /** For the `Modal` that holds the viewer. */
   modalClassName?: string;
   modalStyle?: CSSProperties;
+  modalAppearance?: SurfaceAppearance;
 };
 
 /**
- * The size of an attachment viewer's modal for the current screen. On phones a viewer is a screen
+ * The frame of an attachment viewer's modal for the current screen. On phones a viewer is a screen
  * of its own, like the large dialogs (Modal500): edge to edge, without the glass rim, and its
- * header kept clear of the notch and the home indicator.
+ * header kept clear of the notch and the home indicator. On larger screens it takes most of the
+ * window as a plain opaque modal, without the glass rim over its opaque viewer body.
  */
 export const useViewerFrame = (): ViewerFrame =>
   useScreenSizeContext() === ScreenSize.Mobile
     ? { centerClassName: PhoneOverlayCenter, modalClassName: PhoneModal }
-    : { modalStyle: WINDOW_BOX };
+    : { modalStyle: WINDOW_BOX, modalAppearance: 'plain' };
 
 type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
