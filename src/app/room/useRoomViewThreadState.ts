@@ -322,10 +322,12 @@ export const useRoomViewThreadState = ({
   const locationState: unknown = location?.state;
 
   useLayoutEffect(() => {
+    const browserHistoryState: unknown =
+      typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
     const exitTarget =
       (locationKey !== undefined || locationState !== undefined
         ? getRoomThreadExitTargetFromHistoryState({ key: locationKey, usr: locationState })
-        : undefined) ?? getRoomThreadExitTargetFromHistoryState(window.history.state);
+        : undefined) ?? getRoomThreadExitTargetFromHistoryState(browserHistoryState);
     const activeSessionId = getActiveSession()?.sessionId ?? sessionId;
     const returnToSpaceThreads =
       !!effectiveThreadId &&
