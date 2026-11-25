@@ -492,7 +492,8 @@
         "inUse": "Server in use",
         "inUseNone": "None set, so computers are off on this device.",
         "useServer": "Use {{host}}",
-        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here.",
+        "foundNotSavedChoose": "Found from your agents, not saved. Choose the server you trust; this device uses it for all rooms."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",

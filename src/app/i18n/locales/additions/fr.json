@@ -505,7 +505,8 @@
         "inUse": "Serveur utilisé",
         "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
         "useServer": "Utiliser {{host}}",
-        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici."
+        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici.",
+        "foundNotSavedChoose": "Trouvés via vos agents, non enregistrés. Choisissez le serveur auquel vous faites confiance ; cet appareil l'utilise pour toutes les salles."
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
