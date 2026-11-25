@@ -131,7 +131,7 @@ export const buildMenuTemplate = (
     viewMenu,
     {
       label: 'Window',
-      submenu: cleanSeparators([...quickCaptureItems, { role: 'minimize' }, { role: 'close' }]),
+      submenu: cleanSeparators([...quickCaptureItems, { role: 'minimize' }]),
     },
     {
       label: 'Help',

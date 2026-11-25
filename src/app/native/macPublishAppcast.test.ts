@@ -28,10 +28,8 @@ const DESKTOP_ASSETS = [
 
 const LINUX_ASSETS = [
   'MindRoom-Chat-x86_64.AppImage',
-  'MindRoom-Chat-x86_64.AppImage.blockmap',
   'MindRoom-Chat-amd64.deb',
   'MindRoom-Chat-arm64.AppImage',
-  'MindRoom-Chat-arm64.AppImage.blockmap',
   'MindRoom-Chat-arm64.deb',
   'latest-linux.yml',
   'latest-linux-arm64.yml',
@@ -40,12 +38,18 @@ const LINUX_ASSETS = [
 const latestYml = (version: string, urlVersion = version) =>
   `version: ${version}\nfiles:\n  - url: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-arm64-mac.zip\n    sha512: aaa==\n    size: 10\n  - url: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-x64-mac.zip\n    sha512: bbb==\n    size: 12\npath: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-arm64-mac.zip\nsha512: aaa==\nreleaseDate: '2026-11-22T00:00:00.000Z'\n`;
 
-const linuxLatestYml = (version: string, arch: 'x64' | 'arm64', urlVersion = version) => {
+const linuxLatestYml = (
+  version: string,
+  arch: 'x64' | 'arm64',
+  urlVersion = version,
+  blockMapSize: string | number | null = arch === 'x64' ? 128 : 132
+) => {
   const file = arch === 'x64' ? 'MindRoom-Chat-x86_64.AppImage' : 'MindRoom-Chat-arm64.AppImage';
   const hash = arch === 'x64' ? 'xxx==' : 'yyy==';
   const size = arch === 'x64' ? 20 : 22;
   const url = `https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/${file}`;
-  return `version: ${version}\nfiles:\n  - url: ${url}\n    sha512: ${hash}\n    size: ${size}\npath: ${url}\nsha512: ${hash}\nreleaseDate: '2026-11-25T00:00:00.000Z'\n`;
+  const blockMapLine = blockMapSize === null ? '' : `\n    blockMapSize: ${blockMapSize}`;
+  return `version: ${version}\nfiles:\n  - url: ${url}\n    sha512: ${hash}\n    size: ${size}${blockMapLine}\npath: ${url}\nsha512: ${hash}\nreleaseDate: '2026-11-25T00:00:00.000Z'\n`;
 };
 
 const manifestContent = (asset: string, version: string) => {
@@ -402,10 +406,7 @@ describe('--linux mode (linux-feed)', () => {
 
   it.each([
     ['missing arm64 deb', LINUX_ASSETS.filter((a) => a !== 'MindRoom-Chat-arm64.deb')],
-    [
-      'missing x86_64 blockmap',
-      LINUX_ASSETS.filter((a) => a !== 'MindRoom-Chat-x86_64.AppImage.blockmap'),
-    ],
+    ['missing x86_64 AppImage', LINUX_ASSETS.filter((a) => a !== 'MindRoom-Chat-x86_64.AppImage')],
     ['missing latest-linux-arm64.yml', LINUX_ASSETS.filter((a) => a !== 'latest-linux-arm64.yml')],
   ])('skips without writing when %s', (_name, assets) => {
     const github = fixture('linux');
@@ -434,6 +435,30 @@ describe('--linux mode (linux-feed)', () => {
         writeFileSync(
           github.asset('v2026.11.10', 'latest-linux-arm64.yml'),
           linuxLatestYml('2026.11.10', 'x64')
+        ),
+    ],
+    [
+      'latest-linux.yml missing blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux.yml'),
+          linuxLatestYml('2026.11.10', 'x64', '2026.11.10', null)
+        ),
+    ],
+    [
+      'latest-linux-arm64.yml zero blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux-arm64.yml'),
+          linuxLatestYml('2026.11.10', 'arm64', '2026.11.10', 0)
+        ),
+    ],
+    [
+      'latest-linux.yml non-numeric blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux.yml'),
+          linuxLatestYml('2026.11.10', 'x64', '2026.11.10', 'abc')
         ),
     ],
     [

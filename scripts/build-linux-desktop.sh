@@ -4,7 +4,7 @@ set -euo pipefail
 
 die() { echo "$*" >&2; exit 1; }
 usage() {
-  echo "usage: $0 --arch <x64|arm64> [--skip-web-build] [--verify-only <appimage> <blockmap> <deb>]" >&2
+  echo "usage: $0 --arch <x64|arm64> [--skip-web-build] [--verify-only <appimage> <deb>]" >&2
   exit 2
 }
 
@@ -89,15 +89,42 @@ smoke_launch() {
   fi
 }
 
+verify_embedded_blockmap() {
+  local appimage_path="$1"
+  command -v node >/dev/null 2>&1 || die "node is required to verify AppImage embedded blockmap"
+  node -e '
+    const fs = require("node:fs");
+    const zlib = require("node:zlib");
+    const bytes = fs.readFileSync(process.argv[1]);
+    if (bytes.length <= 4) throw new Error("AppImage too small for embedded blockmap");
+    const blockMapSize = bytes.readUInt32BE(bytes.length - 4);
+    if (blockMapSize <= 0 || blockMapSize > bytes.length - 4) {
+      throw new Error(`Invalid embedded blockmap size (${blockMapSize})`);
+    }
+    const compressed = bytes.subarray(bytes.length - 4 - blockMapSize, bytes.length - 4);
+    const parsed = JSON.parse(zlib.inflateRawSync(compressed).toString("utf8"));
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed) ||
+      !Array.isArray(parsed.files) ||
+      parsed.files.length === 0
+    ) {
+      throw new Error("Embedded blockmap JSON is missing files");
+    }
+  ' "$appimage_path" || die "Invalid or missing embedded blockmap in AppImage: $appimage_path"
+}
+
 verify_linux_artifacts() {
-  local appimage="$1" blockmap="$2" deb="$3"
-  local appimage_abs deb_abs deb_info deb_listing deb_extract desktop_file
+  local appimage="$1" deb="$2"
+  local appimage_abs deb_abs deb_info deb_listing deb_extract desktop_file appimage_desktop
   local deb_asar deb_resources pkg_type appimage_work appimage_exec squashfs_root
 
-  require_files "$appimage" "$blockmap" "$deb"
+  require_files "$appimage" "$deb"
   command -v dpkg-deb >/dev/null 2>&1 || die "dpkg-deb is required to verify Linux .deb packages"
   appimage_abs=$(abs_path "$appimage")
   deb_abs=$(abs_path "$deb")
+  verify_embedded_blockmap "$appimage_abs"
   scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-linux-verify.XXXXXX")
 
   deb_info=$(dpkg-deb -I "$deb_abs")
@@ -143,6 +170,15 @@ verify_linux_artifacts() {
 
   squashfs_root="$appimage_work/squashfs-root"
   [[ -d "$squashfs_root" ]] || die "AppImage extraction did not produce squashfs-root: $appimage"
+  appimage_desktop="$squashfs_root/mindroom-chat.desktop"
+  [[ -s "$appimage_desktop" ]] || die "AppImage is missing mindroom-chat.desktop: $appimage"
+  grep -Fqx 'StartupWMClass=mindroom-chat' "$appimage_desktop" \
+    || die "AppImage desktop entry is missing StartupWMClass=mindroom-chat: $appimage"
+  grep -Fqx 'Name=MindRoom Chat' "$appimage_desktop" \
+    || die "AppImage desktop entry is missing Name=MindRoom Chat: $appimage"
+  if grep -Fq -- '--no-sandbox' "$appimage_desktop"; then
+    die "AppImage desktop entry must not contain --no-sandbox: $appimage"
+  fi
   [[ -s "$squashfs_root/resources/app.asar" ]] || die "AppImage is missing resources/app.asar: $appimage"
   [[ -s "$squashfs_root/resources/app-update.yml" ]] || die "AppImage is missing resources/app-update.yml: $appimage"
   grep -Fq 'releases/download/linux-feed' "$squashfs_root/resources/app-update.yml" \
@@ -163,7 +199,6 @@ arch=""
 skip_web_build=0
 verify_only=0
 verify_appimage=""
-verify_blockmap=""
 verify_deb=""
 
 while [[ $# -gt 0 ]]; do
@@ -171,9 +206,9 @@ while [[ $# -gt 0 ]]; do
     --arch) [[ $# -ge 2 ]] || usage; arch="$2"; shift 2 ;;
     --skip-web-build) skip_web_build=1; shift ;;
     --verify-only)
-      [[ $# -ge 4 ]] || usage
-      verify_only=1; verify_appimage="$2"; verify_blockmap="$3"; verify_deb="$4"
-      shift 4 ;;
+      [[ $# -ge 3 ]] || usage
+      verify_only=1; verify_appimage="$2"; verify_deb="$3"
+      shift 3 ;;
     *) usage ;;
   esac
 done
@@ -190,7 +225,7 @@ if [[ -n "${MARKETING_VERSION:-}" ]]; then
 fi
 
 if [[ "$verify_only" -eq 1 ]]; then
-  verify_linux_artifacts "$verify_appimage" "$verify_blockmap" "$verify_deb"
+  verify_linux_artifacts "$verify_appimage" "$verify_deb"
   echo "Verified Linux desktop artifacts ($arch)"
   exit 0
 fi
@@ -207,5 +242,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=false MINDROOM_DESKTOP_SIGN=0 \
   --config electron/builder.config.cjs --publish never
 
 appimage_path="$out_dir/MindRoom-Chat-${appimage_arch}.AppImage"
-verify_linux_artifacts "$appimage_path" "${appimage_path}.blockmap" "$out_dir/MindRoom-Chat-${deb_arch}.deb"
+deb_path="$out_dir/MindRoom-Chat-${deb_arch}.deb"
+expected_outputs=("$appimage_path" "$deb_path")
+verify_linux_artifacts "${expected_outputs[@]}"
 echo "Verified Linux desktop artifacts ($arch): $out_dir"

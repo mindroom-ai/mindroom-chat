@@ -114,6 +114,9 @@ module.exports = {
   },
   appImage: {
     artifactName: 'MindRoom-Chat-${arch}.AppImage',
+    // Do not hardcode --no-sandbox in the AppImage .desktop entry; keep Chromium's
+    // sandbox enabled wherever unprivileged user namespaces are available.
+    executableArgs: [],
   },
   deb: {
     artifactName: 'MindRoom-Chat-${arch}.deb',

@@ -25,8 +25,8 @@ if [[ $platform == linux ]]; then
   feed_title='Linux desktop update feed'
   feed_notes='The Electron Linux AppImage reads its updates from latest-linux.yml and latest-linux-arm64.yml here (docs/ios-release.md "Updates"). Not a release of its own.'
   required_assets=(
-    MindRoom-Chat-x86_64.AppImage MindRoom-Chat-x86_64.AppImage.blockmap MindRoom-Chat-amd64.deb
-    MindRoom-Chat-arm64.AppImage MindRoom-Chat-arm64.AppImage.blockmap MindRoom-Chat-arm64.deb
+    MindRoom-Chat-x86_64.AppImage MindRoom-Chat-amd64.deb
+    MindRoom-Chat-arm64.AppImage MindRoom-Chat-arm64.deb
     latest-linux.yml latest-linux-arm64.yml
   )
   feed_assets=(latest-linux.yml latest-linux-arm64.yml)
@@ -80,6 +80,9 @@ if expected:
     urls = [f.get("url", "") for f in files]
     if ver != expected or not need or len(urls) != len(need) or set(urls) != need or top.get("path", "") not in need:
         sys.exit(1)
+    if all(name.endswith(".AppImage") for name in expected_files):
+        if any(not re.fullmatch(r"[1-9][0-9]*", str(f.get("blockMapSize", ""))) for f in files):
+            sys.exit(1)
 print(ver)
 PY
 }

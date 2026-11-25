@@ -151,7 +151,7 @@ describe('buildMenuTemplate', () => {
       'linux'
     );
     expect(base[0]?.submenu).toEqual([{ role: 'close' }, { type: 'separator' }, { role: 'quit' }]);
-    expect(base[3]?.submenu).toEqual([{ role: 'minimize' }, { role: 'close' }]);
+    expect(base[3]?.submenu).toEqual([{ role: 'minimize' }]);
     expect(base[4]?.submenu).toEqual([{ role: 'about' }]);
 
     const checkable = buildMenuTemplate(
@@ -161,6 +161,11 @@ describe('buildMenuTemplate', () => {
     );
     const checkWinSub = checkable[3]?.submenu as Electron.MenuItemConstructorOptions[];
     const checkHelpSub = checkable[4]?.submenu as Electron.MenuItemConstructorOptions[];
+    expect(checkWinSub.map((i) => i.label ?? i.role ?? i.type)).toEqual([
+      'Quick Capture',
+      'separator',
+      'minimize',
+    ]);
     const qcItem = checkWinSub.find((i) => i.label === 'Quick Capture');
     const checkItem = checkHelpSub.find((i) => i.label === 'Check for Updates...');
     expect(qcItem?.accelerator).toBe('Control+Alt+Space');

@@ -62,7 +62,7 @@ Explicitly deferred (out of scope for this PR):
   - `File`: `{ role: 'close' }`, separator, `{ role: 'quit' }`.
   - `Edit`: `undo`, `redo`, separator, `cut`, `copy`, `paste`, `pasteAndMatchStyle`, `delete`, `selectAll`.
   - `View`: `Zoom In` (`CommandOrControl+Plus`), `Zoom Out` (`CommandOrControl+-`), `Actual Size` (`CommandOrControl+0`), separator, `togglefullscreen`.
-  - `Window`: optional `Quick Capture` (`Control+Alt+Space`, keeping it reachable when Wayland blocks global shortcuts), separator, `minimize`, `close` (no macOS-only `zoom` or `front`).
+  - `Window`: optional `Quick Capture` (`Control+Alt+Space`, keeping it reachable when Wayland blocks global shortcuts), separator, `minimize` (no macOS-only `zoom` or `front`, and no duplicate `close`, which lives in `File`).
   - `Help`: optional `Restart to Update` or `Check for Updates...` when enabled, separator, `{ role: 'about' }`.
 
 ### 4. Auto-Updater on Linux (`electron/main/updater.ts`, `electron/main/index.ts`, `electron/builder.config.cjs`)
@@ -90,23 +90,23 @@ Explicitly deferred (out of scope for this PR):
   - `desktop`: `{ entry: { Name: 'MindRoom Chat', Comment: 'Open-source Matrix client for MindRoom', Categories: 'Network;InstantMessaging;Chat;', StartupWMClass: 'mindroom-chat' } }`
   - `target`: `['AppImage', 'deb']`
   - `publish`: `{ provider: 'generic', url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/linux-feed', useMultipleRangeRequest: false }`
-- Add `appImage: { artifactName: 'MindRoom-Chat-${arch}.AppImage' }` and `deb: { artifactName: 'MindRoom-Chat-${arch}.deb' }`. In `electron-builder` 26.18.0 (`getArtifactArchName`), `${arch}` expands deterministically to `x86_64` / `arm64` for `AppImage` and `amd64` / `arm64` for `deb`, producing `MindRoom-Chat-x86_64.AppImage`, `MindRoom-Chat-arm64.AppImage`, `MindRoom-Chat-amd64.deb`, and `MindRoom-Chat-arm64.deb`. `scripts/build-linux-desktop.sh` pins `--x64` / `--arm64` and verifies these exact filenames fail-closed.
+- Add `appImage: { artifactName: 'MindRoom-Chat-${arch}.AppImage', executableArgs: [] }` (preserving Chromium sandboxing instead of hardcoding `--no-sandbox` in the AppImage `.desktop` entry) and `deb: { artifactName: 'MindRoom-Chat-${arch}.deb' }`. In `electron-builder` 26.18.0 (`getArtifactArchName`), `${arch}` expands deterministically to `x86_64` / `arm64` for `AppImage` and `amd64` / `arm64` for `deb`, producing `MindRoom-Chat-x86_64.AppImage`, `MindRoom-Chat-arm64.AppImage`, `MindRoom-Chat-amd64.deb`, and `MindRoom-Chat-arm64.deb`. `scripts/build-linux-desktop.sh` pins `--x64` / `--arm64` and verifies these exact filenames fail-closed.
 - Keep `electronFuses` at top level (`runAsNode: false`, `enableCookieEncryption: true`, `enableNodeOptionsEnvironmentVariable: false`, `enableNodeCliInspectArguments: false`, `enableEmbeddedAsarIntegrityValidation: true`, `onlyLoadAppFromAsar: true`, `grantFileProtocolExtraPrivileges: false`, `resetAdHocDarwinSignature: !sign`). Verify packaged Linux launch in CI proves fuses + ASAR boot cleanly.
 - Create `scripts/build-linux-desktop.sh`:
   - Supports `--arch <x64|arm64>` and optional `--verify-only` / `--skip-web-build`.
-  - Runs `npm run build:desktop` (unless skipped), runs `npx electron-builder --linux AppImage deb --<arch> --config electron/builder.config.cjs --publish never`, verifies the `.AppImage`, `.AppImage.blockmap`, and `.deb` exist and are non-empty.
+  - Runs `npm run build:desktop` (unless skipped), runs `npx electron-builder --linux AppImage deb --<arch> --config electron/builder.config.cjs --publish never`, verifies the `.AppImage` (including its embedded deflate-raw blockmap + 4-byte UInt32BE length trailer at EOF; `electron-builder` embeds the AppImage blockmap rather than emitting a `.AppImage.blockmap` sidecar) and `.deb` exist and are non-empty.
   - Verifies `.deb` contents with `dpkg-deb`: contains `.desktop` entry with `StartupWMClass=mindroom-chat`, contains AppArmor profile under `resources/apparmor-profile` (or `/etc/apparmor.d`), contains `resources/package-type` with `deb`, and contains NO macOS binaries (`mindroom-screenshot-helper`, `mindroom-trackpad-swipe.node`, `MindRoom Desktop Helper.app`).
-  - Verifies `AppImage` extracted resources: `app-update.yml` points to `linux-feed`, contains NO `resources/package-type`, and contains NO macOS binaries.
+  - Verifies `AppImage` extracted resources: `mindroom-chat.desktop` exists with `StartupWMClass=mindroom-chat`, `Name=MindRoom Chat`, and no `--no-sandbox`; `app-update.yml` points to `linux-feed`; contains NO `resources/package-type`; and contains NO macOS binaries.
   - Smoke-launches the extracted packaged binary under `xvfb-run` (with `--no-sandbox` in container/CI if needed) and verifies it boots without crashing.
 
 ### 6. Update Manifests and Feed Publisher (`scripts/desktop-latest-yml.mjs`, `scripts/macos-publish-appcast.sh`)
 
 - Extend `scripts/desktop-latest-yml.mjs`:
   - Keep existing macOS CLI (`--version`, `--repo`, `--arm64`, `--x64`, `--out`) and `buildDesktopLatestYml(...)` 100% backwards-compatible.
-  - Add `buildLinuxLatestYml({ version, releaseDate, repository, arch, file })` and CLI `--platform linux --arch <x64|arm64> --file <AppImage> --out <path>` generating `latest-linux.yml` (for `x64`, referencing `MindRoom-Chat-x86_64.AppImage`) and `latest-linux-arm64.yml` (for `arm64`, referencing `MindRoom-Chat-arm64.AppImage`) with absolute `https://github.com/<repo>/releases/download/v<version>/<filename>` URLs, SHA-512, and size.
+  - Add `buildLinuxLatestYml({ version, releaseDate, repository, arch, file })` and CLI `--platform linux --arch <x64|arm64> --file <AppImage> --out <path>` generating `latest-linux.yml` (for `x64`, referencing `MindRoom-Chat-x86_64.AppImage`) and `latest-linux-arm64.yml` (for `arm64`, referencing `MindRoom-Chat-arm64.AppImage`) with absolute `https://github.com/<repo>/releases/download/v<version>/<filename>` URLs, SHA-512, size, and `blockMapSize` read and validated from the AppImage's embedded blockmap trailer.
 - Extend `scripts/macos-publish-appcast.sh` with `--linux <tag>` mode (keeping `--desktop <tag>` for macOS untouched):
-  - Targets feed prerelease `linux-feed`, requires all 8 Linux release assets (`MindRoom-Chat-x86_64.AppImage`, `MindRoom-Chat-x86_64.AppImage.blockmap`, `MindRoom-Chat-amd64.deb`, `MindRoom-Chat-arm64.AppImage`, `MindRoom-Chat-arm64.AppImage.blockmap`, `MindRoom-Chat-arm64.deb`, `latest-linux.yml`, `latest-linux-arm64.yml`).
-  - Validates both `latest-linux.yml` and `latest-linux-arm64.yml` match `${tag#v}` and point to the exact `v<version>` AppImage URLs.
+  - Targets feed prerelease `linux-feed`, requires all 6 Linux release assets (`MindRoom-Chat-x86_64.AppImage`, `MindRoom-Chat-amd64.deb`, `MindRoom-Chat-arm64.AppImage`, `MindRoom-Chat-arm64.deb`, `latest-linux.yml`, `latest-linux-arm64.yml`).
+  - Validates both `latest-linux.yml` and `latest-linux-arm64.yml` match `${tag#v}`, point to the exact `v<version>` AppImage URLs, and carry a positive integer `blockMapSize`.
   - Honors `PAUSED` marker on `linux-feed`, checks monotonic CalVer per feed asset (self-healing if one asset landed before a prior failure), uploads with `--clobber` retry + readback + `curl` verification.
 
 ### 7. CI and Release Workflow (`.github/workflows/desktop.yml`, `.github/workflows/release.yml`)
@@ -117,11 +117,11 @@ Explicitly deferred (out of scope for this PR):
   - Add new Linux files (`scripts/build-linux-desktop.sh`, `src/app/quick-capture/QuickCapturePage.css.ts`, `src/app/quick-capture/QuickCapturePage.tsx`) to `pull_request.paths`.
 - **Release jobs (independent tracks):**
   - Add optional `workflow_dispatch` input `platform` (`all` | `mac` | `linux`, default `all`).
-  - Keep macOS `release` and `feed` jobs running independently (guarded by `inputs.platform != 'linux'`). Skip gracefully (exit 0, `skipped=true`) instead of failing if Mac artifacts already exist during a backfill.
+  - Keep macOS `release` and `feed` jobs running independently (guarded by `inputs.platform != 'linux'`). On `workflow_dispatch`, if all 6 Mac assets are already uploaded on the release, `release` skips cleanly (exit 0, `skipped=true`) and `feed` skips as well (`needs.release.outputs.skipped != 'true'`); partial uploads and non-dispatch runs fail closed.
   - Add Linux track (guarded by `inputs.platform != 'mac'`):
-    - `build-linux` (matrix: `{ arch: x64, runner: ubuntu-24.04 }`, `{ arch: arm64, runner: ubuntu-24.04-arm }`, `permissions: contents: read`): checks release is published and lacks Linux assets, runs `scripts/build-linux-desktop.sh --arch ${{ matrix.arch }}` with `MARKETING_VERSION`, uploads arch outputs as workflow artifact.
-    - `release-linux` (`ubuntu-24.04`, `needs: build-linux`, `permissions: contents: write`): downloads both arch artifacts, generates `latest-linux.yml` and `latest-linux-arm64.yml` via `scripts/desktop-latest-yml.mjs`, verifies release still lacks Linux assets, and attaches all 8 Linux assets in one `gh release upload` call (no `--clobber`).
-    - `feed-linux` (`ubuntu-24.04`, `needs: release-linux`, `concurrency: { group: linux-desktop-feed, queue: max }`, `permissions: contents: write`): runs `scripts/macos-publish-appcast.sh --linux "$RELEASE_TAG"`.
+    - `build-linux` (matrix: `{ arch: x64, runner: ubuntu-24.04 }`, `{ arch: arm64, runner: ubuntu-24.04-arm }`, `permissions: contents: read`): checks release is published and lacks Linux assets (skipping cleanly on `workflow_dispatch` if all 6 Linux assets are already uploaded), runs `scripts/build-linux-desktop.sh --arch ${{ matrix.arch }}` with `MARKETING_VERSION`, generates `latest-linux*.yml` via `scripts/desktop-latest-yml.mjs --platform linux`, and uploads arch outputs as a workflow artifact.
+    - `release-linux` (`ubuntu-24.04`, `needs: build-linux`, `permissions: contents: write`, `outputs.skipped`): verifies release still lacks Linux assets (skipping cleanly with `skipped=true` on `workflow_dispatch` if all 6 Linux assets are already uploaded), downloads both arch artifacts, and attaches all 6 Linux assets in one `gh release upload` call (no `--clobber`).
+    - `feed-linux` (`ubuntu-24.04`, `needs: release-linux`, gated on `needs.release-linux.outputs.skipped != 'true'`, `concurrency: { group: linux-desktop-feed, queue: max }`, `permissions: contents: write`): runs `scripts/macos-publish-appcast.sh --linux "$RELEASE_TAG"`.
   - Update `.github/workflows/release.yml` job label/comment from "Publish the Mac app" to "Publish desktop apps" (keeping the `macos` job id or updating `desktopBuildConfig.test.ts` cleanly).
 
 ## Testing Strategy
@@ -132,7 +132,7 @@ Explicitly deferred (out of scope for this PR):
   - `src/app/lib/nativeShell.test.ts` and `src/index.test.ts`: test `hasCustomTitlebar()` and `data-custom-titlebar` attribute toggling.
   - `src/app/quick-capture/QuickCapturePage.test.tsx`: test `data-vibrancy` set only when `quickCapture.vibrancy` is true.
   - `scripts/desktop-latest-yml.test.ts`: test `buildLinuxLatestYml` and `--platform linux` CLI for `x64` and `arm64`.
-  - `src/app/native/macPublishAppcast.test.ts`: test `--linux` mode (`linux-feed`, 8 required assets, both YAML manifests, `PAUSED`, monotonic upgrade, partial-upload repair).
+  - `src/app/native/macPublishAppcast.test.ts`: test `--linux` mode (`linux-feed`, 6 required assets, both YAML manifests with `blockMapSize`, `PAUSED`, monotonic upgrade, partial-upload repair).
   - `src/app/native/desktopBuildConfig.test.ts`: test `builder.config.cjs` schema validation with `linux` + per-platform `publish` + `mac.extraResources`, Linux workflow wiring (`e2e-linux`, `build-linux`, `release-linux`, `feed-linux`).
 - **Electron E2E (`e2e/electron/`):**
   - `e2e/electron/shell.spec.ts`: assert `28px` titlebar inset + drag strip on `darwin`, and `0px` top inset + no `[data-titlebar-drag]` on `linux`.

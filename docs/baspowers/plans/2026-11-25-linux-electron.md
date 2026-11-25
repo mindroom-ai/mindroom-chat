@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- No em dashes (`—`) in docs, comments, or commit messages (`AGENTS.md`).
+- No em dashes (U+2014) in docs, comments, or commit messages (`AGENTS.md`).
 - Unsigned commits (`git -c commit.gpgsign=false commit`) with `Assisted-by: MindRoom <display name>:<model id> <https://github.com/mindroom-ai/mindroom>` trailer; add files by explicit path, never `git add -A`.
 - Strict TypeScript (`just typecheck`, `just strict`), type-aware ESLint (`just lint`), Vitest (`just test`), and license check (`just license-check`) must pass with 0 errors.
 - Keep macOS packaging, signing/notarization, `mac-feed`, Homebrew tap dispatch, and `"Electron shell e2e (macOS)"` job name unchanged.
@@ -100,14 +100,14 @@
   - `scripts/macos-publish-appcast.sh --linux <tag>` publishing `latest-linux.yml` and `latest-linux-arm64.yml` to `linux-feed`
 
 - [ ] **Step 1: Update and add unit tests**
-  - `scripts/desktop-latest-yml.test.ts`: test `buildLinuxLatestYml` and CLI `--platform linux` for `x64` (`MindRoom-Chat-x86_64.AppImage`) and `arm64` (`MindRoom-Chat-arm64.AppImage`), rejecting wrong arch/filename/version.
-  - `src/app/native/macPublishAppcast.test.ts`: test `--linux <tag>` creating/updating `linux-feed` with both `latest-linux.yml` and `latest-linux-arm64.yml`, enforcing all 8 Linux assets, honoring `PAUSED`, refusing downgrade, and repairing a half-published `linux-feed`.
+  - `scripts/desktop-latest-yml.test.ts`: test `buildLinuxLatestYml` and CLI `--platform linux` for `x64` (`MindRoom-Chat-x86_64.AppImage`) and `arm64` (`MindRoom-Chat-arm64.AppImage`) including embedded `blockMapSize`, rejecting wrong arch/filename/version and missing/corrupt embedded blockmaps.
+  - `src/app/native/macPublishAppcast.test.ts`: test `--linux <tag>` creating/updating `linux-feed` with both `latest-linux.yml` and `latest-linux-arm64.yml`, enforcing all 6 Linux assets and positive integer `blockMapSize`, honoring `PAUSED`, refusing downgrade, and repairing a half-published `linux-feed`.
   - `src/app/native/desktopBuildConfig.test.ts`: update `builder.config.cjs` assertions for `mac.extraResources`, `mac.publish`, `linux` (`executableName`, `maintainer`, `vendor`, `desktop`, `publish`, `target`), `appImage`, `deb`, `extraMetadata.desktopName`, and real `validateConfiguration` schema pass.
 
 - [ ] **Step 2: Implement packaging config, build script, manifest generator, and feed publisher**
   - `package.json`: add `"homepage": "https://github.com/mindroom-ai/mindroom-chat"`.
-  - `electron/builder.config.cjs`: move `extraResources` and `publish` under `mac:`; add `extraMetadata.desktopName: 'mindroom-chat.desktop'`, `linux`, `appImage`, `deb`.
-  - `scripts/build-linux-desktop.sh`: build & verify `AppImage`, `.blockmap`, and `.deb` for `--arch x64|arm64`, inspect `.deb` (`dpkg-deb -I/-c`: `.desktop` with `StartupWMClass=mindroom-chat`, `apparmor-profile`, `resources/package-type` = `deb`, zero macOS binaries), inspect extracted `AppImage` (`resources/app-update.yml` points to `linux-feed`, no `package-type`, zero macOS binaries), and smoke-launch the extracted packaged binary under `xvfb-run` (verifying it starts cleanly with fuses + ASAR).
+  - `electron/builder.config.cjs`: move `extraResources` and `publish` under `mac:`; add `extraMetadata.desktopName: 'mindroom-chat.desktop'`, `linux`, `appImage` (with `executableArgs: []` to preserve Chromium sandboxing), and `deb`.
+  - `scripts/build-linux-desktop.sh`: build & verify `AppImage` (validating its embedded blockmap trailer at EOF) and `.deb` for `--arch x64|arm64`, inspect `.deb` (`dpkg-deb -I/-c`: `.desktop` with `StartupWMClass=mindroom-chat`, `apparmor-profile`, `resources/package-type` = `deb`, zero macOS binaries), inspect extracted `AppImage` (`mindroom-chat.desktop` with `StartupWMClass=mindroom-chat`, `Name=MindRoom Chat`, and no `--no-sandbox`; `resources/app-update.yml` points to `linux-feed`, no `package-type`, zero macOS binaries), and smoke-launch the extracted packaged binary under `xvfb-run` (verifying it starts cleanly with fuses + ASAR).
   - `scripts/desktop-latest-yml.mjs`: add `buildLinuxLatestYml` and `--platform linux` CLI mode while keeping existing macOS behavior unchanged.
   - `scripts/macos-publish-appcast.sh`: add `--linux` mode targeting `linux-feed` with per-asset monotonic CalVer + retry/readback + curl check.
 
@@ -140,7 +140,7 @@
   - `.github/workflows/desktop.yml`:
     - Add `e2e-linux` (`Electron shell e2e (Linux)`) on `ubuntu-24.04` running offline Electron E2E under `xvfb-run` + `scripts/build-linux-desktop.sh --arch x64 --skip-web-build`.
     - Add optional `workflow_dispatch` `platform` input (`all`, `mac`, `linux`, default `all`).
-    - Keep `release` and `feed` jobs for macOS (skipping cleanly when Mac assets already exist during a backfill); add independent `build-linux` (`ubuntu-24.04` x64 + `ubuntu-24.04-arm` arm64) -> `release-linux` (generates `latest-linux.yml` + `latest-linux-arm64.yml`, attaches all 8 Linux assets atomically without `--clobber`) -> `feed-linux` (`concurrency: { group: linux-desktop-feed, queue: max }`).
+    - Keep `release` and `feed` jobs for macOS (skipping cleanly with `skipped=true` when all 6 Mac assets are already uploaded on `workflow_dispatch`); add independent `build-linux` (`ubuntu-24.04` x64 + `ubuntu-24.04-arm` arm64, generating `latest-linux*.yml` with `blockMapSize`) -> `release-linux` (attaches all 6 Linux assets atomically without `--clobber`, skipping cleanly with `skipped=true` when already complete on `workflow_dispatch`) -> `feed-linux` (`concurrency: { group: linux-desktop-feed, queue: max }`, gated on `needs.release-linux.outputs.skipped != 'true'`).
     - Update `pull_request.paths` with new Linux scripts/files.
   - `.github/workflows/release.yml`: update `macos` job display name/comment to reflect publishing both macOS and Linux desktop apps (keep job id compatible or update `desktopBuildConfig.test.ts`).
   - `src/app/native/desktopBuildConfig.test.ts`: assert both macOS and Linux workflow wiring and guards.

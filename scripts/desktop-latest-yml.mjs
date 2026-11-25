@@ -13,6 +13,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { inflateRawSync } from 'node:zlib';
 import { stringify } from 'yaml';
 
 const CALVER_RE = /^[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$/;
@@ -44,17 +45,47 @@ function validateCommon({ version, releaseDate, repository }) {
   return date;
 }
 
-function readFileEntry(filePath, repository, version) {
+function readEmbeddedBlockMapSize(bytes, filePath) {
+  const invalidMessage = `Invalid or missing embedded blockmap in AppImage: ${filePath}`;
+  check(bytes.length > 4, invalidMessage);
+  const blockMapSize = bytes.readUInt32BE(bytes.length - 4);
+  check(blockMapSize > 0 && blockMapSize <= bytes.length - 4, invalidMessage);
+  let parsed;
+  try {
+    const compressed = bytes.subarray(bytes.length - 4 - blockMapSize, bytes.length - 4);
+    parsed = JSON.parse(inflateRawSync(compressed).toString('utf8'));
+  } catch (error) {
+    throw new Error(
+      `${invalidMessage} (${error instanceof Error ? error.message : String(error)})`,
+      { cause: error }
+    );
+  }
+  check(
+    parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      Array.isArray(parsed.files) &&
+      parsed.files.length > 0,
+    invalidMessage
+  );
+  return blockMapSize;
+}
+
+function readFileEntry(filePath, repository, version, { includeBlockMapSize = false } = {}) {
   const stats = statSync(filePath, { throwIfNoEntry: false });
   check(stats, `Missing release archive: ${filePath}`);
   check(stats.isFile(), `Release archive is not a regular file: ${filePath}`);
   check(stats.size > 0, `Release archive is empty: ${filePath}`);
   const bytes = readFileSync(filePath);
-  return {
+  const entry = {
     url: `https://github.com/${repository}/releases/download/v${version}/${path.basename(filePath)}`,
     sha512: createHash('sha512').update(bytes).digest('base64'),
     size: bytes.length,
   };
+  if (includeBlockMapSize) {
+    entry.blockMapSize = readEmbeddedBlockMapSize(bytes, filePath);
+  }
+  return entry;
 }
 
 /** @param {{ version: string; releaseDate?: string; repository: string; files: string[] }} options */
@@ -107,7 +138,7 @@ export function buildLinuxLatestYml({ version, releaseDate, repository, arch, fi
     `Unexpected AppImage filename '${name}' for arch '${arch}' (expected '${expectedName}')`
   );
 
-  const entry = readFileEntry(file, repository, version);
+  const entry = readFileEntry(file, repository, version, { includeBlockMapSize: true });
   return stringify(
     { version, files: [entry], path: entry.url, sha512: entry.sha512, releaseDate: date },
     { lineWidth: 0 }
