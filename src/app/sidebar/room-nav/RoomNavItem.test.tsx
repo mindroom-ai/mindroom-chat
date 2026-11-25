@@ -887,4 +887,32 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
       testState.activeCall = undefined;
     }
   });
+
+  it('does not prime the composer draft atom cache when rendering an unopened DM row before another tab saves a draft', () => {
+    const roomId = '!cross-tab-dm:example.org';
+    const draftKey = getRoomInputDraftKey('@me:example.org', roomId);
+    const savedInOtherTab = [{ type: 'paragraph', children: [{ text: 'Saved in tab B' }] }];
+    const tabAStore = createStore();
+    const tabBStore = createStore();
+
+    try {
+      // 1. Tab A renders the DM row in the sidebar while the room is unopened (empty storage).
+      const renderer = renderRoomNavItem(
+        { room: makeDirectRoom(2, 0, roomId), direct: true, showAvatar: true },
+        tabAStore
+      );
+      expect(
+        renderer.root.findAll((node) => node.props['data-draft-indicator'] === 'true')
+      ).toHaveLength(0);
+
+      // 2. Tab B opens the DM and saves an unsent message to shared localStorage.
+      tabBStore.set(roomIdToMsgDraftAtomFamily(draftKey), savedInOtherTab as never);
+
+      // 3. Tab A opens the DM: its first composer read must restore Tab B's draft, not a cached [].
+      expect(tabAStore.get(roomIdToMsgDraftAtomFamily(draftKey))).toEqual(savedInOtherTab);
+    } finally {
+      tabBStore.set(roomIdToMsgDraftAtomFamily(draftKey), []);
+      roomIdToMsgDraftAtomFamily.remove(draftKey);
+    }
+  });
 });

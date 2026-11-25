@@ -3,7 +3,12 @@ import { Avatar, Icon, Icons, Text, config, type IconSrc } from 'folds';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { RoomEvent, RoomStateEvent, type Room } from 'matrix-js-sdk';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
+import {
+  getMsgDraftStorageKey,
+  getRoomInputDraftKey,
+  readStoredMsgDraft,
+  roomIdToWrittenMsgDraftAtomFamily,
+} from '../../composer/roomInputDrafts';
 import { VOID_BLOCK_TYPES } from '../../editor/types';
 import { isRecord } from '../../lib/isRecord';
 import { localDigits } from '../../lib/localDigits';
@@ -13,7 +18,7 @@ import { isRoomInSelfMDirect, useMDirectContent } from '../../matrix/state/mDire
 import { IconTooltip } from '../../ui/IconTooltip';
 import * as css from './RoomNavItem.css';
 
-const EMPTY_DRAFT_ATOM = atom<readonly unknown[]>(() => []);
+const EMPTY_DRAFT_VALUE_ATOM = atom<readonly unknown[] | undefined>(undefined);
 
 /** Subtle trailing row mark icon wrapped in an `IconTooltip`. */
 export function RowMarkIcon({
@@ -95,14 +100,25 @@ export function RoomDraftMark({
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const userId = mx.getUserId?.() ?? room.myUserId ?? '';
-  const draftAtom = useMemo(
-    () =>
-      userId
-        ? roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, room.roomId))
-        : EMPTY_DRAFT_ATOM,
-    [userId, room.roomId]
+  const draftKey = userId ? getRoomInputDraftKey(userId, room.roomId) : undefined;
+  const writtenAtom = useMemo(
+    () => (draftKey ? roomIdToWrittenMsgDraftAtomFamily(draftKey) : EMPTY_DRAFT_VALUE_ATOM),
+    [draftKey]
   );
-  const draft = useAtomValue(draftAtom);
+  const inMemoryDraft = useAtomValue(writtenAtom);
+  const [, bumpStorage] = useReducer((count: number) => count + 1, 0);
+
+  useEffect(() => {
+    if (!draftKey || typeof window === 'undefined') return undefined;
+    const storageKey = getMsgDraftStorageKey(draftKey);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === storageKey) bumpStorage();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [draftKey]);
+
+  const draft = inMemoryDraft ?? (draftKey ? readStoredMsgDraft(draftKey) : []);
   const hasDraft = hasMeaningfulDraftContent(draft);
   const label = t('featureUi.roomNav.roomNavItem.draft');
   return (
