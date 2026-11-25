@@ -232,7 +232,7 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
     page.getByRole('button', { name: 'Open account menu for Avery Menu' })
   ).toBeVisible();
 
-  // Settings > This app > Sidebar: hide Threads and Search.
+  // Settings > App > Sidebar: hide Threads and Search.
   await chooseFromAccountMenu(page, 'Settings');
   await page.getByRole('button', { name: 'Sidebar', exact: true }).click();
   const threadsSwitch = page.getByRole('switch', { name: 'Show Threads in the sidebar' });

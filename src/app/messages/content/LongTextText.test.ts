@@ -121,6 +121,13 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
   MathBlock: 'MathBlock',
 }));
 
+vi.mock('../../rich-text/Footnote.css', () => ({}));
+vi.mock('../../rich-text/Callout.css', () => ({
+  Callout: ({ tone }: { tone?: string } = {}) => `Callout-${tone ?? ''}`,
+  Header: ({ tone }: { tone?: string } = {}) => `CalloutHeader-${tone ?? ''}`,
+  Icon: 'CalloutIcon',
+  Body: 'CalloutBody',
+}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({
   Container: 'TableContainer',
   ScrollArea: 'TableScrollArea',
@@ -192,6 +199,9 @@ vi.mock('../SkillReviewMarker', () => ({
 vi.mock('../TriggerWakeMarker', () => ({
   TriggerWakeMarker: () => null,
 }));
+vi.mock('../TodoPokeMarker', () => ({
+  TodoPokeMarker: () => null,
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
 }));
@@ -201,6 +211,12 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
 vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => null }));
 vi.mock('../../approvals/SecretRequestCard', () => ({
   SecretRequestCard: () => null,
+}));
+vi.mock('../workflow-run/WorkflowRunCard', () => ({
+  WorkflowRunCard: () => null,
+}));
+vi.mock('../workflow-run/WorkflowQuestionCard', () => ({
+  WorkflowQuestionCard: () => null,
 }));
 vi.mock('./CallTranscriptCard', () => ({
   CallTranscriptCard: () => null,

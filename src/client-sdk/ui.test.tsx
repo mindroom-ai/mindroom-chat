@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
-import { type ComponentType, createRef, type ReactNode, useLayoutEffect, useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  type ComponentProps,
+  type ComponentType,
+  createRef,
+  type ReactNode,
+  type Ref,
+  type RefAttributes,
+  useLayoutEffect,
+  useState,
+} from 'react';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import {
   ScreenSizeProvider,
@@ -243,6 +252,56 @@ describe('MarkdownContent', () => {
   it('puts the HTML in as it is outside the app, as on a fixture page', () => {
     const { container } = render(<MarkdownContent html={TABLE} />);
     expect(container.querySelector('div > table td code')?.textContent).toBe('ed6eed9');
+  });
+
+  it('keeps React RefAttributes in its public prop type', () => {
+    const props: ComponentProps<typeof MarkdownContent> = { key: 'markdown', html: '<p>hi</p>' };
+    const optionalRef: Ref<HTMLDivElement> | undefined = undefined;
+    expectTypeOf<ComponentProps<typeof MarkdownContent>>().toExtend<
+      RefAttributes<HTMLDivElement>
+    >();
+    const { container } = render(<MarkdownContent html={props.html} ref={optionalRef} />);
+    expect(container.querySelector('p')?.textContent).toBe('hi');
+  });
+
+  it('isolates footnote IDs and navigation between independent MarkdownContent documents', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: scrollIntoView,
+    });
+    const doc = (text: string, detail: string) =>
+      sanitizeHtml(
+        `<p>${text}<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup></p>` +
+          `<hr class="footnotes-sep"><section class="footnotes"><ol class="footnotes-list">` +
+          `<li id="fn1" class="footnote-item"><p>${detail} <a href="#fnref1" class="footnote-backref">↩︎</a></p></li>` +
+          `</ol></section>`
+      );
+    const { container } = render(
+      <>
+        <MarkdownContent className="doc-1" html={doc('First', 'Detail one.')} />
+        <MarkdownContent className="doc-2" html={doc('Second', 'Detail two.')} />
+      </>,
+      { wrapper: inApp }
+    );
+
+    const doc1Item = container.querySelector<HTMLLIElement>('.doc-1 li.footnote-item')!;
+    const doc2Item = container.querySelector<HTMLLIElement>('.doc-2 li.footnote-item')!;
+    const doc1Ref = container.querySelector<HTMLAnchorElement>('.doc-1 sup.footnote-ref a')!;
+    const doc2Ref = container.querySelector<HTMLAnchorElement>('.doc-2 sup.footnote-ref a')!;
+
+    expect(doc1Item.id).not.toBe('fn1');
+    expect(doc2Item.id).not.toBe('fn1');
+    expect(doc1Item.id).not.toBe(doc2Item.id);
+    expect(doc1Ref.id).not.toBe(doc2Ref.id);
+
+    expect(fireEvent.click(doc2Ref)).toBe(false);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.instances[0]).toBe(doc2Item);
+    expect(document.activeElement).toBe(doc2Item);
+    expect(document.activeElement).not.toBe(doc1Item);
+    vi.restoreAllMocks();
   });
 });
 

@@ -20,7 +20,7 @@ import {
   revealDirectionControls,
 } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
-import type { RectCords } from 'folds';
+import type { IconSrc, RectCords } from 'folds';
 import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../ui/page/Page';
@@ -28,7 +28,7 @@ import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
 import { useNavigate } from 'react-router-dom';
-import { getHomePath } from '../../routes/pathUtils';
+import { getHomePath, getSpaceThreadsPath } from '../../routes/pathUtils';
 import { useMembersDrawer } from '../../members/useMembersDrawer';
 import { useRoomAvatar, useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { useSpace } from '../../matrix/hooks/useSpace';
@@ -45,7 +45,7 @@ import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
-import { mxcUrlToHttp } from '../../matrix/matrix';
+import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../../matrix/matrix';
 import { nameInitials } from '../../lib/common';
 import { MenuEntry } from '../../ui/MenuEntry';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
@@ -69,34 +69,75 @@ export const useSpaceAvatarSrc = (space: Room): string | undefined => {
   return mxcUrlToHttp(client, avatarMxc, authenticated, 96, 96, 'crop') ?? undefined;
 };
 
-type SpaceAvatarProps = { roomId: string; name: string; src?: string; large?: boolean };
+type SpaceAvatarProps = {
+  roomId: string;
+  name: string;
+  src?: string;
+  large?: boolean;
+  /** Compact 24 px tile for dropdown/menu rows (`size="200"`). */
+  compact?: boolean;
+  /** Defaults to `name`; pass `""` when the avatar sits beside the space's visible name. */
+  alt?: string;
+};
 
-/** The space's picture (in the header, or large atop the lobby), or its initials without one. */
-export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarProps) {
+/** The space's picture (in the header, a menu row, or large atop the lobby), or its initials without one. */
+export function SpaceAvatar({
+  roomId,
+  name,
+  src,
+  large = false,
+  compact = false,
+  alt = name,
+}: SpaceAvatarProps) {
+  const size = large ? '500' : compact ? '200' : '300';
   return (
-    <Avatar size={large ? '500' : '300'} radii={large ? '500' : '300'}>
+    <Avatar size={size} radii={large ? '500' : '300'}>
       <RoomAvatar
         roomId={roomId}
         src={src}
-        alt={name}
-        renderFallback={() => <Text size={large ? 'H2' : 'H6'}>{nameInitials(name)}</Text>}
+        alt={alt}
+        renderFallback={() => (
+          <Text as={compact ? 'span' : undefined} size={large ? 'H2' : 'H6'}>
+            {nameInitials(name)}
+          </Text>
+        )}
       />
     </Avatar>
   );
 }
 
-/** Asks before leaving the space, then goes Home, since the space's pages close with it. */
-function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
+/** A Space header icon button with tooltip that navigates to `to`. */
+export function SpaceHeaderIconLink({
+  label,
+  icon,
+  to,
+}: {
+  label: string;
+  icon: IconSrc;
+  to: string;
+}) {
   const navigate = useNavigate();
   return (
-    <LeaveRoomPrompt
-      roomId={spaceId}
-      requestClose={onClose}
-      onLeft={() => {
-        onClose();
-        void navigate(getHomePath());
-      }}
-    />
+    <TooltipProvider
+      position="Bottom"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Text>{label}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          className={LoneTouchTarget}
+          aria-label={label}
+          onClick={() => void navigate(to)}
+        >
+          <Icon size="400" src={icon} />
+        </IconButton>
+      )}
+    </TooltipProvider>
   );
 }
 
@@ -111,8 +152,11 @@ export function LobbyHeader({
   const spaceName = revealDirectionControls(useRoomName(space));
   const avatarSrc = useSpaceAvatarSrc(space);
   const client = useMatrixClient();
+  const navigate = useNavigate();
   const screenSize = useScreenSizeContext();
   const { t } = useTranslation();
+  const allThreadsPath = getSpaceThreadsPath(getCanonicalAliasOrRoomId(client, space.roomId));
+  const allThreadsLabel = t('home.recent.allThreads');
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const openSpaceSettings = useOpenRoomSettings();
 
@@ -132,6 +176,16 @@ export function LobbyHeader({
     return true;
   };
   const menuActions = [
+    ...(screenSize === ScreenSize.Mobile
+      ? [
+          {
+            label: allThreadsLabel,
+            icon: Icons.Thread,
+            disabled: false,
+            run: () => void navigate(allThreadsPath),
+          },
+        ]
+      : []),
     {
       label: t('featureUi.lobby.lobbyHeader.invite'),
       icon: Icons.UserPlus,
@@ -169,6 +223,9 @@ export function LobbyHeader({
             </>
           )}
         </Box>
+        {screenSize !== ScreenSize.Mobile && (
+          <SpaceHeaderIconLink label={allThreadsLabel} icon={Icons.Thread} to={allThreadsPath} />
+        )}
         <TooltipProvider
           position="Bottom"
           offset={4}
@@ -264,7 +321,16 @@ export function LobbyHeader({
           <InviteUserPrompt room={space} requestClose={() => setInviteOpen(false)} />
         </Suspense>
       )}
-      {leaving && <LeaveSpaceDialog spaceId={space.roomId} onClose={() => setLeaving(false)} />}
+      {leaving && (
+        <LeaveRoomPrompt
+          roomId={space.roomId}
+          requestClose={() => setLeaving(false)}
+          onLeft={() => {
+            setLeaving(false);
+            void navigate(getHomePath());
+          }}
+        />
+      )}
     </PageHeader>
   );
 }

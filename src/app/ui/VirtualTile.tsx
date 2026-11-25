@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, forwardRef } from 'react';
+import { CSSProperties, ReactNode, type Ref } from 'react';
 import classNames from 'classnames';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import * as css from './VirtualTile.css';
@@ -8,6 +8,7 @@ type VirtualTileProps = {
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
+  ref?: Ref<HTMLDivElement>;
 };
 
 /**
@@ -15,8 +16,7 @@ type VirtualTileProps = {
  * `measureElement` as `ref` for rows of varying height (it reads `data-index`); `style.top`
  * overrides the placement.
  */
-export const VirtualTile = forwardRef<HTMLDivElement, VirtualTileProps>((props, ref) => {
-  const { virtualItem, className, style, children } = props;
+export function VirtualTile({ virtualItem, className, style, children, ref }: VirtualTileProps) {
   const placement: CSSProperties = { top: virtualItem.start, ...style };
 
   return (
@@ -29,4 +29,4 @@ export const VirtualTile = forwardRef<HTMLDivElement, VirtualTileProps>((props, 
       {children}
     </div>
   );
-});
+}

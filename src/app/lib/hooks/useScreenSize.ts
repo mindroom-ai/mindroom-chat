@@ -43,7 +43,7 @@ export const useScreenSize = (): ScreenSize => {
 // it from context instead of each adding a resize listener. Without a provider they get Desktop.
 const ScreenSizeContext = createContext<ScreenSize>(ScreenSize.Desktop);
 
-export const ScreenSizeProvider = ScreenSizeContext.Provider;
+export const ScreenSizeProvider = ScreenSizeContext;
 
 /** The size class provided by the nearest `ScreenSizeProvider`. */
 export const useScreenSizeContext = (): ScreenSize => useContext(ScreenSizeContext);

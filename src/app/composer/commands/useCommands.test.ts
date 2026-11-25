@@ -1,9 +1,27 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createStore } from 'jotai';
+import type { Descendant } from 'slate';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import en from '../../i18n/englishResources';
 import { MINDROOM_COMMANDS } from './agentCommands';
 import { CommandRefusedError } from './commandRefusal';
-import { Command, type CommandContext, isActingCommand, runCommandAction } from './useCommands';
+import { desktopAccessModalAtom } from '../../navigation/desktopAccessModal';
+import { BlockType } from '../../editor/types';
+import { readActingCommand } from '../slashCommandQuery';
+import {
+  Command,
+  type CommandContext,
+  type SlashCommand,
+  buildDesktopCommandOverride,
+  isActingCommand,
+  runCommandAction,
+} from './useCommands';
+
+const nativeShell = vi.hoisted(() => ({ desktopAccessAvailable: false }));
+vi.mock('../../lib/nativeShell', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/nativeShell')>()),
+  isDesktopAccessAvailable: () => nativeShell.desktopAccessAvailable,
+}));
 
 type FakeMember = { userId: string; membership: string };
 
@@ -179,5 +197,65 @@ describe('slash commands', () => {
     const context = contextFor(mx, fakeRoom(members));
     await runCommandAction(Command.StartDm, context, '@friend:home.org');
     expect(context.openPath).toHaveBeenCalledWith('/direct/create/?userId=%40friend%3Ahome.org');
+  });
+});
+
+describe('/desktop command override', () => {
+  const doc = (text: string): Descendant[] => [
+    { type: BlockType.Paragraph, children: [{ text }] },
+  ];
+
+  afterEach(() => {
+    nativeShell.desktopAccessAvailable = false;
+  });
+
+  it('opens the native Mac Access modal for bare /desktop in desktop mode while passing subcommands through', async () => {
+    nativeShell.desktopAccessAvailable = true;
+    const store = createStore();
+    const override = buildDesktopCommandOverride('!room:home.org', store);
+    expect(override?.run).toBeTypeOf('function');
+    expect(override?.runBareOnly).toBe(true);
+
+    const commands: Record<string, SlashCommand> = {
+      desktop: {
+        name: 'desktop',
+        source: 'mindroom',
+        syntax: '/desktop [setup|status|confirm|rotate|disconnect]',
+        description: 'Manage desktop control',
+        ...override,
+      },
+    };
+
+    const bare = readActingCommand(doc('/desktop'), commands);
+    expect(bare?.command.name).toBe('desktop');
+    expect(bare?.args).toBe('');
+    await bare?.run(bare.args);
+    expect(store.get(desktopAccessModalAtom)).toEqual({ roomId: '!room:home.org' });
+
+    const bareTrailingSpaces = readActingCommand(doc('/desktop   '), commands);
+    expect(bareTrailingSpaces?.command.name).toBe('desktop');
+
+    expect(readActingCommand(doc('/desktop status'), commands)).toBeUndefined();
+    expect(readActingCommand(doc('/desktop setup code'), commands)).toBeUndefined();
+    expect(readActingCommand(doc('/desktop confirm 123456'), commands)).toBeUndefined();
+  });
+
+  it('does not intercept /desktop outside the desktop app', () => {
+    nativeShell.desktopAccessAvailable = false;
+    const store = createStore();
+    const override = buildDesktopCommandOverride('!room:home.org', store);
+    expect(override).toBeUndefined();
+
+    const commands: Record<string, SlashCommand> = {
+      desktop: {
+        name: 'desktop',
+        source: 'mindroom',
+        syntax: '/desktop [setup|status|confirm|rotate|disconnect]',
+        description: 'Manage desktop control',
+        ...override,
+      },
+    };
+    expect(readActingCommand(doc('/desktop'), commands)).toBeUndefined();
+    expect(readActingCommand(doc('/desktop status'), commands)).toBeUndefined();
   });
 });

@@ -233,4 +233,24 @@ describe('splitFinishedWork', () => {
       tail: '<p>Done.</p>',
     });
   });
+
+  it('does not split when a footnote link crosses between work and answer', () => {
+    const footnoteDef =
+      '<hr class="footnotes-sep"><section class="footnotes"><ol class="footnotes-list">' +
+      '<li id="fn1" class="footnote-item"><p>Detail. ' +
+      '<a href="#fnref1" class="footnote-backref">↩︎</a></p></li></ol></section>';
+    const crossBoundary =
+      `<p>Checking<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>.</p>` +
+      `${marker('web_search', 1)}<p>Done.</p>${footnoteDef}`;
+    expect(split(crossBoundary)).toBeUndefined();
+
+    const selfContainedAnswer =
+      `<p>Checking.</p>${marker('web_search', 1)}` +
+      `<p>Done<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>.</p>${footnoteDef}`;
+    const result = split(selfContainedAnswer);
+    expect(result).toBeDefined();
+    expect(result?.head).toBe(`<p>Checking.</p>${marker('web_search', 1)}`);
+    expect(result?.tail).toContain('id="fnref1"');
+    expect(result?.tail).toContain('id="fn1"');
+  });
 });

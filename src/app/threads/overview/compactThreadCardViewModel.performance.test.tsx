@@ -149,7 +149,7 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
-  it('refreshes locale, media authentication, and native token changes', () => {
+  it('refreshes locale and media authentication without embedding tokens on Capacitor', () => {
     const harness = mount(room, [record('$a')]);
     expect(harness.models[0]!.messageCountLabel).toContain('1,000');
     const publicAvatar = harness.models[0]!.participants[0]!.avatarUrl;
@@ -160,11 +160,16 @@ describe('compact card formatting work', () => {
     expect(harness.models[0]!.participants[0]!.avatarUrl).not.toBe(publicAvatar);
 
     vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
-    harness.update([record('$a')]);
-    expect(harness.models[0]!.participants[0]!.avatarUrl).toContain('access_token=first-token');
+    const getAccessToken = vi.spyOn(state.mx!, 'getAccessToken');
+    const stableRecord = record('$a');
+    harness.update([stableRecord]);
+    const capacitorModel = harness.models[0]!;
+    expect(capacitorModel.participants[0]!.avatarUrl).toContain('/_matrix/client/v1/media/');
+    expect(capacitorModel.participants[0]!.avatarUrl).not.toContain('access_token');
     state.mx!.setAccessToken('second-token');
-    harness.update([record('$a')]);
-    expect(harness.models[0]!.participants[0]!.avatarUrl).toContain('access_token=second-token');
+    harness.update([stableRecord]);
+    expect(harness.models[0]).toBe(capacitorModel);
+    expect(getAccessToken).not.toHaveBeenCalled();
     harness.unmount();
   });
 

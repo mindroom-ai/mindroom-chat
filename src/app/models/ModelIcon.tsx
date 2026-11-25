@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useAvatarImage } from '../avatars/useAvatarImage';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/matrix';
@@ -21,25 +21,24 @@ type ModelIconProps = {
 export function ModelIcon({ provider, id, iconUrl, size, className }: ModelIconProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  // Remembers the URL that failed, so a different icon URL gets its own attempt.
-  const [failedUrl, setFailedUrl] = useState<string>();
   // Thumbnails at twice the drawn size stay sharp on high-density screens.
   const src = iconUrl?.startsWith('mxc://')
     ? (mxcUrlToHttp(mx, iconUrl, useAuthentication, size * 2, size * 2, 'scale') ?? undefined)
     : undefined;
+  const { imageSrc, onImageError } = useAvatarImage(src, mx);
 
-  if (src && failedUrl !== src) {
+  if (imageSrc) {
     return (
       <img
         className={className ? `${css.IconImage} ${className}` : css.IconImage}
-        src={src}
+        src={imageSrc}
         width={size}
         height={size}
         style={iconSizeStyle(size)}
         alt=""
         aria-hidden="true"
         draggable={false}
-        onError={() => setFailedUrl(src)}
+        onError={onImageError}
       />
     );
   }

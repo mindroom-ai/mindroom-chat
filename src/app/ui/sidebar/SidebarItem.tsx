@@ -1,4 +1,4 @@
-import { ReactNode, RefCallback, createContext, useContext } from 'react';
+import { ReactNode, RefCallback, createContext, use } from 'react';
 import classNames from 'classnames';
 import { Text, Tooltip, as } from 'folds';
 import { TooltipProvider } from '../directional';
@@ -33,14 +33,14 @@ const SidebarItemActiveContext = createContext(false);
 export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
   const { as: Item = 'div', active, className, ...rest } = props;
   return (
-    <SidebarItemActiveContext.Provider value={!!active}>
+    <SidebarItemActiveContext value={!!active}>
       <Item
         ref={ref}
         {...rest}
         data-active={active || undefined}
         className={classNames(css.SidebarItem({ active }), className)}
       />
-    </SidebarItemActiveContext.Provider>
+    </SidebarItemActiveContext>
   );
 });
 
@@ -82,11 +82,11 @@ type SidebarAvatarProps = {
 /** The rounded square holding a rail entry's icon or avatar. */
 export const SidebarAvatar = as<'div', SidebarAvatarProps>((props, ref) => {
   const { as: Square = 'div', size, outlined, className, ...rest } = props;
-  const active = useContext(SidebarItemActiveContext);
   const variantClass = css.SidebarAvatar({ size, outlined });
   const material = outlined && glassSurface({ level: 'control', variant: 'Secondary' });
   // The entry's own button is the open section.
-  const current = active && (Square as string) === 'button' ? 'page' : undefined;
+  const current =
+    (Square as string) === 'button' && use(SidebarItemActiveContext) ? 'page' : undefined;
   return (
     <Square
       ref={ref}

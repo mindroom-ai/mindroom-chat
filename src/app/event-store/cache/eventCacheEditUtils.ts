@@ -23,7 +23,8 @@ export type RedactedRelationTarget = {
 
 const setSerializedReplacement = (
   targetRawEvent: Partial<IEvent>,
-  replacementRawEvent: Partial<IEvent>
+  replacementRawEvent: Partial<IEvent>,
+  clone = true
 ): Partial<IEvent> => {
   const unsigned =
     targetRawEvent.unsigned && typeof targetRawEvent.unsigned === 'object'
@@ -34,7 +35,9 @@ const setSerializedReplacement = (
       ? { ...(unsigned['m.relations'] as Record<string, unknown>) }
       : {};
 
-  aggregatedRelations[RelationType.Replace] = cloneRawEvent(replacementRawEvent);
+  aggregatedRelations[RelationType.Replace] = clone
+    ? cloneRawEvent(replacementRawEvent)
+    : replacementRawEvent;
   unsigned['m.relations'] = aggregatedRelations;
   return {
     ...targetRawEvent,
@@ -402,7 +405,12 @@ export const isStandaloneSameSenderReplace = (
   return targetEvent.getSender() === mEvent.getSender();
 };
 
-export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {
+export const serializeEventsForCache = (
+  room: Room,
+  events: MatrixEvent[],
+  options?: { clone?: boolean }
+): Partial<IEvent>[] => {
+  const clone = options?.clone ?? true;
   hydrateCachedEvents({ room, events });
   // SDK pending status is not part of the wire event. Keep the previous durable
   // row until confirmation, rather than replay a local revision as server truth.
@@ -427,7 +435,7 @@ export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Part
 
     if (isStandaloneSameSenderReplace(mEvent, eventById)) return;
 
-    serializedEvents.set(eventId, cloneRawEvent(rawEvent));
+    serializedEvents.set(eventId, clone ? cloneRawEvent(rawEvent) : rawEvent);
   });
 
   eventById.forEach((mEvent, eventId) => {
@@ -438,7 +446,10 @@ export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Part
     const replacementRawEvent = replacingEvent.event as Partial<IEvent> | undefined;
     if (!targetRawEvent || !replacementRawEvent) return;
 
-    serializedEvents.set(eventId, setSerializedReplacement(targetRawEvent, replacementRawEvent));
+    serializedEvents.set(
+      eventId,
+      setSerializedReplacement(targetRawEvent, replacementRawEvent, clone)
+    );
   });
 
   return Array.from(serializedEvents.values());

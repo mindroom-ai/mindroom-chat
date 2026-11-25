@@ -16,7 +16,11 @@ import {
   createControlledRoomTimelineHarness,
   flushAsyncWork,
   matrixClientMock,
+  mentionClickMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
+  openUserRoomProfileMock,
+  settingsState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout } from '../../preferences/settings';
@@ -28,6 +32,7 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
 import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
+import { ROOM_THREAD_MODE_EVENT } from '../../matrix/protocol/roomThreadMode';
 
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
@@ -71,6 +76,7 @@ const openRoomSettings = vi.hoisted(() => vi.fn());
 // Its own test draws it; here only which row shows it counts.
 vi.mock('../../messages/ModelChangeMarker', () => ({ ModelChangeMarker: () => null }));
 vi.mock('../../messages/TriggerWakeMarker', () => ({ TriggerWakeMarker: () => null }));
+vi.mock('../../messages/TodoPokeMarker', () => ({ TodoPokeMarker: () => null }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => openRoomSettings,
 }));
@@ -83,9 +89,10 @@ vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   };
 });
 
-const summaryEvent = (id: string) =>
+const summaryEvent = (id: string, opts: { roomId?: string; threadRootId?: string } = {}) =>
   makeEvent(id, {
-    threadRootId: '$thread',
+    ...(opts.roomId ? { roomId: opts.roomId } : {}),
+    threadRootId: opts.threadRootId ?? '$thread',
     content: {
       msgtype: 'm.notice',
       body: 'Fixing token refresh',
@@ -163,10 +170,11 @@ const rowFor = (event: MatrixEvent, index = 0, previousEventId?: string): Timeli
 const mountFeature = async (
   rows: TimelineMessageRow[],
   threadId?: string,
-  forkPrefixEventIds?: ReadonlySet<string>
+  forkPrefixEventIds?: ReadonlySet<string>,
+  options?: { room?: Room; forkTargetRoom?: Room }
 ) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
-  const room = makeRoom({ liveEvents: [] }) as unknown as Room;
+  const room = options?.room ?? (makeRoom({ liveEvents: [] }) as unknown as Room);
   const editor = createEditor();
   const scrollRef = createRef<HTMLDivElement>();
   let feature!: ReturnType<typeof useTimelineMessageFeature>;
@@ -190,6 +198,7 @@ const mountFeature = async (
   const Harness = () => {
     feature = useTimelineMessageFeature({
       room,
+      forkTargetRoom: options?.forkTargetRoom,
       editor,
       threadId,
       scrollRef,
@@ -816,6 +825,64 @@ describe('timeline message feature', () => {
     expect(feature().isQuietMarkerRow(spoof, data as never, noSet)).toBe(false);
   });
 
+  it("draws an agent todo wake as its own quiet marker row in a thread, and ignores a person's lookalike", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { TodoPokeMarker } = await import('../../messages/TodoPokeMarker');
+    const room = makeRoom();
+    room.getMember = ((userId: string) =>
+      userId === '@mindroom_maya:example.org' ? { name: 'Maya' } : null) as never;
+    const poke = makeEvent('$poke', {
+      sender: '@mindroom_maya:example.org',
+      threadRootId: '$thread',
+      ts: 10_000,
+      content: {
+        msgtype: 'm.text',
+        body: '@mindroom_maya:example.org **1 todo ready**',
+        'com.mindroom.hook_source': 'todo_poke',
+        'io.mindroom.todo_poke': {
+          version: 1,
+          assigned_agent: 'maya',
+          total_count: 1,
+          items: [
+            { id: 'a4f19c20', title: 'Publish API changelog for v2.4 release', priority: 'medium' },
+          ],
+        },
+      },
+    }) as unknown as MatrixEvent;
+    const spoof = makeEvent('$spoof-poke', {
+      sender: '@bob:example.org',
+      threadRootId: '$thread',
+      ts: 11_000,
+      content: poke.getContent(),
+    }) as unknown as MatrixEvent;
+    const noSet = {} as EventTimelineSet;
+
+    const { renderer, feature, data } = await mountFeature(
+      [rowFor(poke, 0), rowFor(spoof, 1)],
+      '$thread',
+      undefined,
+      { room: room as unknown as Room }
+    );
+
+    const markers = renderer.root.findAllByType(TodoPokeMarker);
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.props).toMatchObject({
+      poke: {
+        assignedAgent: 'maya',
+        totalCount: 1,
+        items: [
+          { id: 'a4f19c20', title: 'Publish API changelog for v2.4 release', priority: 'medium' },
+        ],
+      },
+      ts: 10_000,
+      senderDisplayName: 'Maya',
+    });
+    expect(renderer.root.findAllByType(Message)).toHaveLength(1);
+    expect(feature().isQuietMarkerRow(poke, data as never, noSet)).toBe(true);
+    expect(feature().joinsQuietMarkerRun(poke, data as never, noSet)).toBe(false);
+    expect(feature().isQuietMarkerRow(spoof, data as never, noSet)).toBe(false);
+  });
+
   it('keeps the summary card for a summary outside an open thread', async () => {
     const { renderer } = await mountFeature([rowFor(summaryEvent('$summary'))]);
 
@@ -1033,5 +1100,476 @@ describe('the forks made at a message', () => {
     forksByPoint.value = new Map([['$m', forks]]);
     const { renderer } = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
     expect(await forkChips(renderer)).toHaveLength(0);
+  });
+});
+
+describe('cross-room fork prefix rows', () => {
+  it('uses per-row eventRoom for display name, Message room, Reply, Open in original thread, sender click, Fork from here, and encryption preview guard', async () => {
+    const { Message } = await import('../../messages/Message');
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    sourceRoom.hasEncryptionStateEvent = () => true;
+    sourceRoom.getMember = ((userId: string) =>
+      userId === '@alice:example.org' ? { name: 'Alice in Alpha' } : null) as never;
+
+    settingsState.urlPreview = true;
+    settingsState.encUrlPreview = false;
+    startFork.mockClear();
+    navigateRoomThreadMock.mockClear();
+    openUserRoomProfileMock.mockClear();
+
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const crossPrefixMsg = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        replyTo: '$p0',
+        content: { msgtype: 'm.text', body: 'Check https://example.com' },
+      }) as unknown as MatrixEvent;
+      const ownReply = makeEvent('$r1', {
+        roomId: '!room:example.org',
+        threadRootId: '$fork',
+        content: { msgtype: 'm.text', body: 'Own reply https://example.com' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer } = await mountFeature(
+        [rowFor(crossPrefixMsg, 0), rowFor(ownReply, 1)],
+        '$fork',
+        new Set(['$p1'])
+      );
+
+      const messages = renderer.root.findAllByType(Message);
+      expect(messages).toHaveLength(2);
+      const [prefixMessage, ownMessage] = messages;
+
+      // Message & Reply use sourceRoom (so Copy Link, avatars, quoted replies resolve in Alpha).
+      expect(prefixMessage!.props.room).toBe(sourceRoom);
+      expect(prefixMessage!.props.reply.props.room).toBe(sourceRoom);
+      expect(ownMessage!.props.room.roomId).toBe('!room:example.org');
+
+      // Open in original thread navigates to sourceRoom.
+      act(() => {
+        prefixMessage!.props.onOpenInOriginalThread?.();
+      });
+      expect(navigateRoomThreadMock).toHaveBeenCalledWith('!alpha:example.org', '$parent', '$p1');
+
+      // Sender click opens user profile in sourceRoom.
+      const fakeEvent = {
+        currentTarget: {
+          getAttribute: (name: string) => (name === 'data-user-id' ? '@alice:example.org' : null),
+          getBoundingClientRect: () => ({ top: 0, left: 0, width: 10, height: 10 }),
+        },
+        stopPropagation: vi.fn(),
+      };
+      act(() => {
+        prefixMessage!.props.onUserClick?.(fakeEvent);
+      });
+      expect(openUserRoomProfileMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        undefined,
+        '@alice:example.org',
+        expect.anything()
+      );
+
+      // Content uses sourceRoom display name and suppresses URL preview because sourceRoom is encrypted
+      // while the unencrypted target room still allows URL previews on its own row.
+      const contents = renderer.root.findAllByType(RenderMessageContent);
+      expect(contents[0]!.props.roomId).toBe('!alpha:example.org');
+      expect(contents[0]!.props.displayName).toBe('Alice in Alpha');
+      expect(contents[0]!.props.urlPreview).toBe(false);
+      expect(contents[1]!.props.roomId).toBe('!room:example.org');
+      expect(contents[1]!.props.urlPreview).toBe(true);
+
+      // Fork from here on an unencrypted cross-room prefix row preserves roomId.
+      sourceRoom.hasEncryptionStateEvent = () => false;
+      const unenc = await mountFeature([rowFor(crossPrefixMsg, 0)], '$fork', new Set(['$p1']));
+      act(() => {
+        unenc.renderer.root.findByType(Message).props.onForkClick?.('$p1');
+      });
+      expect(startFork).toHaveBeenCalledWith({
+        roomId: '!alpha:example.org',
+        threadId: '$parent',
+        eventId: '$p1',
+      });
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it('binds user mention clicks in cross-room prefix rows to eventRoom while delegating room mentions', async () => {
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const crossPrefixMsg = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'Hello @bob:example.org' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer } = await mountFeature(
+        [rowFor(crossPrefixMsg, 0)],
+        '$fork',
+        new Set(['$p1'])
+      );
+      const content = renderer.root.findByType(RenderMessageContent);
+
+      const userMentionEvent = {
+        currentTarget: {
+          getAttribute: (name: string) => (name === 'data-mention-id' ? '@bob:example.org' : null),
+          getBoundingClientRect: () => ({ top: 1, left: 2, width: 30, height: 14 }),
+        },
+        preventDefault: vi.fn(),
+      };
+      // HTML parser mention click opens user profile in sourceRoom (!alpha:example.org).
+      act(() => {
+        content.props.htmlReactParserOptions.handleMentionClick(userMentionEvent);
+      });
+      expect(userMentionEvent.preventDefault).toHaveBeenCalledTimes(1);
+      expect(openUserRoomProfileMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        undefined,
+        '@bob:example.org',
+        expect.anything()
+      );
+
+      // Linkify plain-text mention click also binds to sourceRoom (!alpha:example.org).
+      openUserRoomProfileMock.mockClear();
+      const linkified = content.props.linkifyOpts.render('https://matrix.to/#/@bob:example.org');
+      act(() => {
+        linkified.customProps.onClick(userMentionEvent);
+      });
+      expect(openUserRoomProfileMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        undefined,
+        '@bob:example.org',
+        expect.anything()
+      );
+
+      // Room mentions still delegate to the room mention handler.
+      const roomMentionEvent = {
+        currentTarget: {
+          getAttribute: (name: string) =>
+            name === 'data-mention-id' ? '!gamma:example.org' : null,
+          getBoundingClientRect: () => ({ top: 0, left: 0, width: 10, height: 10 }),
+        },
+        preventDefault: vi.fn(),
+      };
+      act(() => {
+        content.props.htmlReactParserOptions.handleMentionClick(roomMentionEvent);
+      });
+      expect(mentionClickMock).toHaveBeenCalledWith(roomMentionEvent);
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it('resolves off-prefix reply quotes in eventRoom (standalone room message vs other thread vs thread root)', async () => {
+    const { Message } = await import('../../messages/Message');
+    const standalone = makeEvent('$standalone', {
+      roomId: '!alpha:example.org',
+      content: { msgtype: 'm.text', body: 'Standalone in Alpha' },
+    });
+    const otherThreadReply = makeEvent('$otherReply', {
+      roomId: '!alpha:example.org',
+      threadRootId: '$otherThread',
+      content: { msgtype: 'm.text', body: 'Reply in other thread' },
+    });
+    const otherThreadRoot = makeEvent('$otherRoot', {
+      roomId: '!alpha:example.org',
+      isThreadRoot: true,
+      content: { msgtype: 'm.text', body: 'Other thread root' },
+    });
+    const sourceRoom = makeRoom({
+      roomId: '!alpha:example.org',
+      liveEvents: [standalone, otherThreadReply, otherThreadRoot],
+    });
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const parentRootQuotingStandalone = makeEvent('$parent', {
+        roomId: '!alpha:example.org',
+        isThreadRoot: true,
+        replyTo: '$standalone',
+        content: { msgtype: 'm.text', body: 'Thread root quoting standalone' },
+      }) as unknown as MatrixEvent;
+      const prefixQuotingOtherThread = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        replyTo: '$otherReply',
+        content: { msgtype: 'm.text', body: 'Prefix quoting other thread reply' },
+      }) as unknown as MatrixEvent;
+      const prefixQuotingOtherRoot = makeEvent('$p2', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        replyTo: '$otherRoot',
+        content: { msgtype: 'm.text', body: 'Prefix quoting other thread root' },
+      }) as unknown as MatrixEvent;
+      const prefixQuotingUnloaded = makeEvent('$p3', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        replyTo: '$unloaded',
+        content: { msgtype: 'm.text', body: 'Prefix quoting unloaded event' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer } = await mountFeature(
+        [
+          rowFor(parentRootQuotingStandalone, 0),
+          rowFor(prefixQuotingOtherThread, 1),
+          rowFor(prefixQuotingOtherRoot, 2),
+          rowFor(prefixQuotingUnloaded, 3),
+        ],
+        '$fork',
+        new Set(['$parent', '$p1', '$p2', '$p3'])
+      );
+      const messages = renderer.root.findAllByType(Message);
+
+      // Quoting a standalone room message navigates to the room event in Alpha, not $parent thread.
+      act(() => {
+        messages[0]!.props.reply.props.onClick?.();
+      });
+      expect(navigateRoomMock).toHaveBeenCalledWith('!alpha:example.org', '$standalone');
+      expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+
+      // Quoting a reply from another thread navigates to that thread at the quoted reply.
+      navigateRoomMock.mockClear();
+      act(() => {
+        messages[1]!.props.reply.props.onClick?.();
+      });
+      expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        '$otherThread',
+        '$otherReply'
+      );
+      expect(navigateRoomMock).not.toHaveBeenCalled();
+
+      // Quoting another thread's root navigates to that thread root.
+      navigateRoomThreadMock.mockClear();
+      act(() => {
+        messages[2]!.props.reply.props.onClick?.();
+      });
+      expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+        '!alpha:example.org',
+        '$otherRoot',
+        undefined
+      );
+
+      // Quoting an unloaded event navigates to the room event in Alpha (where deep-link redirect resolves it).
+      navigateRoomMock.mockClear();
+      navigateRoomThreadMock.mockClear();
+      act(() => {
+        messages[3]!.props.reply.props.onClick?.();
+      });
+      expect(navigateRoomMock).toHaveBeenCalledWith('!alpha:example.org', '$unloaded');
+      expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it('resolves source-room reactions from eventRoom.getUnfilteredTimelineSet() when no SDK Thread exists', async () => {
+    const { Message } = await import('../../messages/Message');
+    const sourceReactions = { tag: 'alpha-reactions' };
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    Object.assign(sourceRoom.getUnfilteredTimelineSet(), {
+      relations: {
+        getChildEventsForEvent: (eventId: string) =>
+          eventId === '$parent' ? sourceReactions : undefined,
+      },
+    });
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const parentRoot = makeEvent('$parent', {
+        roomId: '!alpha:example.org',
+        isThreadRoot: true,
+        content: { msgtype: 'm.text', body: 'Single-message parent root' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer } = await mountFeature(
+        [rowFor(parentRoot, 0)],
+        '$fork',
+        new Set(['$parent'])
+      );
+      const prefixMessage = renderer.root.findByType(Message);
+      expect(prefixMessage.props.relations).toBe(sourceReactions);
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it('keeps forkTargetRoom and checks target room thread mode for "Fork from here" inside a cross-room draft', async () => {
+    const { Message } = await import('../../messages/Message');
+    const makeModeRoom = (roomId: string, mode: 'room' | 'thread') =>
+      Object.assign(makeRoom({ roomId }), {
+        currentState: {
+          getStateEvents: (type: string, key: string) =>
+            type === ROOM_THREAD_MODE_EVENT && key === '' ? { getContent: () => ({ mode }) } : null,
+        },
+      }) as unknown as Room;
+
+    const alphaRoomMode = makeModeRoom('!alpha:example.org', 'room');
+    const betaThreadMode = makeModeRoom('!beta:example.org', 'thread');
+    const roomsById = new Map<string, Room>([
+      [alphaRoomMode.roomId, alphaRoomMode],
+      [betaThreadMode.roomId, betaThreadMode],
+    ]);
+    matrixClientMock.getRoom.mockImplementation(
+      ((id: string) => roomsById.get(id) ?? null) as never
+    );
+
+    try {
+      const earlierMsg = makeEvent('$a', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'Earlier message in Alpha' },
+      }) as unknown as MatrixEvent;
+
+      // Alpha is in room mode, Beta is in thread mode -> Fork from here IS available and targets Beta.
+      startFork.mockClear();
+      const allowed = await mountFeature([rowFor(earlierMsg, 0)], '$parent', new Set(['$a']), {
+        room: alphaRoomMode,
+        forkTargetRoom: betaThreadMode,
+      });
+      const msg = allowed.renderer.root.findByType(Message);
+      expect(msg.props.onForkClick).toBeDefined();
+      act(() => {
+        msg.props.onForkClick?.('$a');
+      });
+      expect(startFork).toHaveBeenCalledWith(
+        { threadId: '$parent', eventId: '$a' },
+        '!beta:example.org'
+      );
+
+      // Alpha is in thread mode, Beta is in room mode -> Fork from here is suppressed because Beta ignores threads.
+      const alphaThreadMode = makeModeRoom('!alpha:example.org', 'thread');
+      const betaRoomMode = makeModeRoom('!beta:example.org', 'room');
+      roomsById.set(alphaThreadMode.roomId, alphaThreadMode);
+      roomsById.set(betaRoomMode.roomId, betaRoomMode);
+
+      const blocked = await mountFeature([rowFor(earlierMsg, 0)], '$parent', new Set(['$a']), {
+        room: alphaThreadMode,
+        forkTargetRoom: betaRoomMode,
+      });
+      expect(blocked.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it("omits Title settings on inherited cross-room prefix summary markers (single and grouped) while keeping it on the fork's own markers", async () => {
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    openRoomSettings.mockClear();
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const inheritedSingle = summaryEvent('$alpha-summary-1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const inheritedRunHead = summaryEvent('$alpha-summary-2', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const inheritedRunTail = summaryEvent('$alpha-summary-3', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const ownSummary = summaryEvent('$beta-summary-1', {
+        roomId: '!room:example.org',
+        threadRootId: '$fork',
+      });
+
+      const rows: TimelineMessageRow[] = [
+        rowFor(inheritedSingle, 0),
+        { ...rowFor(inheritedRunHead, 1), quietRun: [rowFor(inheritedRunTail, 2)] },
+        rowFor(ownSummary, 3),
+      ];
+      const { renderer, data, update, room } = await mountFeature(
+        rows,
+        '$fork',
+        new Set(['$alpha-summary-1', '$alpha-summary-2', '$alpha-summary-3'])
+      );
+      ['$alpha-summary-1', '$alpha-summary-2', '$alpha-summary-3', '$beta-summary-1'].forEach(
+        (id) => data.threadSummaryTimeline.markersByEventId.set(id, { first: false })
+      );
+      update();
+
+      const markers = summaryMarkers(renderer);
+      expect(markers).toHaveLength(4);
+      // Single inherited marker and both markers in the inherited grouped run are read-only.
+      expect(markers[0]!.props.onOpenSettings).toBeUndefined();
+      expect(markers[1]!.props.onOpenSettings).toBeUndefined();
+      expect(markers[2]!.props.onOpenSettings).toBeUndefined();
+
+      // The fork's own title marker in the target room still opens the target room's settings.
+      expect(markers[3]!.props.onOpenSettings).toBeTypeOf('function');
+      (markers[3]!.props.onOpenSettings as () => void)();
+      expect(openRoomSettings).toHaveBeenCalledTimes(1);
+      expect(openRoomSettings).toHaveBeenCalledWith(room().roomId, RoomSettingsPage.MindroomPage);
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it('reuses cached per-room renderers for cross-room rows across re-renders and rebuilds on encryption change', async () => {
+    const { Message } = await import('../../messages/Message');
+    let sourceEncrypted = false;
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    sourceRoom.hasEncryptionStateEvent = () => sourceEncrypted;
+    settingsState.urlPreview = true;
+    settingsState.encUrlPreview = false;
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const firstPrefix = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'First prefix row' },
+      }) as unknown as MatrixEvent;
+      const secondPrefix = makeEvent('$p2', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'Second prefix row' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer, update } = await mountFeature(
+        [rowFor(firstPrefix, 0), rowFor(secondPrefix, 1)],
+        '$fork',
+        new Set(['$p1', '$p2'])
+      );
+      const initialContents = renderer.root.findAllByType(RenderMessageContent);
+      const initialMessages = renderer.root.findAllByType(Message);
+      const firstLinkifyOpts = initialContents[0]!.props.linkifyOpts;
+      const firstHtmlParser = initialContents[0]!.props.htmlReactParserOptions;
+      const firstOnUserClick = initialMessages[0]!.props.onUserClick;
+      expect(firstLinkifyOpts).toBe(initialContents[1]!.props.linkifyOpts);
+      expect(firstHtmlParser).toBe(initialContents[1]!.props.htmlReactParserOptions);
+      expect(firstOnUserClick).toBe(initialMessages[1]!.props.onUserClick);
+      expect(initialContents[0]!.props.urlPreview).toBe(true);
+
+      // Re-rendering with unchanged inputs reuses the exact same cached renderer objects.
+      update();
+      const rerenderedContent = renderer.root.findAllByType(RenderMessageContent)[0]!;
+      const rerenderedMessage = renderer.root.findAllByType(Message)[0]!;
+      expect(rerenderedContent.props.linkifyOpts).toBe(firstLinkifyOpts);
+      expect(rerenderedContent.props.htmlReactParserOptions).toBe(firstHtmlParser);
+      expect(rerenderedMessage.props.onUserClick).toBe(firstOnUserClick);
+
+      // Flipping the source room's encryption state invalidates its cached entry.
+      sourceEncrypted = true;
+      update();
+      const encryptedContent = renderer.root.findAllByType(RenderMessageContent)[0]!;
+      expect(encryptedContent.props.urlPreview).toBe(false);
+      expect(encryptedContent.props.htmlReactParserOptions).not.toBe(firstHtmlParser);
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
   });
 });

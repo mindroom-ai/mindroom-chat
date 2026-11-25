@@ -1,4 +1,10 @@
-import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
+import {
+  createVar,
+  fallbackVar,
+  globalStyle,
+  style,
+  type CSSProperties,
+} from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from '../../ui/styles/RoomOverlay.css';
 import { transition } from '../../ui/styles/transition';
@@ -40,12 +46,18 @@ export const Cards = style({
   position: 'relative',
 });
 
+// Expands the empty card container to fill the visible canvas so the empty state centers cleanly.
+export const CardsEmpty = style({
+  flex: '1 0 auto',
+});
+
 // What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
 const hoverTint = createVar();
 
 export const CardShell = style({
   vars: { [hoverTint]: color.SurfaceVariant.ContainerHover },
   position: 'relative',
+  flexShrink: 0,
   width: '100%',
   minWidth: 0,
 });
@@ -66,7 +78,7 @@ export const SectionHeader = style({
 });
 
 export const PinnedSection = style({
-  paddingBlockEnd: config.space.S300,
+  marginBlockEnd: config.space.S300,
 });
 
 // A card the keys focused after a chord carries `data-key-focus` (compactCardKeys.ts): a browser
@@ -139,10 +151,13 @@ export const CardButton = style([
 ]);
 
 // The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
-// button after a tap or a click does not.
-globalStyle(`${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${Card}`, {
-  backgroundColor: hoverTint,
-});
+// button after a tap or a click does not. A card showing scripted actions (the tour) takes the same tint.
+globalStyle(
+  `${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${Card}, ${CardShell}[data-actions-visible="true"] ${Card}`,
+  {
+    backgroundColor: hoverTint,
+  }
+);
 
 // A touch screen keeps :hover on the card tapped last; only a pointer that can hover tints it.
 globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
@@ -153,36 +168,21 @@ globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
   },
 });
 
+// Centered vertically with insetBlock + marginBlock: auto instead of translateY(-50%) so layout
+// offset readers (such as TourSpotlight) measure its exact resting position.
 export const CardAction = style({
   display: 'flex',
   gap: config.space.S100,
   backgroundColor: hoverTint,
   position: 'absolute',
   insetInlineEnd: config.space.S300,
-  top: '50%',
-  transform: 'translateY(-50%)',
+  insetBlock: 0,
+  marginBlock: 'auto',
+  height: 'fit-content',
   placeItems: 'center',
   opacity: 0,
   pointerEvents: 'none',
   transition: transition(['opacity']),
-  '@media': {
-    [touchActions]: {
-      insetInlineEnd: config.space.S100,
-      top: 'auto',
-      // Centers the 2.5rem button on the card's last row (24px tall, above
-      // an S200 padding and the border).
-      bottom: `calc(${config.borderWidth.B300} + ${config.space.S200} + ${toRem(12)} - 1.25rem)`,
-      transform: 'none',
-      opacity: 1,
-      pointerEvents: 'auto',
-      background: 'none',
-      selectors: {
-        '&::before': {
-          content: 'none',
-        },
-      },
-    },
-  },
   selectors: {
     '&::before': {
       content: "''",
@@ -196,20 +196,10 @@ export const CardAction = style({
   },
 });
 
-export const CardQuickAction = style({
-  '@media': {
-    [touchActions]: {
-      display: 'none',
-    },
-  },
-});
+export const CardQuickAction = style({});
 
 export const CardMenuButton = style({
   '@media': {
-    [touchActions]: {
-      width: '2.5rem',
-      height: '2.5rem',
-    },
     // A touch screen keeps :hover on the button tapped last, so after its menu closes the button
     // would stay tinted; there only the press itself and the keyboard's focus tint it.
     '(hover: none)': {
@@ -220,14 +210,40 @@ export const CardMenuButton = style({
   },
 });
 
+// Touch action bar placement: centers the 2.5rem menu button on the card's last row (24px tall,
+// above an S200 padding and the border) and hides the hover quick actions. Activated by the touch
+// media query or explicitly via data-touch-actions="true" (for the tour's touch/phone preview).
+const touchRule = (target: string, rules: CSSProperties) => {
+  const suffix = target.startsWith(':') ? target : ` ${target}`;
+  globalStyle(`${CardShell}${suffix}`, { '@media': { [touchActions]: rules } });
+  globalStyle(`${CardShell}[data-touch-actions="true"]${suffix}`, rules);
+};
+
+touchRule(CardAction, {
+  insetInlineEnd: config.space.S100,
+  insetBlockStart: 'auto',
+  insetBlockEnd: `calc(${config.borderWidth.B300} + ${config.space.S200} + ${toRem(12)} - 1.25rem)`,
+  marginBlock: 0,
+  height: 'auto',
+  opacity: 1,
+  pointerEvents: 'auto',
+  background: 'none',
+});
+touchRule(`${CardAction}::before`, { content: 'none' });
+touchRule(CardQuickAction, { display: 'none' });
+touchRule(CardMenuButton, { width: '2.5rem', height: '2.5rem' });
+
 globalStyle(`[dir='rtl'] ${CardAction}::before`, {
   background: `linear-gradient(to left, transparent, ${hoverTint})`,
 });
 
-globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
-  opacity: 1,
-  pointerEvents: 'auto',
-});
+globalStyle(
+  `${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}, ${CardShell}[data-actions-visible="true"] ${CardAction}`,
+  {
+    opacity: 1,
+    pointerEvents: 'auto',
+  }
+);
 
 export const CardUnread = style({
   boxShadow: `inset ${toRem(3)} 0 0 ${color.Primary.Main}`,
@@ -322,7 +338,7 @@ const unreadTimeStrong = {
   color: `color-mix(in srgb, ${color.Primary.MainLine} 75%, ${color.Primary.OnContainer})`,
 };
 globalStyle(
-  `${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}, ${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${TimeTextUnread}`,
+  `${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}, ${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${TimeTextUnread}, ${CardShell}[data-actions-visible="true"] ${TimeTextUnread}`,
   unreadTimeStrong
 );
 globalStyle(`${CardShell}:hover ${TimeTextUnread}, ${Card}:hover ${TimeTextUnread}`, {
@@ -376,13 +392,7 @@ export const Chips = style({
 
 // Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
 // edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
-globalStyle(`${CardShell} ${MetadataRow}`, {
-  '@media': {
-    [touchActions]: {
-      paddingInlineEnd: toRem(36),
-    },
-  },
-});
+touchRule(`:has(${CardAction}) ${MetadataRow}`, { paddingInlineEnd: toRem(36) });
 
 export const Participants = style({
   display: 'flex',

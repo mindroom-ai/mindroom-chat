@@ -34,10 +34,13 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItemTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => (
     <>{children(() => undefined)}</>
   ),
-  SidebarAvatar: React.forwardRef<HTMLElement, Record<string, unknown>>(
-    ({ as, outlined: _outlined, ...props }, ref) =>
-      React.createElement(typeof as === 'string' ? as : 'div', { ...props, ref })
-  ),
+  SidebarAvatar: ({
+    as,
+    outlined: _outlined,
+    ref,
+    ...props
+  }: Record<string, unknown> & { ref?: React.Ref<HTMLElement> }) =>
+    React.createElement(typeof as === 'string' ? as : 'div', { ...props, ref }),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 

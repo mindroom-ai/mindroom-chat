@@ -7,6 +7,7 @@ import {
   nextStep,
   previousStep,
   stepAt,
+  stepIndexOf,
   stepsOf,
 } from './tourSteps';
 
@@ -84,6 +85,24 @@ describe('tourSteps', () => {
     expect(stepAt('quick', 99).id).toBe('filters');
     expect(stepAt('full', 99).id).toBe('activity');
     expect(stepAt('full', -1).id).toBe('conversation');
+  });
+
+  it('resolves an initial step to its index within the level, falling back to 0', () => {
+    expect(stepIndexOf('full')).toBe(0);
+    expect(stepIndexOf('full', 'resolve')).toBe(6);
+    expect(stepIndexOf('quick', 'resolve')).toBe(6);
+    expect(stepIndexOf('full', 'activity')).toBe(11);
+    expect(stepIndexOf('quick', 'activity')).toBe(0);
+  });
+
+  it('times snooze and pinAndTag for their multi-phase sequences', () => {
+    expect(TOUR_STEPS.find((step) => step.id === 'snooze')?.phases).toEqual([1000, 0]);
+    expect(TOUR_STEPS.find((step) => step.id === 'pinAndTag')?.phases).toEqual([
+      1200, 1100, 1200, 0,
+    ]);
+    const text = translateFromEn('tour.steps.pinAndTag.text');
+    expect(text).toContain('Pin thread in Thread options');
+    expect(text).toContain('Edit tags');
   });
 
   it('says in Keep going how many steps the Full tour adds', () => {

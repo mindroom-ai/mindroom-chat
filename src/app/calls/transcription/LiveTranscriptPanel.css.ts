@@ -4,13 +4,6 @@ import { color, config, toRem } from 'folds';
 const { space, radii, borderWidth } = config;
 const AVATAR = toRem(24);
 
-export const HeaderActions = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: space.S100,
-  flexShrink: 0,
-});
-
 // "This call is transcribed.": a quiet line at the top, with its icon.
 export const Transcribed = style({
   display: 'flex',
@@ -44,7 +37,7 @@ export const Lines = style({
   padding: 0,
   listStyle: 'none',
   paddingBlockStart: space.S300,
-  borderBlockStart: `${borderWidth.B300} solid ${color.Background.ContainerLine}`,
+  borderBlockStart: `${borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   // Before anyone speaks the log around it says so; the list shows with the first line.
   selectors: { '&:empty': { display: 'none' } },
 });

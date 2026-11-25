@@ -83,7 +83,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   };
   await expectNoShowComputerInMenu();
   await openSettingsFromAccountRail(page);
-  await page.getByRole('button', { name: 'Computers', exact: true }).click();
+  await page.getByRole('button', { name: 'Agents & servers', exact: true }).click();
   await page.getByRole('button', { name: 'Advanced', exact: true }).click();
   const serviceInput = page.getByRole('textbox', { name: 'Computer service URL', exact: true });
   await serviceInput.fill(fixture.api_origin);
@@ -197,7 +197,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   });
   await page.mouse.up();
   await expect.poll(async () => (await panel.boundingBox())!.width).toBe(narrowFrom - 200);
-  const expand = panel.getByRole('button', { name: 'Expand computer', exact: true });
+  const expand = panel.getByRole('button', { name: 'Fill the room with Computer', exact: true });
   await expand.click();
   await expect(expand).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(narrowFrom);
@@ -248,7 +248,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   await expect(panel).toHaveCount(0);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await openSettingsFromAccountRail(page);
-  await page.getByRole('button', { name: 'Computers', exact: true }).click();
+  await page.getByRole('button', { name: 'Agents & servers', exact: true }).click();
   await page.getByRole('button', { name: 'Advanced', exact: true }).click();
   await expect(serviceInput).toHaveValue(fixture.api_origin);
   await serviceInput.fill('');

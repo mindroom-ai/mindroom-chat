@@ -262,6 +262,13 @@
       "threadIn": "{{room}} 中的讨论串",
       "messageElsewhere": "其他房间中的消息"
     },
+    "callout": {
+      "note": "备注",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "小心"
+    },
     "deviceVerification": {
       "acceptStalled": "另一个会话没有响应。请关闭此窗口并重新开始验证。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "空间概览"
+    },
+    "footnote": {
+      "backToReference": "返回引用处"
     }
   },
   "featureUi": {
@@ -408,6 +418,7 @@
       },
       "sidebar": {
         "title": "侧边栏",
+        "navigation": "导航",
         "threads": "在侧边栏显示讨论串",
         "threadsDescription": "所有房间的讨论串集中在一个列表中。隐藏后，可从首页的 ⋮ 菜单打开。",
         "canvasesDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。隐藏后，可从首页的 ⋮ 菜单打开。",
@@ -420,7 +431,9 @@
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。",
         "usage": "在侧边栏显示用量",
-        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。"
+        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。",
+        "help": "在侧边栏显示帮助与指南",
+        "helpDescription": "快速指南、导览和键盘快捷键。隐藏后，可从设置中的“关于”或命令面板（{{shortcut}}）打开导览，并可按 {{helpShortcut}} 打开快捷键。"
       },
       "plugins": {
         "title": "插件",
@@ -435,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "你",
-          "app": "此应用",
-          "agents": "智能体与连接",
-          "help": "帮助与高级"
+          "app": "应用",
+          "mindroom": "MindRoom",
+          "system": "系统"
         },
         "pages": {
           "privacy": "隐私与安全",
           "language": "语言与地区",
-          "storage": "存储与离线"
+          "storage": "存储与离线",
+          "agentsServers": "智能体与服务器"
         }
       },
       "search": {
@@ -457,13 +471,16 @@
       "advanced": "高级",
       "sections": {
         "display": "显示",
-        "privacy": "隐私"
+        "privacy": "隐私",
+        "replying": "回复",
+        "connectionsComputers": "连接与计算机"
       },
       "computers": {
         "inUse": "正在使用的服务器",
         "inUseNone": "未设置，因此此设备上的计算机已关闭。",
         "useServer": "使用 {{host}}",
-        "foundNotSaved": "从您的智能体中找到，尚未保存；保存后即可在此输入密钥。"
+        "foundNotSaved": "从您的智能体中找到，尚未保存；保存后即可在此输入密钥。",
+        "foundNotSavedChoose": "从您的智能体中找到，尚未保存。选择您信任的服务器；此设备将在所有房间中使用它。"
       },
       "keywords": {
         "theme": "深色模式, 浅色模式, 夜间模式, 颜色",
@@ -705,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您没有邀请权限",
-      "searchEncrypted": "在加密房间中不可用"
+      "searchEncrypted": "在加密房间中不可用",
+      "viewSection": "视图",
+      "roomSection": "房间",
+      "preferencesSection": "偏好设置",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "导航"
@@ -890,6 +912,164 @@
         "startEntireScreenShare": "共享整个屏幕",
         "stopEntireScreenShare": "停止共享整个屏幕"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "允许完全访问",
+        "cancel": "取消",
+        "chooseLimits": "选择限制...",
+        "close": "关闭",
+        "disconnect": "断开连接",
+        "done": "完成",
+        "editLimits": "编辑限制...",
+        "switchToFull": "切换到完全访问"
+      },
+      "banner": {
+        "restrictedActive": "此 Mac 已启用受限访问。",
+        "shellReadyWaitingPermissions": "Shell 已就绪 - 等待 macOS 屏幕与输入权限",
+        "waitingPermissions": "等待 macOS 屏幕与输入权限"
+      },
+      "browser": {
+        "brewHint": "或使用 Homebrew 安装：",
+        "confirmOnMac": "请在 {{mac}} 上确认此代码以批准访问。",
+        "copied": "已复制",
+        "copyCommand": "复制命令",
+        "copyFailed": "复制失败",
+        "downloadMacApp": "下载 Mac 版 MindRoom Chat",
+        "noMacDescription": "要授予 {{agent}} 访问你的 Mac 的权限，请在 Mac 版 MindRoom Chat 中登录此账号。",
+        "paired": "{{agent}} 现已与 {{mac}} 配对。",
+        "relayDescription": "向 {{mac}} 发送配对请求。你将在 Mac 上确认 6 位验证码，并选择完全访问或设置限制。",
+        "selectMac": "选择一台 Mac",
+        "sendToMac": "发送到 {{mac}}",
+        "waitingOnMac": "正在等待 {{mac}} 确认..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} 可以查看你的屏幕、控制所有应用，并无需询问即可作为你的 macOS 用户运行 Shell 命令（包括重启后）。可随时从菜单栏停止。",
+        "upgradeHeading": "正在切换到完全访问"
+      },
+      "empty": {
+        "noAgents": "此房间中未找到 MindRoom 智能体。"
+      },
+      "incoming": {
+        "decline": "拒绝",
+        "failedTitle": "无法配对 {{agent}}",
+        "sasHint": "批准前请确保此 6 位验证码与 {{requester}} 一致。",
+        "title": "是否接受来自 {{requester}} 的 {{agent}} 配对请求？"
+      },
+      "limits": {
+        "addFolder": "添加文件夹...",
+        "allowShellOnMac": "允许在此 Mac 上运行 Shell 命令",
+        "foldersLabel": "只读文件夹",
+        "fullNote": "“撤销前完全访问”会启用全屏控制和自动批准 Shell 命令，直到你撤销为止。",
+        "fullScreen": "全屏 (primary-screen)",
+        "gui15m": "允许控制 15 分钟",
+        "gui1h": "允许控制 1 小时",
+        "guiFull": "撤销前完全访问",
+        "guiLabel": "屏幕与输入控制",
+        "guiObserve": "仅观察",
+        "installedApps": "允许的 Mac 应用",
+        "loadingApps": "正在加载已安装的应用...",
+        "needCapability": "请至少启用全屏、一个应用、一个文件夹或 Shell 命令。",
+        "noAppsFound": "未找到已安装的 Mac 应用。",
+        "noFolders": "尚未添加只读文件夹。",
+        "perAgentHeading": "{{agent}} 的控制与 Shell 审批（按智能体）",
+        "removeFolder": "移除",
+        "save": "按限制允许",
+        "saveChanges": "保存限制",
+        "sharedHeading": "此 Mac 上共享的应用、文件夹与 Shell（适用于所有已配对智能体）",
+        "sharedWithOthersHint": "与此 Mac 上其他已配对智能体共享",
+        "shell15m": "15 分钟内自动批准",
+        "shell1h": "1 小时内自动批准",
+        "shellApprovalLabel": "Shell 审批",
+        "shellAsk": "每次执行命令前询问",
+        "shellDisabledHint": "请先在下方开启“允许在此 Mac 上运行 Shell 命令”以配置 Shell 审批。",
+        "shellUntilRevoked": "撤销前自动批准"
+      },
+      "permissions": {
+        "accessibility": "辅助功能",
+        "accessibilityGrantedHint": "已允许键盘和鼠标控制。",
+        "accessibilityMissingHint": "允许键盘和鼠标控制。开启后会自动更新。",
+        "allowAccessibility": "允许辅助功能",
+        "allowScreenRecording": "允许屏幕录制",
+        "allowed": "已允许",
+        "relaunchToActivate": "重新启动以激活屏幕控制",
+        "screenRecording": "屏幕录制",
+        "screenRecordingGrantedHint": "已允许查看屏幕。",
+        "screenRecordingMissingHint": "允许已配对的智能体查看你的屏幕。",
+        "screenRecordingRelaunchHint": "请重新启动一次 MindRoom Chat，让 macOS 激活屏幕录制权限。"
+      },
+      "picker": {
+        "subtitle": "选择此房间中要连接到此 Mac 的智能体。"
+      },
+      "roomHeader": {
+        "giveAccess": "授予 Mac 访问权限",
+        "manageAccess": "Mac 访问"
+      },
+      "sas": {
+        "label": "验证码"
+      },
+      "settings": {
+        "bridgeState": "桥接状态",
+        "helperVersion": "辅助程序版本",
+        "keywords": "mac, 电脑访问, 桌面控制, shell, 辅助功能, 屏幕录制, 权限",
+        "lastError": "最近错误",
+        "manage": "管理",
+        "noPairedAgentsDescription": "打开包含智能体的房间并选择“授予 Mac 访问权限”以连接。",
+        "noPairedAgentsTitle": "尚未配对任何智能体",
+        "notSignedIn": "未登录",
+        "pairedAgentsTitle": "已配对的智能体",
+        "permissionsTitle": "macOS 权限",
+        "revokeAll": "撤销所有访问权限",
+        "revokeAllDescription": "断开所有已配对智能体，并立即停止此 Mac 上的电脑访问。",
+        "runningShellTitle": "运行中的 Shell 命令",
+        "savedSession": "已保存的 Matrix 会话",
+        "sectionTitle": "此 Mac",
+        "statusActive": "运行中",
+        "statusDescription": "控制哪些 MindRoom 智能体可以查看和控制此 Mac。",
+        "statusStopped": "已停止",
+        "statusTitle": "Mac 电脑访问",
+        "statusUnavailable": "此 Mac 上不可用",
+        "stopCommand": "停止",
+        "title": "此 Mac",
+        "unavailableDescription": "Mac 电脑访问需要在 Apple Silicon 上运行 Mac 版 MindRoom Chat。",
+        "unknown": "未知"
+      },
+      "shellApproval": {
+        "approveOnce": "批准一次",
+        "approveOnceCountdown": "批准一次 ({{seconds}})",
+        "autoApprove15m": "15 分钟自动批准",
+        "autoApprove15mCountdown": "15 分钟自动批准 ({{seconds}})",
+        "cwdLabel": "工作目录",
+        "deny": "拒绝",
+        "empty": "当前没有等待批准的 Shell 命令。",
+        "title": "批准 Shell 命令？"
+      },
+      "status": {
+        "fullAccess": "完全访问",
+        "fullAccessActive": "完全访问已启用",
+        "permissionsNeeded": "需要权限",
+        "restricted": "受限",
+        "shellReady": "Shell 已就绪"
+      },
+      "steps": {
+        "confirming": "正在确认配对...",
+        "finishing": "正在激活访问权限...",
+        "pairing": "正在与 {{agent}} 配对...",
+        "requestingOffer": "正在联系 {{agent}}...",
+        "signingIn": "正在此 Mac 上登录..."
+      },
+      "title": {
+        "allowFull": "允许 {{agent}} 完全访问此 Mac？",
+        "browserPair": "授予 {{agent}} 访问你的 Mac 的权限",
+        "chooseLimits": "为 {{agent}} 选择限制",
+        "default": "Mac 电脑访问",
+        "editLimits": "编辑 {{agent}} 的限制",
+        "manageAgent": "此 Mac 上的 {{agent}}",
+        "pickAgent": "授予智能体访问此 Mac 的权限"
+      },
+      "unavailable": {
+        "description": "此设备不支持 Mac 电脑访问。"
+      }
     }
   },
   "mindroomUi": {
@@ -1032,7 +1212,21 @@
         "triggerLabel": "触发器 {{id}}",
         "sourceLabel": "来源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件载荷 JSON"
+        "payloadLabel": "事件载荷 JSON",
+        "openTriggerLabel": "查看触发器 {{id}}"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 项待办就绪",
+        "hide": "隐藏",
+        "show": "显示",
+        "copyId": "复制待办 ID {{id}}",
+        "moreItems_other": "+另外 {{count}} 项可执行待办",
+        "priority": {
+          "critical": "紧急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
       },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
@@ -1163,7 +1357,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "紧凑视图",
-        "threadFiltersActive": "讨论串过滤器（已启用）"
+        "threadFiltersActive": "讨论串过滤器（已启用）",
+        "mindroomSettings": "MindRoom 设置"
       },
       "roomThreadOverview": {
         "advancedFilters": "高级过滤器",
@@ -1196,6 +1391,21 @@
         "expandAllLong": "展开所有长消息",
         "collapseAllLong": "折叠所有长消息",
         "showFullMessage": "显示完整消息"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "已全部处理完毕",
+        "resolvedCount_other": "{{count}} 个已解决",
+        "snoozedCount_other": "{{count}} 个已延后",
+        "showAll": "显示全部",
+        "startNewThreadBelow": "在下方开始新讨论串",
+        "recentlyResolved": "最近已解决",
+        "noMatchHeading": "没有符合筛选条件的讨论串",
+        "hiddenByForMe_other": "{{count}} 个未解决的讨论串被“与我相关”隐藏。",
+        "hiddenByFilters_other": "{{count}} 个未解决的讨论串被筛选条件隐藏。",
+        "adjustOrResetFilters": "调整或重置筛选条件以查看此房间中的讨论串。",
+        "turnOffForMe": "关闭“与我相关”",
+        "resetAll": "全部重置",
+        "resetFilters": "重置筛选条件"
       }
     },
     "computer": {
@@ -1224,7 +1434,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 个后台任务已完成",
+      "groupWorkflows": "工作流 · {{number}}",
       "groupSubagents": "子智能体 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 个工具",
@@ -1264,6 +1476,88 @@
       },
       "jobTotal_other": "{{count}} 个后台任务",
       "jobTotalFinished_other": "{{count}} 个后台任务已完成"
+    },
+    "workflowRun": {
+      "title": "工作流",
+      "status": {
+        "starting": "正在启动",
+        "running": "运行中",
+        "waiting": "等待回复",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "interrupted": "已中断"
+      },
+      "counts": "{{done}} 已完成，{{running}} 运行中，{{waiting}} 等待中",
+      "reused": "已复用：{{count}}",
+      "cost": "目前已花费 {{spent}}，预计总计约 {{projected}}",
+      "costAtLeast": "目前已花费至少 {{spent}}",
+      "largeRun": "大型运行",
+      "attempt": "第 {{number}} 次尝试",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "继续",
+      "runAgain": "再次运行",
+      "starting": "正在启动…",
+      "failedCount_other": "{{count}} 项失败",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已经回答过了。",
+          "noLongerOpen": "此问题已关闭。",
+          "notAnOption": "这不是可选项之一。",
+          "notForYou": "只有发起此运行的人可以回答。"
+        },
+        "noReply": "尚未收到回复，请重试。",
+        "placeholder": "输入你的回答",
+        "send": "发送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "图谱",
+      "panel": {
+        "close": "关闭",
+        "resize": "调整工作流面板大小",
+        "hide": "隐藏工作流",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新于 {{time}}。",
+        "log": "日志",
+        "showMore": "再显示 {{count}} 项",
+        "omitted": {
+          "queued_other": "另有 {{count}} 项排队中",
+          "running_other": "另有 {{count}} 项运行中",
+          "waiting_other": "另有 {{count}} 项等待中",
+          "failed_other": "另有 {{count}} 项失败",
+          "done_other": "另有 {{count}} 项已完成"
+        },
+        "askAgent": "其余详情可询问 {{agent}}。"
+      },
+      "group": {
+        "foreach": "遍历",
+        "parallel": "并行",
+        "run": "已保存的工作流",
+        "workflow": "嵌套工作流",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失败：{{count}}"
+      },
+      "node": {
+        "reused": "复用了上次运行结果",
+        "queued": "排队中",
+        "mayHaveRun": "可能已运行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待批准",
+          "peer": "等待消息"
+        },
+        "sessionTurns_other": "{{count}} 轮",
+        "result": "结果",
+        "error": "错误",
+        "messages": "消息",
+        "messagesTo": "发送给 {{name}} 的消息：{{count}}",
+        "open": "打开",
+        "detailsUnavailable": "重新加载后详情已不可用。",
+        "stop": "停止智能体"
+      }
     },
     "subagents": {
       "title": "子智能体",
@@ -1500,7 +1794,9 @@
     },
     "actions": {
       "goActivity": "前往动态",
-      "goActivityDescription": "提及、回复和等待你处理的事项"
+      "goActivityDescription": "提及、回复和等待你处理的事项",
+      "openCurrentRoomMindroomSettings": "打开 MindRoom 房间设置",
+      "openCurrentRoomMindroomSettingsDescription": "打开 {{room}} 的 MindRoom 设置"
     },
     "recentVisits": {
       "recentlyOpened": "最近打开",
@@ -1574,6 +1870,7 @@
       "needsYou": "需要你处理",
       "working": "处理中",
       "later": "稍后",
+      "quiet": "安静",
       "done": "已完成",
       "all": "全部",
       "description": {
@@ -1609,7 +1906,17 @@
     "forkThread": "分支讨论串",
     "forking": "正在从 {{title}} 分支",
     "continueInNewThread": "在新讨论串中继续",
-    "forkCount_other": "{{count}} 个分支"
+    "forkCount_other": "{{count}} 个分支",
+    "forkedFromInRoom": "分支自 {{room}} 中的 {{title}}",
+    "forkedFromAnotherRoom": "分支自其他房间",
+    "forkingIntoRoom": "正在将 {{title}} 分支到 {{room}}",
+    "forkToRoom": "分支到房间…",
+    "forkToRoomTitle": "分支到房间",
+    "forkToRoomSearchPlaceholder": "搜索房间…",
+    "forkToRoomEmpty": "没有匹配的房间",
+    "forkToRoomAgentWarning": "此房间中的代理不在 {{room}} 中，无法查看原讨论串",
+    "forkingFromRoom": "正在从 {{room}} 分支",
+    "forkDraftAgentWarning": "此处的代理不在 {{room}} 中，无法查看原讨论串"
   },
   "activity": {
     "title": "动态",
@@ -1642,8 +1949,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回复了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回复了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回复"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 条新消息",
     "runMinutes_other": "{{count}} 分钟",
@@ -1854,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "置顶和添加标签",
-        "text": "“置顶讨论串”会让讨论串保持在列表顶部。“讨论串选项”中的“编辑标签”可为讨论串添加标签，之后可以按标签过滤。"
+        "text": "点击卡片上的图钉，或在“讨论串选项”（⋯）中选择“置顶讨论串”，即可将讨论串保持在顶部。“讨论串选项”中的“编辑标签”可为讨论串添加标签，之后可以按标签过滤。"
       },
       "filters": {
         "title": "过滤器会隐藏已解决的讨论串",
@@ -1901,6 +2207,38 @@
       "settingsKeywords": "导览, 教程, 指南, 帮助, 入门, 引导, 讨论串",
       "howThreadsWork": "讨论串如何运作",
       "noThreadsHint": "在下方发送一条消息即可发起讨论串。"
+    },
+    "help": {
+      "button": "帮助与指南",
+      "buttonWithTip": "帮助与指南（1 条提示）",
+      "title": "帮助与指南",
+      "subtitle": "快速指南",
+      "oneTip": "1 条提示",
+      "suggested": "为你推荐",
+      "showHow": "查看方法",
+      "dismissTip": "关闭提示",
+      "guidesHeading": "界面指南",
+      "guides": {
+        "conversation": "讨论串如何运作",
+        "resolve": "解决已完成的讨论串",
+        "filters": "查找已解决的讨论串",
+        "snooze": "延后至稍后处理",
+        "pinAndTag": "置顶和添加标签",
+        "views": "紧凑视图与讨论串视图",
+        "activity": "动态与审批"
+      },
+      "fullTour": "完整导览",
+      "shortcuts": "快捷键"
+    },
+    "tips": {
+      "resolve": {
+        "title": "解决已完成的讨论串",
+        "cardTitle": "解决已完成的讨论串",
+        "roomSummary_other": "当前房间有 {{count}} 个未解决的讨论串，尚无已解决项",
+        "allSummary_other": "共有 {{count}} 个未解决的讨论串，尚无已解决项",
+        "cardTextRoom_other": "当前房间有 {{count}} 个未解决的讨论串，尚无已解决项。标记已完成的讨论串可保持列表整洁。",
+        "cardTextAll_other": "共有 {{count}} 个未解决的讨论串，尚无已解决项。标记已完成的讨论串可保持列表整洁。"
+      }
     }
   },
   "threadNav": {
@@ -1915,6 +2253,7 @@
       "working": "进行中",
       "later": "稍后",
       "idle": "空闲",
+      "quiet": "安静",
       "resolved": "已解决"
     },
     "live": {
@@ -1935,7 +2274,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二栏打开"
+    "openBeside": "在第二栏打开",
+    "detailsSection": "详情",
+    "forkAndShareSection": "分支与分享",
+    "shareSection": "分享",
+    "viewSection": "视图"
   },
   "roomSchedules": {
     "thisThread": "此讨论串",
@@ -1966,6 +2309,45 @@
     "cancellationSent": "已发送取消请求",
     "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
     "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
+  },
+  "roomTriggers": {
+    "title": "触发器",
+    "openLabel": "触发器 ({{total}})",
+    "loading": "正在加载…",
+    "empty": "此房间没有触发器。",
+    "emptyHint": "为此房间配置的触发器会显示在这里。",
+    "loadError": "无法加载触发器。",
+    "missingTrigger": "触发器 {{id}} 已不在此房间中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房间监听",
+      "external_event": "事件订阅",
+      "thread_tag": "话题标签",
+      "unknown": "触发器"
+    },
+    "watchingRoom": "正在监听此房间",
+    "stateOn": "已开启",
+    "stateOff": "已关闭",
+    "disabledExpired": "已过期",
+    "disabledOnceConsumed": "已运行一次",
+    "lastFired": "上次触发 {{time}}",
+    "neverFired": "无触发记录",
+    "destinationRoom": "房间时间线",
+    "destinationThread": "话题",
+    "destinationNewThread": "新话题",
+    "destinationOrigin": "原话题",
+    "openThread": "打开话题",
+    "prompt": "提示词",
+    "enable": "开启",
+    "disable": "关闭",
+    "updating": "正在更新...",
+    "toggleError": "无法更新触发器，请重试。",
+    "delete": "删除",
+    "deleteConfirm": "要删除此触发器吗？",
+    "keep": "保留",
+    "deleteTrigger": "删除触发器",
+    "deleting": "正在删除...",
+    "deleteError": "无法删除触发器，请重试。"
   },
   "home": {
     "greeting": {
@@ -2004,5 +2386,43 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 个房间",
+      "roomsFiltered": "{{active}}/{{total}} 个房间",
+      "switchSpace": "切换空间"
+    },
+    "roomFilter": {
+      "label": "房间",
+      "ariaLabel": "按房间过滤讨论串",
+      "ariaLabelActive": "按房间过滤讨论串（已选 {{number}} 个）",
+      "ariaLabelOne": "房间：{{room}}",
+      "search": "搜索房间",
+      "noMatch": "没有匹配的房间"
+    },
+    "composer": {
+      "postTo": "发送到：",
+      "postToRoom": "发送到 #{{room}}",
+      "chooseRoomAria": "选择要发送到的房间",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空间中没有允许发送消息的房间。"
+    },
+    "loading": "正在加载话题...",
+    "empty": {
+      "noRooms": "加入此空间中的房间即可在此查看话题。",
+      "noThreads": "此空间中还没有话题。"
+    },
+    "error": {
+      "title": "无法加载空间话题"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "图表",
+    "source": "源码",
+    "showDiagram": "显示图表",
+    "showSource": "显示源码",
+    "mermaidDiagram": "Mermaid 图表",
+    "diagramUnavailable": "正在显示源码"
   }
 }

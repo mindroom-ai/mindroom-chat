@@ -75,6 +75,13 @@ describe('useSettingsContext', () => {
       configurable: true,
       value: { update: { status: vi.fn(), check: vi.fn(), install: vi.fn() } },
     });
-    expect(read()).toMatchObject({ native: true, nativeUpdate: true });
+    expect(read()).toMatchObject({ native: true, nativeUpdate: true, desktopAccess: false });
+    act(() => renderer?.unmount());
+
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { desktopAccess: { status: vi.fn() } },
+    });
+    expect(read()).toMatchObject({ native: true, desktopAccess: true });
   });
 });

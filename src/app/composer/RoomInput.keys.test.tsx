@@ -13,11 +13,13 @@ import {
   composerStateKey,
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
+import { PopOut } from '../ui/directional';
 import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
 import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
+import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerSendButton } from './ComposerSendButton';
 
 type EditorProps = {
@@ -155,7 +157,11 @@ vi.mock('./ComposerSendButton', () => ({ ComposerSendButton: () => null }));
 vi.mock('../event-store/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
-vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
+vi.mock('../lib/user-agent', () => ({
+  mobileOrTablet: () => false,
+  isMacOS: () => false,
+  isIOS: () => false,
+}));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
 }));
@@ -256,6 +262,7 @@ type ComposerProps = {
   store?: ReturnType<typeof createStore>;
   room?: Room;
   threadId?: string;
+  forkFrom?: { roomId?: string; threadId: string; eventId: string };
   threadingEnabled?: boolean;
   /** The key of the conversation view the composer is in, other than the room page. */
   view?: string;
@@ -277,7 +284,7 @@ const mountComposer = async (
   const { RoomInput } = await import('./RoomInput');
   const element = (
     <Provider store={store}>
-      <ConversationViewContext.Provider value={view}>
+      <ConversationViewContext value={view}>
         <RoomInput
           editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
@@ -285,7 +292,7 @@ const mountComposer = async (
           room={room}
           {...props}
         />
-      </ConversationViewContext.Provider>
+      </ConversationViewContext>
     </Provider>
   );
   act(() => {
@@ -448,6 +455,39 @@ describe('composer', () => {
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
     expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
+  });
+
+  it('keeps @ mention autocomplete and the emoji picker open in a cross-room fork draft registered by view only', async () => {
+    const store = createStore();
+    // Cross-room fork drafts register their view without roomId/threadId so they do not claim the
+    // source thread exists in the target room.
+    store.set(shownConversationViewsAtom, [{ view: VIEW }]);
+    await mountComposer([], {
+      store,
+      view: VIEW,
+      forkFrom: { roomId: '!source:example.org', threadId: '$root', eventId: '$point' },
+    });
+
+    const emojiButton = renderer!.root
+      .findAllByType(ComposerIconButton)
+      .find((button) => String(button.props.label).toLowerCase().includes('emoji'));
+    expect(emojiButton).toBeDefined();
+    const rect = { x: 10, y: 20, width: 32, height: 32 };
+    act(() => {
+      emojiButton!.props.onPress({
+        currentTarget: { getBoundingClientRect: () => rect },
+      });
+    });
+
+    expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
+    expect(renderer!.root.findByType(PopOut).props.anchor).toEqual(rect);
+    expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
+
+    // Unregistering the view (e.g. hiding or folding the draft) clears both autocomplete and picker.
+    act(() => store.set(shownConversationViewsAtom, []));
+    expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(0);
+    expect(renderer!.root.findByType(PopOut).props.anchor).toBeUndefined();
+    expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(true);
   });
 
   it("shows the reply of its own conversation view, not the room page's", async () => {

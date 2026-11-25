@@ -1,6 +1,7 @@
 import { useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type HTMLReactParserOptions } from 'html-react-parser';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { parseHtml } from '../../rich-text/parseHtml';
 import { Icon, Icons } from 'folds';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
@@ -36,7 +37,11 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
     // As the Markdown renderer's text does, plain lines show direction controls as code points.
     return <div style={{ whiteSpace: 'pre-wrap' }}>{revealDirectionControls(text)}</div>;
   }
-  return <div style={{ whiteSpace: 'normal' }}>{rendered}</div>;
+  return (
+    <div style={{ whiteSpace: 'normal' }}>
+      <FootnoteScopeProvider isolate>{rendered}</FootnoteScopeProvider>
+    </div>
+  );
 }
 
 /**
@@ -68,7 +73,8 @@ export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
   const { t } = useTranslation();
   const reasoning = useContext(ReasoningSegmentsContext);
   if (!reasoning?.open) return null;
-  const { segments, placement, hide, liveIndex, htmlReactParserOptions } = reasoning;
+  const { segments, placement, hide, liveIndex, htmlReactParserOptions, registerSegment } =
+    reasoning;
   const hideLabel = t('mindroomUi.messages.mindroomReasoning.hide');
   return (
     <>
@@ -83,7 +89,7 @@ export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
           });
         }
         return (
-          <div key={index} className={css.Segment}>
+          <div key={index} ref={registerSegment} className={css.Segment}>
             <button type="button" className={css.Rail} aria-label={hideLabel} onClick={hide} />
             <div className={css.Body}>
               <span className={css.Label}>{label}</span>

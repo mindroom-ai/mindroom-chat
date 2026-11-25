@@ -3,6 +3,7 @@ import { app, BrowserWindow, clipboard, Menu, screen } from 'electron';
 import { APP_ORIGIN } from './bundleProtocol';
 import { buildContextMenu } from './menu';
 import { guardWebContents } from './security';
+import { attachTrackpadSwipe } from './trackpadSwipe';
 import {
   MIN_HEIGHT,
   MIN_WIDTH,
@@ -18,13 +19,19 @@ const SAVE_DEBOUNCE_MS = 250;
 let mainWindow: BrowserWindow | undefined;
 let screenShareEnabled = false;
 let updaterEnabled = false;
+let desktopAccessEnabled = false;
 let quitting = false;
 let hideAfterFullScreen = false;
 let activeFlushWindowState: (() => void) | undefined;
 
-export const configureMainWindow = (options: { screenShare: boolean; updater?: boolean }): void => {
+export const configureMainWindow = (options: {
+  screenShare: boolean;
+  updater?: boolean;
+  desktopAccess?: boolean;
+}): void => {
   screenShareEnabled = options.screenShare;
   updaterEnabled = Boolean(options.updater);
+  desktopAccessEnabled = Boolean(options.desktopAccess);
 };
 
 export const markQuitting = (): void => {
@@ -90,6 +97,7 @@ export const showMainWindow = (): BrowserWindow => {
       additionalArguments: [
         screenShareEnabled ? '--mindroom-screen-share=1' : '--mindroom-screen-share=0',
         ...(updaterEnabled ? ['--mindroom-updater=1'] : []),
+        ...(desktopAccessEnabled ? ['--mindroom-desktop-access=1'] : []),
       ],
       contextIsolation: true,
       sandbox: true,
@@ -189,6 +197,7 @@ export const showMainWindow = (): BrowserWindow => {
   });
 
   attachContextMenu(win);
+  attachTrackpadSwipe(win);
 
   win.webContents.on('will-prevent-unload', () => {
     quitting = false;

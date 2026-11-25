@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
     },
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
     "deviceVerification": {
       "acceptStalled": "The other session did not answer. Close this and start the verification again."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space overview"
+    },
+    "footnote": {
+      "backToReference": "Back to reference"
     }
   },
   "featureUi": {
@@ -421,6 +431,7 @@
       },
       "sidebar": {
         "title": "Sidebar",
+        "navigation": "Navigation",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
@@ -433,7 +444,9 @@
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom.",
         "usage": "Show Usage in the sidebar",
-        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker."
+        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker.",
+        "help": "Show Help & guides in the sidebar",
+        "helpDescription": "Quick guides, the tour, and keyboard shortcuts. When hidden, open the tour from Settings under About or the command palette ({{shortcut}}), and shortcuts with {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",
@@ -448,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "You",
-          "app": "This app",
-          "agents": "Agents & connections",
-          "help": "Help & advanced"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "System"
         },
         "pages": {
           "privacy": "Privacy & security",
           "language": "Language & region",
-          "storage": "Storage & offline"
+          "storage": "Storage & offline",
+          "agentsServers": "Agents & servers"
         }
       },
       "search": {
@@ -470,13 +484,16 @@
       "advanced": "Advanced",
       "sections": {
         "display": "Display",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Replying",
+        "connectionsComputers": "Connections & computers"
       },
       "computers": {
         "inUse": "Server in use",
         "inUseNone": "None set, so computers are off on this device.",
         "useServer": "Use {{host}}",
-        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here.",
+        "foundNotSavedChoose": "Found from your agents, not saved. Choose the server you trust; this device uses it for all rooms."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -722,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "You don't have permission to invite",
-      "searchEncrypted": "Not available in encrypted rooms"
+      "searchEncrypted": "Not available in encrypted rooms",
+      "viewSection": "View",
+      "roomSection": "Room",
+      "preferencesSection": "Preferences",
+      "notificationModeAll": "All",
+      "notificationModeMentions": "Mentions"
     },
     "phoneNav": {
       "navigation": "Navigation"
@@ -907,6 +929,164 @@
         "startEntireScreenShare": "Share entire screen",
         "stopEntireScreenShare": "Stop sharing entire screen"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Allow Full Access",
+        "cancel": "Cancel",
+        "chooseLimits": "Choose limits...",
+        "close": "Close",
+        "disconnect": "Disconnect",
+        "done": "Done",
+        "editLimits": "Edit limits...",
+        "switchToFull": "Switch to Full Access"
+      },
+      "banner": {
+        "restrictedActive": "Restricted access active on this Mac.",
+        "shellReadyWaitingPermissions": "Shell ready - Waiting for macOS screen & input permissions",
+        "waitingPermissions": "Waiting for macOS screen & input permissions"
+      },
+      "browser": {
+        "brewHint": "Or install with Homebrew:",
+        "confirmOnMac": "Confirm this code on {{mac}} to approve access.",
+        "copied": "Copied",
+        "copyCommand": "Copy command",
+        "copyFailed": "Copy failed",
+        "downloadMacApp": "Download MindRoom Chat for Mac",
+        "noMacDescription": "To give {{agent}} access to your Mac, sign in with this account in MindRoom Chat for Mac.",
+        "paired": "{{agent}} is now paired with {{mac}}.",
+        "relayDescription": "Send a pairing request to {{mac}}. You will confirm the 6-digit code and choose Full Access or limits on your Mac.",
+        "selectMac": "Choose a Mac",
+        "sendToMac": "Send to {{mac}}",
+        "waitingOnMac": "Waiting for confirmation on {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.",
+        "upgradeHeading": "Switching to Full Access"
+      },
+      "empty": {
+        "noAgents": "No MindRoom agents found in this room."
+      },
+      "incoming": {
+        "decline": "Decline",
+        "failedTitle": "Could not pair {{agent}}",
+        "sasHint": "Make sure this 6-digit code matches {{requester}} before approving.",
+        "title": "Pair {{agent}} from {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Add folder...",
+        "allowShellOnMac": "Allow shell commands on this Mac",
+        "foldersLabel": "Read-only folders",
+        "fullNote": "Full Access until revoked enables full-screen control and auto-approved shell until revoked.",
+        "fullScreen": "Full screen (primary-screen)",
+        "gui15m": "Allow control for 15 min",
+        "gui1h": "Allow control for 1 hour",
+        "guiFull": "Full Access until revoked",
+        "guiLabel": "Screen & input control",
+        "guiObserve": "Observe only",
+        "installedApps": "Allowed Mac apps",
+        "loadingApps": "Loading installed apps...",
+        "needCapability": "Enable full screen, at least one app, a folder, or shell commands.",
+        "noAppsFound": "No installed Mac apps found.",
+        "noFolders": "No read-only folders added.",
+        "perAgentHeading": "Control & shell approval for {{agent}} (per-agent)",
+        "removeFolder": "Remove",
+        "save": "Allow with limits",
+        "saveChanges": "Save limits",
+        "sharedHeading": "Shared apps, folders & shell on this Mac (applies to all paired agents)",
+        "sharedWithOthersHint": "Shared with other paired agents on this Mac",
+        "shell15m": "Auto-approve for 15 min",
+        "shell1h": "Auto-approve for 1 hour",
+        "shellApprovalLabel": "Shell approval",
+        "shellAsk": "Ask before each command",
+        "shellDisabledHint": "Turn on \"Allow shell commands on this Mac\" below to configure shell approval.",
+        "shellUntilRevoked": "Auto-approve until revoked"
+      },
+      "permissions": {
+        "accessibility": "Accessibility",
+        "accessibilityGrantedHint": "Keyboard and mouse control allowed.",
+        "accessibilityMissingHint": "Allows keyboard and mouse control. Updates automatically once enabled.",
+        "allowAccessibility": "Allow Accessibility",
+        "allowScreenRecording": "Allow Screen Recording",
+        "allowed": "Allowed",
+        "relaunchToActivate": "Relaunch to activate screen control",
+        "screenRecording": "Screen Recording",
+        "screenRecordingGrantedHint": "Screen viewing allowed.",
+        "screenRecordingMissingHint": "Allows paired agents to see your screen.",
+        "screenRecordingRelaunchHint": "Relaunch MindRoom Chat once so macOS activates Screen Recording."
+      },
+      "picker": {
+        "subtitle": "Choose which agent in this room should connect to this Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Give Mac Access",
+        "manageAccess": "Mac Access"
+      },
+      "sas": {
+        "label": "Verification code"
+      },
+      "settings": {
+        "bridgeState": "Bridge state",
+        "helperVersion": "Helper version",
+        "keywords": "mac, computer access, desktop control, shell, accessibility, screen recording, permissions",
+        "lastError": "Last error",
+        "manage": "Manage",
+        "noPairedAgentsDescription": "Open a room with an agent and choose Give Mac Access to connect it.",
+        "noPairedAgentsTitle": "No agents paired yet",
+        "notSignedIn": "Not signed in",
+        "pairedAgentsTitle": "Paired agents",
+        "permissionsTitle": "macOS Permissions",
+        "revokeAll": "Revoke All Access",
+        "revokeAllDescription": "Disconnect all paired agents and immediately stop computer access on this Mac.",
+        "runningShellTitle": "Running shell commands",
+        "savedSession": "Saved Matrix session",
+        "sectionTitle": "This Mac",
+        "statusActive": "Active",
+        "statusDescription": "Control which MindRoom agents can see and control this Mac.",
+        "statusStopped": "Stopped",
+        "statusTitle": "Mac Computer Access",
+        "statusUnavailable": "Not available on this Mac",
+        "stopCommand": "Stop",
+        "title": "This Mac",
+        "unavailableDescription": "Mac Computer Access requires MindRoom Chat for Mac on Apple Silicon.",
+        "unknown": "Unknown"
+      },
+      "shellApproval": {
+        "approveOnce": "Approve once",
+        "approveOnceCountdown": "Approve once ({{seconds}})",
+        "autoApprove15m": "Auto-approve 15 min",
+        "autoApprove15mCountdown": "Auto-approve 15 min ({{seconds}})",
+        "cwdLabel": "Working directory",
+        "deny": "Deny",
+        "empty": "No shell command is waiting for approval.",
+        "title": "Approve shell command?"
+      },
+      "status": {
+        "fullAccess": "Full Access",
+        "fullAccessActive": "Full Access active",
+        "permissionsNeeded": "Permissions needed",
+        "restricted": "Restricted",
+        "shellReady": "Shell ready"
+      },
+      "steps": {
+        "confirming": "Confirming pairing...",
+        "finishing": "Activating access...",
+        "pairing": "Pairing with {{agent}}...",
+        "requestingOffer": "Contacting {{agent}}...",
+        "signingIn": "Signing in on this Mac..."
+      },
+      "title": {
+        "allowFull": "Allow {{agent}} full access to this Mac?",
+        "browserPair": "Give {{agent}} access to your Mac",
+        "chooseLimits": "Choose limits for {{agent}}",
+        "default": "Mac Computer Access",
+        "editLimits": "Edit limits for {{agent}}",
+        "manageAgent": "{{agent}} on this Mac",
+        "pickAgent": "Give an agent access to this Mac"
+      },
+      "unavailable": {
+        "description": "Mac Computer Access is not available on this device."
+      }
     }
   },
   "mindroomUi": {
@@ -951,7 +1131,7 @@
       "approvalDecisionControls": {
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
       },
-      "showToolCalls": "Show tool calls",
+      "showToolCalls": "Show Tool Calls",
       "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there.",
       "secretRequestCard": {
         "label": "Key request",
@@ -1051,7 +1231,23 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Event payload JSON"
+        "payloadLabel": "Event payload JSON",
+        "openTriggerLabel": "View trigger {{id}}"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} todo ready",
+        "readyCount_other": "{{count}} todos ready",
+        "hide": "Hide",
+        "show": "Show",
+        "copyId": "Copy todo ID {{id}}",
+        "moreItems_one": "+{{count}} more actionable item",
+        "moreItems_other": "+{{count}} more actionable items",
+        "priority": {
+          "critical": "Critical",
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        }
       },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
@@ -1198,7 +1394,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Compact view",
-        "threadFiltersActive": "Thread filters (active)"
+        "threadFiltersActive": "Thread filters (active)",
+        "mindroomSettings": "MindRoom Settings"
       },
       "roomThreadOverview": {
         "advancedFilters": "Advanced filters",
@@ -1231,6 +1428,25 @@
         "expandAllLong": "Expand all long messages",
         "collapseAllLong": "Collapse all long messages",
         "showFullMessage": "Show full message"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "All caught up",
+        "resolvedCount_one": "{{count}} resolved",
+        "resolvedCount_other": "{{count}} resolved",
+        "snoozedCount_one": "{{count}} snoozed",
+        "snoozedCount_other": "{{count}} snoozed",
+        "showAll": "Show all",
+        "startNewThreadBelow": "Start a new thread below",
+        "recentlyResolved": "Recently resolved",
+        "noMatchHeading": "No threads match your filters",
+        "hiddenByForMe_one": "{{count}} open thread is hidden by For me.",
+        "hiddenByForMe_other": "{{count}} open threads are hidden by For me.",
+        "hiddenByFilters_one": "{{count}} open thread is hidden by your filters.",
+        "hiddenByFilters_other": "{{count}} open threads are hidden by your filters.",
+        "adjustOrResetFilters": "Adjust or reset your filters to see threads in this room.",
+        "turnOffForMe": "Turn off For me",
+        "resetAll": "Reset all",
+        "resetFilters": "Reset filters"
       }
     },
     "computer": {
@@ -1259,7 +1475,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
+      "awaitingAnswer": "Waiting for your answer: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-agents · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1304,6 +1522,95 @@
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
       "jobTotalFinished_other": "{{count}} background jobs finished"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starting",
+        "running": "Running",
+        "waiting": "Waiting for you",
+        "completed": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "counts": "{{done}} done, {{running}} running, {{waiting}} waiting",
+      "reused": "Reused: {{count}}",
+      "cost": "{{spent}} so far, about {{projected}} in total",
+      "costAtLeast": "at least {{spent}} so far",
+      "largeRun": "Large run",
+      "attempt": "Attempt {{number}}",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "resume": "Resume",
+      "runAgain": "Run again",
+      "starting": "Starting…",
+      "failedCount_one": "{{count}} failed",
+      "failedCount_other": "{{count}} failed",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Already answered.",
+          "noLongerOpen": "This question is no longer open.",
+          "notAnOption": "That is not one of the options.",
+          "notForYou": "Only the person who started the run can answer."
+        },
+        "noReply": "No reply yet. Try again.",
+        "placeholder": "Type your answer",
+        "send": "Send",
+        "answered": "Answered: {{answer}}",
+        "cancelled": "Cancelled",
+        "onlyRequester": "Only {{name}} can answer."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Close",
+        "resize": "Resize workflow panel",
+        "hide": "Hide workflow",
+        "waitingForUpdate": "Waiting for the run's next update…",
+        "stale": "Not updating. Last update {{time}}.",
+        "log": "Log",
+        "showMore": "Show {{count}} more",
+        "omitted": {
+          "queued_one": "and {{count}} more queued",
+          "queued_other": "and {{count}} more queued",
+          "running_one": "and {{count}} more running",
+          "running_other": "and {{count}} more running",
+          "waiting_one": "and {{count}} more waiting",
+          "waiting_other": "and {{count}} more waiting",
+          "failed_one": "and {{count}} more failed",
+          "failed_other": "and {{count}} more failed",
+          "done_one": "and {{count}} more done",
+          "done_other": "and {{count}} more done"
+        },
+        "askAgent": "Ask {{agent}} for the rest."
+      },
+      "group": {
+        "foreach": "For each",
+        "parallel": "Parallel",
+        "run": "Saved workflow",
+        "workflow": "Nested workflow",
+        "progress": "{{done}} of {{total}}",
+        "failed": "Failed: {{count}}"
+      },
+      "node": {
+        "reused": "Reused from the last run",
+        "queued": "Queued",
+        "mayHaveRun": "May have run",
+        "waitingOn": {
+          "user": "Waiting for your answer",
+          "approval": "Waiting for approval",
+          "peer": "Waiting for a message"
+        },
+        "sessionTurns_one": "{{count}} turn",
+        "sessionTurns_other": "{{count}} turns",
+        "result": "Result",
+        "error": "Error",
+        "messages": "Messages",
+        "messagesTo": "Messages to {{name}}: {{count}}",
+        "open": "Open",
+        "detailsUnavailable": "Details are no longer available after reload.",
+        "stop": "Stop agent"
+      }
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1547,7 +1854,9 @@
     },
     "actions": {
       "goActivity": "Go to Activity",
-      "goActivityDescription": "Mentions, replies and what waits for you"
+      "goActivityDescription": "Mentions, replies and what waits for you",
+      "openCurrentRoomMindroomSettings": "Open MindRoom Room Settings",
+      "openCurrentRoomMindroomSettingsDescription": "Open MindRoom settings for {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Recently opened",
@@ -1621,6 +1930,7 @@
       "needsYou": "Needs you",
       "working": "Working",
       "later": "Later",
+      "quiet": "Quiet",
       "done": "Done",
       "all": "All",
       "description": {
@@ -1657,7 +1967,17 @@
     "forking": "Forking {{title}}",
     "continueInNewThread": "Continue in a new thread",
     "forkCount_one": "{{count}} fork",
-    "forkCount_other": "{{count}} forks"
+    "forkCount_other": "{{count}} forks",
+    "forkedFromInRoom": "Forked from {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Forked from another room",
+    "forkingIntoRoom": "Forking {{title}} into {{room}}",
+    "forkToRoom": "Fork to room…",
+    "forkToRoomTitle": "Fork to room",
+    "forkToRoomSearchPlaceholder": "Search rooms…",
+    "forkToRoomEmpty": "No matching rooms",
+    "forkToRoomAgentWarning": "Agents in this room are not in {{room}} and won't see the original thread",
+    "forkingFromRoom": "Forking from {{room}}",
+    "forkDraftAgentWarning": "Agents here are not in {{room}} and won't see the original thread"
   },
   "activity": {
     "title": "Activity",
@@ -1691,8 +2011,7 @@
       "replyAndOthers_one": "{{name}} and {{count}} other replied",
       "replyAndOthers_other": "{{name}} and {{count}} others replied",
       "finished": "{{name}} finished",
-      "stopped": "{{name}} stopped",
-      "youReplied": "You replied"
+      "stopped": "{{name}} stopped"
     },
     "newCount_one": "{{count}} new",
     "newCount_other": "{{count}} new",
@@ -1910,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "text": "Press the pin on a card, or Pin thread in Thread options (⋯), to keep a thread at the top. Edit tags in Thread options labels a thread, and you can filter by tag."
       },
       "filters": {
         "title": "Filters hide resolved threads",
@@ -1957,6 +2276,42 @@
       "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
+    },
+    "help": {
+      "button": "Help & guides",
+      "buttonWithTip": "Help & guides (1 tip)",
+      "title": "Help & guides",
+      "subtitle": "Quick guides",
+      "oneTip": "1 tip",
+      "suggested": "Suggested for you",
+      "showHow": "Show how",
+      "dismissTip": "Dismiss tip",
+      "guidesHeading": "UI guides",
+      "guides": {
+        "conversation": "How threads work",
+        "resolve": "Resolve what is done",
+        "filters": "Find resolved threads",
+        "snooze": "Snooze for later",
+        "pinAndTag": "Pin & tag threads",
+        "views": "Compact vs Threads view",
+        "activity": "Activity & approvals"
+      },
+      "fullTour": "Full tour",
+      "shortcuts": "Shortcuts"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolve finished threads",
+        "cardTitle": "Resolve finished threads",
+        "roomSummary_one": "{{count}} open thread here, none resolved yet",
+        "roomSummary_other": "{{count}} open threads here, none resolved yet",
+        "allSummary_one": "{{count}} open thread, none resolved yet",
+        "allSummary_other": "{{count}} open threads, none resolved yet",
+        "cardTextRoom_one": "{{count}} open thread here, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextRoom_other": "{{count}} open threads here, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextAll_one": "{{count}} open thread, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextAll_other": "{{count}} open threads, none resolved yet. Resolve finished ones to tidy the list."
+      }
     }
   },
   "threadNav": {
@@ -1972,6 +2327,7 @@
       "working": "Working",
       "later": "Later",
       "idle": "Idle",
+      "quiet": "Quiet",
       "resolved": "Resolved"
     },
     "live": {
@@ -1996,7 +2352,11 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open in second column"
+    "openBeside": "Open in second column",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Fork & Share",
+    "shareSection": "Share",
+    "viewSection": "View"
   },
   "roomSchedules": {
     "thisThread": "This thread",
@@ -2027,6 +2387,45 @@
     "cancellationSent": "Cancellation sent",
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
+  },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Loading…",
+    "empty": "No triggers in this room.",
+    "emptyHint": "Triggers configured for this room appear here.",
+    "loadError": "Couldn't load triggers.",
+    "missingTrigger": "Trigger {{id}} is no longer in this room.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Room watch",
+      "external_event": "Event subscription",
+      "thread_tag": "Thread tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Watching this room",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "disabledExpired": "Expired",
+    "disabledOnceConsumed": "Used",
+    "lastFired": "Last fired {{time}}",
+    "neverFired": "No recorded firing",
+    "destinationRoom": "Room timeline",
+    "destinationThread": "Thread",
+    "destinationNewThread": "New thread",
+    "destinationOrigin": "Origin thread",
+    "openThread": "Open thread",
+    "prompt": "Prompt",
+    "enable": "Enable",
+    "disable": "Disable",
+    "updating": "Updating...",
+    "toggleError": "Could not update trigger. Try again.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this trigger?",
+    "keep": "Keep",
+    "deleteTrigger": "Delete trigger",
+    "deleting": "Deleting...",
+    "deleteError": "Could not delete trigger. Try again."
   },
   "home": {
     "greeting": {
@@ -2065,5 +2464,44 @@
   },
   "nav": {
     "usage": "Usage"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} room",
+      "roomsCount_other": "{{count}} rooms",
+      "roomsFiltered": "{{active}} of {{total}} rooms",
+      "switchSpace": "Switch space"
+    },
+    "roomFilter": {
+      "label": "Rooms",
+      "ariaLabel": "Filter threads by room",
+      "ariaLabelActive": "Filter threads by room ({{number}} selected)",
+      "ariaLabelOne": "Rooms: {{room}}",
+      "search": "Search rooms",
+      "noMatch": "No matching rooms"
+    },
+    "composer": {
+      "postTo": "Post to:",
+      "postToRoom": "Post to #{{room}}",
+      "chooseRoomAria": "Choose room to post to",
+      "draftPinned": "Draft for #{{room}}",
+      "readOnly": "No rooms in this space allow posting."
+    },
+    "loading": "Loading threads...",
+    "empty": {
+      "noRooms": "Join a room in this space to see threads here.",
+      "noThreads": "No threads in this space yet."
+    },
+    "error": {
+      "title": "Could not load space threads"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }

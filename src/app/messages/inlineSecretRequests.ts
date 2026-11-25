@@ -1,5 +1,6 @@
 import {
   createContext,
+  use,
   useContext,
   useLayoutEffect,
   useReducer,
@@ -199,16 +200,12 @@ const NO_CALLS: ReadonlyMap<string, InlineSecretRequest> = new Map();
 /** The requests a reply may draw, by call ID; none outside a timeline that plans them. */
 export const useInlineSecretRequests = (
   replyEventId: string | undefined
-): ReadonlyMap<string, InlineSecretRequest> => {
-  const { byReply } = useContext(InlineSecretRequestsContext);
-  return (replyEventId && byReply.get(replyEventId)) || NO_CALLS;
-};
+): ReadonlyMap<string, InlineSecretRequest> =>
+  (replyEventId && use(InlineSecretRequestsContext).byReply.get(replyEventId)) || NO_CALLS;
 
 /** Whether a request of the reply's tool calls is not done yet, its card a row under the reply. */
-export const useSecretRequestWaiting = (replyEventId: string | undefined): boolean => {
-  const { waitingReplyIds } = useContext(InlineSecretRequestsContext);
-  return !!replyEventId && waitingReplyIds.has(replyEventId);
-};
+export const useSecretRequestWaiting = (replyEventId: string | undefined): boolean =>
+  !!replyEventId && use(InlineSecretRequestsContext).waitingReplyIds.has(replyEventId);
 
 /** The cards whose rows hide: those with a mounted line, read anew as lines mount and unmount. */
 export const useDrawnSecretRequestIds = ({ drawn }: InlineSecretRequestPlan): ReadonlySet<string> =>

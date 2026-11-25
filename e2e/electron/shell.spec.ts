@@ -15,6 +15,7 @@ const APP_ORIGIN = 'capacitor://localhost';
 type Telemetry = {
   blockedUrls: string[];
   networkPermissions: string[];
+  trackpadSwipe?: Array<{ attached: boolean; warning?: string }>;
 };
 
 const readTelemetry = async (
@@ -187,6 +188,53 @@ test.describe('Electron desktop shell', () => {
       });
 
       await expect.poll(() => page.evaluate(() => navigator.storage.persisted())).toBe(true);
+      if (process.platform === 'darwin') {
+        const telemetry = await readTelemetry(session.app);
+        expect(telemetry.trackpadSwipe).toEqual([{ attached: true }]);
+
+        // Exercise the real native EmitPhase -> napi_make_callback -> JS -> IPC -> renderer path.
+        await page.evaluate(() => {
+          const captured: unknown[] = [];
+          const stop = window.mindroomDesktop?.onShellEvent((ev) => captured.push(ev));
+          Object.assign(window, { __e2eTrackpadEvents: captured, __e2eStopTrackpadEvents: stop });
+        });
+        const emitResult = await session.app.evaluate(() => {
+          const uncaught: string[] = [];
+          const onErr = (err: Error) => uncaught.push(String(err.stack || err.message || err));
+          process.on('uncaughtException', onErr);
+          try {
+            const hook = (
+              globalThis as {
+                __mindroomTestTrackpadSwipe?: {
+                  emit: (phase: 'begin' | 'end' | 'cancel') => boolean;
+                };
+              }
+            ).__mindroomTestTrackpadSwipe;
+            const began = hook?.emit('begin') ?? false;
+            const ended = hook?.emit('end') ?? false;
+            return { began, ended, uncaught };
+          } finally {
+            process.off('uncaughtException', onErr);
+          }
+        });
+        expect(emitResult).toEqual({ began: true, ended: true, uncaught: [] });
+        await expect
+          .poll(() =>
+            page.evaluate(() => {
+              const events =
+                (window as { __e2eTrackpadEvents?: Array<{ type: string; phase?: string }> })
+                  .__e2eTrackpadEvents ?? [];
+              return {
+                hasSwipeTracking: events.some((e) => e.type === 'swipe-tracking'),
+                hasScrollEnd: events.some((e) => e.type === 'scroll-gesture' && e.phase === 'end'),
+              };
+            })
+          )
+          .toEqual({ hasSwipeTracking: true, hasScrollEnd: true });
+        await page.evaluate(() => {
+          (window as { __e2eStopTrackpadEvents?: () => void }).__e2eStopTrackpadEvents?.();
+        });
+      }
     } finally {
       await session.close();
     }

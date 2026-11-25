@@ -13,17 +13,25 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, Icons, Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import type { TourLevel } from '../navigation/tourState';
+import type { TourLevel, TourStepId } from '../navigation/tourState';
 import { ThreadStreamingDot } from '../threads/ThreadStreamingDot';
 import { documentIsRightToLeft } from '../ui/directional';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { Modal500 } from '../ui/Modal500';
 import * as css from './TourDialog.css';
-import { prefersReducedMotion } from './tourMotion';
+import { hasTouchCardActions, prefersReducedMotion } from './tourMotion';
 import { sampleGraphemes } from './tourSample';
 import { START_TYPING_PHASE, sceneOf } from './tourScenes';
 import { TourStage } from './TourStage';
-import { TOUR_STEPS, nextStep, previousStep, stepAt, stepsOf, type TourStep } from './tourSteps';
+import {
+  TOUR_STEPS,
+  nextStep,
+  previousStep,
+  stepAt,
+  stepIndexOf,
+  stepsOf,
+  type TourStep,
+} from './tourSteps';
 import { useScenePhase, useTypedLength } from './useScenePhase';
 
 /** The states the `states` step explains, in the order of its cards. */
@@ -78,6 +86,8 @@ function StepText({ step, heading = false, place }: StepTextProps) {
 type TourDialogProps = {
   /** How much of the tour plays. */
   level: TourLevel;
+  /** Optional step to open directly on instead of the first step. */
+  initialStep?: TourStepId;
   /** Keep going asks for the Full tour. */
   onLevelChange: (level: TourLevel) => void;
   /** Closes the tour: `done` from the last step's Done, `dismissed` any other way. */
@@ -91,11 +101,12 @@ type TourDialogProps = {
  * buttons. The arrow keys move a step, the main button
  * keeps the focus so Enter goes on, and the text is read out as each step comes.
  */
-export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
+export function TourDialog({ level, initialStep, onLevelChange, onClose }: TourDialogProps) {
   const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const touchCards = hasTouchCardActions(phone);
   const steps = stepsOf(level);
-  const [position, setPosition] = useState(0);
+  const [position, setPosition] = useState(() => stepIndexOf(level, initialStep));
   const index = Math.min(position, steps.length - 1);
   const step = stepAt(level, index);
   const last = index === steps.length - 1;
@@ -108,8 +119,8 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
     step.id === 'start' && phase === START_TYPING_PHASE
   );
   const scene = useMemo(
-    () => sceneOf(step.id, phase, phone, typedLength),
-    [step.id, phase, phone, typedLength]
+    () => sceneOf(step.id, phase, phone, typedLength, touchCards),
+    [step.id, phase, phone, typedLength, touchCards]
   );
 
   // A live region says only what changes in it, so it is silent about the step the tour opens

@@ -41,6 +41,7 @@ import {
   LOGIN_PATH,
   PLUGIN_ROOT_PATH,
   QUICK_CAPTURE_PATH,
+  SHELL_APPROVAL_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -49,6 +50,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  SPACE_THREADS_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
 } from '../routes/paths';
@@ -129,6 +131,7 @@ const Direct = fromPages((pages) => pages.Direct);
 const DirectCreate = fromPages((pages) => pages.DirectCreate);
 const SpaceRouteProvider = fromPages((pages) => pages.SpaceRouteProvider);
 const Lobby = fromPages((pages) => pages.Lobby);
+const SpaceThreadsPage = fromPages((pages) => pages.SpaceThreadsPage);
 const ThreadsNav = fromPages((pages) => pages.ThreadsNav);
 const ThreadsEmpty = fromPages((pages) => pages.ThreadsEmpty);
 const Canvases = fromPages((pages) => pages.Canvases);
@@ -158,6 +161,19 @@ const QuickCapturePage = fromModule(
       return page;
     }),
   (page) => page.QuickCapturePage
+);
+
+// The floating shell-approval window runs no Matrix client, so it loads on its own, outside ClientRoot.
+type ShellApprovalModule = typeof import('../desktop-access/ShellApprovalView');
+let shellApprovalModule: ShellApprovalModule | undefined;
+const ShellApprovalView = fromModule(
+  () => shellApprovalModule,
+  () =>
+    import('../desktop-access/ShellApprovalView').then((page) => {
+      shellApprovalModule = page;
+      return page;
+    }),
+  (page) => page.ShellApprovalView
 );
 
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
@@ -246,6 +262,15 @@ export const createRouter = (clientConfig: ClientConfig) => {
           </Suspense>
         }
       />
+      {/* The floating shell-approval window renders immediately without waiting for Matrix login. */}
+      <Route
+        path={SHELL_APPROVAL_PATH}
+        element={
+          <Suspense fallback={null}>
+            <ShellApprovalView />
+          </Suspense>
+        }
+      />
       <Route element={<AuthLayout />}>
         <Route path={LOGIN_PATH} Component={Login} />
         <Route path={REGISTER_PATH} Component={Register} />
@@ -328,6 +353,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
             element={<SectionIndex page={<SpaceLobbyRedirect />} phonePage={<Lobby />} />}
           />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
+          <Route path={SPACE_THREADS_PATH} element={<SpaceThreadsPage />} />
           <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />
           <Route path={SPACE_ROOM_PATH} element={<RoomPage />} />
         </Route>

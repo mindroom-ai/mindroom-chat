@@ -1,11 +1,12 @@
 import { type ReactNode, Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Box, Icon, IconButton, Icons, Text, config } from 'folds';
+import { Box, Text, config } from 'folds';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { sampleMemory } from '../diagnostics/memorySampler';
 import { pluginFailure } from '../plugins/pluginFailure';
 import type { RoomSidePanel } from '../plugins/sidePanels';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { Header, Panel } from '../ui/panels/SidePanel.css';
 
 /**
@@ -15,7 +16,7 @@ import { Header, Panel } from '../ui/panels/SidePanel.css';
  * still be closed, until another request comes.
  */
 export function PluginSidePanel({
-  panel: { id, label, tag, Component, frame, title },
+  panel: { id, label, tag, Component, frame, title, frameControls },
   roomId,
   request,
   onClose,
@@ -36,22 +37,21 @@ export function PluginSidePanel({
   const own = frame === 'own';
   // Only without its own frame: `frame: 'own'` wins.
   const titled = !own && title === 'own';
+  // Legacy `title: 'own'` panels without `frameControls: 'own'` keep the host's open strip, so
+  // loading/error header fallbacks must not duplicate Fill and Fold.
+  const hostStrip = titled && frameControls !== 'own';
   const framed = (content: ReactNode, withTitle = true) => (
     <section className={Panel} style={{ flexGrow: 1 }} aria-label={label}>
       {withTitle && (
         <header className={Header}>
-          <Text as="h2" size="H4" truncate>
+          <Text as="h2" size="H4" truncate style={{ flex: '1 1 5rem', minInlineSize: 0 }}>
             {label}
           </Text>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('mindroomUi.plugins.sidePanel.close', { label })}
-            onClick={onClose}
-          >
-            <Icon size="200" src={Icons.Cross} />
-          </IconButton>
+          <PanelHeaderControls
+            onClose={onClose}
+            closeLabel={t('mindroomUi.plugins.sidePanel.close', { label })}
+            showFrame={!own && !hostStrip}
+          />
         </header>
       )}
       <Box grow="Yes" direction="Column" style={{ minHeight: 0, overflowY: 'auto' }}>

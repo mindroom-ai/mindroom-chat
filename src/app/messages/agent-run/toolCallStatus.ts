@@ -47,6 +47,7 @@ export type FoldedToolCall = { toolName: string; state: ToolCallState };
 export type ToolCallsFoldState = {
   open: boolean;
   report: (key: string, calls?: readonly FoldedToolCall[]) => void;
+  registerRun: (node: HTMLElement | null) => (() => void) | void;
 };
 export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined>(undefined);
 
@@ -76,6 +77,8 @@ export type ReasoningSegmentsState = {
   compactionsAt: ReadonlyMap<number, readonly ReplyCompaction[]>;
   /** The reply ended, so a compaction still running in it never finishes. */
   replyEnded: boolean;
+  /** Registers a rendered reasoning segment element for scroll reveal on open. */
+  registerSegment: (node: HTMLElement | null) => (() => void) | void;
 };
 export const ReasoningSegmentsContext = createContext<ReasoningSegmentsState | undefined>(
   undefined

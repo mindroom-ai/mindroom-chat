@@ -4,6 +4,7 @@ import React, {
   DragEventHandler,
   KeyboardEventHandler,
   ReactNode,
+  type Ref,
   useCallback,
   useMemo,
   useState,
@@ -41,6 +42,7 @@ import { createMarkdownDecorate, type MarkdownLeaf } from './markdownDecorations
 import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
+import { useAvatarImage } from '../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { findShortcut, usesCommandKey } from '../shortcuts/shortcuts';
 import { openOverlay } from '../shortcuts/shortcutDom';
@@ -74,8 +76,11 @@ function EditorCustomEmoji({
 }) {
   const client = useOptionalMatrixClient();
   const authenticated = useMediaAuthentication();
-  const src = client ? mxcUrlToHttp(client, mxc, authenticated, 64, 64, 'scale') : undefined;
-  if (!src) {
+  const src = client
+    ? (mxcUrlToHttp(client, mxc, authenticated, 64, 64, 'scale') ?? undefined)
+    : undefined;
+  const { imageSrc, onImageError } = useAvatarImage(src, client);
+  if (!imageSrc) {
     return (
       <span className={classNames(css.InlineChip, active && css.InlineChipSelected)}>
         :{shortcode}:
@@ -85,10 +90,11 @@ function EditorCustomEmoji({
   return (
     <img
       className={classNames(css.Emoticon, active && css.InlineChipSelected)}
-      src={src}
+      src={imageSrc}
       alt={`:${shortcode}:`}
       title={`:${shortcode}:`}
       draggable={false}
+      onError={onImageError}
     />
   );
 }
@@ -263,6 +269,7 @@ type CustomEditorProps = EditorSlots & {
   onPaste?: ClipboardEventHandler<HTMLDivElement>;
   /** Takes a drop before Slate does; one it prevents inserts nothing. */
   onDrop?: DragEventHandler<HTMLDivElement>;
+  ref?: Ref<HTMLDivElement>;
 };
 
 // Module-level renderers keep one identity for every editor, so Slate never re-renders for them.
@@ -301,7 +308,7 @@ function EditorControls({ children, className }: { children?: ReactNode; classNa
 }
 
 /** The composer text box: Slate editing between optional leading and trailing controls. */
-export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
+export function CustomEditor({ ref, ...props }: CustomEditorProps) {
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, onDrop, initialValue = emptyDocument } = props;
@@ -407,5 +414,4 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       </Slate>
     </div>
   );
-});
-CustomEditor.displayName = 'CustomEditor';
+}

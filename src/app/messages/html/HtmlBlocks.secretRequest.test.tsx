@@ -129,9 +129,7 @@ const textOf = (node: ReactTestInstance | string): string =>
 /** The reply's row: what it shows (`shown`), parsed as the row parses it. */
 function Reply({ shown = content, withExtras = false }) {
   return (
-    <ToolCallMessageContext.Provider
-      value={{ eventId: '$reply', roomId: '!room:x', threadId: '$root' }}
-    >
+    <ToolCallMessageContext value={{ eventId: '$reply', roomId: '!room:x', threadId: '$root' }}>
       <ToolCallsFold>
         <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
         {parse(shown.formatted_body, markerParserOptions({}, shown))}
@@ -144,7 +142,7 @@ function Reply({ shown = content, withExtras = false }) {
           />
         )}
       </ToolCallsFold>
-    </ToolCallMessageContext.Provider>
+    </ToolCallMessageContext>
   );
 }
 
@@ -152,11 +150,7 @@ let renderer: ReactTestRenderer | undefined;
 /** Draws `rows` (the reply's row by default) in a timeline with the plan `value`. */
 const render = (value: InlineSecretRequestPlan, rows: React.ReactNode = <Reply />) =>
   act(() => {
-    const tree = (
-      <InlineSecretRequestsContext.Provider value={value}>
-        {rows}
-      </InlineSecretRequestsContext.Provider>
-    );
+    const tree = <InlineSecretRequestsContext value={value}>{rows}</InlineSecretRequestsContext>;
     if (renderer) renderer.update(tree);
     else renderer = create(tree);
   });

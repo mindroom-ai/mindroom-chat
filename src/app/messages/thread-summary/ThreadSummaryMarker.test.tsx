@@ -9,9 +9,8 @@ vi.mock('folds', () => ({
   Box: ({ as: Tag = 'div', children, ...props }: any) => React.createElement(Tag, props, children),
   Text: ({ as: Tag = 'span', children, size, priority, ...props }: any) =>
     React.createElement(Tag, props, children),
-  Tooltip: React.forwardRef(({ children, ...props }: any, ref) =>
-    React.createElement('div', { ...props, ref, 'data-tooltip': true }, children)
-  ),
+  Tooltip: ({ children, ref, ...props }: any) =>
+    React.createElement('div', { ...props, ref, 'data-tooltip': true }, children),
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
     anchor
       ? React.createElement('div', { ...props, 'data-popout': true, 'data-top': anchor.y }, content)
@@ -199,6 +198,7 @@ describe('ThreadSummaryMarker', () => {
     expect(popout(renderer)[0]!.props['data-top']).toBe(20);
     triggerRect.y = 140;
     act(() => {
+      window.dispatchEvent(new Event('scroll'));
       vi.advanceTimersToNextFrame();
     });
 

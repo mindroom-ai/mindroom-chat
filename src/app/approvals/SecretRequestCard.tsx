@@ -7,11 +7,13 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react';
+import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text, type IconSrc } from 'folds';
 import { isRecord } from '../lib/isRecord';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
+import { useDetailsRevealOnOpen } from '../ui/disclosureReveal';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { formatLifetime } from '../lib/time';
 import {
@@ -23,6 +25,8 @@ import {
   type SecretRequest,
   type SecretRequestStatus,
 } from '../matrix/protocol/secretRequest';
+import { settingsModalAtom } from '../navigation/settingsModal';
+import { SettingsPages } from '../navigation/settingsPages';
 import { clientSessions, MindroomServerError } from '../computer/clientSessions';
 import { useAgentMindroomServer } from '../computer/useAgentMindroomServer';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
@@ -117,6 +121,7 @@ function SecretRequestAnswer({
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const mx = useMatrixClient();
+  const openSettings = useSetAtom(settingsModalAtom);
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
   const temporary = request.kind === 'temporary' ? request : undefined;
   // A new service this client cannot show is never saved here, but the person can still decline.
@@ -163,9 +168,26 @@ function SecretRequestAnswer({
         <Text size="T200">{t('mindroomUi.messages.secretRequestCard.unavailable')}</Text>
         <Text size="T200" className={sectionCss.SectionMeta}>
           {t('mindroomUi.messages.secretRequestCard.unavailableHint', {
-            page: t('settings.general.computers.sectionTitle'),
+            page: t('featureUi.settings.menu.pages.agentsServers'),
           })}
         </Text>
+        <div className={sectionCss.Actions}>
+          <Button
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            radii="300"
+            onClick={() =>
+              openSettings({
+                initialPage: SettingsPages.MindroomPage,
+                initialSetting: 'computerServerInUse',
+              })
+            }
+          >
+            <Text size="B300">{t('commandPalette.actions.openSettings')}</Text>
+          </Button>
+        </div>
       </>
     );
   }
@@ -588,6 +610,7 @@ export function SecretRequestCard({
   const language = useAppLanguageCode();
   const card = useRef<HTMLDivElement>(null);
   const summary = useRef<HTMLElement>(null);
+  const detailsRevealRef = useDetailsRevealOnOpen();
   const glassRef = useGlassHighlight<HTMLDivElement>(card);
   const viewerId = useMatrixClient().getUserId();
   const room = useApprovalRoom(roomId);
@@ -760,7 +783,7 @@ export function SecretRequestCard({
         <div className={sectionCss.SectionHeader}>{header}</div>
       ) : (
         // Done, the card folds to its row, which opens it again.
-        <details className={css.Fold}>
+        <details ref={detailsRevealRef} className={css.Fold}>
           <summary ref={summary} className={css.FoldRow}>
             {header}
             <Icon

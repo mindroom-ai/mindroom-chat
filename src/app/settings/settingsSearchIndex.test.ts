@@ -18,6 +18,7 @@ const VALUES = {
   username: 'alice',
   sendKey: 'Ctrl',
   shortcut: 'Ctrl+K',
+  helpShortcut: 'Ctrl+/',
 };
 const WEB: SettingsContext = {
   native: false,
@@ -28,10 +29,11 @@ const WEB: SettingsContext = {
   useSystemTheme: true,
   developerTools: false,
   errorReporting: false,
-  railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  railButtons: { threads: true, explore: true, createSpace: true, search: true, help: true },
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
+  desktopAccess: false,
 };
 
 const ids = (query: string, translate = english) =>
@@ -139,7 +141,8 @@ describe('getSettingText', () => {
       keywords: ['bubbles', 'compact', 'modern', 'density'],
       location: ['Appearance', 'Display', 'Advanced'],
     });
-    // The Computers page holds its settings under a group of the same name.
-    expect(textOf('computerServer').location).toStrictEqual(['Computers', 'Advanced']);
+    expect(textOf('computerServer').location).toStrictEqual(['Agents & servers', 'Advanced']);
+    // The Local MindRoom page holds its pairing tile under a group of the same name.
+    expect(textOf('pairLocalMindroom').location).toStrictEqual(['Local MindRoom']);
   });
 });

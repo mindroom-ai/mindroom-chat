@@ -2,7 +2,7 @@ import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
@@ -20,23 +20,15 @@ import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useRoomsUnread } from '../matrix/state/useUnread';
 import { useActivityBadge } from '../activity/useActivityRows';
 import { ActivitySheet } from '../activity/ActivitySheet';
+import { useRailButtons } from '../settings/railButtons';
+import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
-import { ActivityBadge } from './rail/ActivityTab';
-import * as css from './PhoneTopBar.css';
+import { ActivityBadge } from '../activity/ActivityBadge';
+import { MenuIcon } from '../ui/sidebar/MenuIcon';
+import * as css from '../ui/sidebar/PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
 export const PHONE_NAV_DRAWER_ID = 'phone-nav-drawer';
-
-/** Three bars, the usual sign for a menu that slides in. */
-const MenuIcon: IconSrc = () => (
-  <path
-    d="M4 6h16M4 12h16M4 18h16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  />
-);
 
 /** The menu button, with a dot while any room has unread messages. */
 function MenuButton() {
@@ -160,12 +152,14 @@ function PhoneReturnToCall() {
  * bell, the account and the way back to a call running out of view.
  */
 export function PhoneTopBar() {
+  const shown = useRailButtons();
   return (
     <div className={css.PhoneChrome} data-phone-top-bar>
       <div className={css.PhoneTopBar}>
         <MenuButton />
         <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
         <ActivityBell />
+        {shown.help && <HelpTab inTopBar className={css.BarControl} />}
         <SettingsTab inTopBar className={css.BarControl} />
       </div>
       <PhoneReturnToCall />

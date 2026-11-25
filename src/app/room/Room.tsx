@@ -15,6 +15,7 @@ import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box } from 'folds';
+import { useJoinedRoom } from '../matrix/hooks/useJoinedRoom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
@@ -27,6 +28,12 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
+import { isDesktopAccessAvailable } from '../lib/nativeShell';
+import { useOffersMacApp } from '../native/macApp';
+import { useRegisteredMacDevices } from '../desktop-access/browserPairRelay';
+import { useDesktopAccessSnapshot } from '../desktop-access/desktopAccessController';
+import { findPairedController, resolveRoomAgents } from '../desktop-access/desktopAccessHelpers';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import {
@@ -78,10 +85,13 @@ import {
   isConfirmedMatrixEventId,
   isThreadRouteReady,
 } from '../event-store/threads/threadRouteUtils';
+import { parseCrossRoomForkParams } from '../event-store/threads/threadFork';
+import { isEventId } from '../lib/matrixIds';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { isReturnToRoom } from '../routes/historyStack';
+import { getRoomThreadExitTargetFromHistoryState } from '../routes/roomNavigateState';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
@@ -99,6 +109,8 @@ import {
   useSubagentsPanel,
 } from '../navigation/subagentsPanel';
 import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
+import { useWorkflowRunPanel, workflowRunPanelAtom } from '../navigation/workflowPanel';
+import { WorkflowPanelPart } from '../subagents/workflow/WorkflowPanelPart';
 import { subagentConversation } from '../messages/live/subagentRunStore';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
@@ -114,6 +126,7 @@ import {
   pluginPanelWidthStorageKey,
   secondThreadWidthStorageKey,
   subagentsWidthStorageKey,
+  workflowRunWidthStorageKey,
 } from '../preferences/accountStorageKeys';
 import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { SecondThreadPanel } from './SecondThreadPanel';
@@ -194,11 +207,16 @@ const useRoomRoute = () => {
   const location = useLocation();
   return {
     eventId,
+    hasThreadId: search.has('threadId'),
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
     entryKey: location.key,
     entryPushed: useNavigationType() === NavigationType.Push,
     entryReturned: isReturnToRoom(location.state),
+    hasForkRoom: search.has('forkRoom'),
+    hasForkThread: search.has('forkThread'),
+    forkRoom: search.get('forkRoom') ?? undefined,
+    forkThread: search.get('forkThread') ?? undefined,
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -220,11 +238,16 @@ function RoomContent() {
   const room = useRoom();
   const {
     eventId,
+    hasThreadId,
     routedThreadId,
     focusEventInRoom,
     entryKey,
     entryPushed,
     entryReturned,
+    hasForkRoom,
+    hasForkThread,
+    forkRoom,
+    forkThread,
     forkAt,
   } = useRoomRoute();
   const { roomId } = room;
@@ -250,16 +273,91 @@ function RoomContent() {
     setViewMode,
     availableViewModes,
   } = useRoomViewMode(roomId, hasMindroomAgents);
+  const rawCrossRoomFork = useMemo(
+    () =>
+      parseCrossRoomForkParams(
+        { hasThreadId, threadId: routedThreadId, forkRoom, forkThread, forkAt },
+        roomId
+      ),
+    [forkAt, forkRoom, forkThread, hasThreadId, roomId, routedThreadId]
+  );
+  const forkSourceRoom = useJoinedRoom(client, rawCrossRoomFork?.sourceRoomId);
+  const crossRoomFork = useMemo(() => {
+    if (!rawCrossRoomFork || !forkSourceRoom || forkSourceRoom.isSpaceRoom?.()) return undefined;
+    if (forkSourceRoom.hasEncryptionStateEvent?.() && !room.hasEncryptionStateEvent?.()) {
+      return undefined;
+    }
+    return {
+      sourceRoom: forkSourceRoom,
+      threadId: rawCrossRoomFork.threadId,
+      forkAt: rawCrossRoomFork.forkAt,
+    };
+  }, [forkSourceRoom, rawCrossRoomFork, room]);
+  const sameRoomForkAt =
+    routedThreadId && !hasForkRoom && !hasForkThread && isEventId(forkAt) ? forkAt : undefined;
+  const isForkDraft = !!sameRoomForkAt || !!crossRoomFork;
+
   // The Full view shows no thread routes, so a link to a thread brings the threads back, as an
   // action from a thread does. A direct chat between people always shows Threads.
   const threadLinkInFullView =
-    !!routedThreadId && chosenViewMode === 'classic' && !!availableViewModes?.includes('threaded');
+    (!!routedThreadId || !!crossRoomFork) &&
+    chosenViewMode === 'classic' &&
+    !!availableViewModes?.includes('threaded');
   const viewMode = threadLinkInFullView ? 'threaded' : chosenViewMode;
   useEffect(() => {
     if (threadLinkInFullView) setViewMode('threaded');
   }, [setViewMode, threadLinkInFullView]);
-  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const { navigatePath, navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const handleExitCrossRoomFork = useCallback(() => {
+    const exitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
+    if (exitTarget && exitTarget.roomId === roomId && exitTarget.exitPath && navigatePath) {
+      navigatePath(exitTarget.exitPath, { replace: true });
+      return;
+    }
+    navigateRoom(roomId, undefined, { replace: true });
+  }, [navigatePath, navigateRoom, roomId]);
   const setSettingsModal = useSetAtom(settingsModalAtom);
+  const setDesktopAccessModal = useSetAtom(desktopAccessModalAtom);
+  const desktopAccessAvailable = isDesktopAccessAvailable();
+  const offersMacApp = useOffersMacApp();
+  const roomAgents = useMemo(() => resolveRoomAgents(members, ownUserId), [members, ownUserId]);
+  const registeredMacDevices = useRegisteredMacDevices(
+    client,
+    roomAgents.length > 0 && !desktopAccessAvailable && !offersMacApp
+  );
+  const { snapshot: desktopAccessSnapshot } = useDesktopAccessSnapshot({
+    pollAccessibility: false,
+    enabled: desktopAccessAvailable && roomAgents.length > 0,
+  });
+  const canGiveMacAccess =
+    roomAgents.length > 0 &&
+    (desktopAccessAvailable || registeredMacDevices.length > 0 || offersMacApp);
+  const macAccessActive = useMemo(() => {
+    if (!desktopAccessAvailable || !desktopAccessSnapshot) return false;
+    const bridgeState = desktopAccessSnapshot.status?.bridge.state;
+    const active =
+      bridgeState === 'observe_only' ||
+      bridgeState === 'control' ||
+      Boolean(desktopAccessSnapshot.status?.shell.ready);
+    if (!active) return false;
+    const requesterId = client.getUserId() ?? undefined;
+    return roomAgents.some(
+      (agent) =>
+        findPairedController(desktopAccessSnapshot, agent.userId, requesterId) !== undefined
+    );
+  }, [client, desktopAccessAvailable, desktopAccessSnapshot, roomAgents]);
+  const onOpenMacAccess = useCallback(() => {
+    const [onlyAgent] = roomAgents;
+    if (roomAgents.length === 1 && onlyAgent) {
+      setDesktopAccessModal({
+        roomId,
+        agentUserId: onlyAgent.userId,
+        agentName: onlyAgent.agentName,
+      });
+      return;
+    }
+    setDesktopAccessModal({ roomId });
+  }, [roomAgents, roomId, setDesktopAccessModal]);
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
   const threadId = useThreadRootEvent(room, routedThreadId);
@@ -316,6 +414,7 @@ function RoomContent() {
   const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
   const subagents = useSubagentsPanel(roomId);
+  const workflowPanel = useWorkflowRunPanel(roomId);
 
   const pluginClientConfig = usePluginClientConfig();
   const pluginPanels = usePluginSidePanels(registeredPlugins, pluginClientConfig);
@@ -332,7 +431,12 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callInSidePanel || transcript.open || subagents.open,
+    computerOpen ||
+      !!canvas ||
+      callInSidePanel ||
+      transcript.open ||
+      subagents.open ||
+      workflowPanel.open,
     { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
 
@@ -368,8 +472,7 @@ function RoomContent() {
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call or its live transcript and show
-  // again when it closes. The computer and a canvas have their own Expand, which fills the room as
-  // their frame's Fill does.
+  // again when it closes.
   const panels: PanelEntry[] = [
     {
       id: 'computer',
@@ -486,8 +589,43 @@ function RoomContent() {
               threadId={subagentConversation(threadId, viewMode === 'classic')}
               onClose={subagents.close}
               // A fork draft's thread is read-only, so its jobs bar stops nothing, nor does the panel.
-              readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
+              readOnly={isForkDraft}
             />
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
+    {
+      id: 'workflow',
+      open: workflowPanel.open,
+      close: workflowPanel.close,
+      label: t('mindroomUi.workflowRun.title'),
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={workflowRunWidthStorageKey(ownUserId)}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('mindroomUi.workflowRun.panel.resize')}
+          collapseLabel={t('mindroomUi.workflowRun.panel.hide')}
+          onCollapse={workflowPanel.close}
+          testId="resizable-workflow-panel"
+        >
+          <Suspense fallback={null}>
+            {workflowPanel.run && (
+              <WorkflowPanelPart
+                room={room}
+                run={workflowPanel.run}
+                threadId={
+                  workflowPanel.threadId !== undefined ? workflowPanel.threadId : (threadId ?? null)
+                }
+                onClose={workflowPanel.close}
+                readOnly={isForkDraft}
+              />
+            )}
           </Suspense>
         </ResizablePanel>
       ),
@@ -519,6 +657,7 @@ function RoomContent() {
             minContentWidth={CONVERSATION_MIN_WIDTH}
             maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
             passthrough={mobile}
+            openStrip={panel.title === 'own' && panel.frameControls !== 'own'}
             resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
             collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
             onCollapse={closePluginPanel}
@@ -608,19 +747,27 @@ function RoomContent() {
   // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
   // conversation, so the panel lists its run.
   const subagentsShown = useLatestRef({ threadId, classic: viewMode === 'classic' });
-  useEffect(
-    () =>
-      store.sub(subagentsPanelAtom, () => {
-        const opened = store.get(subagentsPanelAtom);
+  useEffect(() => {
+    const bind = (
+      panelAtom: typeof subagentsPanelAtom | typeof workflowRunPanelAtom,
+      panelId: 'subagents' | 'workflow'
+    ) =>
+      store.sub(panelAtom, () => {
+        const opened = store.get(panelAtom);
         if (opened?.roomId !== roomId) return;
-        request('subagents', () => undefined);
+        request(panelId, () => undefined);
         const shown = subagentsShown.current;
         const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
         if (target === null) navigateRoom(roomId);
         else if (target !== undefined) navigateRoomThread(roomId, target);
-      }),
-    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
-  );
+      });
+    const unsubSub = bind(subagentsPanelAtom, 'subagents');
+    const unsubWf = bind(workflowRunPanelAtom, 'workflow');
+    return () => {
+      unsubSub();
+      unsubWf();
+    };
+  }, [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]);
   const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
@@ -652,11 +799,13 @@ function RoomContent() {
         : {
             label: frameLabel,
             layout,
+            fillLabel: t('mindroomUi.sidePanel.fill', { label: frameLabel }),
+            foldLabel: t('mindroomUi.sidePanel.fold', { label: frameLabel }),
             setLayout: (next) => {
               if (now.current.roomId === roomId) setLayout(shownId, next);
             },
           },
-    [frameLabel, layout, now, roomId, setLayout, shownId]
+    [frameLabel, layout, now, roomId, setLayout, shownId, t]
   );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
   // does not run again when another panel shows or the panels' labels change with the language.
@@ -1081,6 +1230,9 @@ function RoomContent() {
     computerOpen,
     computerShown,
     onComputerToggle,
+    canGiveMacAccess,
+    macAccessActive,
+    onOpenMacAccess,
     canvases: canvasEnabled && !inCall ? conversationCanvases : undefined,
     openCanvasId,
     onCanvasOpen,
@@ -1102,18 +1254,18 @@ function RoomContent() {
   const sidePanel = usePanelSlot(
     shown && (
       <PanelFrameProvider key={shown.id} value={frame}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
           {shown.render()}
-        </PluginPanelControlsContext.Provider>
+        </PluginPanelControlsContext>
       </PanelFrameProvider>
     )
   );
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
-      <ChatUiActionContext.Provider value={uiActions}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
-          <SecondThreadContext.Provider value={secondThread}>
+      <ChatUiActionContext value={uiActions}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
+          <SecondThreadContext value={secondThread}>
             <Box
               ref={conversationRef}
               data-conversation-behind-panel={String(behindPanel)}
@@ -1132,7 +1284,9 @@ function RoomContent() {
                   room={room}
                   eventId={eventId}
                   threadId={routedThreadId}
-                  forkAt={forkAt}
+                  forkAt={sameRoomForkAt}
+                  crossRoomFork={crossRoomFork}
+                  onExitCrossRoomFork={crossRoomFork ? handleExitCrossRoomFork : undefined}
                   focusEventInRoom={focusEventInRoom}
                   entryKey={entryKey}
                   entryPushed={entryPushed}
@@ -1145,7 +1299,7 @@ function RoomContent() {
                 />
               </MessageLinkCards>
             </Box>
-            <RoomPanelEdgeSwipeContext.Provider value={mobile && behindPanel}>
+            <RoomPanelEdgeSwipeContext value={mobile && behindPanel}>
               {sidePanel && (
                 <div
                   ref={sidePanelHostRef}
@@ -1160,7 +1314,7 @@ function RoomContent() {
                   {sidePanel}
                 </div>
               )}
-            </RoomPanelEdgeSwipeContext.Provider>
+            </RoomPanelEdgeSwipeContext>
             {/* A thread card dragged on the page drops at the room's end edge into B. */}
             {secondThread && (
               <SecondThreadDropZone
@@ -1168,9 +1322,9 @@ function RoomContent() {
                 onOpen={secondThread.open}
               />
             )}
-          </SecondThreadContext.Provider>
-        </PluginPanelControlsContext.Provider>
-      </ChatUiActionContext.Provider>
+          </SecondThreadContext>
+        </PluginPanelControlsContext>
+      </ChatUiActionContext>
     </PowerLevelsContextProvider>
   );
 }

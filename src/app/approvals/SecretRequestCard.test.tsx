@@ -5,6 +5,8 @@ import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
+import { settingsModalAtom } from '../navigation/settingsModal';
+import { SettingsPages } from '../navigation/settingsPages';
 import { ClientSessions, MindroomServerError } from '../computer/clientSessions';
 import type { AgentServer } from '../computer/agentServer';
 import type {
@@ -110,6 +112,7 @@ beforeEach(() => {
   env.published = [];
   computers = { apiUrl: CONFIGURED };
   setPersonalServer(null);
+  getDefaultStore().set(settingsModalAtom, undefined);
   env.send.mockReset();
   env.clientSessions.mockReset();
   env.clientSessions.mockImplementation(() => ({ send: env.send }));
@@ -124,6 +127,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   setPersonalServer(null);
+  getDefaultStore().set(settingsModalAtom, undefined);
 });
 
 const render = (value: SecretRequest = request(), readOnly?: boolean) => {
@@ -410,7 +414,7 @@ describe('SecretRequestCard', () => {
       expect(input()).toBeNull();
       expect(text()).toContain('Entering keys is not available on this server.');
       expect(text()).toContain(
-        'To enter keys here, save your MindRoom server in Settings → Computers.'
+        'To enter keys here, save your MindRoom server in Settings → Agents & servers.'
       );
       expect(env.clientSessions).not.toHaveBeenCalled();
     };
@@ -425,6 +429,22 @@ describe('SecretRequestCard', () => {
 
       expectNoField();
       expect(text()).not.toContain('agent.example.org');
+    });
+
+    it('offers a button that opens Settings at Agents & servers when no server is chosen', () => {
+      computers = {};
+      env.published = [published(AGENT, AGENT_SERVER, 1)];
+      render();
+
+      expect(getDefaultStore().get(settingsModalAtom)).toBeUndefined();
+      const openButton = button('Open Settings');
+      expect(openButton).toBeDefined();
+      act(() => openButton?.click());
+
+      expect(getDefaultStore().get(settingsModalAtom)).toEqual({
+        initialPage: SettingsPages.MindroomPage,
+        initialSetting: 'computerServerInUse',
+      });
     });
 
     it("has no fallback when the agent's own server is not chosen", () => {

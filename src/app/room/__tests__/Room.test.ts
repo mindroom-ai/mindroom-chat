@@ -3,7 +3,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { isKeyHotkey } from 'is-hotkey';
 import type { ClientConfig } from '../../config/useClientConfig';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
@@ -25,6 +24,7 @@ type MockRoomViewProps = {
   focusEventInRoom?: boolean;
   threadId?: string;
   forkAt?: string;
+  crossRoomFork?: { sourceRoom: { roomId: string }; threadId: string; forkAt: string };
   onThreadLoadError?: (threadId: string) => void;
   onComputerToggle?: () => void;
 };
@@ -62,6 +62,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     mx: {
       getSafeUserId: () => '@alice:example.org',
       getHomeserverUrl: () => 'https://example.org',
+      getRoom: (id: string) => roomState.rooms.get(id) ?? null,
       relations: vi.fn(),
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
@@ -71,6 +72,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     },
     room: {
       roomId: '!room:example.org',
+      hasEncryptionStateEvent: () => roomState.roomEncrypted,
       getMembers: () => roomState.members,
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
@@ -106,9 +108,18 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
             expanded: boolean;
             onToggleExpanded: () => void;
           },
+      workflowPanelProps: undefined as
+        | undefined
+        | {
+            run: string;
+            threadId?: string | null;
+            readOnly?: boolean;
+          },
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
+      roomEncrypted: false,
+      rooms: new Map<string, unknown>(),
       loadedEvents: new Map<string, MatrixEvent>(),
       conversationCanvases: [] as CanvasListEntry[],
       conversationCanvasesFor: [] as unknown[][],
@@ -167,12 +178,11 @@ vi.mock('../../members/PhoneMembersSheet.css', () => ({
 }));
 // The sheet's notice place brings its styles; it is tested in ui/noticeSlots.test.tsx.
 vi.mock('../../ui/noticeSlots', async () => {
-  const { createElement, forwardRef } = await import('react');
+  const { createElement } = await import('react');
   return {
     NoticeSlot: () => null,
-    DialogFrame: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>((props, ref) =>
-      createElement('div', { ref, role: 'dialog', ...props })
-    ),
+    DialogFrame: (props: React.ComponentPropsWithRef<'div'>) =>
+      createElement('div', { role: 'dialog', ...props }),
   };
 });
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
@@ -186,14 +196,11 @@ vi.mock('../../lib/portalOverlay', () => ({
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
 vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
-// The frame's strip draws with folds, which this test mocks; Room.sidePanels.test.tsx presses it.
+// The frame's edge tab and header pill draw with folds, which this test mocks; Room.sidePanels.test.tsx presses them.
 vi.mock('../../ui/panels/PanelFrame', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/panels/PanelFrame')>()),
   PanelFrameStrip: () => null,
-}));
-
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: vi.fn(() => false),
+  PanelHeaderControls: () => null,
 }));
 
 vi.mock('jotai', async () => {
@@ -336,6 +343,13 @@ vi.mock('../../canvas/RoomCanvasPanel', () => ({
   },
 }));
 
+vi.mock('../../subagents/workflow/WorkflowPanelPart', () => ({
+  WorkflowPanelPart: (props: { run: string; threadId?: string | null; readOnly?: boolean }) => {
+    roomState.workflowPanelProps = props;
+    return React.createElement('mock-workflow-panel');
+  },
+}));
+
 vi.mock('../../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
@@ -394,9 +408,12 @@ describe('Room', { timeout: 30_000 }, () => {
     roomState.clientConfig = { mindroom: {} };
     roomState.computerPanelProps = undefined;
     roomState.canvasPanelProps = undefined;
+    roomState.workflowPanelProps = undefined;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
+    roomState.roomEncrypted = false;
+    roomState.rooms.clear();
     roomState.loadedEvents.clear();
     roomState.conversationCanvases = [];
     roomState.conversationCanvasesFor = [];
@@ -433,6 +450,110 @@ describe('Room', { timeout: 30_000 }, () => {
     });
 
     expect(roomState.roomViewProps).toMatchObject({ threadId: '$thread', forkAt: '$point' });
+  });
+
+  it('validates cross-room fork draft query params and rejects invalid, partial, or unjoined rooms', async () => {
+    const sourceRoom = {
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      getMyMembership: () => 'join',
+      isSpaceRoom: () => false,
+      hasEncryptionStateEvent: () => false,
+    };
+    roomState.rooms.set('!alpha:example.org', sourceRoom);
+    const { Room } = await import('../Room');
+
+    // Valid tuple with joined source room opens crossRoomFork and leaves threadId unset.
+    roomState.search = '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point';
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+    expect(roomState.roomViewProps?.threadId).toBeUndefined();
+    expect(roomState.roomViewProps?.forkAt).toBeUndefined();
+    expect(roomState.roomViewProps?.crossRoomFork).toEqual({
+      sourceRoom,
+      threadId: '$parent',
+      forkAt: '$point',
+    });
+
+    // Invalid/partial/mixed/same-room/unjoined params never open a broken draft.
+    const invalidSearches = [
+      '?forkRoom=%21alpha%3Aexample.org&forkAt=%24point',
+      '?forkRoom=notaroom&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21room%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21unjoined%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?threadId=%24t&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?threadId=&forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24',
+      '?forkRoom=%21alpha%3Aexample.org&forkThread=%24&forkAt=%24point',
+    ];
+    for (const search of invalidSearches) {
+      roomState.search = search;
+      roomState.roomViewProps = undefined;
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      const invalidProps = roomState.roomViewProps as MockRoomViewProps | undefined;
+      expect(invalidProps?.crossRoomFork, search).toBeUndefined();
+    }
+
+    // Encrypted source room into unencrypted target room is rejected.
+    sourceRoom.hasEncryptionStateEvent = () => true;
+    roomState.roomEncrypted = false;
+    roomState.search = '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point';
+    roomState.roomViewProps = undefined;
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+    const encryptedProps = roomState.roomViewProps as MockRoomViewProps | undefined;
+    expect(encryptedProps?.crossRoomFork).toBeUndefined();
+  });
+
+  it('renders the workflow panel read-only during a cross-room fork draft', async () => {
+    const sourceRoom = {
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      getMyMembership: () => 'join',
+      isSpaceRoom: () => false,
+      hasEncryptionStateEvent: () => false,
+    };
+    roomState.rooms.set('!alpha:example.org', sourceRoom);
+    roomState.search = '?forkRoom=%21alpha%3Aexample.org&forkThread=%24parent&forkAt=%24point';
+    const { Room } = await import('../Room');
+    const { getDefaultStore } = await import('jotai');
+    const { closeWorkflowRunPanel, openWorkflowRunPanel } =
+      await import('../../navigation/workflowPanel');
+    const store = getDefaultStore();
+    openWorkflowRunPanel(store, '!room:example.org', 'wf-11111111111111111111111111111111', null);
+    let draftRenderer: ReturnType<typeof create> | undefined;
+    let threadRenderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        draftRenderer = create(React.createElement(Room));
+      });
+      expect(roomState.workflowPanelProps).toMatchObject({
+        run: 'wf-11111111111111111111111111111111',
+        readOnly: true,
+      });
+
+      // A normal thread route (not a fork draft) keeps the workflow panel interactive.
+      roomState.search = '?threadId=%24thread';
+      roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+      roomState.workflowPanelProps = undefined;
+      await act(async () => {
+        threadRenderer = create(React.createElement(Room));
+      });
+      expect(roomState.workflowPanelProps).toMatchObject({
+        run: 'wf-11111111111111111111111111111111',
+        readOnly: false,
+      });
+    } finally {
+      await act(async () => {
+        draftRenderer?.unmount();
+        threadRenderer?.unmount();
+        closeWorkflowRunPanel(store, '!room:example.org');
+      });
+    }
   });
 
   it("hands the room view the router's key of the entry whose address focuses an event, and how it came", async () => {
@@ -1356,12 +1477,7 @@ describe('Room', { timeout: 30_000 }, () => {
     });
     const roomViewShown = () => conversationShownIn(renderer!);
     const pressEscape = () => {
-      vi.mocked(isKeyHotkey).mockReturnValue(true);
-      try {
-        vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
-      } finally {
-        vi.mocked(isKeyHotkey).mockReturnValue(false);
-      }
+      vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
     };
     expect(roomViewShown()).toBe(true);
 

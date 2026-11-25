@@ -248,9 +248,9 @@ const forms = (renderer: ReactTestRenderer) =>
 
 const renderFormedSlot = (form: 'beside' | 'over', open: boolean) => {
   const tree = (nextForm: 'beside' | 'over', nextOpen: boolean) => (
-    <LayoutForm.Provider value={nextForm}>
+    <LayoutForm value={nextForm}>
       <Slot panel={nextOpen ? <FormedMover key="members" name="members" /> : undefined} />
-    </LayoutForm.Provider>
+    </LayoutForm>
   );
   committedForms = [];
   let renderer: ReactTestRenderer;

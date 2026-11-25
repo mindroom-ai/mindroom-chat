@@ -32,7 +32,7 @@ Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 and PSF-2.0 (argparse), and Unlicense (big-integer
 and stream-buffers, under @capacitor/cli). It accepts six packages by name:
 require-like and khroma (MIT license text, no license field; khroma is part of
-Mermaid's build for canvases), elkjs (see below), caniuse-lite (CC-BY-4.0
+Mermaid), elkjs (see below), caniuse-lite (CC-BY-4.0
 browser data, build tooling only, not in the bundle), jsonify (public domain,
 development only), and truncate-utf8-bytes (WTFPL, development only, under
 electron-builder, never shipped).
@@ -94,14 +94,15 @@ KaTeX fonts
   included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
 
 ELK in Mermaid
-  Mermaid 12, which Chat serves to canvas pages (scripts/canvas-libraries.mjs),
-  builds elkjs 0.12.0 into its mermaid.min.js (as its source map records), the
-  Eclipse Layout Kernel compiled to JavaScript, Copyright (c) Kiel University
-  and others, offered under the Eclipse Public License 2.0 or
-  GPL-3.0-or-later. Chat takes it under EPL-2.0 and ships it unmodified inside
-  mermaid.min.js. Its source is at https://github.com/kieler/elkjs (tag
-  0.12.0). The license text is in THIRD_PARTY_NOTICES.txt, under the elkjs
-  0.12.1 that npm installs beside Mermaid, whose license is the same.
+  Mermaid 12, which Chat serves to canvas pages and to the sandboxed frame that
+  renders fenced mermaid code blocks (scripts/canvas-libraries.mjs), builds
+  elkjs 0.12.0 into its mermaid.min.js (as its source map records), the Eclipse
+  Layout Kernel compiled to JavaScript, Copyright (c) Kiel University and
+  others, offered under the Eclipse Public License 2.0 or GPL-3.0-or-later. Chat
+  takes it under EPL-2.0 and ships it unmodified inside mermaid.min.js. Its
+  source is at https://github.com/kieler/elkjs (tag 0.12.0). The license text is
+  in THIRD_PARTY_NOTICES.txt, under the elkjs 0.12.1 that npm installs beside
+  Mermaid, whose license is the same.
 
 Voice-activity detector
   Call transcription finds speech with @ricky0123/vad-web 0.0.31
@@ -203,8 +204,8 @@ Modified dependencies
   when `npm install` or `npm ci` runs. Bas Nijholt wrote the changes. Each
   patch file is the record of what changed.
 
-  matrix-js-sdk 45.1.0 (Apache-2.0, Copyright The Matrix.org Foundation
-  C.I.C.), patches/matrix-js-sdk+45.1.0.patch modifies:
+  matrix-js-sdk 45.2.0 (Apache-2.0, Copyright The Matrix.org Foundation
+  C.I.C.), patches/matrix-js-sdk+45.2.0.patch modifies:
     src/@types/requests.ts, src/client.ts, src/event-mapper.ts,
     src/http-api/fetch.ts, src/http-api/interface.ts,
     src/http-api/refresh.ts, src/models/event-timeline-set.ts,
@@ -220,24 +221,24 @@ Modified dependencies
     and the compiled files built from them:
     lib/@types/requests.d.ts, lib/client.d.ts, lib/client.js,
     lib/event-mapper.js, lib/http-api/fetch.js,
-    lib/http-api/interface.d.ts, lib/http-api/interface.js(.map),
-    lib/http-api/refresh.d.ts, lib/http-api/refresh.js(.map),
-    lib/models/event-timeline-set.d.ts,
-    lib/models/event-timeline-set.js(.map),
+    lib/http-api/interface.d.ts, lib/http-api/interface.js,
+    lib/http-api/refresh.d.ts, lib/http-api/refresh.js,
+    lib/models/event-timeline-set.d.ts, lib/models/event-timeline-set.js,
     lib/models/event-timeline.d.ts, lib/models/event-timeline.js,
     lib/models/event.d.ts, lib/models/event.js,
-    lib/models/read-receipt.d.ts,
-    lib/models/read-receipt.js, lib/models/relations-container.js,
+    lib/models/read-receipt.d.ts, lib/models/read-receipt.js,
+    lib/models/relations-container.js,
     lib/models/relations.d.ts, lib/models/relations.js,
     lib/models/room-receipts.d.ts, lib/models/room-receipts.js,
-    lib/models/room-state.js,
-    lib/models/room.d.ts, lib/models/room.js(.map),
-    lib/models/thread.d.ts, lib/models/thread.js(.map),
+    lib/models/room-state.js, lib/models/room.d.ts, lib/models/room.js,
+    lib/models/thread.d.ts, lib/models/thread.js,
     lib/rust-crypto/PerSessionKeyBackupDownloader.js,
+    lib/rust-crypto/RoomEncryptor.js,
     lib/rust-crypto/backup.js, lib/rust-crypto/rust-crypto.js,
     lib/store/indexeddb-backend.d.ts,
     lib/store/indexeddb-local-backend.d.ts,
-    lib/store/indexeddb-local-backend.js, lib/store/indexeddb.js,
+    lib/store/indexeddb-local-backend.js,
+    lib/store/indexeddb.d.ts, lib/store/indexeddb.js,
     lib/sync.d.ts, lib/sync.js, lib/thread-utils.js.
 
   folds 2.7.3 (Apache-2.0), patches/folds+2.7.3.patch modifies:

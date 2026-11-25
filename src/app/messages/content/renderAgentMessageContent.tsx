@@ -6,6 +6,7 @@ import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
@@ -52,9 +53,17 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
+import {
+  parseWorkflowRunCard,
+  parseWorkflowRunQuestion,
+} from '../../matrix/protocol/workflowRunContent';
+import { WorkflowQuestionCard } from '../workflow-run/WorkflowQuestionCard';
+import { WorkflowRunCard } from '../workflow-run/WorkflowRunCard';
 import { readAgentNoticeMarker } from '../agentNoticeMarker';
 import { readTriggerWake, TRIGGER_WAKE_METADATA_KEYS } from '../../matrix/protocol/triggerWake';
+import { readTodoPoke, TODO_POKE_METADATA_KEYS } from '../../matrix/protocol/todoPoke';
 import { TriggerWakeMarker } from '../TriggerWakeMarker';
+import { TodoPokeMarker } from '../TodoPokeMarker';
 import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
@@ -78,7 +87,11 @@ const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
 
 /** Wrapper keys carried onto a hydrated sidecar when the sidecar leaves them out. */
-const FALLBACK_WRAPPER_KEYS = [COMPACTIONS_CONTENT_KEY, ...TRIGGER_WAKE_METADATA_KEYS];
+const FALLBACK_WRAPPER_KEYS = [
+  COMPACTIONS_CONTENT_KEY,
+  ...TRIGGER_WAKE_METADATA_KEYS,
+  ...TODO_POKE_METADATA_KEYS,
+];
 
 /**
  * The live reasoning and compactions of `outer`, moved onto the content a long text resolved, and
@@ -205,17 +218,19 @@ function AgentWorkBody({
     [finished, waiting, html, htmlReactParserOptions, sanitizeOptions]
   );
   return (
-    <FinishedWorkFold
-      foldKey={foldKey}
-      durationMs={durationMs}
-      whole={wrapWithReasoning(renderHtml(html))}
-      folded={
-        split && {
-          work: wrapWithReasoning(renderHtml(split.head)),
-          answer: renderHtml(split.tail),
+    <FootnoteScopeProvider>
+      <FinishedWorkFold
+        foldKey={foldKey}
+        durationMs={durationMs}
+        whole={wrapWithReasoning(renderHtml(html))}
+        folded={
+          split && {
+            work: wrapWithReasoning(renderHtml(split.head)),
+            answer: renderHtml(split.tail),
+          }
         }
-      }
-    />
+      />
+    </FootnoteScopeProvider>
   );
 }
 
@@ -424,6 +439,30 @@ export const renderAgentMessageContent = ({
     ? sanitizeAgentSidecar
     : sanitizeNonAgentSidecar;
 
+  const renderLongTextWakeMarker = (
+    downloadedContent: Record<string, unknown>
+  ): ReactNode | null => {
+    if (highlightRegex || !fromMindroomAgent) return null;
+    const mergedContent = withLiveWrapperContent(
+      transformLongTextContent(downloadedContent),
+      content
+    );
+    const triggerWake = readTriggerWake(mergedContent);
+    if (triggerWake) {
+      return (
+        <TriggerWakeMarker
+          wake={triggerWake}
+          ts={ts ?? mEvent?.getTs()}
+          roomId={roomId ?? mEvent?.getRoomId()}
+        />
+      );
+    }
+    const todoPoke = readTodoPoke(mergedContent);
+    return todoPoke ? (
+      <TodoPokeMarker poke={todoPoke} ts={ts ?? mEvent?.getTs()} senderDisplayName={displayName} />
+    ) : null;
+  };
+
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     downloadedContent,
     props,
@@ -435,17 +474,6 @@ export const renderAgentMessageContent = ({
     // or mocked callers.
     const resolvedContent = transformLongTextContent(downloadedContent);
     const mergedContent = withLiveWrapperContent(resolvedContent, content);
-    const triggerWake =
-      !highlightRegex && fromMindroomAgent ? readTriggerWake(mergedContent) : null;
-    if (triggerWake) {
-      return (
-        <TriggerWakeMarker
-          wake={triggerWake}
-          ts={ts ?? mEvent?.getTs()}
-          roomId={roomId ?? mEvent?.getRoomId()}
-        />
-      );
-    }
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -531,9 +559,37 @@ export const renderAgentMessageContent = ({
   // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
   const notice =
     fromMindroomAgent && !highlightRegex
-      ? readAgentNoticeMarker(content, ts ?? mEvent?.getTs(), roomId ?? mEvent?.getRoomId())
+      ? readAgentNoticeMarker(
+          content,
+          ts ?? mEvent?.getTs(),
+          roomId ?? mEvent?.getRoomId(),
+          displayName
+        )
       : null;
   if (notice) return notice;
+
+  // Workflow run and question notices render as cards only when sent by a MindRoom agent.
+  const workflowRoomId = roomId ?? mEvent?.getRoomId();
+  if (fromMindroomAgent && workflowRoomId) {
+    const common = {
+      roomId: workflowRoomId,
+      threadId: threadId ?? mEvent?.threadRootId ?? null,
+      eventId: eventId ?? mEvent?.getId(),
+      readOnly,
+    };
+    const runCard = parseWorkflowRunCard(content);
+    if (runCard)
+      return (
+        <WorkflowRunCard
+          card={runCard}
+          sender={mEvent?.getSender()}
+          updatedAt={mEvent?.replacingEvent()?.getTs() ?? mEvent?.getTs()}
+          {...common}
+        />
+      );
+    const question = parseWorkflowRunQuestion(content);
+    if (question) return <WorkflowQuestionCard question={question} {...common} />;
+  }
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.
@@ -603,7 +659,9 @@ export const renderAgentMessageContent = ({
 
     if (longTextSource) {
       const suppressLongTriggerUrls =
-        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
+        !highlightRegex &&
+        fromMindroomAgent &&
+        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
       const longText = (
         <LongTextText
           kind={LongTextKind.Text}
@@ -619,6 +677,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
+          renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );
@@ -718,7 +777,7 @@ export const renderAgentMessageContent = ({
     if (mEvent && uiAction && (!edited || editableUiAction)) {
       // The body of a canvas request tells other Matrix clients to open MindRoom Chat; Chat names the canvas.
       const canvasTitle = fromMindroomAgent ? readCanvasNoticeTitle(content) : undefined;
-      return (
+      const notice = (
         <MNotice
           content={content}
           renderBody={
@@ -733,20 +792,22 @@ export const renderAgentMessageContent = ({
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
           // An inline page still shows there, display-only.
-          renderAfterBody={
-            <>
-              {canvasTitle && <InlineCanvasFrame event={mEvent} readOnly={readOnly} />}
-              {!readOnly && <ChatUiActionButton event={mEvent} />}
-            </>
-          }
+          renderAfterBody={!readOnly && <ChatUiActionButton event={mEvent} />}
         />
+      );
+      return canvasTitle ? (
+        <InlineCanvasFrame event={mEvent} readOnly={readOnly} fallback={notice} />
+      ) : (
+        notice
       );
     }
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       const suppressLongTriggerUrls =
-        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
+        !highlightRegex &&
+        fromMindroomAgent &&
+        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
       return (
         <LongTextText
           kind={LongTextKind.Notice}
@@ -762,6 +823,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
+          renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );

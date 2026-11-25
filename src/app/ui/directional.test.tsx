@@ -12,7 +12,10 @@ import {
   textDirection,
 } from './directional';
 
-const received = vi.hoisted(() => ({ popOut: [] as unknown[], tooltip: [] as unknown[] }));
+const received = vi.hoisted(() => ({
+  popOut: [] as Record<string, unknown>[],
+  tooltip: [] as Record<string, unknown>[],
+}));
 
 vi.mock('folds', () => ({
   PopOut: (props: Record<string, unknown>) => {
@@ -178,6 +181,25 @@ describe('PopOut and TooltipProvider', () => {
     renderBoth();
     expect(received.popOut[0]).toMatchObject({ position: 'Bottom', align: 'Start', offset: 4 });
     expect(received.tooltip[0]).toMatchObject({ position: 'Left', align: 'Start' });
+  });
+
+  it('forwards ref to folds PopOut and TooltipProvider', () => {
+    const popOutRef = { current: null as HTMLDivElement | null };
+    const tooltipRef = { current: null as HTMLDivElement | null };
+    act(() => {
+      create(
+        <>
+          <PopOut ref={popOutRef} position="Bottom" align="End" content={<span />}>
+            <span />
+          </PopOut>
+          <TooltipProvider ref={tooltipRef} position="Right" align="Start" tooltip={<span />}>
+            {() => <span />}
+          </TooltipProvider>
+        </>
+      );
+    });
+    expect(received.popOut[0]?.ref).toBe(popOutRef);
+    expect(received.tooltip[0]?.ref).toBe(tooltipRef);
   });
 });
 

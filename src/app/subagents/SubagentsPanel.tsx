@@ -1,16 +1,8 @@
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Icon, IconButton, Icons, Text } from 'folds';
+import { Text } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useInert } from '../lib/hooks/useInert';
 import { useInterval } from '../lib/hooks/useInterval';
@@ -38,6 +30,7 @@ import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { runTotals, usageTexts } from './runUsage';
@@ -260,8 +253,8 @@ export function SubagentsPanel({
   // On a phone the panel covers the conversation, whose thread then leaves its back swipe: inside a
   // Room, Room owns closing from the list while a detail run outranks it to go back interactively.
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const handledByRoom = useContext(RoomPanelEdgeSwipeContext);
-  useEdgeSwipeBack(open ? back : onClose, mobile && (open ? true : !handledByRoom), {
+  const handledByRoom = mobile && !open && use(RoomPanelEdgeSwipeContext);
+  useEdgeSwipeBack(open ? back : onClose, mobile && !handledByRoom, {
     priority: open ? SWIPE_PRIORITY.PANEL_INNER : SWIPE_PRIORITY.PANEL,
     begin: open ? beginDetailBack : undefined,
   });
@@ -318,15 +311,7 @@ export function SubagentsPanel({
             </Text>
           )}
         </div>
-        <IconButton
-          size="300"
-          radii="300"
-          variant="Surface"
-          aria-label={t('mindroomUi.subagents.close')}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.subagents.close')} />
       </header>
       <div className={css.Body}>
         {nodes.length === 0 ? (

@@ -22,7 +22,7 @@ export const SyncEngineProvider = ({
   engine,
   children,
 }: SyncEngineProviderProps): React.ReactElement => {
-  return <SyncEngineContext.Provider value={engine}>{children}</SyncEngineContext.Provider>;
+  return <SyncEngineContext value={engine}>{children}</SyncEngineContext>;
 };
 
 export const useSyncEngine = (): SyncEngine => {

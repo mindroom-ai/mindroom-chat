@@ -1,11 +1,4 @@
-import {
-  type ForwardedRef,
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-} from 'react';
+import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, isApplePlatform, type PasteResult } from './computerClipboard';
@@ -42,6 +35,7 @@ export type ComputerScreenProps = {
   /** Whether the software keyboard is open: its textarea has focus. */
   onKeyboardChange?: (open: boolean) => void;
   createRfb?: RfbFactory;
+  ref?: Ref<ComputerScreenHandle>;
 };
 
 export type ComputerScreenHandle = {
@@ -56,20 +50,18 @@ export type ComputerScreenHandle = {
 
 const defaultRfbFactory: RfbFactory = (target, url, options) => new RFB(target, url, options);
 
-function ComputerScreenWithHandle(
-  {
-    url,
-    protocols,
-    mode,
-    holdingFrame = false,
-    onConnected,
-    onDisconnected,
-    onPaste,
-    onKeyboardChange,
-    createRfb = defaultRfbFactory,
-  }: ComputerScreenProps,
-  ref: ForwardedRef<ComputerScreenHandle>
-) {
+export function ComputerScreen({
+  url,
+  protocols,
+  mode,
+  holdingFrame = false,
+  onConnected,
+  onDisconnected,
+  onPaste,
+  onKeyboardChange,
+  createRfb = defaultRfbFactory,
+  ref,
+}: ComputerScreenProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>(undefined);
@@ -286,7 +278,5 @@ function ComputerScreenWithHandle(
     </div>
   );
 }
-
-export const ComputerScreen = forwardRef(ComputerScreenWithHandle);
 
 export default ComputerScreen;

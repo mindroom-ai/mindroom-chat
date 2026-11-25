@@ -76,6 +76,12 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
   Staged: 'Staged',
   Data: 'Data',
   StickyAnswer: 'StickyAnswer',
+  InlineCard: 'InlineCard',
+  InlineCardHeader: 'InlineCardHeader',
+  InlineCardTitle: 'InlineCardTitle',
+  InlineCardAction: 'InlineCardAction',
+  InlineCardNote: 'InlineCardNote',
+  InlineCardBody: 'InlineCardBody',
 }));
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {
@@ -137,6 +143,7 @@ vi.mock('../app/ui/styles/RoomOverlay.css', () => ({
   Scrollbar: 'room-scrollbar',
   headerInset: 'var(--room-header-height, 0px)',
   footerInset: 'var(--room-footer-height, 0px)',
+  jumpLane: 'var(--room-jump-lane)',
   topInset: '0px',
   controlsTopInset: '0px',
   overviewInsetStop: {},

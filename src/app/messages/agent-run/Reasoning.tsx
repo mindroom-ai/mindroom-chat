@@ -1,4 +1,5 @@
 import {
+  use,
   useCallback,
   useContext,
   useEffect,
@@ -27,6 +28,7 @@ import {
   type ReplyCompaction,
 } from '../../matrix/protocol/compactions';
 import { revealDirectionControls } from '../../ui/directional';
+import { useRevealOnOpen, useRevealTargets } from '../../ui/disclosureReveal';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
 import {
@@ -115,10 +117,9 @@ function ReasoningTop({ label, open, thinking, onToggle, bulbRef }: ReasoningTop
   // Each click sheds a ripple, as the cog's does: the count keys it, so a new one starts while the
   // last one fades.
   const [ripples, setRipples] = useState(0);
-  const topSeams = !!useContext(ReasoningSegmentsContext)?.compactionsAt.has(0);
   if (label === undefined) {
     const cogRow = cog && <div className={css.CogRow}>{cog}</div>;
-    if (!topSeams) return cogRow;
+    if (!use(ReasoningSegmentsContext)?.compactionsAt.has(0)) return cogRow;
     return (
       <div style={CONTENTS}>
         {cogRow}
@@ -237,6 +238,8 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // and the comet say it thinks.
   const [open, setOpen] = useState(false);
   const bulbRef = useRef<HTMLButtonElement>(null);
+  const { register: registerSegment, getTargets } = useRevealTargets();
+  const armReveal = useRevealOnOpen(open, bulbRef, getTargets);
   // Long replies put the bulb far above: a segment's rail and end button hide the thinking from
   // where the reader is, and give the focus to the bulb, which scrolls into view if it is off
   // screen.
@@ -307,8 +310,19 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
       htmlReactParserOptions,
       compactionsAt,
       replyEnded,
+      registerSegment,
     }),
-    [segments, placement, open, hide, liveIndex, htmlReactParserOptions, compactionsAt, replyEnded]
+    [
+      segments,
+      placement,
+      open,
+      hide,
+      liveIndex,
+      htmlReactParserOptions,
+      compactionsAt,
+      replyEnded,
+      registerSegment,
+    ]
   );
 
   let label: string | undefined;
@@ -325,17 +339,20 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
   // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
-    <ReasoningSegmentsContext.Provider value={reasoning}>
+    <ReasoningSegmentsContext value={reasoning}>
       <ReasoningTop
         label={label}
         open={open}
         thinking={thinking}
-        onToggle={() => setOpen(!open)}
+        onToggle={() => {
+          if (!open) armReveal();
+          setOpen(!open);
+        }}
         bulbRef={bulbRef}
       />
       {children}
       {activity !== undefined && <LiveActivity text={activity} />}
-    </ReasoningSegmentsContext.Provider>
+    </ReasoningSegmentsContext>
   );
 }
 

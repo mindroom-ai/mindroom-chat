@@ -286,6 +286,13 @@
       "threadIn": "Ветка в {{room}}",
       "messageElsewhere": "Сообщение в другой комнате"
     },
+    "callout": {
+      "note": "Примечание",
+      "tip": "Совет",
+      "important": "Важно",
+      "warning": "Предупреждение",
+      "caution": "Осторожно"
+    },
     "deviceVerification": {
       "acceptStalled": "Другой сеанс не ответил. Закройте это окно и начните проверку заново."
     },
@@ -398,6 +405,9 @@
     },
     "space": {
       "overview": "Обзор пространства"
+    },
+    "footnote": {
+      "backToReference": "Вернуться к ссылке"
     }
   },
   "featureUi": {
@@ -447,6 +457,7 @@
       },
       "sidebar": {
         "title": "Боковая панель",
+        "navigation": "Навигация",
         "threads": "Показывать «Ветки» на боковой панели",
         "threadsDescription": "Ветки из всех комнат в одном списке. Если скрыть, их можно открыть из меню ⋮ на главной.",
         "canvasesDescription": "Показывает кнопку для интерактивных панелей ваших агентов, как только появится хотя бы одна. Если скрыть, их можно открыть из меню ⋮ на главной.",
@@ -459,7 +470,9 @@
         "localMindroom": "Показывать Local MindRoom на боковой панели",
         "localMindroomDescription": "Связывает MindRoom на вашем компьютере. Если скрыть, он остаётся здесь, в настройках, в разделе Local MindRoom.",
         "usage": "Показывать Использование на боковой панели",
-        "usageDescription": "Лимиты провайдеров и расход токенов за 7 дней, как только среда выполнения сообщит о них. Когда скрыто, откройте Использование из меню ⋮ на Главной или в выборе модели."
+        "usageDescription": "Лимиты провайдеров и расход токенов за 7 дней, как только среда выполнения сообщит о них. Когда скрыто, откройте Использование из меню ⋮ на Главной или в выборе модели.",
+        "help": "Показывать «Помощь и руководства» на боковой панели",
+        "helpDescription": "Краткие руководства, тур и сочетания клавиш. Если скрыть, тур можно открыть в настройках в разделе «О приложении» или из палитры команд ({{shortcut}}), а сочетания клавиш — сочетанием {{helpShortcut}}."
       },
       "plugins": {
         "title": "Плагины",
@@ -474,14 +487,15 @@
       "menu": {
         "groups": {
           "you": "Вы",
-          "app": "Это приложение",
-          "agents": "Агенты и подключения",
-          "help": "Справка и дополнительно"
+          "app": "Приложение",
+          "mindroom": "MindRoom",
+          "system": "Система"
         },
         "pages": {
           "privacy": "Конфиденциальность и безопасность",
           "language": "Язык и регион",
-          "storage": "Хранилище и офлайн"
+          "storage": "Хранилище и офлайн",
+          "agentsServers": "Агенты и серверы"
         }
       },
       "search": {
@@ -496,13 +510,16 @@
       "advanced": "Дополнительно",
       "sections": {
         "display": "Отображение",
-        "privacy": "Конфиденциальность"
+        "privacy": "Конфиденциальность",
+        "replying": "Ответы",
+        "connectionsComputers": "Подключения и компьютеры"
       },
       "computers": {
         "inUse": "Используемый сервер",
         "inUseNone": "Не задан, поэтому компьютеры на этом устройстве отключены.",
         "useServer": "Использовать {{host}}",
-        "foundNotSaved": "Найден через ваших агентов, но не сохранён; сохраните его, чтобы вводить ключи здесь."
+        "foundNotSaved": "Найден через ваших агентов, но не сохранён; сохраните его, чтобы вводить ключи здесь.",
+        "foundNotSavedChoose": "Найдены через ваших агентов, но не сохранены. Выберите сервер, которому вы доверяете; это устройство будет использовать его для всех комнат."
       },
       "keywords": {
         "theme": "тёмная тема, светлая тема, ночной режим, цвета",
@@ -756,7 +773,12 @@
     },
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",
-      "searchEncrypted": "Недоступно в зашифрованных комнатах"
+      "searchEncrypted": "Недоступно в зашифрованных комнатах",
+      "viewSection": "Вид",
+      "roomSection": "Комната",
+      "preferencesSection": "Параметры",
+      "notificationModeAll": "Все",
+      "notificationModeMentions": "Упоминания"
     },
     "phoneNav": {
       "navigation": "Навигация"
@@ -941,6 +963,164 @@
         "startEntireScreenShare": "Поделиться всем экраном",
         "stopEntireScreenShare": "Остановить показ всего экрана"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Разрешить полный доступ",
+        "cancel": "Отмена",
+        "chooseLimits": "Выбрать ограничения...",
+        "close": "Закрыть",
+        "disconnect": "Отключить",
+        "done": "Готово",
+        "editLimits": "Изменить ограничения...",
+        "switchToFull": "Перейти на полный доступ"
+      },
+      "banner": {
+        "restrictedActive": "На этом Mac активен ограниченный доступ.",
+        "shellReadyWaitingPermissions": "Оболочка готова - Ожидание разрешений macOS для экрана и ввода",
+        "waitingPermissions": "Ожидание разрешений macOS для экрана и ввода"
+      },
+      "browser": {
+        "brewHint": "Или установите через Homebrew:",
+        "confirmOnMac": "Подтвердите этот код на {{mac}}, чтобы разрешить доступ.",
+        "copied": "Скопировано",
+        "copyCommand": "Копировать команду",
+        "copyFailed": "Не удалось скопировать",
+        "downloadMacApp": "Скачать MindRoom Chat для Mac",
+        "noMacDescription": "Чтобы предоставить {{agent}} доступ к вашему Mac, войдите в этот аккаунт в MindRoom Chat для Mac.",
+        "paired": "{{agent}} теперь связан с {{mac}}.",
+        "relayDescription": "Отправьте запрос на связывание на {{mac}}. Вы подтвердите 6-значный код и выберете полный доступ или ограничения на вашем Mac.",
+        "selectMac": "Выберите Mac",
+        "sendToMac": "Отправить на {{mac}}",
+        "waitingOnMac": "Ожидание подтверждения на {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} сможет видеть ваш экран, управлять любыми приложениями и выполнять команды оболочки от имени вашего пользователя macOS без подтверждения, в том числе после перезагрузки. Остановить можно в любой момент в строке меню.",
+        "upgradeHeading": "Переход на полный доступ"
+      },
+      "empty": {
+        "noAgents": "В этой комнате не найдено агентов MindRoom."
+      },
+      "incoming": {
+        "decline": "Отклонить",
+        "failedTitle": "Не удалось связать {{agent}}",
+        "sasHint": "Перед одобрением убедитесь, что этот 6-значный код совпадает с кодом на {{requester}}.",
+        "title": "Связать {{agent}} по запросу {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Добавить папку...",
+        "allowShellOnMac": "Разрешить команды оболочки на этом Mac",
+        "foldersLabel": "Папки только для чтения",
+        "fullNote": "Полный доступ до отзыва включает управление всем экраном и автоматическое одобрение команд оболочки до отзыва.",
+        "fullScreen": "Весь экран (primary-screen)",
+        "gui15m": "Разрешить управление на 15 мин",
+        "gui1h": "Разрешить управление на 1 час",
+        "guiFull": "Полный доступ до отзыва",
+        "guiLabel": "Управление экраном и вводом",
+        "guiObserve": "Только наблюдение",
+        "installedApps": "Разрешённые приложения Mac",
+        "loadingApps": "Загрузка установленных приложений...",
+        "needCapability": "Включите весь экран, хотя бы одно приложение, папку или команды оболочки.",
+        "noAppsFound": "Установленные приложения Mac не найдены.",
+        "noFolders": "Папки только для чтения не добавлены.",
+        "perAgentHeading": "Управление и одобрение оболочки для {{agent}} (для агента)",
+        "removeFolder": "Удалить",
+        "save": "Разрешить с ограничениями",
+        "saveChanges": "Сохранить ограничения",
+        "sharedHeading": "Общие приложения, папки и оболочка на этом Mac (для всех связанных агентов)",
+        "sharedWithOthersHint": "Общее для других связанных агентов на этом Mac",
+        "shell15m": "Автоодобрение на 15 мин",
+        "shell1h": "Автоодобрение на 1 час",
+        "shellApprovalLabel": "Одобрение оболочки",
+        "shellAsk": "Спрашивать перед каждой командой",
+        "shellDisabledHint": "Включите ниже «Разрешить команды оболочки на этом Mac», чтобы настроить одобрение оболочки.",
+        "shellUntilRevoked": "Автоодобрение до отзыва"
+      },
+      "permissions": {
+        "accessibility": "Универсальный доступ",
+        "accessibilityGrantedHint": "Управление клавиатурой и мышью разрешено.",
+        "accessibilityMissingHint": "Разрешает управление клавиатурой и мышью. Обновляется автоматически после включения.",
+        "allowAccessibility": "Разрешить универсальный доступ",
+        "allowScreenRecording": "Разрешить запись экрана",
+        "allowed": "Разрешено",
+        "relaunchToActivate": "Перезапустить для активации управления экраном",
+        "screenRecording": "Запись экрана",
+        "screenRecordingGrantedHint": "Просмотр экрана разрешён.",
+        "screenRecordingMissingHint": "Позволяет связанным агентам видеть ваш экран.",
+        "screenRecordingRelaunchHint": "Перезапустите MindRoom Chat один раз, чтобы macOS активировала запись экрана."
+      },
+      "picker": {
+        "subtitle": "Выберите, какой агент в этой комнате должен подключиться к этому Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Дать доступ к Mac",
+        "manageAccess": "Доступ к Mac"
+      },
+      "sas": {
+        "label": "Код подтверждения"
+      },
+      "settings": {
+        "bridgeState": "Состояние моста",
+        "helperVersion": "Версия помощника",
+        "keywords": "mac, доступ к компьютеру, управление рабочим столом, оболочка, shell, универсальный доступ, запись экрана, разрешения",
+        "lastError": "Последняя ошибка",
+        "manage": "Настроить",
+        "noPairedAgentsDescription": "Откройте комнату с агентом и нажмите «Дать доступ к Mac», чтобы подключить его.",
+        "noPairedAgentsTitle": "Связанных агентов пока нет",
+        "notSignedIn": "Вход не выполнен",
+        "pairedAgentsTitle": "Связанные агенты",
+        "permissionsTitle": "Разрешения macOS",
+        "revokeAll": "Отозвать весь доступ",
+        "revokeAllDescription": "Отключает всех связанных агентов и немедленно останавливает доступ к компьютеру на этом Mac.",
+        "runningShellTitle": "Выполняемые команды оболочки",
+        "savedSession": "Сохранённая сессия Matrix",
+        "sectionTitle": "Этот Mac",
+        "statusActive": "Активно",
+        "statusDescription": "Управляйте тем, какие агенты MindRoom могут видеть этот Mac и управлять им.",
+        "statusStopped": "Остановлено",
+        "statusTitle": "Доступ к компьютеру Mac",
+        "statusUnavailable": "Недоступно на этом Mac",
+        "stopCommand": "Остановить",
+        "title": "Этот Mac",
+        "unavailableDescription": "Доступ к компьютеру Mac требует MindRoom Chat для Mac на Apple Silicon.",
+        "unknown": "Неизвестно"
+      },
+      "shellApproval": {
+        "approveOnce": "Разрешить один раз",
+        "approveOnceCountdown": "Разрешить один раз ({{seconds}})",
+        "autoApprove15m": "Автоодобрение на 15 мин",
+        "autoApprove15mCountdown": "Автоодобрение на 15 мин ({{seconds}})",
+        "cwdLabel": "Рабочий каталог",
+        "deny": "Отклонить",
+        "empty": "Нет команд оболочки, ожидающих одобрения.",
+        "title": "Разрешить команду оболочки?"
+      },
+      "status": {
+        "fullAccess": "Полный доступ",
+        "fullAccessActive": "Полный доступ активен",
+        "permissionsNeeded": "Нужны разрешения",
+        "restricted": "Ограниченный",
+        "shellReady": "Оболочка готова"
+      },
+      "steps": {
+        "confirming": "Подтверждение связывания...",
+        "finishing": "Активация доступа...",
+        "pairing": "Связывание с {{agent}}...",
+        "requestingOffer": "Обращение к {{agent}}...",
+        "signingIn": "Вход на этом Mac..."
+      },
+      "title": {
+        "allowFull": "Предоставить {{agent}} полный доступ к этому Mac?",
+        "browserPair": "Дать {{agent}} доступ к вашему Mac",
+        "chooseLimits": "Выбрать ограничения для {{agent}}",
+        "default": "Доступ к компьютеру Mac",
+        "editLimits": "Изменить ограничения для {{agent}}",
+        "manageAgent": "{{agent}} на этом Mac",
+        "pickAgent": "Дать агенту доступ к этому Mac"
+      },
+      "unavailable": {
+        "description": "Доступ к компьютеру Mac недоступен на этом устройстве."
+      }
     }
   },
   "mindroomUi": {
@@ -1089,7 +1269,27 @@
         "triggerLabel": "Триггер {{id}}",
         "sourceLabel": "Источник {{source}}",
         "triageLabel": "Триаж: {{reason}}",
-        "payloadLabel": "Полезная нагрузка события JSON"
+        "payloadLabel": "Полезная нагрузка события JSON",
+        "openTriggerLabel": "Показать триггер {{id}}"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "Готова {{count}} задача",
+        "readyCount_few": "Готовы {{count}} задачи",
+        "readyCount_many": "Готово {{count}} задач",
+        "readyCount_other": "Готово {{count}} задач",
+        "hide": "Скрыть",
+        "show": "Показать",
+        "copyId": "Копировать ID задачи {{id}}",
+        "moreItems_one": "+ещё {{count}} задача к выполнению",
+        "moreItems_few": "+ещё {{count}} задачи к выполнению",
+        "moreItems_many": "+ещё {{count}} задач к выполнению",
+        "moreItems_other": "+ещё {{count}} задач к выполнению",
+        "priority": {
+          "critical": "Критическая",
+          "high": "Высокая",
+          "medium": "Средняя",
+          "low": "Низкая"
+        }
       },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
@@ -1268,7 +1468,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Компактный вид",
-        "threadFiltersActive": "Фильтры веток (активны)"
+        "threadFiltersActive": "Фильтры веток (активны)",
+        "mindroomSettings": "Настройки MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Расширенные фильтры",
@@ -1301,6 +1502,33 @@
         "expandAllLong": "Развернуть все длинные сообщения",
         "collapseAllLong": "Свернуть все длинные сообщения",
         "showFullMessage": "Показать сообщение полностью"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Всё разобрано",
+        "resolvedCount_one": "{{count}} решена",
+        "resolvedCount_few": "{{count}} решены",
+        "resolvedCount_many": "{{count}} решено",
+        "resolvedCount_other": "{{count}} решено",
+        "snoozedCount_one": "{{count}} отложена",
+        "snoozedCount_few": "{{count}} отложены",
+        "snoozedCount_many": "{{count}} отложено",
+        "snoozedCount_other": "{{count}} отложено",
+        "showAll": "Показать все",
+        "startNewThreadBelow": "Начните новую ветку ниже",
+        "recentlyResolved": "Недавно решённые",
+        "noMatchHeading": "Нет веток, подходящих под фильтры",
+        "hiddenByForMe_one": "{{count}} открытая ветка скрыта фильтром «Для меня».",
+        "hiddenByForMe_few": "{{count}} открытые ветки скрыты фильтром «Для меня».",
+        "hiddenByForMe_many": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByForMe_other": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByFilters_one": "{{count}} открытая ветка скрыта вашими фильтрами.",
+        "hiddenByFilters_few": "{{count}} открытые ветки скрыты вашими фильтрами.",
+        "hiddenByFilters_many": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "hiddenByFilters_other": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "adjustOrResetFilters": "Измените или сбросьте фильтры, чтобы увидеть ветки в этой комнате.",
+        "turnOffForMe": "Отключить «Для меня»",
+        "resetAll": "Сбросить все",
+        "resetFilters": "Сбросить фильтры"
       }
     },
     "computer": {
@@ -1329,7 +1557,9 @@
     "backgroundJobs": {
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
+      "awaitingAnswer": "Ждёт вашего ответа: {{tool}}",
       "jobCountFinished": "Завершено фоновых задач: {{count}}",
+      "groupWorkflows": "Рабочие процессы · {{number}}",
       "groupSubagents": "Субагенты · {{number}}",
       "groupTools": "Инструменты · {{number}}",
       "tools_one": "{{count}} инструмент",
@@ -1384,6 +1614,109 @@
       "jobTotalFinished_few": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_many": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_other": "Завершено фоновых задач: {{count}}"
+    },
+    "workflowRun": {
+      "title": "Рабочий процесс",
+      "status": {
+        "starting": "Запуск",
+        "running": "Выполняется",
+        "waiting": "Ждёт вас",
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "cancelled": "Отменено",
+        "interrupted": "Прервано"
+      },
+      "counts": "{{done}} готово, {{running}} выполняется, {{waiting}} ждёт",
+      "reused": "Повторно использовано: {{count}}",
+      "cost": "{{spent}} сейчас, всего около {{projected}}",
+      "costAtLeast": "не менее {{spent}} сейчас",
+      "largeRun": "Крупный запуск",
+      "attempt": "Попытка {{number}}",
+      "stop": "Остановить",
+      "stopping": "Остановка…",
+      "resume": "Продолжить",
+      "runAgain": "Запустить снова",
+      "starting": "Запуск…",
+      "failedCount_one": "{{count}} с ошибкой",
+      "failedCount_few": "{{count}} с ошибкой",
+      "failedCount_many": "{{count}} с ошибкой",
+      "failedCount_other": "{{count}} с ошибкой",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Ответ уже дан.",
+          "noLongerOpen": "Этот вопрос больше не открыт.",
+          "notAnOption": "Это не один из вариантов.",
+          "notForYou": "Ответить может только тот, кто запустил процесс."
+        },
+        "noReply": "Ответа пока нет. Попробуйте снова.",
+        "placeholder": "Введите ответ",
+        "send": "Отправить",
+        "answered": "Ответ: {{answer}}",
+        "cancelled": "Отменено",
+        "onlyRequester": "Ответить может только {{name}}."
+      },
+      "graph": "Граф",
+      "panel": {
+        "close": "Закрыть",
+        "resize": "Изменить размер панели рабочего процесса",
+        "hide": "Скрыть рабочий процесс",
+        "waitingForUpdate": "Ожидание следующего обновления запуска…",
+        "stale": "Нет обновлений. Последнее обновление {{time}}.",
+        "log": "Журнал",
+        "showMore": "Показать ещё {{count}}",
+        "omitted": {
+          "queued_one": "и ещё {{count}} в очереди",
+          "queued_few": "и ещё {{count}} в очереди",
+          "queued_many": "и ещё {{count}} в очереди",
+          "queued_other": "и ещё {{count}} в очереди",
+          "running_one": "и ещё {{count}} выполняется",
+          "running_few": "и ещё {{count}} выполняются",
+          "running_many": "и ещё {{count}} выполняются",
+          "running_other": "и ещё {{count}} выполняются",
+          "waiting_one": "и ещё {{count}} ждёт",
+          "waiting_few": "и ещё {{count}} ждут",
+          "waiting_many": "и ещё {{count}} ждут",
+          "waiting_other": "и ещё {{count}} ждут",
+          "failed_one": "и ещё {{count}} с ошибкой",
+          "failed_few": "и ещё {{count}} с ошибкой",
+          "failed_many": "и ещё {{count}} с ошибкой",
+          "failed_other": "и ещё {{count}} с ошибкой",
+          "done_one": "и ещё {{count}} готово",
+          "done_few": "и ещё {{count}} готово",
+          "done_many": "и ещё {{count}} готово",
+          "done_other": "и ещё {{count}} готово"
+        },
+        "askAgent": "Спросите {{agent}} об остальном."
+      },
+      "group": {
+        "foreach": "Для каждого",
+        "parallel": "Параллельно",
+        "run": "Сохранённый процесс",
+        "workflow": "Вложенный процесс",
+        "progress": "{{done}} из {{total}}",
+        "failed": "С ошибкой: {{count}}"
+      },
+      "node": {
+        "reused": "Использовано из прошлого запуска",
+        "queued": "В очереди",
+        "mayHaveRun": "Возможно, выполнено",
+        "waitingOn": {
+          "user": "Ждёт вашего ответа",
+          "approval": "Ждёт одобрения",
+          "peer": "Ждёт сообщения"
+        },
+        "sessionTurns_one": "{{count}} шаг",
+        "sessionTurns_few": "{{count}} шага",
+        "sessionTurns_many": "{{count}} шагов",
+        "sessionTurns_other": "{{count}} шагов",
+        "result": "Результат",
+        "error": "Ошибка",
+        "messages": "Сообщения",
+        "messagesTo": "Сообщения для {{name}}: {{count}}",
+        "open": "Открыть",
+        "detailsUnavailable": "Подробности больше недоступны после перезагрузки.",
+        "stop": "Остановить агента"
+      }
     },
     "subagents": {
       "title": "Субагенты",
@@ -1641,7 +1974,9 @@
     },
     "actions": {
       "goActivity": "Перейти к активности",
-      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас"
+      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас",
+      "openCurrentRoomMindroomSettings": "Открыть настройки MindRoom комнаты",
+      "openCurrentRoomMindroomSettingsDescription": "Открыть настройки MindRoom для {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Недавно открытые",
@@ -1715,6 +2050,7 @@
       "needsYou": "Нужно ваше участие",
       "working": "В работе",
       "later": "Позже",
+      "quiet": "Тихие",
       "done": "Готово",
       "all": "Все",
       "description": {
@@ -1753,7 +2089,17 @@
     "forkCount_one": "{{count}} ответвление",
     "forkCount_few": "{{count}} ответвления",
     "forkCount_many": "{{count}} ответвлений",
-    "forkCount_other": "{{count}} ответвления"
+    "forkCount_other": "{{count}} ответвления",
+    "forkedFromInRoom": "Ответвление от {{title}} в {{room}}",
+    "forkedFromAnotherRoom": "Ответвление из другой комнаты",
+    "forkingIntoRoom": "Создаётся ответвление от {{title}} в {{room}}",
+    "forkToRoom": "Ответвить в комнату…",
+    "forkToRoomTitle": "Ответвить в комнату",
+    "forkToRoomSearchPlaceholder": "Поиск комнат…",
+    "forkToRoomEmpty": "Подходящих комнат не найдено",
+    "forkToRoomAgentWarning": "Агенты в этой комнате не состоят в {{room}} и не увидят исходную ветку",
+    "forkingFromRoom": "Ответвление из {{room}}",
+    "forkDraftAgentWarning": "Агенты здесь не состоят в {{room}} и не увидят исходную ветку"
   },
   "activity": {
     "title": "Активность",
@@ -1789,8 +2135,7 @@
       "replyAndOthers_many": "{{name}} и ещё {{count}} участников ответили",
       "replyAndOthers_other": "{{name}} и ещё {{count}} участника ответили",
       "finished": "{{name}}: работа завершена",
-      "stopped": "{{name}}: работа остановлена",
-      "youReplied": "Вы ответили"
+      "stopped": "{{name}}: работа остановлена"
     },
     "newCount_one": "{{count}} новое",
     "newCount_few": "{{count}} новых",
@@ -2022,7 +2367,7 @@
       },
       "pinAndTag": {
         "title": "Закрепляйте ветки и добавляйте теги",
-        "text": "«Закрепить ветку» удерживает ветку вверху списка. Пункт «Изменить теги» в меню «Параметры ветки» помечает ветку тегами, а по тегам можно фильтровать."
+        "text": "Нажмите на значок булавки на карточке или выберите «Закрепить ветку» в меню «Параметры ветки» (⋯), чтобы удерживать ветку вверху. Пункт «Изменить теги» в меню «Параметры ветки» помечает ветку тегами, а по тегам можно фильтровать."
       },
       "filters": {
         "title": "Фильтры скрывают решённые ветки",
@@ -2069,6 +2414,50 @@
       "settingsKeywords": "тур, обучение, руководство, справка, помощь, знакомство, ветки",
       "howThreadsWork": "Как работают ветки",
       "noThreadsHint": "Отправьте сообщение ниже, чтобы начать ветку."
+    },
+    "help": {
+      "button": "Помощь и руководства",
+      "buttonWithTip": "Помощь и руководства (1 совет)",
+      "title": "Помощь и руководства",
+      "subtitle": "Краткие руководства",
+      "oneTip": "1 совет",
+      "suggested": "Рекомендация для вас",
+      "showHow": "Показать как",
+      "dismissTip": "Скрыть совет",
+      "guidesHeading": "Руководства по интерфейсу",
+      "guides": {
+        "conversation": "Как работают ветки",
+        "resolve": "Отмечать решённые ветки",
+        "filters": "Как найти решённые ветки",
+        "snooze": "Отложить на потом",
+        "pinAndTag": "Закрепление и теги",
+        "views": "Компактный вид и Ветки",
+        "activity": "Активность и подтверждения"
+      },
+      "fullTour": "Полный тур",
+      "shortcuts": "Сочетания клавиш"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Отмечайте завершённые ветки решёнными",
+        "cardTitle": "Отмечайте завершённые ветки решёнными",
+        "roomSummary_one": "{{count}} открытая ветка здесь, решённых пока нет",
+        "roomSummary_few": "{{count}} открытые ветки здесь, решённых пока нет",
+        "roomSummary_many": "{{count}} открытых веток здесь, решённых пока нет",
+        "roomSummary_other": "{{count}} открытой ветки здесь, решённых пока нет",
+        "allSummary_one": "{{count}} открытая ветка, решённых пока нет",
+        "allSummary_few": "{{count}} открытые ветки, решённых пока нет",
+        "allSummary_many": "{{count}} открытых веток, решённых пока нет",
+        "allSummary_other": "{{count}} открытой ветки, решённых пока нет",
+        "cardTextRoom_one": "{{count}} открытая ветка здесь, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextRoom_few": "{{count}} открытые ветки здесь, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextRoom_many": "{{count}} открытых веток здесь, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextRoom_other": "{{count}} открытой ветки здесь, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextAll_one": "{{count}} открытая ветка, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextAll_few": "{{count}} открытые ветки, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextAll_many": "{{count}} открытых веток, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым.",
+        "cardTextAll_other": "{{count}} открытой ветки, решённых пока нет. Отмечайте завершённые, чтобы список оставался чистым."
+      }
     }
   },
   "threadNav": {
@@ -2086,6 +2475,7 @@
       "working": "В работе",
       "later": "Позже",
       "idle": "Неактивные",
+      "quiet": "Тихие",
       "resolved": "Решённые"
     },
     "live": {
@@ -2118,7 +2508,11 @@
     "done": "Готово"
   },
   "threadActions": {
-    "openBeside": "Открыть во второй колонке"
+    "openBeside": "Открыть во второй колонке",
+    "detailsSection": "Сведения",
+    "forkAndShareSection": "Ответвить и поделиться",
+    "shareSection": "Поделиться",
+    "viewSection": "Вид"
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",
@@ -2149,6 +2543,45 @@
     "cancellationSent": "Запрос на отмену отправлен",
     "editDraftBusy": "Очистите текущий черновик перед редактированием этой задачи.",
     "copyFailed": "Не удалось скопировать. Выберите ID задачи в Подробностях."
+  },
+  "roomTriggers": {
+    "title": "Триггеры",
+    "openLabel": "Триггеры ({{total}})",
+    "loading": "Загрузка…",
+    "empty": "В этой комнате нет триггеров.",
+    "emptyHint": "Здесь отображаются триггеры, настроенные для этой комнаты.",
+    "loadError": "Не удалось загрузить триггеры.",
+    "missingTrigger": "Триггер {{id}} больше не находится в этой комнате.",
+    "kind": {
+      "webhook": "Вебхук",
+      "room_message": "Отслеживание комнаты",
+      "external_event": "Подписка на события",
+      "thread_tag": "Тег ветки",
+      "unknown": "Триггер"
+    },
+    "watchingRoom": "Отслеживает эту комнату",
+    "stateOn": "Вкл",
+    "stateOff": "Выкл",
+    "disabledExpired": "Срок истёк",
+    "disabledOnceConsumed": "Сработал один раз",
+    "lastFired": "Последний запуск {{time}}",
+    "neverFired": "Срабатываний не зафиксировано",
+    "destinationRoom": "Лента комнаты",
+    "destinationThread": "Ветка",
+    "destinationNewThread": "Новая ветка",
+    "destinationOrigin": "Исходная ветка",
+    "openThread": "Открыть ветку",
+    "prompt": "Промпт",
+    "enable": "Включить",
+    "disable": "Выключить",
+    "updating": "Обновление...",
+    "toggleError": "Не удалось обновить триггер. Попробуйте снова.",
+    "delete": "Удалить",
+    "deleteConfirm": "Удалить этот триггер?",
+    "keep": "Оставить",
+    "deleteTrigger": "Удалить триггер",
+    "deleting": "Удаление...",
+    "deleteError": "Не удалось удалить триггер. Попробуйте снова."
   },
   "home": {
     "greeting": {
@@ -2187,5 +2620,46 @@
   },
   "nav": {
     "usage": "Использование"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} комната",
+      "roomsCount_few": "{{count}} комнаты",
+      "roomsCount_many": "{{count}} комнат",
+      "roomsCount_other": "{{count}} комнат",
+      "roomsFiltered": "{{active}} из {{total}} комнат",
+      "switchSpace": "Сменить пространство"
+    },
+    "roomFilter": {
+      "label": "Комнаты",
+      "ariaLabel": "Фильтровать ветки по комнатам",
+      "ariaLabelActive": "Фильтровать ветки по комнатам (выбрано: {{number}})",
+      "ariaLabelOne": "Комнаты: {{room}}",
+      "search": "Поиск комнат",
+      "noMatch": "Подходящих комнат нет"
+    },
+    "composer": {
+      "postTo": "Отправить в:",
+      "postToRoom": "Отправить в #{{room}}",
+      "chooseRoomAria": "Выберите комнату для отправки",
+      "draftPinned": "Черновик для #{{room}}",
+      "readOnly": "В этом пространстве нет комнат с правом отправки сообщений."
+    },
+    "loading": "Загрузка тредов...",
+    "empty": {
+      "noRooms": "Присоединитесь к комнате в этом пространстве, чтобы видеть треды здесь.",
+      "noThreads": "В этом пространстве пока нет тредов."
+    },
+    "error": {
+      "title": "Не удалось загрузить треды пространства"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "Диаграмма",
+    "source": "Исходник",
+    "showDiagram": "Показать диаграмму",
+    "showSource": "Показать исходник",
+    "mermaidDiagram": "Диаграмма Mermaid",
+    "diagramUnavailable": "Показан исходник"
   }
 }

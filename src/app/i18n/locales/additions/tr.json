@@ -270,6 +270,13 @@
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
     },
+    "callout": {
+      "note": "Not",
+      "tip": "İpucu",
+      "important": "Önemli",
+      "warning": "Uyarı",
+      "caution": "Dikkat"
+    },
     "deviceVerification": {
       "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Alana genel bakış"
+    },
+    "footnote": {
+      "backToReference": "Başvuruya dön"
     }
   },
   "featureUi": {
@@ -421,6 +431,7 @@
       },
       "sidebar": {
         "title": "Kenar çubuğu",
+        "navigation": "Gezinme",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
@@ -433,7 +444,9 @@
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır.",
         "usage": "Kullanımı kenar çubuğunda göster",
-        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın."
+        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın.",
+        "help": "Yardım ve rehberleri kenar çubuğunda göster",
+        "helpDescription": "Hızlı rehberler, tur ve klavye kısayolları. Gizlendiğinde, turu Ayarlar'da Hakkında altından veya komut paletinden ({{shortcut}}), kısayolları ise {{helpShortcut}} ile açın."
       },
       "plugins": {
         "title": "Eklentiler",
@@ -448,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "Siz",
-          "app": "Bu uygulama",
-          "agents": "Ajanlar ve bağlantılar",
-          "help": "Yardım ve gelişmiş"
+          "app": "Uygulama",
+          "mindroom": "MindRoom",
+          "system": "Sistem"
         },
         "pages": {
           "privacy": "Gizlilik ve güvenlik",
           "language": "Dil ve bölge",
-          "storage": "Depolama ve çevrimdışı"
+          "storage": "Depolama ve çevrimdışı",
+          "agentsServers": "Ajanlar ve sunucular"
         }
       },
       "search": {
@@ -470,13 +484,16 @@
       "advanced": "Gelişmiş",
       "sections": {
         "display": "Görünüm",
-        "privacy": "Gizlilik"
+        "privacy": "Gizlilik",
+        "replying": "Yanıtlama",
+        "connectionsComputers": "Bağlantılar ve bilgisayarlar"
       },
       "computers": {
         "inUse": "Kullanılan sunucu",
         "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
         "useServer": "{{host}} kullan",
-        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin.",
+        "foundNotSavedChoose": "Ajanlarınızdan bulundu, kaydedilmedi. Güvendiğiniz sunucuyu seçin; bu cihaz tüm odalar için onu kullanır."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
@@ -722,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Davet etme izniniz yok",
-      "searchEncrypted": "Şifreli odalarda kullanılamaz"
+      "searchEncrypted": "Şifreli odalarda kullanılamaz",
+      "viewSection": "Görünüm",
+      "roomSection": "Oda",
+      "preferencesSection": "Tercihler",
+      "notificationModeAll": "Tümü",
+      "notificationModeMentions": "Bahsetmeler"
     },
     "phoneNav": {
       "navigation": "Gezinme"
@@ -907,6 +929,164 @@
         "startEntireScreenShare": "Tüm ekranı paylaş",
         "stopEntireScreenShare": "Tüm ekranı paylaşmayı durdur"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Tam Erişime İzin Ver",
+        "cancel": "İptal",
+        "chooseLimits": "Sınırları seç...",
+        "close": "Kapat",
+        "disconnect": "Bağlantıyı kes",
+        "done": "Bitti",
+        "editLimits": "Sınırları düzenle...",
+        "switchToFull": "Tam Erişime Geç"
+      },
+      "banner": {
+        "restrictedActive": "Bu Mac'te kısıtlı erişim etkin.",
+        "shellReadyWaitingPermissions": "Kabuk hazır - macOS ekran ve giriş izinleri bekleniyor",
+        "waitingPermissions": "macOS ekran ve giriş izinleri bekleniyor"
+      },
+      "browser": {
+        "brewHint": "Veya Homebrew ile yükleyin:",
+        "confirmOnMac": "Erişimi onaylamak için bu kodu {{mac}} üzerinde doğrulayın.",
+        "copied": "Kopyalandı",
+        "copyCommand": "Komutu kopyala",
+        "copyFailed": "Kopyalama başarısız",
+        "downloadMacApp": "Mac için MindRoom Chat uygulamasını indir",
+        "noMacDescription": "{{agent}} ajanına Mac'inize erişim vermek için Mac için MindRoom Chat uygulamasında bu hesapla oturum açın.",
+        "paired": "{{agent}} artık {{mac}} ile eşleştirildi.",
+        "relayDescription": "{{mac}} cihazına bir eşleştirme isteği gönderin. Mac'inizde 6 haneli kodu onaylayıp Tam Erişim veya sınırları seçeceksiniz.",
+        "selectMac": "Bir Mac seçin",
+        "sendToMac": "{{mac}} cihazına gönder",
+        "waitingOnMac": "{{mac}} üzerinde onay bekleniyor..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} ekranınızı görebilir, her uygulamayı kontrol edebilir ve yeniden başlatma sonrasında bile sormadan macOS kullanıcınız olarak kabuk komutları çalıştırabilir. İstediğiniz zaman menü çubuğundan durdurabilirsiniz.",
+        "upgradeHeading": "Tam Erişime Geçiliyor"
+      },
+      "empty": {
+        "noAgents": "Bu odada MindRoom ajanı bulunamadı."
+      },
+      "incoming": {
+        "decline": "Reddet",
+        "failedTitle": "{{agent}} eşleştirilemedi",
+        "sasHint": "Onaylamadan önce bu 6 haneli kodun {{requester}} ile eşleştiğinden emin olun.",
+        "title": "{{requester}} üzerinden {{agent}} eşleştirilsin mi?"
+      },
+      "limits": {
+        "addFolder": "Klasör ekle...",
+        "allowShellOnMac": "Bu Mac'te kabuk komutlarına izin ver",
+        "foldersLabel": "Salt okunur klasörler",
+        "fullNote": "İptal edilene kadar Tam Erişim, iptal edilene dek tam ekran kontrolünü ve otomatik onaylı kabuğu etkinleştirir.",
+        "fullScreen": "Tam ekran (primary-screen)",
+        "gui15m": "15 dk kontrol izni ver",
+        "gui1h": "1 saat kontrol izni ver",
+        "guiFull": "İptal edilene kadar Tam Erişim",
+        "guiLabel": "Ekran ve giriş kontrolü",
+        "guiObserve": "Yalnızca izle",
+        "installedApps": "İzin verilen Mac uygulamaları",
+        "loadingApps": "Yüklü uygulamalar yükleniyor...",
+        "needCapability": "Tam ekranı, en az bir uygulamayı, bir klasörü veya kabuk komutlarını etkinleştirin.",
+        "noAppsFound": "Yüklü Mac uygulaması bulunamadı.",
+        "noFolders": "Salt okunur klasör eklenmedi.",
+        "perAgentHeading": "{{agent}} için kontrol ve kabuk onayı (ajan başına)",
+        "removeFolder": "Kaldır",
+        "save": "Sınırlarla izin ver",
+        "saveChanges": "Sınırları kaydet",
+        "sharedHeading": "Bu Mac'te paylaşılan uygulamalar, klasörler ve kabuk (tüm eşleştirilmiş ajanlar için geçerlidir)",
+        "sharedWithOthersHint": "Bu Mac'teki diğer eşleştirilmiş ajanlarla paylaşılır",
+        "shell15m": "15 dk otomatik onayla",
+        "shell1h": "1 saat otomatik onayla",
+        "shellApprovalLabel": "Kabuk onayı",
+        "shellAsk": "Her komuttan önce sor",
+        "shellDisabledHint": "Kabuk onayını yapılandırmak için aşağıda \"Bu Mac'te kabuk komutlarına izin ver\" seçeneğini açın.",
+        "shellUntilRevoked": "İptal edilene kadar otomatik onayla"
+      },
+      "permissions": {
+        "accessibility": "Erişilebilirlik",
+        "accessibilityGrantedHint": "Klavye ve fare kontrolüne izin verildi.",
+        "accessibilityMissingHint": "Klavye ve fare kontrolüne izin verir. Etkinleştirildiğinde otomatik güncellenir.",
+        "allowAccessibility": "Erişilebilirliğe İzin Ver",
+        "allowScreenRecording": "Ekran Kaydına İzin Ver",
+        "allowed": "İzin verildi",
+        "relaunchToActivate": "Ekran kontrolünü etkinleştirmek için yeniden başlat",
+        "screenRecording": "Ekran Kaydı",
+        "screenRecordingGrantedHint": "Ekran görüntülemeye izin verildi.",
+        "screenRecordingMissingHint": "Eşleştirilmiş ajanların ekranınızı görmesine izin verir.",
+        "screenRecordingRelaunchHint": "macOS'un Ekran Kaydını etkinleştirmesi için MindRoom Chat uygulamasını bir kez yeniden başlatın."
+      },
+      "picker": {
+        "subtitle": "Bu odadaki hangi ajanın bu Mac'e bağlanacağını seçin."
+      },
+      "roomHeader": {
+        "giveAccess": "Mac Erişimi Ver",
+        "manageAccess": "Mac Erişimi"
+      },
+      "sas": {
+        "label": "Doğrulama kodu"
+      },
+      "settings": {
+        "bridgeState": "Köprü durumu",
+        "helperVersion": "Yardımcı sürümü",
+        "keywords": "mac, bilgisayar erişimi, masaüstü kontrolü, kabuk, shell, erişilebilirlik, ekran kaydı, izinler",
+        "lastError": "Son hata",
+        "manage": "Yönet",
+        "noPairedAgentsDescription": "Bağlamak için bir ajanla oda açın ve Mac Erişimi Ver seçeneğini seçin.",
+        "noPairedAgentsTitle": "Henüz eşleştirilmiş ajan yok",
+        "notSignedIn": "Oturum açılmadı",
+        "pairedAgentsTitle": "Eşleştirilmiş ajanlar",
+        "permissionsTitle": "macOS İzinleri",
+        "revokeAll": "Tüm Erişimi İptal Et",
+        "revokeAllDescription": "Tüm eşleştirilmiş ajanların bağlantısını keser ve bu Mac'te bilgisayar erişimini hemen durdurur.",
+        "runningShellTitle": "Çalışan kabuk komutları",
+        "savedSession": "Kayıtlı Matrix oturumu",
+        "sectionTitle": "Bu Mac",
+        "statusActive": "Etkin",
+        "statusDescription": "Hangi MindRoom ajanlarının bu Mac'i görebileceğini ve kontrol edebileceğini yönetin.",
+        "statusStopped": "Durduruldu",
+        "statusTitle": "Mac Bilgisayar Erişimi",
+        "statusUnavailable": "Bu Mac'te kullanılamıyor",
+        "stopCommand": "Durdur",
+        "title": "Bu Mac",
+        "unavailableDescription": "Mac Bilgisayar Erişimi, Apple Silicon üzerinde Mac için MindRoom Chat gerektirir.",
+        "unknown": "Bilinmiyor"
+      },
+      "shellApproval": {
+        "approveOnce": "Bir kez onayla",
+        "approveOnceCountdown": "Bir kez onayla ({{seconds}})",
+        "autoApprove15m": "15 dk otomatik onayla",
+        "autoApprove15mCountdown": "15 dk otomatik onayla ({{seconds}})",
+        "cwdLabel": "Çalışma dizini",
+        "deny": "Reddet",
+        "empty": "Onay bekleyen kabuk komutu yok.",
+        "title": "Kabuk komutu onaylansın mı?"
+      },
+      "status": {
+        "fullAccess": "Tam Erişim",
+        "fullAccessActive": "Tam Erişim etkin",
+        "permissionsNeeded": "İzin gerekiyor",
+        "restricted": "Kısıtlı",
+        "shellReady": "Kabuk hazır"
+      },
+      "steps": {
+        "confirming": "Eşleştirme onaylanıyor...",
+        "finishing": "Erişim etkinleştiriliyor...",
+        "pairing": "{{agent}} ile eşleştiriliyor...",
+        "requestingOffer": "{{agent}} ile iletişim kuruluyor...",
+        "signingIn": "Bu Mac'te oturum açılıyor..."
+      },
+      "title": {
+        "allowFull": "{{agent}} ajanına bu Mac için tam erişim verilsin mi?",
+        "browserPair": "{{agent}} ajanına Mac'inize erişim verin",
+        "chooseLimits": "{{agent}} için sınırları seçin",
+        "default": "Mac Bilgisayar Erişimi",
+        "editLimits": "{{agent}} için sınırları düzenleyin",
+        "manageAgent": "Bu Mac'te {{agent}}",
+        "pickAgent": "Bir ajana bu Mac için erişim verin"
+      },
+      "unavailable": {
+        "description": "Mac Bilgisayar Erişimi bu cihazda kullanılamıyor."
+      }
     }
   },
   "mindroomUi": {
@@ -1051,7 +1231,23 @@
         "triggerLabel": "Tetikleyici {{id}}",
         "sourceLabel": "Kaynak {{source}}",
         "triageLabel": "Triyaj: {{reason}}",
-        "payloadLabel": "Olay yükü JSON"
+        "payloadLabel": "Olay yükü JSON",
+        "openTriggerLabel": "{{id}} tetikleyicisini görüntüle"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} görev hazır",
+        "readyCount_other": "{{count}} görev hazır",
+        "hide": "Gizle",
+        "show": "Göster",
+        "copyId": "Görev kimliğini kopyala: {{id}}",
+        "moreItems_one": "+{{count}} uygulanabilir öğe daha",
+        "moreItems_other": "+{{count}} uygulanabilir öğe daha",
+        "priority": {
+          "critical": "Kritik",
+          "high": "Yüksek",
+          "medium": "Orta",
+          "low": "Düşük"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
@@ -1198,7 +1394,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Kompakt görünüm",
-        "threadFiltersActive": "Konu filtreleri (etkin)"
+        "threadFiltersActive": "Konu filtreleri (etkin)",
+        "mindroomSettings": "MindRoom ayarları"
       },
       "roomThreadOverview": {
         "advancedFilters": "Gelişmiş filtreler",
@@ -1231,6 +1428,25 @@
         "expandAllLong": "Tüm uzun mesajları genişlet",
         "collapseAllLong": "Tüm uzun mesajları daralt",
         "showFullMessage": "Mesajın tamamını göster"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Her şey tamam",
+        "resolvedCount_one": "{{count}} çözüldü",
+        "resolvedCount_other": "{{count}} çözüldü",
+        "snoozedCount_one": "{{count}} ertelendi",
+        "snoozedCount_other": "{{count}} ertelendi",
+        "showAll": "Tümünü göster",
+        "startNewThreadBelow": "Aşağıda yeni bir konu başlatın",
+        "recentlyResolved": "Yakın zamanda çözülenler",
+        "noMatchHeading": "Filtrelerinizle eşleşen konu yok",
+        "hiddenByForMe_one": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByForMe_other": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByFilters_one": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "hiddenByFilters_other": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "adjustOrResetFilters": "Bu odadaki konuları görmek için filtrelerinizi düzenleyin veya sıfırlayın.",
+        "turnOffForMe": "«Benim için» filtresini kapat",
+        "resetAll": "Tümünü sıfırla",
+        "resetFilters": "Filtreleri sıfırla"
       }
     },
     "computer": {
@@ -1259,7 +1475,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
+      "awaitingAnswer": "Yanıtınız bekleniyor: {{tool}}",
       "jobCountFinished": "{{count}} arka plan işi tamamlandı",
+      "groupWorkflows": "İş akışları · {{number}}",
       "groupSubagents": "Alt ajanlar · {{number}}",
       "groupTools": "Araçlar · {{number}}",
       "tools_one": "{{count}} araç",
@@ -1304,6 +1522,95 @@
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
       "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
+    },
+    "workflowRun": {
+      "title": "İş akışı",
+      "status": {
+        "starting": "Başlatılıyor",
+        "running": "Çalışıyor",
+        "waiting": "Sizi bekliyor",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız",
+        "cancelled": "İptal edildi",
+        "interrupted": "Kesintiye uğradı"
+      },
+      "counts": "{{done}} tamamlandı, {{running}} çalışıyor, {{waiting}} bekliyor",
+      "reused": "Yeniden kullanılan: {{count}}",
+      "cost": "Şimdiye kadar {{spent}}, toplamda yaklaşık {{projected}}",
+      "costAtLeast": "şimdiye kadar en az {{spent}}",
+      "largeRun": "Büyük çalıştırma",
+      "attempt": "Deneme {{number}}",
+      "stop": "Durdur",
+      "stopping": "Durduruluyor…",
+      "resume": "Devam et",
+      "runAgain": "Tekrar çalıştır",
+      "starting": "Başlatılıyor…",
+      "failedCount_one": "{{count}} başarısız",
+      "failedCount_other": "{{count}} başarısız",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Zaten yanıtlandı.",
+          "noLongerOpen": "Bu soru artık açık değil.",
+          "notAnOption": "Bu seçeneklerden biri değil.",
+          "notForYou": "Yalnızca çalıştırmayı başlatan kişi yanıtlayabilir."
+        },
+        "noReply": "Henüz yanıt yok. Tekrar deneyin.",
+        "placeholder": "Yanıtınızı yazın",
+        "send": "Gönder",
+        "answered": "Yanıtlandı: {{answer}}",
+        "cancelled": "İptal edildi",
+        "onlyRequester": "Yalnızca {{name}} yanıtlayabilir."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Kapat",
+        "resize": "İş akışı panelini yeniden boyutlandır",
+        "hide": "İş akışını gizle",
+        "waitingForUpdate": "Çalıştırmanın sonraki güncellemesi bekleniyor…",
+        "stale": "Güncellenmiyor. Son güncelleme {{time}}.",
+        "log": "Günlük",
+        "showMore": "{{count}} tane daha göster",
+        "omitted": {
+          "queued_one": "ve sırada {{count}} tane daha",
+          "queued_other": "ve sırada {{count}} tane daha",
+          "running_one": "ve çalışan {{count}} tane daha",
+          "running_other": "ve çalışan {{count}} tane daha",
+          "waiting_one": "ve bekleyen {{count}} tane daha",
+          "waiting_other": "ve bekleyen {{count}} tane daha",
+          "failed_one": "ve başarısız {{count}} tane daha",
+          "failed_other": "ve başarısız {{count}} tane daha",
+          "done_one": "ve tamamlanan {{count}} tane daha",
+          "done_other": "ve tamamlanan {{count}} tane daha"
+        },
+        "askAgent": "Kalanı için {{agent}} ajanına sorun."
+      },
+      "group": {
+        "foreach": "Her biri için",
+        "parallel": "Paralel",
+        "run": "Kayıtlı iş akışı",
+        "workflow": "İç içe iş akışı",
+        "progress": "{{done}} / {{total}}",
+        "failed": "Başarısız: {{count}}"
+      },
+      "node": {
+        "reused": "Son çalıştırmadan yeniden kullanıldı",
+        "queued": "Sırada",
+        "mayHaveRun": "Çalışmış olabilir",
+        "waitingOn": {
+          "user": "Yanıtınız bekleniyor",
+          "approval": "Onay bekleniyor",
+          "peer": "Mesaj bekleniyor"
+        },
+        "sessionTurns_one": "{{count}} tur",
+        "sessionTurns_other": "{{count}} tur",
+        "result": "Sonuç",
+        "error": "Hata",
+        "messages": "Mesajlar",
+        "messagesTo": "{{name}} için mesajlar: {{count}}",
+        "open": "Aç",
+        "detailsUnavailable": "Yeniden yüklemeden sonra ayrıntılar artık kullanılamıyor.",
+        "stop": "Ajanı durdur"
+      }
     },
     "subagents": {
       "title": "Alt ajanlar",
@@ -1547,7 +1854,9 @@
     },
     "actions": {
       "goActivity": "Etkinliğe git",
-      "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler"
+      "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler",
+      "openCurrentRoomMindroomSettings": "MindRoom oda ayarlarını aç",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} için MindRoom ayarlarını aç"
     },
     "recentVisits": {
       "recentlyOpened": "Son açılanlar",
@@ -1621,6 +1930,7 @@
       "needsYou": "Sizi bekliyor",
       "working": "Çalışıyor",
       "later": "Sonra",
+      "quiet": "Sakin",
       "done": "Tamamlandı",
       "all": "Tümü",
       "description": {
@@ -1657,7 +1967,17 @@
     "forking": "{{title}} konusundan ayrılıyor",
     "continueInNewThread": "Yeni bir konuda devam et",
     "forkCount_one": "{{count}} ayrım",
-    "forkCount_other": "{{count}} ayrım"
+    "forkCount_other": "{{count}} ayrım",
+    "forkedFromInRoom": "{{room}} odasındaki {{title}} konusundan ayrıldı",
+    "forkedFromAnotherRoom": "Başka bir odadan ayrıldı",
+    "forkingIntoRoom": "{{title}} konusu {{room}} odasına ayrılıyor",
+    "forkToRoom": "Odaya ayır…",
+    "forkToRoomTitle": "Odaya ayır",
+    "forkToRoomSearchPlaceholder": "Odaları ara…",
+    "forkToRoomEmpty": "Eşleşen oda yok",
+    "forkToRoomAgentWarning": "Bu odadaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
+    "forkingFromRoom": "{{room}} odasından ayrılıyor",
+    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez"
   },
   "activity": {
     "title": "Etkinlik",
@@ -1691,8 +2011,7 @@
       "replyAndOthers_one": "{{name}} ve {{count}} kişi daha yanıtladı",
       "replyAndOthers_other": "{{name}} ve {{count}} kişi daha yanıtladı",
       "finished": "{{name}} işini tamamladı",
-      "stopped": "{{name}} durdu",
-      "youReplied": "Yanıtladınız"
+      "stopped": "{{name}} durdu"
     },
     "newCount_one": "{{count}} yeni",
     "newCount_other": "{{count}} yeni",
@@ -1910,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Sabitleyin ve etiketleyin",
-        "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
+        "text": "Bir konuyu en üstte tutmak için karttaki raptiyeye basın ya da “Konu seçenekleri” (⋯) menüsünden “Konuyu sabitle” öğesini seçin. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
       },
       "filters": {
         "title": "Filtreler çözülen konuları gizler",
@@ -1957,6 +2276,42 @@
       "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
+    },
+    "help": {
+      "button": "Yardım ve rehberler",
+      "buttonWithTip": "Yardım ve rehberler (1 ipucu)",
+      "title": "Yardım ve rehberler",
+      "subtitle": "Hızlı rehberler",
+      "oneTip": "1 ipucu",
+      "suggested": "Sizin için önerilen",
+      "showHow": "Nasıl yapıldığını gör",
+      "dismissTip": "İpucunu kapat",
+      "guidesHeading": "Arayüz rehberleri",
+      "guides": {
+        "conversation": "Konular nasıl çalışır",
+        "resolve": "Bitenleri çözüldü işaretle",
+        "filters": "Çözülen konuları bul",
+        "snooze": "Sonraya ertele",
+        "pinAndTag": "Konuları sabitle ve etiketle",
+        "views": "Kompakt ve Konular görünümü",
+        "activity": "Etkinlik ve onaylar"
+      },
+      "fullTour": "Tam tur",
+      "shortcuts": "Kısayollar"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Biten konuları çözüldü işaretleyin",
+        "cardTitle": "Biten konuları çözüldü işaretleyin",
+        "roomSummary_one": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "roomSummary_other": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "allSummary_one": "{{count}} açık konu var, henüz çözülen yok",
+        "allSummary_other": "{{count}} açık konu var, henüz çözülen yok",
+        "cardTextRoom_one": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextRoom_other": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_one": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_other": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin."
+      }
     }
   },
   "threadNav": {
@@ -1972,6 +2327,7 @@
       "working": "Çalışıyor",
       "later": "Sonra",
       "idle": "Boşta",
+      "quiet": "Sakin",
       "resolved": "Çözülenler"
     },
     "live": {
@@ -1996,7 +2352,11 @@
     "done": "Bitti"
   },
   "threadActions": {
-    "openBeside": "İkinci sütunda aç"
+    "openBeside": "İkinci sütunda aç",
+    "detailsSection": "Ayrıntılar",
+    "forkAndShareSection": "Ayır ve paylaş",
+    "shareSection": "Paylaş",
+    "viewSection": "Görünüm"
   },
   "roomSchedules": {
     "thisThread": "Bu konu",
@@ -2027,6 +2387,45 @@
     "cancellationSent": "İptal gönderildi",
     "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
     "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
+  },
+  "roomTriggers": {
+    "title": "Tetikleyiciler",
+    "openLabel": "Tetikleyiciler ({{total}})",
+    "loading": "Yükleniyor…",
+    "empty": "Bu odada tetikleyici yok.",
+    "emptyHint": "Bu oda için ayarlanan tetikleyiciler burada görünür.",
+    "loadError": "Tetikleyiciler yüklenemedi.",
+    "missingTrigger": "{{id}} tetikleyicisi artık bu odada değil.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Oda izleme",
+      "external_event": "Olay aboneliği",
+      "thread_tag": "Konu etiketi",
+      "unknown": "Tetikleyici"
+    },
+    "watchingRoom": "Bu odayı izliyor",
+    "stateOn": "Açık",
+    "stateOff": "Kapalı",
+    "disabledExpired": "Süresi doldu",
+    "disabledOnceConsumed": "Bir kez kullanıldı",
+    "lastFired": "Son tetikleme {{time}}",
+    "neverFired": "Kayıtlı tetikleme yok",
+    "destinationRoom": "Oda zaman akışı",
+    "destinationThread": "Konu",
+    "destinationNewThread": "Yeni konu",
+    "destinationOrigin": "Kaynak konu",
+    "openThread": "Konuyu aç",
+    "prompt": "İstem",
+    "enable": "Etkinleştir",
+    "disable": "Devre dışı bırak",
+    "updating": "Güncelleniyor...",
+    "toggleError": "Tetikleyici güncellenemedi. Tekrar deneyin.",
+    "delete": "Sil",
+    "deleteConfirm": "Bu tetikleyici silinsin mi?",
+    "keep": "Kalsın",
+    "deleteTrigger": "Tetikleyiciyi sil",
+    "deleting": "Siliniyor...",
+    "deleteError": "Tetikleyici silinemedi. Tekrar deneyin."
   },
   "home": {
     "greeting": {
@@ -2065,5 +2464,44 @@
   },
   "nav": {
     "usage": "Kullanım"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} oda",
+      "roomsCount_other": "{{count}} oda",
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi",
+      "switchSpace": "Alan değiştir"
+    },
+    "roomFilter": {
+      "label": "Odalar",
+      "ariaLabel": "Konuları odaya göre filtrele",
+      "ariaLabelActive": "Konuları odaya göre filtrele ({{number}} seçili)",
+      "ariaLabelOne": "Odalar: {{room}}",
+      "search": "Odaları ara",
+      "noMatch": "Eşleşen oda yok"
+    },
+    "composer": {
+      "postTo": "Gönder:",
+      "postToRoom": "#{{room}} odasına gönder",
+      "chooseRoomAria": "Gönderilecek odayı seç",
+      "draftPinned": "#{{room}} için taslak",
+      "readOnly": "Bu alandaki hiçbir oda mesaj göndermeye izin vermiyor."
+    },
+    "loading": "İş parçacıkları yükleniyor...",
+    "empty": {
+      "noRooms": "İş parçacıklarını burada görmek için bu alandaki bir odaya katılın.",
+      "noThreads": "Bu alanda henüz iş parçacığı yok."
+    },
+    "error": {
+      "title": "Alan iş parçacıkları yüklenemedi"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diyagram",
+    "source": "Kaynak",
+    "showDiagram": "Diyagramı göster",
+    "showSource": "Kaynağı göster",
+    "mermaidDiagram": "Mermaid diyagramı",
+    "diagramUnavailable": "Kaynak gösteriliyor"
   }
 }

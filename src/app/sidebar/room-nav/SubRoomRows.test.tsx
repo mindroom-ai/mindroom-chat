@@ -3,11 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { KnownMembership, MatrixClient, MatrixEvent, MemoryStore, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createStore, Provider } from 'jotai';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { RoomIcon } from '../../avatars/RoomAvatar';
-import { buildSubRoomList, nestSubRooms, SubRoomRows, useSubRoomList } from './SubRoomRows';
+import { buildSubRoomList, nestSubRooms, SubRoomRows } from './SubRoomRows';
 
 const parents = (entries: Record<string, string[]>) =>
   new Map(Object.entries(entries).map(([roomId, ids]) => [roomId, new Set(ids)]));
@@ -221,59 +219,6 @@ describe('SubRoomRows', () => {
       expect(JSON.stringify(renderer!.toJSON())).toContain('Name of !unknown:remote.org')
     );
     expect(root.findAllByType(RoomIcon).map((node) => node.props.space)).toEqual([false, true]);
-  });
-});
-
-describe('useSubRoomList', () => {
-  const ME = '@me:example.org';
-  let renderer: ReactTestRenderer | undefined;
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-  });
-
-  /** The list of a space whose own room `!a` has the sub-room `!a-sub`, beside a subspace's room. */
-  const listOf = (closed: boolean, selectedRoomId?: string) => {
-    const store = createStore();
-    store.set(roomToParentsAtom, {
-      type: 'INITIALIZE',
-      roomToParents: parents({ '!a': ['!space'], '!a-sub': ['!a'], '!other': ['!subspace'] }),
-      chatRooms: ['!a'],
-    });
-    const mx = new MatrixClient({
-      baseUrl: 'https://example.org',
-      userId: ME,
-      store: new MemoryStore(),
-    });
-    let list: ReturnType<typeof useSubRoomList> | undefined;
-    const Harness = () => {
-      list = useSubRoomList('!space', ['!a'], ['!a', '!a-sub', '!other'], closed, selectedRoomId);
-      return null;
-    };
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <MatrixClientProvider value={mx}>
-            <MemoryRouter>
-              <Harness />
-            </MemoryRouter>
-          </MatrixClientProvider>
-        </Provider>
-      );
-    });
-    return list!;
-  };
-
-  it("lists the section's own rooms, each with its sub-rooms under it", () => {
-    const { listedRoomIds, tree } = listOf(false);
-
-    expect(listedRoomIds).toEqual(['!a']);
-    expect(Object.fromEntries(tree.children)).toEqual({ '!a': ['!a-sub'] });
-  });
-
-  it('lists only the selected room, a sub-room too, while the section is collapsed', () => {
-    expect(listOf(true, '!a-sub').listedRoomIds).toEqual(['!a-sub']);
   });
 });
 

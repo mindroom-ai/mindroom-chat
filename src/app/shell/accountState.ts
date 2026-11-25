@@ -10,8 +10,9 @@ import {
 import { transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
-import { tourAtom } from '../navigation/tourState';
+import { helpMenuOpenAtom, tourAtom } from '../navigation/tourState';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
+import { workflowRunPanelAtom } from '../navigation/workflowPanel';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -26,6 +27,8 @@ import {
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
+import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
+import { incomingPairInviteAtom } from '../desktop-access/incomingPairInviteAtom';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
 import { clearPhoneSwipePreviews } from '../navigation/phonePageSlide';
 import {
@@ -58,6 +61,7 @@ import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { roomSettingsAtom } from '../navigation/roomSettingsState';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
@@ -119,17 +123,23 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(pauseRequestAtom),
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
+  toInitial(workflowRunPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(detachedGrantErrorAtom),
   toInitial(detachedDictationErrorAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),
+  toInitial(roomTriggersDialogAtom),
   toInitial(createRoomModalAtom),
   toInitial(createSpaceModalAtom),
+  // The Mac Computer Access sheet, and a browser's pairing invite waiting for consent on this Mac.
+  toInitial(desktopAccessModalAtom),
+  toInitial(incomingPairInviteAtom),
   toInitial(userRoomProfileAtom),
   toInitial(commandPaletteOpenAtom),
   toInitial(shortcutHelpOpenAtom),
+  toInitial(helpMenuOpenAtom),
   toInitial(tourAtom),
   toInitial(imageViewerOpenAtom),
   toInitial(phoneNavDrawerOpenAtom),

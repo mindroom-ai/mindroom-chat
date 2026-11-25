@@ -8,71 +8,87 @@ import { roomToParentsAtom } from './roomToParents';
 import { navigationRoomsAtom } from './archivedRooms';
 import { isEmojiRoom, isSpace } from '../room';
 import type { RoomToParents } from '../types/room';
+import { reachesSpaceDirectly } from './spaceAncestors';
 import { mergeSearchRoomSources } from './useSpaceSearchRooms';
-import { getAncestorSpaceIds } from './spaceAncestors';
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
 export const mergeHomeSearchRoomSources = mergeSearchRoomSources;
 
-const isHomeRoom = (
+/** Whether `roomId` is a regular chat room (not a DM, space, or server emoji room). */
+export const isOrdinaryRoom = (
   client: MatrixClient,
   roomId: string,
-  directRoomIds: Set<string>,
-  roomToParents: RoomToParents
+  directRoomIds: ReadonlySet<string>
 ): boolean => {
   if (directRoomIds.has(roomId)) return false;
-  // Inside a space at any depth, through the chat rooms a sub-room sits under too.
-  if (getAncestorSpaceIds(roomToParents, roomId).some((id) => isSpace(client.getRoom(id)))) {
-    return false;
-  }
   const room = client.getRoom(roomId);
   return !isSpace(room) && !isEmojiRoom(room);
 };
 
 /**
- * Rooms that Home lists and message search covers from Home: joined rooms
- * that are not direct messages, not spaces, not the server emoji room, and
- * not inside a space, sub-rooms of the other Home rooms included.
+ * Whether `roomId` is enclosed by a currently joined space (directly or through chat-room
+ * parents). Left spaces still cached in the SDK store do not enclose their rooms.
+ */
+const isEnclosedByJoinedSpace = (
+  client: MatrixClient,
+  roomId: string,
+  roomToParents: RoomToParents,
+  joinedRoomIds: ReadonlySet<string>
+): boolean =>
+  reachesSpaceDirectly(
+    roomId,
+    roomToParents,
+    (parentId) => joinedRoomIds.has(parentId) && isSpace(client.getRoom(parentId)),
+    (parentId) => !isSpace(client.getRoom(parentId))
+  );
+
+/** Ordinary rooms outside any joined space (including sub-rooms of other unspaced rooms). */
+export const getUnspacedHomeRooms = (
+  client: MatrixClient,
+  roomIds: string[],
+  directRoomIds: ReadonlySet<string>,
+  roomToParents: RoomToParents,
+  joinedRoomIds: ReadonlySet<string>
+): string[] =>
+  roomIds.filter(
+    (roomId) =>
+      isOrdinaryRoom(client, roomId, directRoomIds) &&
+      !isEnclosedByJoinedSpace(client, roomId, roomToParents, joinedRoomIds)
+  );
+
+/**
+ * Rooms that message search covers from Home: all ordinary rooms (both unspaced and inside
+ * spaces), excluding direct messages, spaces, and the server emoji room.
  */
 export const getHomeSearchRooms = (
   client: MatrixClient,
   roomIds: string[],
-  directRoomIds: Set<string>,
-  roomToParents: RoomToParents
-): string[] => roomIds.filter((roomId) => isHomeRoom(client, roomId, directRoomIds, roomToParents));
-
-/** What both Home room lists are computed from: the joined rooms and how they are grouped. */
-const useHomeRoomSources = () => {
-  const client = useMatrixClient();
-  const directRoomIds = useAtomValue(mDirectAtom);
-  const roomToParents = useAtomValue(roomToParentsAtom);
-  const rooms = useAtomValue(allRoomsAtom);
-  return { client, rooms, directRoomIds, roomToParents };
-};
+  directRoomIds: ReadonlySet<string>
+): string[] => roomIds.filter((roomId) => isOrdinaryRoom(client, roomId, directRoomIds));
 
 /**
- * Room IDs shown under Rooms on Home, which the rail's Home button also counts and marks read:
- * the Home rooms the user has not archived.
+ * Unspaced ordinary room IDs the user has not archived; used by the rail's Home unread badge and
+ * rail Mark as Read so Home never double-counts space rail tabs.
  */
 export const useHomeRooms = (): string[] => {
-  const { client, directRoomIds, roomToParents } = useHomeRoomSources();
+  const client = useMatrixClient();
+  const rooms = useAtomValue(allRoomsAtom);
   const listed = useAtomValue(navigationRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const roomToParents = useAtomValue(roomToParentsAtom);
   return useMemo(
-    () => getHomeSearchRooms(client, listed, directRoomIds, roomToParents),
-    [client, listed, directRoomIds, roomToParents]
+    () => getUnspacedHomeRooms(client, listed, directRoomIds, roomToParents, new Set(rooms)),
+    [client, listed, directRoomIds, roomToParents, rooms]
   );
 };
 
-/** Room IDs message search covers from Home: every Home room, including those the SDK knows but the list has not bound yet. */
+/** Room IDs message search covers from Home: every ordinary room, including archived and SDK-cached ones. */
 export const useHomeSearchRooms = (): string[] => {
-  const { client, rooms, directRoomIds, roomToParents } = useHomeRoomSources();
+  const client = useMatrixClient();
+  const rooms = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
   return useMemo(() => {
     const sdkRooms = client.getRooms().map((room) => room.roomId);
-    return getHomeSearchRooms(
-      client,
-      mergeHomeSearchRoomSources(rooms, sdkRooms),
-      directRoomIds,
-      roomToParents
-    );
-  }, [client, rooms, directRoomIds, roomToParents]);
+    return getHomeSearchRooms(client, mergeHomeSearchRoomSources(rooms, sdkRooms), directRoomIds);
+  }, [client, rooms, directRoomIds]);
 };

@@ -1,6 +1,7 @@
 import { Icons, type IconSrc } from 'folds';
 import type { TFunction } from 'i18next';
 import { ScreenSize } from '../lib/hooks/useScreenSize';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import {
   DEFAULT_SETTINGS_PAGE,
   getShownSettingsPages,
@@ -25,15 +26,15 @@ const PAGE_ICONS: Record<SettingsPageId, IconSrc> = {
   'apple-watch': Icons.Clock,
   appearance: Icons.Sun,
   chats: Icons.Message,
+  'archived-rooms': Icons.Inbox,
   sidebar: Icons.Category,
   plugins: Icons.Bulb,
   language: Icons.Globe,
-  connections: Icons.Link,
-  computers: Icons.Monitor,
+  mindroom: MindroomIcon,
+  thisMac: Icons.Monitor,
   'mindroom.local-mindroom': Icons.Server,
-  'archived-rooms': Icons.Inbox,
-  'server-accounts': Icons.ShieldUser,
   storage: Icons.Download,
+  'server-accounts': Icons.ShieldUser,
   'developer-tools': Icons.Terminal,
   about: Icons.Info,
 };
@@ -48,7 +49,8 @@ export const getSettingsMenuItems = (
   native = false,
   serverAdmin = false,
   nativeIOS = false,
-  hasPlugins = false
+  hasPlugins = false,
+  desktopAccess = false
 ): SettingsMenuItem[] =>
   getShownSettingsPages({
     native,
@@ -56,6 +58,7 @@ export const getSettingsMenuItems = (
     localMindroom: showLocalMindroom,
     serverAdmin,
     hasPlugins,
+    desktopAccess,
   }).map((page) => ({
     page: page.id,
     group: page.group,
@@ -75,7 +78,8 @@ export const resolveSettingsInitialPage = (
   native = false,
   serverAdmin = false,
   nativeIOS = false,
-  hasPlugins = false
+  hasPlugins = false,
+  desktopAccess = false
 ): SettingsPageId | undefined => {
   if (initialPage === undefined) {
     return screenSize === ScreenSize.Mobile ? undefined : DEFAULT_SETTINGS_PAGE;
@@ -89,6 +93,7 @@ export const resolveSettingsInitialPage = (
       localMindroom: showLocalMindroom,
       serverAdmin,
       hasPlugins,
+      desktopAccess,
     });
   return shown ? page : DEFAULT_SETTINGS_PAGE;
 };

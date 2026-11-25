@@ -18,6 +18,7 @@ import {
   HOME_SEARCH_PATH,
   LOGIN_PATH,
   QUICK_CAPTURE_PATH,
+  SHELL_APPROVAL_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -25,6 +26,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  SPACE_THREADS_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
   USAGE_PATH,
@@ -37,6 +39,9 @@ type HashRouterOption = { enabled?: boolean; basename?: string } | boolean | und
 const optionalSegment = (value: string | undefined): string | null => value || null;
 
 const trimSlashes = (value: string): string => value.replace(/^\/+/, '').replace(/\/+$/, '');
+
+/** Room IDs start with `!` and aliases with `#`; reserved route segments like `lobby` or `threads` do not. */
+export const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /**
  * A route parameter built with `encodeURIComponent`, decoded. A value that is not valid
@@ -55,15 +60,33 @@ export const decodeRouteParam = (value: string): string => {
  * path, matched as the router matches it (the trailing slash optional). The hash router's form
  * is not read: its setting comes with the client config, after startup.
  */
-export const isQuickCapturePath = (
+const matchesAppPath = (
+  routePath: string,
   pathname: string,
   basePath: string = getAppBasePath()
 ): boolean => {
   const base = trimSlashes(basePath);
   const prefix = base ? `/${base}` : '';
   if (!pathname.startsWith(`${prefix}/`)) return false;
-  return matchPath({ path: QUICK_CAPTURE_PATH, end: true }, pathname.slice(prefix.length)) !== null;
+  return matchPath({ path: routePath, end: true }, pathname.slice(prefix.length)) !== null;
 };
+
+export const isQuickCapturePath = (
+  pathname: string,
+  basePath: string = getAppBasePath()
+): boolean => matchesAppPath(QUICK_CAPTURE_PATH, pathname, basePath);
+
+/** Whether `pathname` is the floating shell-approval window page (SHELL_APPROVAL_PATH). */
+export const isShellApprovalPath = (
+  pathname: string,
+  basePath: string = getAppBasePath()
+): boolean => matchesAppPath(SHELL_APPROVAL_PATH, pathname, basePath);
+
+/** Whether `pathname` is an auxiliary Electron window that runs outside the main chat shell. */
+export const isAuxiliaryWindowPath = (
+  pathname: string,
+  basePath: string = getAppBasePath()
+): boolean => isQuickCapturePath(pathname, basePath) || isShellApprovalPath(pathname, basePath);
 
 /** Joins a stored `{ pathname, search, hash }` back into a single app path. */
 export const joinPathComponent = (path: {
@@ -187,6 +210,8 @@ export const getSpacePath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_PATH, { spaceIdOrAlias });
 export const getSpaceLobbyPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_LOBBY_PATH, { spaceIdOrAlias });
+export const getSpaceThreadsPath = (spaceIdOrAlias: string): string =>
+  generatePath(SPACE_THREADS_PATH, { spaceIdOrAlias });
 export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias });
 

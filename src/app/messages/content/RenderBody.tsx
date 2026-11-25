@@ -8,6 +8,7 @@ import { MessageEmptyContent } from './FallbackContent';
 import { useClientConfig } from '../../config/useClientConfig';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
@@ -105,13 +106,15 @@ export const RenderBody = memo(function RenderBody({
 
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
   return (
-    <LinkFaviconContext.Provider value={linkFavicons}>
-      {customContent ??
-        renderTextWithLatex(body, {
-          linkify: true,
-          linkifyOpts,
-          highlightRegex,
-        })}
-    </LinkFaviconContext.Provider>
+    <FootnoteScopeProvider>
+      <LinkFaviconContext value={linkFavicons}>
+        {customContent ??
+          renderTextWithLatex(body, {
+            linkify: true,
+            linkifyOpts,
+            highlightRegex,
+          })}
+      </LinkFaviconContext>
+    </FootnoteScopeProvider>
   );
 });

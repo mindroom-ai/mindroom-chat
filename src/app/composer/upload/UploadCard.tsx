@@ -1,10 +1,10 @@
-import { HTMLAttributes, ReactNode, forwardRef } from 'react';
+import { type ComponentPropsWithRef, type ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, Icon, IconButton, Icons, ProgressBar, Text, percent } from 'folds';
 import { bytesToSize } from '../../lib/common';
 import * as css from './UploadCard.css';
 
-type UploadCardProps = HTMLAttributes<HTMLDivElement> & {
+type UploadCardProps = ComponentPropsWithRef<'div'> & {
   before?: ReactNode;
   after?: ReactNode;
   /** Progress, error or other detail below the file row. */
@@ -28,8 +28,17 @@ function UploadCardRow({ before, after, children }: UploadCardRowProps) {
 }
 
 /** A card for one file being uploaded. */
-export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
-  ({ before, after, bottom, outlined, children, className, ...props }, ref) => (
+export function UploadCard({
+  before,
+  after,
+  bottom,
+  outlined,
+  children,
+  className,
+  ref,
+  ...props
+}: UploadCardProps) {
+  return (
     <Box
       direction="Column"
       className={classNames(css.UploadCard({ outlined }), className)}
@@ -41,8 +50,8 @@ export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
       </UploadCardRow>
       {bottom}
     </Box>
-  )
-);
+  );
+}
 
 /** The progress line of an upload: a bar, the percentage, and the bytes sent of the total. */
 export function UploadCardProgress({
@@ -70,16 +79,21 @@ export function UploadCardProgress({
 }
 
 /** An upload error line under the file row. */
-export const UploadCardError = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ children, className, ...props }, ref) => (
+export function UploadCardError({
+  children,
+  className,
+  ref,
+  ...props
+}: ComponentPropsWithRef<'div'>) {
+  return (
     <Box className={classNames(css.UploadCardError, className)} role="alert" {...props} ref={ref}>
       <Icon size="50" src={Icons.Warning} />
       <Text as="span" size="T200">
         {children}
       </Text>
     </Box>
-  )
-);
+  );
+}
 
 type UploadCardCancelProps = { label: string; onClick: () => void };
 

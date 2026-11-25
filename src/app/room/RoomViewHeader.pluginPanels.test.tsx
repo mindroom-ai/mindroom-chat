@@ -3,6 +3,7 @@ import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Icon, IconButton, Icons } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getRoomCommands } from '../navigation/roomCommands';
 import { MenuEntry } from '../ui/MenuEntry';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
@@ -32,6 +33,7 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
 }));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: '!room:example.org',
@@ -47,6 +49,7 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => undefined,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
+vi.mock('../triggers/useRoomTriggers', () => import('../triggers/useRoomTriggers.test.shared'));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => [] }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
   usePowerLevels: () => ({}),
@@ -65,6 +68,8 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => screen.size,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: 'classic',
     setViewMode: () => undefined,
@@ -172,4 +177,24 @@ describe("a plugin's side panel's toggle in the room header", () => {
     openMenu();
     expect(menuEntry('Notes')?.props).toMatchObject({ 'aria-checked': false, icon: Icons.Bulb });
   });
+
+  it.each(['Desktop', 'Mobile'] as const)(
+    'omits placement none panels from the header row, room menu and command palette on %s',
+    (size) => {
+      screen.size = size;
+      renderHeader({
+        pluginPanels: [
+          { id: 'pr/panel', label: 'Pull Requests', icon: Icons.Star, placement: 'none' },
+          { id: 'notes/panel', label: 'Notes', placement: 'menu' },
+        ],
+        onPanelToggle: vi.fn(),
+      });
+      expect(rowButton('Pull Requests')).toBeUndefined();
+      openMenu();
+      expect(menuEntry('Pull Requests')).toBeUndefined();
+      expect(menuEntry('Notes')).toBeDefined();
+      expect(getRoomCommands().map(({ id }) => id)).not.toContain('panel:pr/panel');
+      expect(getRoomCommands().map(({ id }) => id)).toContain('panel:notes/panel');
+    }
+  );
 });

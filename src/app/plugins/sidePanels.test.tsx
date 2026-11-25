@@ -3,7 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import type { LocaleTree } from '../i18n/englishResources';
-import type { SidePanel } from './sidePanels';
+import { isSidePanel, type SidePanel } from './sidePanels';
 
 // The plugins' side panels as a room lists them: each `label` that is a key of its plugin's strings
 // in the app's language, any other as the plugin gives it.
@@ -12,6 +12,23 @@ const plugins = vi.hoisted(() => ({ entries: [] as unknown[] }));
 vi.mock('./pluginEntries', () => ({ pluginEntries: plugins.entries }));
 
 const panel = (id: string, label: string): SidePanel => ({ id, label, Component: () => null });
+
+describe('isSidePanel', () => {
+  it('accepts placement none alongside auto, menu and row, and rejects unknown placements', () => {
+    for (const placement of [undefined, 'auto', 'menu', 'row', 'none'] as const) {
+      expect(isSidePanel({ ...panel('pr', 'Pull Requests'), placement }), String(placement)).toBe(
+        true
+      );
+    }
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), placement: 'top' })).toBe(false);
+  });
+
+  it('accepts frameControls own and rejects unknown values', () => {
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: undefined })).toBe(true);
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: 'own' })).toBe(true);
+    expect(isSidePanel({ ...panel('pr', 'Pull Requests'), frameControls: 'host' })).toBe(false);
+  });
+});
 
 describe('usePluginSidePanels', () => {
   beforeEach(() => {

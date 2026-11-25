@@ -3,7 +3,7 @@ import { desktopBridge, isBundledApp } from '../lib/nativeShell';
 import { useSetting } from '../preferences/useSetting';
 import { PAGE_ZOOM_DEFAULT, settingsAtom, stepPageZoom } from '../preferences/settings';
 import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
-import { isQuickCapturePath } from '../routes/pathUtils';
+import { isAuxiliaryWindowPath } from '../routes/pathUtils';
 import { usePinchToZoom } from './usePinchToZoom';
 
 const ZOOM_KEYS = [
@@ -21,7 +21,7 @@ const ZOOM_KEYS = [
 export const usePageZoom = (): void => {
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
   const pinchEnabled =
-    typeof window === 'undefined' || !isQuickCapturePath(window.location.pathname);
+    typeof window === 'undefined' || !isAuxiliaryWindowPath(window.location.pathname);
   usePinchToZoom(pageZoom, setPageZoom, pinchEnabled);
 
   // From any field or dialog, signed in or out; held keys repeat. The Quick Capture window keeps
@@ -30,7 +30,7 @@ export const usePageZoom = (): void => {
     if (!isBundledApp()) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isComposingKey(event)) return;
-      if (isQuickCapturePath(window.location.pathname)) return;
+      if (isAuxiliaryWindowPath(window.location.pathname)) return;
       const zoom = ZOOM_KEYS.find(([id]) => matchesShortcut(event, id));
       if (!zoom) return;
       event.preventDefault();
@@ -46,7 +46,7 @@ export const usePageZoom = (): void => {
     if (!bridge) return undefined;
     return bridge.onShellEvent((event) => {
       if (event.type !== 'zoom') return;
-      if (isQuickCapturePath(window.location.pathname)) return;
+      if (isAuxiliaryWindowPath(window.location.pathname)) return;
       if (event.action === 'in') setPageZoom((zoom) => stepPageZoom(zoom, 1));
       else if (event.action === 'out') setPageZoom((zoom) => stepPageZoom(zoom, -1));
       else setPageZoom(PAGE_ZOOM_DEFAULT);

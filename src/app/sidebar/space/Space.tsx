@@ -22,7 +22,7 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
-import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import * as searchFieldCss from '../../ui/SearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
@@ -36,7 +36,7 @@ import {
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
-import { SPACE_LOBBY_PATH } from '../../routes/paths';
+import { SPACE_LOBBY_PATH, SPACE_THREADS_PATH } from '../../routes/paths';
 import {
   getDirectRoomPath,
   getHomePath,
@@ -45,6 +45,8 @@ import {
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
+  getSpaceThreadsPath,
+  isRoomIdOrAliasSegment,
   withSearchParam,
 } from '../../routes/pathUtils';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
@@ -58,6 +60,7 @@ import { BackToListButton } from '../../ui/page/PhoneBackButton';
 import { RoomSortMenu } from '../room-nav/RoomSortMenu';
 import { SortableRoomGroup } from '../room-nav/SortableRoomList';
 import { SpaceRoomSection, type SpaceSortControl, useSpaceRoomSections } from './SpaceRoomSection';
+import * as spaceSectionCss from './SpaceRoomSection.css';
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
 const readViaServers = (searchParams: URLSearchParams): string[] | undefined => {
@@ -67,9 +70,6 @@ const readViaServers = (searchParams: URLSearchParams): string[] | undefined => 
   ].filter(Boolean);
   return via.length > 0 ? via : undefined;
 };
-
-/** Room IDs start with `!` and aliases with `#`; any other first segment is no space. */
-const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /**
  * The `/:spaceIdOrAlias/` routes: the joined space as context for its pages.
@@ -269,13 +269,14 @@ export function Space() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
+  const threadsSelected = useMatch(SPACE_THREADS_PATH) !== null;
 
   const parents = useJoinedParentSpaces(space.roomId).flatMap(
     (roomId) => client.getRoom(roomId) ?? []
   );
   const {
     spaceRooms,
-    sections,
+    sectionTree,
     shortcutRoomIds,
     sort,
     onCategoryClick,
@@ -286,6 +287,23 @@ export function Space() {
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(shortcutRoomIds, selectedRoomId, spaceRoomPath);
+
+  const rootNodes = sectionTree.filter((node) => node.section.isRoot);
+  const subspaceNodes = sectionTree.filter((node) => !node.section.isRoot);
+  const renderSection = (node: (typeof sectionTree)[number]) => (
+    <SpaceRoomSection
+      key={node.section.categoryId}
+      section={node.section}
+      childNodes={node.children}
+      subtreeShownRoomIds={node.subtreeShownRoomIds}
+      spaceId={space.roomId}
+      spaceIdOrAlias={spaceIdOrAlias}
+      selectedRoomId={selectedRoomId}
+      onCategoryClick={onCategoryClick}
+      onReorder={onReorder}
+      pinMode="toggle"
+    />
+  );
 
   return (
     <PageNav label={title}>
@@ -299,19 +317,20 @@ export function Space() {
               to={getSpaceLobbyPath(spaceIdOrAlias)}
               selected={lobbySelected}
             />
+            <SpacePageLink
+              icon={Icons.Thread}
+              label={t('home.recent.allThreads')}
+              to={getSpaceThreadsPath(spaceIdOrAlias)}
+              selected={threadsSelected}
+            />
           </NavCategory>
           <SortableRoomGroup canMoveRoom={canMoveRoom} onMoveRoom={onMoveRoom}>
-            {sections.map((section) => (
-              <SpaceRoomSection
-                key={section.categoryId}
-                section={section}
-                spaceId={space.roomId}
-                spaceIdOrAlias={spaceIdOrAlias}
-                selectedRoomId={selectedRoomId}
-                onCategoryClick={onCategoryClick}
-                onReorder={onReorder}
-              />
-            ))}
+            {rootNodes.map(renderSection)}
+            {subspaceNodes.length > 0 && (
+              <div className={spaceSectionCss.SpaceSectionStack}>
+                {subspaceNodes.map(renderSection)}
+              </div>
+            )}
           </SortableRoomGroup>
           <ThreadNavCategory spaceId={space.roomId} />
         </Box>

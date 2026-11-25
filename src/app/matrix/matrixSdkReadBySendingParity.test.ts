@@ -11,7 +11,7 @@ import fixture from './fixtures/readBySendingOutcomes.sdk-41.7.0.json';
 // the newest event of the timeline only: a member who sent that one has read everything. 45 looks
 // for any event the member sent at or after the one asked about, and for a reply of theirs in the
 // thread an event is the root of (matrix-js-sdk #5525), by walking the timeline for each member.
-// Our SDK patch puts 41.7.0's rule back in its place (patches/matrix-js-sdk+45.1.0.patch,
+// Our SDK patch puts 41.7.0's rule back in its place (patches/matrix-js-sdk+45.2.0.patch,
 // `src/models/room-receipts.ts`).
 //
 // The fixture holds what the client of main (41.7.0 with its patch) answered in each case below,

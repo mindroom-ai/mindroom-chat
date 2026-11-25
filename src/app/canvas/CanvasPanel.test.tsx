@@ -13,6 +13,7 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
 import {
@@ -21,7 +22,9 @@ import {
   type CanvasSaved,
 } from '../messages/canvas/canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from '../messages/canvas/canvasTheme';
+import { getDefaultStore } from 'jotai';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../preferences/settings';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,14 +74,17 @@ vi.mock('folds', () => ({
   }) => <button {...props}>{children}</button>,
   color: { Critical: { Main: 'red' } },
   Icon: () => <span />,
-  IconButton: React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
-    ({ children, ...props }, ref) => (
-      <button {...props} ref={ref}>
-        {children}
-      </button>
-    )
+  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button {...props} ref={ref}>
+      {children}
+    </button>
   ),
-  Icons: { Cross: 'Cross', Category: 'Category' },
+  Icons: {
+    Cross: 'Cross',
+    Category: 'Category',
+    ChevronLeft: 'ChevronLeft',
+    ChevronRight: 'ChevronRight',
+  },
   // Icon buttons name themselves in tooltips; render only the trigger.
   Tooltip: () => null,
   TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
@@ -103,14 +109,27 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 
+vi.mock('../ui/panels/PanelFrame.css', () => ({
+  STRIP_WIDTH: 40,
+  Strip: 'Strip',
+  Tab: 'Tab',
+  TabLabel: 'TabLabel',
+  ControlPill: 'ControlPill',
+  ControlExtras: 'ControlExtras',
+  ControlCore: 'ControlCore',
+  ControlSeparator: 'ControlSeparator',
+}));
+
 vi.mock('./CanvasPanel.css.ts', () => ({
   Panel: 'Panel',
   Header: 'Header',
   TitleGroup: 'TitleGroup',
-  Controls: 'Controls',
   Title: 'Title',
+  FrameWrap: 'FrameWrap',
   Frame: 'Frame',
   Footer: 'Footer',
+  VersionRow: 'VersionRow',
+  VersionPill: 'VersionPill',
   Error: 'Error',
   Notice: 'Notice',
   Staged: 'Staged',
@@ -250,9 +269,16 @@ beforeEach(() => {
   sendMessage = vi.spyOn(mx, 'sendMessage');
 });
 
+const store = getDefaultStore();
+const setZoom = (pageZoom: number) =>
+  act(() => {
+    store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom });
+  });
+
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom: PAGE_ZOOM_DEFAULT });
   mx.stopClient();
   vi.useRealTimers();
 });
@@ -1039,10 +1065,73 @@ describe('CanvasPanel', () => {
     expect(button('[aria-label="Expand canvas"]')).toBeNull();
   });
 
+  it('uses the frame Fill and Fold controls inside a PanelFrame instead of a duplicate Expand button', () => {
+    const setLayout = vi.fn();
+    act(() => {
+      root.render(
+        <PanelFrameProvider value={{ label: 'Canvas', layout: 'beside', setLayout }}>
+          <CanvasPanel
+            mx={mx}
+            room={room}
+            canvas={canvas}
+            agentName="Analyst"
+            colorScheme="light"
+            theme={FALLBACK_CANVAS_THEMES.light}
+            onClose={vi.fn()}
+            onToggleExpanded={vi.fn()}
+          />
+        </PanelFrameProvider>
+      );
+    });
+    expect(button('[aria-label="Expand canvas"]')).toBeNull();
+    act(() => button('[aria-label="Fill the room with Canvas"]').click());
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    act(() => button('[aria-label="Fold Canvas to the edge"]').click());
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
+  });
+
   it('closes', () => {
     const onClose = vi.fn();
     render({ onClose });
     act(() => button('[aria-label="Close canvas"]').click());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('scales the panel iframe with pageZoom and resets cleanly at 100%', () => {
+    render();
+    const wrap = frame().parentElement as HTMLElement;
+    expect(wrap.className).toBe('FrameWrap');
+    expect(wrap.getAttribute('dir')).toBe('ltr');
+    expect(frame().style.transform).toBe('');
+    expect(frame().style.width).toBe('');
+    expect(frame().style.height).toBe('');
+
+    setZoom(50);
+    expect(frame().style.width).toBe('200%');
+    expect(frame().style.height).toBe('200%');
+    expect(frame().style.transform).toBe('scale(0.5)');
+    expect(frame().style.transformOrigin).toBe('left top');
+
+    setZoom(125);
+    expect(frame().style.width).toBe('80%');
+    expect(frame().style.height).toBe('80%');
+    expect(frame().style.transform).toBe('scale(1.25)');
+
+    // A raw canvas keeps its white surface and color scheme alongside zoom styles.
+    render({ canvas: { ...canvas, revisionEventId: '$raw', raw: true } });
+    expect(frame().style.background).toContain('rgb(255, 255, 255)');
+    expect(frame().style.colorScheme).toBe('light dark');
+    expect(frame().style.transform).toBe('scale(1.25)');
+
+    setZoom(100);
+    expect(frame().style.transform).toBe('');
+    expect(frame().style.width).toBe('');
+    expect(frame().style.height).toBe('');
+    expect(frame().style.transformOrigin).toBe('');
+    expect(frame().style.background).toContain('rgb(255, 255, 255)');
+
+    render({ canvas: { ...canvas, revisionEventId: '$themed' } });
+    expect(frame().style.background).toBe('');
+    expect(frame().style.transform).toBe('');
   });
 });

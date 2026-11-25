@@ -99,11 +99,22 @@ export const deriveTimelineMinimapItems = (
     const eventId = mEvent.getId();
     if (!eventId) continue;
 
+    let turnEnd = index + 1;
+    while (
+      turnEnd < events.length &&
+      kinds[turnEnd] !== 'user' &&
+      kinds[turnEnd] !== 'redactedUser'
+    ) {
+      turnEnd += 1;
+    }
+
     let agentText: string | null = null;
-    for (let cursor = index + 1; cursor < events.length; cursor += 1) {
-      if (kinds[cursor] === 'user' || kinds[cursor] === 'redactedUser') break;
-      if (kinds[cursor] === 'agent') {
-        agentText = resolveMinimapPreviewText(events[cursor]!, t) ?? agentText;
+    for (let cursor = turnEnd - 1; cursor > index; cursor -= 1) {
+      if (kinds[cursor] !== 'agent') continue;
+      const preview = resolveMinimapPreviewText(events[cursor]!, t);
+      if (preview !== null) {
+        agentText = preview;
+        break;
       }
     }
 

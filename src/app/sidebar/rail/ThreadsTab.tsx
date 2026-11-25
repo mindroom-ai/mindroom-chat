@@ -9,7 +9,7 @@ import {
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
 import { useThreadsNeedsYouCount } from '../../activity/useActivityRows';
-import { ActivityBadge } from './ActivityTab';
+import { ActivityBadge } from '../../activity/ActivityBadge';
 import { useThreadsSelected } from '../../routes/useThreadsSelected';
 import { getThreadsPath } from '../../routes/pathUtils';
 

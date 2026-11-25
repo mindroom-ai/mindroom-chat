@@ -270,6 +270,13 @@
       "threadIn": "{{room}}-এ থ্রেড",
       "messageElsewhere": "অন্য একটি রুমে বার্তা"
     },
+    "callout": {
+      "note": "নোট",
+      "tip": "টিপস",
+      "important": "গুরুত্বপূর্ণ",
+      "warning": "সতর্কবার্তা",
+      "caution": "সাবধানতা"
+    },
     "deviceVerification": {
       "acceptStalled": "অন্য সেশনটি সাড়া দেয়নি। এটি বন্ধ করে আবার যাচাইকরণ শুরু করুন।"
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "স্পেসের সংক্ষিপ্ত বিবরণ"
+    },
+    "footnote": {
+      "backToReference": "তথ্যসূত্রে ফিরে যান"
     }
   },
   "featureUi": {
@@ -421,6 +431,7 @@
       },
       "sidebar": {
         "title": "সাইডবার",
+        "navigation": "নেভিগেশন",
         "threads": "সাইডবারে থ্রেড দেখান",
         "threadsDescription": "সব রুমের থ্রেড এক তালিকায়। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
         "canvasesDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
@@ -433,7 +444,9 @@
         "localMindroom": "সাইডবারে স্থানীয় MindRoom দেখান",
         "localMindroomDescription": "আপনার কম্পিউটারে চলা MindRoom যুক্ত করে। লুকানো থাকলে এটি এখানে সেটিংসে স্থানীয় MindRoom-এর অধীনে থাকে।",
         "usage": "সাইডবারে ব্যবহার দেখান",
-        "usageDescription": "কোনো রানটাইম রিপোর্ট করলে প্রোভাইডার ব্যবহারের সীমা ও ৭ দিনের টোকেন খরচ দেখায়। লুকানো থাকলে হোমের ⋮ মেনু বা মডেল পিকার থেকে ব্যবহার খুলুন।"
+        "usageDescription": "কোনো রানটাইম রিপোর্ট করলে প্রোভাইডার ব্যবহারের সীমা ও ৭ দিনের টোকেন খরচ দেখায়। লুকানো থাকলে হোমের ⋮ মেনু বা মডেল পিকার থেকে ব্যবহার খুলুন।",
+        "help": "সাইডবারে সাহায্য ও গাইড দেখান",
+        "helpDescription": "দ্রুত গাইড, ট্যুর এবং কিবোর্ড শর্টকাট। লুকানো থাকলে সেটিংসে অ্যাপ সম্পর্কে বা কমান্ড প্যালেট ({{shortcut}}) থেকে ট্যুর এবং {{helpShortcut}} দিয়ে শর্টকাট খুলুন।"
       },
       "plugins": {
         "title": "প্লাগইন",
@@ -448,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "আপনি",
-          "app": "এই অ্যাপ",
-          "agents": "এজেন্ট ও সংযোগ",
-          "help": "সহায়তা ও উন্নত"
+          "app": "অ্যাপ",
+          "mindroom": "MindRoom",
+          "system": "সিস্টেম"
         },
         "pages": {
           "privacy": "গোপনীয়তা ও নিরাপত্তা",
           "language": "ভাষা ও অঞ্চল",
-          "storage": "স্টোরেজ ও অফলাইন"
+          "storage": "স্টোরেজ ও অফলাইন",
+          "agentsServers": "এজেন্ট ও সার্ভার"
         }
       },
       "search": {
@@ -470,13 +484,16 @@
       "advanced": "উন্নত",
       "sections": {
         "display": "প্রদর্শন",
-        "privacy": "গোপনীয়তা"
+        "privacy": "গোপনীয়তা",
+        "replying": "উত্তর দেওয়া",
+        "connectionsComputers": "সংযোগ ও কম্পিউটার"
       },
       "computers": {
         "inUse": "ব্যবহৃত সার্ভার",
         "inUseNone": "কোনো সার্ভার সেট নেই, তাই এই ডিভাইসে কম্পিউটার বন্ধ।",
         "useServer": "{{host}} ব্যবহার করুন",
-        "foundNotSaved": "আপনার এজেন্টদের থেকে পাওয়া, সংরক্ষিত নয়; এখানে কী লিখতে এটি সংরক্ষণ করুন।"
+        "foundNotSaved": "আপনার এজেন্টদের থেকে পাওয়া, সংরক্ষিত নয়; এখানে কী লিখতে এটি সংরক্ষণ করুন।",
+        "foundNotSavedChoose": "আপনার এজেন্টদের থেকে পাওয়া, সংরক্ষিত নয়। আপনি যে সার্ভারটিতে বিশ্বাস করেন সেটি বেছে নিন; এই ডিভাইসটি সব রুমের জন্য এটি ব্যবহার করবে।"
       },
       "keywords": {
         "theme": "ডার্ক মোড, লাইট মোড, নাইট মোড, রং",
@@ -722,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
-      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়",
+      "viewSection": "প্রদর্শন",
+      "roomSection": "রুম",
+      "preferencesSection": "পছন্দসমূহ",
+      "notificationModeAll": "সব",
+      "notificationModeMentions": "উল্লেখ"
     },
     "phoneNav": {
       "navigation": "নেভিগেশন"
@@ -907,6 +929,164 @@
         "startEntireScreenShare": "সম্পূর্ণ স্ক্রিন শেয়ার করুন",
         "stopEntireScreenShare": "সম্পূর্ণ স্ক্রিন শেয়ার করা বন্ধ করুন"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "সম্পূর্ণ অ্যাক্সেসের অনুমতি দিন",
+        "cancel": "বাতিল করুন",
+        "chooseLimits": "সীমা নির্ধারণ করুন...",
+        "close": "বন্ধ করুন",
+        "disconnect": "বিচ্ছিন্ন করুন",
+        "done": "সম্পন্ন",
+        "editLimits": "সীমা সম্পাদনা করুন...",
+        "switchToFull": "সম্পূর্ণ অ্যাক্সেসে পরিবর্তন করুন"
+      },
+      "banner": {
+        "restrictedActive": "এই Mac-এ সীমিত অ্যাক্সেস সক্রিয় আছে।",
+        "shellReadyWaitingPermissions": "শেল প্রস্তুত - macOS স্ক্রিন ও ইনপুট অনুমতির জন্য অপেক্ষা করা হচ্ছে",
+        "waitingPermissions": "macOS স্ক্রিন ও ইনপুট অনুমতির জন্য অপেক্ষা করা হচ্ছে"
+      },
+      "browser": {
+        "brewHint": "অথবা Homebrew দিয়ে ইনস্টল করুন:",
+        "confirmOnMac": "অ্যাক্সেস অনুমোদন করতে {{mac}}-এ এই কোডটি নিশ্চিত করুন।",
+        "copied": "কপি করা হয়েছে",
+        "copyCommand": "কমান্ড কপি করুন",
+        "copyFailed": "কপি করা যায়নি",
+        "downloadMacApp": "Mac-এর জন্য MindRoom Chat ডাউনলোড করুন",
+        "noMacDescription": "{{agent}}-কে আপনার Mac-এর অ্যাক্সেস দিতে, Mac-এর জন্য MindRoom Chat-এ এই অ্যাকাউন্ট দিয়ে সাইন ইন করুন।",
+        "paired": "{{agent}} এখন {{mac}}-এর সাথে পেয়ার করা হয়েছে।",
+        "relayDescription": "{{mac}}-এ একটি পেয়ারিং অনুরোধ পাঠান। আপনি আপনার Mac-এ ৬-অঙ্কের কোড নিশ্চিত করবেন এবং সম্পূর্ণ অ্যাক্সেস বা সীমা বেছে নেবেন।",
+        "selectMac": "একটি Mac বেছে নিন",
+        "sendToMac": "{{mac}}-এ পাঠান",
+        "waitingOnMac": "{{mac}}-এ নিশ্চিতকরণের জন্য অপেক্ষা করা হচ্ছে..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} রিস্টার্টের পরেও জিজ্ঞাসা না করেই আপনার স্ক্রিন দেখতে, প্রতিটি অ্যাপ নিয়ন্ত্রণ করতে এবং আপনার macOS ব্যবহারকারী হিসেবে শেল কমান্ড চালাতে পারবে। মেনু বার থেকে যেকোনো সময় বন্ধ করতে পারবেন।",
+        "upgradeHeading": "সম্পূর্ণ অ্যাক্সেসে পরিবর্তন করা হচ্ছে"
+      },
+      "empty": {
+        "noAgents": "এই রুমে কোনো MindRoom এজেন্ট পাওয়া যায়নি।"
+      },
+      "incoming": {
+        "decline": "প্রত্যাখ্যান করুন",
+        "failedTitle": "{{agent}} পেয়ার করা যায়নি",
+        "sasHint": "অনুমোদন করার আগে নিশ্চিত করুন যে এই ৬-অঙ্কের কোডটি {{requester}}-এর সাথে মেলে।",
+        "title": "{{requester}} থেকে {{agent}} পেয়ার করবেন?"
+      },
+      "limits": {
+        "addFolder": "ফোল্ডার যোগ করুন...",
+        "allowShellOnMac": "এই Mac-এ শেল কমান্ডের অনুমতি দিন",
+        "foldersLabel": "শুধুমাত্র পঠনযোগ্য ফোল্ডার",
+        "fullNote": "বাতিল না করা পর্যন্ত সম্পূর্ণ অ্যাক্সেস বাতিল না হওয়া পর্যন্ত ফুল-স্ক্রিন নিয়ন্ত্রণ এবং স্বয়ংক্রিয়ভাবে অনুমোদিত শেল সক্রিয় করে।",
+        "fullScreen": "সম্পূর্ণ স্ক্রিন (primary-screen)",
+        "gui15m": "১৫ মিনিটের জন্য নিয়ন্ত্রণের অনুমতি দিন",
+        "gui1h": "১ ঘণ্টার জন্য নিয়ন্ত্রণের অনুমতি দিন",
+        "guiFull": "বাতিল না করা পর্যন্ত সম্পূর্ণ অ্যাক্সেস",
+        "guiLabel": "স্ক্রিন ও ইনপুট নিয়ন্ত্রণ",
+        "guiObserve": "শুধুমাত্র পর্যবেক্ষণ",
+        "installedApps": "অনুমোদিত Mac অ্যাপ",
+        "loadingApps": "ইনস্টল করা অ্যাপ লোড হচ্ছে...",
+        "needCapability": "সম্পূর্ণ স্ক্রিন, অন্তত একটি অ্যাপ, একটি ফোল্ডার অথবা শেল কমান্ড সক্রিয় করুন।",
+        "noAppsFound": "কোনো ইনস্টল করা Mac অ্যাপ পাওয়া যায়নি।",
+        "noFolders": "কোনো শুধুমাত্র পঠনযোগ্য ফোল্ডার যোগ করা হয়নি।",
+        "perAgentHeading": "{{agent}}-এর জন্য নিয়ন্ত্রণ ও শেল অনুমোদন (প্রতি এজেন্ট)",
+        "removeFolder": "অপসারণ করুন",
+        "save": "সীমাসহ অনুমতি দিন",
+        "saveChanges": "সীমা সংরক্ষণ করুন",
+        "sharedHeading": "এই Mac-এ শেয়ার করা অ্যাপ, ফোল্ডার ও শেল (সব পেয়ার করা এজেন্টের জন্য প্রযোজ্য)",
+        "sharedWithOthersHint": "এই Mac-এর অন্যান্য পেয়ার করা এজেন্টের সাথে শেয়ার করা",
+        "shell15m": "১৫ মিনিটের জন্য স্বয়ংক্রিয় অনুমোদন",
+        "shell1h": "১ ঘণ্টার জন্য স্বয়ংক্রিয় অনুমোদন",
+        "shellApprovalLabel": "শেল অনুমোদন",
+        "shellAsk": "প্রতিটি কমান্ডের আগে জিজ্ঞাসা করুন",
+        "shellDisabledHint": "শেল অনুমোদন কনফিগার করতে নিচে \"এই Mac-এ শেল কমান্ডের অনুমতি দিন\" চালু করুন।",
+        "shellUntilRevoked": "বাতিল না করা পর্যন্ত স্বয়ংক্রিয় অনুমোদন"
+      },
+      "permissions": {
+        "accessibility": "অ্যাক্সেসিবিলিটি",
+        "accessibilityGrantedHint": "কিবোর্ড ও মাউস নিয়ন্ত্রণের অনুমতি দেওয়া হয়েছে।",
+        "accessibilityMissingHint": "কিবোর্ড ও মাউস নিয়ন্ত্রণের অনুমতি দেয়। সক্রিয় হলে স্বয়ংক্রিয়ভাবে আপডেট হয়।",
+        "allowAccessibility": "অ্যাক্সেসিবিলিটির অনুমতি দিন",
+        "allowScreenRecording": "স্ক্রিন রেকর্ডিংয়ের অনুমতি দিন",
+        "allowed": "অনুমোদিত",
+        "relaunchToActivate": "স্ক্রিন নিয়ন্ত্রণ সক্রিয় করতে পুনরায় চালু করুন",
+        "screenRecording": "স্ক্রিন রেকর্ডিং",
+        "screenRecordingGrantedHint": "স্ক্রিন দেখার অনুমতি দেওয়া হয়েছে।",
+        "screenRecordingMissingHint": "পেয়ার করা এজেন্টদের আপনার স্ক্রিন দেখার অনুমতি দেয়।",
+        "screenRecordingRelaunchHint": "macOS যাতে স্ক্রিন রেকর্ডিং সক্রিয় করতে পারে, সেজন্য MindRoom Chat একবার পুনরায় চালু করুন।"
+      },
+      "picker": {
+        "subtitle": "এই রুমের কোন এজেন্ট এই Mac-এর সাথে সংযুক্ত হবে তা বেছে নিন।"
+      },
+      "roomHeader": {
+        "giveAccess": "Mac অ্যাক্সেস দিন",
+        "manageAccess": "Mac অ্যাক্সেস"
+      },
+      "sas": {
+        "label": "যাচাইকরণ কোড"
+      },
+      "settings": {
+        "bridgeState": "ব্রিজ অবস্থা",
+        "helperVersion": "হেল্পার সংস্করণ",
+        "keywords": "mac, কম্পিউটার অ্যাক্সেস, ডেস্কটপ নিয়ন্ত্রণ, শেল, shell, অ্যাক্সেসিবিলিটি, স্ক্রিন রেকর্ডিং, অনুমতি",
+        "lastError": "সর্বশেষ ত্রুটি",
+        "manage": "পরিচালনা করুন",
+        "noPairedAgentsDescription": "কোনো এজেন্টসহ একটি রুম খুলুন এবং সংযুক্ত করতে Mac অ্যাক্সেস দিন বেছে নিন।",
+        "noPairedAgentsTitle": "এখনো কোনো এজেন্ট পেয়ার করা হয়নি",
+        "notSignedIn": "সাইন ইন করা নেই",
+        "pairedAgentsTitle": "পেয়ার করা এজেন্ট",
+        "permissionsTitle": "macOS অনুমতি",
+        "revokeAll": "সব অ্যাক্সেস বাতিল করুন",
+        "revokeAllDescription": "সব পেয়ার করা এজেন্ট বিচ্ছিন্ন করে এবং এই Mac-এ কম্পিউটার অ্যাক্সেস তাৎক্ষণিকভাবে বন্ধ করে।",
+        "runningShellTitle": "চলমান শেল কমান্ড",
+        "savedSession": "সংরক্ষিত Matrix সেশন",
+        "sectionTitle": "এই Mac",
+        "statusActive": "সক্রিয়",
+        "statusDescription": "কোন MindRoom এজেন্টগুলো এই Mac দেখতে এবং নিয়ন্ত্রণ করতে পারবে তা পরিচালনা করুন।",
+        "statusStopped": "বন্ধ",
+        "statusTitle": "Mac কম্পিউটার অ্যাক্সেস",
+        "statusUnavailable": "এই Mac-এ উপলব্ধ নয়",
+        "stopCommand": "থামান",
+        "title": "এই Mac",
+        "unavailableDescription": "Mac কম্পিউটার অ্যাক্সেসের জন্য Apple Silicon-এ Mac-এর জন্য MindRoom Chat প্রয়োজন।",
+        "unknown": "অজানা"
+      },
+      "shellApproval": {
+        "approveOnce": "একবার অনুমোদন করুন",
+        "approveOnceCountdown": "একবার অনুমোদন করুন ({{seconds}})",
+        "autoApprove15m": "১৫ মিনিট স্বয়ংক্রিয় অনুমোদন",
+        "autoApprove15mCountdown": "১৫ মিনিট স্বয়ংক্রিয় অনুমোদন ({{seconds}})",
+        "cwdLabel": "কাজের ডিরেক্টরি",
+        "deny": "প্রত্যাখ্যান করুন",
+        "empty": "অনুমোদনের অপেক্ষায় কোনো শেল কমান্ড নেই।",
+        "title": "শেল কমান্ড অনুমোদন করবেন?"
+      },
+      "status": {
+        "fullAccess": "সম্পূর্ণ অ্যাক্সেস",
+        "fullAccessActive": "সম্পূর্ণ অ্যাক্সেস সক্রিয়",
+        "permissionsNeeded": "অনুমতি প্রয়োজন",
+        "restricted": "সীমিত",
+        "shellReady": "শেল প্রস্তুত"
+      },
+      "steps": {
+        "confirming": "পেয়ারিং নিশ্চিত করা হচ্ছে...",
+        "finishing": "অ্যাক্সেস সক্রিয় করা হচ্ছে...",
+        "pairing": "{{agent}}-এর সাথে পেয়ার করা হচ্ছে...",
+        "requestingOffer": "{{agent}}-এর সাথে যোগাযোগ করা হচ্ছে...",
+        "signingIn": "এই Mac-এ সাইন ইন করা হচ্ছে..."
+      },
+      "title": {
+        "allowFull": "{{agent}}-কে এই Mac-এ সম্পূর্ণ অ্যাক্সেসের অনুমতি দেবেন?",
+        "browserPair": "{{agent}}-কে আপনার Mac-এর অ্যাক্সেস দিন",
+        "chooseLimits": "{{agent}}-এর জন্য সীমা বেছে নিন",
+        "default": "Mac কম্পিউটার অ্যাক্সেস",
+        "editLimits": "{{agent}}-এর সীমা সম্পাদনা করুন",
+        "manageAgent": "এই Mac-এ {{agent}}",
+        "pickAgent": "একটি এজেন্টকে এই Mac-এর অ্যাক্সেস দিন"
+      },
+      "unavailable": {
+        "description": "এই ডিভাইসে Mac কম্পিউটার অ্যাক্সেস উপলব্ধ নয়।"
+      }
     }
   },
   "mindroomUi": {
@@ -1051,7 +1231,23 @@
         "triggerLabel": "ট্রিগার {{id}}",
         "sourceLabel": "উৎস {{source}}",
         "triageLabel": "ট্রায়াজ: {{reason}}",
-        "payloadLabel": "ইভেন্ট পেলোড JSON"
+        "payloadLabel": "ইভেন্ট পেলোড JSON",
+        "openTriggerLabel": "ট্রিগার {{id}} দেখুন"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}}টি করণীয় প্রস্তুত",
+        "readyCount_other": "{{count}}টি করণীয় প্রস্তুত",
+        "hide": "লুকান",
+        "show": "দেখান",
+        "copyId": "করণীয় আইডি {{id}} কপি করুন",
+        "moreItems_one": "+আরও {{count}}টি করণীয় আইটেম",
+        "moreItems_other": "+আরও {{count}}টি করণীয় আইটেম",
+        "priority": {
+          "critical": "গুরুতর",
+          "high": "উচ্চ",
+          "medium": "মাঝারি",
+          "low": "নিম্ন"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} কাজ করেছে",
@@ -1198,7 +1394,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "কমপ্যাক্ট ভিউ",
-        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
+        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)",
+        "mindroomSettings": "MindRoom সেটিংস"
       },
       "roomThreadOverview": {
         "advancedFilters": "উন্নত ফিল্টার",
@@ -1231,6 +1428,25 @@
         "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
         "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন",
         "showFullMessage": "পুরো বার্তা দেখুন"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "সব কাজ শেষ",
+        "resolvedCount_one": "{{count}}টি সমাধান করা হয়েছে",
+        "resolvedCount_other": "{{count}}টি সমাধান করা হয়েছে",
+        "snoozedCount_one": "{{count}}টি স্থগিত",
+        "snoozedCount_other": "{{count}}টি স্থগিত",
+        "showAll": "সব দেখান",
+        "startNewThreadBelow": "নিচে একটি নতুন থ্রেড শুরু করুন",
+        "recentlyResolved": "সম্প্রতি সমাধান করা হয়েছে",
+        "noMatchHeading": "কোনো থ্রেড আপনার ফিল্টারের সাথে মেলে না",
+        "hiddenByForMe_one": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByForMe_other": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByFilters_one": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "hiddenByFilters_other": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "adjustOrResetFilters": "এই রুমের থ্রেড দেখতে আপনার ফিল্টার সামঞ্জস্য বা রিসেট করুন।",
+        "turnOffForMe": "«আমার জন্য» বন্ধ করুন",
+        "resetAll": "সব রিসেট করুন",
+        "resetFilters": "ফিল্টার রিসেট করুন"
       }
     },
     "computer": {
@@ -1259,7 +1475,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
+      "awaitingAnswer": "আপনার উত্তরের অপেক্ষায়: {{tool}}",
       "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "groupWorkflows": "ওয়ার্কফ্লো · {{number}}",
       "groupSubagents": "সাব-এজেন্ট · {{number}}",
       "groupTools": "টুল · {{number}}",
       "tools_one": "{{count}}টি টুল",
@@ -1304,6 +1522,95 @@
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
       "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+    },
+    "workflowRun": {
+      "title": "ওয়ার্কফ্লো",
+      "status": {
+        "starting": "শুরু হচ্ছে",
+        "running": "চলছে",
+        "waiting": "আপনার অপেক্ষায়",
+        "completed": "সম্পন্ন",
+        "failed": "ব্যর্থ",
+        "cancelled": "বাতিল",
+        "interrupted": "বিঘ্নিত"
+      },
+      "counts": "{{done}} সম্পন্ন, {{running}} চলছে, {{waiting}} অপেক্ষায়",
+      "reused": "পুনরায় ব্যবহৃত: {{count}}",
+      "cost": "এখন পর্যন্ত {{spent}}, মোট প্রায় {{projected}}",
+      "costAtLeast": "এখন পর্যন্ত অন্তত {{spent}}",
+      "largeRun": "বড় রান",
+      "attempt": "চেষ্টা {{number}}",
+      "stop": "থামান",
+      "stopping": "থামানো হচ্ছে…",
+      "resume": "পুনরায় চালু করুন",
+      "runAgain": "আবার চালান",
+      "starting": "শুরু হচ্ছে…",
+      "failedCount_one": "{{count}}টি ব্যর্থ",
+      "failedCount_other": "{{count}}টি ব্যর্থ",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "ইতিমধ্যেই উত্তর দেওয়া হয়েছে।",
+          "noLongerOpen": "এই প্রশ্নটি আর খোলা নেই।",
+          "notAnOption": "এটি কোনো বিকল্প নয়।",
+          "notForYou": "শুধু যিনি রান শুরু করেছেন তিনিই উত্তর দিতে পারবেন।"
+        },
+        "noReply": "এখনো কোনো উত্তর আসেনি। আবার চেষ্টা করুন।",
+        "placeholder": "আপনার উত্তর লিখুন",
+        "send": "পাঠান",
+        "answered": "উত্তর দেওয়া হয়েছে: {{answer}}",
+        "cancelled": "বাতিল",
+        "onlyRequester": "শুধু {{name}} উত্তর দিতে পারবেন।"
+      },
+      "graph": "গ্রাফ",
+      "panel": {
+        "close": "বন্ধ করুন",
+        "resize": "ওয়ার্কফ্লো প্যানেলের আকার পরিবর্তন করুন",
+        "hide": "ওয়ার্কফ্লো লুকান",
+        "waitingForUpdate": "রানের পরবর্তী আপডেটের অপেক্ষায়…",
+        "stale": "আপডেট হচ্ছে না। শেষ আপডেট {{time}}।",
+        "log": "লগ",
+        "showMore": "আরও {{count}}টি দেখান",
+        "omitted": {
+          "queued_one": "এবং আরও {{count}}টি সারিতে",
+          "queued_other": "এবং আরও {{count}}টি সারিতে",
+          "running_one": "এবং আরও {{count}}টি চলছে",
+          "running_other": "এবং আরও {{count}}টি চলছে",
+          "waiting_one": "এবং আরও {{count}}টি অপেক্ষায়",
+          "waiting_other": "এবং আরও {{count}}টি অপেক্ষায়",
+          "failed_one": "এবং আরও {{count}}টি ব্যর্থ",
+          "failed_other": "এবং আরও {{count}}টি ব্যর্থ",
+          "done_one": "এবং আরও {{count}}টি সম্পন্ন",
+          "done_other": "এবং আরও {{count}}টি সম্পন্ন"
+        },
+        "askAgent": "বাকিগুলোর জন্য {{agent}}-কে জিজ্ঞাসা করুন।"
+      },
+      "group": {
+        "foreach": "প্রতিটির জন্য",
+        "parallel": "সমান্তরাল",
+        "run": "সংরক্ষিত ওয়ার্কফ্লো",
+        "workflow": "ভেতরের ওয়ার্কফ্লো",
+        "progress": "{{total}}-এর মধ্যে {{done}}",
+        "failed": "ব্যর্থ: {{count}}"
+      },
+      "node": {
+        "reused": "শেষ রান থেকে পুনরায় ব্যবহৃত",
+        "queued": "সারিতে",
+        "mayHaveRun": "চালানো হয়ে থাকতে পারে",
+        "waitingOn": {
+          "user": "আপনার উত্তরের অপেক্ষায়",
+          "approval": "অনুমোদনের অপেক্ষায়",
+          "peer": "একটি বার্তার অপেক্ষায়"
+        },
+        "sessionTurns_one": "{{count}}টি পালা",
+        "sessionTurns_other": "{{count}}টি পালা",
+        "result": "ফলাফল",
+        "error": "ত্রুটি",
+        "messages": "বার্তা",
+        "messagesTo": "{{name}}-এর কাছে বার্তা: {{count}}",
+        "open": "খুলুন",
+        "detailsUnavailable": "রিলোডের পরে বিস্তারিত আর উপলব্ধ নেই।",
+        "stop": "এজেন্ট থামান"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
@@ -1547,7 +1854,9 @@
     },
     "actions": {
       "goActivity": "কার্যকলাপে যান",
-      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে"
+      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে",
+      "openCurrentRoomMindroomSettings": "MindRoom রুম সেটিংস খুলুন",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} এর জন্য MindRoom সেটিংস খুলুন"
     },
     "recentVisits": {
       "recentlyOpened": "সম্প্রতি খোলা হয়েছে",
@@ -1621,6 +1930,7 @@
       "needsYou": "আপনাকে প্রয়োজন",
       "working": "কাজ চলছে",
       "later": "পরে",
+      "quiet": "নীরব",
       "done": "সম্পন্ন",
       "all": "সব",
       "description": {
@@ -1657,7 +1967,17 @@
     "forking": "{{title}} থেকে শাখা তৈরি হচ্ছে",
     "continueInNewThread": "নতুন থ্রেডে চালিয়ে যান",
     "forkCount_one": "{{count}}টি শাখা",
-    "forkCount_other": "{{count}}টি শাখা"
+    "forkCount_other": "{{count}}টি শাখা",
+    "forkedFromInRoom": "{{room}}-এ {{title}} থেকে শাখা তৈরি",
+    "forkedFromAnotherRoom": "অন্য রুম থেকে শাখা তৈরি",
+    "forkingIntoRoom": "{{title}} থেকে {{room}}-এ শাখা তৈরি হচ্ছে",
+    "forkToRoom": "অন্য রুমে শাখা তৈরি করুন…",
+    "forkToRoomTitle": "অন্য রুমে শাখা তৈরি করুন",
+    "forkToRoomSearchPlaceholder": "রুম খুঁজুন…",
+    "forkToRoomEmpty": "কোনো মিল থাকা রুম নেই",
+    "forkToRoomAgentWarning": "এই রুমের এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না",
+    "forkingFromRoom": "{{room}} থেকে শাখা তৈরি হচ্ছে",
+    "forkDraftAgentWarning": "এখানকার এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না"
   },
   "activity": {
     "title": "কার্যকলাপ",
@@ -1691,8 +2011,7 @@
       "replyAndOthers_one": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "replyAndOthers_other": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "finished": "{{name}} কাজ শেষ করেছে",
-      "stopped": "{{name}} থেমে গেছে",
-      "youReplied": "আপনি উত্তর দিয়েছেন"
+      "stopped": "{{name}} থেমে গেছে"
     },
     "newCount_one": "{{count}}টি নতুন",
     "newCount_other": "{{count}}টি নতুন",
@@ -1910,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "পিন ও ট্যাগ",
-        "text": "\"থ্রেড পিন করুন\" একটি থ্রেডকে তালিকার উপরে রাখে। \"থ্রেডের বিকল্প\"-এর \"ট্যাগ সম্পাদনা করুন\" দিয়ে থ্রেডে ট্যাগ দেওয়া যায়, আর ট্যাগ ধরে ফিল্টার করা যায়।"
+        "text": "কার্ডের পিন আইকনে চাপুন, অথবা \"থ্রেডের বিকল্প\" (⋯)-এ \"থ্রেড পিন করুন\" বেছে নিয়ে থ্রেডটিকে উপরে রাখুন। \"থ্রেডের বিকল্প\"-এর \"ট্যাগ সম্পাদনা করুন\" দিয়ে থ্রেডে ট্যাগ দেওয়া যায়, আর ট্যাগ ধরে ফিল্টার করা যায়।"
       },
       "filters": {
         "title": "ফিল্টার সমাধান হওয়া থ্রেড লুকায়",
@@ -1957,6 +2276,42 @@
       "settingsKeywords": "ট্যুর, টিউটোরিয়াল, গাইড, নির্দেশিকা, সাহায্য, পরিচিতি, থ্রেড",
       "howThreadsWork": "থ্রেড কীভাবে কাজ করে",
       "noThreadsHint": "একটি শুরু করতে নিচে বার্তা পাঠান।"
+    },
+    "help": {
+      "button": "সাহায্য ও গাইড",
+      "buttonWithTip": "সাহায্য ও গাইড (১টি টিপ)",
+      "title": "সাহায্য ও গাইড",
+      "subtitle": "দ্রুত গাইড",
+      "oneTip": "১টি টিপ",
+      "suggested": "আপনার জন্য পরামর্শ",
+      "showHow": "কীভাবে দেখুন",
+      "dismissTip": "টিপ সরিয়ে দিন",
+      "guidesHeading": "UI গাইড",
+      "guides": {
+        "conversation": "থ্রেড কীভাবে কাজ করে",
+        "resolve": "যা শেষ হয়েছে তা সমাধান করুন",
+        "filters": "সমাধান হওয়া থ্রেড খুঁজুন",
+        "snooze": "পরের জন্য স্থগিত করুন",
+        "pinAndTag": "থ্রেড পিন ও ট্যাগ করুন",
+        "views": "কমপ্যাক্ট বনাম থ্রেড ভিউ",
+        "activity": "কার্যকলাপ ও অনুমোদন"
+      },
+      "fullTour": "সম্পূর্ণ ট্যুর",
+      "shortcuts": "শর্টকাট"
+    },
+    "tips": {
+      "resolve": {
+        "title": "শেষ হওয়া থ্রেড সমাধান করুন",
+        "cardTitle": "শেষ হওয়া থ্রেড সমাধান করুন",
+        "roomSummary_one": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "roomSummary_other": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "allSummary_one": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "allSummary_other": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি",
+        "cardTextRoom_one": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextRoom_other": "এখানে {{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextAll_one": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।",
+        "cardTextAll_other": "{{count}}টি খোলা থ্রেড, এখনো কোনোটি সমাধান হয়নি। তালিকা গোছানো রাখতে শেষ হওয়াগুলো সমাধান করুন।"
+      }
     }
   },
   "threadNav": {
@@ -1972,6 +2327,7 @@
       "working": "কাজ চলছে",
       "later": "পরে",
       "idle": "নিষ্ক্রিয়",
+      "quiet": "নীরব",
       "resolved": "সমাধান করা"
     },
     "live": {
@@ -1996,7 +2352,11 @@
     "done": "সম্পন্ন"
   },
   "threadActions": {
-    "openBeside": "দ্বিতীয় কলামে খুলুন"
+    "openBeside": "দ্বিতীয় কলামে খুলুন",
+    "detailsSection": "বিবরণ",
+    "forkAndShareSection": "শাখা তৈরি ও শেয়ার",
+    "shareSection": "শেয়ার",
+    "viewSection": "প্রদর্শন"
   },
   "roomSchedules": {
     "thisThread": "এই থ্রেড",
@@ -2027,6 +2387,45 @@
     "cancellationSent": "বাতিলের অনুরোধ পাঠানো হয়েছে",
     "editDraftBusy": "এই সময়সূচী সম্পাদনা করার আগে আপনার বর্তমান খসড়া মুছুন।",
     "copyFailed": "কপি করা যায়নি। বিস্তারিত অংশ থেকে টাস্ক আইডি নির্বাচন করুন।"
+  },
+  "roomTriggers": {
+    "title": "ট্রিগার",
+    "openLabel": "ট্রিগার ({{total}})",
+    "loading": "লোড হচ্ছে…",
+    "empty": "এই রুমে কোনো ট্রিগার নেই।",
+    "emptyHint": "এই রুমের জন্য সেট করা ট্রিগারগুলো এখানে দেখা যাবে।",
+    "loadError": "ট্রিগার লোড করা যায়নি।",
+    "missingTrigger": "ট্রিগার {{id}} আর এই রুমে নেই।",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "রুম পর্যবেক্ষণ",
+      "external_event": "ইভেন্ট সাবস্ক্রিপশন",
+      "thread_tag": "থ্রেড ট্যাগ",
+      "unknown": "ট্রিগার"
+    },
+    "watchingRoom": "এই রুম পর্যবেক্ষণ করছে",
+    "stateOn": "চালু",
+    "stateOff": "বন্ধ",
+    "disabledExpired": "মেয়াদ উত্তীর্ণ",
+    "disabledOnceConsumed": "একবার ব্যবহৃত",
+    "lastFired": "সর্বশেষ চলেছে {{time}}",
+    "neverFired": "কোনো নথিভুক্ত চালনা নেই",
+    "destinationRoom": "রুম টাইমলাইন",
+    "destinationThread": "থ্রেড",
+    "destinationNewThread": "নতুন থ্রেড",
+    "destinationOrigin": "মূল থ্রেড",
+    "openThread": "থ্রেড খুলুন",
+    "prompt": "প্রম্পট",
+    "enable": "চালু করুন",
+    "disable": "বন্ধ করুন",
+    "updating": "আপডেট হচ্ছে...",
+    "toggleError": "ট্রিগার আপডেট করা যায়নি। আবার চেষ্টা করুন।",
+    "delete": "মুছুন",
+    "deleteConfirm": "এই ট্রিগারটি মুছে ফেলবেন?",
+    "keep": "রেখে দিন",
+    "deleteTrigger": "ট্রিগার মুছুন",
+    "deleting": "মুছে ফেলা হচ্ছে...",
+    "deleteError": "ট্রিগার মুছে ফেলা যায়নি। আবার চেষ্টা করুন।"
   },
   "home": {
     "greeting": {
@@ -2065,5 +2464,44 @@
   },
   "nav": {
     "usage": "ব্যবহার"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}}টি রুম",
+      "roomsCount_other": "{{count}}টি রুম",
+      "roomsFiltered": "{{total}}টির মধ্যে {{active}}টি রুম",
+      "switchSpace": "স্পেস পরিবর্তন করুন"
+    },
+    "roomFilter": {
+      "label": "রুম",
+      "ariaLabel": "রুম অনুযায়ী থ্রেড ফিল্টার করুন",
+      "ariaLabelActive": "রুম অনুযায়ী থ্রেড ফিল্টার করুন (নির্বাচিত: {{number}})",
+      "ariaLabelOne": "রুম: {{room}}",
+      "search": "রুম খুঁজুন",
+      "noMatch": "কোনো মিল থাকা রুম নেই"
+    },
+    "composer": {
+      "postTo": "পোস্ট করুন:",
+      "postToRoom": "#{{room}}-এ পোস্ট করুন",
+      "chooseRoomAria": "পোস্ট করার জন্য রুম নির্বাচন করুন",
+      "draftPinned": "#{{room}}-এর খসড়া",
+      "readOnly": "এই স্পেসের কোনো রুমে পোস্ট করার অনুমতি নেই।"
+    },
+    "loading": "থ্রেড লোড হচ্ছে...",
+    "empty": {
+      "noRooms": "এখানে থ্রেড দেখতে এই স্পেসের একটি রুমে যোগ দিন।",
+      "noThreads": "এই স্পেসে এখনো কোনো থ্রেড নেই।"
+    },
+    "error": {
+      "title": "স্পেসের থ্রেড লোড করা যায়নি"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "ডায়াগ্রাম",
+    "source": "সোর্স",
+    "showDiagram": "ডায়াগ্রাম দেখান",
+    "showSource": "সোর্স দেখান",
+    "mermaidDiagram": "Mermaid ডায়াগ্রাম",
+    "diagramUnavailable": "সোর্স দেখানো হচ্ছে"
   }
 }

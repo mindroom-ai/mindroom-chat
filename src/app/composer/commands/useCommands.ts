@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -8,6 +9,8 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { getMxIdServer, isUserId } from '../../matrix/matrix';
 import { getDirectCreatePath, getHomePath, withSearchParam } from '../../routes/pathUtils';
 import { readableReason } from '../../lib/errorReason';
+import { isDesktopAccessAvailable } from '../../lib/nativeShell';
+import { openDesktopAccessModal } from '../../navigation/desktopAccessModal';
 import { usePluginClientConfig } from '../../plugins/pluginConfig';
 import { registeredPlugins } from '../../plugins/registry';
 import { usePluginSlashCommands } from '../../plugins/slashCommands';
@@ -62,6 +65,8 @@ export type SlashCommand = {
   syntax?: string;
   /** For commands that act instead of sending a message; message commands have none. */
   run?: (args: string) => Promise<void>;
+  /** When true, `run` intercepts only a bare invocation with no arguments. */
+  runBareOnly?: true;
   /**
    * A plugin's command, which runs in the composer's thread: like a message, it waits for a root
    * the server has not confirmed yet.
@@ -191,6 +196,23 @@ export const runCommandAction = async (
 export const isActingCommand = (name: Command): boolean => ACTIONS[name] !== undefined;
 
 /**
+ * In the Mac desktop app, bare `/desktop` opens the native Mac Computer Access sheet for `roomId`
+ * while `/desktop <subcommand>` still passes through to the room as a MindRoom command.
+ */
+export const buildDesktopCommandOverride = (
+  roomId: string,
+  store?: ReturnType<typeof useStore>
+): Pick<SlashCommand, 'run' | 'runBareOnly'> | undefined => {
+  if (!isDesktopAccessAvailable()) return undefined;
+  return {
+    run: async () => {
+      openDesktopAccessModal({ roomId }, store);
+    },
+    runBareOnly: true,
+  };
+};
+
+/**
  * The slash commands for `room`, by name: each with its description in the person's language,
  * and for commands that act, `run` with the text typed after the name. MindRoom's commands follow
  * the built-in ones, without `run`: the message goes out as typed, for the room's agents. The
@@ -199,11 +221,13 @@ export const isActingCommand = (name: Command): boolean => ACTIONS[name] !== und
  */
 export const useCommands = (room: Room, threadId?: string): Record<string, SlashCommand> => {
   const client = useMatrixClient();
+  const store = useStore();
   const { navigateRoom } = useRoomNavigate();
   const goTo = useNavigate();
   const { t } = useTranslation();
   const pluginCommands = usePluginSlashCommands(registeredPlugins, usePluginClientConfig());
   const { leaveRoom } = useCallActions(client);
+  const desktopAccessAvailable = isDesktopAccessAvailable();
 
   return useMemo(() => {
     const context: CommandContext = {
@@ -226,6 +250,10 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
     const commands: Record<string, SlashCommand> = Object.fromEntries(entries);
     MINDROOM_COMMANDS.forEach(({ name, syntax, description }) => {
       if (Object.hasOwn(commands, name)) return;
+      const desktopOverride =
+        name === 'desktop' && desktopAccessAvailable
+          ? buildDesktopCommandOverride(room.roomId, store)
+          : undefined;
       commands[name] = {
         name,
         source: 'mindroom',
@@ -234,6 +262,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
         description: String(
           t(`mindroomUi.commands.descriptions.${name}`, { defaultValue: description })
         ),
+        ...desktopOverride,
       };
     });
     pluginCommands.forEach(({ name, description, run }) => {
@@ -248,5 +277,5 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       }
     });
     return commands;
-  }, [client, goTo, leaveRoom, navigateRoom, pluginCommands, room, t, threadId]);
+  }, [client, desktopAccessAvailable, goTo, leaveRoom, navigateRoom, pluginCommands, room, store, t, threadId]);
 };

@@ -29,9 +29,9 @@ export function ClientConfigProvider({
     };
   }, [value, depth]);
   return createElement(
-    depthContext.Provider,
+    depthContext,
     { value: depth },
-    createElement(configContext.Provider, { value }, children)
+    createElement(configContext, { value }, children)
   );
 }
 

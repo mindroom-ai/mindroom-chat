@@ -11,14 +11,18 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import classNames from 'classnames';
+import { Box, Text, type RectCords } from 'folds';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
+import { CompactSectionHeader } from './CompactSectionHeader';
 import { CompactThreadCard } from './CompactThreadCard';
+import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
+import { CompactCardActions, PinnedThreadsSection } from './CompactThreadCardChrome';
 import { SwipeList } from './CompactCardSwipe.css';
 import * as css from './CompactRoomView.css';
 import { useToggleThreadResolution } from '../tags/useRoomThreadTags';
@@ -29,7 +33,6 @@ import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteU
 import { useInitializeShownThread } from '../useInitializeShownThread';
 import { SecondThreadContext, setThreadDragData } from '../../navigation/secondThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
-import { IconTooltip } from '../../ui/IconTooltip';
 import { MOST_ROWS_IN_MOTION, useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
@@ -44,7 +47,11 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
+import {
+  COMPACT_THREAD_SECTION_ORDER,
+  type CompactThreadSection,
+  type CompactThreadSectionId,
+} from './compactThreadSections';
 import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
@@ -83,7 +90,7 @@ export type CompactRoomViewProps = {
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
-   * Set while the cards show in sections (Needs you, Working, Later and Done, each folding on its
+   * Set while the cards show in sections (Needs you, Working, Later, Quiet and Done, each folding
    * own): the snooze clock the list was filtered at (`useThreadIndex`'s `snoozeNow`), which the
    * sections classify at too, so they show what the selected tab does.
    */
@@ -95,14 +102,16 @@ export type CompactRoomViewProps = {
    * changing its stored fold, so switching to Done still shows Done threads immediately.
    */
   singleBucketTab?: ThreadWorkflowBucket;
+  /** Filter context and actions for the rich empty state when filters hide every thread. */
+  emptyState?: CompactRoomEmptyStateConfig;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
-const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
-const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
+const sectionRowKey = (id: CompactThreadSectionId): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionOfRow = (key: string): CompactThreadSectionId | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
-    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
+    ? (key.slice(SECTION_ROW_PREFIX.length) as CompactThreadSectionId)
     : undefined;
 
 type GuardProps = {
@@ -151,8 +160,6 @@ type CompactThreadCardRowProps = {
   menuOpen: boolean;
   resolveLabel: string;
   reopenLabel: string;
-  pinLabel: string;
-  moreLabel: string;
   onThreadClick: (threadRootId: string) => void;
   onSetResolved: (threadRootId: string, resolved: boolean) => void;
   onPin: (threadRootId: string, pinned: boolean) => void;
@@ -172,8 +179,6 @@ const CompactThreadCardRow = React.memo(
     menuOpen,
     resolveLabel,
     reopenLabel,
-    pinLabel,
-    moreLabel,
     onThreadClick,
     onSetResolved,
     onPin,
@@ -272,77 +277,24 @@ const CompactThreadCardRow = React.memo(
                 />
               )}
             />
-            <div className={css.CardAction}>
-              {showResolveAction && (
-                <IconTooltip label={resolveLabel} position="Top">
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      className={css.CardQuickAction}
-                      type="button"
-                      size="300"
-                      variant="Secondary"
-                      fill="None"
-                      radii="300"
-                      aria-label={resolveLabel}
-                      disabled={actionsDisabled}
-                      onClick={() => onSetResolved(rootId, true)}
-                      data-compact-thread-resolve="true"
-                    >
-                      <Icon size="100" src={Icons.Check} />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
-              {showPinAction && (
-                <IconTooltip label={pinLabel} position="Top">
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      className={css.CardQuickAction}
-                      type="button"
-                      size="300"
-                      variant="Secondary"
-                      fill="None"
-                      radii="300"
-                      aria-label={pinLabel}
-                      disabled={actionsDisabled}
-                      onClick={() => onPin(rootId, pinned)}
-                      data-compact-thread-pin="true"
-                    >
-                      <Icon size="100" src={Icons.Pin} filled={pinned} />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
-              <IconTooltip label={moreLabel} position="Top">
-                {(triggerRef) => (
-                  <IconButton
-                    ref={triggerRef}
-                    className={css.CardMenuButton}
-                    type="button"
-                    size="300"
-                    variant="Secondary"
-                    fill="None"
-                    radii="300"
-                    aria-label={moreLabel}
-                    aria-haspopup="menu"
-                    aria-expanded={menuOpen}
-                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                      onOpenMenu({
-                        roomId,
-                        rootId,
-                        viewModel,
-                        anchor: event.currentTarget.getBoundingClientRect(),
-                        trigger: event.currentTarget,
-                      })
-                    }
-                  >
-                    <Icon size="100" src={Icons.HorizontalDots} />
-                  </IconButton>
-                )}
-              </IconTooltip>
-            </div>
+            <CompactCardActions
+              pinned={pinned}
+              showResolveAction={showResolveAction}
+              showPinAction={showPinAction}
+              actionsDisabled={actionsDisabled}
+              menuOpen={menuOpen}
+              onResolve={() => onSetResolved(rootId, true)}
+              onPin={() => onPin(rootId, pinned)}
+              onOpenMenu={(event) =>
+                onOpenMenu({
+                  roomId,
+                  rootId,
+                  viewModel,
+                  anchor: event.currentTarget.getBoundingClientRect(),
+                  trigger: event.currentTarget,
+                })
+              }
+            />
           </CompactCardSwipe>
         </div>
       </div>
@@ -371,6 +323,7 @@ export function CompactRoomView({
   filterBarShown = false,
   sectionsNow,
   singleBucketTab,
+  emptyState,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -425,7 +378,7 @@ export function CompactRoomView({
         : sectionsChoice.folded,
     [sectionsChoice.folded, singleBucketTab]
   );
-  const toggleFold = (id: ThreadWorkflowBucket) => {
+  const toggleFold = (id: CompactThreadSectionId) => {
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
@@ -596,6 +549,9 @@ export function CompactRoomView({
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
   }, []);
+  const restoreListFocus = useCallback(() => {
+    viewRef.current?.focus({ preventScroll: true });
+  }, []);
 
   // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
   // the focus moves on to the next card: under a filter, either may take the card off the list.
@@ -661,9 +617,6 @@ export function CompactRoomView({
 
   const resolveLabel = t('thread.resolve');
   const reopenLabel = t('threadActions.reopen');
-  const pinLabel = t('threadNav.pin');
-  const unpinLabel = t('threadNav.unpin');
-  const moreLabel = t('threadActions.more');
   const renderCard = (viewModel: CompactThreadCardViewModel) => {
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
@@ -693,8 +646,6 @@ export function CompactRoomView({
         menuOpen={menu?.rootId === rootId && !!menuModel}
         resolveLabel={resolveLabel}
         reopenLabel={reopenLabel}
-        pinLabel={pinned ? unpinLabel : pinLabel}
-        moreLabel={moreLabel}
         onThreadClick={handleCardClick}
         onSetResolved={handleSetResolved}
         onPin={handlePin}
@@ -703,38 +654,18 @@ export function CompactRoomView({
     );
   };
 
-  const renderSectionHeader = (id: ThreadWorkflowBucket) => {
+  const renderSectionHeader = (id: CompactThreadSectionId) => {
     const key = sectionRowKey(id);
-    const fixedOpen = id === singleBucketTab;
-    const closed = folded.includes(id);
-    const count = sectionCounts.get(id) ?? 0;
-    const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
-      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {fixedOpen ? (
-          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
-            {label}
-          </Button>
-        ) : (
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-expanded={!closed}
-            onClick={() => toggleFold(id)}
-            before={
-              <Icon
-                size="100"
-                src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-                data-directional={closed || undefined}
-              />
-            }
-          >
-            {label}
-          </Button>
-        )}
-      </div>
+      <CompactSectionHeader
+        key={key}
+        id={id}
+        count={sectionCounts.get(id) ?? 0}
+        closed={folded.includes(id)}
+        fixedOpen={id === singleBucketTab}
+        onToggle={toggleFold}
+        motionRow={key}
+      />
     );
   };
   const renderRow = (row: CompactBlockRow) => {
@@ -763,6 +694,8 @@ export function CompactRoomView({
       />
     );
   };
+  const showRichEmptyState =
+    threadRootIds.length === 0 && emptyState !== undefined && threadRecordMap.size > 0;
   return (
     <Box
       ref={viewRef}
@@ -776,7 +709,7 @@ export function CompactRoomView({
     >
       <Box
         ref={contentRef}
-        className={`${SwipeList} ${css.Cards}`}
+        className={classNames(SwipeList, css.Cards, showRichEmptyState && css.CardsEmpty)}
         style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
@@ -802,29 +735,33 @@ export function CompactRoomView({
           </Text>
         )}
         {!!groups.pinned?.length && (
-          <Box
-            as="section"
-            direction="Column"
-            gap="100"
-            className={css.PinnedSection}
-            aria-label={t('threadNav.pinned')}
-            data-pinned-threads="true"
-          >
-            <Box alignItems="Center" gap="100">
-              <Icon src={Icons.Pin} size="100" />
-              <Text as="h2" size="L400">
-                {t('threadNav.pinned')}
-              </Text>
-            </Box>
-            {blocks.rows[0]?.map(renderRow)}
-          </Box>
+          <PinnedThreadsSection>{blocks.rows[0]?.map(renderRow)}</PinnedThreadsSection>
         )}
         {threadRootIds.length === 0 ? (
-          <Box className={css.EmptyState}>
-            <Text size="T300" priority="300">
-              {t('mindroomUi.threads.compactRoomView.noThreads')}
-            </Text>
-          </Box>
+          showRichEmptyState ? (
+            <CompactRoomEmptyState
+              room={room}
+              threadRecordMap={threadRecordMap}
+              filterState={emptyState.filterState}
+              now={emptyState.now}
+              canCompose={emptyState.canCompose}
+              indexPending={indexPending && !unreachable}
+              canToggle={canToggle}
+              updatingThreadRootIds={updatingThreadRootIds}
+              onThreadClick={onThreadClick}
+              onSetResolved={handleSetResolved}
+              onReset={emptyState.onReset}
+              onToggleForMe={emptyState.onToggleForMe}
+              onShowSnoozed={emptyState.onShowSnoozed}
+              onRestoreFocus={restoreListFocus}
+            />
+          ) : (
+            <Box className={css.EmptyState}>
+              <Text size="T300" priority="300">
+                {t('mindroomUi.threads.compactRoomView.noThreads')}
+              </Text>
+            </Box>
+          )
         ) : (
           blocks.rows.slice(1).flatMap((rows, i) => {
             const section = heldSections?.[i]?.id;

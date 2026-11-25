@@ -13,6 +13,7 @@ const unread = vi.hoisted(() => ({
   value: undefined as undefined | { total: number; highlight: number },
 }));
 const activity = vi.hoisted(() => ({ badge: { count: 0, needsYou: false } }));
+const railButtons = vi.hoisted(() => ({ help: true }));
 const navigation = vi.hoisted(() => ({
   selected: undefined as string | undefined,
   search: '',
@@ -39,6 +40,11 @@ vi.mock('react-i18next', async () => {
 });
 vi.mock('../lib/user-agent', () => ({ isMacOS: () => false, isIOS: () => false }));
 vi.mock('../matrix/state/useUnread', () => ({ useRoomsUnread: () => unread.value }));
+vi.mock('../settings/railButtons', () => ({ useRailButtons: () => railButtons }));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: ({ inTopBar }: { inTopBar?: boolean }) =>
+    React.createElement('button', { 'data-help': inTopBar }),
+}));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: ({ inTopBar }: { inTopBar?: boolean }) =>
     React.createElement('button', { 'data-account': inTopBar }),
@@ -47,10 +53,10 @@ vi.mock('../activity/useActivityRows', () => ({ useActivityBadge: () => activity
 vi.mock('../activity/ActivitySheet', () => ({
   ActivitySheet: () => React.createElement('section', { 'data-activity-sheet': true }),
 }));
-vi.mock('./rail/ActivityTab', () => ({
+vi.mock('../activity/ActivityBadge', () => ({
   ActivityBadge: ({ count }: { count: number }) => React.createElement('b', null, String(count)),
 }));
-vi.mock('./PhoneTopBar.css', () => ({
+vi.mock('../ui/sidebar/PhoneTopBar.css', () => ({
   PhoneTopBar: 'bar',
   PhoneChrome: 'chrome',
   ReturnToCallRow: 'call-row',
@@ -62,7 +68,7 @@ vi.mock('./PhoneTopBar.css', () => ({
   BellFrame: 'bell',
   BellBadge: 'bell-badge',
 }));
-vi.mock('../command-palette/CommandPaletteSearchField.css', () => ({
+vi.mock('../ui/SearchField.css', () => ({
   SearchField: 'field',
   SearchPlaceholder: 'placeholder',
   ShortcutHint: 'shortcut-hint',
@@ -95,6 +101,7 @@ afterEach(() => {
   navigation.search = '';
   unread.value = undefined;
   activity.badge = { count: 0, needsYou: false };
+  railButtons.help = true;
   vi.clearAllMocks();
 });
 
@@ -190,8 +197,16 @@ describe('PhoneTopBar', () => {
     activity.badge = { count: 0, needsYou: false };
   });
 
-  it('puts the account at the end of the bar', () => {
+  it('puts help and the account at the end of the bar', () => {
     const { renderer } = renderBar();
+    expect(renderer.root.find((node) => node.props['data-help'] === true)).toBeTruthy();
+    expect(renderer.root.find((node) => node.props['data-account'] === true)).toBeTruthy();
+  });
+
+  it('hides help when Help & guides is turned off in Sidebar settings', () => {
+    railButtons.help = false;
+    const { renderer } = renderBar();
+    expect(renderer.root.findAll((node) => node.props['data-help'] === true)).toHaveLength(0);
     expect(renderer.root.find((node) => node.props['data-account'] === true)).toBeTruthy();
   });
 });

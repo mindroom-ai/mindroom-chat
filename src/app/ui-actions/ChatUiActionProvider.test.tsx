@@ -57,7 +57,7 @@ vi.mock('../lib/dom', async (importOriginal) => ({
 type HarnessProps = React.PropsWithChildren<ChatUiActionOptions>;
 function Harness({ children, ...options }: HarnessProps) {
   const actions = useChatUiActions(options);
-  return <ChatUiActionContext.Provider value={actions}>{children}</ChatUiActionContext.Provider>;
+  return <ChatUiActionContext value={actions}>{children}</ChatUiActionContext>;
 }
 
 describe('Chat UI request buttons', () => {

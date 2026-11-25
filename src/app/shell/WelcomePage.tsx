@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useEffect, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Button, Text, color, toRem } from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
@@ -228,10 +228,11 @@ export function WelcomePage() {
   const showSetup = useWelcomeSetupPrompt();
   const setTour = useSetAtom(tourAtom);
   const agents = useHomeAgents();
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   return (
     <Page>
-      <div className={css.Scroll}>
+      <div ref={dropZoneRef} className={css.Scroll}>
         <div className={css.Column}>
           {agents.length > 0 ? (
             <Greeting />
@@ -245,7 +246,7 @@ export function WelcomePage() {
               </Text>
             </Box>
           )}
-          <HomeAsk agents={agents} />
+          <HomeAsk agents={agents} fileDropContainerRef={dropZoneRef} />
           <HomeRecentThreads />
           <UnverifiedDeviceCard />
           <KeyBackupNudge />

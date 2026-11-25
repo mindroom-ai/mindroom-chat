@@ -122,7 +122,7 @@ export const usePowerLevels = (room: Room): IPowerLevels => {
 const PowerLevelsContext = createContext<IPowerLevels | undefined>(undefined);
 
 /** Shares one room's power levels with everything rendered inside that room. */
-export const PowerLevelsContextProvider = PowerLevelsContext.Provider;
+export const PowerLevelsContextProvider = PowerLevelsContext;
 
 /** The power levels of the surrounding `PowerLevelsContextProvider`. */
 export const usePowerLevelsContext = (): IPowerLevels => {

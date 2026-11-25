@@ -73,6 +73,8 @@ const startFor = (
 export type AvatarImage = {
   /** What the `<img>` shows; undefined while there is nothing to show, so the fallback renders. */
   imageSrc: string | undefined;
+  /** Whether an authenticated fetch for `src` is currently in flight. */
+  loading: boolean;
   /** For the `<img>`'s `onError`. */
   onImageError: () => void;
 };
@@ -84,8 +86,12 @@ export type AvatarImage = {
  * available, and may change back. A picture that failed is tried again when the client's sync
  * recovers, since the homeserver may only have been out of reach.
  */
-export function useAvatarImage(src: string | undefined): AvatarImage {
-  const mx = useClientIfAny();
+export function useAvatarImage(
+  src: string | undefined,
+  clientOverride?: AvatarMediaClient
+): AvatarImage {
+  const contextClient = useClientIfAny();
+  const mx = clientOverride ?? contextClient;
   const versions = useSpecVersions();
   const [state, setState] = useState<ImageState>(() => startFor(src, mx, versions));
   const sync = getReconnects(mx);
@@ -143,5 +149,5 @@ export function useAvatarImage(src: string | undefined): AvatarImage {
   let imageSrc: string | undefined;
   if (current.source === 'direct') imageSrc = src;
   else if (current.source === 'fetched') imageSrc = current.objectUrl;
-  return { imageSrc, onImageError };
+  return { imageSrc, loading: fetching, onImageError };
 }

@@ -262,6 +262,13 @@
       "threadIn": "{{room}}의 스레드",
       "messageElsewhere": "다른 방의 메시지"
     },
+    "callout": {
+      "note": "참고",
+      "tip": "팁",
+      "important": "중요",
+      "warning": "경고",
+      "caution": "주의"
+    },
     "deviceVerification": {
       "acceptStalled": "다른 세션이 응답하지 않았습니다. 이 창을 닫고 확인을 다시 시작하세요."
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "스페이스 개요"
+    },
+    "footnote": {
+      "backToReference": "참조 위치로 돌아가기"
     }
   },
   "featureUi": {
@@ -408,6 +418,7 @@
       },
       "sidebar": {
         "title": "사이드바",
+        "navigation": "탐색",
         "threads": "사이드바에 스레드 표시",
         "threadsDescription": "모든 방의 스레드를 한 목록에서 봅니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "canvasesDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
@@ -420,7 +431,9 @@
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다.",
         "usage": "사이드바에 사용량 표시",
-        "usageDescription": "런타임이 보고하면 공급자 사용 한도와 7일 토큰 사용량을 표시합니다. 숨겨진 경우 홈의 ⋮ 메뉴나 모델 선택기에서 열 수 있습니다."
+        "usageDescription": "런타임이 보고하면 공급자 사용 한도와 7일 토큰 사용량을 표시합니다. 숨겨진 경우 홈의 ⋮ 메뉴나 모델 선택기에서 열 수 있습니다.",
+        "help": "사이드바에 도움말 및 가이드 표시",
+        "helpDescription": "빠른 가이드, 둘러보기, 키보드 단축키입니다. 숨기면 설정의 정보 또는 명령 팔레트({{shortcut}})에서 둘러보기를, {{helpShortcut}}로 단축키를 열 수 있습니다."
       },
       "plugins": {
         "title": "플러그인",
@@ -435,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "나",
-          "app": "이 앱",
-          "agents": "에이전트 및 연결",
-          "help": "도움말 및 고급"
+          "app": "앱",
+          "mindroom": "MindRoom",
+          "system": "시스템"
         },
         "pages": {
           "privacy": "개인정보 및 보안",
           "language": "언어 및 지역",
-          "storage": "저장공간 및 오프라인"
+          "storage": "저장공간 및 오프라인",
+          "agentsServers": "에이전트 및 서버"
         }
       },
       "search": {
@@ -457,13 +471,16 @@
       "advanced": "고급",
       "sections": {
         "display": "표시",
-        "privacy": "개인정보"
+        "privacy": "개인정보",
+        "replying": "답장",
+        "connectionsComputers": "연결 및 컴퓨터"
       },
       "computers": {
         "inUse": "사용 중인 서버",
         "inUseNone": "설정된 서버가 없어 이 기기에서는 컴퓨터가 꺼져 있습니다.",
         "useServer": "{{host}} 사용",
-        "foundNotSaved": "에이전트에서 찾았지만 저장되지 않았습니다. 여기에서 키를 입력하려면 저장하세요."
+        "foundNotSaved": "에이전트에서 찾았지만 저장되지 않았습니다. 여기에서 키를 입력하려면 저장하세요.",
+        "foundNotSavedChoose": "에이전트에서 찾았지만 저장되지 않았습니다. 신뢰하는 서버를 선택하세요. 이 기기의 모든 방에서 해당 서버를 사용합니다."
       },
       "keywords": {
         "theme": "다크 모드, 라이트 모드, 야간 모드, 색상",
@@ -705,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "초대할 권한이 없습니다",
-      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다"
+      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다",
+      "viewSection": "보기",
+      "roomSection": "방",
+      "preferencesSection": "환경설정",
+      "notificationModeAll": "모두",
+      "notificationModeMentions": "멘션"
     },
     "phoneNav": {
       "navigation": "탐색"
@@ -890,6 +912,164 @@
         "startEntireScreenShare": "전체 화면 공유",
         "stopEntireScreenShare": "전체 화면 공유 중지"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "전체 접근 허용",
+        "cancel": "취소",
+        "chooseLimits": "제한 설정...",
+        "close": "닫기",
+        "disconnect": "연결 해제",
+        "done": "완료",
+        "editLimits": "제한 편집...",
+        "switchToFull": "전체 접근으로 전환"
+      },
+      "banner": {
+        "restrictedActive": "이 Mac에서 제한된 접근이 활성화되어 있습니다.",
+        "shellReadyWaitingPermissions": "셸 준비됨 - macOS 화면 및 입력 권한 대기 중",
+        "waitingPermissions": "macOS 화면 및 입력 권한 대기 중"
+      },
+      "browser": {
+        "brewHint": "또는 Homebrew로 설치:",
+        "confirmOnMac": "접근을 승인하려면 {{mac}}에서 이 코드를 확인하세요.",
+        "copied": "복사됨",
+        "copyCommand": "명령 복사",
+        "copyFailed": "복사 실패",
+        "downloadMacApp": "Mac용 MindRoom Chat 다운로드",
+        "noMacDescription": "{{agent}}에게 Mac 접근 권한을 주려면 Mac용 MindRoom Chat에서 이 계정으로 로그인하세요.",
+        "paired": "{{agent}}이(가) 이제 {{mac}}과(와) 페어링되었습니다.",
+        "relayDescription": "{{mac}}으로 페어링 요청을 보냅니다. Mac에서 6자리 코드를 확인하고 전체 접근 또는 제한을 선택하게 됩니다.",
+        "selectMac": "Mac 선택",
+        "sendToMac": "{{mac}}(으)로 보내기",
+        "waitingOnMac": "{{mac}}에서 확인 대기 중..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}}은(는) 재시작 후에도 묻지 않고 화면을 보고, 모든 앱을 제어하며, macOS 사용자로 셸 명령을 실행할 수 있습니다. 메뉴 막대에서 언제든지 중지할 수 있습니다.",
+        "upgradeHeading": "전체 접근으로 전환"
+      },
+      "empty": {
+        "noAgents": "이 룸에서 MindRoom 에이전트를 찾을 수 없습니다."
+      },
+      "incoming": {
+        "decline": "거절",
+        "failedTitle": "{{agent}} 페어링 실패",
+        "sasHint": "승인하기 전에 이 6자리 코드가 {{requester}}와(과) 일치하는지 확인하세요.",
+        "title": "{{requester}}에서 {{agent}}을(를) 페어링할까요?"
+      },
+      "limits": {
+        "addFolder": "폴더 추가...",
+        "allowShellOnMac": "이 Mac에서 셸 명령 허용",
+        "foldersLabel": "읽기 전용 폴더",
+        "fullNote": "철회 시까지 전체 접근을 선택하면 철회할 때까지 전체 화면 제어와 셸 자동 승인이 활성화됩니다.",
+        "fullScreen": "전체 화면 (primary-screen)",
+        "gui15m": "15분 동안 제어 허용",
+        "gui1h": "1시간 동안 제어 허용",
+        "guiFull": "철회 시까지 전체 접근",
+        "guiLabel": "화면 및 입력 제어",
+        "guiObserve": "관찰만 허용",
+        "installedApps": "허용된 Mac 앱",
+        "loadingApps": "설치된 앱 불러오는 중...",
+        "needCapability": "전체 화면, 하나 이상의 앱, 폴더 또는 셸 명령을 활성화하세요.",
+        "noAppsFound": "설치된 Mac 앱을 찾을 수 없습니다.",
+        "noFolders": "추가된 읽기 전용 폴더가 없습니다.",
+        "perAgentHeading": "{{agent}}의 제어 및 셸 승인 (에이전트별)",
+        "removeFolder": "제거",
+        "save": "제한을 두고 허용",
+        "saveChanges": "제한 저장",
+        "sharedHeading": "이 Mac의 공유 앱, 폴더 및 셸 (페어링된 모든 에이전트에 적용)",
+        "sharedWithOthersHint": "이 Mac의 다른 페어링된 에이전트와 공유됨",
+        "shell15m": "15분 동안 자동 승인",
+        "shell1h": "1시간 동안 자동 승인",
+        "shellApprovalLabel": "셸 승인",
+        "shellAsk": "매 명령마다 묻기",
+        "shellDisabledHint": "셸 승인을 구성하려면 아래에서 \"이 Mac에서 셸 명령 허용\"을 켜세요.",
+        "shellUntilRevoked": "철회 시까지 자동 승인"
+      },
+      "permissions": {
+        "accessibility": "손쉬운 사용",
+        "accessibilityGrantedHint": "키보드 및 마우스 제어가 허용되었습니다.",
+        "accessibilityMissingHint": "키보드 및 마우스 제어를 허용합니다. 활성화하면 자동으로 업데이트됩니다.",
+        "allowAccessibility": "손쉬운 사용 허용",
+        "allowScreenRecording": "화면 기록 허용",
+        "allowed": "허용됨",
+        "relaunchToActivate": "다시 실행하여 화면 제어 활성화",
+        "screenRecording": "화면 기록",
+        "screenRecordingGrantedHint": "화면 보기가 허용되었습니다.",
+        "screenRecordingMissingHint": "페어링된 에이전트가 화면을 볼 수 있도록 허용합니다.",
+        "screenRecordingRelaunchHint": "macOS가 화면 기록을 활성화하도록 MindRoom Chat을 한 번 다시 실행하세요."
+      },
+      "picker": {
+        "subtitle": "이 룸에서 이 Mac에 연결할 에이전트를 선택하세요."
+      },
+      "roomHeader": {
+        "giveAccess": "Mac 접근 허용",
+        "manageAccess": "Mac 접근"
+      },
+      "sas": {
+        "label": "확인 코드"
+      },
+      "settings": {
+        "bridgeState": "브리지 상태",
+        "helperVersion": "헬퍼 버전",
+        "keywords": "mac, 컴퓨터 접근, 데스크톱 제어, 셸, shell, 손쉬운 사용, 화면 기록, 권한",
+        "lastError": "마지막 오류",
+        "manage": "관리",
+        "noPairedAgentsDescription": "에이전트가 있는 룸을 열고 Mac 접근 허용을 선택해 연결하세요.",
+        "noPairedAgentsTitle": "페어링된 에이전트가 없습니다",
+        "notSignedIn": "로그인되지 않음",
+        "pairedAgentsTitle": "페어링된 에이전트",
+        "permissionsTitle": "macOS 권한",
+        "revokeAll": "모든 접근 권한 철회",
+        "revokeAllDescription": "페어링된 모든 에이전트의 연결을 해제하고 이 Mac의 컴퓨터 접근을 즉시 중지합니다.",
+        "runningShellTitle": "실행 중인 셸 명령",
+        "savedSession": "저장된 Matrix 세션",
+        "sectionTitle": "이 Mac",
+        "statusActive": "활성",
+        "statusDescription": "이 Mac을 보고 제어할 수 있는 MindRoom 에이전트를 관리합니다.",
+        "statusStopped": "중지됨",
+        "statusTitle": "Mac 컴퓨터 접근",
+        "statusUnavailable": "이 Mac에서 사용할 수 없음",
+        "stopCommand": "중지",
+        "title": "이 Mac",
+        "unavailableDescription": "Mac 컴퓨터 접근에는 Apple Silicon용 Mac용 MindRoom Chat이 필요합니다.",
+        "unknown": "알 수 없음"
+      },
+      "shellApproval": {
+        "approveOnce": "한 번 승인",
+        "approveOnceCountdown": "한 번 승인 ({{seconds}})",
+        "autoApprove15m": "15분 자동 승인",
+        "autoApprove15mCountdown": "15분 자동 승인 ({{seconds}})",
+        "cwdLabel": "작업 디렉터리",
+        "deny": "거부",
+        "empty": "승인을 기다리는 셸 명령이 없습니다.",
+        "title": "셸 명령을 승인할까요?"
+      },
+      "status": {
+        "fullAccess": "전체 접근",
+        "fullAccessActive": "전체 접근 활성",
+        "permissionsNeeded": "권한 필요",
+        "restricted": "제한됨",
+        "shellReady": "셸 준비됨"
+      },
+      "steps": {
+        "confirming": "페어링 확인 중...",
+        "finishing": "접근 활성화 중...",
+        "pairing": "{{agent}}과(와) 페어링 중...",
+        "requestingOffer": "{{agent}}에 연결 중...",
+        "signingIn": "이 Mac에서 로그인 중..."
+      },
+      "title": {
+        "allowFull": "{{agent}}에게 이 Mac의 전체 접근 권한을 허용할까요?",
+        "browserPair": "{{agent}}에게 Mac 접근 권한 부여",
+        "chooseLimits": "{{agent}}의 제한 선택",
+        "default": "Mac 컴퓨터 접근",
+        "editLimits": "{{agent}}의 제한 편집",
+        "manageAgent": "이 Mac의 {{agent}}",
+        "pickAgent": "에이전트에게 이 Mac 접근 권한 부여"
+      },
+      "unavailable": {
+        "description": "이 기기에서는 Mac 컴퓨터 접근을 사용할 수 없습니다."
+      }
     }
   },
   "mindroomUi": {
@@ -1032,7 +1212,21 @@
         "triggerLabel": "트리거 {{id}}",
         "sourceLabel": "소스 {{source}}",
         "triageLabel": "트리아지: {{reason}}",
-        "payloadLabel": "이벤트 페이로드 JSON"
+        "payloadLabel": "이벤트 페이로드 JSON",
+        "openTriggerLabel": "트리거 {{id}} 보기"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "할 일 {{count}}개 준비됨",
+        "hide": "숨기기",
+        "show": "표시",
+        "copyId": "할 일 ID {{id}} 복사",
+        "moreItems_other": "+실행 가능한 항목 {{count}}개 더 있음",
+        "priority": {
+          "critical": "긴급",
+          "high": "높음",
+          "medium": "보통",
+          "low": "낮음"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
@@ -1163,7 +1357,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "간결 보기",
-        "threadFiltersActive": "스레드 필터 (사용 중)"
+        "threadFiltersActive": "스레드 필터 (사용 중)",
+        "mindroomSettings": "MindRoom 설정"
       },
       "roomThreadOverview": {
         "advancedFilters": "고급 필터",
@@ -1196,6 +1391,21 @@
         "expandAllLong": "긴 메시지 모두 펼치기",
         "collapseAllLong": "긴 메시지 모두 접기",
         "showFullMessage": "전체 메시지 보기"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "모두 확인했습니다",
+        "resolvedCount_other": "해결됨 {{count}}개",
+        "snoozedCount_other": "일시 중지 {{count}}개",
+        "showAll": "모두 보기",
+        "startNewThreadBelow": "아래에서 새 스레드 시작",
+        "recentlyResolved": "최근 해결됨",
+        "noMatchHeading": "필터와 일치하는 스레드가 없습니다",
+        "hiddenByForMe_other": "열린 스레드 {{count}}개가 '나를 위한 스레드' 필터로 숨겨져 있습니다.",
+        "hiddenByFilters_other": "열린 스레드 {{count}}개가 필터로 숨겨져 있습니다.",
+        "adjustOrResetFilters": "이 방의 스레드를 보려면 필터를 조정하거나 재설정하세요.",
+        "turnOffForMe": "'나를 위한 스레드' 끄기",
+        "resetAll": "모두 재설정",
+        "resetFilters": "필터 재설정"
       }
     },
     "computer": {
@@ -1224,7 +1434,9 @@
     "backgroundJobs": {
       "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
       "finished": "완료됨: {{tool}}",
+      "awaitingAnswer": "답변 대기 중: {{tool}}",
       "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨",
+      "groupWorkflows": "워크플로 · {{number}}",
       "groupSubagents": "하위 에이전트 · {{number}}",
       "groupTools": "도구 · {{number}}",
       "tools_other": "도구 {{count}}개",
@@ -1264,6 +1476,88 @@
       },
       "jobTotal_other": "백그라운드 작업 {{count}}개",
       "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
+    },
+    "workflowRun": {
+      "title": "워크플로",
+      "status": {
+        "starting": "시작 중",
+        "running": "실행 중",
+        "waiting": "응답 대기 중",
+        "completed": "완료",
+        "failed": "실패",
+        "cancelled": "취소됨",
+        "interrupted": "중단됨"
+      },
+      "counts": "완료 {{done}}, 실행 중 {{running}}, 대기 중 {{waiting}}",
+      "reused": "재사용: {{count}}",
+      "cost": "지금까지 {{spent}}, 총 약 {{projected}}",
+      "costAtLeast": "지금까지 최소 {{spent}}",
+      "largeRun": "대규모 실행",
+      "attempt": "시도 {{number}}",
+      "stop": "중지",
+      "stopping": "중지 중…",
+      "resume": "재개",
+      "runAgain": "다시 실행",
+      "starting": "시작 중…",
+      "failedCount_other": "{{count}}개 실패",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "이미 답변했습니다.",
+          "noLongerOpen": "이 질문은 더 이상 열려 있지 않습니다.",
+          "notAnOption": "선택지에 없는 항목입니다.",
+          "notForYou": "실행을 시작한 사람만 답변할 수 있습니다."
+        },
+        "noReply": "아직 응답이 없습니다. 다시 시도하세요.",
+        "placeholder": "답변 입력",
+        "send": "보내기",
+        "answered": "답변함: {{answer}}",
+        "cancelled": "취소됨",
+        "onlyRequester": "{{name}}님만 답변할 수 있습니다."
+      },
+      "graph": "그래프",
+      "panel": {
+        "close": "닫기",
+        "resize": "워크플로 패널 크기 조절",
+        "hide": "워크플로 숨기기",
+        "waitingForUpdate": "다음 업데이트를 기다리는 중…",
+        "stale": "업데이트되지 않음. 마지막 업데이트 {{time}}.",
+        "log": "로그",
+        "showMore": "{{count}}개 더 보기",
+        "omitted": {
+          "queued_other": "대기열에 {{count}}개 더 있음",
+          "running_other": "실행 중 {{count}}개 더 있음",
+          "waiting_other": "대기 중 {{count}}개 더 있음",
+          "failed_other": "실패 {{count}}개 더 있음",
+          "done_other": "완료 {{count}}개 더 있음"
+        },
+        "askAgent": "나머지는 {{agent}}에게 물어보세요."
+      },
+      "group": {
+        "foreach": "각 항목별",
+        "parallel": "병렬",
+        "run": "저장된 워크플로",
+        "workflow": "중첩 워크플로",
+        "progress": "{{total}} 중 {{done}}",
+        "failed": "실패: {{count}}"
+      },
+      "node": {
+        "reused": "이전 실행에서 재사용됨",
+        "queued": "대기열에 있음",
+        "mayHaveRun": "실행되었을 수 있음",
+        "waitingOn": {
+          "user": "답변 대기 중",
+          "approval": "승인 대기 중",
+          "peer": "메시지 대기 중"
+        },
+        "sessionTurns_other": "{{count}}턴",
+        "result": "결과",
+        "error": "오류",
+        "messages": "메시지",
+        "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
+        "open": "열기",
+        "detailsUnavailable": "새로고침 후에는 세부 정보를 볼 수 없습니다.",
+        "stop": "에이전트 중지"
+      }
     },
     "subagents": {
       "title": "하위 에이전트",
@@ -1500,7 +1794,9 @@
     },
     "actions": {
       "goActivity": "활동으로 이동",
-      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
+      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목",
+      "openCurrentRoomMindroomSettings": "MindRoom 방 설정 열기",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}의 MindRoom 설정 열기"
     },
     "recentVisits": {
       "recentlyOpened": "최근에 연 항목",
@@ -1574,6 +1870,7 @@
       "needsYou": "내 응답 필요",
       "working": "작업 중",
       "later": "나중에",
+      "quiet": "조용함",
       "done": "완료",
       "all": "전체",
       "description": {
@@ -1609,7 +1906,17 @@
     "forkThread": "스레드 분기",
     "forking": "{{title}} 분기 중",
     "continueInNewThread": "새 스레드에서 계속",
-    "forkCount_other": "분기 {{count}}개"
+    "forkCount_other": "분기 {{count}}개",
+    "forkedFromInRoom": "{{room}}의 {{title}}에서 분기됨",
+    "forkedFromAnotherRoom": "다른 방에서 분기됨",
+    "forkingIntoRoom": "{{title}}을(를) {{room}}(으)로 분기 중",
+    "forkToRoom": "다른 방으로 분기…",
+    "forkToRoomTitle": "다른 방으로 분기",
+    "forkToRoomSearchPlaceholder": "방 검색…",
+    "forkToRoomEmpty": "일치하는 방이 없습니다",
+    "forkToRoomAgentWarning": "이 방의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다",
+    "forkingFromRoom": "{{room}}에서 분기 중",
+    "forkDraftAgentWarning": "여기의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다"
   },
   "activity": {
     "title": "활동",
@@ -1642,8 +1949,7 @@
       "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",
       "replyAndOthers_other": "{{name}} 님 외 {{count}}명이 답글을 남겼습니다",
       "finished": "{{name}} 님이 작업을 마쳤습니다",
-      "stopped": "{{name}} 님의 작업이 중지되었습니다",
-      "youReplied": "내가 답장함"
+      "stopped": "{{name}} 님의 작업이 중지되었습니다"
     },
     "newCount_other": "새 항목 {{count}}개",
     "runMinutes_other": "{{count}}분",
@@ -1854,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "고정과 태그",
-        "text": "‘스레드 고정’을 사용하면 스레드가 목록 맨 위에 유지됩니다. ‘스레드 옵션’의 ‘태그 편집’으로 스레드에 태그를 붙이고, 태그로 필터링할 수 있습니다."
+        "text": "카드의 고정 아이콘을 누르거나 ‘스레드 옵션’(⋯)에서 ‘스레드 고정’을 선택하면 스레드를 맨 위에 유지할 수 있습니다. ‘스레드 옵션’의 ‘태그 편집’으로 스레드에 태그를 붙이고, 태그로 필터링할 수 있습니다."
       },
       "filters": {
         "title": "필터가 해결된 스레드를 숨깁니다",
@@ -1901,6 +2207,38 @@
       "settingsKeywords": "둘러보기, 투어, 튜토리얼, 가이드, 도움말, 소개, 사용법, 스레드",
       "howThreadsWork": "스레드 작동 방식",
       "noThreadsHint": "아래에서 메시지를 보내 스레드를 시작하세요."
+    },
+    "help": {
+      "button": "도움말 및 가이드",
+      "buttonWithTip": "도움말 및 가이드 (팁 1개)",
+      "title": "도움말 및 가이드",
+      "subtitle": "빠른 가이드",
+      "oneTip": "팁 1개",
+      "suggested": "추천 팁",
+      "showHow": "방법 보기",
+      "dismissTip": "팁 닫기",
+      "guidesHeading": "UI 가이드",
+      "guides": {
+        "conversation": "스레드 작동 방식",
+        "resolve": "끝난 일은 해결하기",
+        "filters": "해결된 스레드 찾기",
+        "snooze": "나중에 보도록 일시 중지",
+        "pinAndTag": "스레드 고정 및 태그",
+        "views": "간결 보기 vs 스레드 보기",
+        "activity": "활동 및 승인"
+      },
+      "fullTour": "전체 둘러보기",
+      "shortcuts": "단축키"
+    },
+    "tips": {
+      "resolve": {
+        "title": "끝난 스레드 해결하기",
+        "cardTitle": "끝난 스레드 해결하기",
+        "roomSummary_other": "여기에 열린 스레드 {{count}}개, 아직 해결된 항목 없음",
+        "allSummary_other": "열린 스레드 {{count}}개, 아직 해결된 항목 없음",
+        "cardTextRoom_other": "여기에 열린 스레드가 {{count}}개 있고 아직 해결한 항목이 없습니다. 끝난 스레드를 해결해 목록을 정리하세요.",
+        "cardTextAll_other": "열린 스레드가 {{count}}개 있고 아직 해결한 항목이 없습니다. 끝난 스레드를 해결해 목록을 정리하세요."
+      }
     }
   },
   "threadNav": {
@@ -1915,6 +2253,7 @@
       "working": "작업 중",
       "later": "나중에",
       "idle": "대기 중",
+      "quiet": "조용함",
       "resolved": "해결됨"
     },
     "live": {
@@ -1935,7 +2274,11 @@
     "done": "완료"
   },
   "threadActions": {
-    "openBeside": "두 번째 열에서 열기"
+    "openBeside": "두 번째 열에서 열기",
+    "detailsSection": "세부 정보",
+    "forkAndShareSection": "분기 및 공유",
+    "shareSection": "공유",
+    "viewSection": "보기"
   },
   "roomSchedules": {
     "thisThread": "이 스레드",
@@ -1966,6 +2309,45 @@
     "cancellationSent": "취소 요청 전송됨",
     "editDraftBusy": "이 일정을 편집하기 전에 현재 초안을 지워 주세요.",
     "copyFailed": "복사할 수 없습니다. 세부 정보에서 작업 ID를 선택하세요."
+  },
+  "roomTriggers": {
+    "title": "트리거",
+    "openLabel": "트리거 ({{total}})",
+    "loading": "불러오는 중…",
+    "empty": "이 방에 트리거가 없습니다.",
+    "emptyHint": "이 방에 설정된 트리거가 여기에 표시됩니다.",
+    "loadError": "트리거를 불러올 수 없습니다.",
+    "missingTrigger": "트리거 {{id}}은(는) 더 이상 이 방에 없습니다.",
+    "kind": {
+      "webhook": "웹훅",
+      "room_message": "방 감시",
+      "external_event": "이벤트 구독",
+      "thread_tag": "스레드 태그",
+      "unknown": "트리거"
+    },
+    "watchingRoom": "이 방을 감시 중",
+    "stateOn": "켜짐",
+    "stateOff": "꺼짐",
+    "disabledExpired": "만료됨",
+    "disabledOnceConsumed": "1회 사용됨",
+    "lastFired": "마지막 실행 {{time}}",
+    "neverFired": "기록된 실행 없음",
+    "destinationRoom": "방 타임라인",
+    "destinationThread": "스레드",
+    "destinationNewThread": "새 스레드",
+    "destinationOrigin": "원본 스레드",
+    "openThread": "스레드 열기",
+    "prompt": "프롬프트",
+    "enable": "켜기",
+    "disable": "끄기",
+    "updating": "업데이트 중...",
+    "toggleError": "트리거를 업데이트하지 못했습니다. 다시 시도해 주세요.",
+    "delete": "삭제",
+    "deleteConfirm": "이 트리거를 삭제할까요?",
+    "keep": "유지",
+    "deleteTrigger": "트리거 삭제",
+    "deleting": "삭제 중...",
+    "deleteError": "트리거를 삭제하지 못했습니다. 다시 시도해 주세요."
   },
   "home": {
     "greeting": {
@@ -2004,5 +2386,43 @@
   },
   "nav": {
     "usage": "사용량"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "방 {{count}}개",
+      "roomsFiltered": "방 {{total}}개 중 {{active}}개",
+      "switchSpace": "스페이스 전환"
+    },
+    "roomFilter": {
+      "label": "방",
+      "ariaLabel": "방으로 스레드 필터링",
+      "ariaLabelActive": "방으로 스레드 필터링 ({{number}}개 선택됨)",
+      "ariaLabelOne": "방: {{room}}",
+      "search": "방 검색",
+      "noMatch": "일치하는 방이 없습니다"
+    },
+    "composer": {
+      "postTo": "게시 대상:",
+      "postToRoom": "#{{room}}에 게시",
+      "chooseRoomAria": "게시할 방 선택",
+      "draftPinned": "#{{room}} 임시 저장",
+      "readOnly": "이 스페이스에 게시할 수 있는 방이 없습니다."
+    },
+    "loading": "스레드 불러오는 중...",
+    "empty": {
+      "noRooms": "이 스페이스의 방에 참여하면 여기에서 스레드를 볼 수 있습니다.",
+      "noThreads": "이 스페이스에는 아직 스레드가 없습니다."
+    },
+    "error": {
+      "title": "스페이스 스레드를 불러올 수 없습니다"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "다이어그램",
+    "source": "소스",
+    "showDiagram": "다이어그램 보기",
+    "showSource": "소스 보기",
+    "mermaidDiagram": "Mermaid 다이어그램",
+    "diagramUnavailable": "소스 표시 중"
   }
 }

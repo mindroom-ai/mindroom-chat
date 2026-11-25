@@ -7,7 +7,7 @@ export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
 // ClientRoot provides the loaded configuration; an empty object means no limits are known.
 const MediaConfigContext = createContext<MediaConfig>({});
 
-export const MediaConfigProvider = MediaConfigContext.Provider;
+export const MediaConfigProvider = MediaConfigContext;
 
 /** The media configuration of the signed-in homeserver, such as its upload size limit. */
 export const useMediaConfig = (): MediaConfig => useContext(MediaConfigContext);

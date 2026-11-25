@@ -21,24 +21,22 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('folds', () => ({
-  as: (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
-    React.forwardRef((props, ref) => render(props, ref)),
+  as:
+    (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
+    ({ ref, ...props }: { ref?: React.Ref<unknown> } & Record<string, unknown>) =>
+      render(props, ref ?? null),
   Icon: ({ src }: { src: string }) => <i data-icon={src} />,
   Icons: { Flag: 'flag' },
-  MenuItem: React.forwardRef(
-    (
-      {
-        children,
-        after,
-        ...props
-      }: React.ButtonHTMLAttributes<HTMLButtonElement> & { after?: React.ReactNode },
-      ref: React.ForwardedRef<HTMLButtonElement>
-    ) => (
-      <button ref={ref} type="button" {...props}>
-        {children}
-        {after}
-      </button>
-    )
+  MenuItem: ({
+    children,
+    after,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & { after?: React.ReactNode }) => (
+    <button ref={ref} type="button" {...props}>
+      {children}
+      {after}
+    </button>
   ),
   Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));

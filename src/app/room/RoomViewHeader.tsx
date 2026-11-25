@@ -53,6 +53,11 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
+import { RoomDialogOverlay, RoomHeaderCountButton } from '../ui/RoomDialogOverlay';
+import { RoomTriggersDialog } from '../triggers/RoomTriggersDialog';
+import { TriggersIcon } from '../triggers/TriggersIcon';
+import { useRoomTriggers } from '../triggers/useRoomTriggers';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
@@ -73,7 +78,7 @@ import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import { useRoomCommands } from '../navigation/roomCommands';
+import { useRoomCommands, type RoomCommand } from '../navigation/roomCommands';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasChosenThreadFilters,
@@ -115,6 +120,9 @@ export type RoomViewHeaderProps = {
   /** Whether an agent or the user showed the computer in this conversation before. */
   computerShown?: boolean;
   onComputerToggle?: () => void;
+  canGiveMacAccess?: boolean;
+  macAccessActive?: boolean;
+  onOpenMacAccess?: () => void;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
@@ -171,11 +179,11 @@ const dotStyle = {
   padding: 0,
   pointerEvents: 'none',
 } as const;
-const cornerDot = (marker: `data-${string}`) => (
+const cornerDot = (marker: `data-${string}`, variant: 'Primary' | 'Success' = 'Primary') => (
   <Badge
     style={dotStyle}
     size="200"
-    variant="Primary"
+    variant={variant}
     fill="Solid"
     radii="Pill"
     aria-hidden="true"
@@ -235,6 +243,9 @@ export function RoomViewHeader({
   computerOpen,
   computerShown,
   onComputerToggle,
+  canGiveMacAccess,
+  macAccessActive,
+  onOpenMacAccess,
   canvases,
   openCanvasId,
   onCanvasOpen,
@@ -295,6 +306,28 @@ export function RoomViewHeader({
   useEffect(() => {
     if (!schedulesOpen && schedules) setSchedules(undefined);
   }, [schedulesOpen, schedules]);
+  const roomTriggers = useRoomTriggers(room);
+  const { refetch: refetchRoomTriggers } = roomTriggers;
+  const triggersDialog = useAtomValue(roomTriggersDialogAtom);
+  const triggersOpen = triggersDialog?.roomId === room.roomId;
+  const openTriggers = (opener?: HTMLButtonElement) => {
+    store.set(roomTriggersDialogAtom, { roomId: room.roomId, opener });
+  };
+  const closeTriggers = (dismissed?: boolean) => {
+    store.set(roomTriggersDialogAtom, undefined);
+    restoreOverlayFocus(triggersDialog?.opener, dismissed);
+  };
+  useEffect(() => {
+    if (triggersOpen) void refetchRoomTriggers();
+  }, [triggersOpen, triggersDialog, refetchRoomTriggers]);
+  useEffect(
+    () => () => {
+      if (store.get(roomTriggersDialogAtom)?.roomId === room.roomId) {
+        store.set(roomTriggersDialogAtom, undefined);
+      }
+    },
+    [room.roomId, store]
+  );
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -374,6 +407,11 @@ export function RoomViewHeader({
     },
     [headerFocusTarget]
   );
+  const restoreOverlayFocus = (opener: HTMLElement | undefined, dismissed?: boolean) => {
+    if (dismissed || (dismissed === false && !opener?.isConnected)) {
+      restoreFocusAfterDismiss(opener);
+    }
+  };
 
   const canvasesHere = showCanvases && canvases ? canvases : [];
   const needsCanvasChooser = canvasesHere.length > 1;
@@ -448,6 +486,8 @@ export function RoomViewHeader({
   };
 
   // The header's actions, in the order both the row and the room menu use.
+  const triggerCount = roomTriggers.triggers.length;
+  const triggersLabel = t('roomTriggers.openLabel', { total: triggerCount });
   const listed: (RoomHeaderEntry | false | undefined)[] = [
     viewSwitch &&
       !threadId && {
@@ -473,16 +513,6 @@ export function RoomViewHeader({
       badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
       marker: 'data-thread-filter-bar-toggle',
     },
-    // Agents' replies list the tools they ran; this room's choice, over the default in Settings.
-    hasMindroomAgents && {
-      id: 'toolCalls',
-      label: t('mindroomUi.messages.showToolCalls'),
-      icon: Icons.Terminal,
-      placement: 'menu',
-      pressed: showToolCalls,
-      run: () => setShowToolCalls(!showToolCalls),
-      marker: 'data-tool-calls-toggle',
-    },
     hasMindroomAgents && {
       id: 'schedules',
       placement: 'auto',
@@ -498,6 +528,27 @@ export function RoomViewHeader({
         <RoomSchedulesMenuEntry
           total={pendingSchedules.length}
           onSelect={fromMenu(openSchedules)}
+        />
+      ),
+    },
+    triggerCount > 0 && {
+      id: 'triggers',
+      placement: 'auto',
+      row: (
+        <RoomHeaderCountButton
+          icon={TriggersIcon}
+          label={triggersLabel}
+          total={triggerCount}
+          open={triggersOpen && !triggersDialog?.triggerId && openedFromRow(triggersDialog?.opener)}
+          onOpen={openTriggers}
+        />
+      ),
+      menu: (
+        <MenuEntry
+          icon={TriggersIcon}
+          label={triggersLabel}
+          aria-haspopup="dialog"
+          onSelect={fromMenu(openTriggers)}
         />
       ),
     },
@@ -541,6 +592,19 @@ export function RoomViewHeader({
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
+    canGiveMacAccess && {
+      id: 'macAccess',
+      label: macAccessActive
+        ? t('featureUi.desktopAccess.roomHeader.manageAccess')
+        : t('featureUi.desktopAccess.roomHeader.giveAccess'),
+      icon: Icons.ScreenShare,
+      placement: 'auto',
+      phoneEligible: false,
+      active: !!macAccessActive,
+      badge: macAccessActive && cornerDot('data-mac-access-active-dot', 'Success'),
+      marker: 'data-mac-access-button',
+      run: () => onOpenMacAccess?.(),
+    },
     (keptSubagents > 0 || subagentsVisible) && {
       id: 'subagents',
       label:
@@ -568,9 +632,7 @@ export function RoomViewHeader({
           className={css.CallGroup}
           data-room-header-call-group=""
         >
-          <RestoreHeaderFocus.Provider value={restoreFocusAfterDismiss}>
-            {calls}
-          </RestoreHeaderFocus.Provider>
+          <RestoreHeaderFocus value={restoreFocusAfterDismiss}>{calls}</RestoreHeaderFocus>
         </Box>
       ),
     },
@@ -593,16 +655,21 @@ export function RoomViewHeader({
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
     },
-    ...pluginPanels.map(
-      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction => ({
-        id: `panel:${id}`,
-        label,
-        icon,
-        placement,
-        pressed: shownPanel === id,
-        active: shownPanel === id,
-        run: () => onPanelToggle?.(id),
-      })
+    ...pluginPanels.flatMap(
+      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction[] =>
+        placement === 'none'
+          ? []
+          : [
+              {
+                id: `panel:${id}`,
+                label,
+                icon,
+                placement,
+                pressed: shownPanel === id,
+                active: shownPanel === id,
+                run: () => onPanelToggle?.(id),
+              },
+            ]
     ),
     ...pluginActions.map(({ id, label, icon, placement, run }): RoomHeaderAction => ({
       id: `action:${id}`,
@@ -618,20 +685,29 @@ export function RoomViewHeader({
     })),
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
-  // The command palette offers the actions the header draws, bar the ones that need their button's place.
-  useRoomCommands(
-    entries
-      .filter(drawnByHeader)
-      .filter((entry) => !entry.popup)
-      .map(({ id, label, icon, pressed, shortcut, run }) => ({
-        id,
-        label,
-        icon,
-        pressed,
-        shortcut,
-        run: () => run(undefined),
-      }))
-  );
+  // The command palette offers the actions the header draws, bar the ones that need their button's
+  // place, plus the room menu's tool-calls toggle in rooms with agents.
+  const commands: RoomCommand[] = entries
+    .filter(drawnByHeader)
+    .filter((entry) => !entry.popup)
+    .map(({ id, label, icon, pressed, shortcut, run }) => ({
+      id,
+      label,
+      icon,
+      pressed,
+      shortcut,
+      run: () => run(undefined),
+    }));
+  if (hasMindroomAgents) {
+    commands.push({
+      id: 'toolCalls',
+      label: t('mindroomUi.messages.showToolCalls'),
+      icon: Icons.Terminal,
+      pressed: showToolCalls,
+      run: () => setShowToolCalls(!showToolCalls),
+    });
+  }
+  useRoomCommands(commands);
   const promoted = selectPhoneHeaderActions(
     slots,
     entries
@@ -735,9 +811,7 @@ export function RoomViewHeader({
               topic={topic}
               requestClose={(dismissed) => {
                 setTopicOpener(undefined);
-                if (dismissed || (dismissed === false && !topicOpener.isConnected)) {
-                  restoreFocusAfterDismiss(topicOpener);
-                }
+                restoreOverlayFocus(topicOpener, dismissed);
               }}
             />
           )}
@@ -810,14 +884,30 @@ export function RoomViewHeader({
           openThreadId={openThreadId}
           onClose={(dismissed) => {
             setSchedules(undefined);
-            if (dismissed || (dismissed === false && !schedules?.opener?.isConnected)) {
-              restoreFocusAfterDismiss(schedules?.opener);
-            }
+            restoreOverlayFocus(schedules?.opener, dismissed);
           }}
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
           onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
         />
+      )}
+      {triggersOpen && (
+        <RoomDialogOverlay headerRef={headerRef} onClose={closeTriggers}>
+          <RoomTriggersDialog
+            roomId={room.roomId}
+            triggers={roomTriggers.triggers}
+            loading={roomTriggers.loading}
+            loadFailed={roomTriggers.loadFailed}
+            highlightTriggerId={triggersDialog?.triggerId}
+            onClose={() => closeTriggers(true)}
+            onOpenThread={(targetThreadId, targetRoomId) => {
+              closeTriggers();
+              navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId);
+            }}
+            onToggleTrigger={roomTriggers.toggleTrigger}
+            onDeleteTrigger={roomTriggers.deleteTrigger}
+          />
+        </RoomDialogOverlay>
       )}
       {dialog}
     </PageHeader>

@@ -1,6 +1,6 @@
 import React, {
+  use,
   useCallback,
-  useContext,
   useEffect,
   useId,
   useMemo,
@@ -11,18 +11,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Box,
-  Button,
-  Icon,
-  Icons,
-  Line,
-  Text,
-  config,
-  toRem,
-  type IconSrc,
-  type RectCords,
-} from 'folds';
+import { Box, Button, Icons, Line, Text, config, toRem, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import {
   getThreadSummaryActionError,
@@ -43,9 +32,11 @@ import { copyToClipboard } from '../lib/dom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
-import { Menu } from '../ui/glass/GlassPrimitives';
-import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
-import type { ShortcutId } from '../shortcuts/shortcuts';
+import {
+  buildThreadActionMenuGroups,
+  ThreadActionsMenuContent,
+  type ThreadActionMenuItem,
+} from './ThreadActionsMenuContent';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
@@ -64,6 +55,7 @@ import * as css from './ThreadActionsMenu.css';
 import { latestForkPoint } from '../event-store/threads/threadFork';
 import { ForkIcon } from '../messages/ForkIcon';
 import { useStartThreadFork } from './fork/useStartThreadFork';
+import { ForkToRoomDialog } from './fork/ForkToRoomDialog';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -90,15 +82,7 @@ export type ThreadActionsMenuProps = {
   tagsAtTop?: boolean;
 };
 
-type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
-
-// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners. A
-// screen narrower than that at a large Page Zoom (320px at 150%) keeps a 0.5rem margin on each side.
-const menuStyle: React.CSSProperties = {
-  minWidth: `min(${toRem(220)}, calc(100vw - 1rem))`,
-  maxWidth: 'calc(100vw - 1rem)',
-  borderRadius: config.radii.R500,
-};
+type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze' | 'forkToRoom';
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -112,8 +96,9 @@ const fieldStyle: React.CSSProperties = {
 };
 
 /**
- * Thread options: open, tags, edit or regenerate the summary, resolve, snooze, pin, fork (the copy),
- * copy a link.
+ * Thread options, grouped as open (card menu), triage (resolve, snooze, pin), details (tags,
+ * edit or regenerate the summary), fork & share (fork, fork to room, copy a link), and view
+ * (tool calls, layout, hide details).
  */
 export function ThreadActionsMenu({
   room,
@@ -132,7 +117,6 @@ export function ThreadActionsMenu({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const tags = useThreadTags(room, rootId);
-  const secondThread = useContext(SecondThreadContext);
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
@@ -421,6 +405,22 @@ export function ThreadActionsMenu({
     );
   }
 
+  if (dialog === 'forkToRoom') {
+    const latestPoint = latestForkPoint(room, rootId);
+    if (latestPoint) {
+      return (
+        <ForkToRoomDialog
+          sourceRoom={room}
+          onSelect={(targetRoomId) => {
+            startFork(latestPoint, targetRoomId);
+            onClose();
+          }}
+          onClose={onClose}
+        />
+      );
+    }
+  }
+
   if (dialog === 'regenerate' && requested) {
     return (
       <ActionDialog label={t('threadActions.regenerate')} onClose={closeDialog} busy={false}>
@@ -503,30 +503,21 @@ export function ThreadActionsMenu({
     return true;
   };
 
-  // The thread's own details (tags, title) first, then its state (resolved, snoozed, pinned), then
-  // its copy, the link, whether it shows tool calls, and the banner's Show beside and Hide; each
-  // label has its icon at the end of the row.
-  const items: Array<{
-    action: string;
-    label: string;
-    icon: IconSrc;
-    onSelect: () => void;
-    /** Resolve, snooze and pin wait for the previous save. */
-    mutates?: boolean;
-    shortcut?: ShortcutId;
-    /** A switch: checked while on. */
-    checked?: boolean;
-  }> = [];
+  // Grouped with open (card menu) and triage (resolve, snooze, pin) unlabelled on top, followed by
+  // Details (tags, summary), Fork & Share / Share (fork, link), and View (tool calls, layout,
+  // hide details); each label has its icon at the end of the row.
+  const openItems: ThreadActionMenuItem[] = [];
   if (onOpenThread) {
-    items.push({
+    openItems.push({
       action: 'open',
       label: t('threadActions.open'),
       icon: Icons.Thread,
       onSelect: onOpenThread,
     });
   }
+  const secondThread = use(SecondThreadContext);
   if (secondThread?.offers(room.roomId, rootId)) {
-    items.push({
+    openItems.push({
       action: 'openBeside',
       label: t('threadActions.openBeside'),
       icon: Icons.ThreadPlus,
@@ -536,103 +527,33 @@ export function ThreadActionsMenu({
       },
     });
   }
-  if (showTags && !tagsAtTop) {
-    items.push({
-      action: 'tags',
-      label: tagsEditable ? t('threadActions.tags') : t('thread.stats.tags'),
-      icon: Icons.Bookmark,
-      onSelect: () => openDialog('tags'),
-    });
-  }
-  if (canSummarize) {
-    items.push(
-      {
-        action: 'editSummary',
-        label: t('threadActions.editSummary'),
-        icon: Icons.Pencil,
-        onSelect: () => openDialog('editSummary'),
-      },
-      {
-        action: 'regenerate',
-        label: t('threadActions.regenerate'),
-        icon: Icons.Bulb,
-        onSelect: () => openDialog('regenerate'),
-      }
-    );
-  }
-  if (tags.canEdit && rootLoaded && !pinned) {
-    items.push({
-      action: 'resolve',
-      mutates: true,
-      label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
-      icon: tags.isResolved ? Icons.Reload : Icons.CheckTwice,
-      // The shortcut resolves the open thread, whose menu has no Open.
-      shortcut: onOpenThread || shortcutless ? undefined : 'resolveThread',
-      onSelect: () => {
-        void mutations.setResolved(rootId, !tags.isResolved);
-      },
-    });
-  }
-  // A resolved thread shows as resolved whether snoozed or not, so it offers neither. A pinned
-  // thread takes no new snooze, but one set before the pin can still be lifted.
-  if (tags.canEdit && rootLoaded && !tags.isResolved && (snoozed || !pinned)) {
-    items.push({
-      action: 'snooze',
-      mutates: true,
-      label: snoozed ? t('thread.unsnooze') : t('thread.snooze'),
-      icon: Icons.Clock,
-      onSelect: () => {
-        if (snoozed) void mutations.unsnooze(rootId);
-        else openDialog('snooze');
-      },
-    });
-  }
-  if (pinning.canPin && rootLoaded) {
-    items.push({
-      action: 'pin',
-      mutates: true,
-      label: pinned ? t('threadNav.unpin') : t('threadNav.pin'),
-      icon: Icons.Pin,
-      onSelect: () => {
-        void pinning.setPinned(rootId, !pinned);
-      },
-    });
-  }
+
   // The copy of the open thread (the card's has Open instead): a fork at its latest message.
-  const forkPoint = onOpenThread || !forksAnswered ? undefined : latestForkPoint(room, rootId);
-  if (forkPoint) {
-    items.push({
+  const latestPoint = onOpenThread ? undefined : latestForkPoint(room, rootId);
+  const forkItems: ThreadActionMenuItem[] = [];
+  if (latestPoint && forksAnswered) {
+    forkItems.push({
       action: 'fork',
       label: t('threadFork.forkThread'),
       icon: ForkIcon,
       onSelect: () => {
-        startFork(forkPoint);
+        startFork(latestPoint);
         onClose();
       },
     });
   }
-  items.push({
-    action: 'copy',
-    label: t('threadActions.copy'),
-    icon: Icons.Link,
-    onSelect: handleCopyLink,
-  });
-  // Agents' replies list the tools they ran; this thread's choice, over its room's. Invited agents
-  // count, as in the room menu.
-  if (hasActiveMindroomAgent(members)) {
-    items.push({
-      action: 'toolCalls',
-      label: t('mindroomUi.messages.showToolCalls'),
-      icon: Icons.Terminal,
-      checked: toolCallsShown,
-      onSelect: () => {
-        setToolCallsShown(!toolCallsShown);
-        onClose();
-      },
+  if (latestPoint) {
+    forkItems.push({
+      action: 'forkToRoom',
+      label: t('threadFork.forkToRoom'),
+      icon: ForkIcon,
+      onSelect: () => openDialog('forkToRoom'),
     });
   }
+
+  const viewItems: ThreadActionMenuItem[] = [];
   if (onShowBeside) {
-    items.push({
+    viewItems.push({
       action: 'showBeside',
       label: t('thread.showBeside'),
       icon: ShrinkIcon,
@@ -643,7 +564,7 @@ export function ThreadActionsMenu({
     });
   }
   if (onShowFull) {
-    items.push({
+    viewItems.push({
       action: 'showFull',
       label: t('thread.showFull'),
       icon: ExpandIcon,
@@ -654,7 +575,7 @@ export function ThreadActionsMenu({
     });
   }
   if (onHideDetails) {
-    items.push({
+    viewItems.push({
       action: 'hideDetails',
       label: t('thread.hideDetails'),
       icon: Icons.ChevronTop,
@@ -664,6 +585,41 @@ export function ThreadActionsMenu({
       },
     });
   }
+
+  const groups = buildThreadActionMenuGroups({
+    t,
+    openItems,
+    showTags: showTags && !tagsAtTop,
+    tagsEditable,
+    canSummarize,
+    canEditState: tags.canEdit && rootLoaded,
+    canPin: pinning.canPin && rootLoaded,
+    pinned,
+    isResolved: tags.isResolved,
+    snoozed,
+    // The shortcut resolves the open thread, whose menu has no Open.
+    resolveShortcut: onOpenThread || shortcutless ? undefined : 'resolveThread',
+    forkItems,
+    // Agents' replies list the tools they ran; this thread's choice, over its room's. Invited
+    // agents count, as in the room menu.
+    showToolCalls: hasActiveMindroomAgent(members) ? toolCallsShown : undefined,
+    viewItems,
+    onTags: () => openDialog('tags'),
+    onEditSummary: () => openDialog('editSummary'),
+    onRegenerate: () => openDialog('regenerate'),
+    onResolve: () => {
+      void mutations.setResolved(rootId, !tags.isResolved);
+    },
+    onSnooze: () => {
+      if (snoozed) void mutations.unsnooze(rootId);
+      else openDialog('snooze');
+    },
+    onPin: () => {
+      void pinning.setPinned(rootId, !pinned);
+    },
+    onCopy: handleCopyLink,
+    onToggleToolCalls: () => setToolCallsShown(!toolCallsShown),
+  });
 
   // The menu opens under its trigger, its end edge on the trigger's end edge.
   return (
@@ -682,71 +638,54 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu
+          <ThreadActionsMenuContent
             ref={surfaceRef}
-            role="menu"
-            aria-label={t('threadActions.more')}
-            aria-describedby={described ? detailsId : undefined}
-            className={css.ThreadMenu}
-            style={menuStyle}
-          >
-            <div className={css.ThreadMenuRows}>
-              {/* The tag buttons are reached with Tab; arrow keys move across the menu items in details and rows. */}
-              {tagsInMenu && (
-                <div
-                  ref={tagSectionRef}
-                  role="group"
-                  tabIndex={-1}
-                  className={css.ThreadMenuTags}
-                  aria-label={t('thread.stats.tags')}
-                  data-thread-menu-tags=""
-                >
-                  <Box
-                    direction="Column"
-                    gap="200"
-                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
-                  >
-                    {tagEditor(true)}
-                  </Box>
-                  <Line variant="Surface" size="300" />
-                </div>
-              )}
-              {details.length > 0 && (
-                <div className={css.ThreadMenuDetails}>
+            label={t('threadActions.more')}
+            groups={groups}
+            saving={saving}
+            ariaDescribedBy={described ? detailsId : undefined}
+            before={
+              <>
+                {/* The tag buttons are reached with Tab; arrow keys move across the menu items in details and rows. */}
+                {tagsInMenu && (
                   <div
-                    id={detailsId}
-                    data-thread-details=""
-                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                    ref={tagSectionRef}
+                    role="group"
+                    tabIndex={-1}
+                    className={css.ThreadMenuTags}
+                    aria-label={t('thread.stats.tags')}
+                    data-thread-menu-tags=""
                   >
-                    <ThreadDetailsList
-                      room={room}
-                      threadId={rootId}
-                      details={details}
-                      onClose={closeFromDetail}
-                    />
+                    <Box
+                      direction="Column"
+                      gap="200"
+                      style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                    >
+                      {tagEditor(true)}
+                    </Box>
+                    <Line variant="Surface" size="300" />
                   </div>
-                  <Line variant="Surface" size="300" />
-                </div>
-              )}
-              <MenuGroup>
-                {items.map((item) => (
-                  <MenuEntry
-                    key={item.action}
-                    role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                    aria-checked={item.checked}
-                    label={item.label}
-                    icon={item.icon}
-                    after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
-                    shortcut={item.shortcut}
-                    data-thread-action={item.action}
-                    disabled={item.mutates && saving}
-                    aria-busy={item.mutates && saving ? true : undefined}
-                    onSelect={() => item.onSelect()}
-                  />
-                ))}
-              </MenuGroup>
-            </div>
-          </Menu>
+                )}
+                {details.length > 0 && (
+                  <div className={css.ThreadMenuDetails}>
+                    <div
+                      id={detailsId}
+                      data-thread-details=""
+                      style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                    >
+                      <ThreadDetailsList
+                        room={room}
+                        threadId={rootId}
+                        details={details}
+                        onClose={closeFromDetail}
+                      />
+                    </div>
+                    <Line variant="Surface" size="300" />
+                  </div>
+                )}
+              </>
+            }
+          />
         </FocusTrap>
       }
     />

@@ -278,6 +278,13 @@
       "threadIn": "Tópico em {{room}}",
       "messageElsewhere": "Mensagem noutra sala"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Dica",
+      "important": "Importante",
+      "warning": "Aviso",
+      "caution": "Cuidado"
+    },
     "deviceVerification": {
       "acceptStalled": "A outra sessão não respondeu. Feche isto e inicie a verificação novamente."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Visão geral do espaço"
+    },
+    "footnote": {
+      "backToReference": "Voltar para a referência"
     }
   },
   "featureUi": {
@@ -434,6 +444,7 @@
       },
       "sidebar": {
         "title": "Barra lateral",
+        "navigation": "Navegação",
         "threads": "Mostrar Tópicos na barra lateral",
         "threadsDescription": "Os tópicos de todas as salas numa só lista. Se os ocultar, abra-os no menu ⋮ do Início.",
         "canvasesDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. Se o ocultar, abra-os no menu ⋮ do Início.",
@@ -446,7 +457,9 @@
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local.",
         "usage": "Mostrar Uso na barra lateral",
-        "usageDescription": "Limites de uso de provedores e gasto de tokens em 7 dias, assim que um runtime os informar. Quando oculto, abra Uso no menu ⋮ em Início ou no seletor de modelos."
+        "usageDescription": "Limites de uso de provedores e gasto de tokens em 7 dias, assim que um runtime os informar. Quando oculto, abra Uso no menu ⋮ em Início ou no seletor de modelos.",
+        "help": "Mostrar Ajuda e guias na barra lateral",
+        "helpDescription": "Guias rápidos, visita guiada e atalhos de teclado. Se o ocultar, abra a visita guiada nas Definições, em Sobre, ou na paleta de comandos ({{shortcut}}), e os atalhos com {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",
@@ -461,14 +474,15 @@
       "menu": {
         "groups": {
           "you": "Você",
-          "app": "Esta aplicação",
-          "agents": "Agentes e ligações",
-          "help": "Ajuda e avançado"
+          "app": "Aplicação",
+          "mindroom": "MindRoom",
+          "system": "Sistema"
         },
         "pages": {
           "privacy": "Privacidade e segurança",
           "language": "Idioma e região",
-          "storage": "Armazenamento e offline"
+          "storage": "Armazenamento e offline",
+          "agentsServers": "Agentes e servidores"
         }
       },
       "search": {
@@ -483,13 +497,16 @@
       "advanced": "Avançado",
       "sections": {
         "display": "Apresentação",
-        "privacy": "Privacidade"
+        "privacy": "Privacidade",
+        "replying": "Respostas",
+        "connectionsComputers": "Ligações e computadores"
       },
       "computers": {
         "inUse": "Servidor em utilização",
         "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo.",
         "useServer": "Usar {{host}}",
-        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui."
+        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui.",
+        "foundNotSavedChoose": "Encontrados através dos seus agentes, não guardados. Escolha o servidor em que confia; este dispositivo utiliza-o em todas as salas."
       },
       "keywords": {
         "theme": "modo escuro, modo claro, modo noturno, cores",
@@ -739,7 +756,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",
-      "searchEncrypted": "Indisponível em salas encriptadas"
+      "searchEncrypted": "Indisponível em salas encriptadas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferências",
+      "notificationModeAll": "Todas",
+      "notificationModeMentions": "Menções"
     },
     "phoneNav": {
       "navigation": "Navegação"
@@ -924,6 +946,164 @@
         "startEntireScreenShare": "Partilhar todo o ecrã",
         "stopEntireScreenShare": "Parar de partilhar todo o ecrã"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Permitir acesso total",
+        "cancel": "Cancelar",
+        "chooseLimits": "Escolher limites...",
+        "close": "Fechar",
+        "disconnect": "Desconectar",
+        "done": "Concluído",
+        "editLimits": "Editar limites...",
+        "switchToFull": "Mudar para acesso total"
+      },
+      "banner": {
+        "restrictedActive": "Acesso restrito ativo neste Mac.",
+        "shellReadyWaitingPermissions": "Shell pronta - Aguardando permissões de ecrã e entrada do macOS",
+        "waitingPermissions": "Aguardando permissões de ecrã e entrada do macOS"
+      },
+      "browser": {
+        "brewHint": "Ou instale com Homebrew:",
+        "confirmOnMac": "Confirme este código em {{mac}} para aprovar o acesso.",
+        "copied": "Copiado",
+        "copyCommand": "Copiar comando",
+        "copyFailed": "Falha ao copiar",
+        "downloadMacApp": "Transferir MindRoom Chat para Mac",
+        "noMacDescription": "Para dar acesso do seu Mac a {{agent}}, inicie sessão com esta conta no MindRoom Chat para Mac.",
+        "paired": "{{agent}} está agora emparelhado com {{mac}}.",
+        "relayDescription": "Envie um pedido de emparelhamento para {{mac}}. Vai confirmar o código de 6 dígitos e escolher acesso total ou limites no seu Mac.",
+        "selectMac": "Escolher um Mac",
+        "sendToMac": "Enviar para {{mac}}",
+        "waitingOnMac": "Aguardando confirmação em {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} pode ver o seu ecrã, controlar qualquer app e executar comandos shell como o seu utilizador macOS sem perguntar, incluindo após reiniciar. Pare a qualquer momento pela barra de menus.",
+        "upgradeHeading": "A mudar para acesso total"
+      },
+      "empty": {
+        "noAgents": "Nenhum agente MindRoom encontrado nesta sala."
+      },
+      "incoming": {
+        "decline": "Recusar",
+        "failedTitle": "Não foi possível emparelhar {{agent}}",
+        "sasHint": "Certifique-se de que este código de 6 dígitos corresponde a {{requester}} antes de aprovar.",
+        "title": "Emparelhar {{agent}} de {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Adicionar pasta...",
+        "allowShellOnMac": "Permitir comandos shell neste Mac",
+        "foldersLabel": "Pastas só de leitura",
+        "fullNote": "O acesso total até revogação ativa o controlo de ecrã inteiro e a shell aprovada automaticamente até ser revogado.",
+        "fullScreen": "Ecrã inteiro (primary-screen)",
+        "gui15m": "Permitir controlo por 15 min",
+        "gui1h": "Permitir controlo por 1 hora",
+        "guiFull": "Acesso total até revogação",
+        "guiLabel": "Controlo de ecrã e entrada",
+        "guiObserve": "Apenas observar",
+        "installedApps": "Apps Mac permitidas",
+        "loadingApps": "A carregar apps instaladas...",
+        "needCapability": "Ative ecrã inteiro, pelo menos uma app, uma pasta ou comandos shell.",
+        "noAppsFound": "Nenhuma app Mac instalada encontrada.",
+        "noFolders": "Nenhuma pasta só de leitura adicionada.",
+        "perAgentHeading": "Controlo e aprovação de shell para {{agent}} (por agente)",
+        "removeFolder": "Remover",
+        "save": "Permitir com limites",
+        "saveChanges": "Guardar limites",
+        "sharedHeading": "Apps, pastas e shell partilhados neste Mac (aplica-se a todos os agentes emparelhados)",
+        "sharedWithOthersHint": "Partilhado com outros agentes emparelhados neste Mac",
+        "shell15m": "Aprovar automaticamente por 15 min",
+        "shell1h": "Aprovar automaticamente por 1 hora",
+        "shellApprovalLabel": "Aprovação de shell",
+        "shellAsk": "Perguntar antes de cada comando",
+        "shellDisabledHint": "Ative \"Permitir comandos shell neste Mac\" abaixo para configurar a aprovação de shell.",
+        "shellUntilRevoked": "Aprovar automaticamente até revogação"
+      },
+      "permissions": {
+        "accessibility": "Acessibilidade",
+        "accessibilityGrantedHint": "Controlo de teclado e rato permitido.",
+        "accessibilityMissingHint": "Permite controlo de teclado e rato. Atualiza automaticamente assim que for ativado.",
+        "allowAccessibility": "Permitir Acessibilidade",
+        "allowScreenRecording": "Permitir Gravação de Ecrã",
+        "allowed": "Permitido",
+        "relaunchToActivate": "Reiniciar para ativar o controlo do ecrã",
+        "screenRecording": "Gravação de Ecrã",
+        "screenRecordingGrantedHint": "Visualização do ecrã permitida.",
+        "screenRecordingMissingHint": "Permite que agentes emparelhados vejam o seu ecrã.",
+        "screenRecordingRelaunchHint": "Reinicie o MindRoom Chat uma vez para que o macOS ative a Gravação de Ecrã."
+      },
+      "picker": {
+        "subtitle": "Escolha que agente nesta sala se deve ligar a este Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Dar acesso ao Mac",
+        "manageAccess": "Acesso ao Mac"
+      },
+      "sas": {
+        "label": "Código de verificação"
+      },
+      "settings": {
+        "bridgeState": "Estado da ponte",
+        "helperVersion": "Versão do auxiliar",
+        "keywords": "mac, acesso ao computador, controlo de ambiente de trabalho, shell, acessibilidade, gravação de ecrã, permissões",
+        "lastError": "Último erro",
+        "manage": "Gerir",
+        "noPairedAgentsDescription": "Abra uma sala com um agente e escolha Dar acesso ao Mac para o ligar.",
+        "noPairedAgentsTitle": "Ainda não há agentes emparelhados",
+        "notSignedIn": "Sessão não iniciada",
+        "pairedAgentsTitle": "Agentes emparelhados",
+        "permissionsTitle": "Permissões macOS",
+        "revokeAll": "Revogar todo o acesso",
+        "revokeAllDescription": "Desconecta todos os agentes emparelhados e interrompe imediatamente o acesso ao computador neste Mac.",
+        "runningShellTitle": "Comandos shell em execução",
+        "savedSession": "Sessão Matrix guardada",
+        "sectionTitle": "Este Mac",
+        "statusActive": "Ativo",
+        "statusDescription": "Controle quais agentes MindRoom podem ver e controlar este Mac.",
+        "statusStopped": "Parado",
+        "statusTitle": "Acesso ao computador Mac",
+        "statusUnavailable": "Não disponível neste Mac",
+        "stopCommand": "Parar",
+        "title": "Este Mac",
+        "unavailableDescription": "O acesso ao computador Mac requer o MindRoom Chat para Mac em Apple Silicon.",
+        "unknown": "Desconhecido"
+      },
+      "shellApproval": {
+        "approveOnce": "Aprovar uma vez",
+        "approveOnceCountdown": "Aprovar uma vez ({{seconds}})",
+        "autoApprove15m": "Aprovar auto 15 min",
+        "autoApprove15mCountdown": "Aprovar auto 15 min ({{seconds}})",
+        "cwdLabel": "Diretório de trabalho",
+        "deny": "Recusar",
+        "empty": "Nenhum comando shell à espera de aprovação.",
+        "title": "Aprovar comando shell?"
+      },
+      "status": {
+        "fullAccess": "Acesso total",
+        "fullAccessActive": "Acesso total ativo",
+        "permissionsNeeded": "Permissões necessárias",
+        "restricted": "Restrito",
+        "shellReady": "Shell pronta"
+      },
+      "steps": {
+        "confirming": "A confirmar emparelhamento...",
+        "finishing": "A ativar acesso...",
+        "pairing": "A emparelhar com {{agent}}...",
+        "requestingOffer": "A contactar {{agent}}...",
+        "signingIn": "A iniciar sessão neste Mac..."
+      },
+      "title": {
+        "allowFull": "Permitir a {{agent}} acesso total a este Mac?",
+        "browserPair": "Dar acesso do seu Mac a {{agent}}",
+        "chooseLimits": "Escolher limites para {{agent}}",
+        "default": "Acesso ao computador Mac",
+        "editLimits": "Editar limites para {{agent}}",
+        "manageAgent": "{{agent}} neste Mac",
+        "pickAgent": "Dar a um agente acesso a este Mac"
+      },
+      "unavailable": {
+        "description": "O acesso ao computador Mac não está disponível neste dispositivo."
+      }
     }
   },
   "mindroomUi": {
@@ -1070,7 +1250,25 @@
         "triggerLabel": "Gatilho {{id}}",
         "sourceLabel": "Origem {{source}}",
         "triageLabel": "Triagem: {{reason}}",
-        "payloadLabel": "Carga do evento JSON"
+        "payloadLabel": "Carga do evento JSON",
+        "openTriggerLabel": "Ver gatilho {{id}}"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} tarefa pronta",
+        "readyCount_many": "{{count}} tarefas prontas",
+        "readyCount_other": "{{count}} tarefas prontas",
+        "hide": "Ocultar",
+        "show": "Mostrar",
+        "copyId": "Copiar ID da tarefa {{id}}",
+        "moreItems_one": "+{{count}} outro item acionável",
+        "moreItems_many": "+{{count}} outros itens acionáveis",
+        "moreItems_other": "+{{count}} outros itens acionáveis",
+        "priority": {
+          "critical": "Crítica",
+          "high": "Alta",
+          "medium": "Média",
+          "low": "Baixa"
+        }
       },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
@@ -1233,7 +1431,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compacta",
-        "threadFiltersActive": "Filtros de tópicos (ativos)"
+        "threadFiltersActive": "Filtros de tópicos (ativos)",
+        "mindroomSettings": "Definições do MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtros avançados",
@@ -1266,6 +1465,29 @@
         "expandAllLong": "Expandir todas as mensagens longas",
         "collapseAllLong": "Recolher todas as mensagens longas",
         "showFullMessage": "Mostrar mensagem completa"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tudo em dia",
+        "resolvedCount_one": "{{count}} resolvido",
+        "resolvedCount_many": "{{count}} resolvidos",
+        "resolvedCount_other": "{{count}} resolvidos",
+        "snoozedCount_one": "{{count}} adiado",
+        "snoozedCount_many": "{{count}} adiados",
+        "snoozedCount_other": "{{count}} adiados",
+        "showAll": "Mostrar todos",
+        "startNewThreadBelow": "Inicie um novo tópico abaixo",
+        "recentlyResolved": "Resolvidos recentemente",
+        "noMatchHeading": "Nenhum tópico corresponde aos seus filtros",
+        "hiddenByForMe_one": "{{count}} tópico aberto está oculto por Para mim.",
+        "hiddenByForMe_many": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByForMe_other": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByFilters_one": "{{count}} tópico aberto está oculto pelos seus filtros.",
+        "hiddenByFilters_many": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "hiddenByFilters_other": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "adjustOrResetFilters": "Ajuste ou redefina seus filtros para ver os tópicos nesta sala.",
+        "turnOffForMe": "Desativar Para mim",
+        "resetAll": "Redefinir tudo",
+        "resetFilters": "Redefinir filtros"
       }
     },
     "computer": {
@@ -1294,7 +1516,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})",
       "finished": "Concluído: {{tool}}",
+      "awaitingAnswer": "Aguardando sua resposta: {{tool}}",
       "jobCountFinished": "{{count}} tarefas em segundo plano concluídas",
+      "groupWorkflows": "Fluxos de trabalho · {{number}}",
       "groupSubagents": "Subagentes · {{number}}",
       "groupTools": "Ferramentas · {{number}}",
       "tools_one": "{{count}} ferramenta",
@@ -1344,6 +1568,102 @@
       "jobTotalFinished_one": "{{count}} tarefa em segundo plano concluída",
       "jobTotalFinished_many": "{{count}} tarefas em segundo plano concluídas",
       "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas"
+    },
+    "workflowRun": {
+      "title": "Fluxo de trabalho",
+      "status": {
+        "starting": "Iniciando",
+        "running": "Em execução",
+        "waiting": "Aguardando você",
+        "completed": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrompido"
+      },
+      "counts": "{{done}} concluídos, {{running}} em execução, {{waiting}} aguardando",
+      "reused": "Reutilizados: {{count}}",
+      "cost": "{{spent}} até agora, cerca de {{projected}} no total",
+      "costAtLeast": "pelo menos {{spent}} até agora",
+      "largeRun": "Execução grande",
+      "attempt": "Tentativa {{number}}",
+      "stop": "Parar",
+      "stopping": "Parando…",
+      "resume": "Retomar",
+      "runAgain": "Executar novamente",
+      "starting": "Iniciando…",
+      "failedCount_one": "{{count}} falharam",
+      "failedCount_many": "{{count}} falharam",
+      "failedCount_other": "{{count}} falharam",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Já respondida.",
+          "noLongerOpen": "Esta pergunta não está mais aberta.",
+          "notAnOption": "Essa não é uma das opções.",
+          "notForYou": "Somente quem iniciou a execução pode responder."
+        },
+        "noReply": "Sem resposta ainda. Tente novamente.",
+        "placeholder": "Digite sua resposta",
+        "send": "Enviar",
+        "answered": "Respondido: {{answer}}",
+        "cancelled": "Cancelado",
+        "onlyRequester": "Somente {{name}} pode responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Fechar",
+        "resize": "Redimensionar painel do fluxo de trabalho",
+        "hide": "Ocultar fluxo de trabalho",
+        "waitingForUpdate": "Aguardando a próxima atualização da execução…",
+        "stale": "Sem atualizar. Última atualização {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar mais {{count}}",
+        "omitted": {
+          "queued_one": "e mais {{count}} na fila",
+          "queued_many": "e mais {{count}} na fila",
+          "queued_other": "e mais {{count}} na fila",
+          "running_one": "e mais {{count}} em execução",
+          "running_many": "e mais {{count}} em execução",
+          "running_other": "e mais {{count}} em execução",
+          "waiting_one": "e mais {{count}} aguardando",
+          "waiting_many": "e mais {{count}} aguardando",
+          "waiting_other": "e mais {{count}} aguardando",
+          "failed_one": "e mais {{count}} com falha",
+          "failed_many": "e mais {{count}} com falha",
+          "failed_other": "e mais {{count}} com falha",
+          "done_one": "e mais {{count}} concluídos",
+          "done_many": "e mais {{count}} concluídos",
+          "done_other": "e mais {{count}} concluídos"
+        },
+        "askAgent": "Peça o restante a {{agent}}."
+      },
+      "group": {
+        "foreach": "Para cada",
+        "parallel": "Paralelo",
+        "run": "Fluxo salvo",
+        "workflow": "Fluxo aninhado",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Falharam: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado da última execução",
+        "queued": "Na fila",
+        "mayHaveRun": "Pode ter sido executado",
+        "waitingOn": {
+          "user": "Aguardando sua resposta",
+          "approval": "Aguardando aprovação",
+          "peer": "Aguardando uma mensagem"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Erro",
+        "messages": "Mensagens",
+        "messagesTo": "Mensagens para {{name}}: {{count}}",
+        "open": "Abrir",
+        "detailsUnavailable": "Os detalhes não estão mais disponíveis após recarregar.",
+        "stop": "Parar agente"
+      }
     },
     "subagents": {
       "title": "Subagentes",
@@ -1594,7 +1914,9 @@
     },
     "actions": {
       "goActivity": "Ir para Atividade",
-      "goActivityDescription": "Menções, respostas e o que está à sua espera"
+      "goActivityDescription": "Menções, respostas e o que está à sua espera",
+      "openCurrentRoomMindroomSettings": "Abrir as definições do MindRoom da sala",
+      "openCurrentRoomMindroomSettingsDescription": "Abrir as definições do MindRoom de {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Itens abertos recentemente",
@@ -1668,6 +1990,7 @@
       "needsYou": "Precisa de você",
       "working": "Em andamento",
       "later": "Mais tarde",
+      "quiet": "Calmos",
       "done": "Concluído",
       "all": "Todos",
       "description": {
@@ -1705,7 +2028,17 @@
     "continueInNewThread": "Continuar em um novo tópico",
     "forkCount_one": "{{count}} bifurcação",
     "forkCount_many": "{{count}} bifurcações",
-    "forkCount_other": "{{count}} bifurcações"
+    "forkCount_other": "{{count}} bifurcações",
+    "forkedFromInRoom": "Bifurcado de {{title}} em {{room}}",
+    "forkedFromAnotherRoom": "Bifurcado de outra sala",
+    "forkingIntoRoom": "Bifurcando {{title}} para {{room}}",
+    "forkToRoom": "Bifurcar para sala…",
+    "forkToRoomTitle": "Bifurcar para sala",
+    "forkToRoomSearchPlaceholder": "Pesquisar salas…",
+    "forkToRoomEmpty": "Nenhuma sala encontrada",
+    "forkToRoomAgentWarning": "Os agentes nesta sala não estão em {{room}} e não verão o tópico original",
+    "forkingFromRoom": "Bifurcando de {{room}}",
+    "forkDraftAgentWarning": "Os agentes aqui não estão em {{room}} e não verão o tópico original"
   },
   "activity": {
     "title": "Atividade",
@@ -1740,8 +2073,7 @@
       "replyAndOthers_many": "{{name}} e mais {{count}} responderam",
       "replyAndOthers_other": "{{name}} e mais {{count}} responderam",
       "finished": "{{name}} terminou",
-      "stopped": "{{name}} parou",
-      "youReplied": "Você respondeu"
+      "stopped": "{{name}} parou"
     },
     "newCount_one": "{{count}} novo",
     "newCount_many": "{{count}} novos",
@@ -1966,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Fixar e etiquetar",
-        "text": "Fixar tópico mantém um tópico no topo da lista. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
+        "text": "Prima o alfinete num cartão, ou Fixar tópico em Opções do tópico (⋯), para manter um tópico no topo. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
       },
       "filters": {
         "title": "Os filtros ocultam os tópicos resolvidos",
@@ -2013,6 +2345,46 @@
       "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
+    },
+    "help": {
+      "button": "Ajuda e guias",
+      "buttonWithTip": "Ajuda e guias (1 dica)",
+      "title": "Ajuda e guias",
+      "subtitle": "Guias rápidos",
+      "oneTip": "1 dica",
+      "suggested": "Sugerido para si",
+      "showHow": "Ver como",
+      "dismissTip": "Ignorar dica",
+      "guidesHeading": "Guias da interface",
+      "guides": {
+        "conversation": "Como funcionam os tópicos",
+        "resolve": "Resolver o que está concluído",
+        "filters": "Encontrar tópicos resolvidos",
+        "snooze": "Adiar para mais tarde",
+        "pinAndTag": "Fixar e etiquetar tópicos",
+        "views": "Vista Compacto vs. Tópicos",
+        "activity": "Atividade e aprovações"
+      },
+      "fullTour": "Visita completa",
+      "shortcuts": "Atalhos"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolva tópicos concluídos",
+        "cardTitle": "Resolva tópicos concluídos",
+        "roomSummary_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda",
+        "roomSummary_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "roomSummary_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "allSummary_one": "{{count}} tópico aberto, nenhum resolvido ainda",
+        "allSummary_many": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "allSummary_other": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "cardTextRoom_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_one": "{{count}} tópico aberto, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_many": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_other": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada."
+      }
     }
   },
   "threadNav": {
@@ -2029,6 +2401,7 @@
       "working": "Em curso",
       "later": "Mais tarde",
       "idle": "Inativos",
+      "quiet": "Calmos",
       "resolved": "Resolvidos"
     },
     "live": {
@@ -2057,7 +2430,11 @@
     "done": "Concluídos"
   },
   "threadActions": {
-    "openBeside": "Abrir na segunda coluna"
+    "openBeside": "Abrir na segunda coluna",
+    "detailsSection": "Detalhes",
+    "forkAndShareSection": "Bifurcar e partilhar",
+    "shareSection": "Partilhar",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este tópico",
@@ -2088,6 +2465,45 @@
     "cancellationSent": "Cancelamento enviado",
     "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
     "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
+  },
+  "roomTriggers": {
+    "title": "Gatilhos",
+    "openLabel": "Gatilhos ({{total}})",
+    "loading": "Carregando…",
+    "empty": "Nenhum gatilho nesta sala.",
+    "emptyHint": "Os gatilhos configurados para esta sala aparecem aqui.",
+    "loadError": "Não foi possível carregar os gatilhos.",
+    "missingTrigger": "O gatilho {{id}} não está mais nesta sala.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Monitoramento da sala",
+      "external_event": "Assinatura de eventos",
+      "thread_tag": "Tag de tópico",
+      "unknown": "Gatilho"
+    },
+    "watchingRoom": "Monitorando esta sala",
+    "stateOn": "Ativo",
+    "stateOff": "Inativo",
+    "disabledExpired": "Expirado",
+    "disabledOnceConsumed": "Usado uma vez",
+    "lastFired": "Último disparo {{time}}",
+    "neverFired": "Nenhum disparo registrado",
+    "destinationRoom": "Linha do tempo da sala",
+    "destinationThread": "Tópico",
+    "destinationNewThread": "Novo tópico",
+    "destinationOrigin": "Tópico de origem",
+    "openThread": "Abrir tópico",
+    "prompt": "Prompt",
+    "enable": "Ativar",
+    "disable": "Desativar",
+    "updating": "Atualizando...",
+    "toggleError": "Não foi possível atualizar o gatilho. Tente novamente.",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir este gatilho?",
+    "keep": "Manter",
+    "deleteTrigger": "Excluir gatilho",
+    "deleting": "Excluindo...",
+    "deleteError": "Não foi possível excluir o gatilho. Tente novamente."
   },
   "home": {
     "greeting": {
@@ -2126,5 +2542,45 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas",
+      "switchSpace": "Mudar de espaço"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar tópicos por sala",
+      "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada"
+    },
+    "composer": {
+      "postTo": "Enviar para:",
+      "postToRoom": "Enviar para #{{room}}",
+      "chooseRoomAria": "Escolher sala para enviar",
+      "draftPinned": "Rascunho para #{{room}}",
+      "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
+    },
+    "loading": "Carregando conversas...",
+    "empty": {
+      "noRooms": "Entre em uma sala neste espaço para ver as conversas aqui.",
+      "noThreads": "Ainda não há conversas neste espaço."
+    },
+    "error": {
+      "title": "Não foi possível carregar as conversas do espaço"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

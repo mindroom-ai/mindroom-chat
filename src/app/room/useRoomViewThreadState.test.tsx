@@ -531,6 +531,29 @@ it('restores the authoritative Done tab after toggling Unresolved in Simple mode
   expect(current().threadFilterState.resolved).toBe('exclude');
 });
 
+it('handleShowSnoozed lifts only snooze exclusion in Simple mode and selects Later in Advanced mode', () => {
+  const simple = mountThreadState();
+  act(() => simple.current().handleSortDirectionChange());
+  const { sortBy, sortDirection } = simple.current().threadFilterState;
+  expect(simple.current().threadFilterState.resolved).toBe('exclude');
+  expect(simple.current().threadFilterState.snoozed).toBe('exclude');
+
+  act(() => simple.current().handleShowSnoozed());
+  expect(simple.current().threadFilterState.resolved).toBe('exclude');
+  expect(simple.current().threadFilterState.snoozed).toBe('any');
+  expect(simple.current().threadFilterState.sortBy).toBe(sortBy);
+  expect(simple.current().threadFilterState.sortDirection).toBe(sortDirection);
+  expect(simple.current().threadFilterState.tab).toBeUndefined();
+
+  act(() => renderer?.unmount());
+  localStorage.clear();
+
+  const advanced = mountThreadState({ advancedFilters: true, hasMindroomAgents: true });
+  expect(advanced.current().threadFilterState.tab).toBe('needsYou');
+  act(() => advanced.current().handleShowSnoozed());
+  expect(advanced.current().threadFilterState.tab).toBe('later');
+});
+
 describe('useRoomViewThreadState interactive swipe wiring', () => {
   const mountPhoneStage = (label: string) => {
     const stage = document.createElement('div');

@@ -39,14 +39,11 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('focus-trap-react', () => ({
   FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../ui/page/Page', async () => {
-  const { forwardRef } = await import('react');
-  return {
-    PageHeader: forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) => (
-      <header ref={ref}>{children}</header>
-    )),
-  };
-});
+vi.mock('../ui/page/Page', () => ({
+  PageHeader: ({ children, ref }: React.PropsWithChildren<{ ref?: React.Ref<HTMLElement> }>) => (
+    <header ref={ref}>{children}</header>
+  ),
+}));
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
@@ -86,6 +83,7 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
+vi.mock('../triggers/useRoomTriggers', () => import('../triggers/useRoomTriggers.test.shared'));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,
@@ -97,6 +95,8 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => screen.size,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: view.mode,
     setViewMode: view.setViewMode,
@@ -171,6 +171,7 @@ describe("the room header's commands", () => {
     const ids = getRoomCommands().map(({ id }) => id);
     expect(ids).toEqual(expect.arrayContaining(['filterBar', 'toolCalls', 'members']));
     expect(commandById('filterBar')?.pressed).toBe(true);
+    expect(commandById('toolCalls')?.label).toBe('Show Tool Calls');
     expect(commandById('toolCalls')?.pressed).toBe(true);
     expect(commandById('members')?.shortcut).toBe('members');
     for (const id of ['pins', 'schedules', 'canvas', 'call']) {
@@ -184,6 +185,20 @@ describe("the room header's commands", () => {
     act(() => commandById('filterBar')?.run());
     expect(store.get(settingsAtom).hideThreadFilterBar).toBe(true);
     expect(commandById('filterBar')?.pressed).toBe(false);
+  });
+
+  it('omits toolCalls without agents and omits placement none plugin panels', () => {
+    renderHeader({
+      hasMindroomAgents: false,
+      pluginPanels: [
+        { id: 'pr/panel', label: 'Pull Requests', placement: 'none' },
+        { id: 'notes/panel', label: 'Notes', placement: 'menu' },
+      ],
+    });
+    const ids = getRoomCommands().map(({ id }) => id);
+    expect(ids).not.toContain('toolCalls');
+    expect(ids).not.toContain('panel:pr/panel');
+    expect(ids).toContain('panel:notes/panel');
   });
 
   it('are none once the header unmounts', () => {

@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Bericht in een andere kamer"
     },
+    "callout": {
+      "note": "Opmerking",
+      "tip": "Tip",
+      "important": "Belangrijk",
+      "warning": "Waarschuwing",
+      "caution": "Voorzichtig"
+    },
     "deviceVerification": {
       "acceptStalled": "De andere sessie heeft niet geantwoord. Sluit dit en start de verificatie opnieuw."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space-overzicht"
+    },
+    "footnote": {
+      "backToReference": "Terug naar verwijzing"
     }
   },
   "featureUi": {
@@ -421,6 +431,7 @@
       },
       "sidebar": {
         "title": "Zijbalk",
+        "navigation": "Navigatie",
         "threads": "Threads in de zijbalk tonen",
         "threadsDescription": "Threads uit alle kamers in één lijst. Verborgen open je ze via het ⋮-menu in Home.",
         "canvasesDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Verborgen open je ze via het ⋮-menu in Home.",
@@ -433,7 +444,9 @@
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom.",
         "usage": "Verbruik in de zijbalk tonen",
-        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer."
+        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer.",
+        "help": "Hulp & gidsen in de zijbalk tonen",
+        "helpDescription": "Snelle gidsen, de rondleiding en sneltoetsen. Verborgen open je de rondleiding via Instellingen onder Over of het commandopalet ({{shortcut}}), en sneltoetsen met {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plug-ins",
@@ -448,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "Jij",
-          "app": "Deze app",
-          "agents": "Agents & verbindingen",
-          "help": "Hulp & geavanceerd"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "Systeem"
         },
         "pages": {
           "privacy": "Privacy & beveiliging",
           "language": "Taal & regio",
-          "storage": "Opslag & offline"
+          "storage": "Opslag & offline",
+          "agentsServers": "Agents & servers"
         }
       },
       "search": {
@@ -470,13 +484,16 @@
       "advanced": "Geavanceerd",
       "sections": {
         "display": "Weergave",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Antwoorden",
+        "connectionsComputers": "Verbindingen & computers"
       },
       "computers": {
         "inUse": "Server in gebruik",
         "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat.",
         "useServer": "{{host}} gebruiken",
-        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren."
+        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren.",
+        "foundNotSavedChoose": "Gevonden via je agents, niet opgeslagen. Kies de server die je vertrouwt; dit apparaat gebruikt die voor alle kamers."
       },
       "keywords": {
         "theme": "donkere modus, lichte modus, nachtmodus, kleuren",
@@ -722,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
-      "searchEncrypted": "Niet beschikbaar in versleutelde kamers"
+      "searchEncrypted": "Niet beschikbaar in versleutelde kamers",
+      "viewSection": "Weergave",
+      "roomSection": "Kamer",
+      "preferencesSection": "Voorkeuren",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Vermeldingen"
     },
     "phoneNav": {
       "navigation": "Navigatie"
@@ -907,6 +929,164 @@
         "startEntireScreenShare": "Hele scherm delen",
         "stopEntireScreenShare": "Stoppen met delen van hele scherm"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Volledige toegang toestaan",
+        "cancel": "Annuleren",
+        "chooseLimits": "Grenzen kiezen...",
+        "close": "Sluiten",
+        "disconnect": "Loskoppelen",
+        "done": "Klaar",
+        "editLimits": "Grenzen bewerken...",
+        "switchToFull": "Overschakelen naar volledige toegang"
+      },
+      "banner": {
+        "restrictedActive": "Beperkte toegang actief op deze Mac.",
+        "shellReadyWaitingPermissions": "Shell gereed - Wachten op macOS-machtigingen voor scherm en invoer",
+        "waitingPermissions": "Wachten op macOS-machtigingen voor scherm en invoer"
+      },
+      "browser": {
+        "brewHint": "Of installeer met Homebrew:",
+        "confirmOnMac": "Bevestig deze code op {{mac}} om toegang goed te keuren.",
+        "copied": "Gekopieerd",
+        "copyCommand": "Opdracht kopiëren",
+        "copyFailed": "Kopiëren mislukt",
+        "downloadMacApp": "Download MindRoom Chat voor Mac",
+        "noMacDescription": "Om {{agent}} toegang te geven tot je Mac, log je met dit account in bij MindRoom Chat voor Mac.",
+        "paired": "{{agent}} is nu gekoppeld met {{mac}}.",
+        "relayDescription": "Stuur een koppelverzoek naar {{mac}}. Je bevestigt de 6-cijferige code en kiest volledige toegang of grenzen op je Mac.",
+        "selectMac": "Kies een Mac",
+        "sendToMac": "Versturen naar {{mac}}",
+        "waitingOnMac": "Wachten op bevestiging op {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} kan je scherm zien, elke app bedienen en zonder te vragen shell-opdrachten uitvoeren als jouw macOS-gebruiker, ook na herstart. Je kunt dit op elk moment stoppen via de menubalk.",
+        "upgradeHeading": "Overschakelen naar volledige toegang"
+      },
+      "empty": {
+        "noAgents": "Geen MindRoom-agents gevonden in deze ruimte."
+      },
+      "incoming": {
+        "decline": "Weigeren",
+        "failedTitle": "Kan {{agent}} niet koppelen",
+        "sasHint": "Controleer voor goedkeuring of deze 6-cijferige code overeenkomt met {{requester}}.",
+        "title": "{{agent}} koppelen vanaf {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Map toevoegen...",
+        "allowShellOnMac": "Shell-opdrachten op deze Mac toestaan",
+        "foldersLabel": "Alleen-lezen mappen",
+        "fullNote": "Volledige toegang tot intrekking schakelt volledige schermbediening en automatisch goedgekeurde shell-opdrachten in tot je deze intrekt.",
+        "fullScreen": "Volledig scherm (primary-screen)",
+        "gui15m": "Bediening 15 min toestaan",
+        "gui1h": "Bediening 1 uur toestaan",
+        "guiFull": "Volledige toegang tot intrekking",
+        "guiLabel": "Scherm- en invoerbediening",
+        "guiObserve": "Alleen meekijken",
+        "installedApps": "Toegestane Mac-apps",
+        "loadingApps": "Geïnstalleerde apps laden...",
+        "needCapability": "Schakel volledig scherm, minstens één app, een map of shell-opdrachten in.",
+        "noAppsFound": "Geen geïnstalleerde Mac-apps gevonden.",
+        "noFolders": "Geen alleen-lezen mappen toegevoegd.",
+        "perAgentHeading": "Bediening en shell-goedkeuring voor {{agent}} (per agent)",
+        "removeFolder": "Verwijderen",
+        "save": "Toestaan met grenzen",
+        "saveChanges": "Grenzen opslaan",
+        "sharedHeading": "Gedeelde apps, mappen en shell op deze Mac (geldt voor alle gekoppelde agents)",
+        "sharedWithOthersHint": "Gedeeld met andere gekoppelde agents op deze Mac",
+        "shell15m": "15 min automatisch goedkeuren",
+        "shell1h": "1 uur automatisch goedkeuren",
+        "shellApprovalLabel": "Shell-goedkeuring",
+        "shellAsk": "Voor elke opdracht vragen",
+        "shellDisabledHint": "Zet hieronder \"Shell-opdrachten op deze Mac toestaan\" aan om shell-goedkeuring in te stellen.",
+        "shellUntilRevoked": "Automatisch goedkeuren tot intrekking"
+      },
+      "permissions": {
+        "accessibility": "Toegankelijkheid",
+        "accessibilityGrantedHint": "Toetsenbord- en muisbediening toegestaan.",
+        "accessibilityMissingHint": "Staat toetsenbord- en muisbediening toe. Wordt automatisch bijgewerkt zodra dit is ingeschakeld.",
+        "allowAccessibility": "Toegankelijkheid toestaan",
+        "allowScreenRecording": "Schermopname toestaan",
+        "allowed": "Toegestaan",
+        "relaunchToActivate": "Herstart om schermbediening te activeren",
+        "screenRecording": "Schermopname",
+        "screenRecordingGrantedHint": "Schermweergave toegestaan.",
+        "screenRecordingMissingHint": "Staat gekoppelde agents toe om je scherm te zien.",
+        "screenRecordingRelaunchHint": "Herstart MindRoom Chat één keer zodat macOS Schermopname activeert."
+      },
+      "picker": {
+        "subtitle": "Kies welke agent in deze ruimte verbinding mag maken met deze Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Mac-toegang geven",
+        "manageAccess": "Mac-toegang"
+      },
+      "sas": {
+        "label": "Verificatiecode"
+      },
+      "settings": {
+        "bridgeState": "Bridge-status",
+        "helperVersion": "Helper-versie",
+        "keywords": "mac, computertoegang, bureaubladbediening, shell, toegankelijkheid, schermopname, machtigingen",
+        "lastError": "Laatste fout",
+        "manage": "Beheren",
+        "noPairedAgentsDescription": "Open een ruimte met een agent en kies Mac-toegang geven om deze te verbinden.",
+        "noPairedAgentsTitle": "Nog geen agents gekoppeld",
+        "notSignedIn": "Niet ingelogd",
+        "pairedAgentsTitle": "Gekoppelde agents",
+        "permissionsTitle": "macOS-machtigingen",
+        "revokeAll": "Alle toegang intrekken",
+        "revokeAllDescription": "Koppelt alle gekoppelde agents los en stopt direct de computertoegang op deze Mac.",
+        "runningShellTitle": "Actieve shell-opdrachten",
+        "savedSession": "Opgeslagen Matrix-sessie",
+        "sectionTitle": "Deze Mac",
+        "statusActive": "Actief",
+        "statusDescription": "Bepaal welke MindRoom-agents deze Mac mogen zien en bedienen.",
+        "statusStopped": "Gestopt",
+        "statusTitle": "Mac-computertoegang",
+        "statusUnavailable": "Niet beschikbaar op deze Mac",
+        "stopCommand": "Stoppen",
+        "title": "Deze Mac",
+        "unavailableDescription": "Mac-computertoegang vereist MindRoom Chat voor Mac op Apple Silicon.",
+        "unknown": "Onbekend"
+      },
+      "shellApproval": {
+        "approveOnce": "Eenmalig goedkeuren",
+        "approveOnceCountdown": "Eenmalig goedkeuren ({{seconds}})",
+        "autoApprove15m": "15 min automatisch goedkeuren",
+        "autoApprove15mCountdown": "15 min automatisch goedkeuren ({{seconds}})",
+        "cwdLabel": "Werkmap",
+        "deny": "Weigeren",
+        "empty": "Er wacht geen shell-opdracht op goedkeuring.",
+        "title": "Shell-opdracht goedkeuren?"
+      },
+      "status": {
+        "fullAccess": "Volledige toegang",
+        "fullAccessActive": "Volledige toegang actief",
+        "permissionsNeeded": "Machtigingen vereist",
+        "restricted": "Beperkt",
+        "shellReady": "Shell gereed"
+      },
+      "steps": {
+        "confirming": "Koppeling bevestigen...",
+        "finishing": "Toegang activeren...",
+        "pairing": "Koppelen met {{agent}}...",
+        "requestingOffer": "Contact opnemen met {{agent}}...",
+        "signingIn": "Inloggen op deze Mac..."
+      },
+      "title": {
+        "allowFull": "{{agent}} volledige toegang tot deze Mac geven?",
+        "browserPair": "Geef {{agent}} toegang tot je Mac",
+        "chooseLimits": "Grenzen kiezen voor {{agent}}",
+        "default": "Mac-computertoegang",
+        "editLimits": "Grenzen bewerken voor {{agent}}",
+        "manageAgent": "{{agent}} op deze Mac",
+        "pickAgent": "Een agent toegang geven tot deze Mac"
+      },
+      "unavailable": {
+        "description": "Mac-computertoegang is niet beschikbaar op dit apparaat."
+      }
     }
   },
   "mindroomUi": {
@@ -1051,7 +1231,23 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Bron {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Gebeurtenispayload JSON"
+        "payloadLabel": "Gebeurtenispayload JSON",
+        "openTriggerLabel": "Trigger {{id}} bekijken"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} taak klaar",
+        "readyCount_other": "{{count}} taken klaar",
+        "hide": "Verbergen",
+        "show": "Tonen",
+        "copyId": "Taak-ID {{id}} kopiëren",
+        "moreItems_one": "+{{count}} extra uitvoerbaar item",
+        "moreItems_other": "+{{count}} extra uitvoerbare items",
+        "priority": {
+          "critical": "Kritiek",
+          "high": "Hoog",
+          "medium": "Gemiddeld",
+          "low": "Laag"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
@@ -1198,7 +1394,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Compacte weergave",
-        "threadFiltersActive": "Threadfilters (actief)"
+        "threadFiltersActive": "Threadfilters (actief)",
+        "mindroomSettings": "MindRoom-instellingen"
       },
       "roomThreadOverview": {
         "advancedFilters": "Geavanceerde filters",
@@ -1231,6 +1428,25 @@
         "expandAllLong": "Alle lange berichten uitklappen",
         "collapseAllLong": "Alle lange berichten inklappen",
         "showFullMessage": "Volledig bericht tonen"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Helemaal bij",
+        "resolvedCount_one": "{{count}} opgelost",
+        "resolvedCount_other": "{{count}} opgelost",
+        "snoozedCount_one": "{{count}} gesnoozed",
+        "snoozedCount_other": "{{count}} gesnoozed",
+        "showAll": "Alles tonen",
+        "startNewThreadBelow": "Start hieronder een nieuwe thread",
+        "recentlyResolved": "Recent opgelost",
+        "noMatchHeading": "Geen threads komen overeen met je filters",
+        "hiddenByForMe_one": "{{count}} open thread wordt verborgen door Voor mij.",
+        "hiddenByForMe_other": "{{count}} open threads worden verborgen door Voor mij.",
+        "hiddenByFilters_one": "{{count}} open thread wordt verborgen door je filters.",
+        "hiddenByFilters_other": "{{count}} open threads worden verborgen door je filters.",
+        "adjustOrResetFilters": "Pas je filters aan of zet ze terug om threads in deze kamer te zien.",
+        "turnOffForMe": "Voor mij uitschakelen",
+        "resetAll": "Alles terugzetten",
+        "resetFilters": "Filters terugzetten"
       }
     },
     "computer": {
@@ -1259,7 +1475,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
+      "awaitingAnswer": "Wacht op jouw antwoord: {{tool}}",
       "jobCountFinished": "{{count}} achtergrondtaken voltooid",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Subagenten · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1304,6 +1522,95 @@
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
       "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starten",
+        "running": "Actief",
+        "waiting": "Wacht op jou",
+        "completed": "Klaar",
+        "failed": "Mislukt",
+        "cancelled": "Geannuleerd",
+        "interrupted": "Onderbroken"
+      },
+      "counts": "{{done}} klaar, {{running}} actief, {{waiting}} wachtend",
+      "reused": "Hergebruikt: {{count}}",
+      "cost": "{{spent}} tot nu toe, ongeveer {{projected}} in totaal",
+      "costAtLeast": "minstens {{spent}} tot nu toe",
+      "largeRun": "Grote run",
+      "attempt": "Poging {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Stoppen…",
+      "resume": "Hervatten",
+      "runAgain": "Opnieuw uitvoeren",
+      "starting": "Starten…",
+      "failedCount_one": "{{count}} mislukt",
+      "failedCount_other": "{{count}} mislukt",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Al beantwoord.",
+          "noLongerOpen": "Deze vraag staat niet meer open.",
+          "notAnOption": "Dat is geen van de opties.",
+          "notForYou": "Alleen degene die de run startte kan antwoorden."
+        },
+        "noReply": "Nog geen reactie. Probeer opnieuw.",
+        "placeholder": "Typ je antwoord",
+        "send": "Versturen",
+        "answered": "Beantwoord: {{answer}}",
+        "cancelled": "Geannuleerd",
+        "onlyRequester": "Alleen {{name}} kan antwoorden."
+      },
+      "graph": "Grafiek",
+      "panel": {
+        "close": "Sluiten",
+        "resize": "Workflowpaneel vergroten of verkleinen",
+        "hide": "Workflow verbergen",
+        "waitingForUpdate": "Wachten op de volgende update van de run…",
+        "stale": "Wordt niet bijgewerkt. Laatste update {{time}}.",
+        "log": "Logboek",
+        "showMore": "Toon nog {{count}}",
+        "omitted": {
+          "queued_one": "en nog {{count}} in wachtrij",
+          "queued_other": "en nog {{count}} in wachtrij",
+          "running_one": "en nog {{count}} actief",
+          "running_other": "en nog {{count}} actief",
+          "waiting_one": "en nog {{count}} wachtend",
+          "waiting_other": "en nog {{count}} wachtend",
+          "failed_one": "en nog {{count}} mislukt",
+          "failed_other": "en nog {{count}} mislukt",
+          "done_one": "en nog {{count}} klaar",
+          "done_other": "en nog {{count}} klaar"
+        },
+        "askAgent": "Vraag {{agent}} om de rest."
+      },
+      "group": {
+        "foreach": "Voor elk",
+        "parallel": "Parallel",
+        "run": "Opgeslagen workflow",
+        "workflow": "Geneste workflow",
+        "progress": "{{done}} van {{total}}",
+        "failed": "Mislukt: {{count}}"
+      },
+      "node": {
+        "reused": "Hergebruikt van de vorige run",
+        "queued": "In wachtrij",
+        "mayHaveRun": "Mogelijk uitgevoerd",
+        "waitingOn": {
+          "user": "Wacht op jouw antwoord",
+          "approval": "Wacht op goedkeuring",
+          "peer": "Wacht op een bericht"
+        },
+        "sessionTurns_one": "{{count}} beurt",
+        "sessionTurns_other": "{{count}} beurten",
+        "result": "Resultaat",
+        "error": "Fout",
+        "messages": "Berichten",
+        "messagesTo": "Berichten naar {{name}}: {{count}}",
+        "open": "Openen",
+        "detailsUnavailable": "Details zijn na herladen niet meer beschikbaar.",
+        "stop": "Agent stoppen"
+      }
     },
     "subagents": {
       "title": "Subagenten",
@@ -1547,7 +1854,9 @@
     },
     "actions": {
       "goActivity": "Naar Activiteit",
-      "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht"
+      "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht",
+      "openCurrentRoomMindroomSettings": "MindRoom-kamerinstellingen openen",
+      "openCurrentRoomMindroomSettingsDescription": "MindRoom-instellingen voor {{room}} openen"
     },
     "recentVisits": {
       "recentlyOpened": "Recent geopend",
@@ -1621,6 +1930,7 @@
       "needsYou": "Jij bent aan zet",
       "working": "Bezig",
       "later": "Later",
+      "quiet": "Stil",
       "done": "Klaar",
       "all": "Alle",
       "description": {
@@ -1657,7 +1967,17 @@
     "forking": "{{title}} afsplitsen",
     "continueInNewThread": "Verdergaan in een nieuwe thread",
     "forkCount_one": "{{count}} afsplitsing",
-    "forkCount_other": "{{count}} afsplitsingen"
+    "forkCount_other": "{{count}} afsplitsingen",
+    "forkedFromInRoom": "Afgesplitst van {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Afgesplitst uit een andere kamer",
+    "forkingIntoRoom": "{{title}} afsplitsen naar {{room}}",
+    "forkToRoom": "Afsplitsen naar kamer…",
+    "forkToRoomTitle": "Afsplitsen naar kamer",
+    "forkToRoomSearchPlaceholder": "Kamers zoeken…",
+    "forkToRoomEmpty": "Geen overeenkomende kamers",
+    "forkToRoomAgentWarning": "Agenten in deze kamer zitten niet in {{room}} en zien de oorspronkelijke thread niet",
+    "forkingFromRoom": "Afsplitsen uit {{room}}",
+    "forkDraftAgentWarning": "Agenten hier zitten niet in {{room}} en zien de oorspronkelijke thread niet"
   },
   "activity": {
     "title": "Activiteit",
@@ -1691,8 +2011,7 @@
       "replyAndOthers_one": "{{name}} en {{count}} ander hebben geantwoord",
       "replyAndOthers_other": "{{name}} en {{count}} anderen hebben geantwoord",
       "finished": "{{name}} is klaar",
-      "stopped": "{{name}} is gestopt",
-      "youReplied": "Je hebt gereageerd"
+      "stopped": "{{name}} is gestopt"
     },
     "newCount_one": "{{count}} nieuw",
     "newCount_other": "{{count}} nieuw",
@@ -1910,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Vastmaken en taggen",
-        "text": "Thread vastmaken houdt een thread bovenaan de lijst. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
+        "text": "Druk op de punaise op een kaart, of op Thread vastmaken in Threadopties (⋯), om een thread bovenaan te houden. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
       },
       "filters": {
         "title": "Filters verbergen opgeloste threads",
@@ -1957,6 +2276,42 @@
       "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
       "howThreadsWork": "Hoe threads werken",
       "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
+    },
+    "help": {
+      "button": "Hulp & gidsen",
+      "buttonWithTip": "Hulp & gidsen (1 tip)",
+      "title": "Hulp & gidsen",
+      "subtitle": "Snelle gidsen",
+      "oneTip": "1 tip",
+      "suggested": "Aanbevolen voor jou",
+      "showHow": "Bekijk hoe",
+      "dismissTip": "Tip sluiten",
+      "guidesHeading": "UI-gidsen",
+      "guides": {
+        "conversation": "Hoe threads werken",
+        "resolve": "Los op wat klaar is",
+        "filters": "Opgeloste threads vinden",
+        "snooze": "Snoozen voor later",
+        "pinAndTag": "Threads vastmaken & taggen",
+        "views": "Compact vs. Threads-weergave",
+        "activity": "Activiteit & goedkeuringen"
+      },
+      "fullTour": "Volledige rondleiding",
+      "shortcuts": "Sneltoetsen"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Los afgeronde threads op",
+        "cardTitle": "Los afgeronde threads op",
+        "roomSummary_one": "{{count}} open thread hier, nog geen opgelost",
+        "roomSummary_other": "{{count}} open threads hier, nog geen opgelost",
+        "allSummary_one": "{{count}} open thread, nog geen opgelost",
+        "allSummary_other": "{{count}} open threads, nog geen opgelost",
+        "cardTextRoom_one": "{{count}} open thread hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextRoom_other": "{{count}} open threads hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_one": "{{count}} open thread, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_other": "{{count}} open threads, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden."
+      }
     }
   },
   "threadNav": {
@@ -1972,6 +2327,7 @@
       "working": "Bezig",
       "later": "Later",
       "idle": "Inactief",
+      "quiet": "Stil",
       "resolved": "Opgelost"
     },
     "live": {
@@ -1996,7 +2352,11 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Afsplitsen & delen",
+    "shareSection": "Delen",
+    "viewSection": "Weergave"
   },
   "roomSchedules": {
     "thisThread": "Deze thread",
@@ -2027,6 +2387,45 @@
     "cancellationSent": "Annulering verzonden",
     "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
     "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
+  },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Laden…",
+    "empty": "Geen triggers in deze kamer.",
+    "emptyHint": "Triggers die voor deze kamer zijn ingesteld verschijnen hier.",
+    "loadError": "Kon triggers niet laden.",
+    "missingTrigger": "Trigger {{id}} bevindt zich niet meer in deze kamer.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Kamerbewaking",
+      "external_event": "Gebeurtenisabonnement",
+      "thread_tag": "Thread-tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Bewaakt deze kamer",
+    "stateOn": "Aan",
+    "stateOff": "Uit",
+    "disabledExpired": "Verlopen",
+    "disabledOnceConsumed": "Eenmalig gebruikt",
+    "lastFired": "Laatst afgegaan {{time}}",
+    "neverFired": "Geen uitvoering geregistreerd",
+    "destinationRoom": "Kamertijdlijn",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Nieuwe thread",
+    "destinationOrigin": "Oorspronkelijke thread",
+    "openThread": "Thread openen",
+    "prompt": "Prompt",
+    "enable": "Inschakelen",
+    "disable": "Uitschakelen",
+    "updating": "Bijwerken...",
+    "toggleError": "Kon trigger niet bijwerken. Probeer het opnieuw.",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Deze trigger verwijderen?",
+    "keep": "Behouden",
+    "deleteTrigger": "Trigger verwijderen",
+    "deleting": "Verwijderen...",
+    "deleteError": "Kon trigger niet verwijderen. Probeer het opnieuw."
   },
   "home": {
     "greeting": {
@@ -2065,5 +2464,44 @@
   },
   "nav": {
     "usage": "Verbruik"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} kamer",
+      "roomsCount_other": "{{count}} kamers",
+      "roomsFiltered": "{{active}} van {{total}} kamers",
+      "switchSpace": "Space wisselen"
+    },
+    "roomFilter": {
+      "label": "Kamers",
+      "ariaLabel": "Threads filteren op kamer",
+      "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "ariaLabelOne": "Kamers: {{room}}",
+      "search": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers"
+    },
+    "composer": {
+      "postTo": "Plaatsen in:",
+      "postToRoom": "Plaatsen in #{{room}}",
+      "chooseRoomAria": "Kies een kamer om in te plaatsen",
+      "draftPinned": "Concept voor #{{room}}",
+      "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
+    },
+    "loading": "Threads laden...",
+    "empty": {
+      "noRooms": "Neem deel aan een kamer in deze ruimte om hier threads te zien.",
+      "noThreads": "Nog geen threads in deze ruimte."
+    },
+    "error": {
+      "title": "Kon threads van de ruimte niet laden"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Bron",
+    "showDiagram": "Diagram tonen",
+    "showSource": "Bron tonen",
+    "mermaidDiagram": "Mermaid-diagram",
+    "diagramUnavailable": "Bron wordt getoond"
   }
 }

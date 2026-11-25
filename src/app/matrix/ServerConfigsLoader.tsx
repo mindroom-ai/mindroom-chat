@@ -146,7 +146,7 @@ export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) 
     };
   }, [mx]);
 
-  return <LoadedConfigs.Provider value={configs}>{children(configs)}</LoadedConfigs.Provider>;
+  return <LoadedConfigs value={configs}>{children(configs)}</LoadedConfigs>;
 }
 
 /**

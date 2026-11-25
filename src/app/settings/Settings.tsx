@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
@@ -11,7 +11,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
 import { ServerAccounts } from '../server-admin/ServerAccounts';
-import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
+import { MindroomSettingsPage } from './pages/AgentSettingsPages';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
@@ -69,6 +69,12 @@ type PageContentProps = {
   closeDialog: () => void;
 };
 
+const LazyThisMacSettingsPage = lazy(() =>
+  import('../desktop-access/ThisMacSettingsPage').then((mod) => ({
+    default: mod.ThisMacSettingsPage,
+  }))
+);
+
 function SettingsPageContent({ page, requestClose, closeDialog }: PageContentProps) {
   switch (page) {
     case 'account':
@@ -83,24 +89,28 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <Appearance requestClose={requestClose} />;
     case 'chats':
       return <Chats requestClose={requestClose} />;
+    case 'archived-rooms':
+      return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
     case 'sidebar':
       return <Sidebar requestClose={requestClose} />;
     case 'plugins':
       return <Plugins requestClose={requestClose} />;
     case 'language':
       return <LanguageRegion requestClose={requestClose} />;
-    case 'connections':
-      return <ConnectionsSettingsPage requestClose={requestClose} />;
-    case 'computers':
-      return <ComputersSettingsPage requestClose={requestClose} />;
+    case 'mindroom':
+      return <MindroomSettingsPage requestClose={requestClose} />;
+    case 'thisMac':
+      return (
+        <Suspense fallback={null}>
+          <LazyThisMacSettingsPage requestClose={requestClose} />
+        </Suspense>
+      );
     case 'mindroom.local-mindroom':
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
-    case 'archived-rooms':
-      return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
-    case 'server-accounts':
-      return <ServerAccounts requestClose={requestClose} />;
     case 'storage':
       return <StorageOffline requestClose={requestClose} />;
+    case 'server-accounts':
+      return <ServerAccounts requestClose={requestClose} />;
     case 'developer-tools':
       return <DeveloperTools requestClose={requestClose} />;
     case 'about':
@@ -121,7 +131,7 @@ type SettingsMenuListProps = {
 };
 
 /**
- * The pages under their quiet group headings (You, This app, Agents & connections, ...), each a
+ * The pages under their quiet group headings (You, App, MindRoom, System), each a
  * 32 px row with its line icon, 4 px apart; the open page's row is filled.
  */
 function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {
@@ -237,7 +247,8 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       context.native,
       context.serverAdmin,
       context.nativeIOS,
-      context.hasPlugins
+      context.hasPlugins,
+      context.desktopAccess
     )
   );
   const [query, setQuery] = useState('');
@@ -278,9 +289,11 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
         context.native,
         context.serverAdmin,
         context.nativeIOS,
-        context.hasPlugins
+        context.hasPlugins,
+        context.desktopAccess
       ),
     [
+      context.desktopAccess,
       context.hasPlugins,
       context.localMindroom,
       context.native,
@@ -335,15 +348,15 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       {activePage !== undefined && (
         // `display: contents` keeps the page in the dialog's row; search looks for settings here.
         <div ref={pageRef} style={{ display: 'contents' }}>
-          <SettingsBreadcrumbRoot.Provider value={dialogTitle}>
-            <SettingsTargetContext.Provider value={target}>
+          <SettingsBreadcrumbRoot value={dialogTitle}>
+            <SettingsTargetContext value={target}>
               <SettingsPageContent
                 page={activePage}
                 requestClose={handlePageRequestClose}
                 closeDialog={requestClose}
               />
-            </SettingsTargetContext.Provider>
-          </SettingsBreadcrumbRoot.Provider>
+            </SettingsTargetContext>
+          </SettingsBreadcrumbRoot>
         </div>
       )}
     </PageRoot>

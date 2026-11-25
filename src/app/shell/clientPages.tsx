@@ -44,6 +44,7 @@ export { Direct } from '../sidebar/direct/Direct';
 export { DirectCreate } from '../sidebar/direct/DirectCreate';
 export { SpaceRouteProvider } from '../sidebar/space/Space';
 export { Lobby } from '../spaces/lobby/Lobby';
+export { SpaceThreadsPage } from '../spaces/threads/SpaceThreadsPage';
 export { ThreadsNav } from '../threads/page/ThreadsNav';
 export { ThreadsEmpty } from '../threads/page/ThreadsEmpty';
 export { Canvases } from '../canvas/page/Canvases';
@@ -78,7 +79,7 @@ export function SignedInChrome() {
     <ClientBindAtoms>
       <ClientShell>
         <NavigationProvider>
-          <FloatingCardsContext.Provider value={floating}>
+          <FloatingCardsContext value={floating}>
             <MembersOverlayFollowsNavigation />
             <ClientLayout
               nav={<RailBesidePage rail={nav} />}
@@ -93,7 +94,7 @@ export function SignedInChrome() {
             </ClientLayout>
             {/* A live voice recording or dictation belongs to the account, not to a page. */}
             <LiveCaptureIndicator />
-          </FloatingCardsContext.Provider>
+          </FloatingCardsContext>
         </NavigationProvider>
       </ClientShell>
     </ClientBindAtoms>

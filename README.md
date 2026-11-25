@@ -15,13 +15,13 @@
 
 </div>
 
-https://github.com/user-attachments/assets/7d36fe22-5a47-4a01-bf4e-82b7b05dcca5
+https://github.com/user-attachments/assets/41209d0e-f78b-438e-9ee1-248a492388a3
 
 ## What it is
 
 [MindRoom](https://github.com/mindroom-ai/mindroom) runs AI agents as ordinary users on a [Matrix](https://matrix.org) homeserver, so people and agents share the same rooms. Any Matrix client can talk to them. This one is built for them: every conversation is a thread you can title, tag, pin and resolve; agent replies stream in live with their tool calls, model and usage; and a tool call that your MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules hold back waits until you approve it.
 
-It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, macOS and Android apps built from the same code with Capacitor.
+It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, iPadOS and Android apps built with Capacitor and a macOS desktop app built with Electron from the same code.
 
 ## Highlights
 
@@ -120,16 +120,17 @@ On the Mac, Control+Option+Space opens Quick Capture over any app: a small windo
 
 ## Documentation
 
-| Page                                               | Covers                                                                                   |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`docs/development.md`](docs/development.md)       | setup, checks, end-to-end specs, native shells                                           |
-| [`docs/deployment.md`](docs/deployment.md)         | the build, serving it, homeserver and MindRoom backend                                   |
-| [`docs/configuration.md`](docs/configuration.md)   | `config.json`, `runtime-config.js` and build variables                                   |
-| [`docs/architecture.md`](docs/architecture.md)     | folders, layers, and the MindRoom event formats                                          |
-| [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
-| [`docs/ios-release.md`](docs/ios-release.md)       | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
-| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with                                                 |
-| [`AGENTS.md`](AGENTS.md)                           | rules for changing code, and the `just` recipes                                          |
+| Page                                                   | Covers                                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [`docs/development.md`](docs/development.md)           | setup, checks, end-to-end specs, native shells                                           |
+| [`docs/perf-and-testing.md`](docs/perf-and-testing.md) | performance benchmarks, real-activity replay harness, and testing/verification scripts   |
+| [`docs/deployment.md`](docs/deployment.md)             | the build, serving it, homeserver and MindRoom backend                                   |
+| [`docs/configuration.md`](docs/configuration.md)       | `config.json`, `runtime-config.js` and build variables                                   |
+| [`docs/architecture.md`](docs/architecture.md)         | folders, layers, and the MindRoom event formats                                          |
+| [`docs/client-plugins.md`](docs/client-plugins.md)     | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
+| [`docs/ios-release.md`](docs/ios-release.md)           | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
+| [`docs/design/reference/`](docs/design/reference/)     | the screenshots the app is compared with                                                 |
+| [`AGENTS.md`](AGENTS.md)                               | rules for changing code, and the `just` recipes                                          |
 
 ## License
 

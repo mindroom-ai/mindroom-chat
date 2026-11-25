@@ -159,7 +159,7 @@
         "title": "Bağlı hesaplar",
         "description": "Ajanlarınızın kullandığı Google veya GitHub gibi hesapları MindRoom sunucunuza bağlayın.",
         "open": "Bağlantıları aç",
-        "noBackend": "Bağlantıları kullanmak için MindRoom sunucunuzu “Bilgisayarlar” bölümünden ayarlayın.",
+        "noBackend": "Bağlantıları kullanmak için MindRoom sunucunuzu Ayarlar → Ajanlar ve sunucular (Gelişmiş) bölümünden ayarlayın.",
         "blocked": "Tarayıcınız Bağlantılar penceresini engelledi. Bu site için açılır pencerelere izin verin ve tekrar deneyin."
       }
     }

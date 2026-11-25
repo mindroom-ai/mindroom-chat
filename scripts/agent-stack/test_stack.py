@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import shutil
 import signal
 import sqlite3
@@ -470,7 +471,7 @@ class CommandLineTests(unittest.TestCase):
             mock.patch.object(stack, "wait_until", side_effect=wait),
         ):
             self.assertEqual(self.main("7", "up", "--terminals"), 1)
-        self.assertIn("the sandbox runner exited while starting", self.stderr.getvalue())
+        self.assertIn("the sandbox runner exited while starting (exit 1)", self.stderr.getvalue())
         self.assertIn("Address already in use", self.stderr.getvalue())
 
     def config_of_a_start(self, has_shell_setting: bool) -> str:
@@ -534,9 +535,74 @@ class CommandLineTests(unittest.TestCase):
         account = {"user_id": TESTER, "access_token": "tester-token"}
         self.register = patches.enter_context(mock.patch.object(stack, "register", return_value=account))
         patches.enter_context(mock.patch.object(stack, "matrix", return_value=(200, {})))
-        self.start_process = patches.enter_context(mock.patch.object(stack, "start_process", return_value=0))
+        stopped = mock.Mock(pid=0, returncode=1, **{"poll.return_value": 1})
+        self.start_process = patches.enter_context(mock.patch.object(stack, "start_process", return_value=stopped))
         patches.enter_context(mock.patch.object(stack, "wait_until", return_value=backend_state))
         return patches
+
+    def start_fake_backend(self, code: str, *, health_status: int = 200) -> tuple[object, list[subprocess.Popen[bytes]]]:
+        """Run `stack.py 7 up --model live` with a real child for `mindroom`, polling `/api/health` for real."""
+        source = self.root / "mindroom-source"
+        bin_dir = source / ".venv" / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        mindroom = bin_dir / "mindroom"
+        mindroom.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -c {shlex.quote(code)}\n")
+        mindroom.chmod(0o755)
+        real_wait_until, real_start_process = stack.wait_until, stack.start_process
+        spawned: list[subprocess.Popen[bytes]] = []
+        self.addCleanup(lambda: [stack.stop_process(proc.pid, str(self.slot_dir), process=proc) for proc in spawned])
+
+        def http_json(_method: str, url: str, *_args: object, **_kwargs: object) -> tuple[int, dict]:
+            return (health_status, {}) if url.endswith("/api/health") else (200, {})
+
+        def start_process(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+            started = real_start_process(*args, **kwargs)
+            spawned.append(started)
+            return started
+
+        with self.starting():
+            backend_state = stack.wait_until.return_value
+
+            def wait_until(description: str, check, timeout: float, _interval: float = 1.0, on_fail=None):
+                if description == "the MindRoom API":
+                    return real_wait_until(description, check, timeout, 0.01, on_fail)
+                return backend_state
+
+            with (
+                mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}),
+                mock.patch.object(stack, "commit_has", return_value=False),
+                mock.patch.object(stack, "commit_mentions", return_value=False),
+                mock.patch.object(stack, "prepare_source", return_value=source),
+                mock.patch.object(stack, "http_json", side_effect=http_json),
+                mock.patch.object(stack, "start_process", side_effect=start_process),
+                mock.patch.object(stack, "wait_until", side_effect=wait_until),
+            ):
+                return self.main("7", "up", "--model", "live"), spawned
+
+    def test_a_live_backend_survives_an_empty_proc_cmdline_right_after_spawn(self) -> None:
+        real_read_bytes = Path.read_bytes
+
+        def empty_proc_cmdline(target: Path) -> bytes:
+            if target.parts[:2] == ("/", "proc") and target.name == "cmdline":
+                return b""
+            return real_read_bytes(target)
+
+        with mock.patch.object(Path, "read_bytes", empty_proc_cmdline):
+            code, spawned = self.start_fake_backend("import time; time.sleep(60)")
+            self.assertEqual(code, 0, self.stderr.getvalue())
+            self.assertEqual(len(spawned), 1)
+            proc = spawned[0]
+            self.assertEqual(stack.read_state(self.slot_dir)["pids"]["backend"], proc.pid)
+            self.assertIsNone(proc.poll())
+            stack.stop_process(proc.pid, str(self.slot_dir), process=proc)
+            self.assertFalse(stack.alive(proc.pid, str(self.slot_dir), process=proc))
+
+    def test_a_backend_that_exits_while_starting_reports_its_exit_code(self) -> None:
+        code, spawned = self.start_fake_backend("raise SystemExit(7)", health_status=0)
+        self.assertEqual(code, 1)
+        self.assertIn("MindRoom exited while starting (exit 7)", self.stderr.getvalue())
+        self.assertEqual(len(spawned), 1)
+        self.assertEqual(spawned[0].returncode, 7)
 
     def test_a_new_slot_without_keys_and_its_files_are_the_owners_only(self) -> None:
         with self.starting():
@@ -991,6 +1057,22 @@ class AliveTests(unittest.TestCase):
             mock.patch.object(stack.subprocess, "run", side_effect=FileNotFoundError("ps")),
         ):
             self.assertFalse(stack.alive(4242, "/slot-7"))
+
+    def test_a_spawned_process_handle_is_polled_without_reading_proc(self) -> None:
+        with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"]) as process:
+            try:
+                with (
+                    mock.patch.object(Path, "read_bytes", return_value=b"") as read_bytes,
+                    mock.patch.object(stack.subprocess, "run") as run,
+                ):
+                    self.assertTrue(stack.alive(process.pid, "marker", process=process))
+                    # Without a handle (an external PID from state.json), /proc/<pid>/cmdline still decides.
+                    self.assertFalse(stack.alive(process.pid, "marker"))
+                read_bytes.assert_called_once_with()
+                run.assert_not_called()
+            finally:
+                process.kill()
+        self.assertFalse(stack.alive(process.pid, "marker", process=process))
 
 
 class WorkerImageTests(unittest.TestCase):

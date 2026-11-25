@@ -262,6 +262,13 @@
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
     },
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
     "deviceVerification": {
       "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "スペースの概要"
+    },
+    "footnote": {
+      "backToReference": "参照元に戻る"
     }
   },
   "featureUi": {
@@ -408,6 +418,7 @@
       },
       "sidebar": {
         "title": "サイドバー",
+        "navigation": "ナビゲーション",
         "threads": "サイドバーにスレッドを表示する",
         "threadsDescription": "すべてのルームのスレッドを1つのリストで表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
         "canvasesDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
@@ -420,7 +431,9 @@
         "localMindroom": "サイドバーに Local MindRoom を表示する",
         "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。",
         "usage": "サイドバーに使用量を表示する",
-        "usageDescription": "ランタイムが報告すると、プロバイダーの使用上限と7日間のトークン消費量を表示します。非表示のときはホームの ⋮ メニューまたはモデル選択から開けます。"
+        "usageDescription": "ランタイムが報告すると、プロバイダーの使用上限と7日間のトークン消費量を表示します。非表示のときはホームの ⋮ メニューまたはモデル選択から開けます。",
+        "help": "サイドバーにヘルプとガイドを表示する",
+        "helpDescription": "クイックガイド、ツアー、キーボードショートカットです。非表示にした場合は、設定の「について」またはコマンドパレット（{{shortcut}}）からツアーを、{{helpShortcut}} でショートカットを開けます。"
       },
       "plugins": {
         "title": "プラグイン",
@@ -435,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "あなた",
-          "app": "このアプリ",
-          "agents": "エージェントと接続",
-          "help": "ヘルプと詳細設定"
+          "app": "アプリ",
+          "mindroom": "MindRoom",
+          "system": "システム"
         },
         "pages": {
           "privacy": "プライバシーとセキュリティ",
           "language": "言語と地域",
-          "storage": "ストレージとオフライン"
+          "storage": "ストレージとオフライン",
+          "agentsServers": "エージェントとサーバー"
         }
       },
       "search": {
@@ -457,13 +471,16 @@
       "advanced": "詳細設定",
       "sections": {
         "display": "表示",
-        "privacy": "プライバシー"
+        "privacy": "プライバシー",
+        "replying": "返信",
+        "connectionsComputers": "接続とコンピューター"
       },
       "computers": {
         "inUse": "使用中のサーバー",
         "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。",
         "useServer": "{{host}} を使用",
-        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。"
+        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。",
+        "foundNotSavedChoose": "エージェントから見つかりましたが、保存されていません。信頼するサーバーを選んでください。このデバイスではすべてのルームでそのサーバーを使用します。"
       },
       "keywords": {
         "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
@@ -705,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
-      "searchEncrypted": "暗号化されたルームでは使用できません"
+      "searchEncrypted": "暗号化されたルームでは使用できません",
+      "viewSection": "表示",
+      "roomSection": "ルーム",
+      "preferencesSection": "環境設定",
+      "notificationModeAll": "すべて",
+      "notificationModeMentions": "メンション"
     },
     "phoneNav": {
       "navigation": "ナビゲーション"
@@ -890,6 +912,164 @@
         "startEntireScreenShare": "画面全体を共有",
         "stopEntireScreenShare": "画面全体の共有を停止"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "フルアクセスを許可",
+        "cancel": "キャンセル",
+        "chooseLimits": "制限を選択...",
+        "close": "閉じる",
+        "disconnect": "接続解除",
+        "done": "完了",
+        "editLimits": "制限を編集...",
+        "switchToFull": "フルアクセスに切り替え"
+      },
+      "banner": {
+        "restrictedActive": "この Mac で制限付きアクセスが有効です。",
+        "shellReadyWaitingPermissions": "シェル準備完了 - macOS の画面と入力の権限を待機中",
+        "waitingPermissions": "macOS の画面と入力の権限を待機中"
+      },
+      "browser": {
+        "brewHint": "または Homebrew でインストール:",
+        "confirmOnMac": "アクセスを承認するには、{{mac}} でこのコードを確認してください。",
+        "copied": "コピーしました",
+        "copyCommand": "コマンドをコピー",
+        "copyFailed": "コピーに失敗しました",
+        "downloadMacApp": "Mac 版 MindRoom Chat をダウンロード",
+        "noMacDescription": "{{agent}} に Mac へのアクセスを許可するには、Mac 版 MindRoom Chat でこのアカウントにサインインしてください。",
+        "paired": "{{agent}} は {{mac}} とペアリングされました。",
+        "relayDescription": "{{mac}} にペアリングリクエストを送信します。Mac で 6 桁のコードを確認し、フルアクセスまたは制限を選択します。",
+        "selectMac": "Mac を選択",
+        "sendToMac": "{{mac}} に送信",
+        "waitingOnMac": "{{mac}} での確認を待機しています..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} は再起動後も含め、確認なしであなたの画面を表示し、すべてのアプリを操作し、macOS ユーザーとしてシェルコマンドを実行できます。メニューバーからいつでも停止できます。",
+        "upgradeHeading": "フルアクセスへの切り替え"
+      },
+      "empty": {
+        "noAgents": "このルームに MindRoom エージェントが見つかりません。"
+      },
+      "incoming": {
+        "decline": "拒否",
+        "failedTitle": "{{agent}} をペアリングできませんでした",
+        "sasHint": "承認する前に、この 6 桁のコードが {{requester}} と一致していることを確認してください。",
+        "title": "{{requester}} から {{agent}} をペアリングしますか？"
+      },
+      "limits": {
+        "addFolder": "フォルダを追加...",
+        "allowShellOnMac": "この Mac でシェルコマンドを許可",
+        "foldersLabel": "読み取り専用フォルダ",
+        "fullNote": "取り消すまでフルアクセスを有効にすると、取り消すまでフルスクリーン操作とシェルの自動承認が有効になります。",
+        "fullScreen": "フルスクリーン (primary-screen)",
+        "gui15m": "15 分間操作を許可",
+        "gui1h": "1 時間操作を許可",
+        "guiFull": "取り消すまでフルアクセス",
+        "guiLabel": "画面と入力の操作",
+        "guiObserve": "閲覧のみ",
+        "installedApps": "許可する Mac アプリ",
+        "loadingApps": "インストール済みアプリを読み込み中...",
+        "needCapability": "フルスクリーン、1 つ以上のアプリ、フォルダ、またはシェルコマンドを有効にしてください。",
+        "noAppsFound": "インストール済みの Mac アプリが見つかりません。",
+        "noFolders": "読み取り専用フォルダは追加されていません。",
+        "perAgentHeading": "{{agent}} の操作とシェル承認 (エージェント別)",
+        "removeFolder": "削除",
+        "save": "制限付きで許可",
+        "saveChanges": "制限を保存",
+        "sharedHeading": "この Mac で共有するアプリ・フォルダ・シェル (ペアリング済みの全エージェントに適用)",
+        "sharedWithOthersHint": "この Mac の他のペアリング済みエージェントと共有されます",
+        "shell15m": "15 分間自動承認",
+        "shell1h": "1 時間自動承認",
+        "shellApprovalLabel": "シェル承認",
+        "shellAsk": "コマンドごとに確認",
+        "shellDisabledHint": "シェル承認を設定するには、下の「この Mac でシェルコマンドを許可」をオンにしてください。",
+        "shellUntilRevoked": "取り消すまで自動承認"
+      },
+      "permissions": {
+        "accessibility": "アクセシビリティ",
+        "accessibilityGrantedHint": "キーボードとマウスの操作が許可されています。",
+        "accessibilityMissingHint": "キーボードとマウスの操作を許可します。有効にすると自動で更新されます。",
+        "allowAccessibility": "アクセシビリティを許可",
+        "allowScreenRecording": "画面収録を許可",
+        "allowed": "許可済み",
+        "relaunchToActivate": "再起動して画面操作を有効化",
+        "screenRecording": "画面収録",
+        "screenRecordingGrantedHint": "画面の表示が許可されています。",
+        "screenRecordingMissingHint": "ペアリング済みエージェントが画面を見ることを許可します。",
+        "screenRecordingRelaunchHint": "macOS で画面収録を有効にするため、MindRoom Chat を一度再起動してください。"
+      },
+      "picker": {
+        "subtitle": "この Mac に接続するルーム内のエージェントを選択してください。"
+      },
+      "roomHeader": {
+        "giveAccess": "Mac アクセスを許可",
+        "manageAccess": "Mac アクセス"
+      },
+      "sas": {
+        "label": "確認コード"
+      },
+      "settings": {
+        "bridgeState": "ブリッジ状態",
+        "helperVersion": "ヘルパーバージョン",
+        "keywords": "mac, コンピューターアクセス, デスクトップ操作, シェル, shell, アクセシビリティ, 画面収録, 権限",
+        "lastError": "最後のエラー",
+        "manage": "管理",
+        "noPairedAgentsDescription": "エージェントがいるルームを開き、「Mac アクセスを許可」を選んで接続してください。",
+        "noPairedAgentsTitle": "ペアリング済みのエージェントはありません",
+        "notSignedIn": "サインインしていません",
+        "pairedAgentsTitle": "ペアリング済みエージェント",
+        "permissionsTitle": "macOS の権限",
+        "revokeAll": "すべてのアクセスを取り消す",
+        "revokeAllDescription": "ペアリング済みの全エージェントを切断し、この Mac でのコンピューターアクセスを直ちに停止します。",
+        "runningShellTitle": "実行中のシェルコマンド",
+        "savedSession": "保存済みの Matrix セッション",
+        "sectionTitle": "この Mac",
+        "statusActive": "有効",
+        "statusDescription": "この Mac を表示・操作できる MindRoom エージェントを管理します。",
+        "statusStopped": "停止中",
+        "statusTitle": "Mac コンピューターアクセス",
+        "statusUnavailable": "この Mac では利用できません",
+        "stopCommand": "停止",
+        "title": "この Mac",
+        "unavailableDescription": "Mac コンピューターアクセスには Apple Silicon 搭載 Mac 版 MindRoom Chat が必要です。",
+        "unknown": "不明"
+      },
+      "shellApproval": {
+        "approveOnce": "1 回だけ承認",
+        "approveOnceCountdown": "1 回だけ承認 ({{seconds}})",
+        "autoApprove15m": "15 分間自動承認",
+        "autoApprove15mCountdown": "15 分間自動承認 ({{seconds}})",
+        "cwdLabel": "作業ディレクトリ",
+        "deny": "拒否",
+        "empty": "承認待ちのシェルコマンドはありません。",
+        "title": "シェルコマンドを承認しますか？"
+      },
+      "status": {
+        "fullAccess": "フルアクセス",
+        "fullAccessActive": "フルアクセス有効",
+        "permissionsNeeded": "権限が必要",
+        "restricted": "制限付き",
+        "shellReady": "シェル準備完了"
+      },
+      "steps": {
+        "confirming": "ペアリングを確認しています...",
+        "finishing": "アクセスを有効化しています...",
+        "pairing": "{{agent}} とペアリング中...",
+        "requestingOffer": "{{agent}} に接続中...",
+        "signingIn": "この Mac でサインイン中..."
+      },
+      "title": {
+        "allowFull": "{{agent}} にこの Mac へのフルアクセスを許可しますか？",
+        "browserPair": "{{agent}} に Mac へのアクセスを許可",
+        "chooseLimits": "{{agent}} の制限を選択",
+        "default": "Mac コンピューターアクセス",
+        "editLimits": "{{agent}} の制限を編集",
+        "manageAgent": "この Mac の {{agent}}",
+        "pickAgent": "エージェントにこの Mac へのアクセスを許可"
+      },
+      "unavailable": {
+        "description": "このデバイスでは Mac コンピューターアクセスを利用できません。"
+      }
     }
   },
   "mindroomUi": {
@@ -1032,7 +1212,21 @@
         "triggerLabel": "トリガー {{id}}",
         "sourceLabel": "ソース {{source}}",
         "triageLabel": "トリアージ：{{reason}}",
-        "payloadLabel": "イベントペイロード JSON"
+        "payloadLabel": "イベントペイロード JSON",
+        "openTriggerLabel": "トリガー {{id}} を表示"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 件のタスクが準備完了",
+        "hide": "非表示",
+        "show": "表示",
+        "copyId": "タスク ID {{id}} をコピー",
+        "moreItems_other": "+他 {{count}} 件の対応可能な項目",
+        "priority": {
+          "critical": "緊急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
@@ -1163,7 +1357,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "コンパクト表示",
-        "threadFiltersActive": "スレッドフィルター（有効）"
+        "threadFiltersActive": "スレッドフィルター（有効）",
+        "mindroomSettings": "MindRoom設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "詳細フィルター",
@@ -1196,6 +1391,21 @@
         "expandAllLong": "長いメッセージをすべて展開",
         "collapseAllLong": "長いメッセージをすべて折りたたむ",
         "showFullMessage": "メッセージ全体を表示"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "すべて完了しました",
+        "resolvedCount_other": "{{count}} 件解決済み",
+        "snoozedCount_other": "{{count}} 件スヌーズ中",
+        "showAll": "すべて表示",
+        "startNewThreadBelow": "下で新しいスレッドを開始",
+        "recentlyResolved": "最近解決済み",
+        "noMatchHeading": "フィルターに一致するスレッドはありません",
+        "hiddenByForMe_other": "{{count}} 件の未解決スレッドが「自分向け」で非表示になっています。",
+        "hiddenByFilters_other": "{{count}} 件の未解決スレッドがフィルターで非表示になっています。",
+        "adjustOrResetFilters": "このルームのスレッドを表示するには、フィルターを調整またはリセットしてください。",
+        "turnOffForMe": "「自分向け」をオフにする",
+        "resetAll": "すべてリセット",
+        "resetFilters": "フィルターをリセット"
       }
     },
     "computer": {
@@ -1224,7 +1434,9 @@
     "backgroundJobs": {
       "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
       "finished": "完了: {{tool}}",
+      "awaitingAnswer": "あなたの回答待ち: {{tool}}",
       "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了",
+      "groupWorkflows": "ワークフロー · {{number}}",
       "groupSubagents": "サブエージェント · {{number}}",
       "groupTools": "ツール · {{number}}",
       "tools_other": "ツール {{count}} 件",
@@ -1264,6 +1476,88 @@
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
       "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
+    },
+    "workflowRun": {
+      "title": "ワークフロー",
+      "status": {
+        "starting": "開始中",
+        "running": "実行中",
+        "waiting": "回答待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "キャンセル",
+        "interrupted": "中断"
+      },
+      "counts": "完了 {{done}}、実行中 {{running}}、待機中 {{waiting}}",
+      "reused": "再利用: {{count}}",
+      "cost": "これまで {{spent}}、合計約 {{projected}}",
+      "costAtLeast": "これまで少なくとも {{spent}}",
+      "largeRun": "大規模実行",
+      "attempt": "試行 {{number}}",
+      "stop": "停止",
+      "stopping": "停止中…",
+      "resume": "再開",
+      "runAgain": "再実行",
+      "starting": "開始中…",
+      "failedCount_other": "{{count}} 件失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "すでに回答済みです。",
+          "noLongerOpen": "この質問はもう受け付けていません。",
+          "notAnOption": "選択肢に含まれていません。",
+          "notForYou": "実行を開始した人のみ回答できます。"
+        },
+        "noReply": "まだ応答がありません。もう一度お試しください。",
+        "placeholder": "回答を入力",
+        "send": "送信",
+        "answered": "回答済み: {{answer}}",
+        "cancelled": "キャンセル",
+        "onlyRequester": "{{name}} のみ回答できます。"
+      },
+      "graph": "グラフ",
+      "panel": {
+        "close": "閉じる",
+        "resize": "ワークフローパネルのサイズを変更",
+        "hide": "ワークフローを隠す",
+        "waitingForUpdate": "次の更新を待っています…",
+        "stale": "更新されていません。最終更新: {{time}}。",
+        "log": "ログ",
+        "showMore": "さらに {{count}} 件表示",
+        "omitted": {
+          "queued_other": "他に待機中 {{count}} 件",
+          "running_other": "他に実行中 {{count}} 件",
+          "waiting_other": "他に待ち {{count}} 件",
+          "failed_other": "他に失敗 {{count}} 件",
+          "done_other": "他に完了 {{count}} 件"
+        },
+        "askAgent": "残りは {{agent}} に確認してください。"
+      },
+      "group": {
+        "foreach": "繰り返し",
+        "parallel": "並列",
+        "run": "保存済みワークフロー",
+        "workflow": "入れ子ワークフロー",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗: {{count}}"
+      },
+      "node": {
+        "reused": "前回の実行から再利用",
+        "queued": "キュー待機中",
+        "mayHaveRun": "実行済みの可能性",
+        "waitingOn": {
+          "user": "あなたの回答待ち",
+          "approval": "承認待ち",
+          "peer": "メッセージ待ち"
+        },
+        "sessionTurns_other": "{{count}} ターン",
+        "result": "結果",
+        "error": "エラー",
+        "messages": "メッセージ",
+        "messagesTo": "{{name}} へのメッセージ: {{count}}",
+        "open": "開く",
+        "detailsUnavailable": "再読み込み後は詳細を表示できません。",
+        "stop": "エージェントを停止"
+      }
     },
     "subagents": {
       "title": "サブエージェント",
@@ -1500,7 +1794,9 @@
     },
     "actions": {
       "goActivity": "アクティビティに移動",
-      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
+      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目",
+      "openCurrentRoomMindroomSettings": "MindRoomのルーム設定を開く",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}のMindRoom設定を開く"
     },
     "recentVisits": {
       "recentlyOpened": "最近開いた項目",
@@ -1574,6 +1870,7 @@
       "needsYou": "あなたの対応待ち",
       "working": "作業中",
       "later": "後で",
+      "quiet": "休止中",
       "done": "完了",
       "all": "すべて",
       "description": {
@@ -1609,7 +1906,17 @@
     "forkThread": "スレッドを分岐",
     "forking": "{{title}} を分岐中",
     "continueInNewThread": "新しいスレッドで続ける",
-    "forkCount_other": "{{count}} 件の分岐"
+    "forkCount_other": "{{count}} 件の分岐",
+    "forkedFromInRoom": "{{room}} の {{title}} から分岐",
+    "forkedFromAnotherRoom": "別のルームから分岐",
+    "forkingIntoRoom": "{{title}} を {{room}} へ分岐中",
+    "forkToRoom": "別のルームへ分岐…",
+    "forkToRoomTitle": "別のルームへ分岐",
+    "forkToRoomSearchPlaceholder": "ルームを検索…",
+    "forkToRoomEmpty": "一致するルームがありません",
+    "forkToRoomAgentWarning": "このルームのエージェントは {{room}} に参加していないため、元のスレッドを参照できません",
+    "forkingFromRoom": "{{room}} から分岐中",
+    "forkDraftAgentWarning": "ここのエージェントは {{room}} に参加していないため、元のスレッドを参照できません"
   },
   "activity": {
     "title": "アクティビティ",
@@ -1642,8 +1949,7 @@
       "replyAndOther": "{{name}} と {{other}} が返信しました",
       "replyAndOthers_other": "{{name}} とほか {{count}} 人が返信しました",
       "finished": "{{name}} が完了しました",
-      "stopped": "{{name}} が停止しました",
-      "youReplied": "あなたが返信しました"
+      "stopped": "{{name}} が停止しました"
     },
     "newCount_other": "新着 {{count}} 件",
     "runMinutes_other": "{{count}} 分",
@@ -1854,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "ピン留めとタグ",
-        "text": "「スレッドをピン留め」を使うと、スレッドがリストの一番上に固定されます。「スレッドのオプション」の「タグを編集」でスレッドにタグを付けると、タグで絞り込めます。"
+        "text": "カードのピンを押すか、「スレッドのオプション」(⋯) で「スレッドをピン留め」を選ぶと、スレッドを一番上に固定できます。「スレッドのオプション」の「タグを編集」でスレッドにタグを付けると、タグで絞り込めます。"
       },
       "filters": {
         "title": "フィルターは解決済みのスレッドを隠す",
@@ -1901,6 +2207,38 @@
       "settingsKeywords": "ツアー, チュートリアル, ガイド, ヘルプ, 使い方, 入門, スレッド",
       "howThreadsWork": "スレッドのしくみ",
       "noThreadsHint": "下の入力欄からメッセージを送ると、スレッドが始まります。"
+    },
+    "help": {
+      "button": "ヘルプとガイド",
+      "buttonWithTip": "ヘルプとガイド（ヒント1件）",
+      "title": "ヘルプとガイド",
+      "subtitle": "クイックガイド",
+      "oneTip": "ヒント1件",
+      "suggested": "おすすめのヒント",
+      "showHow": "方法を見る",
+      "dismissTip": "ヒントを閉じる",
+      "guidesHeading": "UIガイド",
+      "guides": {
+        "conversation": "スレッドのしくみ",
+        "resolve": "終わったものは解決する",
+        "filters": "解決済みのスレッドを探す",
+        "snooze": "あとで対応するようスヌーズ",
+        "pinAndTag": "ピン留めとタグ付け",
+        "views": "コンパクト表示とスレッド表示",
+        "activity": "アクティビティと承認"
+      },
+      "fullTour": "フルツアー",
+      "shortcuts": "ショートカット"
+    },
+    "tips": {
+      "resolve": {
+        "title": "終わったスレッドを解決する",
+        "cardTitle": "終わったスレッドを解決する",
+        "roomSummary_other": "このルームに未解決スレッドが{{count}}件、解決済みはまだありません",
+        "allSummary_other": "未解決スレッドが{{count}}件、解決済みはまだありません",
+        "cardTextRoom_other": "このルームに未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。",
+        "cardTextAll_other": "未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。"
+      }
     }
   },
   "threadNav": {
@@ -1915,6 +2253,7 @@
       "working": "作業中",
       "later": "後で",
       "idle": "待機中",
+      "quiet": "休止中",
       "resolved": "解決済み"
     },
     "live": {
@@ -1935,7 +2274,11 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "2列目で開く"
+    "openBeside": "2列目で開く",
+    "detailsSection": "詳細",
+    "forkAndShareSection": "分岐と共有",
+    "shareSection": "共有",
+    "viewSection": "表示"
   },
   "roomSchedules": {
     "thisThread": "このスレッド",
@@ -1966,6 +2309,45 @@
     "cancellationSent": "キャンセルを送信しました",
     "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
     "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
+  },
+  "roomTriggers": {
+    "title": "トリガー",
+    "openLabel": "トリガー ({{total}})",
+    "loading": "読み込み中…",
+    "empty": "このルームにトリガーはありません。",
+    "emptyHint": "このルームに設定されたトリガーがここに表示されます。",
+    "loadError": "トリガーを読み込めませんでした。",
+    "missingTrigger": "トリガー {{id}} はこのルームにもうありません。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "ルーム監視",
+      "external_event": "イベント購読",
+      "thread_tag": "スレッドタグ",
+      "unknown": "トリガー"
+    },
+    "watchingRoom": "このルームを監視中",
+    "stateOn": "オン",
+    "stateOff": "オフ",
+    "disabledExpired": "期限切れ",
+    "disabledOnceConsumed": "1回実行済み",
+    "lastFired": "最終発火 {{time}}",
+    "neverFired": "発火履歴なし",
+    "destinationRoom": "ルームタイムライン",
+    "destinationThread": "スレッド",
+    "destinationNewThread": "新しいスレッド",
+    "destinationOrigin": "元のスレッド",
+    "openThread": "スレッドを開く",
+    "prompt": "プロンプト",
+    "enable": "有効にする",
+    "disable": "無効にする",
+    "updating": "更新中...",
+    "toggleError": "トリガーを更新できませんでした。もう一度お試しください。",
+    "delete": "削除",
+    "deleteConfirm": "このトリガーを削除しますか？",
+    "keep": "残す",
+    "deleteTrigger": "トリガーを削除",
+    "deleting": "削除中...",
+    "deleteError": "トリガーを削除できませんでした。もう一度お試しください。"
   },
   "home": {
     "greeting": {
@@ -2004,5 +2386,43 @@
   },
   "nav": {
     "usage": "使用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}}件のルーム",
+      "roomsFiltered": "{{total}}件中{{active}}件のルーム",
+      "switchSpace": "スペースを切り替え"
+    },
+    "roomFilter": {
+      "label": "ルーム",
+      "ariaLabel": "ルームでスレッドを絞り込む",
+      "ariaLabelActive": "ルームでスレッドを絞り込む（{{number}} 件を選択中）",
+      "ariaLabelOne": "ルーム: {{room}}",
+      "search": "ルームを検索",
+      "noMatch": "一致するルームがありません"
+    },
+    "composer": {
+      "postTo": "投稿先:",
+      "postToRoom": "#{{room}}に投稿",
+      "chooseRoomAria": "投稿先のルームを選択",
+      "draftPinned": "#{{room}}の下書き",
+      "readOnly": "このスペースに投稿できるルームがありません。"
+    },
+    "loading": "スレッドを読み込み中...",
+    "empty": {
+      "noRooms": "このスペースのルームに参加すると、ここにスレッドが表示されます。",
+      "noThreads": "このスペースにはまだスレッドがありません。"
+    },
+    "error": {
+      "title": "スペースのスレッドを読み込めませんでした"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "図",
+    "source": "ソース",
+    "showDiagram": "図を表示",
+    "showSource": "ソースを表示",
+    "mermaidDiagram": "Mermaid 図",
+    "diagramUnavailable": "ソースを表示中"
   }
 }

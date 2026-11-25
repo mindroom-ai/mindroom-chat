@@ -10,9 +10,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('folds', () => ({
-  Scroll: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
-    React.createElement('div', { ref }, children)
-  ),
+  Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+    React.createElement('div', { ref }, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem', () => ({
@@ -53,6 +52,9 @@ vi.mock('./rail/ActivityTab', () => ({
 }));
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),
+}));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: () => React.createElement('div', { 'data-tab': 'help' }),
 }));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: () => React.createElement('div', { 'data-tab': 'settings' }),

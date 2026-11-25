@@ -19,7 +19,7 @@ import {
 const MenuRoleContext = createContext<string | undefined>(undefined);
 
 /** Tells the rows inside a menu surface which role the surface has. */
-export const MenuRoleProvider = MenuRoleContext.Provider;
+export const MenuRoleProvider = MenuRoleContext;
 
 const ROW_ROLES: Record<string, string> = { menu: 'menuitem', listbox: 'option' };
 

@@ -5,8 +5,8 @@ import { pendingRoamingSettingsKeyPrefix } from './roamingSettings';
  * and signing out (`clearUserUiState`) removes the same keys, so each key is stated once.
  */
 
-/** The order of the account's spaces in the sidebar. */
-export const spaceOrderStorageKey = (userId: string): string =>
+/** Retired per-device space order key; kept so sign-out still removes leftovers from earlier versions. */
+const legacySpaceOrderStorageKey = (userId: string): string =>
   `mindroom.sidebar.spaceOrder:${userId}`;
 
 /** The account's choice to collapse the page navigation (room list) panel. */
@@ -35,6 +35,9 @@ export const callTranscriptWidthStorageKey = (userId: string): string =>
 export const subagentsWidthStorageKey = (userId: string): string =>
   `mindroom.subagents.width:${userId}`;
 
+export const workflowRunWidthStorageKey = (userId: string): string =>
+  `mindroom.workflowRun.width:${userId}`;
+
 /** The second thread shown beside the open one, by room (`{ [roomId]: threadId }`), and its width. */
 export const secondThreadStorageKey = (userId: string): string => `mindroom.secondThread:${userId}`;
 export const secondThreadWidthStorageKey = (userId: string): string =>
@@ -56,7 +59,7 @@ export const dictationAvailabilityStorageKey = (userId: string): string =>
 
 /** Every key above of one account. */
 export const accountStorageKeys = (userId: string): string[] => [
-  spaceOrderStorageKey(userId),
+  legacySpaceOrderStorageKey(userId),
   getDesktopPageNavCollapsedStorageKey(userId),
   getWelcomeSetupFirstSeenStorageKey(userId),
   recoveryPromptSnoozeStorageKey(userId),
@@ -67,6 +70,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   computerWidthStorageKey(userId),
   callTranscriptWidthStorageKey(userId),
   subagentsWidthStorageKey(userId),
+  workflowRunWidthStorageKey(userId),
   secondThreadStorageKey(userId),
   secondThreadWidthStorageKey(userId),
   modelCatalogStorageKey(userId),

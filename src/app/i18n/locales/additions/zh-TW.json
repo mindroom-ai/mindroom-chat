@@ -262,6 +262,13 @@
       "threadIn": "{{room}} 中的討論串",
       "messageElsewhere": "其他房間中的訊息"
     },
+    "callout": {
+      "note": "備註",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "小心"
+    },
     "deviceVerification": {
       "acceptStalled": "另一個工作階段沒有回應。請關閉此視窗並重新開始驗證。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "空間概覽"
+    },
+    "footnote": {
+      "backToReference": "返回引用處"
     }
   },
   "featureUi": {
@@ -408,6 +418,7 @@
       },
       "sidebar": {
         "title": "側邊欄",
+        "navigation": "導覽",
         "threads": "在側邊欄顯示討論串",
         "threadsDescription": "所有房間的討論串集中在一個清單中。隱藏後，可從首頁的 ⋮ 選單開啟。",
         "canvasesDescription": "有互動式面板後，顯示一個按鈕來查看代理程式為您建立的面板。隱藏後，可從首頁的 ⋮ 選單開啟。",
@@ -420,7 +431,9 @@
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。",
         "usage": "在側邊欄顯示用量",
-        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。"
+        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。",
+        "help": "在側邊欄顯示說明與指南",
+        "helpDescription": "快速指南、導覽與鍵盤快速鍵。隱藏後，可從設定中的「關於」或命令面板（{{shortcut}}）開啟導覽，並可按 {{helpShortcut}} 開啟快速鍵。"
       },
       "plugins": {
         "title": "外掛程式",
@@ -435,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "你",
-          "app": "此應用程式",
-          "agents": "代理程式與連線",
-          "help": "說明與進階"
+          "app": "應用程式",
+          "mindroom": "MindRoom",
+          "system": "系統"
         },
         "pages": {
           "privacy": "隱私權與安全性",
           "language": "語言與地區",
-          "storage": "儲存空間與離線"
+          "storage": "儲存空間與離線",
+          "agentsServers": "代理程式與伺服器"
         }
       },
       "search": {
@@ -457,13 +471,16 @@
       "advanced": "進階",
       "sections": {
         "display": "顯示",
-        "privacy": "隱私權"
+        "privacy": "隱私權",
+        "replying": "回覆",
+        "connectionsComputers": "連線與電腦"
       },
       "computers": {
         "inUse": "使用中的伺服器",
         "inUseNone": "未設定，因此此裝置上的電腦已關閉。",
         "useServer": "使用 {{host}}",
-        "foundNotSaved": "從您的代理找到，尚未儲存；儲存後即可在此輸入金鑰。"
+        "foundNotSaved": "從您的代理找到，尚未儲存；儲存後即可在此輸入金鑰。",
+        "foundNotSavedChoose": "從您的代理找到，尚未儲存。選擇您信任的伺服器；此裝置會在所有房間中使用它。"
       },
       "keywords": {
         "theme": "深色模式, 淺色模式, 夜間模式, 顏色",
@@ -705,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
-      "searchEncrypted": "在加密房間中無法使用"
+      "searchEncrypted": "在加密房間中無法使用",
+      "viewSection": "檢視",
+      "roomSection": "房間",
+      "preferencesSection": "偏好設定",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "導覽"
@@ -890,6 +912,164 @@
         "startEntireScreenShare": "分享整個螢幕",
         "stopEntireScreenShare": "停止分享整個螢幕"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "允許完整存取",
+        "cancel": "取消",
+        "chooseLimits": "選擇限制...",
+        "close": "關閉",
+        "disconnect": "中斷連線",
+        "done": "完成",
+        "editLimits": "編輯限制...",
+        "switchToFull": "切換為完整存取"
+      },
+      "banner": {
+        "restrictedActive": "此 Mac 已啟用受限存取。",
+        "shellReadyWaitingPermissions": "Shell 已就緒 - 等待 macOS 螢幕與輸入權限",
+        "waitingPermissions": "等待 macOS 螢幕與輸入權限"
+      },
+      "browser": {
+        "brewHint": "或使用 Homebrew 安裝：",
+        "confirmOnMac": "請在 {{mac}} 上確認此代碼以核准存取。",
+        "copied": "已複製",
+        "copyCommand": "複製指令",
+        "copyFailed": "複製失敗",
+        "downloadMacApp": "下載 Mac 版 MindRoom Chat",
+        "noMacDescription": "若要授予 {{agent}} 存取你的 Mac 的權限，請在 Mac 版 MindRoom Chat 中登入此帳號。",
+        "paired": "{{agent}} 現已與 {{mac}} 配對。",
+        "relayDescription": "傳送配對請求到 {{mac}}。你將在 Mac 上確認 6 位數代碼，並選擇完整存取或限制。",
+        "selectMac": "選擇一部 Mac",
+        "sendToMac": "傳送至 {{mac}}",
+        "waitingOnMac": "正在等待 {{mac}} 確認..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} 可以檢視你的螢幕、控制每個應用程式，並在未經詢問的情況下以你的 macOS 使用者身分執行 Shell 指令（包括重新開機後）。可隨時從選單列停止。",
+        "upgradeHeading": "正在切換為完整存取"
+      },
+      "empty": {
+        "noAgents": "此聊天室中找不到 MindRoom 代理程式。"
+      },
+      "incoming": {
+        "decline": "拒絕",
+        "failedTitle": "無法配對 {{agent}}",
+        "sasHint": "核准前請確認這組 6 位數代碼與 {{requester}} 相符。",
+        "title": "要接受來自 {{requester}} 的 {{agent}} 配對請求嗎？"
+      },
+      "limits": {
+        "addFolder": "新增資料夾...",
+        "allowShellOnMac": "允許在此 Mac 上執行 Shell 指令",
+        "foldersLabel": "唯讀資料夾",
+        "fullNote": "「撤銷前完整存取」會啟用全螢幕控制與自動核准 Shell 指令，直到你撤銷為止。",
+        "fullScreen": "全螢幕 (primary-screen)",
+        "gui15m": "允許控制 15 分鐘",
+        "gui1h": "允許控制 1 小時",
+        "guiFull": "撤銷前完整存取",
+        "guiLabel": "螢幕與輸入控制",
+        "guiObserve": "僅觀察",
+        "installedApps": "允許的 Mac 應用程式",
+        "loadingApps": "正在載入已安裝的應用程式...",
+        "needCapability": "請啟用全螢幕、至少一個應用程式、一個資料夾或 Shell 指令。",
+        "noAppsFound": "找不到已安裝的 Mac 應用程式。",
+        "noFolders": "尚未新增唯讀資料夾。",
+        "perAgentHeading": "{{agent}} 的控制與 Shell 核准（依代理程式）",
+        "removeFolder": "移除",
+        "save": "以限制條件允許",
+        "saveChanges": "儲存限制",
+        "sharedHeading": "此 Mac 上共享的應用程式、資料夾與 Shell（套用於所有已配對代理程式）",
+        "sharedWithOthersHint": "與此 Mac 上其他已配對代理程式共享",
+        "shell15m": "15 分鐘內自動核准",
+        "shell1h": "1 小時內自動核准",
+        "shellApprovalLabel": "Shell 核准",
+        "shellAsk": "每次執行指令前詢問",
+        "shellDisabledHint": "請先在下方開啟「允許在此 Mac 上執行 Shell 指令」以設定 Shell 核准。",
+        "shellUntilRevoked": "撤銷前自動核准"
+      },
+      "permissions": {
+        "accessibility": "輔助使用",
+        "accessibilityGrantedHint": "已允許鍵盤與滑鼠控制。",
+        "accessibilityMissingHint": "允許鍵盤與滑鼠控制。啟用後會自動更新。",
+        "allowAccessibility": "允許輔助使用",
+        "allowScreenRecording": "允許螢幕錄製",
+        "allowed": "已允許",
+        "relaunchToActivate": "重新啟動以啟用螢幕控制",
+        "screenRecording": "螢幕錄製",
+        "screenRecordingGrantedHint": "已允許檢視螢幕。",
+        "screenRecordingMissingHint": "允許已配對的代理程式檢視你的螢幕。",
+        "screenRecordingRelaunchHint": "請重新啟動一次 MindRoom Chat，讓 macOS 啟用螢幕錄製。"
+      },
+      "picker": {
+        "subtitle": "選擇此聊天室中要連線到此 Mac 的代理程式。"
+      },
+      "roomHeader": {
+        "giveAccess": "授予 Mac 存取權限",
+        "manageAccess": "Mac 存取"
+      },
+      "sas": {
+        "label": "驗證碼"
+      },
+      "settings": {
+        "bridgeState": "橋接狀態",
+        "helperVersion": "輔助程式版本",
+        "keywords": "mac, 電腦存取, 桌面控制, shell, 輔助使用, 螢幕錄製, 權限",
+        "lastError": "最近錯誤",
+        "manage": "管理",
+        "noPairedAgentsDescription": "開啟包含代理程式的聊天室並選擇「授予 Mac 存取權限」即可連線。",
+        "noPairedAgentsTitle": "尚未配對任何代理程式",
+        "notSignedIn": "尚未登入",
+        "pairedAgentsTitle": "已配對的代理程式",
+        "permissionsTitle": "macOS 權限",
+        "revokeAll": "撤銷所有存取權限",
+        "revokeAllDescription": "中斷所有已配對代理程式的連線，並立即停止此 Mac 上的電腦存取。",
+        "runningShellTitle": "執行中的 Shell 指令",
+        "savedSession": "已儲存的 Matrix 工作階段",
+        "sectionTitle": "這部 Mac",
+        "statusActive": "運作中",
+        "statusDescription": "控制哪些 MindRoom 代理程式可以檢視與控制這部 Mac。",
+        "statusStopped": "已停止",
+        "statusTitle": "Mac 電腦存取",
+        "statusUnavailable": "這部 Mac 不支援",
+        "stopCommand": "停止",
+        "title": "這部 Mac",
+        "unavailableDescription": "Mac 電腦存取需要在 Apple Silicon 上使用 Mac 版 MindRoom Chat。",
+        "unknown": "未知"
+      },
+      "shellApproval": {
+        "approveOnce": "核准一次",
+        "approveOnceCountdown": "核准一次 ({{seconds}})",
+        "autoApprove15m": "15 分鐘自動核准",
+        "autoApprove15mCountdown": "15 分鐘自動核准 ({{seconds}})",
+        "cwdLabel": "工作目錄",
+        "deny": "拒絕",
+        "empty": "目前沒有等待核准的 Shell 指令。",
+        "title": "要核准 Shell 指令嗎？"
+      },
+      "status": {
+        "fullAccess": "完整存取",
+        "fullAccessActive": "完整存取已啟用",
+        "permissionsNeeded": "需要權限",
+        "restricted": "受限",
+        "shellReady": "Shell 已就緒"
+      },
+      "steps": {
+        "confirming": "正在確認配對...",
+        "finishing": "正在啟用存取權限...",
+        "pairing": "正在與 {{agent}} 配對...",
+        "requestingOffer": "正在聯絡 {{agent}}...",
+        "signingIn": "正在這部 Mac 上登入..."
+      },
+      "title": {
+        "allowFull": "要允許 {{agent}} 完整存取這部 Mac 嗎？",
+        "browserPair": "授予 {{agent}} 存取你的 Mac 的權限",
+        "chooseLimits": "為 {{agent}} 選擇限制",
+        "default": "Mac 電腦存取",
+        "editLimits": "編輯 {{agent}} 的限制",
+        "manageAgent": "這部 Mac 上的 {{agent}}",
+        "pickAgent": "授予代理程式存取這部 Mac 的權限"
+      },
+      "unavailable": {
+        "description": "此裝置不支援 Mac 電腦存取。"
+      }
     }
   },
   "mindroomUi": {
@@ -1032,7 +1212,21 @@
         "triggerLabel": "觸發器 {{id}}",
         "sourceLabel": "來源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件酬載 JSON"
+        "payloadLabel": "事件酬載 JSON",
+        "openTriggerLabel": "檢視觸發器 {{id}}"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 項待辦就緒",
+        "hide": "隱藏",
+        "show": "顯示",
+        "copyId": "複製待辦 ID {{id}}",
+        "moreItems_other": "+另外 {{count}} 項可執行待辦",
+        "priority": {
+          "critical": "緊急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
       },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
@@ -1163,7 +1357,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "緊湊檢視",
-        "threadFiltersActive": "討論串篩選器（已啟用）"
+        "threadFiltersActive": "討論串篩選器（已啟用）",
+        "mindroomSettings": "MindRoom 設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "進階篩選器",
@@ -1196,6 +1391,21 @@
         "expandAllLong": "展開所有長訊息",
         "collapseAllLong": "收合所有長訊息",
         "showFullMessage": "顯示完整訊息"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "已全部處理完畢",
+        "resolvedCount_other": "{{count}} 個已解決",
+        "snoozedCount_other": "{{count}} 個已延後",
+        "showAll": "顯示全部",
+        "startNewThreadBelow": "在下方開始新討論串",
+        "recentlyResolved": "最近已解決",
+        "noMatchHeading": "沒有符合篩選條件的討論串",
+        "hiddenByForMe_other": "{{count}} 個未解決的討論串被「與我相關」隱藏。",
+        "hiddenByFilters_other": "{{count}} 個未解決的討論串被篩選條件隱藏。",
+        "adjustOrResetFilters": "調整或重設篩選條件以檢視此聊天室中的討論串。",
+        "turnOffForMe": "關閉「與我相關」",
+        "resetAll": "全部重設",
+        "resetFilters": "重設篩選條件"
       }
     },
     "computer": {
@@ -1224,7 +1434,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成",
+      "groupWorkflows": "工作流程 · {{number}}",
       "groupSubagents": "子代理 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
@@ -1264,6 +1476,88 @@
       },
       "jobTotal_other": "{{count}} 個背景工作",
       "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+    },
+    "workflowRun": {
+      "title": "工作流程",
+      "status": {
+        "starting": "正在啟動",
+        "running": "執行中",
+        "waiting": "等待回覆",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "counts": "{{done}} 已完成，{{running}} 執行中，{{waiting}} 等待中",
+      "reused": "已重複使用：{{count}}",
+      "cost": "目前已花費 {{spent}}，預計總計約 {{projected}}",
+      "costAtLeast": "目前已花費至少 {{spent}}",
+      "largeRun": "大型執行",
+      "attempt": "第 {{number}} 次嘗試",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "繼續",
+      "runAgain": "再次執行",
+      "starting": "正在啟動…",
+      "failedCount_other": "{{count}} 項失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已經回答過了。",
+          "noLongerOpen": "此問題已關閉。",
+          "notAnOption": "這不是可選項之一。",
+          "notForYou": "只有發起此執行的人可以回答。"
+        },
+        "noReply": "尚未收到回覆，請重試。",
+        "placeholder": "輸入你的回答",
+        "send": "傳送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "圖譜",
+      "panel": {
+        "close": "關閉",
+        "resize": "調整工作流程面板大小",
+        "hide": "隱藏工作流程",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新於 {{time}}。",
+        "log": "日誌",
+        "showMore": "再顯示 {{count}} 項",
+        "omitted": {
+          "queued_other": "另有 {{count}} 項排隊中",
+          "running_other": "另有 {{count}} 項執行中",
+          "waiting_other": "另有 {{count}} 項等待中",
+          "failed_other": "另有 {{count}} 項失敗",
+          "done_other": "另有 {{count}} 項已完成"
+        },
+        "askAgent": "其餘詳情可詢問 {{agent}}。"
+      },
+      "group": {
+        "foreach": "逐一執行",
+        "parallel": "平行",
+        "run": "已儲存的工作流程",
+        "workflow": "巢狀工作流程",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗：{{count}}"
+      },
+      "node": {
+        "reused": "重複使用了上次執行結果",
+        "queued": "排隊中",
+        "mayHaveRun": "可能已執行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待核准",
+          "peer": "等待訊息"
+        },
+        "sessionTurns_other": "{{count}} 輪",
+        "result": "結果",
+        "error": "錯誤",
+        "messages": "訊息",
+        "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
+        "open": "開啟",
+        "detailsUnavailable": "重新載入後已無法查看詳細資料。",
+        "stop": "停止代理"
+      }
     },
     "subagents": {
       "title": "子代理",
@@ -1500,7 +1794,9 @@
     },
     "actions": {
       "goActivity": "前往動態",
-      "goActivityDescription": "提及、回覆和等待你處理的事項"
+      "goActivityDescription": "提及、回覆和等待你處理的事項",
+      "openCurrentRoomMindroomSettings": "開啟 MindRoom 房間設定",
+      "openCurrentRoomMindroomSettingsDescription": "開啟 {{room}} 的 MindRoom 設定"
     },
     "recentVisits": {
       "recentlyOpened": "最近開啟",
@@ -1574,6 +1870,7 @@
       "needsYou": "需要你處理",
       "working": "處理中",
       "later": "稍後",
+      "quiet": "安靜",
       "done": "已完成",
       "all": "全部",
       "description": {
@@ -1609,7 +1906,17 @@
     "forkThread": "分支討論串",
     "forking": "正在從 {{title}} 分支",
     "continueInNewThread": "在新討論串中繼續",
-    "forkCount_other": "{{count}} 個分支"
+    "forkCount_other": "{{count}} 個分支",
+    "forkedFromInRoom": "分支自 {{room}} 中的 {{title}}",
+    "forkedFromAnotherRoom": "分支自其他房間",
+    "forkingIntoRoom": "正在將 {{title}} 分支到 {{room}}",
+    "forkToRoom": "分支到房間…",
+    "forkToRoomTitle": "分支到房間",
+    "forkToRoomSearchPlaceholder": "搜尋房間…",
+    "forkToRoomEmpty": "沒有符合的房間",
+    "forkToRoomAgentWarning": "此房間中的代理程式不在 {{room}} 中，無法查看原討論串",
+    "forkingFromRoom": "正在從 {{room}} 分支",
+    "forkDraftAgentWarning": "此處的代理程式不在 {{room}} 中，無法查看原討論串"
   },
   "activity": {
     "title": "動態",
@@ -1642,8 +1949,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回覆了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回覆了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回覆"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 則新訊息",
     "runMinutes_other": "{{count}} 分鐘",
@@ -1854,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "釘選和加上標籤",
-        "text": "「釘選討論串」會讓討論串保持在清單頂端。「討論串選項」中的「編輯標籤」可為討論串加上標籤，之後可以依標籤篩選。"
+        "text": "點選卡片上的圖釘，或在「討論串選項」（⋯）中選擇「釘選討論串」，即可將討論串保持在頂端。「討論串選項」中的「編輯標籤」可為討論串加上標籤，之後可以依標籤篩選。"
       },
       "filters": {
         "title": "篩選器會隱藏已解決的討論串",
@@ -1901,6 +2207,38 @@
       "settingsKeywords": "導覽, 教學, 指南, 說明, 入門, 引導, 討論串",
       "howThreadsWork": "討論串如何運作",
       "noThreadsHint": "在下方傳送一則訊息即可發起討論串。"
+    },
+    "help": {
+      "button": "說明與指南",
+      "buttonWithTip": "說明與指南（1 則提示）",
+      "title": "說明與指南",
+      "subtitle": "快速指南",
+      "oneTip": "1 則提示",
+      "suggested": "為你推薦",
+      "showHow": "查看方法",
+      "dismissTip": "關閉提示",
+      "guidesHeading": "介面指南",
+      "guides": {
+        "conversation": "討論串如何運作",
+        "resolve": "解決已完成的討論串",
+        "filters": "尋找已解決的討論串",
+        "snooze": "延後至稍後處理",
+        "pinAndTag": "釘選和加上標籤",
+        "views": "緊湊檢視與討論串檢視",
+        "activity": "動態與核准"
+      },
+      "fullTour": "完整導覽",
+      "shortcuts": "快速鍵"
+    },
+    "tips": {
+      "resolve": {
+        "title": "解決已完成的討論串",
+        "cardTitle": "解決已完成的討論串",
+        "roomSummary_other": "這個房間有 {{count}} 個未解決的討論串，尚無已解決項目",
+        "allSummary_other": "共有 {{count}} 個未解決的討論串，尚無已解決項目",
+        "cardTextRoom_other": "這個房間有 {{count}} 個未解決的討論串，尚無已解決項目。將已完成的標記為已解決，讓清單保持整齊。",
+        "cardTextAll_other": "共有 {{count}} 個未解決的討論串，尚無已解決項目。將已完成的標記為已解決，讓清單保持整齊。"
+      }
     }
   },
   "threadNav": {
@@ -1915,6 +2253,7 @@
       "working": "進行中",
       "later": "稍後",
       "idle": "閒置",
+      "quiet": "安靜",
       "resolved": "已解決"
     },
     "live": {
@@ -1935,7 +2274,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二欄開啟"
+    "openBeside": "在第二欄開啟",
+    "detailsSection": "詳細資料",
+    "forkAndShareSection": "分支與分享",
+    "shareSection": "分享",
+    "viewSection": "檢視"
   },
   "roomSchedules": {
     "thisThread": "此討論串",
@@ -1966,6 +2309,45 @@
     "cancellationSent": "已傳送取消請求",
     "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
     "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
+  },
+  "roomTriggers": {
+    "title": "觸發器",
+    "openLabel": "觸發器 ({{total}})",
+    "loading": "載入中…",
+    "empty": "此房間沒有觸發器。",
+    "emptyHint": "為此房間設定的觸發器會顯示在這裡。",
+    "loadError": "無法載入觸發器。",
+    "missingTrigger": "觸發器 {{id}} 已不在此房間中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房間監看",
+      "external_event": "事件訂閱",
+      "thread_tag": "討論串標籤",
+      "unknown": "觸發器"
+    },
+    "watchingRoom": "正在監看此房間",
+    "stateOn": "已開啟",
+    "stateOff": "已關閉",
+    "disabledExpired": "已過期",
+    "disabledOnceConsumed": "已執行一次",
+    "lastFired": "上次觸發 {{time}}",
+    "neverFired": "無觸發記錄",
+    "destinationRoom": "房間時間軸",
+    "destinationThread": "討論串",
+    "destinationNewThread": "新討論串",
+    "destinationOrigin": "原討論串",
+    "openThread": "開啟討論串",
+    "prompt": "提示詞",
+    "enable": "開啟",
+    "disable": "關閉",
+    "updating": "更新中...",
+    "toggleError": "無法更新觸發器，請重試。",
+    "delete": "刪除",
+    "deleteConfirm": "要刪除此觸發器嗎？",
+    "keep": "保留",
+    "deleteTrigger": "刪除觸發器",
+    "deleting": "刪除中...",
+    "deleteError": "無法刪除觸發器，請重試。"
   },
   "home": {
     "greeting": {
@@ -2004,5 +2386,43 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 個房間",
+      "roomsFiltered": "{{active}}/{{total}} 個房間",
+      "switchSpace": "切換空間"
+    },
+    "roomFilter": {
+      "label": "房間",
+      "ariaLabel": "依房間篩選討論串",
+      "ariaLabelActive": "依房間篩選討論串（已選 {{number}} 個）",
+      "ariaLabelOne": "房間：{{room}}",
+      "search": "搜尋房間",
+      "noMatch": "沒有相符的房間"
+    },
+    "composer": {
+      "postTo": "傳送到：",
+      "postToRoom": "傳送到 #{{room}}",
+      "chooseRoomAria": "選擇要傳送到的房間",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空間中沒有允許傳送訊息的房間。"
+    },
+    "loading": "正在載入討論串...",
+    "empty": {
+      "noRooms": "加入此空間中的房間即可在此檢視討論串。",
+      "noThreads": "此空間中還沒有討論串。"
+    },
+    "error": {
+      "title": "無法載入空間討論串"
+    }
+  },
+  "messageCodeBlock": {
+    "diagram": "圖表",
+    "source": "原始碼",
+    "showDiagram": "顯示圖表",
+    "showSource": "顯示原始碼",
+    "mermaidDiagram": "Mermaid 圖表",
+    "diagramUnavailable": "正在顯示原始碼"
   }
 }

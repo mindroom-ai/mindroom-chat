@@ -19,6 +19,8 @@ export type LaunchDesktopOptions = {
   screenShare?: boolean;
   fakeMedia?: boolean;
   helper?: string;
+  desktopHelperBin?: string;
+  desktopStoragePath?: string;
 };
 
 export type DesktopSession = {
@@ -76,13 +78,23 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
     options?.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mindroom-desktop-e2e-'));
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
+    if (
+      value !== undefined &&
+      key !== 'ELECTRON_RUN_AS_NODE' &&
+      key !== 'MINDROOM_DESKTOP_HELPER_BIN' &&
+      key !== 'MINDROOM_DESKTOP_STORAGE_PATH' &&
+      key !== 'MINDROOM_DESKTOP_CONFIG_PATH'
+    ) {
+      env[key] = value;
+    }
   }
   env.MINDROOM_DESKTOP_TEST = '1';
   env.MINDROOM_DESKTOP_USER_DATA = userData;
   if (options?.dist) env.MINDROOM_DESKTOP_DIST = options.dist;
   if (options?.offline) env.MINDROOM_DESKTOP_OFFLINE = '1';
   if (options?.helper) env.MINDROOM_DESKTOP_HELPER = options.helper;
+  if (options?.desktopHelperBin) env.MINDROOM_DESKTOP_HELPER_BIN = options.desktopHelperBin;
+  if (options?.desktopStoragePath) env.MINDROOM_DESKTOP_STORAGE_PATH = options.desktopStoragePath;
   if (options?.screenShare !== undefined) {
     env.MINDROOM_DESKTOP_SCREEN_SHARE = options.screenShare ? '1' : '0';
   }

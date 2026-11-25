@@ -34,6 +34,7 @@ import type {
 import {
   hasActiveThreadFilters,
   hasSearchOnlyThreadFilters,
+  showsFilteredEmptyState,
   THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -288,12 +289,18 @@ export type RoomThreadOverviewProps = {
   /** The Tags dropdown's Clear: drops every tag filter. */
   onClearTags: () => void;
   onSearchQueryChange: (query: string) => void;
+  /** The Rooms dropdown (SpaceRoomFilter), shown in Space thread overviews. */
+  roomsFilter?: React.ReactNode;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
   /** The cards show in sections (Needs you, Working, Later, Done), each in its own order. */
   threadSections?: boolean;
   /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
   onToggleThreadSections?: () => void;
+  /** Suppress the toolbar's inline empty-filter row when the room canvas renders its own empty state. */
+  hideEmptyState?: boolean;
+  /** Overrides the stored `simpleThreadFilters` preference when defined (used by the tour). */
+  simpleModeOverride?: boolean;
 };
 
 /** A filter-bar toggle that shows only its icon on a narrow bar. */
@@ -415,13 +422,17 @@ export function RoomThreadOverview({
   onRemoveTag,
   onClearTags,
   onSearchQueryChange,
+  roomsFilter,
   peopleFilter,
   threadSections = false,
   onToggleThreadSections,
+  hideEmptyState = false,
+  simpleModeOverride,
 }: RoomThreadOverviewProps) {
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t, i18n } = useTranslation();
-  const [simpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  const [storedSimpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  const simpleMode = simpleModeOverride ?? storedSimpleMode;
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
   const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);
@@ -534,21 +545,22 @@ export function RoomThreadOverview({
   );
 
   // Only when a filter hides threads: a Compact room with none yet has its Unresolved filter on.
-  const emptyFilteredState = threadCount === 0 && totalThreadCount > 0 && filtersActive && (
-    <div className={css.EmptyState}>
-      <Text size="T200">
-        {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
-      </Text>
-      <button
-        type="button"
-        className={css.ResetLink}
-        onClick={onReset}
-        aria-label={t('mindroomUi.threads.roomThreadOverview.resetAllThreadFilters')}
-      >
-        <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.reset')}</Text>
-      </button>
-    </div>
-  );
+  const emptyFilteredState = !hideEmptyState &&
+    showsFilteredEmptyState(threadCount, totalThreadCount, state) && (
+      <div className={css.EmptyState}>
+        <Text size="T200">
+          {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
+        </Text>
+        <button
+          type="button"
+          className={css.ResetLink}
+          onClick={onReset}
+          aria-label={t('mindroomUi.threads.roomThreadOverview.resetAllThreadFilters')}
+        >
+          <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.reset')}</Text>
+        </button>
+      </div>
+    );
 
   // Switches the bar between its simple controls and all of them; the stored filter keeps both.
   const advancedFiltersLabel = t('mindroomUi.threads.roomThreadOverview.advancedFilters');
@@ -648,6 +660,7 @@ export function RoomThreadOverview({
               </TooltipProvider>
             </>
           )}
+          {roomsFilter}
           {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
           {sectionsSwitch}
           {forMeSwitch}
@@ -697,6 +710,7 @@ export function RoomThreadOverview({
             totalThreadCount={totalThreadCount}
           />
         )}
+        {roomsFilter}
         {peopleFilter}
         {hasMindroomAgents && (state.tags.size > 0 || availableTags.length > 0) && (
           <ThreadTagFilter

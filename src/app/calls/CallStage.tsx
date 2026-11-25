@@ -21,6 +21,7 @@ import {
   stageView,
   type StageView,
 } from './stageLayout';
+import { VoiceWaveformBars, type VoiceAudioSource } from './VoiceWaveformBars';
 import * as css from './CallStage.css';
 
 /** How far apart (px) the overlapping faces of speaker view's row sit. */
@@ -144,6 +145,17 @@ function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
   const others = people.filter((participant) => !participant.local);
   const speaker = others.find((participant) => participant.speaking);
   const anyoneSpeaks = people.some((participant) => participant.speaking);
+  const localAudioTrack = microphone
+    ? devices.find((participant) => participant.local)?.audioTrack
+    : undefined;
+  const remoteAudioTrack = speaker
+    ? devices.find(
+        (device) =>
+          !device.local && device.userId === speaker.userId && device.speaking && device.audioTrack
+      )?.audioTrack
+    : undefined;
+  const audioSource: VoiceAudioSource = speaker ? 'remote' : microphone ? 'local' : 'none';
+  const audioTrack = speaker ? remoteAudioTrack : localAudioTrack;
   // Agents listen while nobody talks; quiet people are just quiet, so nothing is said of them. An
   // agent the call still waits for is not listening yet: its face says it is awaited.
   const agentsOnly = others.every(
@@ -175,16 +187,7 @@ function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
         </Text>
       ) : (
         <>
-          <span
-            className={css.VoiceBars}
-            data-call-voice-bars=""
-            data-speaking={anyoneSpeaks}
-            aria-hidden
-          >
-            <span className={css.VoiceBar} />
-            <span className={css.VoiceBar} />
-            <span className={css.VoiceBar} />
-          </span>
+          <VoiceWaveformBars track={audioTrack} source={audioSource} speaking={anyoneSpeaks} />
           {status && (
             <Text as="div" className={css.VoiceStatus} size="T200" priority="300">
               {status}

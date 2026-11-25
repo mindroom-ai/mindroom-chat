@@ -82,12 +82,10 @@ vi.mock('focus-trap-react', () => ({
 vi.mock('../../ui/glass/GlassPrimitives', () => ({
   Dialog: ({ children }: { children?: React.ReactNode }) => <div role="dialog">{children}</div>,
   Header: ({ children }: { children?: React.ReactNode }) => <header>{children}</header>,
-  IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-    ({ children, ...props }, ref) => (
-      <button ref={ref} type="button" {...props}>
-        {children}
-      </button>
-    )
+  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button ref={ref} type="button" {...props}>
+      {children}
+    </button>
   ),
 }));
 vi.mock('../../ui/PasswordInput', () => ({

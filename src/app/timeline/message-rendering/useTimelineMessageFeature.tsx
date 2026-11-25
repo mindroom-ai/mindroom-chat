@@ -3,7 +3,6 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
@@ -26,14 +25,11 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useImagePackRooms } from '../../emoji/useImagePackRooms';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
-import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { usePowerLevelsContext } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { useRoomThreadMode } from '../../matrix/hooks/useRoomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
-import { useSpaceOptionally } from '../../matrix/hooks/useSpace';
-import { useOpenUserRoomProfile } from '../../navigation/useUserRoomProfileState';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { isEmptyEditor } from '../../editor/utils';
@@ -46,14 +42,8 @@ import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
-import {
-  factoryRenderLinkifyWithMention,
-  getReactCustomHtmlParser,
-  LINKIFY_OPTS,
-  makeMentionCustomProps,
-  renderMatrixMention,
-} from '../../messages/html/react-custom-html-parser';
-import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
+import { useRoomMessageRenderers } from './useRoomMessageRenderers';
+import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { MessageLayout, settingsAtom, type Settings } from '../../preferences/settings';
@@ -91,15 +81,16 @@ import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
 import { TriggerWakeMarker } from '../../messages/TriggerWakeMarker';
+import { TodoPokeMarker } from '../../messages/TodoPokeMarker';
 import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
-import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { forkTargetFor } from '../../event-store/threads/threadFork';
-import { forkPrefixThreadId, rowEditTimelineSet } from '../forkPrefixTimelineSet';
+import { forkTargetFor, type ThreadForkRef } from '../../event-store/threads/threadFork';
+import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from '../forkPrefixTimelineSet';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
+import { ForkToRoomDialog } from '../../threads/fork/ForkToRoomDialog';
 import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
 import { useThreadForks } from '../../threads/fork/useThreadForks';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
@@ -122,6 +113,8 @@ type TimelineSettings = Pick<Settings, 'messageLayout' | 'messageSpacing' | 'hid
 
 type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
+  /** In a cross-room fork draft, the destination room that "Fork from here" targets. */
+  forkTargetRoom?: Room;
   editor: Editor;
   threadId?: string;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -340,6 +333,7 @@ const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([
   CompactionNoticeSeam,
   ModelChangeMarker,
   TriggerWakeMarker,
+  TodoPokeMarker,
 ]);
 const quietRunItemStyle = (node: ReactNode) =>
   isValidElement(node) && node.type === ThreadSummaryMarker
@@ -377,8 +371,10 @@ const readQuietMarker = (
       />
     );
   }
-  if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
-  return readAgentNoticeMarker(content, event.getTs(), room.roomId);
+  const sender = event.getSender() ?? undefined;
+  if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
+  const senderDisplayName = sender ? room.getMember?.(sender)?.name : undefined;
+  return readAgentNoticeMarker(content, event.getTs(), room.roomId, senderDisplayName);
 };
 
 /**
@@ -387,6 +383,7 @@ const readQuietMarker = (
  */
 export const useTimelineMessageFeature = ({
   room,
+  forkTargetRoom,
   editor,
   threadId,
   scrollRef,
@@ -461,53 +458,27 @@ export const useTimelineMessageFeature = ({
     room,
     threadId
   );
-  const useAuthentication = useMediaAuthentication();
   const { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview } =
     useMessageDisplaySettings();
-  // Encrypted rooms preview links only when the user allows it: the preview request reveals the
-  // link to the homeserver.
-  const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
-  // Links show their site's icon with previews and media loading on, never in encrypted rooms.
-  const showLinkFavicons = shouldShowLinkFavicons(
-    { mediaAutoLoad, urlPreview },
-    !!room.hasEncryptionStateEvent?.()
-  );
-  // Matrix permalinks in a message open in the app: a person's profile card, or the room and
-  // event (its thread, where the room shows threads) instead of matrix.to in a new tab.
-  const handleMentionClick = useMentionClickHandler(room.roomId);
-  const linkifyOpts = useMemo(
-    () => ({
-      ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention(
-        (href) =>
-          renderMatrixMention(
-            client,
-            room.roomId,
-            href,
-            makeMentionCustomProps(handleMentionClick)
-          ),
-        showLinkFavicons
-      ),
-    }),
-    [client, handleMentionClick, room.roomId, showLinkFavicons]
-  );
-  const htmlReactParserOptions = useMemo(
-    () =>
-      getReactCustomHtmlParser(client, room.roomId, {
-        linkifyOpts,
-        handleMentionClick,
-        useAuthentication,
-        showLinkFavicons,
-      }),
-    [client, handleMentionClick, linkifyOpts, room.roomId, showLinkFavicons, useAuthentication]
-  );
+  const getRoomRenderers = useRoomMessageRenderers({
+    client,
+    roomId: room.roomId,
+    mediaAutoLoad,
+    urlPreview,
+    encUrlPreview,
+  });
 
   const view = useContext(ConversationViewContext);
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
-  const { navigateRoomThread } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const startFork = useStartThreadFork(room);
+  const forkDestRoom = forkTargetRoom ?? room;
+  const [forkToRoomTarget, setForkToRoomTarget] = useState<{
+    sourceRoom: Room;
+    ref: ThreadForkRef;
+  }>();
   // Where agents answer in the room, they answer a fork there too, and it stays empty.
-  const forksAnswered = useRoomThreadMode(room.roomId, !!threadId) !== 'room';
+  const forksAnswered = useRoomThreadMode(forkDestRoom.roomId, !!threadId) !== 'room';
   const forksByPoint = useThreadForks(room, threadId);
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
@@ -521,19 +492,6 @@ export const useTimelineMessageFeature = ({
       ReactEditor.focus(editor);
     },
     [editor, navigateRoomThread, room, setReplyDraft]
-  );
-  // The avatar or the name of a message opens the sender's profile card beside it.
-  const openUserProfile = useOpenUserRoomProfile();
-  const spaceRoomId = useSpaceOptionally()?.roomId;
-  const handleSenderClick = useCallback(
-    (evt: React.MouseEvent<HTMLElement>) => {
-      const senderId = evt.currentTarget.getAttribute('data-user-id');
-      if (!senderId) return;
-      evt.stopPropagation();
-      const cardAnchor = evt.currentTarget.getBoundingClientRect();
-      openUserProfile(room.roomId, spaceRoomId, senderId, cardAnchor);
-    },
-    [openUserProfile, room.roomId, spaceRoomId]
   );
   // A thread badge under a room row opens its thread.
   const handleOpenThread = useCallback(
@@ -558,7 +516,8 @@ export const useTimelineMessageFeature = ({
       if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return null;
       const eventId = event.getId() ?? '';
       const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const eventRoom = rowEventRoom(client, room, event, prefixThreadId);
+      const timelineSet = rowEditTimelineSet(eventRoom, prefixThreadId, rowTimelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       const content = getLatestMessageContent(event, editedEvent) as Record<string, unknown>;
       return readQuietMarker(
@@ -566,12 +525,12 @@ export const useTimelineMessageFeature = ({
         event,
         content,
         data,
-        room,
+        eventRoom,
         userId ?? undefined,
-        onOpenTitleSettings
+        prefixThreadId !== undefined ? undefined : onOpenTitleSettings
       );
     },
-    [room, threadId, userId]
+    [client, room, threadId, userId]
   );
 
   /** The row of a message, approval, sticker or undecryptable event. */
@@ -585,7 +544,9 @@ export const useTimelineMessageFeature = ({
       // here, their cards answer in the parent's thread and their reactions are read there.
       const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
       const readOnly = prefixThreadId !== undefined;
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, row.timelineSet);
+      const eventRoom = rowEventRoom(client, room, event, prefixThreadId);
+      const isCrossRoomRow = eventRoom.roomId !== room.roomId;
+      const timelineSet = rowEditTimelineSet(eventRoom, prefixThreadId, row.timelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       // A newer edit that could not be decrypted leaves this version shown, with a note; a row
       // that shows no readable version says so itself (P2-e2ee-F004).
@@ -606,9 +567,9 @@ export const useTimelineMessageFeature = ({
               event,
               content,
               data,
-              room,
+              eventRoom,
               userId ?? undefined,
-              openTitleSettings
+              readOnly ? undefined : openTitleSettings
             )
           : null;
       if (quietMarker) {
@@ -624,23 +585,25 @@ export const useTimelineMessageFeature = ({
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
         // marker keeps the same elements, so one that a new marker joins stays mounted.
         const later = (row.quietRun ?? []).flatMap((marker) => {
+          const markerPrefixThreadId = forkPrefixThreadId(
+            marker.event,
+            marker.eventId,
+            data.forkPrefixEventIds
+          );
+          const markerRoom = rowEventRoom(client, room, marker.event, markerPrefixThreadId);
           renderedEventsRef.current?.push(
             marker.event,
             ...getPendingEdits(
               marker.eventId,
               marker.event,
-              rowEditTimelineSet(
-                room,
-                forkPrefixThreadId(marker.event, marker.eventId, data.forkPrefixEventIds),
-                marker.timelineSet
-              )
+              rowEditTimelineSet(markerRoom, markerPrefixThreadId, marker.timelineSet)
             )
           );
           const node = readRowQuietMarker(
             marker.event,
             data,
             marker.timelineSet,
-            openTitleSettings
+            markerPrefixThreadId !== undefined ? undefined : openTitleSettings
           );
           return node ? [{ eventId: marker.eventId, node }] : [];
         });
@@ -707,14 +670,22 @@ export const useTimelineMessageFeature = ({
         !threadId && showThreadRepliesInRoom && !replyEventId && event.threadRootId !== eventId
           ? event.threadRootId
           : undefined;
+      const {
+        encrypted: eventEncrypted,
+        showUrlPreview: eventShowUrlPreview,
+        linkifyOpts: rowLinkifyOpts,
+        htmlReactParserOptions: rowHtmlReactParserOptions,
+        openSenderProfile,
+      } = getRoomRenderers(eventRoom);
       const contentProps = {
         mEvent: event,
         eventId,
         // Approval cards send their responses to this room and thread.
-        roomId: room.roomId,
+        roomId: eventRoom.roomId,
         threadId: prefixThreadId ?? threadId ?? event.threadRootId,
         readOnly,
-        displayName: room.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
+        displayName:
+          eventRoom.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
         msgType,
         eventType: event.getType(),
         ts: event.getTs(),
@@ -723,11 +694,11 @@ export const useTimelineMessageFeature = ({
         failedSend,
         getContent: (() => content) as <T>() => T,
         mediaAutoLoad: !!mediaAutoLoad,
-        urlPreview: !!showUrlPreview,
+        urlPreview: !!eventShowUrlPreview,
         // The collapsible tool and output sections MindRoom attaches to a message.
         showMessageExtras: true,
-        htmlReactParserOptions,
-        linkifyOpts,
+        htmlReactParserOptions: rowHtmlReactParserOptions,
+        linkifyOpts: rowLinkifyOpts,
       };
       // A voice message's echo shows under it, as its latest version says.
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
@@ -745,14 +716,14 @@ export const useTimelineMessageFeature = ({
             getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
           )}
           senderName={
-            room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
+            eventRoom.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
           renderBody={({ body, customBody }) => (
             <RenderBody
               body={body}
               customBody={customBody}
-              linkifyOpts={linkifyOpts}
-              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={rowLinkifyOpts}
+              htmlReactParserOptions={rowHtmlReactParserOptions}
             />
           )}
         />
@@ -771,8 +742,14 @@ export const useTimelineMessageFeature = ({
         (event.getSender() === userId || canRedactOthers);
       const canSendReaction = !readOnly && kind !== 'sticker';
       // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
-      // forks its own thread.
-      const forkTarget = threadId && forksAnswered ? forkTargetFor(event) : undefined;
+      // forks its own thread. Never downgrade an encrypted source into an unencrypted destination.
+      const canForkIntoDestRoom =
+        eventRoom.roomId === forkDestRoom.roomId ||
+        !eventEncrypted ||
+        !!forkDestRoom.hasEncryptionStateEvent?.();
+      const messageForkTarget = threadId ? forkTargetFor(event, room.roomId) : undefined;
+      const forkTarget =
+        messageForkTarget && forksAnswered && canForkIntoDestRoom ? messageForkTarget : undefined;
       // The forks made at this message, under it in the thread they were forked from: not on the
       // parent's rows shown in a fork, where they would repeat the chip the parent's own view shows.
       const forks = readOnly ? undefined : forksByPoint.get(eventId);
@@ -796,7 +773,7 @@ export const useTimelineMessageFeature = ({
           <Message
             data-message-id={eventId}
             data-message-item={row.index}
-            room={room}
+            room={eventRoom}
             mEvent={event}
             collapse={collapse}
             highlight={highlighted}
@@ -810,13 +787,28 @@ export const useTimelineMessageFeature = ({
             reply={
               replyEventId ? (
                 <Reply
-                  room={room}
+                  room={eventRoom}
                   replyEventId={replyEventId}
                   threadRootId={event.threadRootId}
                   timelineSet={timelineSet}
                   hideThreadIndicator={!!threadId}
                   data-event-id={replyEventId}
-                  onClick={data.handleOpenReply}
+                  onClick={
+                    isCrossRoomRow && !data.forkPrefixEventIds?.has(replyEventId)
+                      ? () => {
+                          const target = getRoomEventThreadOpenTarget({
+                            eventId: replyEventId,
+                            room: eventRoom,
+                            linkedTimelines: timelineSet.getTimelines?.(),
+                          });
+                          if (target) {
+                            navigateRoomThread(eventRoom.roomId, target.threadId, target.eventId);
+                            return;
+                          }
+                          navigateRoom(eventRoom.roomId, replyEventId);
+                        }
+                      : data.handleOpenReply
+                  }
                 />
               ) : threadQuoteRootId ? (
                 <Reply
@@ -831,7 +823,7 @@ export const useTimelineMessageFeature = ({
               kind !== 'sticker' ? (
                 <>
                   <TimelineReactions
-                    room={room}
+                    room={eventRoom}
                     event={event}
                     relations={relations}
                     failed={reactionFailedEventId === eventId}
@@ -854,12 +846,24 @@ export const useTimelineMessageFeature = ({
             onReplyClick={readOnly ? undefined : handleReplyClick}
             onOpenInOriginalThread={
               prefixThreadId
-                ? () => navigateRoomThread(room.roomId, prefixThreadId, eventId)
+                ? () => navigateRoomThread(eventRoom.roomId, prefixThreadId, eventId)
                 : undefined
             }
-            onForkClick={forkTarget ? () => startFork(forkTarget) : undefined}
-            onUserClick={handleSenderClick}
-            onUsernameClick={handleSenderClick}
+            onForkClick={
+              forkTarget
+                ? () =>
+                    forkTargetRoom
+                      ? startFork(forkTarget, forkTargetRoom.roomId)
+                      : startFork(forkTarget)
+                : undefined
+            }
+            onForkToRoomClick={
+              messageForkTarget
+                ? () => setForkToRoomTarget({ sourceRoom: eventRoom, ref: messageForkTarget })
+                : undefined
+            }
+            onUserClick={openSenderProfile}
+            onUsernameClick={openSenderProfile}
             onReactionToggle={
               readOnly
                 ? undefined
@@ -929,27 +933,28 @@ export const useTimelineMessageFeature = ({
       consumeLiveExpansion,
       dateFormatString,
       editingEventId,
+      forkDestRoom,
+      forkTargetRoom,
       forksAnswered,
       forksByPoint,
+      getRoomRenderers,
       handleOpenThread,
       handleReplyClick,
-      handleSenderClick,
       hideActivity,
       hour24Clock,
-      htmlReactParserOptions,
       imagePackRooms,
-      linkifyOpts,
       liveExpansionIds,
       mediaAutoLoad,
       messageLayout,
       messageSpacing,
+      navigateRoom,
       navigateRoomThread,
       openTitleSettings,
       reactionFailedEventId,
       readRowQuietMarker,
       room,
+      client,
       showThreadRepliesInRoom,
-      showUrlPreview,
       startFork,
       threadId,
       toggleReaction,
@@ -1019,12 +1024,25 @@ export const useTimelineMessageFeature = ({
     [expansionBaseline, manualExpansionState, restoreExpansionAnchor]
   );
 
+  const forkToRoomDialog = forkToRoomTarget ? (
+    <ForkToRoomDialog
+      sourceRoom={forkToRoomTarget.sourceRoom}
+      onSelect={(targetRoomId) => {
+        const { ref } = forkToRoomTarget;
+        setForkToRoomTarget(undefined);
+        startFork(ref, targetRoomId);
+      }}
+      onClose={() => setForkToRoomTarget(undefined)}
+    />
+  ) : null;
+
   return {
     renderEvent,
     rowRepaintRevision: decryptions,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
     forksByPoint,
+    forkToRoomDialog,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

@@ -181,12 +181,12 @@ const renderBesideWindow = (store: ReturnType<typeof createStore>, size?: CallWi
         <ScreenSizeProvider value="Desktop">
           <CallRow mEvent={ROW} row={LIVE} />
           {size && (
-            <CallWindowSizeContext.Provider value={size}>
+            <CallWindowSizeContext value={size}>
               <button type="button" data-call-window-handle="" />
               <WindowTranscript room={callRoom}>
                 <TranscriptionControls room={callRoom} />
               </WindowTranscript>
-            </CallWindowSizeContext.Provider>
+            </CallWindowSizeContext>
           )}
         </ScreenSizeProvider>
       </Provider>

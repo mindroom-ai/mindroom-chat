@@ -268,9 +268,21 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
     const visibleSections = sections.filter((c) =>
       isPointerWithinVisibleBounds(c.node.current, pointer)
     );
-    const hitSection = pointerWithin({ ...args, droppableContainers: visibleSections })[0];
+    // When sections are nested (sub-space inside sub-space), prefer the innermost hit section.
+    const hitSections = pointerWithin({ ...args, droppableContainers: visibleSections });
+    const containerById = new Map(visibleSections.map((c) => [c.id, c]));
+    const hitSection = hitSections.reduce<(typeof hitSections)[number] | undefined>(
+      (best, candidate) => {
+        if (!best) return candidate;
+        const bestNode = containerById.get(best.id)?.node.current;
+        const candidateNode = containerById.get(candidate.id)?.node.current;
+        if (bestNode && candidateNode && bestNode.contains(candidateNode)) return candidate;
+        return best;
+      },
+      undefined
+    );
     if (!hitSection) return [];
-    const hitContainer = visibleSections.find((c) => c.id === hitSection.id);
+    const hitContainer = containerById.get(hitSection.id);
     const targetSpaceId = sectionSpaceIdOf(hitSection.id, hitContainer?.data.current);
     if (!targetSpaceId) return [];
     if (targetSpaceId === activeRoom.parentSpaceId) {
@@ -357,7 +369,7 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
       onDragCancel={endDrag}
       accessibility={{ announcements: silentAnnouncements }}
     >
-      <RoomGroupDragContext.Provider value={group}>{children}</RoomGroupDragContext.Provider>
+      <RoomGroupDragContext value={group}>{children}</RoomGroupDragContext>
     </DndContext>
   );
 }
@@ -426,7 +438,7 @@ function SortableRoomListInner({
       items={roomIds.map((roomId) => makeRoomSortableId(listId, roomId))}
       strategy={keepInPlace}
     >
-      <RoomListDragContext.Provider value={drag}>{children}</RoomListDragContext.Provider>
+      <RoomListDragContext value={drag}>{children}</RoomListDragContext>
     </SortableContext>
   );
 }

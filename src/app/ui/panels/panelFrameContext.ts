@@ -6,6 +6,10 @@ export type PanelFrame = {
   label: string;
   layout: PanelLayout;
   setLayout: (layout: PanelLayout) => void;
+  /** Localized accessible label for the Fill toggle, provided by the room. */
+  fillLabel?: string;
+  /** Localized accessible label for the Fold button, provided by the room. */
+  foldLabel?: string;
 };
 
 const PanelFrameContext = createContext<PanelFrame | undefined>(undefined);
@@ -15,5 +19,5 @@ const PanelFrameContext = createContext<PanelFrame | undefined>(undefined);
  * panel with `frame: 'own'` draws its own. A panel outside one has none. Apart from the strip, so
  * the client SDK's `usePanelFrame` loads without it.
  */
-export const PanelFrameProvider = PanelFrameContext.Provider;
+export const PanelFrameProvider = PanelFrameContext;
 export const usePanelFrame = (): PanelFrame | undefined => useContext(PanelFrameContext);

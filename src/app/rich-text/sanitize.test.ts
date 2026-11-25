@@ -243,4 +243,92 @@ describe('customHtmlSanitizerPolicy', () => {
     expect(sanitized).not.toContain('<button');
     expect(sanitized).not.toContain('data-open-external');
   });
+
+  describe('Markdown footnotes', () => {
+    const FOOTNOTE_HTML = [
+      '<p>Note<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>',
+      ' and again<sup class="footnote-ref"><a href="#fn1" id="fnref1:1">[1:1]</a></sup>.</p>',
+      '<hr class="footnotes-sep">',
+      '<section class="footnotes">',
+      '<ol class="footnotes-list">',
+      '<li id="fn1" class="footnote-item"><p>Detail. ',
+      '<a href="#fnref1" class="footnote-backref">↩︎</a> ',
+      '<a href="#fnref1:1" class="footnote-backref">↩︎</a></p></li>',
+      '</ol>',
+      '</section>',
+    ].join('');
+
+    it('preserves footnote structure, IDs, classes, and local fragment hrefs without target="_blank"', () => {
+      const sanitized = sanitizeCustomHtml(FOOTNOTE_HTML);
+
+      expect(sanitized).toContain(
+        '<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>'
+      );
+      expect(sanitized).toContain(
+        '<sup class="footnote-ref"><a href="#fn1" id="fnref1:1">[1:1]</a></sup>'
+      );
+      expect(sanitized).toContain('class="footnotes-sep"');
+      expect(sanitized).toContain('<section class="footnotes">');
+      expect(sanitized).toContain('<ol class="footnotes-list">');
+      expect(sanitized).toContain('<li id="fn1" class="footnote-item">');
+      expect(sanitized).toContain('<a href="#fnref1" class="footnote-backref">↩︎</a>');
+      expect(sanitized).toContain('<a href="#fnref1:1" class="footnote-backref">↩︎</a>');
+      expect(sanitized).not.toContain('target=');
+      expect(sanitized).not.toContain('rel=');
+    });
+
+    it('strips arbitrary ids and classes while keeping exact footnote ids and classes', () => {
+      const sanitized = sanitizeCustomHtml(
+        [
+          '<a href="#fn1" id="root" target="_self" rel="opener" class="evil">[1]</a>',
+          '<li id="root" class="footnote-item evil">bad li</li>',
+          '<li id="fn1-evil" class="evil">bad suffix</li>',
+          '<sup class="footnote-ref injected">ref</sup>',
+          '<div class="footnotes" id="fn1">wrong tag</div>',
+          '<section class="other">plain section</section>',
+        ].join('')
+      );
+
+      expect(sanitized).toContain('<a href="#fn1">[1]</a>');
+      expect(sanitized).toContain('<li class="footnote-item">bad li</li>');
+      expect(sanitized).toContain('<li>bad suffix</li>');
+      expect(sanitized).toContain('<sup class="footnote-ref">ref</sup>');
+      expect(sanitized).toContain('<div>wrong tag</div>');
+      expect(sanitized).toContain('<section>plain section</section>');
+      expect(sanitized).not.toContain('id="root"');
+      expect(sanitized).not.toContain('fn1-evil');
+      expect(sanitized).not.toContain('evil');
+      expect(sanitized).not.toContain('injected');
+      expect(sanitized).not.toContain('target="_self"');
+      expect(sanitized).not.toContain('rel="opener"');
+    });
+
+    it('keeps target="_blank" and rel on external and non-footnote links', () => {
+      const sanitized = sanitizeCustomHtml(
+        [
+          '<a href="https://example.com" id="root">External</a>',
+          '<a href="#heading">Other fragment</a>',
+          '<a href="#fn1" id="fnref1">[1]</a>',
+        ].join('')
+      );
+
+      expect(sanitized).toContain(
+        '<a href="https://example.com" target="_blank" rel="noreferrer noopener">External</a>'
+      );
+      expect(sanitized).toContain(
+        '<a href="#heading" target="_blank" rel="noreferrer noopener">Other fragment</a>'
+      );
+      expect(sanitized).toContain('<a href="#fn1" id="fnref1">[1]</a>');
+    });
+
+    it('merges caller allowedClasses without dropping footnote or code classes', () => {
+      const sanitized = sanitizeCustomHtml(
+        '<a href="#fnref1" class="footnote-backref custom">↩︎</a><code class="language-ts">x</code>',
+        { policy: { allowedClasses: { a: ['custom'] } } }
+      );
+
+      expect(sanitized).toContain('class="footnote-backref custom"');
+      expect(sanitized).toContain('class="language-ts"');
+    });
+  });
 });

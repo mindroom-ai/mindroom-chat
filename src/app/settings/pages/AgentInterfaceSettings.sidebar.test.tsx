@@ -28,6 +28,9 @@ vi.mock('../../matrix/hooks/useAccountSettings', () => ({
 vi.mock('../../shortcuts/paletteShortcut', () => ({
   getCommandPaletteShortcutLabel: () => 'Ctrl + K',
 }));
+vi.mock('../../shortcuts/shortcuts', () => ({
+  formatShortcut: () => 'Ctrl+/',
+}));
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
@@ -77,23 +80,38 @@ const titles = (renderer: ReactTestRenderer) =>
 const tile = (renderer: ReactTestRenderer, title: string) =>
   renderer.root.find((node) => node.props['data-title'] === title);
 
-describe('Settings > General > Sidebar', () => {
+describe('Settings > Sidebar', () => {
   afterEach(() => {
     state.localMindroom = true;
     state.write.mockClear();
   });
 
-  it('lists a switch for each rail button the deployment offers, in rail order', () => {
+  it('splits offered rail button switches into Navigation and MindRoom sections', () => {
     const renderer = render({ mindroom: { canvas: { enabled: true } } });
-    expect(renderer.root.findAllByType('span').map((node) => node.children[0])[0]).toBe('Sidebar');
-    expect(titles(renderer)).toEqual([
-      'Show Threads in the sidebar',
-      'Show Canvases in the sidebar',
-      'Show Usage in the sidebar',
-      'Show Explore Community in the sidebar',
-      'Show Create Space in the sidebar',
-      'Show Search in the sidebar',
-      'Show Local MindRoom in the sidebar',
+    expect(renderer.root.findAllByType('span').map((node) => node.children[0])).toEqual([
+      'Navigation',
+      'MindRoom',
+    ]);
+    const sectionTitles = renderer.root
+      .findAllByType('section')
+      .map((section) =>
+        section
+          .findAll((node) => typeof node.props['data-title'] === 'string')
+          .map((node) => node.props['data-title'] as string)
+      );
+    expect(sectionTitles).toEqual([
+      [
+        'Show Threads in the sidebar',
+        'Show Explore Community in the sidebar',
+        'Show Create Space in the sidebar',
+        'Show Search in the sidebar',
+        'Show Help & guides in the sidebar',
+      ],
+      [
+        'Show Canvases in the sidebar',
+        'Show Usage in the sidebar',
+        'Show Local MindRoom in the sidebar',
+      ],
     ]);
   });
 
@@ -103,7 +121,11 @@ describe('Settings > General > Sidebar', () => {
       sidebar: { showThreads: false, showExploreCommunity: false },
       mindroom: { canvas: { enabled: false } },
     });
-    expect(titles(renderer)).toEqual(['Show Usage in the sidebar', 'Show Search in the sidebar']);
+    expect(titles(renderer)).toEqual([
+      'Show Search in the sidebar',
+      'Show Help & guides in the sidebar',
+      'Show Usage in the sidebar',
+    ]);
   });
 
   it('says where each hidden page stays reachable', () => {
@@ -120,6 +142,11 @@ describe('Settings > General > Sidebar', () => {
     expect(description('Show Local MindRoom in the sidebar')).toContain(
       'Settings under Local MindRoom'
     );
+    expect(description('Show Help & guides in the sidebar')).toContain('Settings under About');
+    expect(description('Show Help & guides in the sidebar')).toContain(
+      'command palette (Ctrl + K)'
+    );
+    expect(description('Show Help & guides in the sidebar')).toContain('with Ctrl+/');
   });
 
   it('shows each stored value and writes the switch that was turned', async () => {
@@ -128,6 +155,7 @@ describe('Settings > General > Sidebar', () => {
     expect(toggle('Show Threads in the sidebar').props['aria-checked']).toBe(true);
     expect(toggle('Show Search in the sidebar').props['aria-checked']).toBe(false);
     expect(toggle('Show Explore Community in the sidebar').props['aria-checked']).toBe(false);
+    expect(toggle('Show Help & guides in the sidebar').props['aria-checked']).toBe(true);
 
     await act(async () => {
       toggle('Show Create Space in the sidebar').props.onClick();
@@ -137,5 +165,9 @@ describe('Settings > General > Sidebar', () => {
       toggle('Show Search in the sidebar').props.onClick();
     });
     expect(state.write).toHaveBeenLastCalledWith({ showSearchInSidebar: true });
+    await act(async () => {
+      toggle('Show Help & guides in the sidebar').props.onClick();
+    });
+    expect(state.write).toHaveBeenLastCalledWith({ showHelpInSidebar: false });
   });
 });

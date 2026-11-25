@@ -26,8 +26,8 @@ export type PluginRoomAction = {
   shows?: (room: Room) => boolean;
   /**
    * It deletes or removes something: the menu draws it as Leave and lists it after the core's
-   * entries of its last group (Remove from, Archive, Leave). Without it, it is listed after the
-   * menu's first group.
+   * entries of its last group (Remove from, Archive, Leave). Without it, it is listed in its own
+   * group before the last group (Remove from, Archive, Leave).
    */
   critical?: true;
   /**

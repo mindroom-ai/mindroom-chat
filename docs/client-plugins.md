@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 68), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 70), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -261,6 +261,8 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
 - version 67 the declaration's `defaultEnabled`
 - version 68 thread details' `onClose`
+- version 69 side panels' `placement: 'none'`
+- version 70 side panels' `frameControls: 'own'` and `PanelFrame`'s localized `fillLabel`/`foldLabel`
 
 ## Page zoom
 
@@ -341,30 +343,30 @@ Activity, the Threads page and Compact's thread cards still list the message, Ac
 
 ## Side panels
 
-Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label, icon?, placement?, Component, remember?, opensOverMembers?, frame?, title? }`.
+Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label, icon?, placement?, Component, remember?, opensOverMembers?, frame?, title?, frameControls? }`.
 Each is one more of the room's side panels, beside the computer, a canvas, the call, its live transcript, the sub-agents and the members, under their rule (`src/app/ui/panels/roomPanels.ts`): one shows at a time, and opening one closes the others, except that the members stay open behind the call or its live transcript.
 Its `label` names it in the app's language when it is the key of one of the plugin's strings (`translations`, below), and exactly as given otherwise, such as text with `.` or `:` (which names no other namespace), a template like `$t(…)`, or the key of a group of strings.
-Its toggle in the room header, named by its `label` and drawn with its `icon` (a folds icon such as `Icons.Star`, a bulb unless given), shows and hides it, where `placement` puts it: `auto` and `menu`, the default, as they put a header action (below), and `row` in the header's row on every screen, phones included.
-The command palette also offers the toggle, named by its `label`, while its room is open.
+Its toggle in the room header, named by its `label` and drawn with its `icon` (a folds icon such as `Icons.Star`, a bulb unless given), shows and hides it, where `placement` puts it: `auto` and `menu`, the default, as they put a header action (below), `row` in the header's row on every screen, phones included, and `none` (since version 69) to leave out the header button, the room menu entry and the command palette entry for panels opened only from code (such as `useRoomSidePanel`, message links or thread header slots).
+The command palette also offers the toggle, named by its `label`, while its room is open (unless `placement` is `'none'`).
 The toggle is pressed, its button tinted and its menu entry checked, while the room shows the panel and the panel is not folded to its tab; choosing it then closes the panel, and choosing it while the panel is folded unfolds it with what it shows.
 The panel opens in the room it was opened in, as wide as the call panel and resizable (over the room on phones), with the label as its title and a Close button (unless it draws its own frame or title, below), above what it shows: a column as tall as the panel, which scrolls when what it holds is taller still, and whose parts that may shrink, such as a folds `Box` or anything with an overflow of its own, shrink until the column fits the panel, to nothing if need be, before it scrolls, so a part that must keep its height takes `flexShrink: 0` (a folds `Box` `shrink="No"`), and `Component` gets the room's id (`roomId`) and a `request` (below).
 
 ### The frame
 
-Like the computer, a canvas and the call, it has the room's frame (`src/app/ui/panels/PanelFrame.tsx`, drawn by `ResizablePanel`), with no code of its own: a 40 px strip at the start of its box, which the panel's smallest width grows by, whose Fill puts it across the room in the conversation's place, and whose Fold leaves only a tab with its `label` at the room's edge, beside the conversation at full width, until the tab brings it back.
+Like the computer, a canvas and the call, it has the room's frame (`src/app/ui/panels/PanelFrame.tsx`, drawn by `ResizablePanel`), with no code of its own: beside the conversation or across the room, Fill and Fold sit in the floating control pill at the end of the panel's header beside Close; folded, a 40 px tab with its `label` stays at the room's edge beside the conversation at full width until the tab brings it back.
 While the room's page shows, each room keeps the layout of each of its panels as long as the panel stays open; a panel opens beside the conversation, and one asked for again while it fills the room stays so; each canvas shown, though, opens beside the conversation, or across the room from the Canvases page.
-The computer's and a canvas's own Expand fill the room as Fill does.
 Filling the room, or covering the conversation on a phone, a panel keeps the conversation under it as it was (its draft, a voice message being recorded, the reader's place), out of reach and out of sight as under a conversation cover (below): it takes no focus, sends no read receipt or typing notice, a message that arrives notifies as for a room not on screen, the composer's popovers (emoji board, autocomplete, model picker, menu) close, and neither an edge swipe nor the room's shortcuts for Members and resolving the thread act on it.
 Phones show no frame, as a panel there covers the conversation already, and the members have none: their header button shows and hides them.
 A panel with `frame: 'own'` draws its frame itself, such as a card with its own Fill and Hide: the room draws no title, Close, splitter or strip for it and gives it no box, so its `Component` takes its own width, and it opens and closes at once, without the frame's motion, unless its `Component` moves itself: it registers with `usePanelPresence()` (`ui`, above) and calls its registration's `done()` once it has moved out.
-`usePanelFrame()` gives a side panel's `Component` its frame, `{ label, layout, setLayout }`: `layout` is `beside`, `filled` or `folded`, and `setLayout` changes it as the frame's Fill, Fold and tab do, kept per room as above.
+`usePanelFrame()` gives a side panel's `Component` its frame, `{ label, layout, setLayout, fillLabel?, foldLabel? }`: `layout` is `beside`, `filled` or `folded`, `setLayout` changes it as the frame's Fill, Fold and tab do, kept per room as above, and `fillLabel`/`foldLabel` (since version 70) give the app's localized Fill and Fold button labels.
 The frame keeps its identity while the layout stays, and one the panel got in another room changes nothing in the room shown.
 A panel the room frames has it beside the conversation only, undefined on phones; one with `frame: 'own'` has it on phones too.
 Filling the room, such a panel takes the conversation's place as any does; folded, it covers nothing, on phones too, so the conversation lays out as with no panel beside what the `Component` still draws, such as its own tab at the room's edge.
 Over the conversation on a phone it also hides the room header, and with it the panel's toggle, so its `Component` offers a way out of its own: Hide, which shows the conversation beside its tab, or a Close that calls `close()` of `useRoomSidePanel` (below).
 While its `Component` loads its code, and if it throws, the room draws the panel's title and Close around it (below), so it can still be closed.
 A panel with `title: 'own'` shows its name and a Close itself, a Close that calls `close()` of `useRoomSidePanel` (below), and the room draws no title row above it, so what it shows starts at the top of its box (since version 65).
-Unlike `frame: 'own'`, the room still draws its box: the splitter, the remembered width and the frame strip (Fill, Fold) beside the conversation, and the cover over it on a phone.
+Unlike `frame: 'own'`, the room still draws its box: the splitter, the remembered width, the folded edge tab on desktop, and the cover over the conversation on a phone.
+Unless `frameControls: 'own'` is also set (since version 70), the room still draws the 40 px open frame strip (Fill, Fold) beside the conversation so existing `title: 'own'` panels keep their frame controls; with `frameControls: 'own'`, the room omits the open strip and the panel renders Fill and Fold via `usePanelFrame()` inside its own header.
 While its `Component` loads its code, and if it throws, the room draws the title row with Close as for any panel, so it can still be closed.
 With both, `frame: 'own'` wins.
 A `Component` that throws shows "This panel stopped working." in the panel, which can still be closed, until it gets another `request`, and the failure is logged and reported with `[plugin <id>@<version>]`.
@@ -462,7 +464,7 @@ One that throws `commandUsage()` from `core`, for a text after the name that it 
 ## Room menu entries
 
 Room menu entries (`src/app/plugins/roomActions.ts`) are the eighth kind: `{ id, label, icon, shows?, critical?, run }`.
-Every room's menu lists them, a sidebar row's (its More Options button, a right-click or a long press) and the open room header's alike (`src/app/room/RoomActionsMenu.tsx`), in build order, in a group of their own after the menu's first group and before Remove from, Archive and Leave.
+Every room's menu lists them, a sidebar row's (its More Options button, a right-click or a long press) and the open room header's alike (`src/app/room/RoomActionsMenu.tsx`), in build order, in a group of their own before Remove from, Archive and Leave.
 An entry that deletes or removes something says `critical: true`: the menu draws it as it draws Leave and lists it after Leave, at the end of the menu's last group, in build order; the app reads anything but `true` or nothing there as no entry.
 `label` and `icon` are as a header action's.
 `shows(room)`, pure and synchronous, says whether this room's menu lists the entry, and without it every room's does; one that throws leaves out only its entry, logged with `[plugin <id>@<version>]`.

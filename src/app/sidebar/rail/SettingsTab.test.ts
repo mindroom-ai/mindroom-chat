@@ -58,14 +58,13 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
       null,
       children(() => undefined)
     ),
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      children: React.ReactNode;
-    }
-  >(({ children, ...props }, ref) =>
-    React.createElement('button', { ref, type: 'button', ...props }, children)
-  ),
+  SidebarAvatar: ({
+    children,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    children: React.ReactNode;
+  }) => React.createElement('button', { ref, type: 'button', ...props }, children),
 }));
 
 vi.mock('../../avatars/UserAvatar', () => ({
@@ -618,7 +617,31 @@ describe('SettingsTab', () => {
 
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://mindroom.chat/_matrix/client/v1/media/thumbnail/mindroom.chat/avatar?width=96&height=96&method=crop',
-      expect.objectContaining({ headers: { Authorization: 'Bearer token-a' } })
+      { headers: { Authorization: 'Bearer token-a' }, cache: 'no-store' }
+    );
+  });
+
+  it('sets cache no-store when fetching the authenticated rail avatar on Capacitor', async () => {
+    mediaAuthState.value = true;
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    const fetchSpy = vi.fn(() => Promise.resolve({ ok: false }));
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.mocked(useUserProfile).mockReturnValue({
+      displayName: 'Alice',
+      avatarUrl: 'mxc://mindroom.chat/avatar',
+      isAvatarResolved: true,
+      isDisplayNameResolved: true,
+    });
+
+    await act(async () => {
+      renderSettingsTab([activeSession]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/mindroom.chat/avatar?width=96&height=96&method=crop',
+      { headers: { Authorization: 'Bearer token-a' }, cache: 'no-store' }
     );
   });
 

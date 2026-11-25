@@ -4,6 +4,12 @@ import { app, BrowserWindow, dialog, globalShortcut, Menu, screen, session, shel
 import { autoUpdater } from 'electron-updater';
 import { createAuthCallback, registerSignInHandlers } from './authCallback';
 import { APP_ORIGIN, registerBundleScheme, serveBundle } from './bundleProtocol';
+import {
+  createDesktopAccess,
+  registerDesktopAccessHandlers,
+  type DesktopAccessHandle,
+} from './desktopAccess';
+import { resolveDesktopHelperBinary } from './desktopBridgeProcess';
 import { createScreenshotHelper, resolveHelperPath, type ScreenshotTarget } from './helper';
 import { handle } from './ipc';
 import {
@@ -24,6 +30,7 @@ import {
   supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
 } from './security';
+import { setTrackpadSwipeRecorder, type TrackpadSwipePhase } from './trackpadSwipe';
 import { startUpdater, type UpdaterHandle } from './updater';
 
 const SCREEN_RECORDING_SETTINGS_URL =
@@ -57,11 +64,26 @@ const telemetry = isTest
       networkPermissions: [] as string[],
       externalOpens: [] as string[],
       badgeCounts: [] as number[],
+      trackpadSwipe: [] as Array<{ attached: boolean; warning?: string }>,
     }
   : undefined;
 if (telemetry) {
-  Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
+  let emitTrackpadSwipeForTest: ((phase: TrackpadSwipePhase) => void) | undefined;
+  Object.assign(globalThis, {
+    __mindroomTestTelemetry: telemetry,
+    __mindroomTestTrackpadSwipe: {
+      emit: (phase: TrackpadSwipePhase): boolean => {
+        if (!emitTrackpadSwipeForTest) return false;
+        emitTrackpadSwipeForTest(phase);
+        return true;
+      },
+    },
+  });
   setBlockedUrlRecorder((url) => telemetry.blockedUrls.push(url));
+  setTrackpadSwipeRecorder(({ attached, warning, emitForTest }) => {
+    telemetry.trackpadSwipe.push(warning ? { attached, warning } : { attached });
+    if (emitForTest) emitTrackpadSwipeForTest = emitForTest;
+  });
 }
 
 const focusMainWindow = (): void => {
@@ -88,6 +110,7 @@ if (!gotLock) app.quit();
 const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
 let updater: UpdaterHandle | undefined;
 let quickCapture: QuickCaptureHandle | undefined;
+let desktopAccess: DesktopAccessHandle | undefined;
 
 app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
@@ -97,6 +120,7 @@ app.on('before-quit', () => {
   markQuitting();
   flushMainWindowState();
   quickCapture?.flushState();
+  void desktopAccess?.stop();
 });
 
 void app.whenReady().then(() => {
@@ -121,7 +145,67 @@ void app.whenReady().then(() => {
     systemVersion,
     isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
   );
-  configureMainWindow({ screenShare, updater: app.isPackaged });
+
+  const desktopUserDataDir = app.getPath('userData');
+  const desktopHelperOverride = unpackaged ? process.env.MINDROOM_DESKTOP_HELPER_BIN : undefined;
+  const desktopHelperResolution = resolveDesktopHelperBinary({
+    platform: process.platform,
+    arch: process.arch,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    unpackagedRoot: path.resolve(__dirname, '../..'),
+    envOverride: desktopHelperOverride,
+  });
+  const testBridgeDir =
+    isTest || desktopHelperOverride
+      ? path.join(desktopUserDataDir, 'desktop-bridge-test')
+      : undefined;
+  desktopAccess = createDesktopAccess({
+    platform: process.platform,
+    arch: process.arch,
+    userDataDir: desktopUserDataDir,
+    configPath:
+      unpackaged && process.env.MINDROOM_DESKTOP_CONFIG_PATH
+        ? path.resolve(process.env.MINDROOM_DESKTOP_CONFIG_PATH)
+        : testBridgeDir
+          ? path.join(testBridgeDir, 'config.yaml')
+          : undefined,
+    storagePath:
+      unpackaged && process.env.MINDROOM_DESKTOP_STORAGE_PATH
+        ? path.resolve(process.env.MINDROOM_DESKTOP_STORAGE_PATH)
+        : testBridgeDir
+          ? path.join(testBridgeDir, 'mindroom_data')
+          : undefined,
+    preload: path.join(__dirname, 'preload.cjs'),
+    isQuitting,
+    getMainWindow,
+    resolution: desktopHelperResolution,
+    isTestHelper: Boolean(desktopHelperOverride),
+    enableLoginItem: app.isPackaged && process.platform === 'darwin',
+    onStatusChange: () => {
+      getMainWindow()?.webContents.send('desktop:shell-event', { type: 'desktop-access-status' });
+    },
+    onOpenMainWindow: focusMainWindow,
+    onOpenSettings: () => {
+      focusMainWindow();
+      const win = getMainWindow();
+      if (!win) return;
+      const send = (): void => {
+        if (!win.isDestroyed()) {
+          win.webContents.send('desktop:shell-event', { type: 'open-desktop-access-settings' });
+        }
+      };
+      if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+      else send();
+    },
+  });
+  const activeDesktopAccess = desktopAccess;
+
+  configureMainWindow({
+    screenShare,
+    updater: app.isPackaged,
+    desktopAccess: activeDesktopAccess.isAvailable(),
+  });
 
   const helperPath = resolveHelperPath({
     isPackaged: app.isPackaged,
@@ -234,6 +318,7 @@ void app.whenReady().then(() => {
           markQuitting();
           flushMainWindowState();
           activeQuickCapture.flushState();
+          void activeDesktopAccess.stop();
         },
       }
     );
@@ -246,6 +331,10 @@ void app.whenReady().then(() => {
   };
   const quickCaptureOwners = (): readonly Electron.WebContents[] => {
     const wc = activeQuickCapture.contents();
+    return wc && !wc.isDestroyed() ? [wc] : [];
+  };
+  const shellApprovalOwners = (): readonly Electron.WebContents[] => {
+    const wc = activeDesktopAccess.shellApprovalContents();
     return wc && !wc.isDestroyed() ? [wc] : [];
   };
   const appWindows = isTest
@@ -264,6 +353,7 @@ void app.whenReady().then(() => {
   };
   registerExternalOpenHandler(appWindows, openUrl);
   registerSignInHandlers(mainOwners, authCallback, openUrl);
+  registerDesktopAccessHandlers(mainOwners, shellApprovalOwners, activeDesktopAccess);
   handle(
     'desktop:show-main-window',
     appWindows,
@@ -357,19 +447,27 @@ void app.whenReady().then(() => {
       forget();
       clearMainBadge();
     });
-    // A sign-in starts only after a click or key press that main itself saw in the main window.
+    // Sensitive desktop actions start only after a click or key press in an authorized window.
     wc.on('input-event', (_event, { type }) => {
       const gesture = type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown';
-      if (gesture && wc === getMainWindow()?.webContents) authCallback.noteGesture();
+      if (!gesture) return;
+      if (wc === getMainWindow()?.webContents) {
+        authCallback.noteGesture();
+        activeDesktopAccess.noteGesture();
+      } else if (wc === activeDesktopAccess.shellApprovalContents()) {
+        activeDesktopAccess.noteShellApprovalGesture();
+      }
     });
   });
   showMainWindow();
+  void activeDesktopAccess.start();
 });
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   updater?.stop();
   authCallback.close();
+  void desktopAccess?.stop();
 });
 app.on('activate', () => {
   if (gotLock) showMainWindow();

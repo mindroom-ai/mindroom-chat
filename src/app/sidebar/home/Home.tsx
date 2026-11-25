@@ -1,8 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  type MouseEventHandler,
+  type ReactNode,
+  useRef,
+  useState,
+} from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
-import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
@@ -21,44 +26,48 @@ import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, type RoomOrder } from '../room-nav/roomOrder';
 import { getRoomActivityTimestamp } from '../room-nav/roomActivity';
 import { RoomSortMenu } from '../room-nav/RoomSortMenu';
-import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import {
+  SortableRoomGroup,
+  SortableRoomList,
+  SortableRoomRow,
+  useRoomSectionDrop,
+} from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
-import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
+import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
 import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useHomeCreateSelected } from '../../routes/useHomeSelected';
-import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
 import { makeNavScrollMemoryKey, useNavVirtualizer } from '../../ui/nav/navScrollMemory';
 import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
-import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
-import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
-import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import * as searchFieldCss from '../../ui/SearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
-import { sortRoomIdsByName } from '../../lib/nameOrder';
-import { useHomeRooms } from '../../matrix/state/useHomeRooms';
+import { type RenderedSpaceRoomSection, SpaceRoomSection } from '../space/SpaceRoomSection';
+import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { HiddenRailPages } from './HiddenRailPages';
 import { MacAppMenuEntry } from './MacAppMenuEntry';
+import { useHomeRoomSections } from './useHomeRoomSections';
 
 const ROOM_ROW_HEIGHT = 36;
+const homePinMode = (section: RenderedSpaceRoomSection): 'toggle' | undefined =>
+  section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined;
 
 type HomeHeaderProps = {
   roomIds: string[];
-  sort: Pick<RoomOrder, 'mode' | 'showTimes' | 'hasSavedOrder' | 'setMode' | 'setShowTimes'>;
+  sort?: Pick<RoomOrder, 'mode' | 'showTimes' | 'hasSavedOrder' | 'setMode' | 'setShowTimes'>;
 };
 
 function HomeHeader({ roomIds, sort }: HomeHeaderProps) {
@@ -74,14 +83,16 @@ function HomeHeader({ roomIds, sort }: HomeHeaderProps) {
           </Text>
         </Box>
         <Box alignItems="Center" gap="100" shrink="No">
-          <RoomSortMenu
-            mode={sort.mode}
-            showTimes={sort.showTimes}
-            hasSavedOrder={sort.hasSavedOrder}
-            onModeChange={sort.setMode}
-            onShowTimesChange={sort.setShowTimes}
-            buttonClassName={PairedTouchTarget}
-          />
+          {sort && (
+            <RoomSortMenu
+              mode={sort.mode}
+              showTimes={sort.showTimes}
+              hasSavedOrder={sort.hasSavedOrder}
+              onModeChange={sort.setMode}
+              onShowTimesChange={sort.setShowTimes}
+              buttonClassName={PairedTouchTarget}
+            />
+          )}
           {/* Its own name, so it is not taken for a room's More Options button. */}
           <NavOptionsMenu
             label={t('featureUi.homeNav.options')}
@@ -141,7 +152,82 @@ function RoomAction({ action, icon, label, selected, onSelect, to }: RoomActionP
   );
 }
 
-/** The Home navigation: room actions, the rooms outside spaces, threads, and recently opened. */
+type HomeUnspacedRoomsSectionProps = {
+  roomsCategoryId: string;
+  roomsClosed: boolean;
+  listedRoomIds: string[];
+  tree: SubRoomTree;
+  roomOrder: Pick<RoomOrder, 'mode' | 'save'>;
+  virtualizer: ReturnType<typeof useNavVirtualizer<HTMLDivElement, Element>>;
+  onCategoryClick: MouseEventHandler<HTMLElement>;
+  rowProps: (room: Room) => ComponentProps<typeof SortableRoomRow>;
+  renderSubRoom: (room: Room) => ReactNode;
+};
+
+/** Home's unspaced Rooms section, registered as a droppable boundary inside Home's SortableRoomGroup. */
+function HomeUnspacedRoomsSection({
+  roomsCategoryId,
+  roomsClosed,
+  listedRoomIds,
+  tree,
+  roomOrder,
+  virtualizer,
+  onCategoryClick,
+  rowProps,
+  renderSubRoom,
+}: HomeUnspacedRoomsSectionProps) {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const sectionDrop = useRoomSectionDrop(HOME_ROOM_LIST);
+
+  return (
+    <NavCategory data-testid="room-nav-category" {...sectionDrop}>
+      <NavCategoryHeader>
+        <RoomNavCategoryButton
+          closed={roomsClosed}
+          data-category-id={roomsCategoryId}
+          onClick={onCategoryClick}
+        >
+          {t('nav.rooms')}
+        </RoomNavCategoryButton>
+      </NavCategoryHeader>
+      <SortableRoomList
+        listId={HOME_ROOM_LIST}
+        roomIds={listedRoomIds}
+        onReorder={roomOrder.save}
+        reorderDisabled={roomOrder.mode === 'recent'}
+      >
+        <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const roomId = listedRoomIds[item.index];
+            const room = client.getRoom(roomId);
+            if (!room) return null;
+            return (
+              <VirtualTile
+                // By room, so a row's open prompt stays with its room when the list shifts.
+                key={roomId}
+                virtualItem={item}
+                ref={virtualizer.measureElement}
+              >
+                <SortableRoomRow {...rowProps(room)} />
+                {!roomsClosed && (
+                  <SubRoomRows
+                    parent={room}
+                    tree={tree}
+                    renderRoom={renderSubRoom}
+                    previewPath={getHomeRoomPath}
+                  />
+                )}
+              </VirtualTile>
+            );
+          })}
+        </div>
+      </SortableRoomList>
+    </NavCategory>
+  );
+}
+
+/** The Home navigation: room actions, unspaced rooms, space sections, threads, and recently opened. */
 export function Home() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -149,7 +235,6 @@ export function Home() {
   const listScrollRef = useRef<HTMLDivElement>(null);
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper('home', true);
-  const homeRooms = useVisibleRooms(useHomeRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const createSelected = useHomeCreateSelected();
@@ -157,24 +242,22 @@ export function Home() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinOpen, setJoinOpen] = useState(false);
 
-  const roomsCategoryId = makeNavCategoryId('home', 'room');
-  const closedCategoriesAtom = useClosedNavCategoriesAtom();
-  const [closedCategories, setClosedCategories] = useAtom(closedCategoriesAtom);
-  const roomsClosed = closedCategories.has(roomsCategoryId);
-  const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
-  const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
-
-  const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
+  const {
+    allVisibleHomeRooms,
+    unspaced,
+    roomsCategoryId,
+    roomsClosed,
+    tree,
+    listedRoomIds,
+    roomOrder,
+    sectionTree,
+    shortcutRoomIds,
+    onCategoryClick,
+    onReorder,
+  } = useHomeRoomSections(selectedRoomId);
   const homeRoomPath = (roomId: string) =>
     getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
-  const { tree, roomOrder, shownRoomIds, listedRoomIds } = useSubRoomList(
-    HOME_ROOM_LIST,
-    roomsByName,
-    roomsByName,
-    roomsClosed,
-    selectedRoomId
-  );
-  useRoomListShortcuts(roomsClosed ? listedRoomIds : shownRoomIds, selectedRoomId, homeRoomPath);
+  useRoomListShortcuts(shortcutRoomIds, selectedRoomId, homeRoomPath);
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
   const rowProps = (room: Room) => ({
@@ -234,9 +317,14 @@ export function Home() {
       )}
       <PageNavContent
         scrollRef={listScrollRef}
-        header={<HomeHeader roomIds={homeRooms} sort={roomOrder} />}
+        header={
+          <HomeHeader
+            roomIds={allVisibleHomeRooms}
+            sort={unspaced.length > 0 ? roomOrder : undefined}
+          />
+        }
       >
-        {homeRooms.length === 0 ? (
+        {unspaced.length === 0 && sectionTree.length === 0 ? (
           <NavEmptyLayout
             icon={<Icon size="600" src={Icons.Hash} />}
             title={
@@ -254,49 +342,42 @@ export function Home() {
         ) : (
           <Box direction="Column" gap="300">
             {roomActions}
-            <NavCategory data-testid="room-nav-category">
-              <NavCategoryHeader>
-                <RoomNavCategoryButton
-                  closed={roomsClosed}
-                  data-category-id={roomsCategoryId}
-                  onClick={handleCategoryClick}
-                >
-                  {t('nav.rooms')}
-                </RoomNavCategoryButton>
-              </NavCategoryHeader>
-              <SortableRoomList
-                listId={HOME_ROOM_LIST}
-                roomIds={listedRoomIds}
-                onReorder={roomOrder.save}
-                reorderDisabled={roomOrder.mode === 'recent'}
-              >
-                <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-                  {virtualizer.getVirtualItems().map((item) => {
-                    const roomId = listedRoomIds[item.index];
-                    const room = client.getRoom(roomId);
-                    if (!room) return null;
-                    return (
-                      <VirtualTile
-                        // By room, so a row's open prompt stays with its room when the list shifts.
-                        key={roomId}
-                        virtualItem={item}
-                        ref={virtualizer.measureElement}
-                      >
-                        <SortableRoomRow {...rowProps(room)} />
-                        {!roomsClosed && (
-                          <SubRoomRows
-                            parent={room}
-                            tree={tree}
-                            renderRoom={renderSubRoom}
-                            previewPath={getHomeRoomPath}
-                          />
-                        )}
-                      </VirtualTile>
-                    );
-                  })}
+            <SortableRoomGroup>
+              {unspaced.length > 0 && (
+                <HomeUnspacedRoomsSection
+                  roomsCategoryId={roomsCategoryId}
+                  roomsClosed={roomsClosed}
+                  listedRoomIds={listedRoomIds}
+                  tree={tree}
+                  roomOrder={roomOrder}
+                  virtualizer={virtualizer}
+                  onCategoryClick={onCategoryClick}
+                  rowProps={rowProps}
+                  renderSubRoom={renderSubRoom}
+                />
+              )}
+              {sectionTree.length > 0 && (
+                <div className={spaceSectionCss.SpaceSectionStack}>
+                  {sectionTree.map((node) => (
+                    <SpaceRoomSection
+                      key={node.section.categoryId}
+                      section={node.section}
+                      childNodes={node.children}
+                      subtreeShownRoomIds={node.subtreeShownRoomIds}
+                      spaceId={node.section.spaceId}
+                      spaceIdOrAlias={node.section.spaceId}
+                      selectedRoomId={selectedRoomId}
+                      onCategoryClick={onCategoryClick}
+                      onReorder={onReorder}
+                      roomPath={getHomeRoomPath}
+                      showOverview
+                      quietUnread
+                      pinMode={homePinMode}
+                    />
+                  ))}
                 </div>
-              </SortableRoomList>
-            </NavCategory>
+              )}
+            </SortableRoomGroup>
             <ThreadNavCategory />
           </Box>
         )}

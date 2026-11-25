@@ -39,6 +39,8 @@ export interface ThreadFilterState {
   statusMode: 'and' | 'or';
   // People filter (user IDs): a thread matches when any of them took part. Absent or empty: all.
   people?: string[];
+  // Room filter (room IDs) for Space thread overviews. Absent or empty: all rooms.
+  rooms?: string[];
   /** Only threads for this account. Absent on older filters and presets, meaning off. */
   forMe?: boolean;
 }
@@ -82,6 +84,7 @@ export interface SerializedThreadFilterState {
   unsupportedQuery?: string;
   statusMode?: ThreadFilterState['statusMode'];
   people?: string[];
+  rooms?: string[];
   forMe?: boolean;
 }
 
@@ -120,6 +123,7 @@ export const serializeThreadFilterState = (
   const unsupportedQuery = typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
   const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';
   const people = [...new Set(state.people ?? [])].sort();
+  const rooms = [...new Set(state.rooms ?? [])].sort();
 
   const tags = Object.fromEntries(
     [...state.tags.entries()]
@@ -143,6 +147,7 @@ export const serializeThreadFilterState = (
     unsupportedQuery,
     statusMode,
     ...(people.length > 0 ? { people } : {}),
+    ...(rooms.length > 0 ? { rooms } : {}),
     ...(typeof state.forMe === 'boolean' ? { forMe: state.forMe } : {}),
   };
 };
@@ -167,6 +172,11 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
   const statusMode = isStatusMode(value.statusMode) ? value.statusMode : defaultState.statusMode;
   const people = Array.isArray(value.people)
     ? value.people.filter((userId): userId is string => typeof userId === 'string')
+    : [];
+  const rooms = Array.isArray(value.rooms)
+    ? [
+        ...new Set(value.rooms.filter((roomId): roomId is string => typeof roomId === 'string')),
+      ].sort()
     : [];
 
   const tags = new Map<string, TriState>();
@@ -197,6 +207,7 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
     unsupportedQuery,
     statusMode,
     ...(people.length > 0 ? { people } : {}),
+    ...(rooms.length > 0 ? { rooms } : {}),
     ...(typeof value.forMe === 'boolean' ? { forMe: value.forMe } : {}),
   };
 
@@ -352,6 +363,7 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
     forMe: state.forMe,
     sortBy: state.sortBy,
     sortDirection: state.sortDirection,
+    ...(state.rooms?.length ? { rooms: state.rooms } : {}),
   };
 };
 
@@ -384,6 +396,7 @@ export const simplifyAgentlessThreadFilterState = (
   unsupportedQuery: state.unsupportedQuery,
   people: state.people,
   forMe: state.forMe,
+  ...(state.rooms?.length ? { rooms: state.rooms } : {}),
 });
 
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
@@ -435,3 +448,46 @@ export const selectThreadWorkflowTab = (
   idle: 'any',
   statusMode: 'and',
 });
+
+/**
+ * Project a persisted filter state onto the controls that are currently visible.
+ * Persisted advanced filters remain stored so they can be restored when those controls
+ * become available again.
+ */
+export const projectThreadFilterState = (
+  state: ThreadFilterState,
+  simpleMode: boolean,
+  hasMindroomAgents: boolean
+): ThreadFilterState => {
+  if (simpleMode) {
+    return hasMindroomAgents
+      ? simplifyThreadFilterState(state)
+      : simplifyAgentlessSimpleThreadFilterState(state);
+  }
+  if (!hasMindroomAgents) return simplifyAgentlessThreadFilterState(state);
+  return state.tab ? selectThreadWorkflowTab(state, state.tab) : state;
+};
+
+/** Applies a raw search query string, parsing DSL tokens only when agent controls are shown. */
+export const applyThreadSearchQuery = (
+  state: ThreadFilterState,
+  query: string,
+  hasMindroomAgents: boolean
+): ThreadFilterState =>
+  hasMindroomAgents
+    ? applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
+    : {
+        ...state,
+        // With agent controls hidden, the retained search field is plain
+        // text. Preserve agent filters in storage and treat is:/tag: tokens
+        // literally instead of mutating invisible filter dimensions.
+        freeText: normalizeThreadSearchText(query),
+        unsupportedQuery: '',
+      };
+
+/** Whether the overview toolbar shows its "no threads match" empty banner with Reset action. */
+export const showsFilteredEmptyState = (
+  threadCount: number,
+  totalThreadCount: number,
+  state: ThreadFilterState
+): boolean => threadCount === 0 && totalThreadCount > 0 && hasActiveThreadFilters(state);

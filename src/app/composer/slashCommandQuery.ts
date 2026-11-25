@@ -67,7 +67,9 @@ export const readActingCommand = (
   const match = /^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/.exec(argumentText(document).trim());
   const command = match?.[1] === undefined ? undefined : commands[match[1]];
   if (!match || !command?.run) return undefined;
-  return { command, run: command.run, args: match[2] ?? '' };
+  const args = match[2] ?? '';
+  if (command.runBareOnly && args !== '') return undefined;
+  return { command, run: command.run, args };
 };
 
 /**
