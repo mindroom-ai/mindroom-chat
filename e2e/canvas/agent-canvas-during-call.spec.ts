@@ -9,9 +9,10 @@ import {
 } from '../helpers/agentStack';
 import { createPrivateRoom } from '../helpers/matrix';
 
-// While this device is in a call, an agent's canvas does not open: its Open canvas button is
-// disabled with "End the call to open interactive panels.", and the header lists no canvases;
-// after the call it opens again. Needs the slot's call service (scripts/e2e-rtc.sh), which
+// While this device is in a call, an agent's canvas does not open: its canvas card explains
+// "End the call to open interactive panels." (or the legacy Open canvas button is disabled with
+// that note), and the header lists no canvases; after the call it opens again. Needs the slot's
+// call service (scripts/e2e-rtc.sh), which
 // scripts/e2e-slot.sh --rtc starts:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/canvas/agent-canvas-during-call.spec.ts
 test.describe.configure({ timeout: 300_000 });
@@ -71,12 +72,22 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await expect(page.locator('[data-call-tab]')).toBeVisible();
   await showThread(page, stack, rootId);
 
-  const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
-  await expect(open).toBeVisible({ timeout: 90_000 });
-  await expect(open).toBeDisabled();
-  await expect(
-    page.getByRole('note').filter({ hasText: 'End the call to open interactive panels.' })
-  ).toBeVisible();
+  const callReason = 'End the call to open interactive panels.';
+  const legacyOpen = page.getByRole('button', { name: 'Open canvas', exact: true });
+  const canvasPanel = page.getByRole('complementary', { name: 'Canvas panel' });
+  const blockedCard = page
+    .getByRole('button', { name: /Stub canvas.*End the call to open interactive panels\./ })
+    .or(legacyOpen)
+    .first();
+  await expect(blockedCard).toBeVisible({ timeout: 90_000 });
+  if ((await legacyOpen.count()) > 0) {
+    await expect(blockedCard).toBeDisabled();
+    await expect(page.getByRole('note').filter({ hasText: callReason })).toBeVisible();
+  } else {
+    await expect(blockedCard).toContainText(callReason);
+    if (await blockedCard.isEnabled()) await blockedCard.click();
+  }
+  await expect(canvasPanel).toHaveCount(0);
   const headerCanvases = page
     .locator('header')
     .getByRole('button', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
@@ -91,9 +102,11 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   // The call window closes with the call, so it no longer floats over the thread.
   await expect(callPanel).toHaveCount(0);
   await showThread(page, stack, rootId);
-  await expect(open).toBeEnabled({ timeout: 30_000 });
+  const openCard = page.getByRole('button', { name: 'Stub canvas Canvas' }).or(legacyOpen).first();
+  await expect(openCard).toBeVisible({ timeout: 30_000 });
+  await expect(openCard).toBeEnabled({ timeout: 30_000 });
   await expect(headerCanvases).toHaveCount(1);
-  await open.click();
-  await expect(page.getByRole('complementary', { name: 'Canvas panel' })).toBeVisible();
+  await openCard.click();
+  await expect(canvasPanel).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('canvas-after-call.png') });
 });

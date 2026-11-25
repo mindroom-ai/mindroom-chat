@@ -1,0 +1,195 @@
+# Cross-repo Frontend (mindroom-chat) <-> Backend (mindroom) contract E2E against a real MindRoom
+# stub backend and disposable Tuwunel homeserver. Runs on pushes to main, pull requests (supporting
+# `Depends-On: mindroom-ai/mindroom#<pr>` in the PR body), manual dispatches, and cross-repo
+# `workflow_call` invocations from mindroom-ai/mindroom.
+name: Agent Contract E2E
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/design/**'
+  pull_request:
+    paths-ignore:
+      - 'docs/design/**'
+  workflow_call:
+    inputs:
+      mindroom_ref:
+        description: 'Git ref of mindroom-ai/mindroom to test against (empty defaults to caller PR/commit in mindroom, else main)'
+        type: string
+        default: ''
+      chat_ref:
+        description: 'Git ref of mindroom-chat to check out (empty uses the workflow or caller ref)'
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      mindroom_ref:
+        description: 'Git ref of mindroom-ai/mindroom to test against'
+        type: string
+        default: 'main'
+      chat_ref:
+        description: 'Git ref of mindroom-chat to check out (empty uses the current ref)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-contract-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  agent-contract:
+    name: Real-backend contract specs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      # When invoked via cross-repo workflow_call (github.repository != job.workflow_repository),
+      # check out the called workflow's own mindroom-chat repo and pinned SHA unless chat_ref
+      # overrides it. Native runs (including forks) keep the triggering repo and PR merge ref.
+      - name: Checkout mindroom-chat
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository != job.workflow_repository && job.workflow_repository || github.repository }}
+          ref: ${{ inputs.chat_ref || (github.repository != job.workflow_repository && job.workflow_sha || '') }}
+
+      - name: Resolve MindRoom ref
+        id: resolve
+        env:
+          INPUT_MINDROOM_REF: ${{ inputs.mindroom_ref }}
+          REPO: ${{ github.repository }}
+          WORKFLOW_REPO: ${{ job.workflow_repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CALLER_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ref="$INPUT_MINDROOM_REF"
+          if [ -z "$ref" ] && [ "$REPO" != "$WORKFLOW_REPO" ]; then
+            ref="$CALLER_REF"
+          elif [ -z "$ref" ] && [ "$REPO" = "$WORKFLOW_REPO" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+            # Fetch the current PR body so manual reruns pick up `Depends-On:` edits without
+            # subscribing to pull_request.edited (which would cancel or mask runs on routine edits).
+            if [ -n "$PR_NUMBER" ]; then
+              PR_BODY="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.body // ""' 2>/dev/null || printf '%s' "$PR_BODY")"
+              export PR_BODY
+            fi
+            pr_num="$(python3 -c '
+          import os, re
+          m = re.search(r"(?m)^Depends-On:[ \t]*mindroom-ai/mindroom#([0-9]+)[ \t]*\r?$", os.environ.get("PR_BODY", ""))
+          print(m.group(1) if m else "")
+          ')"
+            if [ -n "$pr_num" ]; then
+              echo "Found Depends-On: mindroom-ai/mindroom#${pr_num}"
+              ref="$(gh api "repos/mindroom-ai/mindroom/pulls/${pr_num}" --jq .head.sha)"
+            fi
+          fi
+          ref="${ref:-main}"
+          echo "mindroom_ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "Resolved mindroom_ref=${ref}"
+
+      # Checkout inside $GITHUB_WORKSPACE (actions/checkout forbids paths outside workspace, and
+      # setup-uv's cache-dependency-glob also requires workspace-relative paths).
+      - name: Checkout mindroom
+        uses: actions/checkout@v7
+        with:
+          repository: mindroom-ai/mindroom
+          ref: ${{ steps.resolve.outputs.mindroom_ref }}
+          path: mindroom-backend
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Log resolved SHAs
+        id: refs
+        run: |
+          set -euo pipefail
+          chat_sha="$(git rev-parse HEAD)"
+          mindroom_sha="$(git -C mindroom-backend rev-parse HEAD)"
+          echo "chat_sha=${chat_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom_sha=${mindroom_sha}" >> "$GITHUB_OUTPUT"
+          echo "mindroom-chat SHA: ${chat_sha}"
+          echo "mindroom SHA:      ${mindroom_sha}"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'mindroom-backend/uv.lock'
+
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Start the test homeserver
+        run: docker compose -f e2e/docker-compose.yaml up -d --wait
+
+      - name: Restore Playwright Chromium
+        id: playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Build
+        run: npx vite build
+
+      - name: Agent contract specs
+        env:
+          E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
+          E2E_REUSE_EXISTING_SERVER: '0'
+          E2E_REQUIRE_AGENT_STACK: '1'
+          E2E_MINDROOM_CHECKOUT: ${{ github.workspace }}/mindroom-backend
+          E2E_MINDROOM_REF: ${{ steps.refs.outputs.mindroom_sha }}
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: >-
+          npx playwright test
+          e2e/messages/agent-streaming.spec.ts
+          e2e/messages/agent-encrypted-first-reply.spec.ts
+          e2e/approvals/agent-approvals.spec.ts
+          e2e/canvas/agent-canvases.spec.ts
+          e2e/models/agent-models.spec.ts
+          e2e/schedules/agent-schedules.spec.ts
+          e2e/contract/agent-profile-and-discovery.spec.ts
+          e2e/contract/agent-secrets-and-delegation.spec.ts
+
+      # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
+      # Never upload state.json or .env.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-contract-failure
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/mindroom-client-agents/slot-0/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the agent stack
+        if: always()
+        env:
+          E2E_AGENT_STACK_ROOT: /tmp/mindroom-client-agents
+        run: python3 scripts/agent-stack/stack.py 0 down || true
