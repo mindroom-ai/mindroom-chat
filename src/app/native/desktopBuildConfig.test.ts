@@ -1065,10 +1065,22 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
     name?: string;
     run?: string;
     uses?: string;
+    env?: Record<string, string>;
     with?: Record<string, unknown>;
   };
 
-  it('wires release.yml -> desktop.yml and pins desktop.yml release + feed guards', () => {
+  type WorkflowJob = {
+    name?: string;
+    needs?: string;
+    if?: string;
+    'runs-on'?: string;
+    permissions?: Record<string, string>;
+    concurrency?: { group: string; queue?: string; 'cancel-in-progress'?: boolean };
+    strategy?: { 'fail-fast'?: boolean; matrix?: { include?: Array<Record<string, string>> } };
+    steps: Step[];
+  };
+
+  it('wires release.yml -> desktop.yml and pins macOS + Linux release and feed guards', () => {
     const releaseText = read('.github/workflows/release.yml');
     const desktopText = read('.github/workflows/desktop.yml');
 
@@ -1080,22 +1092,27 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
     expect(releaseText).not.toContain('macos.yml');
 
     const desktop = parse(desktopText) as {
-      on: { pull_request: { paths: string[] } };
-      jobs: {
-        e2e: { steps: Step[] };
-        release: { if?: string; permissions?: Record<string, string>; steps: Step[] };
-        feed: {
-          needs?: string;
-          if?: string;
-          'runs-on'?: string;
-          permissions?: Record<string, string>;
-          concurrency?: { group: string; queue: string };
-          steps: Step[];
+      on: {
+        pull_request: { paths: string[] };
+        workflow_dispatch: {
+          inputs: {
+            platform: { type: string; options: string[]; default: string };
+          };
         };
+      };
+      jobs: {
+        e2e: WorkflowJob;
+        'e2e-linux': WorkflowJob;
+        release: WorkflowJob;
+        feed: WorkflowJob;
+        'build-linux': WorkflowJob;
+        'release-linux': WorkflowJob;
+        'feed-linux': WorkflowJob;
       };
     };
     expect(desktop.on.pull_request.paths).toEqual(
       expect.arrayContaining([
+        'scripts/build-linux-desktop.sh',
         'scripts/macos-publish-appcast.sh',
         'scripts/build-trackpad-swipe-addon.sh',
         'scripts/desktop-helper-pin.json',
@@ -1106,9 +1123,16 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
         'src/app/navigation/desktopHistorySwipe*',
       ])
     );
+    expect(desktop.on.workflow_dispatch.inputs.platform).toMatchObject({
+      type: 'choice',
+      options: ['all', 'mac', 'linux'],
+      default: 'all',
+    });
+
+    // macOS PR e2e, release, and feed
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });
     expect(desktop.jobs.release.if).toBe(
-      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"
+      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'linux')"
     );
     expect(
       desktop.jobs.e2e.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.[
@@ -1150,6 +1174,104 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
         "steps.feed.outputs.published == 'true' && steps.newest.outputs.newest == 'true'"
       );
     }
+
+    // Linux PR e2e + packaging verification
+    const e2eLinux = desktop.jobs['e2e-linux'];
+    expect(e2eLinux).toMatchObject({
+      name: 'Electron shell e2e (Linux)',
+      if: "github.event_name == 'pull_request'",
+      'runs-on': 'ubuntu-24.04',
+    });
+    expect(
+      e2eLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.[
+        'persist-credentials'
+      ]
+    ).toBe(false);
+    const linuxE2eStep = e2eLinux.steps.find((s) => s.name === 'Run offline desktop e2e');
+    expect(linuxE2eStep?.env?.['MINDROOM_E2E_NO_SANDBOX']).toBe('1');
+    expect(linuxE2eStep?.run).toContain('xvfb-run');
+    expect(linuxE2eStep?.run).toContain('npm run e2e:desktop -- --grep-invert @homeserver');
+    const linuxPkgStep = e2eLinux.steps.find((s) =>
+      s.run?.includes('scripts/build-linux-desktop.sh')
+    );
+    expect(linuxPkgStep?.env?.['MINDROOM_LINUX_REQUIRE_SMOKE']).toBe('1');
+    expect(linuxPkgStep?.run).toContain('--arch x64 --skip-web-build');
+
+    // Independent Linux release track (build-linux -> release-linux -> feed-linux)
+    const buildLinux = desktop.jobs['build-linux'];
+    expect(buildLinux.permissions).toEqual({ contents: 'read' });
+    expect(buildLinux.if).toBe(
+      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'mac')"
+    );
+    expect(buildLinux.strategy?.matrix?.include).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ arch: 'x64', runner: 'ubuntu-24.04' }),
+        expect.objectContaining({ arch: 'arm64', runner: 'ubuntu-24.04-arm' }),
+      ])
+    );
+    expect(buildLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+    const linuxBuildStep = buildLinux.steps.find((s) => s.name === 'Build and verify Linux app');
+    expect(linuxBuildStep?.env?.['MINDROOM_LINUX_REQUIRE_SMOKE']).toBe('1');
+    expect(linuxBuildStep?.run).toBe('scripts/build-linux-desktop.sh --arch ${{ matrix.arch }}');
+    expect(
+      buildLinux.steps.find((s) => s.run?.includes('scripts/desktop-latest-yml.mjs'))?.run
+    ).toContain('--platform linux');
+    expect(
+      buildLinux.steps.find((s) => s.uses?.startsWith('actions/upload-artifact'))?.with?.[
+        'if-no-files-found'
+      ]
+    ).toBe('error');
+
+    const releaseLinux = desktop.jobs['release-linux'];
+    expect(releaseLinux).toMatchObject({
+      needs: 'build-linux',
+      'runs-on': 'ubuntu-24.04',
+      permissions: { contents: 'write' },
+    });
+    expect(releaseLinux.if).toContain("needs.build-linux.result == 'success'");
+    expect(
+      releaseLinux.steps
+        .filter((s) => s.uses?.startsWith('actions/download-artifact'))
+        .map((s) => s.with?.['name'])
+    ).toEqual(['linux-desktop-x64', 'linux-desktop-arm64']);
+    const linuxUpload =
+      releaseLinux.steps.find((s) => s.name === 'Attach verified Linux artifacts to the release')
+        ?.run ?? '';
+    for (const asset of [
+      'build/desktop-dist/MindRoom-Chat-x86_64.AppImage',
+      'build/desktop-dist/MindRoom-Chat-x86_64.AppImage.blockmap',
+      'build/desktop-dist/MindRoom-Chat-amd64.deb',
+      'build/desktop-dist/latest-linux.yml',
+      'build/desktop-dist/MindRoom-Chat-arm64.AppImage',
+      'build/desktop-dist/MindRoom-Chat-arm64.AppImage.blockmap',
+      'build/desktop-dist/MindRoom-Chat-arm64.deb',
+      'build/desktop-dist/latest-linux-arm64.yml',
+    ]) {
+      expect(linuxUpload).toContain(asset);
+    }
+    expect(linuxUpload).not.toContain('--clobber');
+    expect(releaseLinux.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
+
+    const feedLinux = desktop.jobs['feed-linux'];
+    expect(feedLinux).toMatchObject({
+      needs: 'release-linux',
+      'runs-on': 'ubuntu-24.04',
+      permissions: { contents: 'write' },
+      concurrency: { group: 'linux-desktop-feed', queue: 'max' },
+    });
+    expect(feedLinux.if).toContain("needs.release-linux.result == 'success'");
+    expect(feedLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+    expect(feedLinux.steps.find((s) => s.id === 'feed')?.run).toBe(
+      'scripts/macos-publish-appcast.sh --linux "$RELEASE_TAG"'
+    );
+    expect(feedLinux.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
+
     expect(desktopText).not.toContain('PROVISIONING_PROFILE');
     expect(desktopText).not.toContain('provisionprofile');
     expect(existsSync(resolve('.github/workflows/macos.yml'))).toBe(false);

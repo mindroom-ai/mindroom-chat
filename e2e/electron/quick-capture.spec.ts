@@ -93,6 +93,20 @@ test('Window -> Quick Capture lazily opens /quick-capture/ with 0px inset, no sc
       )
       .toBe('0px');
 
+    if (process.platform === 'linux') {
+      const surface = await panelPage.evaluate(() => {
+        const root = document.querySelector<HTMLElement>('[data-native]');
+        return {
+          hasVibrancy: root?.hasAttribute('data-vibrancy') ?? null,
+          backgroundColor: root ? getComputedStyle(root).backgroundColor : null,
+        };
+      });
+      expect(surface.hasVibrancy).toBe(false);
+      expect(surface.backgroundColor).not.toBeNull();
+      expect(surface.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+      expect(surface.backgroundColor).not.toBe('transparent');
+    }
+
     // P7 exposes no screenshot buttons.
     await expect(
       panelPage.getByRole('button', { name: 'Screenshot of the front window' })
@@ -119,6 +133,56 @@ test('Window -> Quick Capture lazily opens /quick-capture/ with 0px inset, no sc
     }
   } finally {
     await session.close();
+  }
+});
+
+test('closing main window after hiding Quick Capture exits cleanly on Linux', async () => {
+  test.skip(process.platform !== 'linux', 'Linux exits when the main window closes');
+  const session = await launchDesktop({ offline: true });
+  let exitedCleanly = false;
+  try {
+    const { app, page } = session;
+    await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+    const panelPage = await openQuickCapture(session);
+    await expect(panelPage.getByText('Sign in to MindRoom', { exact: true })).toBeVisible();
+    await panelPage.keyboard.press('Escape');
+    await expect.poll(() => quickCaptureVisibility(app)).toBe(false);
+
+    const child = app.process();
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+      (resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+          clearTimeout(timer);
+          resolve({ code, signal });
+        };
+        timer = setTimeout(() => {
+          child.off('exit', onExit);
+          reject(new Error('Electron process did not exit within 10s after main window closed'));
+        }, 10_000);
+        child.once('exit', onExit);
+      }
+    );
+
+    // Close the main window on the next turn so evaluate returns before Electron quits.
+    await app.evaluate(({ BrowserWindow }) => {
+      const mainWin = BrowserWindow.getAllWindows().find(
+        (w) => !w.webContents.getURL().includes('/quick-capture')
+      );
+      if (!mainWin) throw new Error('Main window missing');
+      setImmediate(() => mainWin.close());
+    });
+
+    const result = await exited;
+    expect(result).toEqual({ code: 0, signal: null });
+    exitedCleanly = true;
+  } finally {
+    if (exitedCleanly) {
+      await session.close().catch(() => undefined);
+    } else {
+      await session.close();
+    }
   }
 });
 
