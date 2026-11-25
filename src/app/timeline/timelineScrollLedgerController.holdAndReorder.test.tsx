@@ -2,6 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_INTRO_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
@@ -83,6 +84,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     dispose?.();
     dispose = undefined;
     vi.useRealTimers();
+    _resetIOSDetectionForTests();
     vi.unstubAllGlobals();
     Object.defineProperty(navigator, 'userAgent', { value: origUA, configurable: true });
     Object.defineProperty(navigator, 'platform', { value: origPlatform, configurable: true });
@@ -318,5 +320,43 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     render([ROOM_INTRO_KEY, ...rows]);
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
     expect(getTileTop(ROOM_INTRO_KEY)).toBe(0);
+  });
+
+  it('does not write into iOS inertial scrolling when a thread gets a reply in newest-first view', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 26_2 like Mac OS X) AppleWebKit/605.1.15');
+    _resetIOSDetectionForTests();
+    const keys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
+    const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
+      latestAtTop: true,
+      initialKeys: keys,
+    });
+    const inner = scrollElement.firstElementChild!;
+    const rect = inner.getBoundingClientRect();
+    inner.getBoundingClientRect = () => ({ ...rect, top: -scrollElement.scrollTop });
+    render();
+
+    scrollElement.dispatchEvent(new Event('touchstart'));
+    scrollElement.scrollTop = 1300;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    scrollElement.dispatchEvent(new Event('touchend'));
+    expect(
+      (getVirtualizer() as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()
+    ).toBe(false);
+
+    render([keys[30], ...keys.filter((_, i) => i !== 30)]);
+    // Must stay at 1300 during the iOS fling while holding +100px so row $ev-13 stays still.
+    expect(scrollElement.scrollTop).toBe(1300);
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(100);
+    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
+
+    // At rest (after the fling tail closes), virtual-core flushes the hold and lands at 1400.
+    vi.advanceTimersByTime(500);
+    expect(
+      (getVirtualizer() as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()
+    ).toBe(true);
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
+    expect(scrollElement.scrollTop).toBe(1400);
+    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
   });
 });

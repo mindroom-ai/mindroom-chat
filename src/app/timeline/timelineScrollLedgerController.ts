@@ -225,9 +225,8 @@ export const useTimelineScrollLedgerController = ({
         }
       }
       onRect(rect);
-      if (heightChanged && observeThreadHeightRef.current) {
+      if (heightChanged && observeThreadHeightRef.current)
         setViewportResizeTick((tick) => tick + 1);
-      }
     });
     observing = true;
     return stop;
@@ -294,7 +293,8 @@ export const useTimelineScrollLedgerController = ({
       roomLedgerAnchorRef.current = undefined;
       return;
     }
-    const offset = scrollTop + view.inset - view.listTop;
+    const offset =
+      scrollTop + readVirtualizerHoldOffset(virtualizerRef.current) + view.inset - view.listTop;
     const item = virtualizerRef.current.getVirtualItemForOffset(offset);
     const index = item && item.start <= offset ? item.index : undefined;
     const key = index === undefined ? undefined : view.keys[index];
@@ -307,11 +307,16 @@ export const useTimelineScrollLedgerController = ({
     if (!anchoringRoomRows || roomAnchorDeltaPx === 0) return;
     const scrollElement = getScrollElement();
     if (!scrollElement) return;
-    const nextTop = Math.max(0, scrollElement.scrollTop + roomAnchorDeltaPx);
-    scrollElement.scrollTop = nextTop;
-    virtualizerRef.current.scrollOffset = nextTop;
+    const internal = asInternals(virtualizerRef.current);
+    if (internal?._canWriteScroll?.() === false && internal.applyScrollAdjustment) {
+      internal.applyScrollAdjustment.call(virtualizerRef.current, roomAnchorDeltaPx);
+    } else {
+      const nextTop = Math.max(0, scrollElement.scrollTop + roomAnchorDeltaPx);
+      scrollElement.scrollTop = nextTop;
+      virtualizerRef.current.scrollOffset = nextTop;
+    }
     setCommitTick((tick) => tick + 1);
-  }, [anchoringRoomRows, getScrollElement, roomAnchorDeltaPx]);
+  });
   useLayoutEffect(() => {
     const scrollElement = getScrollElement();
     const inner = virtualInnerRef.current;
@@ -477,9 +482,7 @@ export const useTimelineScrollLedgerController = ({
         }
         return true;
       }
-      if (rewrapped || (item.index ?? itemCount) < itemCount - 1) {
-        renderRowMoveBeforePaint();
-      }
+      if (rewrapped || (item.index ?? itemCount) < itemCount - 1) renderRowMoveBeforePaint();
       return false;
     };
   }, [itemCount, renderRowMoveBeforePaint, resettingView, viewKey, virtualizer]);
