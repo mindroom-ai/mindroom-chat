@@ -1089,6 +1089,12 @@
       "unavailable": {
         "description": "Mac-Computerzugriff ist auf diesem Gerät nicht verfügbar."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "du",
+        "draft": "Entwurf"
+      }
     }
   },
   "mindroomUi": {

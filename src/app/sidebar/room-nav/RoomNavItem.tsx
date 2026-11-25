@@ -1,11 +1,12 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
 import { FocusTrap } from 'focus-trap-react';
+import { atom, useAtomValue } from 'jotai';
 import { useFocusWithin, useHover } from 'react-aria';
 import { useTranslation } from 'react-i18next';
-import { RoomType, type Room } from 'matrix-js-sdk';
+import { RoomStateEvent, RoomType, type Room } from 'matrix-js-sdk';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../ui/nav/NavItem';
 import { RoomAvatar, RoomIcon } from '../../avatars/RoomAvatar';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
@@ -22,11 +23,14 @@ import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs'
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useInCall } from '../../calls/callStore';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import { RoomActivityTime } from './RoomActivityTime';
 import type { RoomActionDialog } from '../../room/roomActions';
+import * as css from './RoomNavItem.css';
 
 const AVATAR_SIZE = 96;
+const EMPTY_DRAFT_ATOM = atom<readonly unknown[]>(() => []);
 
 type RoomNavItemProps = {
   room: Room;
@@ -39,6 +43,14 @@ type RoomNavItemProps = {
   /** A direct message: shows the other person's avatar with initials as fallback. */
   direct: boolean;
   showAvatar: boolean;
+  /** Show a subtle pencil icon when this room has an unsent local composer draft. */
+  showDraft: boolean;
+  /** Display name shown instead of `useRoomName(room)` (e.g. an agent's resolved display name). */
+  nameOverride: string;
+  /** Fallback MXC avatar URL when a direct partner has no room-level avatar yet. */
+  fallbackAvatarMxc: string;
+  /** Optional overlay badge rendered at the corner of the avatar (e.g. an active-run dot). */
+  avatarBadge: React.ReactNode;
   /** The space whose list shows the row, which the room's settings and search stay in. */
   spaceId: string;
   /** The immediate space section listing this row; offers `Remove from <space>` when permitted. */
@@ -50,6 +62,22 @@ type RoomNavItemProps = {
   /** Compact relative activity timestamp shown on quiet rows when activity times are enabled. */
   activityTimestamp: number;
 }>;
+
+const readActiveMemberCount = (room: Room): number =>
+  (room.getJoinedMemberCount?.() ?? 0) + (room.getInvitedMemberCount?.() ?? 0);
+
+/** Active (joined + invited) member count of a direct room, updated on membership changes. */
+const useDirectMemberCount = (room: Room, enabled: boolean): number => {
+  const [, bump] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (!enabled || typeof room.on !== 'function') return undefined;
+    room.on(RoomStateEvent.Members, bump);
+    return () => {
+      room.removeListener(RoomStateEvent.Members, bump);
+    };
+  }, [room, enabled]);
+  return enabled ? readActiveMemberCount(room) : 0;
+};
 
 /**
  * Whether the pointer is over the row or focus is inside it; the row swaps its badge for the
@@ -101,6 +129,10 @@ type RoomNavItemAvatarProps = {
   name: string;
   /** Show a person (direct message partner) with initials, instead of the room privacy icon. */
   personAvatar: boolean;
+  /** When > 2 on a direct room, renders a compact rounded-square member count avatar. */
+  groupMemberCount?: number;
+  fallbackAvatarMxc?: string;
+  avatarBadge?: React.ReactNode;
   selected: boolean;
   /** Read rooms show their privacy icon as faint as their name. */
   quiet: boolean;
@@ -109,14 +141,51 @@ type RoomNavItemAvatarProps = {
 };
 
 function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
-  const { room, name, personAvatar, selected, quiet, nested } = props;
+  const {
+    room,
+    name,
+    personAvatar,
+    groupMemberCount,
+    fallbackAvatarMxc,
+    avatarBadge,
+    selected,
+    quiet,
+    nested,
+  } = props;
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(room, personAvatar);
   const isSpace = room.getType() === RoomType.Space;
 
-  let src = avatarMxc
-    ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ??
+  const wrap = (avatar: React.ReactNode) =>
+    avatarBadge ? (
+      <span className={css.AvatarSlot}>
+        {avatar}
+        {avatarBadge}
+      </span>
+    ) : (
+      avatar
+    );
+
+  if (personAvatar && groupMemberCount !== undefined && groupMemberCount > 2) {
+    return wrap(
+      <Avatar
+        size="200"
+        radii="400"
+        className={css.GroupCountAvatar}
+        data-direct-group-count={groupMemberCount}
+        aria-hidden="true"
+      >
+        <Text as="span" size="L400">
+          {groupMemberCount}
+        </Text>
+      </Avatar>
+    );
+  }
+
+  const resolvedAvatarMxc = avatarMxc ?? (personAvatar ? fallbackAvatarMxc : undefined);
+  let src = resolvedAvatarMxc
+    ? (mxcUrlToHttp(mx, resolvedAvatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ??
       undefined)
     : undefined;
   // A partner without an avatar shows the room's own, which is only looked up then.
@@ -138,7 +207,7 @@ function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
 
   // A room without a picture shows the bare privacy icon, with no tinted tile behind it.
   if (!src && !personAvatar) {
-    return (
+    return wrap(
       <Avatar size="200" radii="400" style={quiet ? { opacity: config.opacity.P300 } : undefined}>
         {renderFallback()}
       </Avatar>
@@ -147,7 +216,7 @@ function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
 
   // A room picture that fails falls back to the same bare icon as a room without one.
   const failedTone = personAvatar ? undefined : 'plain';
-  return (
+  return wrap(
     <Avatar size="200" radii="400">
       <RoomAvatar
         fallbackTone={failedTone}
@@ -264,6 +333,37 @@ function BackgroundJobsMark({ room }: { room: Room }) {
   );
 }
 
+/** Isolated pencil mark subscribed to this room's local composer draft so typing re-renders only this mark. */
+function RoomDraftMark({ room }: { room: Room }) {
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
+  const userId = mx.getUserId?.() ?? room.myUserId ?? '';
+  const draftAtom = useMemo(
+    () =>
+      userId
+        ? roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, room.roomId))
+        : EMPTY_DRAFT_ATOM,
+    [userId, room.roomId]
+  );
+  const draft = useAtomValue(draftAtom);
+  if (draft.length === 0) return null;
+  const label = t('featureUi.roomNav.roomNavItem.draft');
+  return (
+    <IconTooltip label={label}>
+      {(triggerRef) => (
+        <Icon
+          ref={triggerRef}
+          src={Icons.Pencil}
+          size="50"
+          aria-label={label}
+          data-draft-indicator="true"
+          style={{ opacity: config.opacity.P500 }}
+        />
+      )}
+    </IconTooltip>
+  );
+}
+
 /** A phone after the room's name while this device is in a call there. */
 function CallMark({ id, label }: { id: string; label: string }) {
   return (
@@ -291,6 +391,11 @@ type RoomNavLinkProps = {
   room: Room;
   name: string;
   personAvatar: boolean;
+  groupMemberCount?: number;
+  selfDirect: boolean;
+  fallbackAvatarMxc?: string;
+  avatarBadge?: React.ReactNode;
+  showDraftMark: boolean;
   selected: boolean;
   hasUnread: boolean;
   /** Unread badge or muted mark at the end of the row. */
@@ -302,12 +407,17 @@ type RoomNavLinkProps = {
   subRoom: boolean;
 };
 
-/** The link of a room row: avatar, name (stronger with unread messages), job clock and status. */
+/** The link of a room row: avatar, name (stronger with unread messages), job clock, draft mark, and status. */
 function RoomNavLink({
   to,
   room,
   name,
   personAvatar,
+  groupMemberCount,
+  selfDirect,
+  fallbackAvatarMxc,
+  avatarBadge,
+  showDraftMark,
   selected,
   hasUnread,
   status,
@@ -327,11 +437,14 @@ function RoomNavLink({
             room={room}
             name={name}
             personAvatar={personAvatar}
+            groupMemberCount={groupMemberCount}
+            fallbackAvatarMxc={fallbackAvatarMxc}
+            avatarBadge={avatarBadge}
             selected={selected}
             quiet={!hasUnread}
             nested={subRoom}
           />
-          <Box as="span" grow="Yes">
+          <span className={css.NameRow}>
             <Text
               ref={nameRef}
               as="span"
@@ -342,9 +455,21 @@ function RoomNavLink({
             >
               {name}
             </Text>
-          </Box>
+            {selfDirect && (
+              <Text
+                as="span"
+                size="T200"
+                priority="300"
+                className={css.SelfDirectTag}
+                data-self-dm-tag="true"
+              >
+                {t('featureUi.roomNav.roomNavItem.selfTag')}
+              </Text>
+            )}
+          </span>
           <BackgroundJobsMark room={room} />
           {callStatus && <CallMark id={callStatusId} label={callStatus} />}
+          {showDraftMark && <RoomDraftMark room={room} />}
           {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
         </Box>
       </NavItemContent>
@@ -370,8 +495,8 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
 
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
- * for a call or agent background jobs, and a menu on hover or focus, by right-click or by a
- * long press, which phones need: they show no options button and iOS fires no contextmenu.
+ * for a call, local draft or agent background jobs, and a menu on hover or focus, by right-click
+ * or by a long press, which phones need: they show no options button and iOS fires no contextmenu.
  */
 export function RoomNavItem(props: RoomNavItemProps) {
   const {
@@ -381,6 +506,10 @@ export function RoomNavItem(props: RoomNavItemProps) {
     notificationMode,
     direct,
     showAvatar,
+    showDraft,
+    nameOverride,
+    fallbackAvatarMxc,
+    avatarBadge,
     spaceId,
     removeFromSpaceId,
     dragging,
@@ -391,9 +520,11 @@ export function RoomNavItem(props: RoomNavItemProps) {
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
   const { dialog, showDialog } = useRoomActionDialog();
+  const roomName = useRoomName(room);
   // Direction controls in the name show as code points, so they cannot reorder it.
-  const name = revealDirectionControls(useRoomName(room));
+  const name = revealDirectionControls(nameOverride ?? roomName);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
+  const directMemberCount = useDirectMemberCount(room, Boolean(direct));
   const rowRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLSpanElement>(null);
   const [nameAnchor, namePointerProps] = useCutOffNameTooltip(rowRef, nameRef);
@@ -455,6 +586,11 @@ export function RoomNavItem(props: RoomNavItemProps) {
         room={room}
         name={name}
         personAvatar={Boolean(direct && showAvatar)}
+        groupMemberCount={direct ? directMemberCount : undefined}
+        selfDirect={Boolean(direct) && directMemberCount === 1}
+        fallbackAvatarMxc={fallbackAvatarMxc}
+        avatarBadge={avatarBadge}
+        showDraftMark={Boolean(showDraft && !showOptions)}
         selected={selected}
         hasUnread={Boolean(unread)}
         status={status}

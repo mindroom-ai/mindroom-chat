@@ -1072,6 +1072,12 @@
       "unavailable": {
         "description": "Akses Komputer Mac tidak tersedia di perangkat ini."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "Anda",
+        "draft": "Draf"
+      }
     }
   },
   "mindroomUi": {

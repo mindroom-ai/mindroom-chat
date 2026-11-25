@@ -1123,6 +1123,12 @@
       "unavailable": {
         "description": "Доступ к компьютеру Mac недоступен на этом устройстве."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "вы",
+        "draft": "Черновик"
+      }
     }
   },
   "mindroomUi": {

@@ -1089,6 +1089,12 @@
       "unavailable": {
         "description": "Mac-computertoegang is niet beschikbaar op dit apparaat."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "jij",
+        "draft": "Concept"
+      }
     }
   },
   "mindroomUi": {

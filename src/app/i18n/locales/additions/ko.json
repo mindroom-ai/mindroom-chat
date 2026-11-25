@@ -1072,6 +1072,12 @@
       "unavailable": {
         "description": "이 기기에서는 Mac 컴퓨터 접근을 사용할 수 없습니다."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "나",
+        "draft": "초안"
+      }
     }
   },
   "mindroomUi": {

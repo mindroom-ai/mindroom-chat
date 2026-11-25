@@ -1106,6 +1106,12 @@
       "unavailable": {
         "description": "L'accesso al Mac non è disponibile su questo dispositivo."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "tu",
+        "draft": "Bozza"
+      }
     }
   },
   "mindroomUi": {

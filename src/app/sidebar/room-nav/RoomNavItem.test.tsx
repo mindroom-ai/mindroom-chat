@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { JoinRule, Room } from 'matrix-js-sdk';
+import { EventEmitter } from 'node:events';
+import { Provider, createStore } from 'jotai';
+import { JoinRule, Room, RoomStateEvent } from 'matrix-js-sdk';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeCallAtom, type ActiveCall } from '../../calls/callStore';
 import type { CallState } from '../../calls/RoomCall';
@@ -42,6 +45,7 @@ vi.mock('folds', async () => {
       Clock: 'Clock',
       Link: 'Link',
       Message: 'Message',
+      Pencil: 'Pencil',
       Phone: 'Phone',
       Setting: 'Setting',
       UserPlus: 'UserPlus',
@@ -55,7 +59,11 @@ vi.mock('folds', async () => {
     Tooltip: Container,
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', props, children),
+    color: {
+      SurfaceVariant: { Container: '#eee', OnContainer: '#111' },
+    },
     config: {
+      fontWeight: { W400: 400 },
       opacity: { P300: 0.3, P500: 0.5 },
       space: { S100: '4px' },
     },
@@ -80,7 +88,8 @@ vi.mock('jotai', async (importOriginal) => {
   return {
     ...actual,
     useAtom: () => [false, vi.fn()],
-    useAtomValue: (atom: unknown) => (atom === activeCallAtom ? testState.activeCall : {}),
+    useAtomValue: (atom: unknown) =>
+      atom === activeCallAtom ? testState.activeCall : actual.useAtomValue(atom as never),
   };
 });
 
@@ -167,7 +176,7 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
 vi.mock('../../matrix/hooks/useRoomMeta', () => ({
   useRoomAvatar: (_room: Room, direct?: boolean) =>
     direct ? testState.directAvatarMxc : testState.avatarMxc,
-  useRoomName: () => 'Agent Room',
+  useRoomName: vi.fn(() => 'Agent Room'),
 }));
 
 vi.mock('../../matrix/state/useUnread', () => ({
@@ -216,23 +225,41 @@ const room = {
 
 const renderRoomNavItem = (
   props: {
+    room?: Room;
     direct?: boolean;
     showAvatar?: boolean;
+    showDraft?: boolean;
+    nameOverride?: string;
+    fallbackAvatarMxc?: string;
+    avatarBadge?: React.ReactNode;
     subRoom?: boolean;
     activityTimestamp?: number;
     notificationMode?: RoomNotificationMode;
-  } = {}
+  } = {},
+  store?: ReturnType<typeof createStore>
 ) => {
   let renderer!: ReturnType<typeof create>;
   act(() => {
     renderer = create(
-      <RoomNavItem
-        room={room}
-        selected={false}
-        linkPath="/room"
-        notificationMode={RoomNotificationMode.Unset}
-        {...props}
-      />
+      store ? (
+        <Provider store={store}>
+          <RoomNavItem
+            room={props.room ?? room}
+            selected={false}
+            linkPath="/room"
+            notificationMode={RoomNotificationMode.Unset}
+            {...props}
+          />
+        </Provider>
+      ) : (
+        <RoomNavItem
+          room={props.room ?? room}
+          selected={false}
+          linkPath="/room"
+          notificationMode={RoomNotificationMode.Unset}
+          {...props}
+        />
+      )
     );
   });
   renders.push(renderer);
@@ -516,5 +543,144 @@ describe('RoomNavItem activity timestamp', () => {
     expect(timeNodes(quiet)).toHaveLength(1);
     act(() => testState.setHover?.(true));
     expect(timeNodes(quiet)).toHaveLength(0);
+  });
+});
+
+describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent chrome', () => {
+  afterEach(() => {
+    testState.unread = undefined;
+    testState.directAvatarMxc = undefined;
+    testState.roomAvatarMxc = undefined;
+    testState.matrixMxcUrlToHttp.mockClear();
+  });
+
+  const makeDirectRoom = (joined: number, invited = 0, roomId = '!dm-room:example.org') => {
+    const emitter = new EventEmitter();
+    let joinedCount = joined;
+    let invitedCount = invited;
+    const mockRoom = Object.assign(emitter, {
+      roomId,
+      myUserId: '@me:example.org',
+      getJoinRule: () => JoinRule.Invite,
+      getMxcAvatarUrl: () => testState.roomAvatarMxc,
+      getType: () => undefined,
+      getJoinedMemberCount: () => joinedCount,
+      getInvitedMemberCount: () => invitedCount,
+    }) as unknown as Room & { setCounts: (nextJoined: number, nextInvited: number) => void };
+    mockRoom.setCounts = (nextJoined: number, nextInvited: number) => {
+      joinedCount = nextJoined;
+      invitedCount = nextInvited;
+      emitter.emit(RoomStateEvent.Members);
+    };
+    return mockRoom;
+  };
+
+  it('renders a rounded-square count avatar for group DMs (> 2 active members) and updates live', () => {
+    const dm = makeDirectRoom(2, 1);
+    const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true });
+
+    const countNodes = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
+    );
+    expect(countNodes).toHaveLength(1);
+    expect(countNodes[0]!.props['data-direct-group-count']).toBe(3);
+    expect(renderer.root.findAllByType('span').some((n) => n.children.includes('3'))).toBe(true);
+    expect(findByTestId(renderer, 'room-avatar-image')).toHaveLength(0);
+
+    // Dropping back to 2 members switches back to the person avatar.
+    act(() => dm.setCounts(2, 0));
+    expect(
+      renderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined)
+    ).toHaveLength(0);
+
+    // Adding a third member switches back to the count avatar.
+    act(() => dm.setCounts(4, 0));
+    expect(
+      renderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 4)
+    ).toHaveLength(1);
+  });
+
+  it('renders a muted "you" tag only for self-DMs (memberCount === 1)', () => {
+    const selfDm = makeDirectRoom(1, 0);
+    const selfRenderer = renderRoomNavItem({ room: selfDm, direct: true, showAvatar: true });
+    const selfTags = selfRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true');
+    expect(selfTags).toHaveLength(1);
+    expect(selfTags[0]!.children).toEqual(['you']);
+
+    const oneToOne = makeDirectRoom(2, 0);
+    const oneToOneRenderer = renderRoomNavItem({ room: oneToOne, direct: true, showAvatar: true });
+    expect(
+      oneToOneRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true')
+    ).toHaveLength(0);
+
+    const groupDm = makeDirectRoom(3, 0);
+    const groupRenderer = renderRoomNavItem({ room: groupDm, direct: true, showAvatar: true });
+    expect(
+      groupRenderer.root.findAll((node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true')
+    ).toHaveLength(0);
+  });
+
+  it('shows the draft pencil only when non-empty and unhovered, without re-rendering RoomNavItem on draft edits', async () => {
+    const { useRoomName } = await import('../../matrix/hooks/useRoomMeta');
+    const useRoomNameMock = vi.mocked(useRoomName);
+    const store = createStore();
+    const dm = makeDirectRoom(2, 0, '!draft-dm:example.org');
+    const draftKey = getRoomInputDraftKey('@me:example.org', dm.roomId);
+    const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+    store.set(draftAtom, []);
+
+    testState.unread = { total: 1, highlight: 0 };
+    useRoomNameMock.mockClear();
+    const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true, showDraft: true }, store);
+
+    const pencils = () =>
+      renderer.root.findAll((node) => node.type === 'i' && node.props['data-draft-indicator'] === 'true');
+
+    expect(pencils()).toHaveLength(0);
+    const rendersAfterMount = useRoomNameMock.mock.calls.length;
+
+    // Typing a draft renders the pencil without re-rendering RoomNavItem itself.
+    act(() => {
+      store.set(draftAtom, [{ type: 'paragraph', children: [{ text: 'Hello Maya' }] }] as never);
+    });
+    expect(pencils()).toHaveLength(1);
+    expect(pencils()[0]!.props.src).toBe('Pencil');
+    expect(useRoomNameMock.mock.calls.length).toBe(rendersAfterMount);
+
+    // Hovering the row hides the pencil so options take the trailing slot.
+    act(() => testState.setHover?.(true));
+    expect(pencils()).toHaveLength(0);
+
+    // Leaving hover restores it; clearing the draft removes it without re-rendering RoomNavItem.
+    act(() => testState.setHover?.(false));
+    expect(pencils()).toHaveLength(1);
+    const rendersBeforeClear = useRoomNameMock.mock.calls.length;
+    act(() => {
+      store.set(draftAtom, []);
+    });
+    expect(pencils()).toHaveLength(0);
+    expect(useRoomNameMock.mock.calls.length).toBe(rendersBeforeClear);
+  });
+
+  it('supports nameOverride, fallbackAvatarMxc, and avatarBadge for agent DM rows', () => {
+    const dm = makeDirectRoom(2, 0, '!agent-dm:example.org');
+    const renderer = renderRoomNavItem({
+      room: dm,
+      direct: true,
+      showAvatar: true,
+      nameOverride: 'DevAgent',
+      fallbackAvatarMxc: 'mxc://example.org/avatar-dev',
+      avatarBadge: React.createElement('span', { 'data-agent-active-run': 'true' }),
+    });
+
+    expect(renderer.root.findAllByType('span').some((n) => n.children.includes('DevAgent'))).toBe(
+      true
+    );
+    expect(findByTestId(renderer, 'room-avatar-image')[0]!.props.src).toBe(
+      'https://media.example.org/avatar-dev'
+    );
+    expect(
+      renderer.root.findAll((node) => node.props['data-agent-active-run'] === 'true')
+    ).toHaveLength(1);
   });
 });

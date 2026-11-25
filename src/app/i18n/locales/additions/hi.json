@@ -1089,6 +1089,12 @@
       "unavailable": {
         "description": "इस डिवाइस पर Mac कंप्यूटर एक्सेस उपलब्ध नहीं है।"
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "आप",
+        "draft": "ड्राफ़्ट"
+      }
     }
   },
   "mindroomUi": {

@@ -1072,6 +1072,12 @@
       "unavailable": {
         "description": "此裝置不支援 Mac 電腦存取。"
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "自己",
+        "draft": "草稿"
+      }
     }
   },
   "mindroomUi": {

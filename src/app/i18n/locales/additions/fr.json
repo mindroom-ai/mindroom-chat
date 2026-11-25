@@ -1106,6 +1106,12 @@
       "unavailable": {
         "description": "L'accès à l'ordinateur Mac n'est pas disponible sur cet appareil."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "vous",
+        "draft": "Brouillon"
+      }
     }
   },
   "mindroomUi": {

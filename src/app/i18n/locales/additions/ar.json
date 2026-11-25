@@ -1157,6 +1157,12 @@
       "unavailable": {
         "description": "الوصول إلى جهاز Mac غير متاح على هذا الجهاز."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "أنت",
+        "draft": "مسودة"
+      }
     }
   },
   "mindroomUi": {

@@ -1089,6 +1089,12 @@
       "unavailable": {
         "description": "Mac Bilgisayar Erişimi bu cihazda kullanılamıyor."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "sen",
+        "draft": "Taslak"
+      }
     }
   },
   "mindroomUi": {
