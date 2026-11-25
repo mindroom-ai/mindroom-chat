@@ -743,17 +743,25 @@ describe('Space navigation', () => {
     ).toBe(2000);
     expect(timelineListeners.size).toBe(1);
 
-    // Backfill, non-live events, and m.replace edits do NOT move invited above joined.
+    // Backfill, non-live events, m.replace edits, and state events do NOT move invited above joined.
     activityByRoom.set(invited, 9000);
     const emitTimeline = (
       roomId: string,
-      opts: { replace?: boolean; backfill?: boolean; live?: boolean }
+      opts: {
+        type?: string;
+        stateKey?: string;
+        replace?: boolean;
+        redaction?: boolean;
+        backfill?: boolean;
+        live?: boolean;
+      }
     ) => {
       const event = {
-        isRelation: (rel?: string) =>
-          rel
-            ? Boolean(opts.replace) && matchesEnum(rel, RelationType.Replace)
-            : Boolean(opts.replace),
+        getType: () => opts.type ?? (opts.redaction ? 'm.room.redaction' : 'm.room.message'),
+        getStateKey: () => opts.stateKey,
+        getRelation: () => (opts.replace ? { rel_type: RelationType.Replace } : null),
+        isRedacted: () => false,
+        isRedaction: () => Boolean(opts.redaction),
       };
       act(() => {
         timelineListeners.forEach((fn) =>
@@ -766,6 +774,7 @@ describe('Space navigation', () => {
     emitTimeline(invited, { backfill: true });
     emitTimeline(invited, { live: false });
     emitTimeline(invited, { replace: true });
+    emitTimeline(invited, { type: 'com.example.room_features', stateKey: '' });
     expect(rows().map((node) => node.props['data-row-room'])).toEqual([
       joined,
       invited,
