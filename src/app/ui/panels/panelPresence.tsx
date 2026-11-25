@@ -4,6 +4,7 @@ import {
   type ReactElement,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -155,8 +156,37 @@ export function usePanelForm<Form>(form: Form): Form {
 export type PanelSize = { width: number; gap: number };
 
 const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Reads the panel's laid-out width when DOM geometry is available (0 in non-DOM test renderers). */
+export const panelRenderedWidth = (panel: HTMLElement | null | undefined): number =>
+  typeof panel?.getBoundingClientRect === 'function' ? panel.getBoundingClientRect().width : 0;
+
+/** Measures the full target card width of the row for snap-to-fill previews and restore glides. */
+export const measureFullRowWidth = (parent: HTMLElement): number => {
+  const style = getComputedStyle(parent);
+  const endPad = Number.parseFloat(style.paddingInlineEnd) || 0;
+  if (endPad > 0) return Math.max(0, parent.clientWidth - 2 * endPad);
+  const padding =
+    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  return Math.max(0, parent.clientWidth - padding);
+};
+
+const clearFillGlide = (panel: HTMLElement | null | undefined): void => {
+  if (panel?.dataset) delete panel.dataset.fillGlide;
+};
+
+/** Cancels any active panel animation and clears transient restore-glide styling. */
+export const cancelPanelMotion = (
+  panel: HTMLElement | null,
+  motionRef: MutableRefObject<Animation | undefined>
+): void => {
+  motionRef.current?.cancel();
+  motionRef.current = undefined;
+  clearFillGlide(panel);
+};
 
 /**
  * Finds the nearest ancestor box that participates in layout (skipping `display: contents`
@@ -225,7 +255,8 @@ export const animatePanel = (
 /**
  * Glides a panel smoothly from its beside width to full width. For an end-side panel, the start
  * margin shrinks alongside the width growth so its start edge glides across the row instead of
- * jumping to the far wall first.
+ * jumping to the far wall first, while start padding eases in from 0 so floating cards keep the
+ * exact same rendered card width on frame 0.
  */
 export const animatePanelFill = (
   panel: HTMLElement,
@@ -234,16 +265,169 @@ export const animatePanelFill = (
   side: 'start' | 'end'
 ): Animation | undefined => {
   if (typeof panel.animate !== 'function' || prefersReducedMotion()) return undefined;
+  const startPad = Number.parseFloat(getComputedStyle(panel).paddingInlineStart) || 0;
   const keyframes: Keyframe[] =
     side === 'end'
       ? [
-          { width: `${fromWidth}px`, marginInlineStart: `${toWidth - fromWidth}px` },
-          { width: `${toWidth}px`, marginInlineStart: '0px' },
+          {
+            width: `${fromWidth}px`,
+            marginInlineStart: `${toWidth - fromWidth}px`,
+            paddingInlineStart: '0px',
+          },
+          {
+            width: `${toWidth}px`,
+            marginInlineStart: '0px',
+            paddingInlineStart: `${startPad}px`,
+          },
         ]
-      : [{ width: `${fromWidth}px` }, { width: `${toWidth}px` }];
+      : [
+          { width: `${fromWidth}px`, paddingInlineStart: '0px' },
+          { width: `${toWidth}px`, paddingInlineStart: `${startPad}px` },
+        ];
   return panel.animate(keyframes, {
     duration: PANEL_MOTION_MS,
     easing: PANEL_MOTION_EASING,
     fill: 'none',
   });
 };
+
+/** How long `data-just-filled` stays on after landing in full width to drive the Fill pulse. */
+const FILL_PULSE_MS = 750;
+
+/**
+ * Smoothly glides a desktop panel between beside and filled layouts, sets `data-fill-glide` while
+ * restoring so content tracks the live animated width, and pulses `data-just-filled` once the fill
+ * glide lands (skipped under reduced motion, on initial mount, while exiting, or when unfolding
+ * straight from folded).
+ */
+export function usePanelFillMotion({
+  panelRef,
+  motionRef,
+  full,
+  folded,
+  mobile,
+  passthrough,
+  phase,
+  side,
+  width,
+}: {
+  panelRef: MutableRefObject<HTMLDivElement | null>;
+  motionRef: MutableRefObject<Animation | undefined>;
+  full: boolean;
+  folded: boolean;
+  mobile: boolean;
+  passthrough: boolean;
+  phase: PanelPhase;
+  side: 'start' | 'end';
+  width: number;
+}): boolean {
+  const prevFullRef = useRef(full);
+  const prevFoldedRef = useRef(folded);
+  const prevWidthRef = useRef(width);
+  const transitionRef = useRef(0);
+  const [justFilled, setJustFilled] = useState(false);
+
+  // Track the latest beside width from React state (no DOM reads or forced layouts while dragging).
+  useLayoutEffect(() => {
+    if (!full && !folded && !passthrough) prevWidthRef.current = width;
+  }, [folded, full, passthrough, width]);
+
+  // Clear pending landing callbacks and transient restore-glide styling on unmount.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    return () => {
+      transitionRef.current += 1;
+      clearFillGlide(panel);
+    };
+  }, [panelRef]);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const wasFull = prevFullRef.current;
+    const wasFolded = prevFoldedRef.current;
+    prevFullRef.current = full;
+    prevFoldedRef.current = folded;
+    if (!panel) return;
+
+    if (folded || passthrough || phase === 'exit') {
+      transitionRef.current += 1;
+      if (phase !== 'exit' && wasFull !== full) cancelPanelMotion(panel, motionRef);
+      else clearFillGlide(panel);
+      setJustFilled(false);
+      return;
+    }
+
+    if (wasFull === full) return;
+
+    transitionRef.current += 1;
+    const token = transitionRef.current;
+    const wasRunning = motionRef.current?.playState === 'running';
+    let runningWidth = 0;
+    if (wasRunning) {
+      // Interrupting a Fill glide (full: true -> false): subtract its animated start padding for
+      // the live card width. Interrupting a Shrink glide (full: false -> true): the running motion
+      // had 0 start padding even though `[data-filled]` is already applied.
+      const runningPad = full
+        ? 0
+        : Number.parseFloat(getComputedStyle(panel).paddingInlineStart) || 0;
+      runningWidth = Math.max(0, panelRenderedWidth(panel) - runningPad);
+    }
+    cancelPanelMotion(panel, motionRef);
+
+    // Do not glide or pulse when unfolding straight from folded.
+    if (wasFolded) {
+      setJustFilled(false);
+      return;
+    }
+
+    if (full) {
+      setJustFilled(false);
+      const toWidth = panelRenderedWidth(panel);
+      const recordedFrom = runningWidth > 0 ? runningWidth : prevWidthRef.current;
+      const fromWidth = Math.min(recordedFrom, toWidth);
+      const motion =
+        !mobile && toWidth - fromWidth > 1
+          ? animatePanelFill(panel, fromWidth, toWidth, side)
+          : undefined;
+      motionRef.current = motion;
+      if (prefersReducedMotion()) return;
+      if (typeof motion?.finished?.then === 'function') {
+        void motion.finished.then(
+          () => {
+            if (transitionRef.current === token) setJustFilled(true);
+          },
+          () => undefined
+        );
+      } else {
+        setJustFilled(true);
+      }
+      return;
+    }
+
+    setJustFilled(false);
+    const parent = layoutParentOf(panel);
+    const fromWidth =
+      runningWidth > 0 ? runningWidth : parent ? measureFullRowWidth(parent) : 0;
+    if (!mobile && fromWidth > 0 && Math.abs(fromWidth - width) > 1) {
+      const motion = animatePanel(panel, { width: fromWidth, gap: 0 }, { width, gap: 0 }, false);
+      motionRef.current = motion;
+      if (typeof motion?.finished?.then === 'function') {
+        if (panel.dataset) panel.dataset.fillGlide = 'true';
+        const clearGlide = () => {
+          if (transitionRef.current === token && motionRef.current === motion) {
+            clearFillGlide(panel);
+          }
+        };
+        void motion.finished.then(clearGlide, clearGlide);
+      }
+    }
+  }, [folded, full, mobile, motionRef, panelRef, passthrough, phase, side, width]);
+
+  useEffect(() => {
+    if (!justFilled) return undefined;
+    const timer = setTimeout(() => setJustFilled(false), FILL_PULSE_MS);
+    return () => clearTimeout(timer);
+  }, [justFilled]);
+
+  return justFilled;
+}

@@ -336,19 +336,23 @@ test.describe.serial('keyboard and accessibility', () => {
   test("the members panel's resize handle shows its line while it has keyboard focus", async () => {
     await openRoom(page);
     const handle = page.getByRole('separator', { name: 'Resize member panel' });
+    const pill = handle.locator('[data-panel-handle-pill]');
     await expect(handle).toBeVisible();
-    const line = () =>
-      handle.evaluate((element) => getComputedStyle(element, '::after').backgroundColor);
-    // Away from the pointer and the keyboard the floating layout hides the line in the gap.
+    const pillStyle = () =>
+      pill.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { opacity: style.opacity, color: style.backgroundColor };
+      });
+    // Away from the pointer and the keyboard the floating layout hides the pill in the gap.
     await page.mouse.move(0, 0);
-    const resting = await line();
+    await expect.poll(async () => (await pillStyle()).opacity).toBe('0');
     await handle.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(handle).toBeFocused();
     expect(await handle.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
-    await expect.poll(line).not.toBe(resting);
-    expect(await line()).not.toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(async () => (await pillStyle()).opacity).toBe('1');
+    expect((await pillStyle()).color).not.toBe('rgba(0, 0, 0, 0)');
   });
 
   test('the settings dialog is a named modal that gives focus back when it closes', async () => {

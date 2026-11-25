@@ -270,11 +270,14 @@ export const checkPanelFrame = async (
     topic: 'Another room',
   });
 
+  const waitMotion = () =>
+    panel.evaluate((element) =>
+      Promise.allSettled(element.getAnimations().map((animation) => animation.finished))
+    );
+
   await expect(fill).toHaveAttribute('aria-pressed', 'false');
   // The panel has moved in to its width.
-  await panel.evaluate((element) =>
-    Promise.all(element.getAnimations().map((animation) => animation.finished))
-  );
+  await waitMotion();
   const besideWidth = await widthOf(panel);
   const conversationWidth = await widthOf(conversation);
   await shot('beside');
@@ -282,7 +285,8 @@ export const checkPanelFrame = async (
   await fill.click();
   await expect(conversation).toHaveCount(0);
   await expect(fill).toHaveAttribute('aria-pressed', 'true');
-  expect(await widthOf(panel)).toBeGreaterThan(besideWidth + conversationWidth - 20);
+  await waitMotion();
+  await expect.poll(() => widthOf(panel)).toBeGreaterThan(besideWidth + conversationWidth - 20);
   // The panel's own content ends where the panel does, its end edge (its Close) in view.
   const end = async (locator: Locator) => {
     const box = (await locator.boundingBox())!;
@@ -294,6 +298,7 @@ export const checkPanelFrame = async (
   await shot('filled');
   await fill.click();
   await expect(conversation).toBeVisible();
+  await waitMotion();
   await expect.poll(() => widthOf(panel)).toBe(besideWidth);
   expect(await widthOf(conversation)).toBe(conversationWidth);
 

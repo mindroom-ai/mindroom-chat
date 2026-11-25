@@ -1,7 +1,6 @@
 import React, {
   CSSProperties,
   ReactNode,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -18,12 +17,15 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { blockSelection } from '../dragSelection';
 import {
   animatePanel,
-  animatePanelFill,
+  cancelPanelMotion,
   currentPanelSize,
   layoutParentOf,
+  measureFullRowWidth,
   panelGap,
+  panelRenderedWidth,
   type PanelPhase,
   type PanelRegistration,
+  usePanelFillMotion,
   usePanelPresence,
 } from './panelPresence';
 import { PanelFrameStrip } from './PanelFrame';
@@ -37,20 +39,6 @@ const MAX_WIDTH = 600;
 const COLLAPSE_WIDTH = MIN_WIDTH - 40;
 /** How far past its widest a drag goes before its release fills the content's place. */
 const EXPAND_PAST = 40;
-/** How long `data-just-filled` stays on after landing in full width to drive the Fill pulse. */
-const FILL_PULSE_MS = 750;
-/** Reads the panel's laid-out width when DOM geometry is available (0 in non-DOM test renderers). */
-const panelRenderedWidth = (panel: HTMLElement | null | undefined): number =>
-  typeof panel?.getBoundingClientRect === 'function' ? panel.getBoundingClientRect().width : 0;
-/** Measures the full target card width of the row for the snap-to-fill preview silhouette. */
-const measureFullRowWidth = (parent: HTMLElement): number => {
-  const style = getComputedStyle(parent);
-  const endPad = Number.parseFloat(style.paddingInlineEnd) || 0;
-  if (endPad > 0) return Math.max(0, parent.clientWidth - 2 * endPad);
-  const padding =
-    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
-  return Math.max(0, parent.clientWidth - padding);
-};
 /** The conversation column keeps at least this much room beside a resizable side panel. */
 export const CONVERSATION_MIN_WIDTH = 360;
 /**
@@ -187,9 +175,6 @@ export function ResizablePanel({
   const releasedAt = useRef<number>(undefined);
   const movesRef = useRef(moves);
   const [fullRowWidth, setFullRowWidth] = useState(0);
-  const prevFullRef = useRef(full);
-  const lastRenderedWidthRef = useRef<number>(undefined);
-  const [justFilled, setJustFilled] = useState(false);
   const maxWidth = Math.max(
     Math.min(smallest, availableWidth),
     Math.min(maxPanelWidth, availableWidth - minContentWidth)
@@ -209,9 +194,9 @@ export function ResizablePanel({
   const over = canExpandDrag ? Math.max(0, previewWidth - maxWidth) : 0;
   const expandCharging = over > 0;
   const expandProgress = expandCharging ? Math.min(1, over / EXPAND_PAST) : 0;
-  const expandPull = expandCharging ? Math.round(10 * Math.tanh(over / 40)) : 0;
   const expandHighlight = over >= EXPAND_PAST * 0.4;
   const expandOnRelease = canExpandDrag && over > EXPAND_PAST;
+  const expandPull = expandCharging && !expandOnRelease ? Math.round(3 * Math.tanh(over / 28)) : 0;
   const dragging = !full && previewWidth !== undefined;
   const resizeDirection = () => {
     const inlineDirection =
@@ -230,7 +215,7 @@ export function ResizablePanel({
     }
     // Turned around mid-motion, a panel moves on from where it is.
     const now = motionRef.current?.playState === 'running' ? currentPanelSize(panel) : undefined;
-    motionRef.current?.cancel();
+    cancelPanelMotion(panel, motionRef);
     const gap = panelGap(panel, side);
     if (phase === 'exit') {
       // A drag released past the threshold left the panel at its width; it closes from there.
@@ -254,72 +239,23 @@ export function ResizablePanel({
     releasedAt.current = undefined;
     movesRef.current = moves;
     if (panel && released !== undefined && moves && released !== width) {
-      motionRef.current?.cancel();
+      cancelPanelMotion(panel, motionRef);
       const from = { width: released, gap: 0 };
       motionRef.current = animatePanel(panel, from, { width, gap: 0 }, false);
     }
   });
 
-  // Smoothly glide between split view and full width on desktop, and pulse the Fill button when
-  // landing in full width.
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    const wasFull = prevFullRef.current;
-    prevFullRef.current = full;
-    const desktopVisible = !mobile && !folded && !passthrough && phase !== 'exit';
-    if (panel && wasFull !== full) {
-      const runningWidth =
-        motionRef.current?.playState === 'running' ? panelRenderedWidth(panel) : undefined;
-      motionRef.current?.cancel();
-      if (full) {
-        if (!folded && !passthrough && phase !== 'exit') setJustFilled(true);
-        const toWidth = panelRenderedWidth(panel);
-        const recordedFrom =
-          runningWidth && runningWidth > 0
-            ? runningWidth
-            : (lastRenderedWidthRef.current ?? settledWidth);
-        if (toWidth > 0) lastRenderedWidthRef.current = toWidth;
-        if (desktopVisible) {
-          const fromWidth = Math.min(recordedFrom, toWidth);
-          if (toWidth - fromWidth > 1) {
-            motionRef.current = animatePanelFill(panel, fromWidth, toWidth, side);
-          }
-        }
-      } else {
-        setJustFilled(false);
-        const fromWidth =
-          runningWidth && runningWidth > 0 ? runningWidth : lastRenderedWidthRef.current;
-        if (!folded && !passthrough) {
-          const rendered = panelRenderedWidth(panel);
-          lastRenderedWidthRef.current = rendered > 0 ? rendered : width;
-        } else {
-          lastRenderedWidthRef.current = undefined;
-        }
-        if (desktopVisible && fromWidth !== undefined && Math.abs(fromWidth - width) > 1) {
-          motionRef.current = animatePanel(
-            panel,
-            { width: fromWidth, gap: 0 },
-            { width, gap: 0 },
-            false
-          );
-        }
-      }
-    } else if (panel && motionRef.current?.playState !== 'running') {
-      if (folded || passthrough) {
-        lastRenderedWidthRef.current = undefined;
-      } else {
-        const rendered = panelRenderedWidth(panel);
-        if (rendered > 0) lastRenderedWidthRef.current = rendered;
-        else if (!full) lastRenderedWidthRef.current = width;
-      }
-    }
-  }, [folded, full, mobile, passthrough, phase, settledWidth, side, width]);
-
-  useEffect(() => {
-    if (!justFilled) return undefined;
-    const timer = setTimeout(() => setJustFilled(false), FILL_PULSE_MS);
-    return () => clearTimeout(timer);
-  }, [justFilled]);
+  const justFilled = usePanelFillMotion({
+    panelRef,
+    motionRef,
+    full,
+    folded,
+    mobile,
+    passthrough,
+    phase,
+    side,
+    width,
+  });
 
   // The slot waits for this panel to close; a panel that takes another's place starts from the
   // width that one had when it left.
@@ -355,31 +291,12 @@ export function ResizablePanel({
       const usable = Math.max(0, parent.clientWidth - padding);
       setAvailableWidth(Math.min(usable, maxPanelWidth + minContentWidth));
       if (dragRef.current) setFullRowWidth(measureFullRowWidth(parent));
-      const panel = panelRef.current;
-      if (panel && motionRef.current?.playState !== 'running') {
-        const rendered = panelRenderedWidth(panel);
-        if (rendered > 0) lastRenderedWidthRef.current = rendered;
-      }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
   }, [resizable, maxPanelWidth, minContentWidth]);
-
-  // Keep the filled panel's rendered width fresh across window resizes so shrinking glides from it.
-  useLayoutEffect(() => {
-    if (!full || folded || passthrough || typeof ResizeObserver === 'undefined') return undefined;
-    const panel = panelRef.current;
-    if (!panel) return undefined;
-    const observer = new ResizeObserver(() => {
-      if (motionRef.current?.playState === 'running') return;
-      const rendered = panelRenderedWidth(panel);
-      if (rendered > 0) lastRenderedWidthRef.current = rendered;
-    });
-    observer.observe(panel);
-    return () => observer.disconnect();
-  }, [folded, full, passthrough]);
   useLayoutEffect(() => () => dropDrag(dragRef), []);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -395,7 +312,7 @@ export function ResizablePanel({
       panel && motionRef.current?.playState === 'running'
         ? Math.min(panelRenderedWidth(panel), maxWidth)
         : width;
-    motionRef.current?.cancel();
+    cancelPanelMotion(panel, motionRef);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -437,8 +354,6 @@ export function ResizablePanel({
     setPreviewWidth(undefined);
     // Only a release the panel showed it would fill does, and only from past the threshold still.
     if (commit && expand && expandOnRelease && drag.width > maxWidth + EXPAND_PAST) {
-      const measured = panelRenderedWidth(panelRef.current);
-      lastRenderedWidthRef.current = measured > 0 ? measured : Math.min(drag.width, maxWidth);
       // The stored width stays, for the panel to come back to it beside the content.
       expand();
       return;

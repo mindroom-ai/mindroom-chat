@@ -1,5 +1,6 @@
 import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { PageSurface } from '../page/floatingCards.css';
 
 const expandGhostEnter = keyframes({
   from: { opacity: 0, transform: 'scale(0.992)' },
@@ -54,6 +55,14 @@ globalStyle(`${Panel}[data-side='start'] > :first-child`, { justifyContent: 'fle
 globalStyle(`${Panel} > :first-child > *`, {
   flex: '0 0 auto',
   width: 'var(--mr-panel-content-width, 100%)',
+});
+// While restoring from filled to beside, let content track the live animated width instead of
+// snapping to the narrower settled width on frame 0. `:where` keeps specificity at (0, 2, 0) so
+// PanelFrame's fixed `Strip` (0, 3, 0) preserves `flex: 0 0 40px` when `openStrip` is present.
+globalStyle(`${Panel}:where([data-fill-glide]) > :first-child > *`, {
+  flex: '1 1 0',
+  minWidth: 0,
+  width: '100%',
 });
 
 export const Handle = style({
@@ -180,6 +189,20 @@ globalStyle(`${Panel} > [data-panel-expand-ghost] > [data-panel-expand-ghost-bad
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 });
+
+// Dim the conversation sibling beside a charging end-side panel inside a flat page (e.g.
+// RoomView's thread column inside <Page>). Scoped to `PageSurface` with direct-child `:has(> ...)`
+// so mutations inside message rows never re-evaluate the selector across the document.
+globalStyle(`${PageSurface}:has(> ${Panel}[data-side='end']) > :not(${Panel})`, {
+  transition: 'opacity 140ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+});
+globalStyle(
+  `${PageSurface}:has(> ${Panel}[data-side='end'][data-expand-charging]) > :not(${Panel})`,
+  { opacity: 0.55 }
+);
 
 // Keep the scrollbar's hit area clear of the splitter; full-width panels have no handle.
 globalStyle(`${Panel}[data-side='start']:has(> ${Handle})`, {
