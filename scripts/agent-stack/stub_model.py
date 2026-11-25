@@ -30,6 +30,8 @@ The person's latest message picks a scenario by hashtag:
                preview allowlist), characters each of those calls prints after its line, shell calls started first
                as background jobs (background_after 0) that run bgsec seconds, and the seed of the generated Markdown)
   #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
+  #secret      request_temporary_secret for STUB_TOKEN
+  #delegate    run_subagent delegating to scout
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
 the same shape as TOOL_SCENARIOS below, as JSON: {"#hashtag": [["tool_function", {"argument": "value"}], ...]}.
@@ -122,6 +124,26 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
         ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
     ],
     "#terminal": [("terminal_open", {}), ("terminal_run", terminal_command)],
+    "#secret": [
+        (
+            "request_temporary_secret",
+            {
+                "name": "STUB_TOKEN",
+                "label": "Stub token",
+                "reason": "Verify real secret request card round trip.",
+            },
+        )
+    ],
+    "#delegate": [
+        (
+            "run_subagent",
+            {
+                "agent_name": "scout",
+                "title": "Check stub delegation",
+                "task": "Reply with delegated-ok.",
+            },
+        )
+    ],
 }
 TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask", "#work")
 

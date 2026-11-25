@@ -159,6 +159,8 @@ jobs:
           e2e/canvas/agent-canvases.spec.ts
           e2e/models/agent-models.spec.ts
           e2e/schedules/agent-schedules.spec.ts
+          e2e/contract/agent-profile-and-discovery.spec.ts
+          e2e/contract/agent-secrets-and-delegation.spec.ts
 
       # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
       # Never upload state.json or .env.
