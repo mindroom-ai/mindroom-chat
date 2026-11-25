@@ -660,29 +660,39 @@ describe('InlineCanvasFrame as a host', () => {
       },
     });
 
-  it('shows provenance disclosure behind the header info tip instead of the answer bar', () => {
+  it('shows provenance disclosure behind the header info tip with aria-describedby instead of the answer bar', () => {
     render();
     expect(container.textContent).not.toContain('what you enter here may leave this page');
     const info = container.querySelector<HTMLButtonElement>(
       'button[aria-label^="Interactive panel from"]'
     )!;
     expect(info).not.toBeNull();
+    expect(info.getAttribute('aria-describedby')).toBeNull();
     act(() => info.click());
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(
-      'what you enter here may leave this page'
-    );
+    const tooltip = document.querySelector('[role="tooltip"]')!;
+    expect(tooltip.textContent).toContain('what you enter here may leave this page');
+    expect(tooltip.id).not.toBe('');
+    expect(info.getAttribute('aria-describedby')).toBe(tooltip.id);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(info.getAttribute('aria-describedby')).toBeNull();
   });
 
   it('offers an answer for Send, as the panel does, and sends it once armed', async () => {
     render();
     expect(status()).toBe('');
-    // Non-gesture submissions wait for explicit Send in Chat's bar.
-    post(submit());
+    // Direct inner-frame submissions (even forging userGesture: true) wait for explicit Send.
+    post(submit(true, 'Pro plan', { plan: 'pro' }, true));
+    expect(container.textContent).toContain('Send to');
     expect(container.textContent).toContain('Pro plan');
     expect(container.textContent).not.toContain('what you enter here may leave this page');
+    expect(sendButton()!.textContent).toBe('Send');
     expect(sendButton()!.disabled).toBe(true);
     await later(CANVAS_SEND_ARM_DELAY_MS);
     expect(sendButton()!.disabled).toBe(false);
+    await later(CANVAS_UNDO_DELAY_MS * 2);
+    expect(sendMessage).not.toHaveBeenCalled();
     await act(async () => sendButton()!.click());
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]![1]).toMatchObject({
@@ -693,11 +703,14 @@ describe('InlineCanvasFrame as a host', () => {
     expect(status()).toMatch(/^Sent to .+: Pro plan$/);
   });
 
-  it('auto-sends a user-gesture inline submission after 2.5 s, pauses on inspect, and cancels on Undo', async () => {
+  it('auto-sends a wrapper-attested inline submission after 2.5 s, pauses on inspect, and cancels on Undo', async () => {
     render();
+    const wrapper = frame().contentWindow!;
     // 1. Undo cancels before auto-send.
-    post(submit(true, 'Pro plan', { plan: 'pro' }, true));
-    expect(container.textContent).toContain('Sending to');
+    post(submit(true, 'Pro plan', { plan: 'pro' }, true), wrapper);
+    expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toContain(
+      'Sending to'
+    );
     expect(container.querySelector('[data-canvas-discard]')?.textContent).toBe('Undo');
     expect(sendButton()!.textContent).toBe('Send now');
     expect(sendButton()!.disabled).toBe(false);
@@ -708,7 +721,7 @@ describe('InlineCanvasFrame as a host', () => {
     expect(sendMessage).not.toHaveBeenCalled();
 
     // 2. Opening Data pauses the countdown until Send now is clicked.
-    post(submit(true, 'Basic plan', { plan: 'basic' }, true));
+    post(submit(true, 'Basic plan', { plan: 'basic' }, true), wrapper);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-canvas-inspect]')!.click()
     );
@@ -722,7 +735,7 @@ describe('InlineCanvasFrame as a host', () => {
 
     // 3. Leaving a gesture submission alone sends automatically at 2.5 s.
     await later(100);
-    post(submit(true, 'Auto plan', { plan: 'auto' }, true));
+    post(submit(true, 'Auto plan', { plan: 'auto' }, true), wrapper);
     await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[1]![1]).toMatchObject({

@@ -101,12 +101,16 @@ const matrixSafeData = (data: unknown): unknown =>
     return typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value;
   });
 
-/** Accept only the bridge message shape, from this canvas frame, within the payload budget. */
+/**
+ * Accept only the bridge message shape from the expected source within the payload budget.
+ * `userGesture` is accepted only when `trustedGesture` is true (messages relayed by the wrapper).
+ */
 export const readCanvasSubmission = (
   event: MessageEvent,
-  frame: Window | null | undefined
+  source: Window | null | undefined,
+  options?: { trustedGesture?: boolean }
 ): CanvasSubmission | undefined => {
-  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  if (!source || event.source !== source || event.origin !== 'null') return undefined;
   const message = event.data;
   if (!record(message) || message.type !== CANVAS_SUBMIT_MESSAGE || message.version !== 1) {
     return undefined;
@@ -135,7 +139,9 @@ export const readCanvasSubmission = (
   return {
     data: JSON.parse(json),
     ...(label ? { label } : {}),
-    ...(message.userGesture === true ? { userGesture: true as const } : {}),
+    ...(options?.trustedGesture === true && message.userGesture === true
+      ? { userGesture: true as const }
+      : {}),
   };
 };
 

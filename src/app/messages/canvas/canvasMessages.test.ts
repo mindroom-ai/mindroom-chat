@@ -31,13 +31,27 @@ describe('readCanvasSubmission', () => {
     });
   });
 
-  it('sets userGesture only when the bridge sends boolean true', () => {
+  it('sets userGesture only when trustedGesture is true and message.userGesture is boolean true', () => {
+    // Untrusted/direct sources cannot assert userGesture even if they pass userGesture: true.
     expect(readCanvasSubmission(message(submit({ userGesture: true })), frame)).toEqual({
+      data: { plan: 'pro' },
+    });
+    expect(
+      readCanvasSubmission(message(submit({ userGesture: true })), frame, {
+        trustedGesture: false,
+      })
+    ).toEqual({ data: { plan: 'pro' } });
+
+    expect(
+      readCanvasSubmission(message(submit({ userGesture: true })), frame, { trustedGesture: true })
+    ).toEqual({
       data: { plan: 'pro' },
       userGesture: true,
     });
     for (const value of [false, undefined, 'true', 1]) {
-      const parsed = readCanvasSubmission(message(submit({ userGesture: value })), frame);
+      const parsed = readCanvasSubmission(message(submit({ userGesture: value })), frame, {
+        trustedGesture: true,
+      });
       expect(parsed).toEqual({ data: { plan: 'pro' } });
       expect(parsed).not.toHaveProperty('userGesture');
     }

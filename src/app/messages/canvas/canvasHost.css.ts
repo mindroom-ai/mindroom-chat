@@ -47,8 +47,11 @@ export const CountdownTrack = style({
   transformOrigin: '0% 50%',
   selectors: { '[dir="rtl"] &': { transformOrigin: '100% 50%' } },
   '@media': {
-    // Matches CANVAS_UNDO_DELAY_MS.
-    '(prefers-reduced-motion: no-preference)': { animation: `${countdown} 2500ms linear forwards` },
+    '(prefers-reduced-motion: no-preference)': {
+      animationFillMode: 'forwards',
+      animationName: countdown,
+      animationTimingFunction: 'linear',
+    },
   },
 });
 

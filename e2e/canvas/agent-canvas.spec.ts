@@ -301,6 +301,9 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(panel.getByText('This is an earlier version.')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Continue' }).click();
   await expect(panel.getByText('Sending to')).toContainText('Seats chosen');
+  // Pause via Inspect so clicking Send now never races the 2.5 s auto-send timer.
+  await panel.locator('[data-canvas-inspect]').click();
+  await expect(panel.getByText('Send to')).toContainText('Seats chosen');
   await expect(send).toBeEnabled();
   await send.click();
   await expect
@@ -417,8 +420,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
 <script>document.getElementById('draft').value = '${paragraph}'.repeat(2500);</script>`);
   await frame.getByRole('button', { name: 'Send edits' }).click();
   await expect(panel.getByText('Sending to')).toContainText('Edited draft');
-  await send.click();
-  await expect(panel.getByText(/Sent to .*Edited draft/)).toBeVisible();
+  await expect(panel.getByText(/Sent to .*Edited draft/)).toBeVisible({ timeout: 30_000 });
   type AnswerEvent = { content: Record<string, unknown> };
   const isLargeAnswer = (event: AnswerEvent) =>
     !!event.content['io.mindroom.long_text'] &&

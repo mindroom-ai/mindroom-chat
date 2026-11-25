@@ -318,14 +318,14 @@ const bridgeScript = (
 ): string => `(() => {
   // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
   const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
-  const gestureActive = () => (navigator.userActivation ? navigator.userActivation.isActive === true : false);
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
-${inline ? sizeScript : ''}  const post = (data, options, userGesture) => {
+${inline ? sizeScript : ''}  const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
-    parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label, userGesture: userGesture === true }, '*');
+    // Submissions go through the host-owned wrapper frame, which attests user activation.
+    parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
   };
   const formValues = (form, submitter) => {
     let entries;
@@ -389,7 +389,7 @@ ${unknownLibraries
   };
   Object.defineProperty(window, 'mindroom', {
     value: Object.freeze({
-      submit: (data, options) => post(data, options, gestureActive()),
+      submit: (data, options) => post(data, options),
       colorScheme: ${JSON.stringify(colorScheme)},
       state: ${stateLiteral(saved.json)},
       saveState,
@@ -403,7 +403,7 @@ ${unknownLibraries
       if (!(form instanceof HTMLFormElement)) return;
       const submitter = event.submitter;
       const label = form.dataset.mindroomLabel || (submitter && submitter.textContent ? submitter.textContent.trim() : '');
-      post(formValues(form, submitter), { label: label || undefined }, event.isTrusted === true || gestureActive());
+      post(formValues(form, submitter), { label: label || undefined });
     },
     true
   );
@@ -514,6 +514,14 @@ export const buildCanvasDocument = (
     "frame.addEventListener('load', () => {",
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
+    '});',
+    // Relay submissions with the wrapper's own userActivation, which propagates up from clicks
+    // inside the canvas frame, never down from Chat, and cannot be tampered with by agent scripts.
+    "window.addEventListener('message', (event) => {",
+    "  if (event.source !== frame.contentWindow || event.origin !== 'null') return;",
+    '  const data = event.data;',
+    `  if (!data || typeof data !== 'object' || data.type !== '${CANVAS_SUBMIT_MESSAGE}' || data.version !== 1) return;`,
+    `  parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data: data.data, label: data.label, userGesture: Boolean(navigator.userActivation && navigator.userActivation.isActive) }, '*');`,
     '});',
     `frame.srcdoc = ${scriptLiteral(
       buildCanvasPage(html, colorScheme, theme, libraries, saved, display)

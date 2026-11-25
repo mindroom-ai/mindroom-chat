@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DISPOSABLE_HOMESERVER as HOMESERVER } from '../helpers/disposableAccounts';
-import { sendRoomMessage } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { openPanelRoom, type PanelRoom } from '../helpers/sidePanels';
 
 // An inline canvas answers from the thread: the member who asked fills its form, confirms the
@@ -229,6 +229,9 @@ for (const [name, viewport] of [
       await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
       await page.waitForTimeout(150);
       await form.getByRole('button', { name: 'Finish' }).click();
+      await expect(page.locator('[data-canvas-inspect]')).toBeVisible();
+      // Pause the countdown before clicking Send now so slow runners never race the 2.5 s timer.
+      await page.locator('[data-canvas-inspect]').click();
       await expect(page.locator('[data-canvas-send]')).toBeEnabled();
       const send = await target('[data-canvas-send]');
       expect(send).toMatchObject({ onScreen: true, hit: true });
@@ -239,3 +242,81 @@ for (const [name, viewport] of [
     });
   });
 }
+
+test('untrusted canvas scripts cannot forge a user gesture or auto-send without an inside click', async ({
+  context,
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const room = await openPanelRoom(context, page);
+  const viewerResponses = async () =>
+    (
+      await matrixFetch<{
+        chunk: Array<{ sender: string; content: Record<string, unknown> }>;
+      }>(HOMESERVER, `/rooms/${encodeURIComponent(room.roomId)}/messages?dir=b&limit=50`, {
+        accessToken: room.viewer.accessToken,
+      })
+    ).chunk.filter(
+      (event) =>
+        event.sender === room.viewer.userId && Boolean(event.content['io.mindroom.canvas_response'])
+    );
+
+  const expectExplicitConfirmOnly = async (title: string, html: string, label: string) => {
+    // Click the top-level composer so the host page itself has fresh user activation.
+    await page.locator('[data-slate-editor="true"]').click();
+    await sendInlineForm(room, title, html);
+    await expect(page.locator(`iframe[title="${title}"]`)).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('[data-canvas-send]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(new RegExp(`Send to .+: ${label}`))).toBeVisible();
+    await expect(page.getByText(/Sending to /)).toHaveCount(0);
+    await expect(page.locator('[data-canvas-send]')).toHaveText('Send');
+    await expect(page.locator('[data-canvas-discard]')).toHaveText('Discard');
+    await page.waitForTimeout(3_200);
+    expect(await viewerResponses()).toHaveLength(0);
+    await expect(page.locator('[data-canvas-send]')).toBeVisible();
+    await page.locator('[data-canvas-discard]').click();
+    await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
+  };
+
+  // 1. Programmatic focus + requestSubmit + button.click() + mindroom.submit() while host has activation.
+  await expectExplicitConfirmOnly(
+    'Scripted submit probe',
+    `<form id="f" data-mindroom-label="Programmatic">
+      <input id="inp" name="v" value="1">
+      <button id="btn" type="submit">Go</button>
+    </form>
+    <script>
+      setTimeout(() => {
+        document.getElementById('inp').focus();
+        document.getElementById('f').requestSubmit();
+        document.getElementById('btn').click();
+        mindroom.submit({ v: 'direct' }, { label: 'Direct' });
+      }, 150);
+    </script>`,
+    'Programmatic'
+  );
+
+  // 2. Forged userGesture: true via wrapper (parent.postMessage): wrapper overwrites with its own activation.
+  await expectExplicitConfirmOnly(
+    'Wrapper spoof probe',
+    `<p>Wrapper spoof</p><script>
+      setTimeout(() => parent.postMessage(
+        { type: 'mindroom.canvas.submit', version: 1, data: { spoof: 'wrapper' }, label: 'Spoofed wrapper', userGesture: true },
+        '*'
+      ), 150);
+    </script>`,
+    'Spoofed wrapper'
+  );
+
+  // 3. Forged userGesture: true bypassing wrapper (parent.parent.postMessage): Chat strips untrusted userGesture.
+  await expectExplicitConfirmOnly(
+    'Direct spoof probe',
+    `<p>Direct spoof</p><script>
+      setTimeout(() => parent.parent.postMessage(
+        { type: 'mindroom.canvas.submit', version: 1, data: { spoof: 'direct' }, label: 'Spoofed direct', userGesture: true },
+        '*'
+      ), 150);
+    </script>`,
+    'Spoofed direct'
+  );
+});

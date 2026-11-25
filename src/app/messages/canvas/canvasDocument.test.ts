@@ -127,8 +127,10 @@ describe('buildCanvasPage', () => {
     expect(CANVAS_WRAPPER_SANDBOX).toBe(CANVAS_SANDBOX);
   });
 
-  it('sends answers past the wrapper to Chat', () => {
-    expect(buildCanvasPage('', 'light')).toContain('parent.parent.postMessage');
+  it('sends submissions through the wrapper and other bridge messages to Chat', () => {
+    const page = buildCanvasPage('', 'light');
+    expect(page).toContain('parent.postMessage');
+    expect(page).toContain('parent.parent.postMessage');
   });
 
   it('follows the app color scheme', () => {
@@ -523,41 +525,98 @@ describe('kept inputs', () => {
     expect(page.$('#shown').textContent).toBe('7');
   });
 
-  it('marks submissions with userGesture only for trusted submits or active user activation', async () => {
-    const run = async (html: string, isActive: boolean, act?: (win: JSDOM['window']) => void) => {
-      const sent: Array<Record<string, unknown>> = [];
-      const { window } = new JSDOM(buildCanvasPage(html, 'light'), {
+  it('relays submissions through the wrapper and attests userGesture from wrapper activation only', async () => {
+    // Inner page sends submissions without userGesture to its parent (the wrapper).
+    const innerSent: Array<Record<string, unknown>> = [];
+    const inner = new JSDOM(
+      buildCanvasPage(
+        '<script>mindroom.submit({ plan: "pro" }, { label: "Pro" });</script>',
+        'light'
+      ),
+      {
+        runScripts: 'dangerously',
+        beforeParse(win) {
+          win.addEventListener('message', (event) => {
+            if (event.data?.type === CANVAS_SUBMIT_MESSAGE) innerSent.push(event.data);
+          });
+        },
+      }
+    );
+    expect(inner.window).toBeDefined();
+    await settle();
+    expect(innerSent).toEqual([
+      {
+        type: CANVAS_SUBMIT_MESSAGE,
+        version: 1,
+        data: { plan: 'pro' },
+        label: 'Pro',
+      },
+    ]);
+
+    // The host-owned wrapper relays only opaque-origin messages from its own child frame,
+    // overwriting userGesture from the wrapper's own navigator.userActivation.isActive.
+    const runWrapper = async (isActive: boolean) => {
+      const relayed: Array<Record<string, unknown>> = [];
+      const { window } = new JSDOM(buildCanvasDocument('<p>Hi</p>', 'light'), {
         runScripts: 'dangerously',
         beforeParse(win) {
           Object.defineProperty(win.navigator, 'userActivation', {
             configurable: true,
             value: { isActive, hasBeenActive: isActive },
           });
-          win.addEventListener('message', (event) => {
-            if (event.data?.type === CANVAS_SUBMIT_MESSAGE) sent.push(event.data);
+          Object.defineProperty(win, 'parent', {
+            value: {
+              postMessage(data: Record<string, unknown>) {
+                relayed.push(data);
+              },
+            },
           });
         },
       });
-      if (act) act(window);
+      const child = window.document.querySelector('iframe')!.contentWindow!;
+      // Spoofed userGesture from the inner frame must be overwritten by wrapper activation.
+      window.dispatchEvent(
+        new window.MessageEvent('message', {
+          data: {
+            type: CANVAS_SUBMIT_MESSAGE,
+            version: 1,
+            data: { plan: 'pro' },
+            label: 'Pro',
+            userGesture: true,
+          },
+          origin: 'null',
+          source: child,
+        })
+      );
+      // Messages from other windows or non-opaque origins are ignored.
+      window.dispatchEvent(
+        new window.MessageEvent('message', {
+          data: { type: CANVAS_SUBMIT_MESSAGE, version: 1, data: { evil: 1 } },
+          origin: 'https://evil.example',
+          source: child,
+        })
+      );
+      window.dispatchEvent(
+        new window.MessageEvent('message', {
+          data: { type: CANVAS_SUBMIT_MESSAGE, version: 1, data: { evil: 2 } },
+          origin: 'null',
+          source: {} as Window,
+        })
+      );
       await settle();
-      return sent;
+      return relayed;
     };
 
-    expect(
-      await run('<script>mindroom.submit({ plan: "basic" }, { label: "Basic" });</script>', false)
-    ).toEqual([
+    expect(await runWrapper(false)).toEqual([
       {
         type: CANVAS_SUBMIT_MESSAGE,
         version: 1,
-        data: { plan: 'basic' },
-        label: 'Basic',
+        data: { plan: 'pro' },
+        label: 'Pro',
         userGesture: false,
       },
     ]);
-
-    expect(
-      await run('<script>mindroom.submit({ plan: "pro" }, { label: "Pro" });</script>', true)
-    ).toEqual([
+    expect(await runWrapper(true)).toEqual([
       {
         type: CANVAS_SUBMIT_MESSAGE,
         version: 1,
@@ -566,35 +625,6 @@ describe('kept inputs', () => {
         userGesture: true,
       },
     ]);
-
-    expect(
-      await run(
-        '<form data-mindroom-label="Save"><input name="note" value="hi"></form>',
-        false,
-        (win) => {
-          const form = win.document.querySelector('form')!;
-          form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
-        }
-      )
-    ).toEqual([
-      {
-        type: CANVAS_SUBMIT_MESSAGE,
-        version: 1,
-        data: { note: 'hi' },
-        label: 'Save',
-        userGesture: false,
-      },
-    ]);
-
-    const activeForm = await run(
-      '<form data-mindroom-label="Save"><input name="note" value="hi"></form>',
-      true,
-      (win) => {
-        const form = win.document.querySelector('form')!;
-        form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
-      }
-    );
-    expect(activeForm[0]?.userGesture).toBe(true);
   });
 
   it('tells Chat whether the user has clicked or typed in the page', async () => {

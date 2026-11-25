@@ -4,7 +4,7 @@ import { Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FailedSendActions } from '../FailedSendActions';
 import { summarizeCanvasData, type CanvasSubmission } from './canvasMessages';
-import type { CanvasHost } from './useCanvasHost';
+import { CANVAS_UNDO_DELAY_MS, type CanvasHost } from './useCanvasHost';
 import * as css from './canvasHost.css';
 
 const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? 'null';
@@ -32,7 +32,8 @@ export function CanvasAnswerBar({
   const { staged, busy, lastAnswer, answer, footer, sendError } = host;
   const [inspectingSubmission, setInspectingSubmission] = useState<CanvasSubmission>();
   const inspecting = !!staged && inspectingSubmission === staged.submission;
-  const isUndoFlow = !!staged && (staged.autoSend || staged.paused);
+  const isCountdown = staged?.phase === 'countdown';
+  const isUndoFlow = staged?.phase === 'countdown' || staged?.phase === 'paused';
   const chips = staged ? summarizeCanvasData(staged.submission.data) : [];
   const label = staged?.submission.label ?? t('mindroomUi.canvas.unlabeled');
 
@@ -42,7 +43,7 @@ export function CanvasAnswerBar({
       setInspectingSubmission(undefined);
       return;
     }
-    if (staged.autoSend) host.pause();
+    if (isCountdown) host.pause();
     setInspectingSubmission(staged.submission);
   };
 
@@ -51,18 +52,26 @@ export function CanvasAnswerBar({
       {staged && (
         <div
           className={inline ? `${css.Staged} ${css.StickyAnswer}` : css.Staged}
-          data-auto-send={staged.autoSend ? '' : undefined}
+          data-auto-send={isCountdown ? '' : undefined}
         >
-          {staged.autoSend && !busy && <div className={css.CountdownTrack} aria-hidden="true" />}
+          {isCountdown && !busy && (
+            <div
+              className={css.CountdownTrack}
+              style={{ animationDuration: `${CANVAS_UNDO_DELAY_MS}ms` }}
+              aria-hidden="true"
+            />
+          )}
           <div className={css.StagedRow}>
             <div className={css.StagedInfo}>
               <span className={css.StatusDot} aria-hidden="true" />
-              <Text as="span" size="T300">
-                {t(staged.autoSend ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
-                  agent: agentName,
-                })}{' '}
-                <b>{label}</b>
-              </Text>
+              <span role="status" aria-live="polite" aria-atomic="true">
+                <Text as="span" size="T300">
+                  {t(isCountdown ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
+                    agent: agentName,
+                  })}{' '}
+                  <b>{label}</b>
+                </Text>
+              </span>
               {chips.length > 0 && (
                 <span className={css.Chips} data-canvas-summary>
                   {chips.map((chip, index) => (
@@ -88,8 +97,8 @@ export function CanvasAnswerBar({
               <Button
                 size="300"
                 variant="Secondary"
-                fill={staged.autoSend ? 'Soft' : 'None'}
-                outlined={staged.autoSend}
+                fill={isCountdown ? 'Soft' : 'None'}
+                outlined={isCountdown}
                 radii="300"
                 onClick={host.discard}
                 data-canvas-discard
@@ -100,9 +109,9 @@ export function CanvasAnswerBar({
               </Button>
               <Button
                 size="300"
-                variant={staged.autoSend ? 'Secondary' : 'Primary'}
-                fill={staged.autoSend ? 'None' : 'Solid'}
-                disabled={!staged.armed || busy}
+                variant={isCountdown ? 'Secondary' : 'Primary'}
+                fill={isCountdown ? 'None' : 'Solid'}
+                disabled={staged.phase === 'arming' || busy}
                 onClick={host.send}
                 data-canvas-send
                 radii="300"
