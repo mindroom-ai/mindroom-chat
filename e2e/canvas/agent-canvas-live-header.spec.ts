@@ -17,7 +17,7 @@ import {
   type AgentStack,
   createAgentRoom,
 } from '../helpers/agentStack';
-import { redactEvent } from '../helpers/matrix';
+import { matrixFetch, redactEvent } from '../helpers/matrix';
 import { isPhoneLayout, roomMoreOptions } from '../helpers/roomMenu';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -62,7 +62,17 @@ const attachIndex = async (page: Page, name: string) => {
 };
 
 /** The thread mode the backend keeps for `roomId` (`!thread_mode`), if any. */
-const roomModeOverride = (stack: AgentStack, roomId: string): string | undefined => {
+const roomModeOverride = async (stack: AgentStack, roomId: string): Promise<string | undefined> => {
+  try {
+    const state = await matrixFetch<{ value?: string }>(
+      stack.homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/state/io.mindroom.room_settings/thread_mode`,
+      { accessToken: stack.tester.accessToken }
+    );
+    if (state.value) return state.value;
+  } catch {
+    // Fall back to the legacy tracking file on older MindRoom checkouts.
+  }
   try {
     const overrides = JSON.parse(
       readFileSync(join(stack.dir, 'storage', 'tracking', 'room_thread_modes.json'), 'utf8')
@@ -179,7 +189,8 @@ const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scena
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   if (scenario.conversation === 'room') {
     // The room's creator is its admin, and so may move its agents to the main timeline. The
-    // backend keeps the choice in its storage, where the helper reads it when it answers.
+    // backend records the choice in room state (or its legacy tracking file), where the helper
+    // reads it when it answers.
     await sendFromComposer(page, '!thread_mode room');
     await expect
       .poll(() => roomModeOverride(stack, roomId), {

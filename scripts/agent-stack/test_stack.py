@@ -1665,66 +1665,29 @@ class StubScenarioTests(unittest.TestCase):
         }
 
         for tag, delay_seconds in (("#schedulesoon", 20), ("#schedule", 150)):
-            with self.subTest(schema="structured", tag=tag):
-                self.assertEqual(
-                    stub_model.plan(request_body(f"please {tag}", structured_props), scenarios),
-                    (
-                        "tool",
-                        "schedule",
-                        {
-                            "message": "@helper remind me to stretch",
-                            "new_thread": False,
-                            "delay_seconds": delay_seconds,
-                            "description": "Stretch reminder",
-                        },
-                    ),
-                )
-            with self.subTest(schema="delay_seconds_only", tag=tag):
-                self.assertEqual(
-                    stub_model.plan(request_body(f"please {tag}", {"delay_seconds": {"type": "integer"}}), scenarios),
-                    (
-                        "tool",
-                        "schedule",
-                        {
-                            "message": "@helper remind me to stretch",
-                            "new_thread": False,
-                            "delay_seconds": delay_seconds,
-                            "description": "Stretch reminder",
-                        },
-                    ),
-                )
-            with self.subTest(schema="message_only", tag=tag):
-                self.assertEqual(
-                    stub_model.plan(request_body(f"please {tag}", {"message": {"type": "string"}}), scenarios),
-                    (
-                        "tool",
-                        "schedule",
-                        {
-                            "message": "@helper remind me to stretch",
-                            "new_thread": False,
-                            "delay_seconds": delay_seconds,
-                            "description": "Stretch reminder",
-                        },
-                    ),
-                )
-            with self.subTest(schema="legacy", tag=tag):
-                self.assertEqual(
-                    stub_model.plan(request_body(f"please {tag}", legacy_props), scenarios),
-                    (
-                        "tool",
-                        "schedule",
-                        {"request": f"in {delay_seconds} seconds remind me to stretch", "new_thread": False},
-                    ),
-                )
-            with self.subTest(schema="no_parameters", tag=tag):
-                self.assertEqual(
-                    stub_model.plan(request_body(f"please {tag}", None), scenarios),
-                    (
-                        "tool",
-                        "schedule",
-                        {"request": f"in {delay_seconds} seconds remind me to stretch", "new_thread": False},
-                    ),
-                )
+            structured_args = {
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
+            legacy_args = {
+                "request": f"in {delay_seconds} seconds remind me to stretch",
+                "new_thread": False,
+            }
+            cases = (
+                ("structured", structured_props, structured_args),
+                ("delay_seconds_only", {"delay_seconds": {"type": "integer"}}, structured_args),
+                ("message_only", {"message": {"type": "string"}}, structured_args),
+                ("legacy", legacy_props, legacy_args),
+                ("no_parameters", None, legacy_args),
+            )
+            for label, props, expected in cases:
+                with self.subTest(schema=label, tag=tag):
+                    self.assertEqual(
+                        stub_model.plan(request_body(f"please {tag}", props), scenarios),
+                        ("tool", "schedule", expected),
+                    )
 
         kind, text = stub_model.plan(
             request_body("please #schedulesoon", structured_props, "Scheduled task task-1"),

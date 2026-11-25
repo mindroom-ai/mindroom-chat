@@ -6,6 +6,7 @@ import {
   test as base,
   expect,
   type Browser,
+  type BrowserContext,
   type BrowserContextOptions,
   type Locator,
   type Page,
@@ -320,6 +321,26 @@ const persistTesterCryptoState = (file: string, latest: StorageStateSnapshot): v
   renameSync(tempFile, file);
 };
 
+/**
+ * Persists the tester's updated Rust crypto IndexedDB stores from `context` back into
+ * `storageStateFile`. Call this before closing manual `browser.newContext({ storageState })`
+ * contexts that bypass the `context` fixture.
+ */
+export const saveTesterCryptoState = async (
+  context: BrowserContext,
+  storageStateFile: string | undefined
+): Promise<void> => {
+  if (!storageStateFile || !existsSync(storageStateFile)) return;
+  let latest: StorageStateSnapshot;
+  try {
+    latest = await context.storageState({ indexedDB: true });
+  } catch {
+    // A test may have closed its context early; leave the saved snapshot untouched.
+    return;
+  }
+  persistTesterCryptoState(storageStateFile, latest);
+};
+
 type WorkerFixtures = {
   /** More options for `stack.py up`, such as `['--calls', <service URL>]`; another set restarts the stack. */
   agentStackArgs: string[];
@@ -381,15 +402,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
   context: async ({ context, testerStorageState }, provide) => {
     await provide(context);
-    if (!testerStorageState || !existsSync(testerStorageState)) return;
-    let latest: StorageStateSnapshot;
-    try {
-      latest = await context.storageState({ indexedDB: true });
-    } catch {
-      // A test may have closed its context early; leave the saved snapshot untouched.
-      return;
-    }
-    persistTesterCryptoState(testerStorageState, latest);
+    await saveTesterCryptoState(context, testerStorageState);
   },
   stack: async ({ agentStackOrSkip }, provide, testInfo) => {
     testInfo.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));
