@@ -473,6 +473,63 @@ export const showThread = async (page: Page, stack: AgentStack, rootId: string):
   await expectThreadShown(page, rootId);
 };
 
+/**
+ * Scrolls Home's virtualized Rooms list until `[data-room-id="${roomId}"]` is mounted and centered
+ * in view, even when earlier tests on a shared stack left enough unspaced rooms in Home to push
+ * later A–Z rooms below the virtualizer's overscan window.
+ */
+export const scrollHomeToRoom = async (
+  page: Page,
+  roomId: string,
+  { timeout = 60_000 } = {}
+): Promise<void> => {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async (id) => {
+          const category = document.querySelector<HTMLElement>('[data-testid="room-nav-category"]');
+          if (!category) return false;
+          const find = () =>
+            category.querySelector<HTMLElement>(`[data-room-id="${CSS.escape(id)}"]`);
+          const waitFrames = () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            );
+          const center = async (element: HTMLElement) => {
+            element.scrollIntoView({ block: 'center' });
+            await waitFrames();
+            return !!find();
+          };
+          const existing = find();
+          if (existing) return center(existing);
+
+          let scroller: HTMLElement | null = category.parentElement;
+          while (scroller && scroller !== document.body) {
+            const { overflowY } = getComputedStyle(scroller);
+            if (/auto|scroll/.test(overflowY) && scroller.scrollHeight > scroller.clientHeight) {
+              break;
+            }
+            scroller = scroller.parentElement;
+          }
+          if (!scroller || scroller === document.body) return false;
+
+          const maxTop = scroller.scrollHeight - scroller.clientHeight;
+          const step = Math.max(120, Math.floor(scroller.clientHeight * 0.5));
+          for (let top = 0; ; top = Math.min(maxTop, top + step)) {
+            scroller.scrollTop = top;
+            // eslint-disable-next-line no-await-in-loop
+            await waitFrames();
+            const hit = find();
+            if (hit) return center(hit);
+            if (top >= maxTop) break;
+          }
+          return false;
+        }, roomId),
+      { timeout, intervals: [500, 1000], message: `room ${roomId} appears in Home's list` }
+    )
+    .toBe(true);
+};
+
 export const composer = (page: Page): Locator => page.getByRole('textbox', { name: COMPOSER_NAME });
 
 /** Types into the composer (a rich-text editor, so keystrokes rather than fill) and sends with Enter. */

@@ -306,18 +306,54 @@ const seedBoard = async (stack: AgentStack, titlesInState: boolean) => {
   return { roomId, titles };
 };
 
-/** How many of the room's Compact cards (on screen or not) show their thread's title. */
-const countTitledCards = async (page: Page, titles: Map<string, string>) => {
-  const cards = await page
-    .locator('button[data-thread-root-id][data-attention-state]')
-    .evaluateAll((elements) =>
-      elements.map((element) => [
-        element.getAttribute('data-thread-root-id') ?? '',
-        element.querySelector(':scope > div [title]')?.getAttribute('title') ?? '',
-      ])
-    );
-  return cards.filter(([rootId, shown]) => !!rootId && titles.get(rootId) === shown).length;
-};
+/**
+ * Scrolls the windowed Compact list from top to bottom and collects each card's root ID and shown
+ * title, leaving the list at the bottom (the oldest cards) for the screenshot.
+ */
+const collectCompactCards = (page: Page): Promise<[string, string][]> =>
+  page.evaluate(async () => {
+    const CARD = 'button[data-thread-root-id][data-attention-state]';
+    const seen = new Map<string, string>();
+    const read = () => {
+      document.querySelectorAll<HTMLElement>(CARD).forEach((element) => {
+        const rootId = element.getAttribute('data-thread-root-id') ?? '';
+        const title = element.querySelector(':scope > div [title]')?.getAttribute('title') ?? '';
+        if (rootId) seen.set(rootId, title);
+      });
+    };
+    const first = document.querySelector<HTMLElement>(CARD);
+    if (!first) return [];
+    let scroller: HTMLElement | null = first.parentElement;
+    while (scroller && scroller !== document.body) {
+      const { overflowY } = getComputedStyle(scroller);
+      if (/auto|scroll/.test(overflowY) && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    read();
+    if (!scroller || scroller === document.body) return [...seen.entries()];
+    const waitFrames = () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      );
+    scroller.scrollTop = 0;
+    await waitFrames();
+    read();
+    let settled = 0;
+    for (let stepCount = 0; settled < 3 && stepCount < 300; stepCount += 1) {
+      const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      const step = Math.max(200, Math.floor(scroller.clientHeight * 0.6));
+      const nextTop = Math.min(maxTop, scroller.scrollTop + step);
+      const moved = nextTop > scroller.scrollTop + 1;
+      scroller.scrollTop = nextTop;
+      // eslint-disable-next-line no-await-in-loop
+      await waitFrames();
+      read();
+      // While useCompactBlocks probes unmeasured blocks, scrollHeight can grow after reaching bottom.
+      const atBottom = scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 2;
+      settled = !moved && atBottom ? settled + 1 : 0;
+    }
+    return [...seen.entries()];
+  });
 
 const newDeviceKnowsTitlesFromState = async (
   stack: AgentStack,
@@ -328,28 +364,40 @@ const newDeviceKnowsTitlesFromState = async (
   const { roomId, titles } = await seedBoard(stack, true);
   const device = await openNewSession(browser, stack, { baseURL, ...PHONE });
   try {
+    // Keep every titled thread unloaded while scrolling through the windowed list so every card
+    // must get its title from the room's `io.mindroom.thread_summary` state rather than `/relations`.
+    await holdThreadLoads(device, [...titles.keys()]);
     await device.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     // A room without agents opens in its timeline; the switch (in a phone's room menu) moves it
     // to Compact.
     await setRoomCompact(device, true);
-    await expect
-      .poll(() => device.locator('button[data-thread-root-id][data-attention-state]').count(), {
-        timeout: 60_000,
-      })
-      .toBe(BOARD_THREADS);
+    await expect(
+      device.locator('button[data-thread-root-id][data-attention-state]').first()
+    ).toBeVisible({ timeout: 60_000 });
     try {
+      // CompactRoomView windows mounted cards, so scan the list from top to bottom and check that
+      // every thread appears and every titled thread carries its exact room-state title.
       await expect
-        .poll(() => countTitledCards(device, titles), {
-          timeout: 20_000,
-          message: 'every titled thread shows its title',
-        })
-        .toBe(titles.size);
+        .poll(
+          async () => {
+            const cards = await collectCompactCards(device);
+            const matched = cards.filter(([rootId, shown]) => titles.get(rootId) === shown).length;
+            return { total: cards.length, matched };
+          },
+          {
+            timeout: 60_000,
+            intervals: [1000],
+            message: 'every titled thread shows its title',
+          }
+        )
+        .toEqual({ total: BOARD_THREADS, matched: titles.size });
     } finally {
       // The oldest threads, whose titles are furthest back in the room's history.
       await device
         .locator('button[data-thread-root-id][data-attention-state]')
         .last()
-        .scrollIntoViewIfNeeded();
+        .scrollIntoViewIfNeeded()
+        .catch(() => undefined);
       await device.screenshot({ path: test.info().outputPath(`state-titles-${engine}.png`) });
     }
   } finally {

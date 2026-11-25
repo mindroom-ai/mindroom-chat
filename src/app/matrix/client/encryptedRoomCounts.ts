@@ -166,6 +166,7 @@ const countContext = (
   userId: string
 ): Counts & { serverOnly: number } => {
   const counts = { total: 0, highlight: 0, serverOnly: 0 };
+  let pastRead = false;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (!event || event.getId() === threadId) continue;
@@ -174,12 +175,14 @@ const countContext = (
       const edit = getFinishingEdit(event);
       if (edit && edit.getTs() > readTs) add(counts, finishedReplyActions(mx, room, event, edit));
     }
-    // A reply read while it streamed can finish later; anything else read ends the count.
+    // A reply started before readTs can finish after a later event (such as a provisional thread
+    // summary notice or follow-up) was read, so keep scanning for streamed replies while stopping
+    // non-streamed counting once we reach readTs.
     if (event.getTs() <= readTs) {
-      if (streamed) continue;
-      break;
+      pastRead = true;
+      continue;
     }
-    if (streamed || !isCountedEvent(event, userId)) continue;
+    if (pastRead || streamed || !isCountedEvent(event, userId)) continue;
     const actions = mx.getPushActionsForEvent(event);
     add(counts, actions);
     if (!actions?.notify && event.isEncrypted() && !event.isDecryptionFailure()) {
