@@ -145,7 +145,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="total-tokens-7d"]')?.textContent).toBe('31.6M');
     expect(container.querySelector('[data-testid="token-mix-card"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="cache-savings-badge"]')?.textContent).toContain(
-      'Saved ~$15 via cache'
+      'Saved ~$6.9 via cache'
     );
 
     // Only the 3 subscription accounts render quota cards; PAYG Anthropic is NOT an empty card.
@@ -244,6 +244,8 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
 
   it('supports interactive day-bar selection, Spend/Tokens toggle, and Hide-dominant filtering', () => {
     const snapshot = cloneFixture();
+    snapshot.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
+    snapshot.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
     renderPage(makeUsageState({ snapshot }));
 
     // Defaults to Spend ($) and selects latest day with data (2026-11-18).
@@ -255,15 +257,15 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(day17Btn.getAttribute('aria-pressed')).toBe('false');
 
     const drawer = () => container.querySelector('[data-testid="day-detail-drawer"]')!;
-    expect(drawer().textContent).toContain('$10.55');
-    expect(drawer().textContent).toContain('$8.90');
+    expect(drawer().textContent).toContain('$2.80');
+    expect(drawer().textContent).toContain('$2.45');
 
     // Clicking earlier day updates selection and exact day totals.
     act(() => day17Btn.click());
     expect(day17Btn.getAttribute('aria-pressed')).toBe('true');
     expect(day18Btn.getAttribute('aria-pressed')).toBe('false');
-    expect(drawer().textContent).toContain('$11.10');
-    expect(drawer().textContent).toContain('$9.50');
+    expect(drawer().textContent).toContain('$3.00');
+    expect(drawer().textContent).toContain('$2.60');
 
     // OpenRouter is ~85% of spend -> Hide dominant button is visible and hides OpenRouter on click.
     const hideBtn = container.querySelector<HTMLButtonElement>('[data-testid="hide-dominant-btn"]')!;
@@ -275,7 +277,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(hideBtn.getAttribute('aria-pressed')).toBe('true');
     expect(hideBtn.textContent).toBe('Reset filter');
     expect(drawer().querySelector('[data-day-account="openrouter:1"]')).toBeNull();
-    expect(drawer().textContent).toContain('$1.60');
+    expect(drawer().textContent).toContain('$0.40');
 
     act(() => hideBtn.click());
     expect(hideBtn.getAttribute('aria-pressed')).toBe('false');
@@ -318,7 +320,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     // Defaults to Models tab, sorted by spend desc (neon-pro first).
     expect(findTab('Models')?.getAttribute('aria-selected')).toBe('true');
     const firstModelBtn = container.querySelector<HTMLButtonElement>('[data-breakdown-row]')!;
-    expect(firstModelBtn.textContent).toContain('neon-pro');
+    expect(firstModelBtn.textContent).toContain('google/gemini-3-pro');
     expect(firstModelBtn.getAttribute('aria-expanded')).toBe('false');
 
     // Expand model row -> inline drawer with share, sparkline, and 4-part mini token mix.
@@ -337,10 +339,10 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     act(() => findTab('Agents')!.click());
     expect(findTab('Agents')?.getAttribute('aria-selected')).toBe('true');
     expect(container.querySelector('[data-testid="where-usage-goes"]')?.textContent).toContain(
-      'builder_agent'
+      'code'
     );
     expect(container.querySelector('[data-testid="where-usage-goes"]')?.textContent).toContain(
-      '210 runs'
+      '310 runs'
     );
 
     // Switch to Accounts tab: shows active accounts + Unattributed + folded idle account.
@@ -629,6 +631,8 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
 
   it('falls back cleanly when switching from a rich runtime snapshot to a minimal v1 snapshot and formats compact USD', () => {
     const rich = cloneFixture();
+    rich.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
+    rich.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
     renderPage(makeUsageState({ snapshot: rich }));
     act(() => findTab('Agents')!.click());
     expect(findTab('Agents')?.getAttribute('aria-selected')).toBe('true');

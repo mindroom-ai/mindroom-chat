@@ -36,11 +36,11 @@ describe('providerUsageProtocol', () => {
     expect(parsed).toEqual(contractFixture);
     expect(parsed?.accounts).toHaveLength(4);
     expect(parsed?.accounts[3]?.windows).toEqual([]);
-    expect(parsed?.token_mix_7d?.cache_read_tokens).toBe(22050000);
-    expect(parsed?.cache_savings_usd_7d).toBe(14.6);
+    expect(parsed?.token_mix_7d?.cache_read_tokens).toBe(22550000);
+    expect(parsed?.cache_savings_usd_7d).toBe(6.85);
     expect(parsed?.top_models_7d).toHaveLength(4);
     expect(parsed?.top_agents_7d).toHaveLength(3);
-    expect(parsed?.daily_7d[0]?.cost_by_account?.['openrouter:1']).toBe(9.5);
+    expect(parsed?.daily_7d[0]?.cost_by_account?.['openrouter:1']).toBe(2.6);
     expect(hasLowQuotaInSnapshot(parsed!)).toBe(true);
   });
 
