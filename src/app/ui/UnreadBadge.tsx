@@ -77,7 +77,7 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
 }
 
 /** Keeps a badge centered in a fixed-width slot, so rows with and without one line up. */
-export function UnreadBadgeCenter({ children }: { children: ReactNode }) {
+export function UnreadBadgeCenter({ children }: { children?: ReactNode }) {
   return (
     <Box
       as="span"
