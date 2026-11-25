@@ -2112,6 +2112,25 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       onLoadOlder={handleLoadOlderThread}
     />
   ) : undefined;
+  // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
+  const showJumpToUnread =
+    !latestAtTop &&
+    offersJumpToUnread({
+      threadId,
+      unreadInfo,
+      roomUnread,
+      unreadMarkerShown,
+    });
+  // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
+  // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
+  // to the line's start and they keep clear of it there.
+  const expandAllToggle = roomWindowRows.length > 0 && (
+    <ExpandAllLine
+      expanded={expandAll}
+      onToggle={handleToggleExpandAll}
+      atStart={phone && showJumpToUnread}
+    />
+  );
   const roomIntro =
     showRoomIntro &&
     (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
@@ -2120,7 +2139,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     threadEvents,
     threadLoadOlderNode,
-    roomIntroNode: hasRoomLeadingIntro ? roomIntro : undefined,
+    roomIntroNode: hasRoomLeadingIntro ? (
+      <>
+        {roomIntro}
+        {expandAllToggle}
+      </>
+    ) : undefined,
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
@@ -2144,26 +2168,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
   });
-
-  // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
-  const showJumpToUnread =
-    !latestAtTop &&
-    offersJumpToUnread({
-      threadId,
-      unreadInfo,
-      roomUnread,
-      unreadMarkerShown,
-    });
-  // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
-  // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
-  // to the line's start and they keep clear of it there.
-  const expandAllToggle = roomWindowRows.length > 0 && (
-    <ExpandAllLine
-      expanded={expandAll}
-      onToggle={handleToggleExpandAll}
-      atStart={phone && showJumpToUnread}
-    />
-  );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
   // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
@@ -2232,7 +2236,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
-            expandAllToggle
+            !hasRoomLeadingIntro && expandAllToggle
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>

@@ -7,6 +7,8 @@ import {
   flushAsyncWork,
   makeEvent,
   makeRoom,
+  makeTimeline,
+  roomIntroType,
   scrollType,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -137,5 +139,62 @@ describe('RoomTimeline layout', () => {
     } finally {
       act(() => renderer?.unmount());
     }
+  });
+
+  it('renders the room intro before the [+all] toggle inside item 0, and keeps the outer toggle without an intro', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { ExpandAllLine } = await import('../RoomTimelineOverlays');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const readOrder = (renderer: ReturnType<typeof create>) =>
+      renderer.root
+        .findAll((node) => node.type === roomIntroType || node.type === ExpandAllLine)
+        .map((node) => (node.type === roomIntroType ? 'intro' : 'toggle'));
+
+    // At the start of an oldest-first room (no back token): intro and toggle render together in order.
+    const roomAtStart = makeRoom({ liveEvents: [makeEvent('$m1')] });
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room: roomAtStart }));
+        await flushAsyncWork(1);
+      });
+      expect(readOrder(renderer!)).toEqual(['intro', 'toggle']);
+      const virtualInner = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(virtualInner.findAllByType(ExpandAllLine)).toHaveLength(1);
+
+      // When older history can still paginate back (no intro), only the outer toggle renders.
+      const roomMidHistory = makeRoom({
+        liveTimeline: makeTimeline([makeEvent('$m2')], { backwardToken: 'tok-back' }),
+      });
+      await act(async () => {
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room: roomMidHistory }));
+        await flushAsyncWork(1);
+      });
+      expect(readOrder(renderer!)).toEqual(['toggle']);
+      const virtualInnerMid = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(virtualInnerMid.findAllByType(ExpandAllLine)).toHaveLength(0);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('includes the [+all] toggle height in the room intro estimate when rows exist', async () => {
+    const { ROOM_INTRO_ESTIMATE_PX, timelineRowSizing } = await import('../roomTimelineRows');
+    const row = makeEvent('$m1') as never;
+    const base = {
+      threadId: undefined,
+      compactLayout: false,
+      showThreadRepliesInRoom: true,
+      threadEvents: [],
+      hasRoomIntro: true,
+      windowStart: 0,
+      roomRowsRef: { current: [row] },
+      activeRangeRef: { current: { start: 0, end: 1 } },
+      threadRecordMapRef: { current: new Map() },
+    };
+    const withRows = timelineRowSizing({ ...base, roomWindowRows: [row] });
+    const empty = timelineRowSizing({ ...base, roomWindowRows: [] });
+    expect(empty.estimateSize(0)).toBe(ROOM_INTRO_ESTIMATE_PX);
+    expect(withRows.estimateSize(0)).toBeGreaterThan(ROOM_INTRO_ESTIMATE_PX);
   });
 });

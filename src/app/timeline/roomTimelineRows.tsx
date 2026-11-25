@@ -190,7 +190,9 @@ const TURN_BREAK_ESTIMATE_PX = 42;
 export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
 const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
 export const ROOM_INTRO_KEY = '__room_intro__';
-// Non-integer so virtual-core records the first DOM measurement even when RoomIntro is 160 px.
+/** Height of `ExpandAllLine` (`paddingBlockStart` 4 px + 18 px button) rendered under `roomIntro`. */
+const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
+// Non-integer so virtual-core records the first DOM measurement even when RoomIntro matches.
 export const ROOM_INTRO_ESTIMATE_PX = 160 + ROOM_ROW_UNMEASURED_PX;
 
 export const timelineRowSizing = ({
@@ -242,7 +244,10 @@ export const timelineRowSizing = ({
   const roomWrapChars = roomWrapCharsForWidth(columnWidth);
   const estimateSize = (index?: number): number => {
     if (!threadId) {
-      if (roomLeadingOffset && index === 0) return ROOM_INTRO_ESTIMATE_PX;
+      if (roomLeadingOffset && index === 0)
+        return (
+          ROOM_INTRO_ESTIMATE_PX + (roomWindowRows.length > 0 ? EXPAND_ALL_LINE_ESTIMATE_PX : 0)
+        );
       const rows = roomRowsRef.current;
       // Negative indexes come from room-fold pricing above the current window; non-negative
       // virtual indexes follow the leading room intro item when present.
