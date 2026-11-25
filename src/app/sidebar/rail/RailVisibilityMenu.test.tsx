@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { FocusTrap } from 'focus-trap-react';
 import { color, type RectCords } from 'folds';
@@ -17,7 +18,8 @@ import {
 } from '../../preferences/accountSettings';
 import { makeNavToActivePathAtom } from '../../routes/navToActivePath';
 import { NavToActivePathProvider } from '../../routes/useNavToActivePath';
-import { RAIL_BUTTON_SETTING, type RailButtons } from '../../settings/railButtons';
+import { RAIL_BUTTON_SETTING, type RailButtons, useRailButtons } from '../../settings/railButtons';
+import { SidebarItem } from '../../ui/sidebar/SidebarItem';
 import { DirectTab } from './DirectTab';
 import { HelpTab } from './HelpTab';
 import { RailVisibilityMenuProvider } from './RailVisibilityMenu';
@@ -72,9 +74,17 @@ vi.mock('focus-trap-react', async (original) => {
     ),
   };
 });
-vi.mock('../../settings/railButtons', async (original) => ({
-  ...(await original<typeof import('../../settings/railButtons')>()),
-  useOfferedRailButtons: () => state.offered,
+vi.mock('../../config/useClientConfig', () => ({
+  useClientConfig: () => ({
+    sidebar: {
+      showThreads: state.offered.threads,
+      showExploreCommunity: state.offered.explore,
+    },
+    mindroom: { canvas: { enabled: state.offered.canvases } },
+  }),
+}));
+vi.mock('../../local-mindroom/useShowLocalMindroom', () => ({
+  useShowLocalMindroom: () => state.offered.localMindroom,
 }));
 vi.mock('../../matrix/hooks/useAccountSettings', () => ({
   useAccountSettings: () => useAtomValue(testSettingsAtom),
@@ -99,18 +109,21 @@ vi.mock('../../tour/HelpMenu', () => ({
   ),
 }));
 
-function RailInner() {
-  const settings = useAtomValue(testSettingsAtom);
+function RailInner({ withPortal = false }: { withPortal?: boolean }) {
+  const shown = useRailButtons();
   const railProps = useRailEmptyContextMenu();
   const threadsProps = useRailVisibilityMenuTrigger('threads');
   const searchProps = useRailVisibilityMenuTrigger('search');
   return (
     <nav aria-label="Main" {...railProps}>
-      <button type="button" aria-label="Home">
-        Home
-      </button>
+      <SidebarItem>
+        <button type="button" aria-label="Home">
+          Home
+        </button>
+        <span data-testid="home-badge">3</span>
+      </SidebarItem>
       <DirectTab />
-      {settings.showThreadsInSidebar && (
+      {shown.threads && (
         <button type="button" aria-label="Threads" {...threadsProps}>
           Threads
         </button>
@@ -119,6 +132,7 @@ function RailInner() {
       <HelpTab />
       <HelpTab inTopBar />
       <div data-testid="empty-rail" />
+      {withPortal && createPortal(<input aria-label="Portal input" />, document.body)}
     </nav>
   );
 }
@@ -137,7 +151,10 @@ const wrap = (
   </Provider>
 );
 
-const renderRail = (screenSize = ScreenSize.Desktop) => {
+const renderRail = ({
+  screenSize = ScreenSize.Desktop,
+  withPortal = false,
+}: { screenSize?: ScreenSize; withPortal?: boolean } = {}) => {
   const store = createStore();
   store.set(testSettingsAtom, {
     ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
@@ -158,7 +175,7 @@ const renderRail = (screenSize = ScreenSize.Desktop) => {
       store,
       screenSize,
       <RailVisibilityMenuProvider>
-        <RailInner />
+        <RailInner withPortal={withPortal} />
       </RailVisibilityMenuProvider>
     )
   );
@@ -242,19 +259,24 @@ describe('RailVisibilityMenu', () => {
     expect(screen.queryByRole('group', { name: 'Show in sidebar' })).toBeNull();
   });
 
-  it('stays open when toggling off the right-clicked button and snaps back on save failure', async () => {
+  it('hides the right-clicked button optimistically while staying open and snaps both back on save failure', async () => {
     const { store } = renderRail();
     let resolveWrite!: () => void;
+    let rejectWrite!: (error: Error) => void;
     let rejectNext = false;
-    state.setAccountSettings.mockImplementation((patch) => {
-      if (rejectNext) return Promise.reject(new Error('offline'));
-      return new Promise<void>((resolve) => {
-        resolveWrite = () => {
-          store.set(testSettingsAtom, { ...store.get(testSettingsAtom), ...patch });
-          resolve();
-        };
-      });
-    });
+    state.setAccountSettings.mockImplementation(
+      (patch) =>
+        new Promise<void>((resolve, reject) => {
+          if (rejectNext) {
+            rejectWrite = reject;
+            return;
+          }
+          resolveWrite = () => {
+            store.set(testSettingsAtom, { ...store.get(testSettingsAtom), ...patch });
+            resolve();
+          };
+        })
+    );
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Threads' }));
     const threadsSwitch = within(screen.getByRole('menu')).getByRole('menuitemcheckbox', {
@@ -262,9 +284,11 @@ describe('RailVisibilityMenu', () => {
     });
     expect(threadsSwitch.getAttribute('aria-checked')).toBe('true');
 
-    // Optimistic flip happens immediately before the write settles.
+    // Optimistic flip hides the rail button immediately before the server write resolves, while keeping the menu open.
     fireEvent.click(threadsSwitch);
     expect(threadsSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Threads' })).toBeNull();
+    expect(screen.getByRole('menu')).toBeTruthy();
     expect(state.setAccountSettings).toHaveBeenCalledWith({
       [RAIL_BUTTON_SETTING.threads]: false,
     });
@@ -273,19 +297,22 @@ describe('RailVisibilityMenu', () => {
       resolveWrite();
       await Promise.resolve();
     });
-
-    // Threads rail icon unmounted, yet the context menu stayed open.
     expect(screen.queryByRole('button', { name: 'Threads' })).toBeNull();
     expect(screen.getByRole('menu')).toBeTruthy();
 
-    // A rejected write snaps back to the stored value and displays the critical error message.
+    // Turning back on optimistically reveals the rail button, then a rejected write snaps both switch and rail back.
     rejectNext = true;
+    fireEvent.click(threadsSwitch);
+    expect(threadsSwitch.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Threads' })).toBeTruthy();
+
     await act(async () => {
-      fireEvent.click(threadsSwitch);
+      rejectWrite(new Error('offline'));
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(threadsSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Threads' })).toBeNull();
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toBe(
       'Could not save the change. Check your connection and try again.'
@@ -309,17 +336,39 @@ describe('RailVisibilityMenu', () => {
     expect(second?.requestId).not.toBe(first?.requestId);
   });
 
-  it('opens from empty rail space at click height while leaving non-configurable buttons untouched', () => {
-    renderRail();
+  it('opens from empty rail space at click height while ignoring rail items, buttons, and portaled children', () => {
+    vi.useFakeTimers();
+    renderRail({ withPortal: true });
     const nav = screen.getByRole('navigation', { name: 'Main' });
     nav.getBoundingClientRect = () =>
       ({ left: 0, top: 0, right: 66, bottom: 800, width: 66, height: 800 }) as DOMRect;
 
-    const homeEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-    screen.getByRole('button', { name: 'Home' }).dispatchEvent(homeEvent);
-    expect(homeEvent.defaultPrevented).toBe(false);
+    // Right-clicking Home or an unread badge inside its SidebarItem does not open the empty-rail menu.
+    for (const target of [
+      screen.getByRole('button', { name: 'Home' }),
+      screen.getByTestId('home-badge'),
+    ]) {
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(screen.queryByRole('menu')).toBeNull();
+    }
+
+    // Events bubbling through React from a portal in document.body never trigger the empty-rail menu.
+    const portalInput = screen.getByRole('textbox', { name: 'Portal input' });
+    const portalEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    portalInput.dispatchEvent(portalEvent);
+    expect(portalEvent.defaultPrevented).toBe(false);
     expect(screen.queryByRole('menu')).toBeNull();
 
+    fireEvent.touchStart(portalInput, { touches: [{ clientX: 200, clientY: 200 }] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.documentElement.style.userSelect).toBe('');
+
+    // Right-clicking empty space inside the rail opens the menu at click height.
     fireEvent.contextMenu(screen.getByTestId('empty-rail'), { clientX: 20, clientY: 312 });
     expect(screen.getByRole('menu')).toBeTruthy();
     expect(state.lastAnchor).toEqual({ x: 0, y: 312, width: 66, height: 0 });
@@ -353,8 +402,12 @@ describe('RailVisibilityMenu', () => {
 
     vi.useRealTimers();
     const [railHelp, topBarHelp] = screen.getAllByRole('button', { name: 'Help & guides' });
-    fireEvent.click(railHelp!);
-    await vi.waitFor(() => expect(screen.getByTestId('help-menu')).toBeTruthy());
+    await act(async () => {
+      fireEvent.click(railHelp!);
+      await import('../../tour/HelpMenu');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.getByTestId('help-menu')).toBeTruthy();
     expect(railHelp!.getAttribute('data-menu-open')).toBe('true');
 
     fireEvent.contextMenu(railHelp!);

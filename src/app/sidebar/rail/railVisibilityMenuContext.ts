@@ -57,14 +57,20 @@ export function useRailVisibilityMenuTrigger(
   };
 }
 
-const targetsButton = (target: EventTarget | null): boolean =>
-  Boolean(
-    (target as { closest?: (selector: string) => Element | null } | null)?.closest?.('button')
-  );
+/**
+ * True only when `target` is inside the rail's DOM subtree (ignoring React portals mounted
+ * elsewhere in the document) and outside any rail button or `SidebarItem` wrapper.
+ */
+const isEmptyRailTarget = (rail: HTMLElement, target: EventTarget | null): boolean => {
+  if (!(target instanceof Node) || !rail.contains(target)) return false;
+  const element = target instanceof Element ? target : target.parentElement;
+  return !element?.closest('button, [data-sidebar-item]');
+};
 
 /**
- * Right-click and touch long-press props for empty space on the icon rail; ignores clicks on any
- * rail button so Home, Activity, Spaces, Account, Call, and Unverified keep their own behavior.
+ * Right-click and touch long-press props for empty space on the icon rail; ignores portal events
+ * and any rail button or item so dialogs, badges, Home, Activity, Spaces, Account, Call, and
+ * Unverified keep their own behavior.
  */
 export function useRailEmptyContextMenu() {
   const context = useContext(RailVisibilityMenuContext);
@@ -73,10 +79,16 @@ export function useRailEmptyContextMenu() {
       const rect = rail.getBoundingClientRect();
       context?.openMenu('empty', { x: rect.left, y, width: rect.width, height: 0 });
     },
-    (event) => Boolean(context) && !targetsButton(event.target)
+    (event) => Boolean(context) && isEmptyRailTarget(event.currentTarget, event.target)
   );
   const onContextMenu = (event: MouseEvent<HTMLElement>) => {
-    if (!context || event.defaultPrevented || targetsButton(event.target)) return;
+    if (
+      !context ||
+      event.defaultPrevented ||
+      !isEmptyRailTarget(event.currentTarget, event.target)
+    ) {
+      return;
+    }
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     context.openMenu('empty', { x: rect.left, y: event.clientY, width: rect.width, height: 0 });

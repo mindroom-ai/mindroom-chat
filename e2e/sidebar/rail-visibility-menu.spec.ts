@@ -118,7 +118,9 @@ test('customizes rail buttons from right-click menus on buttons and empty rail s
   await expect(menu).toBeVisible();
   await saveShot(page, 'after-toggle-off.png');
 
-  // 3. Right-click Direct Messages: Mark as Read appears above Show in sidebar and Sidebar settings….
+  // 3. Close the menu, then right-click Direct Messages: Mark as Read appears above Show in sidebar and Sidebar settings….
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
   await directButton.click({ button: 'right' });
   await expect(menu).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Mark as Read', exact: true })).toBeVisible();

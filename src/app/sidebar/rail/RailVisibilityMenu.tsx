@@ -3,15 +3,14 @@ import { Icons, Line, Text, color, config, type RectCords } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
 import { settingsModalAtom } from '../../navigation/settingsModal';
 import { SettingsPages } from '../../navigation/settingsPages';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
-import type { AccountSettings } from '../../preferences/accountSettings';
 import {
-  RAIL_BUTTON_SETTING,
+  RAIL_BUTTON_ORDER,
   type RailButton,
   useOfferedRailButtons,
+  useRailButtonToggle,
 } from '../../settings/railButtons';
 import { MenuEntry, MenuGroup, MenuSwitchEntry } from '../../ui/MenuEntry';
 import { useDirectRoomIds } from '../direct/useDirectRooms';
@@ -27,18 +26,6 @@ type RailMenuState = {
   target: RailMenuTarget;
 };
 
-const RAIL_BUTTON_ORDER: readonly RailButton[] = [
-  'direct',
-  'threads',
-  'canvases',
-  'usage',
-  'explore',
-  'createSpace',
-  'search',
-  'localMindroom',
-  'help',
-];
-
 const RAIL_BUTTON_LABEL_KEY = {
   direct: 'nav.directMessages',
   threads: 'nav.threads',
@@ -50,8 +37,6 @@ const RAIL_BUTTON_LABEL_KEY = {
   localMindroom: 'mindroomUi.sidebar.mindroomTab.localMindroom',
   help: 'tour.help.button',
 } as const satisfies Record<RailButton, string>;
-
-let sidebarSettingsRequestSeq = 0;
 
 function DirectMarkReadSection({ onClose }: { onClose: () => void }) {
   const roomIds = useDirectRoomIds();
@@ -65,41 +50,13 @@ function DirectMarkReadSection({ onClose }: { onClose: () => void }) {
   );
 }
 
-function RailVisibilitySwitch({
-  button,
-  label,
-  stored,
-  setAccountSettings,
-}: {
-  button: RailButton;
-  label: string;
-  stored: boolean;
-  setAccountSettings: (patch: Partial<AccountSettings>) => Promise<void>;
-}) {
+function RailVisibilitySwitch({ button, label }: { button: RailButton; label: string }) {
   const { t } = useTranslation();
-  const [pending, setPending] = useState<boolean>();
-  const [saveFailed, setSaveFailed] = useState(false);
-  const requestGeneration = useRef(0);
-  const checked = pending ?? stored;
-
-  const handleToggle = () => {
-    const next = !checked;
-    requestGeneration.current += 1;
-    const generation = requestGeneration.current;
-    setPending(next);
-    setSaveFailed(false);
-    setAccountSettings({ [RAIL_BUTTON_SETTING[button]]: next })
-      .catch(() => {
-        if (requestGeneration.current === generation) setSaveFailed(true);
-      })
-      .finally(() => {
-        if (requestGeneration.current === generation) setPending(undefined);
-      });
-  };
+  const { checked, saveFailed, setChecked } = useRailButtonToggle(button);
 
   return (
     <>
-      <MenuSwitchEntry label={label} checked={checked} onToggle={handleToggle} />
+      <MenuSwitchEntry label={label} checked={checked} onToggle={() => setChecked(!checked)} />
       {saveFailed && (
         <Text
           size="T200"
@@ -117,14 +74,14 @@ function RailVisibilitySwitch({
 function RailVisibilityMenuContent({
   target,
   onClose,
+  nextSettingsRequestId,
 }: {
   target: RailMenuTarget;
   onClose: () => void;
+  nextSettingsRequestId: () => string;
 }) {
   const { t } = useTranslation();
   const offered = useOfferedRailButtons();
-  const settings = useAccountSettings();
-  const setAccountSettings = useSetAccountSettings();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
@@ -134,10 +91,9 @@ function RailVisibilityMenuContent({
 
   const openSidebarSettings = () => {
     onClose();
-    sidebarSettingsRequestSeq += 1;
     setSettingsModal({
       initialPage: SettingsPages.SidebarPage,
-      requestId: `sidebar-settings-${sidebarSettingsRequestSeq}`,
+      requestId: nextSettingsRequestId(),
     });
   };
 
@@ -150,8 +106,6 @@ function RailVisibilityMenuContent({
             key={button}
             button={button}
             label={t(RAIL_BUTTON_LABEL_KEY[button])}
-            stored={settings[RAIL_BUTTON_SETTING[button]]}
-            setAccountSettings={setAccountSettings}
           />
         ))}
       </MenuGroup>
@@ -174,7 +128,12 @@ function RailVisibilityMenuContent({
  */
 export function RailVisibilityMenuProvider({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState<RailMenuState>();
+  const settingsRequestSeq = useRef(0);
   const close = useCallback(() => setMenu(undefined), []);
+  const nextSettingsRequestId = useCallback(() => {
+    settingsRequestSeq.current += 1;
+    return `sidebar-settings-${settingsRequestSeq.current}`;
+  }, []);
   const openMenu = useCallback((target: RailMenuTarget, anchor: RectCords, toggle = false) => {
     setMenu((current) => (toggle && current?.target === target ? undefined : { anchor, target }));
   }, []);
@@ -193,7 +152,11 @@ export function RailVisibilityMenuProvider({ children }: { children: ReactNode }
           onClose={close}
           width={220}
         >
-          <RailVisibilityMenuContent target={menu.target} onClose={close} />
+          <RailVisibilityMenuContent
+            target={menu.target}
+            onClose={close}
+            nextSettingsRequestId={nextSettingsRequestId}
+          />
         </SidebarContextMenu>
       )}
     </RailVisibilityMenuContext>

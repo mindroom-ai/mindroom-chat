@@ -79,12 +79,16 @@ vi.mock('../account/switcher/UnverifiedTab', () => ({
 vi.mock('./rail/CreateTab', () => ({ CreateTab: tab('createSpace') }));
 vi.mock('./rail/LocalMindroomTab', () => ({ LocalMindroomTab: tab('localMindroom') }));
 vi.mock('../calls/CallTab', () => ({ CallTab: () => null }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
+vi.mock('../matrix/hooks/useMatrixClient', () => {
+  const client = {
     getHomeserverUrl: () => 'https://mindroom.chat',
     getAccessToken: () => 'token',
-  }),
-}));
+  };
+  return {
+    useMatrixClient: () => client,
+    useOptionalMatrixClient: () => client,
+  };
+});
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
   useAccountSettings: () => ({ ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS, ...state.settings }),
 }));
