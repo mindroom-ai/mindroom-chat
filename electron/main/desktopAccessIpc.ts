@@ -332,7 +332,7 @@ export const registerDesktopAccessHandlers = (
   handle('desktop:access-pick-folder', mainOwners, noArgs, () => access.pickFolder());
   handle(
     'desktop:access-decide-shell',
-    statusOwners,
+    shellApprovalOwners,
     (args) => (args.length === 1 ? parseDecideShellRequest(args[0]) : undefined),
     (req) => access.decideShell(req)
   );

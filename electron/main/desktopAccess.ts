@@ -256,11 +256,9 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
   };
 
   const consumeDecisionGesture = (): boolean => {
-    if (now() - shellGestureAt <= GESTURE_WINDOW_MS) {
-      shellGestureAt = -Infinity;
-      return true;
-    }
-    return consumeGesture();
+    if (now() - shellGestureAt > GESTURE_WINDOW_MS) return false;
+    shellGestureAt = -Infinity;
+    return true;
   };
 
   const activeSetupAuth = (): SetupAuth | undefined => {

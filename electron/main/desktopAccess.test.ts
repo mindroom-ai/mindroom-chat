@@ -669,7 +669,14 @@ describe('desktopAccess', () => {
       senderFrame: panel.webContents.mainFrame,
     };
 
-    // Shell approval window can read status and decide shell (only after a user gesture), but cannot revokeAll.
+    // Main chat window cannot decide pending shell commands even with a fresh main-window gesture.
+    access.noteGesture();
+    expect(await decideHandler?.(mainEvent, { commandId: 'cmd-1', approved: true })).toEqual({
+      ok: false,
+      code: 'FORBIDDEN',
+    });
+
+    // Shell approval window can read status and decide shell (only after an approval-window gesture), but cannot revokeAll.
     expect(await statusHandler?.(shellEvent)).toMatchObject({ ok: true });
     expect(await revokeHandler?.(shellEvent)).toEqual({ ok: false, code: 'FORBIDDEN' });
     expect(await decideHandler?.(shellEvent, { commandId: 'cmd-1', approved: true })).toEqual({
