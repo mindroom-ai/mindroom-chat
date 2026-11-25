@@ -12,7 +12,7 @@ const withCssRules = async (run: (rules: CssRule[]) => Promise<void>) => {
   const adapter = await import('@vanilla-extract/css/adapter');
   const rules: CssRule[] = [];
   adapter.setAdapter({
-    appendCss: (css) => rules.push(css as CssRule),
+    appendCss: (css) => rules.push(css as unknown as CssRule),
     registerClassName: () => undefined,
     registerComposition: () => undefined,
     markCompositionUsed: () => undefined,

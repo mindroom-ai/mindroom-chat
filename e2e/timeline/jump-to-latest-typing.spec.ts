@@ -1,19 +1,21 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import {
   CHROMIUM_WITH_SCROLLBARS,
-  HOMESERVER,
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
+import {
   allowActiveRunsState,
   allowBackgroundJobsState,
-  createRoom,
-  disposableHomeserverIsUp,
   joinRoom,
-  loginWithPassword,
   matrixFetch,
   publishActiveRuns,
   registerAgentAccount,
-  registerDisposableUser,
   sendRoomMessage,
   sendStateEvent,
   setAccountData,
