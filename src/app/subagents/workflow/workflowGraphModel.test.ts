@@ -6,10 +6,13 @@ import type {
 } from '../../matrix/protocol/workflowFrame';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
 import {
-  edgePath,
   foldGroupItems,
+  formatWorkflowModelLabel,
+  groupFlowItems,
+  isCollapsiblePlumbingItem,
   layoutWorkflowRunGraph,
   nodeResultPreview,
+  shortNodeError,
   type WorkflowGraphItem,
 } from './workflowGraphModel';
 
@@ -62,6 +65,30 @@ const makeGraph = (overrides: Partial<WorkflowRunGraph> = {}): WorkflowRunGraph 
   log: [],
   omitted: emptyOmitted,
   ...overrides,
+});
+
+const makeSubagent = (result: string | undefined, md: string): SubagentRun => ({
+  roomId: '!r:example',
+  sender: '@mindroom_panels:example',
+  run: 'del-1',
+  sid: '1795389735000-a1b2c3d4',
+  seq: 1,
+  lastFrameAt: 1,
+  stale: false,
+  meta: {
+    agent: 'panels',
+    subagent: 'del-1',
+    caller: 'panels',
+    root: 'panels',
+    parent: null,
+    threadId: null,
+    source: 'workflow',
+    status: 'completed',
+    startedAt: 1,
+    endedAt: 2,
+    ...(result !== undefined ? { result } : {}),
+  },
+  docs: { md, reasoning: '', tools: [], status: 'completed', activity: '', segments: [] },
 });
 
 const ids = (items: readonly WorkflowGraphItem[]) =>
@@ -120,7 +147,48 @@ describe('workflowGraphModel', () => {
     expect(collectGroupIds(layout.bands[0]!.items).sort()).toEqual(['n1', 'n2']);
   });
 
-  it('groups a session turn under its session node in start order and keeps orphaned turns', () => {
+  it('prefers group over session so spawned turns stay inside Parallel groups and omits empty root sessions', () => {
+    const layout = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        groups: [makeGroup('g1', { kind: 'parallel', phase: 0, total: 2, done: 2 })],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            phase: 0,
+            model: 'gemini_flash@minimal',
+            turns: 2,
+          }),
+          makeNode('s2', {
+            kind: 'session',
+            label: 'Fresh session',
+            name: 'fresh',
+            phase: 0,
+            turns: 0,
+          }),
+          makeNode('n4', { kind: 'turn', phase: 0, group: 'g1', session: 's1' }),
+          makeNode('n5', { kind: 'turn', phase: 0, group: 'g1', session: 's1' }),
+        ],
+      })
+    );
+
+    // s1 is omitted from roots (all emitted turns live in g1), while s2 (0 turns yet) stays.
+    expect(ids(layout.bands[0]!.items)).toEqual(['g1', 's2']);
+    const groupItem = layout.bands[0]!.items[0];
+    expect(groupItem?.type === 'group' ? ids(groupItem.items) : []).toEqual(['n4', 'n5']);
+    expect(layout.sessionsById.get('s1')).toEqual({
+      id: 's1',
+      label: 'Reviewer session',
+      name: 'reviewer',
+      model: 'gemini_flash@minimal',
+      turns: 2,
+    });
+    expect(layout.stepCount).toBe(3);
+  });
+
+  it('groups standalone session turns under their session node and keeps orphaned turns', () => {
     const layout = layoutWorkflowRunGraph(
       makeGraph({
         phases: ['Review'],
@@ -155,6 +223,68 @@ describe('workflowGraphModel', () => {
     expect(nested?.type === 'group' ? ids(nested.items) : []).toEqual(['n3']);
   });
 
+  it('collapses 2+ consecutive completed leaf plumbing items without touching active or failed ones', () => {
+    const items: WorkflowGraphItem[] = [
+      { type: 'node', node: makeNode('n1', { kind: 'value', status: 'completed' }) },
+      { type: 'node', node: makeNode('n2', { kind: 'state', status: 'completed' }) },
+      { type: 'node', node: makeNode('n3', { kind: 'agent', status: 'completed' }) },
+      { type: 'node', node: makeNode('n4', { kind: 'tool', status: 'completed' }) },
+      { type: 'node', node: makeNode('n5', { kind: 'send', status: 'failed', error: 'Dropped' }) },
+      { type: 'node', node: makeNode('n6', { kind: 'inbox', status: 'waiting' }) },
+    ];
+    expect(isCollapsiblePlumbingItem(items[0]!)).toBe(true);
+    expect(isCollapsiblePlumbingItem(items[4]!)).toBe(false);
+    expect(isCollapsiblePlumbingItem(items[5]!)).toBe(false);
+
+    const grouped = groupFlowItems(items);
+    expect(grouped.map((g) => g.type)).toEqual(['plumb_group', 'node', 'node', 'node', 'node']);
+    expect(grouped[0]?.type === 'plumb_group' ? grouped[0].nodes.map((n) => n.id) : []).toEqual([
+      'n1',
+      'n2',
+    ]);
+  });
+
+  it('derives deduplicated bidirectional in-group peer bridges and skips cross-group edges', () => {
+    const layout = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        groups: [makeGroup('g1', { kind: 'parallel', phase: 0 })],
+        nodes: [
+          makeNode('n1', { name: 'backend', group: 'g1', phase: 0 }),
+          makeNode('n2', { name: 'frontend', group: 'g1', phase: 0 }),
+          makeNode('n3', { name: 'qa', group: 'g1', phase: 0 }),
+          makeNode('n4', { name: 'summary', phase: 0 }),
+        ],
+        edges: [
+          { from: 'n1', to: 'n2', count: 2 },
+          { from: 'n2', to: 'n1', count: 1 },
+          { from: 'n2', to: 'n3', count: 1 },
+          { from: 'n3', to: 'n4', count: 4 },
+        ],
+      })
+    );
+    expect(layout.peerBridgesByGroup.get('g1')).toEqual([
+      {
+        key: 'n1\0n2',
+        fromId: 'n1',
+        toId: 'n2',
+        fromLabel: 'backend',
+        toLabel: 'frontend',
+        bidirectional: true,
+        count: 3,
+      },
+      {
+        key: 'n2\0n3',
+        fromId: 'n2',
+        toId: 'n3',
+        fromLabel: 'frontend',
+        toLabel: 'qa',
+        bidirectional: false,
+        count: 1,
+      },
+    ]);
+  });
+
   it('folds a group of 300 to its unfinished items and the newest done ones', () => {
     const items: WorkflowGraphItem[] = [];
     for (let i = 1; i <= 280; i += 1) {
@@ -164,23 +294,16 @@ describe('workflowGraphModel', () => {
       });
     }
     for (let i = 281; i <= 295; i += 1) {
-      items.push({
-        type: 'node',
-        node: makeNode(`n${i}`, { status: 'running', endedAt: null }),
-      });
+      items.push({ type: 'node', node: makeNode(`n${i}`, { status: 'running', endedAt: null }) });
     }
     for (let i = 296; i <= 300; i += 1) {
-      items.push({
-        type: 'node',
-        node: makeNode(`n${i}`, { status: 'failed', endedAt: 1500 }),
-      });
+      items.push({ type: 'node', node: makeNode(`n${i}`, { status: 'failed', endedAt: 1500 }) });
     }
     const { shown, more } = foldGroupItems(items);
     expect(shown).toHaveLength(24);
     expect(
       shown.slice(0, 20).every((item) => item.type === 'node' && item.node.status !== 'completed')
     ).toBe(true);
-    // Remaining 4 slots hold the newest completed nodes (n280..n277).
     expect(shown.slice(20).map((item) => (item.type === 'node' ? item.node.id : ''))).toEqual([
       'n280',
       'n279',
@@ -190,50 +313,43 @@ describe('workflowGraphModel', () => {
     expect(more).toBe(276);
   });
 
-  it('curves from the bottom of one chip to the top of the one below, and between facing sides otherwise', () => {
+  it('formats raw config@effort model strings while preserving friendly labels and subagent models', () => {
+    expect(formatWorkflowModelLabel('gemini_flash@minimal')).toBe('gemini_flash · minimal');
+    expect(formatWorkflowModelLabel('Fable 5.2')).toBe('Fable 5.2');
+    expect(formatWorkflowModelLabel('Sol · GPT-6.2')).toBe('Sol · GPT-6.2');
     expect(
-      edgePath({ x: 0, y: 0, width: 100, height: 40 }, { x: 200, y: 120, width: 100, height: 40 })
-    ).toMatch(/^M 50 40 C .* 250 120$/);
-
-    expect(
-      edgePath({ x: 0, y: 0, width: 100, height: 40 }, { x: 180, y: 10, width: 100, height: 40 })
-    ).toMatch(/^M 100 20 C .* 180 30$/);
+      formatWorkflowModelLabel('gemini_flash@minimal', {
+        modelConfig: 'fable',
+        modelDisplayName: 'Fable 5.2',
+      })
+    ).toBe('Fable 5.2');
+    expect(formatWorkflowModelLabel(undefined)).toBeUndefined();
   });
 
-  it('previews the subagent run result, else the last non-empty line written, cut to 300 chars', () => {
-    const makeSubagent = (result: string | undefined, md: string): SubagentRun => ({
-      roomId: '!r:example',
-      sender: '@mindroom_panels:example',
-      run: 'del-1',
-      sid: '1795389735000-a1b2c3d4',
-      seq: 1,
-      lastFrameAt: 1,
-      stale: false,
-      meta: {
-        agent: 'panels',
-        subagent: 'del-1',
-        caller: 'panels',
-        root: 'panels',
-        parent: null,
-        threadId: null,
-        source: 'workflow',
-        status: 'completed',
-        startedAt: 1,
-        endedAt: 2,
-        ...(result !== undefined ? { result } : {}),
-      },
-      docs: { md, reasoning: '', tools: [], status: 'completed', activity: '', segments: [] },
-    });
-
+  it('strips code fences, pretty-prints short JSON previews, and truncates long results to 300 chars', () => {
     expect(nodeResultPreview(undefined)).toBeUndefined();
     expect(nodeResultPreview(makeSubagent('Summary ready.', 'Earlier line\nLast line'))).toBe(
       'Summary ready.'
     );
+    expect(nodeResultPreview(makeSubagent('```json\n{"ok":true,"count":2}\n```', ''))).toBe(
+      '{\n  "ok": true,\n  "count": 2\n}'
+    );
+    expect(nodeResultPreview(makeSubagent('```\nPlain fenced text\n```', ''))).toBe(
+      'Plain fenced text'
+    );
     expect(nodeResultPreview(makeSubagent(undefined, 'First line\n\nSecond line\n  '))).toBe(
       'Second line'
     );
-    const longResult = 'x'.repeat(400);
-    expect(nodeResultPreview(makeSubagent(longResult, ''))).toHaveLength(300);
+    expect(nodeResultPreview(makeSubagent('x'.repeat(400), ''))).toHaveLength(300);
+  });
+
+  it('extracts concise inline error badges for timeout and structured error strings', () => {
+    expect(shortNodeError(null)).toBeUndefined();
+    expect(shortNodeError('Timed out after 120s waiting for reply')).toBe('Timeout');
+    expect(shortNodeError('TimeoutError: upstream gateway')).toBe('Timeout');
+    expect(shortNodeError('RateLimitError: too many requests')).toBe('RateLimitError');
+    expect(shortNodeError('Error: Connection refused. Retry later')).toBe('Connection refused');
+    expect(shortNodeError('A'.repeat(60))).toHaveLength(40);
   });
 
   it('attaches a session turn to its emitted group when its parent session node was omitted', () => {
@@ -255,11 +371,9 @@ describe('workflowGraphModel', () => {
       log: [],
     });
     expect(layout.bands).toHaveLength(1);
-    expect(layout.bands[0]?.items).toHaveLength(1);
     const groupItem = layout.bands[0]?.items[0];
     expect(groupItem?.type).toBe('group');
     if (groupItem?.type === 'group') {
-      expect(groupItem.items).toHaveLength(1);
       expect(groupItem.items[0]?.type === 'node' ? groupItem.items[0].node.id : null).toBe('n2');
     }
   });

@@ -1,20 +1,26 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  type KeyboardEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Text } from 'folds';
+import { Box, Text } from 'folds';
+import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { localDigits } from '../../lib/localDigits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import { isLiveWorkflowRunStatus } from '../../matrix/protocol/workflowFrame';
 import { stopBackgroundJobs } from '../../matrix/send/cancelBackgroundJob';
 import { type SubagentRun, useRoomSubagentRuns } from '../../messages/live/subagentRunStore';
 import { getWorkflowRunStore, useWorkflowRun } from '../../messages/live/workflowRunStore';
-import {
-  workflowNodeStatusLabel,
-  workflowRunHeading,
-} from '../../messages/workflow-run/workflowRunLabels';
+import { workflowRunHeading } from '../../messages/workflow-run/workflowRunLabels';
 import {
   useCanCancelBackgroundJob,
   useLiveClock,
@@ -25,16 +31,23 @@ import {
 import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { SWIPE_PRIORITY } from '../../navigation/interactiveSwipe';
 import { RoomPanelEdgeSwipeContext } from '../../navigation/roomPanelEdgeSwipeContext';
-import { openSubagentsPanel } from '../../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
-import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
+import { documentIsRightToLeft, ownDirectionLine } from '../../ui/directional';
 import { PanelHeaderControls } from '../../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../../ui/panels/SidePanel.css';
 import { useAgentProfile } from '../AgentAvatar';
 import { Failure } from '../subagentsPanel.css';
-import { isLiveWorkflowNodeStatus, WorkflowGraphCanvas } from './WorkflowGraph';
-import { layoutWorkflowRunGraph, nodeResultPreview } from './workflowGraphModel';
+import { WorkflowGraphView } from './WorkflowGraph';
+import {
+  isLiveWorkflowNodeStatus,
+  layoutWorkflowRunGraph,
+  nodeDisplayName,
+} from './workflowGraphModel';
+import { WorkflowInspectorEmpty, WorkflowNodeInspector } from './WorkflowInspector';
 import * as css from './workflowPanel.css';
+
+type WorkflowTab = 'flow' | 'steps' | 'messages' | 'log';
+const TABS: readonly WorkflowTab[] = ['flow', 'steps', 'messages', 'log'];
 
 const OMITTED_ROWS = [
   ['queued', 'mindroomUi.workflowRun.panel.omitted.queued'],
@@ -52,7 +65,7 @@ export type WorkflowPanelProps = {
   readOnly?: boolean;
 };
 
-/** Live workflow graph side panel: header actions, phase bands, SVG message edges, inspector, log. */
+/** Live workflow graph side panel: header actions, Flow/Steps/Messages/Log tabs, sticky inspector. */
 export function WorkflowPanel({
   room,
   run,
@@ -61,8 +74,8 @@ export function WorkflowPanel({
   readOnly = false,
 }: WorkflowPanelProps) {
   const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const mx = useMatrixClient();
-  const jotaiStore = useStore();
   const entry = useWorkflowRun(room.roomId, run);
   useEffect(() => getWorkflowRunStore(mx).pin(room.roomId, run), [mx, room.roomId, run]);
   const subagentRuns = useRoomSubagentRuns(room.roomId);
@@ -74,17 +87,21 @@ export function WorkflowPanel({
 
   const isLive = entry ? isLiveWorkflowRunStatus(entry.status) : false;
   const now = useLiveClock(isLive);
+  const [activeTab, setActiveTab] = useState<WorkflowTab>('flow');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const tabRefs = useRef<Partial<Record<WorkflowTab, HTMLButtonElement | null>>>({});
+
   useEffect(() => {
+    setActiveTab('flow');
     setSelectedId(null);
     setErrorBanner(null);
   }, [room.roomId, run]);
+
   const handleSelect = useCallback(
     (id: string) => setSelectedId((cur) => (cur === id ? null : id)),
     []
   );
-
   const subagentsByRun = useMemo(
     () => new Map<string, SubagentRun>(subagentRuns.map((s) => [s.run, s])),
     [subagentRuns]
@@ -101,25 +118,71 @@ export function WorkflowPanel({
     [graph?.nodes]
   );
   const selectedNode = selectedId ? nodesById.get(selectedId) : undefined;
-  const selectedSubagent = selectedNode?.run ? subagentsByRun.get(selectedNode.run) : undefined;
-  const selectedPreview = selectedNode ? nodeResultPreview(selectedSubagent) : undefined;
-  const selectedEdges = useMemo(
-    () => (selectedNode && graph ? graph.edges.filter((e) => e.from === selectedNode.id) : []),
-    [graph, selectedNode]
+  const selectedSessionId = selectedNode
+    ? (selectedNode.session ?? (selectedNode.kind === 'session' ? selectedNode.id : null))
+    : null;
+  const canStopNode = Boolean(
+    selectedNode?.job && isLiveWorkflowNodeStatus(selectedNode.status) && canCancel
   );
-  const canStopNode = !!(
-    selectedNode?.job &&
-    isLiveWorkflowNodeStatus(selectedNode.status) &&
-    canCancel
+  const stopNode = useCallback(
+    async (jobId: string) => {
+      setErrorBanner(null);
+      if (!(await stopBackgroundJobs(mx, room, effectiveThreadId, { jobId }, [jobId])))
+        setErrorBanner(t('activity.actions.failed'));
+    },
+    [effectiveThreadId, mx, room, t]
   );
-  const stopNode = async (jobId: string) => {
-    setErrorBanner(null);
-    if (!(await stopBackgroundJobs(mx, room, effectiveThreadId, { jobId }, [jobId])))
-      setErrorBanner(t('activity.actions.failed'));
-  };
 
+  const edges = graph?.edges ?? [];
+  const logLines = graph?.log ?? [];
+  const messageCount = edges.reduce((sum, e) => sum + e.count, 0);
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
+  const hasOmitted = Boolean(omitted && Object.values(omitted).some(Boolean));
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const rtl = documentIsRightToLeft();
+    const nextIdx =
+      event.key === 'ArrowRight'
+        ? (index + (rtl ? -1 : 1) + TABS.length) % TABS.length
+        : event.key === 'ArrowLeft'
+          ? (index + (rtl ? 1 : -1) + TABS.length) % TABS.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? TABS.length - 1
+              : -1;
+    if (nextIdx < 0) return;
+    event.preventDefault();
+    const target = TABS[nextIdx]!;
+    setActiveTab(target);
+    tabRefs.current[target]?.focus();
+  };
+
+  const tabMeta: Record<WorkflowTab, { label: string; count?: number }> = {
+    flow: { label: t('mindroomUi.workflowRun.panel.flow') },
+    steps: { label: t('mindroomUi.workflowRun.panel.steps'), count: layout?.stepCount ?? 0 },
+    messages: { label: t('mindroomUi.workflowRun.node.messages'), count: messageCount },
+    log: { label: t('mindroomUi.workflowRun.panel.log'), count: logLines.length },
+  };
+
+  const omittedNotice = entry && hasOmitted && omitted && (
+    <div className={css.InsetBox}>
+      {OMITTED_ROWS.filter(([k]) => omitted[k] > 0).map(([k, msg]) => (
+        <Text key={k} size="T200" priority="300">
+          {t(msg, { count: omitted[k] })}
+        </Text>
+      ))}
+      <Text size="T200" priority="300">
+        {t('mindroomUi.workflowRun.panel.askAgent', { agent: agentProfile.name || entry.agent })}
+      </Text>
+    </div>
+  );
+
+  const showSplit =
+    entry &&
+    (activeTab === 'flow' || activeTab === 'steps') &&
+    ((layout && layout.bands.length > 0) || Boolean(selectedNode));
 
   return (
     <section tabIndex={-1} className={css.Panel} aria-label={heading} data-testid="workflow-panel">
@@ -142,6 +205,38 @@ export function WorkflowPanel({
           />
         </PanelHeaderControls>
       </header>
+      {entry && (
+        <div
+          className={css.TabBar}
+          role="tablist"
+          aria-label={t('mindroomUi.workflowRun.panel.viewsLabel')}
+        >
+          {TABS.map((id, idx) => {
+            const { label, count } = tabMeta[id];
+            const selected = activeTab === id;
+            return (
+              <button
+                key={id}
+                ref={(el) => {
+                  tabRefs.current[id] = el;
+                }}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
+                className={css.TabButton}
+                onClick={() => setActiveTab(id)}
+                onKeyDown={(e) => onTabKeyDown(e, idx)}
+              >
+                <span>{label}</span>
+                {count !== undefined && (
+                  <span className={css.MutedNum}>{localDigits(String(count), language)}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className={css.Body}>
         {errorBanner && (
           <Text role="alert" size="T200" className={Failure}>
@@ -158,122 +253,72 @@ export function WorkflowPanel({
             {t('mindroomUi.workflowRun.panel.stale', { time: staleRelative })}
           </Text>
         )}
-        {entry && layout && layout.bands.length > 0 && (
-          <WorkflowGraphCanvas
-            bands={layout.bands}
-            edges={graph?.edges ?? []}
-            room={room}
-            subagentsByRun={subagentsByRun}
-            selectedId={selectedId}
-            now={now}
-            onSelect={handleSelect}
-          />
-        )}
-        {entry && selectedNode && (
-          <div className={css.InsetBox} data-workflow-node-details={selectedNode.id}>
-            <Text as="h3" size="T300" className={css.StrongText} {...ownDirectionLine}>
-              {selectedNode.label}
-            </Text>
-            <Text size="T200" priority="300">
-              {workflowNodeStatusLabel(selectedNode.status, t, selectedNode.waitingOn)}
-            </Text>
-            {selectedNode.error && (
-              <div>
-                <Text size="T200" className={css.StrongText}>
-                  {t('mindroomUi.workflowRun.node.error')}
-                </Text>
-                <Text size="T200" className={Failure} {...ownDirectionBlock}>
-                  {selectedNode.error}
-                </Text>
-              </div>
-            )}
-            {selectedPreview && (
-              <div>
-                <Text size="T200" className={css.StrongText}>
-                  {t('mindroomUi.workflowRun.node.result')}
-                </Text>
-                <Text size="T200" {...ownDirectionBlock}>
-                  {selectedPreview}
-                </Text>
-              </div>
-            )}
-            {selectedEdges.length > 0 && (
-              <div>
-                <Text size="T200" className={css.StrongText}>
-                  {t('mindroomUi.workflowRun.node.messages')}
-                </Text>
-                {selectedEdges.map((e) => (
-                  <Text key={`${e.from}->${e.to}`} size="T200">
-                    {t('mindroomUi.workflowRun.node.messagesTo', {
-                      name: nodesById.get(e.to)?.name ?? nodesById.get(e.to)?.label ?? e.to,
-                      count: e.count,
-                    })}
-                  </Text>
-                ))}
-              </div>
-            )}
-            {(selectedNode.run || canStopNode) && (
-              <div className={cardCss.Row}>
-                {selectedNode.run && (
-                  <Button
-                    type="button"
-                    size="300"
-                    variant="Secondary"
-                    fill="Soft"
-                    disabled={!selectedSubagent}
-                    onClick={() =>
-                      openSubagentsPanel(
-                        jotaiStore,
-                        room.roomId,
-                        effectiveThreadId,
-                        selectedNode.run
-                      )
-                    }
-                  >
-                    <Text size="B300">{t('mindroomUi.workflowRun.node.open')}</Text>
-                  </Button>
-                )}
-                {canStopNode && selectedNode.job && (
-                  <Button
-                    type="button"
-                    size="300"
-                    variant="Critical"
-                    fill="Soft"
-                    onClick={() => void stopNode(selectedNode.job!)}
-                  >
-                    <Text size="B300">{t('mindroomUi.workflowRun.node.stop')}</Text>
-                  </Button>
-                )}
-              </div>
-            )}
-            {selectedNode.run && !selectedSubagent && (
-              <Text size="T200" priority="300">
-                {t('mindroomUi.workflowRun.node.detailsUnavailable')}
-              </Text>
+        {showSplit && (
+          <div className={css.SplitLayout}>
+            <div className={css.Band}>
+              {layout && layout.bands.length > 0 && (
+                <WorkflowGraphView
+                  mode={activeTab === 'steps' ? 'steps' : 'flow'}
+                  bands={layout.bands}
+                  sessionsById={layout.sessionsById}
+                  peerBridgesByGroup={layout.peerBridgesByGroup}
+                  room={room}
+                  subagentsByRun={subagentsByRun}
+                  selectedId={selectedId}
+                  selectedSessionId={selectedSessionId}
+                  now={now}
+                  onSelect={handleSelect}
+                />
+              )}
+              {omittedNotice}
+            </div>
+            {selectedNode ? (
+              <WorkflowNodeInspector
+                room={room}
+                threadId={effectiveThreadId}
+                node={selectedNode}
+                subagentRun={selectedNode.run ? subagentsByRun.get(selectedNode.run) : undefined}
+                session={
+                  selectedNode.session ? layout?.sessionsById.get(selectedNode.session) : undefined
+                }
+                nodesById={nodesById}
+                edges={edges}
+                now={now}
+                canStop={canStopNode}
+                onSelect={handleSelect}
+                onStopNode={(jobId) => void stopNode(jobId)}
+              />
+            ) : (
+              <WorkflowInspectorEmpty />
             )}
           </div>
         )}
-        {entry && omitted && Object.values(omitted).some(Boolean) && (
-          <div className={css.InsetBox}>
-            {OMITTED_ROWS.filter(([k]) => omitted[k] > 0).map(([k, msg]) => (
-              <Text key={k} size="T200" priority="300">
-                {t(msg, { count: omitted[k] })}
-              </Text>
-            ))}
-            <Text size="T200" priority="300">
-              {t('mindroomUi.workflowRun.panel.askAgent', {
-                agent: agentProfile.name || entry.agent,
-              })}
+        {entry && (activeTab === 'flow' || activeTab === 'steps') && !showSplit && omittedNotice}
+        {entry &&
+          activeTab === 'messages' &&
+          (edges.length > 0 ? (
+            <ul className={css.MessageList}>
+              {edges.map((e) => (
+                <li key={`${e.from}->${e.to}`} className={css.MessageRow}>
+                  <span {...ownDirectionLine}>
+                    <bdi>{nodeDisplayName(nodesById, e.from)}</bdi>
+                    {' → '}
+                    <bdi>{nodeDisplayName(nodesById, e.to)}</bdi>
+                  </span>
+                  <span className={css.CountBadge}>{localDigits(String(e.count), language)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Text size="T200" priority="300" className={css.Empty}>
+              {t('mindroomUi.workflowRun.panel.noMessages')}
             </Text>
-          </div>
-        )}
-        {entry && graph && graph.log.length > 0 && (
-          <div>
-            <Text as="h3" size="T200" priority="300" className={css.StrongText}>
-              {t('mindroomUi.workflowRun.panel.log')}
-            </Text>
+          ))}
+        {entry &&
+          activeTab === 'log' &&
+          (logLines.length > 0 ? (
             <ul className={css.LogList}>
-              {graph.log.map((line, i) => (
+              {logLines.map((line, i) => (
                 // Log lines are append-only text and can repeat across rounds.
                 // eslint-disable-next-line react/no-array-index-key
                 <li key={i} {...ownDirectionLine}>
@@ -281,8 +326,11 @@ export function WorkflowPanel({
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          ) : (
+            <Text size="T200" priority="300" className={css.Empty}>
+              {t('mindroomUi.workflowRun.panel.noLog')}
+            </Text>
+          ))}
       </div>
     </section>
   );
