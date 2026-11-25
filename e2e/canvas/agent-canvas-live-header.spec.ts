@@ -184,7 +184,12 @@ const expectCanvasOffered = async (
  * then deletes it: the canvas control comes and goes with it.
  */
 const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scenario) => {
-  const roomId = await createAgentRoom(stack, `Canvas desk ${uniqueWord('r')}`, scenario.encrypted);
+  const roomId = await createAgentRoom(
+    stack,
+    `Canvas desk ${uniqueWord('r')}`,
+    scenario.encrypted,
+    scenario.conversation === 'room' ? { helperPowerLevel: 50 } : undefined
+  );
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   if (scenario.conversation === 'room') {

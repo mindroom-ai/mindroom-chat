@@ -599,8 +599,10 @@ export const waitForAgentReply = (
 export const createAgentRoom = async (
   stack: AgentStack,
   name: string,
-  encrypted: boolean
+  encrypted: boolean,
+  options?: { helperPowerLevel?: number }
 ): Promise<string> => {
+  const helperPowerLevel = options?.helperPowerLevel;
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
     stack.homeserver,
     '/createRoom',
@@ -611,6 +613,11 @@ export const createAgentRoom = async (
         name,
         preset: 'private_chat',
         invite: [stack.agents.helper],
+        ...(helperPowerLevel !== undefined && {
+          power_level_content_override: {
+            users: { [stack.tester.userId]: 100, [stack.agents.helper]: helperPowerLevel },
+          },
+        }),
         initial_state: encrypted
           ? [
               {
