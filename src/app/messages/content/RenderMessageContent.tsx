@@ -17,7 +17,6 @@ import {
   UnsupportedContent,
 } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
-import { useInlineMediaValue } from './inlineMediaContext';
 import { FileDownloadButton } from './FileHeader';
 import { FileContent, ReadPdfFile, ReadTextFile } from './FileContent';
 import { ImageContent } from './ImageContent';
@@ -143,8 +142,6 @@ function CoreMessageContent({
 }: RenderMessageContentProps) {
   const client = useMatrixClient();
   const content = getContent<Content>();
-  const owner = getEventAttachmentOwner(mEvent);
-  const inlineMedia = useInlineMediaValue(content, owner);
   const fromMindroomAgent = isMindroomAgentUserIdForViewer(
     mEvent?.getSender(),
     client.getUserId() ?? undefined
@@ -237,6 +234,7 @@ function CoreMessageContent({
   }
   if (agentMessage) return agentMessage;
 
+  const owner = getEventAttachmentOwner(mEvent);
   const renderStateSuffix = getMessageStateSuffixRenderer({
     edited: showEdited,
     pendingSend,
@@ -250,7 +248,6 @@ function CoreMessageContent({
       highlightRegex={highlightRegex}
       linkifyOpts={linkifyOpts}
       htmlReactParserOptions={htmlReactParserOptions}
-      inlineMedia={inlineMedia}
     />
   );
 

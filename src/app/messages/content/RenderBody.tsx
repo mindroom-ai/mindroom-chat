@@ -1,4 +1,4 @@
-import { ReactNode, memo, useContext, useMemo } from 'react';
+import { ReactNode, memo, useMemo } from 'react';
 import { isText } from 'domhandler';
 import { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
 import { parseHtml } from '../../rich-text/parseHtml';
@@ -10,7 +10,10 @@ import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
-import { InlineMediaContext, type InlineMediaContextValue } from './inlineMediaContext';
+import {
+  InlineMediaContext,
+  type InlineMediaContextValue,
+} from '../../matrix/protocol/inlineMedia';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
   HtmlReactParserOptionsSource,
@@ -98,7 +101,6 @@ export const RenderBody = memo(function RenderBody({
   // Site icons come from a third party, so links show them only where the deployment allows it.
   const linkFavicons = clientConfig.messageRendering?.linkFavicons === true;
   const sanitizeOptions = useBodySanitizeOptions();
-  const inheritedInlineMedia = useContext(InlineMediaContext);
 
   const customContent = useMemo(() => {
     if (!customBody) return undefined;
@@ -109,17 +111,12 @@ export const RenderBody = memo(function RenderBody({
   }, [customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
 
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
+  const content =
+    customContent ?? renderTextWithLatex(body, { linkify: true, linkifyOpts, highlightRegex });
   return (
     <FootnoteScopeProvider>
       <LinkFaviconContext value={linkFavicons}>
-        <InlineMediaContext value={inlineMedia ?? inheritedInlineMedia}>
-          {customContent ??
-            renderTextWithLatex(body, {
-              linkify: true,
-              linkifyOpts,
-              highlightRegex,
-            })}
-        </InlineMediaContext>
+        <InlineMediaContext value={inlineMedia}>{content}</InlineMediaContext>
       </LinkFaviconContext>
     </FootnoteScopeProvider>
   );
