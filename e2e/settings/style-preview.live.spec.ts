@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const HOMESERVER = process.env.E2E_HOMESERVER || 'https://mindroom.lab.mindroom.chat';
 const USERNAME = process.env.E2E_USERNAME;
@@ -87,11 +87,18 @@ test('capture styling screenshots', async ({ page }) => {
     await page.waitForTimeout(1000);
   }
 
-  const createRoom = page.locator('text=Create Room').first();
-  if (await createRoom.isVisible().catch(() => false)) {
-    await createRoom.click();
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: `${OUT}/${PREFIX}-create-room-dark.png` });
-    await page.keyboard.press('Escape');
+  const addRooms = page.locator('[data-home-room-action="add"]').first();
+  if (await addRooms.isVisible().catch(() => false)) {
+    await addRooms.click();
+    await page.locator('[data-home-room-action="create"]').click();
+  } else {
+    const createRoom = page.locator('[data-home-room-action="create"]').first();
+    if (await createRoom.isVisible().catch(() => false)) {
+      await createRoom.click();
+    }
   }
+  await expect(page.locator('input[name="nameInput"]')).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: `${OUT}/${PREFIX}-create-room-dark.png` });
+  await page.keyboard.press('Escape');
 });
