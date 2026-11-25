@@ -48,7 +48,7 @@
 
 ## PR 3: Never flush negative `_holdOffset` past `scrollTop = 0`
 
-**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate a negative `_holdOffset`. If the reader then scrolls upward until `live + _holdOffset < 0`, `_flushHoldIfReady` zeroes `_holdOffset` while `scrollTop` clamps at `0`, snapping every visible row upward by `-(live + _holdOffset)`. Flush only the portion that fits above `0` (`nextHold = live + _holdOffset < 0 ? live + _holdOffset : 0`), leaving the excess held without snapping until a prepend or downward scroll provides room above `0`.
+**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate a negative `_holdOffset`. If the reader then scrolls upward until `live + _holdOffset < 0`, `_flushHoldIfReady` zeroes `_holdOffset` while `scrollTop` clamps at `0`, snapping every visible row upward by `-(live + _holdOffset)`. Flush only the portion that fits above `0` (`nextHold = live + _holdOffset < 0 ? live + _holdOffset : 0`), leaving the excess held without snapping until a prepend or downward scroll provides room above `0` (notifying once when wheel or iOS gesture rest keeps a clamped negative hold, so callers at true history start can clear it).
 
 ```diff
    // _flushHoldIfReady(sync):

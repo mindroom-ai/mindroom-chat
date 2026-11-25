@@ -29,6 +29,7 @@ import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { isDesktopWebKit } from '../lib/user-agent';
 import { isIOSWebKitDevice } from './scrollQuiescence';
 import { listShrinkAfterResize, pastEndCorrection } from './useListEndClamp';
+import { ROOM_INTRO_KEY } from './roomTimelineRows';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -81,28 +82,33 @@ export type TimelineScrollLedgerController = {
  * Clear it on explicit jumps, pins, and status-bar taps so quiescence cannot shift the landed
  * scroll position away from the target.
  */
+type VirtualizerInternals = {
+  _holdOffset?: number;
+  _canWriteScroll?: () => boolean;
+  applyScrollAdjustment?: (delta: number) => boolean;
+  pendingScrollAnchor?: unknown;
+  scrollState?: { phase?: string } | null;
+  notify?: (sync: boolean) => void;
+};
+
+const asInternals = (virtualizer: unknown): VirtualizerInternals | undefined =>
+  (virtualizer as VirtualizerInternals | null | undefined) ?? undefined;
+
 export const readVirtualizerHoldOffset = (virtualizer: unknown): number =>
-  (virtualizer as { _holdOffset?: number } | null | undefined)?._holdOffset ?? 0;
+  asInternals(virtualizer)?._holdOffset ?? 0;
 
 export const hasPendingVirtualizerAnchor = (virtualizer: unknown): boolean =>
-  Boolean(
-    (virtualizer as { pendingScrollAnchor?: unknown } | null | undefined)?.pendingScrollAnchor
-  );
+  Boolean(asInternals(virtualizer)?.pendingScrollAnchor);
 
 export const clearVirtualizerHoldOffset = (virtualizer: {
   cancelScroll: () => void;
   scrollElement?: { scrollTop: number } | null;
   scrollOffset?: number | null;
 }): void => {
-  const internal = virtualizer as {
-    _holdOffset?: number;
-    notify?: (sync: boolean) => void;
-  };
-  if (!internal._holdOffset) return;
+  const internal = asInternals(virtualizer);
+  if (!internal?._holdOffset) return;
   internal._holdOffset = 0;
-  if (virtualizer.scrollElement) {
-    virtualizer.scrollOffset = virtualizer.scrollElement.scrollTop;
-  }
+  if (virtualizer.scrollElement) virtualizer.scrollOffset = virtualizer.scrollElement.scrollTop;
   internal.notify?.(false);
 };
 
@@ -257,11 +263,6 @@ export const useTimelineScrollLedgerController = ({
     [virtualizer]
   );
 
-  useLayoutEffect(() => {
-    anchorSizeCacheRef.current = virtualizer.itemSizeCache;
-    virtualizerRef.current = virtualizer;
-  }, [virtualizer]);
-
   // The newest-first Threads view's rows, where the list sits in the scroll content and the
   // headers' inset; the reader's row is recorded at every commit and scroll.
   const roomLedgerViewRef = useRef<{
@@ -271,8 +272,21 @@ export const useTimelineScrollLedgerController = ({
     inset: number;
   }>(undefined);
   const anchorRoomRowsRef = useRef(anchorRoomRows);
+  const atRoomStart =
+    !threadId && !latestAtTop && itemCount > 0 && getItemKey(0) === ROOM_INTRO_KEY;
   useLayoutEffect(() => {
+    anchorSizeCacheRef.current = virtualizer.itemSizeCache;
+    virtualizerRef.current = virtualizer;
     anchorRoomRowsRef.current = anchorRoomRows;
+    // Drop a clamped negative hold once at rest at the true start of the room (no older page left).
+    const internal = asInternals(virtualizer);
+    if (
+      atRoomStart &&
+      (internal?._holdOffset ?? 0) < 0 &&
+      internal?._canWriteScroll?.() !== false &&
+      internal?.scrollState?.phase !== 'smooth'
+    )
+      clearVirtualizerHoldOffset(virtualizer);
   });
   const anchorRoomLedgerAt = useCallback((scrollTop: number) => {
     const view = roomLedgerViewRef.current;
@@ -334,9 +348,8 @@ export const useTimelineScrollLedgerController = ({
       if (
         inner.getBoundingClientRect().top - deltaPx >
         scrollElement.getBoundingClientRect().top + readTopInset(scrollElement)
-      ) {
+      )
         return;
-      }
       scrollElement.scrollTop = scrollTop + deltaPx;
     },
     [getScrollElement, threadId]
@@ -457,9 +470,7 @@ export const useTimelineScrollLedgerController = ({
         measurementCorrectionPxRef.current += endCorrection;
         if (shownPx === undefined) unrenderedRowMovesPxRef.current += endCorrection;
         renderRowMoveBeforePaint();
-        const applyAdjustment = (
-          instance as unknown as { applyScrollAdjustment?: (deltaPx: number) => boolean }
-        ).applyScrollAdjustment;
+        const applyAdjustment = asInternals(instance)?.applyScrollAdjustment;
         if (endCorrection !== delta && typeof applyAdjustment === 'function') {
           applyAdjustment.call(instance, endCorrection);
           return false;
