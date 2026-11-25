@@ -4,6 +4,7 @@ import React, { act, lazy, useEffect, useImperativeHandle } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { ComputerPanel, type ComputerPanelProps } from './ComputerPanel';
 import {
   ComputerScreen,
@@ -33,7 +34,12 @@ vi.mock('folds', () => ({
   IconButton: ({ children, ...props }: React.ComponentPropsWithRef<'button'>) => (
     <button {...props}>{children}</button>
   ),
-  Icons: { Cross: 'Cross', Monitor: 'Monitor' },
+  Icons: {
+    Cross: 'Cross',
+    Monitor: 'Monitor',
+    ChevronLeft: 'ChevronLeft',
+    ChevronRight: 'ChevronRight',
+  },
   Spinner: () => <span />,
   // Icon buttons name themselves in tooltips; render only the trigger.
   Tooltip: () => null,
@@ -42,6 +48,15 @@ vi.mock('folds', () => ({
   Text: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
     <span role={role}>{children}</span>
   ),
+}));
+
+vi.mock('../ui/panels/PanelFrame.css', () => ({
+  STRIP_WIDTH: 40,
+  Tab: 'Tab',
+  TabLabel: 'TabLabel',
+  ControlPill: 'ControlPill',
+  ControlExtras: 'ControlExtras',
+  ControlSeparator: 'ControlSeparator',
 }));
 
 vi.mock('./ComputerPanel.css.ts', () => ({
@@ -345,6 +360,38 @@ describe('ComputerPanel', () => {
 
     renderPanel({ onToggleExpanded: undefined });
     await waitFor(() => expect(expandButton()).toBeNull());
+  });
+
+  it('uses PanelFrame Fill and Fold controls instead of a duplicate Expand button when framed', async () => {
+    const setLayout = vi.fn();
+    const props: ComputerPanelProps = {
+      agents: [{ userId: '@mindroom_helper:example.org', name: 'Helper' }],
+      apiUrl: 'https://computer.example.org',
+      mx: makeMatrixClient(),
+      onClose: vi.fn(),
+      onToggleExpanded: vi.fn(),
+      request: createGateway(),
+      roomId: '!room:example.org',
+      ScreenComponent: TestScreen,
+      threadId: '$thread',
+    };
+    act(() => {
+      root.render(
+        <PanelFrameProvider value={{ label: 'Computer', layout: 'beside', setLayout }}>
+          <ComputerPanel {...props} />
+        </PanelFrameProvider>
+      );
+    });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(container.querySelector('[aria-label="Expand computer"]')).toBeNull();
+    await click(
+      container.querySelector<HTMLButtonElement>('[aria-label="Fill the room with Computer"]')!
+    );
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    await click(
+      container.querySelector<HTMLButtonElement>('[aria-label="Fold Computer to the edge"]')!
+    );
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
   });
 
   // A container query on the panel moves these into a grid: the screen beside a column of the

@@ -9,10 +9,6 @@ export const TitleGroup = style({
   minWidth: 0,
 });
 
-export const Controls = style({
-  flex: '0 0 auto',
-});
-
 export const Title = style({
   flex: '1 1 auto',
   display: 'flex',
@@ -29,7 +25,7 @@ export const FrameWrap = style({
 });
 
 export const Frame = style({
-  backgroundColor: color.Background.Container,
+  backgroundColor: color.Surface.Container,
   border: 'none',
   display: 'block',
   height: '100%',
@@ -41,7 +37,6 @@ export const Frame = style({
 });
 
 export const Footer = style({
-  borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   display: 'flex',
   flexDirection: 'column',
   flex: '0 0 auto',
@@ -54,4 +49,5 @@ export const Footer = style({
 
 export const Version = style({
   whiteSpace: 'nowrap',
+  paddingInline: config.space.S100,
 });

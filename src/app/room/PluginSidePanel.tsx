@@ -1,11 +1,12 @@
 import { type ReactNode, Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Box, Icon, IconButton, Icons, Text, config } from 'folds';
+import { Box, Text, config } from 'folds';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { sampleMemory } from '../diagnostics/memorySampler';
 import { pluginFailure } from '../plugins/pluginFailure';
 import type { RoomSidePanel } from '../plugins/sidePanels';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { Header, Panel } from '../ui/panels/SidePanel.css';
 
 /**
@@ -43,15 +44,11 @@ export function PluginSidePanel({
           <Text as="h2" size="H4" truncate>
             {label}
           </Text>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('mindroomUi.plugins.sidePanel.close', { label })}
-            onClick={onClose}
-          >
-            <Icon size="200" src={Icons.Cross} />
-          </IconButton>
+          <PanelHeaderControls
+            onClose={onClose}
+            closeLabel={t('mindroomUi.plugins.sidePanel.close', { label })}
+            showFrame={!own}
+          />
         </header>
       )}
       <Box grow="Yes" direction="Column" style={{ minHeight: 0, overflowY: 'auto' }}>

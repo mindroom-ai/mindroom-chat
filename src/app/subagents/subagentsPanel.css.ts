@@ -17,7 +17,7 @@ export const UnderLayer = style({
   display: 'flex',
   flexDirection: 'column',
   minBlockSize: 0,
-  backgroundColor: color.Background.Container,
+  backgroundColor: color.Surface.Container,
   pointerEvents: 'none',
 });
 
@@ -30,7 +30,7 @@ export const DetailLayer = style({
   inlineSize: '100%',
   minInlineSize: 0,
   minBlockSize: 0,
-  backgroundColor: color.Background.Container,
+  backgroundColor: color.Surface.Container,
   selectors: {
     // Only elevate into a stacking context while actively sliding over `UnderLayer`.
     '&[data-swiping]': { zIndex: 1 },
@@ -91,19 +91,19 @@ export const Card = style({
   width: '100%',
   minWidth: 0,
   padding: `${space.S200} ${space.S300}`,
-  border: quietLine,
+  border: `${borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   borderRadius: radii.R400,
-  background: color.Surface.Container,
-  color: color.Surface.OnContainer,
+  background: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
   font: 'inherit',
   textAlign: 'start',
   fontVariantNumeric: 'tabular-nums',
   cursor: 'pointer',
-  vars: { [logoRing]: color.Surface.Container },
+  vars: { [logoRing]: color.SurfaceVariant.Container },
   selectors: {
     '&:hover': {
-      background: color.Surface.ContainerHover,
-      vars: { [logoRing]: color.Surface.ContainerHover },
+      background: color.SurfaceVariant.ContainerHover,
+      vars: { [logoRing]: color.SurfaceVariant.ContainerHover },
     },
     '&:focus-visible': {
       outline: `${borderWidth.B600} solid ${color.Primary.Main}`,
@@ -226,7 +226,7 @@ export const Stats = style({
   minWidth: 0,
   marginBlockStart: space.S100,
   paddingBlockStart: space.S100,
-  borderBlockStart: quietLine,
+  borderBlockStart: `${borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   whiteSpace: 'nowrap',
 });
 
@@ -319,12 +319,12 @@ export const Divider = style({
   },
 });
 
-const headerLine = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
+const headerLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 
 /** The open run's header: its buttons stay at the top beside a title of two lines. */
 export const RunHeader = style({
   alignItems: 'flex-start',
-  vars: { [logoRing]: color.Background.Container },
+  vars: { [logoRing]: color.Surface.Container },
 });
 
 export const HeaderLogo = style({ marginBlockStart: toRem(4) });

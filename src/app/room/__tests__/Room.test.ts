@@ -200,6 +200,7 @@ vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
 vi.mock('../../ui/panels/PanelFrame', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/panels/PanelFrame')>()),
   PanelFrameStrip: () => null,
+  PanelHeaderControls: () => null,
 }));
 
 vi.mock('jotai', async () => {

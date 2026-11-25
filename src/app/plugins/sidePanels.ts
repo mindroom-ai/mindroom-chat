@@ -54,18 +54,19 @@ export type SidePanel = {
   opensOverMembers?: true;
   /**
    * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
-   * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
+   * room draws none: no title, Close, splitter or folded edge tab. The component reads and sets its
    * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
    * phone's conversation it hides the room header and the panel's toggle with it, so the component
    * offers a way out of its own: Hide, or a Close that calls `close` of {@link useRoomSidePanel}.
    */
   frame?: 'own';
   /**
-   * `own`: its `Component` shows the panel's name and a Close itself (Close calls `close` of
-   * {@link useRoomSidePanel}), and the room draws no title row above it. Unlike `frame: 'own'`, the
-   * room still draws its box: the splitter, the remembered width and the frame strip (Fill, Fold)
-   * on desktop, and the phone cover. While its code loads and after it failed, the room draws the
-   * title row with Close, so it can always be closed. With `frame: 'own'` too, `frame` wins.
+   * `own`: its `Component` renders its own title row, frame controls via `usePanelFrame()` (Fill,
+   * Fold), and Close (which calls `close` of {@link useRoomSidePanel}), and the room draws no title
+   * row above it. Unlike `frame: 'own'`, the room still keeps its box: the splitter, the remembered
+   * width, the folded edge tab on desktop, and the phone cover. While its code loads and after it
+   * failed, the room draws the title row with Close, so it can always be closed. With `frame: 'own'`
+   * too, `frame` wins.
    */
   title?: 'own';
 };

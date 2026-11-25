@@ -3,6 +3,7 @@ import { lazy } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RoomSidePanel } from '../plugins/sidePanels';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { PluginSidePanel } from './PluginSidePanel';
 
 const sampleMemoryMock = vi.hoisted(() => vi.fn());
@@ -42,10 +43,24 @@ describe('PluginSidePanel', () => {
     sampleMemoryMock.mockClear();
   });
 
-  it('draws the title row and Close above a panel by default', () => {
-    show({ ...titled(() => <p>Notes body</p>), title: undefined });
+  it('draws the title row, frame controls, and Close above a panel by default', () => {
+    const setLayout = vi.fn();
+    render(
+      <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
+        <PluginSidePanel
+          panel={{ ...titled(() => <p>Notes body</p>), title: undefined }}
+          roomId="!lobby:example.org"
+          request={undefined}
+          onClose={() => undefined}
+        />
+      </PanelFrameProvider>
+    );
     expect(titleRow()).not.toBeNull();
     expect(close()).not.toBeNull();
+    act(() => screen.getByRole('button', { name: 'Fill the room with Notes' }).click());
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    act(() => screen.getByRole('button', { name: 'Fold Notes to the edge' }).click());
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
   });
 
   it('draws no title row above a panel with its own title, and keeps the region and its body', () => {

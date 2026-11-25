@@ -2,7 +2,7 @@ import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Icon, IconButton, Icons, Text } from 'folds';
+import { Text } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useInert } from '../lib/hooks/useInert';
 import { useInterval } from '../lib/hooks/useInterval';
@@ -30,6 +30,7 @@ import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { runTotals, usageTexts } from './runUsage';
@@ -310,15 +311,7 @@ export function SubagentsPanel({
             </Text>
           )}
         </div>
-        <IconButton
-          size="300"
-          radii="300"
-          variant="Surface"
-          aria-label={t('mindroomUi.subagents.close')}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.subagents.close')} />
       </header>
       <div className={css.Body}>
         {nodes.length === 0 ? (

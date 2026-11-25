@@ -899,6 +899,7 @@ function ExampleThread({ roomId }: { roomId: string }) {
   const client = useMatrixClient();
   const [threadId] = useState(useShownThread());
   const panel = useRoomSidePanel('example', 'thread');
+  const frame = usePanelFrame();
   const boxRef = useRef<HTMLDivElement>(null);
   const close = panel?.close;
   // On the window, which the thread's menus and the profile card its rows open let no Escape of
@@ -915,10 +916,26 @@ function ExampleThread({ roomId }: { roomId: string }) {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [close]);
   const room = client.getRoom(roomId);
-  // Its own title row (`title: 'own'`): the room draws none above it.
+  // Its own title row (`title: 'own'`): the room draws none above it, and frame controls come
+  // from `usePanelFrame()`.
+  const filled = frame?.layout === 'filled';
   const title = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px' }}>
       <h2 style={{ flex: '1 1 auto', fontSize: '1rem' }}>Example thread</h2>
+      {frame && frame.layout !== 'folded' && (
+        <>
+          <button
+            type="button"
+            aria-pressed={filled}
+            onClick={() => frame.setLayout(filled ? 'beside' : 'filled')}
+          >
+            Fill the room with {frame.label}
+          </button>
+          <button type="button" onClick={() => frame.setLayout('folded')}>
+            Fold {frame.label} to the edge
+          </button>
+        </>
+      )}
       <button type="button" onClick={close}>
         Close Example thread
       </button>

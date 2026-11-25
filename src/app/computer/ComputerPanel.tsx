@@ -17,6 +17,8 @@ import type { ComputerAgent, ComputerStatus, ComputerStreamConnection } from './
 import { sendComputerContinuation } from './continuation';
 import { hasCoarsePointer } from './computerFocus';
 import { IconTooltip } from '../ui/IconTooltip';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { lazyPart } from '../lib/lazyPart';
 import { ComputerScreenUnavailable } from './ComputerScreenUnavailable';
@@ -134,6 +136,7 @@ export function ComputerPanel({
   expanded = false,
   onToggleExpanded,
 }: ComputerPanelProps) {
+  const frame = usePanelFrame();
   const [chosenAgentId, setChosenAgentId] = useState<string | undefined>(requestedAgent?.userId);
   const [activeAgentId, setActiveAgentId] = useState<string | undefined>(requestedAgent?.userId);
   const handledRequestRef = useRef(requestedAgent);
@@ -614,8 +617,8 @@ export function ComputerPanel({
             <Icon size="300" src={Icons.Monitor} />
             <Text size="H4">Computer</Text>
           </Box>
-          <Box alignItems="Center" gap="100">
-            {onToggleExpanded && (
+          <PanelHeaderControls onClose={handleClose} closeLabel="Close computer">
+            {onToggleExpanded && !frame && (
               <IconTooltip label="Expand computer">
                 {(triggerRef) => (
                   <IconButton
@@ -624,16 +627,16 @@ export function ComputerPanel({
                     aria-label="Expand computer"
                     aria-pressed={expanded}
                     size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    fill="None"
                   >
-                    <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+                    <Icon size="200" src={expanded ? ShrinkIcon : ExpandIcon} />
                   </IconButton>
                 )}
               </IconTooltip>
             )}
-            <IconButton onClick={handleClose} aria-label="Close computer" size="300">
-              <Icon size="300" src={Icons.Cross} />
-            </IconButton>
-          </Box>
+          </PanelHeaderControls>
         </div>
 
         <div className={css.Body}>

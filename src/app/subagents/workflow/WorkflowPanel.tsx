@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Button, Text } from 'folds';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -28,6 +28,7 @@ import { RoomPanelEdgeSwipeContext } from '../../navigation/roomPanelEdgeSwipeCo
 import { openSubagentsPanel } from '../../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
 import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
+import { PanelHeaderControls } from '../../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../../ui/panels/SidePanel.css';
 import { useAgentProfile } from '../AgentAvatar';
 import { Failure } from '../subagentsPanel.css';
@@ -129,7 +130,7 @@ export function WorkflowPanel({
           </div>
           {entry && <WorkflowRunMetrics view={entry} isLive={isLive} now={now} />}
         </Box>
-        <Box alignItems="Center" gap="100" shrink="No">
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.workflowRun.panel.close')}>
           <WorkflowRunControls
             room={room}
             run={run}
@@ -139,16 +140,7 @@ export function WorkflowPanel({
             readOnly={readOnly}
             onError={setErrorBanner}
           />
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('mindroomUi.workflowRun.panel.close')}
-            onClick={onClose}
-          >
-            <Icon size="200" src={Icons.Cross} />
-          </IconButton>
-        </Box>
+        </PanelHeaderControls>
       </header>
       <div className={css.Body}>
         {errorBanner && (
