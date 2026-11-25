@@ -29,7 +29,6 @@ import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { isDesktopWebKit } from '../lib/user-agent';
 import { isIOSWebKitDevice } from './scrollQuiescence';
 import { listShrinkAfterResize, pastEndCorrection } from './useListEndClamp';
-import { ROOM_INTRO_KEY } from './roomTimelineRows';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -51,6 +50,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadId?: string;
   /** Keep thread virtual item 0 (Load Older) mounted while scrolled down. */
   pinThreadLeadingItem?: boolean;
+  /** Whether older history can still prepend above item 0 (keeps clamped negative holds). */
+  canLoadOlder?: boolean;
   scrollMargin?: number;
   automaticFill?: {
     geometryReader: MutableRefObject<() => string | undefined>;
@@ -127,6 +128,7 @@ export const useTimelineScrollLedgerController = ({
   roomId,
   threadId,
   pinThreadLeadingItem = false,
+  canLoadOlder = false,
   scrollMargin = 0,
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -272,16 +274,14 @@ export const useTimelineScrollLedgerController = ({
     inset: number;
   }>(undefined);
   const anchorRoomRowsRef = useRef(anchorRoomRows);
-  const atRoomStart =
-    !threadId && !latestAtTop && itemCount > 0 && getItemKey(0) === ROOM_INTRO_KEY;
   useLayoutEffect(() => {
     anchorSizeCacheRef.current = virtualizer.itemSizeCache;
     virtualizerRef.current = virtualizer;
     anchorRoomRowsRef.current = anchorRoomRows;
-    // Drop a clamped negative hold once at rest at the true start of the room (no older page left).
+    // Drop a clamped negative hold once at rest at the true start of the list (no older page left).
     const internal = asInternals(virtualizer);
     if (
-      atRoomStart &&
+      !canLoadOlder &&
       (internal?._holdOffset ?? 0) < 0 &&
       internal?._canWriteScroll?.() !== false &&
       internal?.scrollState?.phase !== 'smooth'

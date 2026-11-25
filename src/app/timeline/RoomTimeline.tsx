@@ -1292,6 +1292,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomId: room.roomId,
     threadId,
     pinThreadLeadingItem: showThreadLoadOlder,
+    canLoadOlder: !latestAtTop && (threadId ? showThreadLoadOlder : !showRoomIntro),
     scrollMargin: roomScrollMargin,
     automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });

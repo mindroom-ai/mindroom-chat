@@ -105,12 +105,18 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     withRowJumps = false,
     latestAtTop = false,
     initialScrollMargin = 0,
+    thread = false,
+    shortHistory = false,
+    initialCanLoadOlder = false,
   }: {
     initialKeys?: string[];
     initialScrollTop?: number;
     withRowJumps?: boolean;
     latestAtTop?: boolean;
     initialScrollMargin?: number;
+    thread?: boolean;
+    shortHistory?: boolean;
+    initialCanLoadOlder?: boolean;
   } = {}) => {
     const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
     const prevActEnv = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -170,11 +176,13 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       tick,
       scrollMargin = 0,
       introEstimate = ROOM_INTRO_ESTIMATE_PX,
+      canLoadOlder = false,
     }: {
       keys: string[];
       tick: number;
       scrollMargin?: number;
       introEstimate?: number;
+      canLoadOlder?: boolean;
     }) {
       void tick;
       const getScrollElement = useCallback(() => scrollElement, []);
@@ -186,7 +194,9 @@ describe('oldest-first room anchoring with real virtualizer', () => {
         latestAtTop,
         anchorRoomRows: latestAtTop ? () => true : undefined,
         roomId: '!room:example.org',
+        threadId: thread ? '$thread-root' : undefined,
         scrollMargin,
+        canLoadOlder,
       });
       mounted.virtualizer = controller.virtualizer;
       totalHeight = controller.virtualizer.getTotalSize();
@@ -214,7 +224,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       if (withRowJumps) mounted.jumps = jumps;
 
       useLatestRowPin({
-        surface: 'room',
+        surface: thread ? 'thread' : 'room',
         itemCount: keys.length,
         virtualizer: controller.virtualizer,
         opensAtLatest: false,
@@ -237,7 +247,12 @@ describe('oldest-first room anchoring with real virtualizer', () => {
               ref={(node) => {
                 if (node) {
                   Object.defineProperty(node, 'offsetHeight', {
-                    value: item.key === ROOM_INTRO_KEY ? 160 : ROW_HEIGHT,
+                    value:
+                      item.key === ROOM_INTRO_KEY
+                        ? 160
+                        : shortHistory && item.index >= 27 && item.index < 35
+                          ? 20
+                          : ROW_HEIGHT,
                     configurable: true,
                   });
                 }
@@ -255,14 +270,16 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     let currentKeys = initialKeys;
     let currentMargin = initialScrollMargin;
     let currentIntroEstimate = ROOM_INTRO_ESTIMATE_PX;
+    let currentCanLoadOlder = initialCanLoadOlder;
     let tick = 0;
     const render = (
       nextKeys = currentKeys,
-      opts?: { scrollMargin?: number; introEstimate?: number }
+      opts?: { scrollMargin?: number; introEstimate?: number; canLoadOlder?: boolean }
     ) => {
       currentKeys = nextKeys;
       if (opts?.scrollMargin !== undefined) currentMargin = opts.scrollMargin;
       if (opts?.introEstimate !== undefined) currentIntroEstimate = opts.introEstimate;
+      if (opts?.canLoadOlder !== undefined) currentCanLoadOlder = opts.canLoadOlder;
       tick += 1;
       flushSync(() =>
         root.render(
@@ -271,6 +288,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
             tick={tick}
             scrollMargin={currentMargin}
             introEstimate={currentIntroEstimate}
+            canLoadOlder={currentCanLoadOlder}
           />
         )
       );
@@ -334,6 +352,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     const { scrollElement, getTileTop, getVirtualizer, fireRowBatch, render } = await mountRoom({
       initialKeys: rows,
       initialScrollTop: 1200,
+      initialCanLoadOlder: true,
     });
     scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
     fireRowBatch(
@@ -349,7 +368,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(-640);
 
     // Reaching the true start of the room mounts ROOM_INTRO_KEY and drops the remaining negative hold.
-    render([ROOM_INTRO_KEY, ...rows]);
+    render([ROOM_INTRO_KEY, ...rows], { canLoadOlder: false });
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
     expect(getTileTop(ROOM_INTRO_KEY)).toBe(0);
   });
@@ -406,5 +425,31 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       introEstimate: ROOM_INTRO_ESTIMATE_PX + EXPAND_ALL_LINE_ESTIMATE_PX,
     });
     expect(scrollElement.scrollTop).toBeCloseTo(1200 + ROOM_INTRO_ESTIMATE_PX, 1);
+  });
+
+  it('shows the first reply when scrolling up to the start of an open fully-loaded thread', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
+    const { scrollElement, getTileTop, getVirtualizer, render } = await mountRoom({
+      thread: true,
+      shortHistory: true,
+      initialScrollTop: 6600,
+      initialKeys: Array.from({ length: 80 }, (_, i) => `$ev-${i}`),
+    });
+    for (let pos = 6360; pos >= 1200; pos -= 240) {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+      scrollElement.scrollTop = pos;
+      scrollElement.dispatchEvent(new Event('scroll'));
+      render();
+      await Promise.resolve();
+    }
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(-640);
+    scrollElement.scrollTop = 0;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    render();
+    vi.advanceTimersByTime(2000);
+    render();
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
+    expect(getTileTop('$ev-0')).toBeLessThan(VIEWPORT_HEIGHT);
   });
 });

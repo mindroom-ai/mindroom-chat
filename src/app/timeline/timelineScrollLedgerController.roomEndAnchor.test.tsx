@@ -99,10 +99,12 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`),
     initialScrollTop = 1200,
     withRowJumps = false,
+    canLoadOlder = false,
   }: {
     initialKeys?: string[];
     initialScrollTop?: number;
     withRowJumps?: boolean;
+    canLoadOlder?: boolean;
   } = {}) => {
     const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
     const prevActEnv = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -166,6 +168,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
+        canLoadOlder,
         roomId: '!room:example.org',
       });
       mounted.virtualizer = controller.virtualizer;
@@ -366,6 +369,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
       initialKeys,
       initialScrollTop: 1200,
+      canLoadOlder: true,
     });
     const v = getVirtualizer();
     const anchorVisualBeforeResize = getTileTop('$ev-12')! - scrollElement.scrollTop;
