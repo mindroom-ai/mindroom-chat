@@ -1346,7 +1346,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     anchorSkipLeading: threadId
       ? threadLeadingOffset + (threadEvents[0]?.getId() === threadId ? 1 : 0)
       : roomLeadingOffset,
-    canLoadOlder: !latestAtTop && (threadId ? showThreadLoadOlder : showRoomBackSentinel),
     automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });
   const { virtualizer } = ledger;

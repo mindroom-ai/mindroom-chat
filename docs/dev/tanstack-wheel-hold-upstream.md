@@ -21,7 +21,7 @@
 +        this._lastElementOffset = live; scheduleWheelFlush(50); return
 +      }
 +      this._wheelTimer = null; this._wheelLive = false
-+      if (live !== null && this._holdOffset !== 0) this.scrollOffset = live + this._holdOffset
++      if (live !== null && this._holdOffset !== 0) this.scrollOffset = Math.max(0, live + this._holdOffset)
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
 +    }, delay)
 +  }
@@ -34,44 +34,11 @@
 
 ## PR 2: Reconcile unseen live `scrollTop` moves in `applyScrollAdjustment`
 
-**Problem & repro:** If app/driver code writes `scrollElement.scrollTop` synchronously and an item resizes before the `scroll` event delivers the new offset, `applyScrollAdjustment` writes from the stale cached `scrollOffset` and snaps the scroller back. Reproduce by mutating `el.scrollTop += 600` (without a scroll event) then calling `resizeItem(aboveIdx, size - 20)`.
-
-```diff
--  const offset = this.getScrollOffset() // in applyScrollAdjustment() else-branch
-+  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
-+  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
--  if (this.pendingWrite === write) this.scrollOffset += delta
--  if (this.scrollOffset < 0) this.scrollOffset = 0
-+  if (this.pendingWrite === write) this.scrollOffset = offset + delta
-+  if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0
-```
+removed: not needed after #900, ablation 2026-11-25
 
 ## PR 3: Never flush negative `_holdOffset` past `scrollTop = 0`
 
-**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate a negative `_holdOffset`. If the reader then scrolls upward until `live + _holdOffset < 0`, `_flushHoldIfReady` zeroes `_holdOffset` while `scrollTop` clamps at `0`, snapping every visible row upward by `-(live + _holdOffset)`. Flush only the portion that fits above `0` (`nextHold = live + _holdOffset < 0 ? live + _holdOffset : 0`), leaving the excess held without snapping until a prepend or downward scroll provides room above `0` (notifying once when wheel or iOS gesture rest keeps a clamped negative hold, so callers at true history start can clear it).
-
-```diff
-   // _flushHoldIfReady(sync):
--  this._holdOffset = 0
--  if (this.scrollOffset !== null && this.scrollOffset < 0) {
--    this.scrollOffset = 0
--  }
-+  const cmd = this.getCommandWrittenOffset()
-+  const live = cmd === null ? this._readElementOffset() : null
-+  const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0
-+  if (nextHold === this._holdOffset) return
-+  this._holdOffset = nextHold
-+  if (nextHold < 0) {
-+    this.scrollOffset = nextHold; this._clampedAdjustment = null
-+    this._scrollToOffset(nextHold); this.notify(sync); return
-+  }
-+  if (this.scrollOffset !== null && this.scrollOffset < 0) {
-+    this.scrollOffset = 0
-+  }
-   this.notify(sync)
--  const target = this.getCommandWrittenOffset() ?? this.getScrollOffset()
-+  const target = cmd ?? this.getScrollOffset()
-```
+removed: not needed after #900, ablation 2026-11-25
 
 ## PR 4: Opt-in `anchorSkipLeading` to skip stable leading items in view when picking the `anchorTo: 'end'` prepend anchor
 

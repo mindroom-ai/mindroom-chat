@@ -100,12 +100,10 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`),
     initialScrollTop = 1200,
     withRowJumps = false,
-    canLoadOlder = false,
   }: {
     initialKeys?: string[];
     initialScrollTop?: number;
     withRowJumps?: boolean;
-    canLoadOlder?: boolean;
   } = {}) => {
     const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
     const prevActEnv = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
@@ -169,7 +167,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
-        canLoadOlder,
         roomId: '!room:example.org',
       });
       mounted.virtualizer = controller.virtualizer;
@@ -361,50 +358,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(1340);
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
-  });
-
-  it('clamps negative _holdOffset on flush so reaching scrollTop=0 never snaps rows upward', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
-    const initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
-    const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
-      initialKeys,
-      initialScrollTop: 1200,
-      canLoadOlder: true,
-    });
-    const v = getVirtualizer();
-    const anchorVisualBeforeResize = getTileTop('$ev-12')! - scrollElement.scrollTop;
-
-    // Row 0 (above scrollTop=1200) shrinks by -80px during a live wheel burst.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    v.resizeItem(0, 20);
-    expect(readVirtualizerHoldOffset(v)).toBe(-80);
-    expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(anchorVisualBeforeResize);
-
-    // User keeps wheeling up to scrollTop=30 while -80 is still held (live + hold = -50 < 0).
-    scrollElement.scrollTop = 30;
-    scrollElement.dispatchEvent(new Event('scroll'));
-    render();
-    const row1VisualAt30 = getTileTop('$ev-1')! - scrollElement.scrollTop;
-
-    // Wheel quiescence flushes only -30 to scrollTop=0, leaving -50 held with 0px visual snap.
-    vi.advanceTimersByTime(200);
-    expect(scrollElement.scrollTop).toBe(0);
-    expect(readVirtualizerHoldOffset(v)).toBe(-50);
-    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
-
-    // Another wheel pause at scrollTop=0 keeps -50 held rather than snapping rows by -50px.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    vi.advanceTimersByTime(200);
-    expect(scrollElement.scrollTop).toBe(0);
-    expect(readVirtualizerHoldOffset(v)).toBe(-50);
-    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
-
-    // When an older page prepends (+1000px), the remaining -50 hold drains cleanly to 0 with 0px snap.
-    render([...Array.from({ length: 10 }, (_, i) => `$older-${i}`), ...initialKeys]);
-    expect(readVirtualizerHoldOffset(v)).toBe(0);
-    expect(scrollElement.scrollTop).toBe(950);
-    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
   });
 
   it('clears _holdOffset on explicit jump and bottom pin so wheel quiescence cannot clobber landing', async () => {

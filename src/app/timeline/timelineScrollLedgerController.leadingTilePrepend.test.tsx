@@ -168,7 +168,6 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
             : keys[0] === ROOM_INTRO_KEY
               ? 1
               : 0,
-        canLoadOlder: !latestAtTop,
       });
       totalHeight = controller.virtualizer.getTotalSize();
 
@@ -355,7 +354,6 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
         itemCount: keys.length,
         roomId: '!room:example.org',
         anchorSkipLeading: 1,
-        canLoadOlder: range.start > 0,
       });
       mounted.virtualizer = controller.virtualizer;
       totalHeight = controller.virtualizer.getTotalSize();
