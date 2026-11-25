@@ -183,6 +183,42 @@ for (const mobile of [false, true]) {
           await section.button.tap();
           await expect(panel).toHaveCount(0);
           await expect(page).toHaveURL(new RegExp(encodeURIComponent(section.room)));
+        } else if (section.root === '/home/') {
+          const currentUrl = page.url();
+          const homeRootUrl = new URL(section.root, currentUrl).toString();
+          await expect(panel).toBeVisible();
+          // Collapsed on a Home sub-route: clicking Home expands without navigating away.
+          await page
+            .getByRole('button', { name: 'Collapse navigation panel', exact: true })
+            .click();
+          await expect(panel).toHaveCount(0);
+          await section.button.click();
+          await expect(panel).toBeVisible();
+          await expect(page).toHaveURL(currentUrl);
+          await expect
+            .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+            .toBe(resizedWidth);
+          // Open on a Home sub-route: clicking Home returns to /home/ and keeps the panel open.
+          await section.button.click();
+          await expect(page).toHaveURL(homeRootUrl);
+          await expect(
+            page.getByRole('button', { name: 'How threads work', exact: true })
+          ).toBeVisible();
+          await expect(panel).toBeVisible();
+          // Open on /home/: clicking Home collapses the panel, and clicking again expands it.
+          await section.button.click();
+          await expect(panel).toHaveCount(0);
+          await expect(page).toHaveURL(homeRootUrl);
+          await section.button.click();
+          await expect(panel).toBeVisible();
+          await expect(page).toHaveURL(homeRootUrl);
+          await expect
+            .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+            .toBe(resizedWidth);
+          await section.button.click();
+          await expect(panel).toHaveCount(0);
+          await page.getByRole('button', { name: 'Direct Messages', exact: true }).click();
+          await expect(panel).toBeVisible();
         } else {
           const currentUrl = page.url();
           await expect(panel).toBeVisible();
