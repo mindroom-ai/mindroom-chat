@@ -9,8 +9,9 @@ import { readMermaidTheme, renderMermaidDiagram } from './lazyMermaid';
 type MermaidView = 'diagram' | 'source';
 
 type RenderState = {
-  svg: string | null;
-  failedSource: string | null;
+  svg?: string;
+  renderedSource?: string;
+  failedSource?: string;
 };
 
 export type MermaidBlockProps = {
@@ -26,7 +27,7 @@ export type MermaidBlockProps = {
 /**
  * Renders a fenced `mermaid` block inside the standard `CodeBlock` frame with a Diagram / Source
  * toggle. Automatically switches to Source when `searchMatch` is true, follows applied theme
- * switches, and retains the last valid SVG (or falls back to Source) on parse errors.
+ * switches, and falls back to Source immediately when the current source cannot render.
  */
 export function MermaidBlock({
   source,
@@ -51,7 +52,7 @@ export function MermaidBlock({
         : 'diagram';
 
   const [themeRevision, setThemeRevision] = useState(0);
-  const [renderState, setRenderState] = useState<RenderState>({ svg: null, failedSource: null });
+  const [renderState, setRenderState] = useState<RenderState>({});
 
   useEffect(() => subscribeAppliedTheme(() => setThemeRevision((rev) => rev + 1)), []);
 
@@ -65,11 +66,17 @@ export function MermaidBlock({
 
     renderMermaidDiagram(trimmedSource, theme, signal).then(
       (svg) => {
-        if (!signal.cancelled && svg !== null) setRenderState({ svg, failedSource: null });
+        if (!signal.cancelled && svg !== null) {
+          setRenderState({ svg, renderedSource: trimmedSource });
+        }
       },
       () => {
         if (!signal.cancelled) {
-          setRenderState((prev) => ({ svg: prev.svg, failedSource: trimmedSource }));
+          setRenderState({
+            svg: undefined,
+            renderedSource: undefined,
+            failedSource: trimmedSource,
+          });
         }
       }
     );
@@ -79,9 +86,11 @@ export function MermaidBlock({
     };
   }, [preferredView, trimmedSource, themeRevision]);
 
-  const showingDiagram = preferredView === 'diagram' && renderState.svg !== null;
-  const failedWithoutSvg = renderState.svg === null && renderState.failedSource === trimmedSource;
-  const showToggle = trimmedSource.length > 0 && (showingDiagram || !failedWithoutSvg);
+  const hasCurrentSvg =
+    renderState.svg !== undefined && renderState.renderedSource === trimmedSource;
+  const showingDiagram = preferredView === 'diagram' && trimmedSource.length > 0 && hasCurrentSvg;
+  const failed = !hasCurrentSvg && renderState.failedSource === trimmedSource;
+  const showToggle = trimmedSource.length > 0 && (showingDiagram || !failed);
   const toggleLabel = showingDiagram
     ? t('messageCodeBlock.showSource')
     : t('messageCodeBlock.showDiagram');
@@ -101,7 +110,7 @@ export function MermaidBlock({
           aria-label={t('messageCodeBlock.actions')}
           data-code-block-actions=""
         >
-          {failedWithoutSvg && preferredView === 'diagram' && (
+          {failed && preferredView === 'diagram' && (
             <span className={mermaidCss.MermaidStatus}>
               {t('messageCodeBlock.diagramUnavailable')}
             </span>
@@ -134,7 +143,7 @@ export function MermaidBlock({
         >
           <div
             className={mermaidCss.MermaidSvg}
-            // Output passed through Mermaid strict mode and sanitizeMermaidSvg().
+            // Output passed through CSP-sandboxed Mermaid strict mode and sanitizeMermaidSvg().
             dangerouslySetInnerHTML={{ __html: renderState.svg ?? '' }}
           />
         </div>
