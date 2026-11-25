@@ -7,9 +7,14 @@ import contractFixture from './__fixtures__/providerUsageContract.json';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { ProviderUsageSnapshot } from './providerUsageProtocol';
 import { accountChartColor, formatWholePercent, singleAccountForModels } from './QuotaBar';
+import {
+  buildUsageCalendar7d,
+  computeSpendTrend3d,
+  formatShortUsd,
+  formatSignedPercent,
+} from './usageCalendar';
 import type { UseProviderUsageResult } from './useProviderUsage';
 import { UsagePage } from './UsagePage';
-import { formatShortUsd } from './UsageTokensView';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -133,7 +138,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     const snapshot = cloneFixture();
     snapshot.accounts[0]!.stale = true;
     snapshot.accounts[0]!.model_keys = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8'];
-    // Make Claude 7d window "On pace" (60% remaining vs 60% time left: 4.2d = 6048 mins from 20:00Z)
+    // Make Claude 7d window "On pace" (61% remaining vs 60% time left: 4.2d = 6048 mins from 20:00Z)
     snapshot.accounts[0]!.windows[1]!.remaining_percent = 61;
     snapshot.accounts[0]!.windows[1]!.resets_at = '2026-11-28T00:48:00Z';
 
@@ -161,7 +166,6 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(claudeCard.textContent).toContain('Resets in 2h 24m');
     expect(claudeCard.querySelector('[data-pace-tone="ahead"]')?.textContent).toBe('+14% ahead');
     expect(claudeCard.querySelector('[data-pace-tone="on_pace"]')?.textContent).toBe('On pace');
-    // Model chips cap at 6 + overflow chip with hidden keys in title.
     expect(claudeCard.textContent).toContain('m6');
     expect(claudeCard.textContent).toContain('+2');
     expect(claudeCard.querySelector('[title="m7, m8"]')).not.toBeNull();
@@ -182,15 +186,27 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(usage.refresh).toHaveBeenCalledWith(true);
   });
 
-  it('shows 3-day spend trend badge only when at least 6 days have cost data', () => {
+  it('builds a 7-day UTC calendar window and computes 3-day spend trend over slots 4..6 vs 1..3', () => {
     const snapshot = cloneFixture();
-    // Fixture only has 2 days -> no trend badge.
-    renderPage(makeUsageState({ snapshot }));
-    expect(container.querySelector('[data-testid="spend-trend-badge"]')).toBeNull();
+    // Anchor at checked_at (2026-11-23) -> 7 slots: 2026-11-17..2026-11-23.
+    const calendar = buildUsageCalendar7d(snapshot);
+    expect(calendar.map((d) => d.day)).toEqual([
+      '2026-11-17',
+      '2026-11-18',
+      '2026-11-19',
+      '2026-11-20',
+      '2026-11-21',
+      '2026-11-22',
+      '2026-11-23',
+    ]);
+    // Missing days are filled with 0 tokens and null (unknown) cost.
+    expect(calendar[6]?.unattributed_tokens).toBe(0);
+    expect(calendar[6]?.cost_by_account).toBeUndefined();
+    expect(calendar[6]?.unattributed_cost_usd).toBeNull();
 
-    // 6 days: prior 3 sum = 30, last 3 sum = 39 -> +30% (warn)
+    // 6 priced days (slots 1..6 = Nov 18..23): prior 3 = 30, last 3 = 39 -> +30% (warn).
     snapshot.daily_7d = [10, 10, 10, 12, 13, 14].map((cost, idx) => ({
-      day: `2026-11-1${idx + 3}`,
+      day: `2026-11-${18 + idx}`,
       by_account: { 'openrouter:1': 1_000_000 },
       unattributed_tokens: 0,
       cost_by_account: { 'openrouter:1': cost },
@@ -201,18 +217,53 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(upBadge.textContent).toBe('+30%');
     expect(upBadge.getAttribute('data-tone')).toBe('warn');
 
-    // Negative trend: prior 3 sum = 60, last 3 sum = 45 -> -25% (ok)
-    snapshot.daily_7d = [20, 20, 20, 15, 15, 15].map((cost, idx) => ({
-      day: `2026-11-1${idx + 3}`,
-      by_account: { 'openrouter:1': 1_000_000 },
-      unattributed_tokens: 0,
-      cost_by_account: { 'openrouter:1': cost },
-      unattributed_cost_usd: 0,
-    }));
-    renderPage(makeUsageState({ snapshot }));
+    // Negative trend: prior 3 = 60, last 3 = 45 -> -25% (ok).
+    const downSnap = {
+      ...snapshot,
+      daily_7d: [20, 20, 20, 15, 15, 15].map((cost, idx) => ({
+        day: `2026-11-${18 + idx}`,
+        by_account: { 'openrouter:1': 1_000_000 },
+        unattributed_tokens: 0,
+        cost_by_account: { 'openrouter:1': cost },
+        unattributed_cost_usd: 0,
+      })),
+    };
+    renderPage(makeUsageState({ snapshot: downSnap }));
     const downBadge = container.querySelector('[data-testid="spend-trend-badge"]')!;
     expect(downBadge.textContent).toBe('-25%');
     expect(downBadge.getAttribute('data-tone')).toBe('ok');
+
+    // Omitted when prior 3 calendar days (slots 1..3) have $0 spend.
+    const zeroPriorSnap = {
+      ...snapshot,
+      daily_7d: [
+        {
+          day: '2026-11-22',
+          by_account: { 'openrouter:1': 1_000_000 },
+          unattributed_tokens: 0,
+          cost_by_account: { 'openrouter:1': 12 },
+        },
+      ],
+    };
+    expect(computeSpendTrend3d(zeroPriorSnap, buildUsageCalendar7d(zeroPriorSnap))).toBeUndefined();
+    renderPage(makeUsageState({ snapshot: zeroPriorSnap }));
+    expect(container.querySelector('[data-testid="spend-trend-badge"]')).toBeNull();
+
+    // Omitted when ANY active day in slots 1..6 has unknown/unpriced cost.
+    const unpricedActiveSnap = {
+      ...snapshot,
+      daily_7d: [10, 10, 10, 12, 13, 14].map((cost, idx) => ({
+        day: `2026-11-${18 + idx}`,
+        by_account: { 'openrouter:1': 1_000_000 },
+        unattributed_tokens: 0,
+        ...(idx === 4 ? {} : { cost_by_account: { 'openrouter:1': cost } }),
+      })),
+    };
+    expect(
+      computeSpendTrend3d(unpricedActiveSnap, buildUsageCalendar7d(unpricedActiveSnap))
+    ).toBeUndefined();
+    renderPage(makeUsageState({ snapshot: unpricedActiveSnap }));
+    expect(container.querySelector('[data-testid="spend-trend-badge"]')).toBeNull();
   });
 
   it('spans the trailing odd subscription card full-width on desktop, stacks on mobile, and skips section when no subscription accounts exist', () => {
@@ -233,6 +284,13 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       container.querySelector('[data-account-card="openrouter:1"]')!.getAttribute('data-span-full')
     ).toBeNull();
 
+    // Mobile X-axis shows compact day-only labels ("17".."23") while keeping full date in aria-label.
+    const mobileDay18 = container.querySelector<HTMLButtonElement>(
+      'button[data-day="2026-11-18"]'
+    )!;
+    expect(mobileDay18.querySelector('span:last-child')?.textContent).toBe('18');
+    expect(mobileDay18.getAttribute('aria-label')).toContain('Wed, Nov 18');
+
     // PAYG-only snapshot skips the Subscription quotas section entirely.
     const paygOnly = cloneFixture();
     paygOnly.accounts = [paygOnly.accounts[3]!];
@@ -242,40 +300,76 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="where-usage-goes"]')).not.toBeNull();
   });
 
-  it('supports interactive day-bar selection, Spend/Tokens toggle, and Hide-dominant filtering', () => {
+  it('renders 7 calendar bars, exact localized integer tokens in Day Detail, preserves unknown cost as —, and supports Spend/Tokens & Hide dominant', () => {
     const snapshot = cloneFixture();
     snapshot.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
     snapshot.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
+    // Add an active unpriced day (Nov 19: Claude Code tokens only, no cost_by_account).
+    snapshot.daily_7d.push({
+      day: '2026-11-19',
+      by_account: { 'claude_code:default': 1_250_000 },
+      unattributed_tokens: 0,
+    });
     renderPage(makeUsageState({ snapshot }));
 
-    // Defaults to Spend ($) and selects latest day with data (2026-11-18).
     const chartCard = container.querySelector('[data-testid="daily-activity-card"]')!;
+    expect(chartCard.querySelectorAll('button[data-day]')).toHaveLength(7);
     expect(chartCard.textContent).toContain('Daily estimated spend');
+
     const day17Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-17"]')!;
     const day18Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-18"]')!;
-    expect(day18Btn.getAttribute('aria-pressed')).toBe('true');
-    expect(day17Btn.getAttribute('aria-pressed')).toBe('false');
+    const day19Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-19"]')!;
+    const day23Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-23"]')!;
 
+    // Defaults to latest day with visible spend (2026-11-18).
+    expect(day18Btn.getAttribute('aria-pressed')).toBe('true');
+
+    // Unpriced active day (Nov 19) and empty day (Nov 23) show "—" top labels and NO "$0.00" aria-label.
+    expect(day19Btn.querySelector('span:first-child')?.textContent).toBe('—');
+    expect(day19Btn.getAttribute('aria-label')).not.toContain('$0');
+    expect(day23Btn.querySelector('span:first-child')?.textContent).toBe('—');
+    expect(day23Btn.getAttribute('aria-label')).not.toContain('$0');
+
+    // Day Detail Drawer shows exact localized integer tokens AND 7-day calendar average comparison.
     const drawer = () => container.querySelector('[data-testid="day-detail-drawer"]')!;
     expect(drawer().textContent).toContain('$2.80');
     expect(drawer().textContent).toContain('$2.45');
+    expect(drawer().textContent).toContain('4,450,000 tok');
+    expect(drawer().textContent).toContain('2,100,000');
+    expect(drawer().textContent).toContain('850,000');
+    // 7d spend avg = ($3.00 + $2.80) / 7 = $0.8286; $2.80 vs $0.8286 -> +238% vs 7d avg.
+    expect(drawer().querySelector('[data-testid="day-vs-avg-badge"]')?.textContent).toBe(
+      '+238% vs 7d avg'
+    );
 
-    // Clicking earlier day updates selection and exact day totals.
+    // Clicking unpriced active day (Nov 19) shows "—" cost (NOT $0.00), omits spend vs-avg badge, and shows exact tokens.
+    act(() => day19Btn.click());
+    expect(drawer().querySelector('[data-testid="day-detail-cost-unknown"]')?.textContent).toBe(
+      '—'
+    );
+    expect(drawer().textContent).not.toContain('$0.00');
+    expect(drawer().querySelector('[data-testid="day-vs-avg-badge"]')).toBeNull();
+    expect(drawer().textContent).toContain('1,250,000 tok');
+
+    // Clicking earlier priced day (Nov 17) updates selection and exact day totals.
     act(() => day17Btn.click());
     expect(day17Btn.getAttribute('aria-pressed')).toBe('true');
-    expect(day18Btn.getAttribute('aria-pressed')).toBe('false');
     expect(drawer().textContent).toContain('$3.00');
     expect(drawer().textContent).toContain('$2.60');
+    expect(drawer().textContent).toContain('4,000,000 tok');
 
-    // OpenRouter is ~85% of spend -> Hide dominant button is visible and hides OpenRouter on click.
-    const hideBtn = container.querySelector<HTMLButtonElement>('[data-testid="hide-dominant-btn"]')!;
-    expect(hideBtn).not.toBeNull();
+    // Hide dominant button has descriptive aria-label naming dominant account and hides it on click.
+    const hideBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="hide-dominant-btn"]'
+    )!;
     expect(hideBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(hideBtn.getAttribute('aria-label')).toContain('OpenRouter');
     expect(hideBtn.textContent).toBe('Hide dominant');
 
     act(() => hideBtn.click());
     expect(hideBtn.getAttribute('aria-pressed')).toBe('true');
     expect(hideBtn.textContent).toBe('Reset filter');
+    expect(hideBtn.getAttribute('aria-label')).toContain('OpenRouter');
     expect(drawer().querySelector('[data-day-account="openrouter:1"]')).toBeNull();
     expect(drawer().textContent).toContain('$0.40');
 
@@ -283,17 +377,18 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(hideBtn.getAttribute('aria-pressed')).toBe('false');
     expect(drawer().querySelector('[data-day-account="openrouter:1"]')).not.toBeNull();
 
-    // Switch to Tokens mode -> no account >= 70% of tokens, so Hide dominant disappears.
+    // Switch to Tokens mode -> compact bar top ("4.5M"), exact drawer tokens, and no Hide dominant (no account >= 70%).
     const tokensMetricBtn = [...chartCard.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent?.trim() === 'Tokens'
     )!;
     act(() => tokensMetricBtn.click());
     expect(tokensMetricBtn.getAttribute('aria-pressed')).toBe('true');
     expect(chartCard.textContent).toContain('Daily tokens');
+    expect(day18Btn.querySelector('span:first-child')?.textContent).toBe('4.5M');
     expect(container.querySelector('[data-testid="hide-dominant-btn"]')).toBeNull();
   });
 
-  it('switches Models/Agents/Accounts, expands inline drawers with sparkline & mix, shows unattributed & partial notice, and folds idle accounts', () => {
+  it('switches Models/Agents/Accounts via click and keyboard arrows with ARIA tabpanel wiring, 7-day sparklines, and folded idle accounts', () => {
     const snapshot = cloneFixture();
     snapshot.partial = true;
     snapshot.unattributed_tokens_7d = 500_000;
@@ -317,8 +412,18 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="partial-data-notice"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="day-unattributed-row"]')).not.toBeNull();
 
-    // Defaults to Models tab, sorted by spend desc (neon-pro first).
-    expect(findTab('Models')?.getAttribute('aria-selected')).toBe('true');
+    // Verify ARIA tab <-> tabpanel linkage and roving tabindex.
+    const modelsTab = findTab('Models')!;
+    const agentsTab = findTab('Agents')!;
+    const accountsTab = findTab('Accounts')!;
+    const panel = container.querySelector('[role="tabpanel"]')!;
+    expect(modelsTab.getAttribute('aria-selected')).toBe('true');
+    expect(modelsTab.getAttribute('tabindex')).toBe('0');
+    expect(agentsTab.getAttribute('tabindex')).toBe('-1');
+    expect(modelsTab.getAttribute('aria-controls')).toBe(panel.id);
+    expect(panel.getAttribute('aria-labelledby')).toBe(modelsTab.id);
+
+    // Models sorted by spend desc -> google/gemini-3-pro first.
     const firstModelBtn = container.querySelector<HTMLButtonElement>('[data-breakdown-row]')!;
     expect(firstModelBtn.textContent).toContain('google/gemini-3-pro');
     expect(firstModelBtn.getAttribute('aria-expanded')).toBe('false');
@@ -331,13 +436,13 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(drawer.querySelector('[data-sparkline]')).not.toBeNull();
     expect(drawer.textContent).toContain('Cache read');
 
-    // Collapse by clicking again.
-    act(() => firstModelBtn.click());
-    expect(container.querySelector('[data-testid="breakdown-drawer"]')).toBeNull();
-
-    // Switch to Agents tab.
-    act(() => findTab('Agents')!.click());
-    expect(findTab('Agents')?.getAttribute('aria-selected')).toBe('true');
+    // Keyboard ArrowRight switches Models -> Agents, focuses Agents tab, and updates aria-labelledby.
+    act(() => {
+      modelsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(agentsTab.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(agentsTab);
+    expect(panel.getAttribute('aria-labelledby')).toBe(agentsTab.id);
     expect(container.querySelector('[data-testid="where-usage-goes"]')?.textContent).toContain(
       'code'
     );
@@ -345,11 +450,26 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       '310 runs'
     );
 
-    // Switch to Accounts tab: shows active accounts + Unattributed + folded idle account.
-    act(() => findTab('Accounts')!.click());
-    expect(findTab('Accounts')?.getAttribute('aria-selected')).toBe('true');
+    // Keyboard End jumps straight to Accounts tab.
+    act(() => {
+      agentsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    expect(accountsTab.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(accountsTab);
     expect(container.querySelector('[data-testid="unattributed-row"]')).not.toBeNull();
     expect(container.querySelector('[data-idle-account="ollama:local"]')).toBeNull();
+
+    // Expand Claude Code account -> 7-day calendar-aligned sparkline has 7 coordinate pairs!
+    const claudeRow = container.querySelector<HTMLButtonElement>(
+      '[data-breakdown-row="a:claude_code:default"]'
+    )!;
+    act(() => claudeRow.click());
+    const sparkPoints = container
+      .querySelector('[data-testid="breakdown-drawer"] [data-sparkline] polyline')
+      ?.getAttribute('points')
+      ?.trim()
+      .split(/\s+/);
+    expect(sparkPoints).toHaveLength(7);
 
     // Expand PAYG Anthropic account row -> shows model_keys chip ("haiku").
     const anthropicRow = container.querySelector<HTMLButtonElement>(
@@ -381,24 +501,20 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     const minimal = makeMinimalV1();
     renderPage(makeUsageState({ snapshot: minimal }));
 
-    // Single Tokens KPI card (no spend KPI), no Token & Cache Mix card.
     expect(container.querySelector('[data-testid="total-cost-7d"]')).toBeNull();
     expect(
       container.querySelector('[data-testid="usage-kpi-row"]')?.getAttribute('data-single')
     ).toBe('true');
     expect(container.querySelector('[data-testid="token-mix-card"]')).toBeNull();
 
-    // Daily chart defaults to Tokens with no Spend ($) toggle.
     const chartCard = container.querySelector('[data-testid="daily-activity-card"]')!;
     expect(chartCard.textContent).toContain('Daily tokens');
     expect(chartCard.textContent).not.toContain('Spend ($)');
 
-    // Where usage goes defaults to Accounts and omits Models & Agents tabs.
     expect(findTab('Models')).toBeUndefined();
     expect(findTab('Agents')).toBeUndefined();
     expect(findTab('Accounts')?.getAttribute('aria-selected')).toBe('true');
 
-    // Expanding an account still renders share, sparkline from daily_7d, and model chips.
     const claudeRow = container.querySelector<HTMLButtonElement>(
       '[data-breakdown-row="a:claude_code:default"]'
     )!;
@@ -410,15 +526,47 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(drawer.textContent).not.toContain('Cache read');
   });
 
-  it('renders runtime switcher only when multiple runtimes answered and shows quiet unavailable state with Retry', () => {
-    const multi = makeUsageState({
-      runtimes: [
-        { id: '@mindroom_a:x:D1', userId: '@mindroom_a:x', deviceId: 'D1', curveKey: 'c1' },
-        { id: '@mindroom_b:x:D2', userId: '@mindroom_b:x', deviceId: 'D2', curveKey: 'c2' },
-      ],
+  it('renders runtime switcher, resets hideDominant and showIdle on runtime switch, and shows quiet unavailable state with Retry', () => {
+    const snap = cloneFixture();
+    snap.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
+    snap.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
+    snap.accounts.push({
+      id: 'ollama:local',
+      provider: 'ollama',
+      display_name: 'Ollama',
+      account_label: 'Local',
+      plan: 'Local',
+      model_keys: [],
+      windows: [],
+      checked_at: '2026-11-23T20:00:00Z',
+      stale: false,
+      tokens_7d: 0,
+      cost_usd_7d: null,
+      cost_estimated: false,
+    });
+    const runtimes = [
+      { id: '@mindroom_a:x:D1', userId: '@mindroom_a:x', deviceId: 'D1', curveKey: 'c1' },
+      { id: '@mindroom_b:x:D2', userId: '@mindroom_b:x', deviceId: 'D2', curveKey: 'c2' },
+    ];
+    const runtimeA = makeUsageState({
+      snapshot: snap,
+      runtimes,
       selectedRuntimeId: '@mindroom_a:x:D1',
     });
-    renderPage(multi);
+    renderPage(runtimeA);
+
+    // Toggle Hide dominant and open idle accounts on runtime A.
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="hide-dominant-btn"]')!.click();
+    });
+    act(() => findTab('Accounts')!.click());
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="idle-accounts-toggle"]')!.click();
+    });
+    expect(
+      container.querySelector('[data-testid="hide-dominant-btn"]')?.getAttribute('aria-pressed')
+    ).toBe('true');
+    expect(container.querySelector('[data-idle-account="ollama:local"]')).not.toBeNull();
 
     const select = container.querySelector<HTMLSelectElement>('select[aria-label="Runtime"]')!;
     expect(select.options).toHaveLength(2);
@@ -426,7 +574,21 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       select.value = '@mindroom_b:x:D2';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    expect(multi.selectRuntime).toHaveBeenCalledWith('@mindroom_b:x:D2');
+    expect(runtimeA.selectRuntime).toHaveBeenCalledWith('@mindroom_b:x:D2');
+
+    // Switching selectedRuntimeId cleanly resets hideDominant and showIdle.
+    renderPage(
+      makeUsageState({
+        snapshot: snap,
+        runtimes,
+        selectedRuntimeId: '@mindroom_b:x:D2',
+      })
+    );
+    expect(
+      container.querySelector('[data-testid="hide-dominant-btn"]')?.getAttribute('aria-pressed')
+    ).toBe('false');
+    act(() => findTab('Accounts')!.click());
+    expect(container.querySelector('[data-idle-account="ollama:local"]')).toBeNull();
 
     const unavailable = makeUsageState({ snapshot: undefined, available: false });
     renderPage(unavailable);
@@ -571,7 +733,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     root = createRoot(container);
   });
 
-  it('maps model keys unambiguously and formats locale-aware percentages', () => {
+  it('maps model keys unambiguously and formats locale-aware percentages & compact USD', () => {
     const { accounts } = cloneFixture();
     expect(singleAccountForModels(accounts, ['opus_native', 'sonnet_native'])?.id).toBe(
       'claude_code:default'
@@ -583,6 +745,17 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(formatWholePercent(62, 'en')).toBe('62%');
     expect(formatWholePercent(62, 'tr')).toBe('%62');
     expect(formatWholePercent(62, 'fr')).toBe('62\u00a0%');
+
+    expect(formatSignedPercent(0.3, 'en')).toBe('+30%');
+    expect(formatSignedPercent(-0.25, 'en')).toBe('-25%');
+    expect(formatSignedPercent(0, 'en')).toBe('0%');
+    expect(formatSignedPercent(0.3, 'tr')).toBe('+%30');
+
+    expect(formatShortUsd(0, 'en')).toBe('$0');
+    expect(formatShortUsd(3, 'en')).toBe('$3');
+    expect(formatShortUsd(3.24, 'en')).toBe('$3.2');
+    expect(formatShortUsd(48.4, 'en')).toBe('$48');
+    expect(formatShortUsd(1600, 'en')).toBe('$1.6K');
   });
 
   it('renders loading, empty-accounts, empty-daily, zero-day, and zero-mix states cleanly', () => {
@@ -612,24 +785,19 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     );
     expect(container.querySelector('[data-testid="day-detail-drawer"]')).toBeNull();
 
-    // Selecting a zero-activity day shows a quiet empty-day message in the drawer.
-    const withZeroDay = cloneFixture();
-    withZeroDay.daily_7d.unshift({
-      day: '2026-11-16',
-      by_account: {},
-      unattributed_tokens: 0,
-      cost_by_account: {},
-      unattributed_cost_usd: 0,
-    });
-    renderPage(makeUsageState({ snapshot: withZeroDay }));
-    const zeroDayBtn = container.querySelector<HTMLButtonElement>('button[data-day="2026-11-16"]')!;
-    act(() => zeroDayBtn.click());
+    // Clicking an empty calendar day (2026-11-23) shows quiet empty-day message in drawer.
+    const sparse = cloneFixture();
+    renderPage(makeUsageState({ snapshot: sparse }));
+    const emptyDayBtn = container.querySelector<HTMLButtonElement>(
+      'button[data-day="2026-11-23"]'
+    )!;
+    act(() => emptyDayBtn.click());
     expect(container.querySelector('[data-testid="day-detail-drawer"]')?.textContent).toContain(
       'No usage recorded on this day.'
     );
   });
 
-  it('falls back cleanly when switching from a rich runtime snapshot to a minimal v1 snapshot and formats compact USD', () => {
+  it('falls back cleanly when switching from a rich snapshot to a minimal v1 snapshot on the same runtime', () => {
     const rich = cloneFixture();
     rich.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
     rich.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
@@ -637,7 +805,6 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     act(() => findTab('Agents')!.click());
     expect(findTab('Agents')?.getAttribute('aria-selected')).toBe('true');
 
-    // Click an earlier day and hide dominant before switching to a minimal snapshot.
     act(() => {
       container.querySelector<HTMLButtonElement>('button[data-day="2026-11-17"]')!.click();
     });
@@ -645,7 +812,6 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="hide-dominant-btn"]')!.click();
     });
 
-    // Switch to a minimal snapshot with different dates and no Agents/Models/cost data.
     const minimal = makeMinimalV1();
     minimal.daily_7d = [
       { day: '2026-11-20', by_account: { 'claude_code:default': 500_000 }, unattributed_tokens: 0 },
@@ -656,24 +822,13 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(container.querySelector('[data-testid="daily-activity-card"]')?.textContent).toContain(
       'Daily tokens'
     );
-    expect(
-      container
-        .querySelector('button[data-day="2026-11-20"]')
-        ?.getAttribute('aria-pressed')
-    ).toBe('true');
     expect(container.querySelector('[data-testid="hide-dominant-btn"]')).toBeNull();
 
-    // Also verifies pace legend hides when only untimed credit-limit windows are shown.
     const creditOnly = cloneFixture();
     creditOnly.accounts = [creditOnly.accounts[2]!];
     renderPage(makeUsageState({ snapshot: creditOnly }));
     expect(
       container.querySelector('[data-testid="subscription-quotas-section"]')?.textContent
     ).not.toContain('Tick = even-pace target');
-
-    expect(formatShortUsd(0, 'en')).toBe('$0');
-    expect(formatShortUsd(3.24, 'en')).toBe('$3.2');
-    expect(formatShortUsd(48.4, 'en')).toBe('$48');
-    expect(formatShortUsd(1600, 'en')).toBe('$1.6K');
   });
 });

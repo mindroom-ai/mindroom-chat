@@ -1941,7 +1941,7 @@
       "hideDominantTooltip": "Скрыть {{account}}, чтобы рассмотреть меньшие аккаунты",
       "resetFilterTooltip": "Показать все аккаунты, включая {{account}}",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} токенов",
-      "vs7dAvg": "{{delta}}% к сред. за 7 дн.",
+      "vs7dAvg": "{{delta}} к сред. за 7 дн.",
       "tokensShortUnit": "{{tokens}} ток.",
       "noDayActivity": "В этот день использование не зафиксировано.",
       "whereUsageGoes": "На что уходит использование",

@@ -1755,7 +1755,7 @@
       "hideDominantTooltip": "Sembunyikan {{account}} untuk memeriksa akun lebih kecil",
       "resetFilterTooltip": "Tampilkan semua akun termasuk {{account}}",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} token",
-      "vs7dAvg": "{{delta}}% vs rata-rata 7h",
+      "vs7dAvg": "{{delta}} vs rata-rata 7h",
       "tokensShortUnit": "{{tokens}} tok",
       "noDayActivity": "Tidak ada penggunaan tercatat pada hari ini.",
       "whereUsageGoes": "Ke mana penggunaan pergi",

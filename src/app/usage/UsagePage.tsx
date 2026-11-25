@@ -10,15 +10,11 @@ import { PageScroll } from '../ui/page/PageScroll';
 import { ProviderModelIcon } from '../ui/ProviderModelIcon';
 import type { ProviderAccountUsage } from './providerUsageProtocol';
 import { accountChartColor, accountDisplayTitle, QuotaBar } from './QuotaBar';
+import { buildUsageCalendar7d, formatCompactTokens, formatUsd } from './usageCalendar';
+import { UsageBreakdown } from './UsageBreakdown';
+import { UsageDailyChart } from './UsageDailyChart';
 import { useProviderUsage } from './useProviderUsage';
-import {
-  formatCompactTokens,
-  formatUsd,
-  ModelChips,
-  UsageBreakdownSection,
-  UsageDailySection,
-  UsageOverviewSection,
-} from './UsageTokensView';
+import { ModelChips, UsageOverviewSection } from './UsageTokensView';
 import * as css from './UsagePage.css';
 
 const COUNTDOWN_TICK_MS = 60_000;
@@ -156,9 +152,17 @@ export function UsagePage() {
     );
   }, [snapshot?.accounts]);
 
+  const calendar = useMemo(() => (snapshot ? buildUsageCalendar7d(snapshot) : []), [snapshot]);
+
   const subscriptionAccounts = useMemo(
     () => (snapshot?.accounts ?? []).filter(isSubscriptionAccount),
     [snapshot?.accounts]
+  );
+
+  const hasPaceTick = subscriptionAccounts.some((account) =>
+    account.windows.some((w) =>
+      Boolean(w.resets_at && w.window_duration_mins && w.window_duration_mins > 0)
+    )
   );
 
   const hasAnyUsageData =
@@ -167,6 +171,8 @@ export function UsagePage() {
       (snapshot?.unattributed_tokens_7d ?? 0) > 0 ||
       (snapshot?.top_models_7d?.length ?? 0) > 0 ||
       (snapshot?.top_agents_7d?.length ?? 0) > 0);
+
+  const runtimeKey = usage.selectedRuntimeId ?? '__default__';
 
   return (
     <Page data-testid="usage-view">
@@ -258,7 +264,11 @@ export function UsagePage() {
                 </div>
               ) : (
                 <>
-                  <UsageOverviewSection snapshot={snapshot} language={language} />
+                  <UsageOverviewSection
+                    snapshot={snapshot}
+                    calendar={calendar}
+                    language={language}
+                  />
 
                   {subscriptionAccounts.length > 0 && (
                     <section data-testid="subscription-quotas-section">
@@ -266,7 +276,7 @@ export function UsagePage() {
                         <h2 className={css.KickerTitle}>
                           {t('mindroomUi.usage.subscriptionQuotas')}
                         </h2>
-                        {subscriptionAccounts.some((a) => a.windows.some((w) => Boolean(w.resets_at && w.window_duration_mins && w.window_duration_mins > 0))) && (
+                        {hasPaceTick && (
                           <span className={css.MutedText}>{t('mindroomUi.usage.paceLegend')}</span>
                         )}
                       </div>
@@ -293,8 +303,21 @@ export function UsagePage() {
                     </section>
                   )}
 
-                  <UsageDailySection snapshot={snapshot} colors={colors} language={language} />
-                  <UsageBreakdownSection snapshot={snapshot} colors={colors} language={language} />
+                  <UsageDailyChart
+                    key={`daily-${runtimeKey}`}
+                    snapshot={snapshot}
+                    calendar={calendar}
+                    colors={colors}
+                    language={language}
+                    compact={phone}
+                  />
+                  <UsageBreakdown
+                    key={`breakdown-${runtimeKey}`}
+                    snapshot={snapshot}
+                    calendar={calendar}
+                    colors={colors}
+                    language={language}
+                  />
                 </>
               )}
             </div>

@@ -1879,7 +1879,7 @@
       "hideDominantTooltip": "Ocultar {{account}} para inspecionar contas menores",
       "resetFilterTooltip": "Mostrar todas as contas incluindo {{account}}",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} tokens",
-      "vs7dAvg": "{{delta}}% vs méd. 7 d",
+      "vs7dAvg": "{{delta}} vs méd. 7 d",
       "tokensShortUnit": "{{tokens}} tok",
       "noDayActivity": "Nenhum uso registrado neste dia.",
       "whereUsageGoes": "Para onde vai o uso",

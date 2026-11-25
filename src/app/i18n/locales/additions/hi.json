@@ -1817,7 +1817,7 @@
       "hideDominantTooltip": "छोटे खाते देखने के लिए {{account}} छिपाएं",
       "resetFilterTooltip": "{{account}} सहित सभी खाते दिखाएं",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} टोकन",
-      "vs7dAvg": "7-दिन औसत की तुलना में {{delta}}%",
+      "vs7dAvg": "7-दिन औसत की तुलना में {{delta}}",
       "tokensShortUnit": "{{tokens}} टोकन",
       "noDayActivity": "इस दिन कोई उपयोग दर्ज नहीं हुआ।",
       "whereUsageGoes": "उपयोग कहां जाता है",

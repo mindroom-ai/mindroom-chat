@@ -1817,7 +1817,7 @@
       "hideDominantTooltip": "Verberg {{account}} om kleinere accounts te bekijken",
       "resetFilterTooltip": "Toon alle accounts inclusief {{account}}",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} tokens",
-      "vs7dAvg": "{{delta}}% t.o.v. 7d-gem.",
+      "vs7dAvg": "{{delta}} t.o.v. 7d-gem.",
       "tokensShortUnit": "{{tokens}} tok",
       "noDayActivity": "Geen gebruik geregistreerd op deze dag.",
       "whereUsageGoes": "Waar het gebruik heengaat",

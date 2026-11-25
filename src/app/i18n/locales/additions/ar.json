@@ -2065,7 +2065,7 @@
       "hideDominantTooltip": "إخفاء ⁨{{account}}⁩ لفحص الحسابات الأصغر",
       "resetFilterTooltip": "إظهار جميع الحسابات بما فيها ⁨{{account}}⁩",
       "dailyBarCostAria": "⁨{{day}}⁩: ⁨{{cost}}⁩، ⁨{{tokens}}⁩ رمز",
-      "vs7dAvg": "⁨{{delta}}⁩% مقابل متوسط 7 أيام",
+      "vs7dAvg": "⁨{{delta}}⁩ مقابل متوسط 7 أيام",
       "tokensShortUnit": "⁨{{tokens}}⁩ رمز",
       "noDayActivity": "لم يُسجل أي استخدام في هذا اليوم.",
       "whereUsageGoes": "أين يذهب الاستخدام",

@@ -100,8 +100,6 @@ const isoTime = (v: unknown): v is string => str(v, 128) && Number.isFinite(Date
 const pct = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
 const nonNeg = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
-const optNullNonNeg = (v: unknown): number | null | undefined | false =>
-  v === undefined || v === null ? v : nonNeg(v) ? v : false;
 const bounded = (v: unknown): v is Record<string, unknown> => {
   if (!isRec(v)) return false;
   try {
@@ -123,8 +121,11 @@ const parseAccountNumberMap = (raw: unknown): Record<string, number> | undefined
   return out;
 };
 
-const parseOptTokenMix = (raw: unknown): TokenMix | undefined | false => {
-  if (raw === undefined || raw === null) return undefined;
+/** Optional additive parsers omit malformed data rather than failing the core v1 snapshot. */
+const parseOptCostUsd = (raw: unknown): number | null | undefined =>
+  raw === null ? null : nonNeg(raw) ? raw : undefined;
+
+const parseOptTokenMix = (raw: unknown): TokenMix | undefined => {
   if (
     !isRec(raw) ||
     !nonNeg(raw.input_tokens) ||
@@ -132,7 +133,7 @@ const parseOptTokenMix = (raw: unknown): TokenMix | undefined | false => {
     !nonNeg(raw.cache_read_tokens) ||
     !nonNeg(raw.cache_write_tokens)
   )
-    return false;
+    return undefined;
   return {
     input_tokens: raw.input_tokens,
     output_tokens: raw.output_tokens,
@@ -141,22 +142,19 @@ const parseOptTokenMix = (raw: unknown): TokenMix | undefined | false => {
   };
 };
 
-const parseOptDailyTokens = (raw: unknown): number[] | undefined | false => {
-  if (raw === undefined || raw === null) return undefined;
-  return Array.isArray(raw) && raw.length <= 31 && raw.every(nonNeg) ? [...raw] : false;
-};
+const parseOptDailyTokens = (raw: unknown): number[] | undefined =>
+  Array.isArray(raw) && raw.length <= 31 && raw.every(nonNeg) ? [...raw] : undefined;
 
 const parseOptList = <T>(
   raw: unknown,
   max: number,
   parseItem: (item: unknown) => T | undefined
-): T[] | undefined | false => {
-  if (raw === undefined || raw === null) return undefined;
-  if (!Array.isArray(raw) || raw.length > max) return false;
+): T[] | undefined => {
+  if (!Array.isArray(raw) || raw.length > max) return undefined;
   const items: T[] = [];
   for (const entry of raw) {
     const parsed = parseItem(entry);
-    if (!parsed) return false;
+    if (!parsed) return undefined;
     items.push(parsed);
   }
   return items;
@@ -213,8 +211,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     return undefined;
   const accountLabel = optNullStr(raw.account_label);
   const plan = optNullStr(raw.plan);
-  const tokenMix = parseOptTokenMix(raw.token_mix_7d);
-  if (accountLabel === false || plan === false || tokenMix === false) return undefined;
+  if (accountLabel === false || plan === false) return undefined;
   const unavailableReason =
     raw.unavailable_reason === undefined || raw.unavailable_reason === null
       ? raw.unavailable_reason
@@ -232,6 +229,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     winIds.add(w.id);
     windows.push(w);
   }
+  const tokenMix = parseOptTokenMix(raw.token_mix_7d);
   return {
     id: raw.id,
     provider: raw.provider,
@@ -259,17 +257,9 @@ const parseDaily = (raw: unknown): DailyAccountUsage | undefined => {
   )
     return undefined;
   const byAccount = parseAccountNumberMap(raw.by_account);
-  const costByAccount =
-    raw.cost_by_account === undefined || raw.cost_by_account === null
-      ? undefined
-      : parseAccountNumberMap(raw.cost_by_account);
-  const unattributedCost = optNullNonNeg(raw.unattributed_cost_usd);
-  if (
-    !byAccount ||
-    (raw.cost_by_account !== undefined && raw.cost_by_account !== null && !costByAccount) ||
-    unattributedCost === false
-  )
-    return undefined;
+  if (!byAccount) return undefined;
+  const costByAccount = parseAccountNumberMap(raw.cost_by_account);
+  const unattributedCost = parseOptCostUsd(raw.unattributed_cost_usd);
   return {
     day: raw.day,
     by_account: byAccount,
@@ -288,7 +278,6 @@ const parseUsageStats = (raw: Record<string, unknown>) => {
     return undefined;
   const tokenMix = parseOptTokenMix(raw.token_mix_7d);
   const dailyTokens = parseOptDailyTokens(raw.daily_tokens_7d);
-  if (tokenMix === false || dailyTokens === false) return undefined;
   return {
     tokens_7d: raw.tokens_7d,
     cost_usd_7d: raw.cost_usd_7d,
@@ -347,11 +336,9 @@ export const parseProviderUsageResponse = (raw: unknown): ProviderUsageSnapshot 
     daily.push(day);
   }
   const tokenMix = parseOptTokenMix(raw.token_mix_7d);
-  const cacheSavings = optNullNonNeg(raw.cache_savings_usd_7d);
+  const cacheSavings = parseOptCostUsd(raw.cache_savings_usd_7d);
   const topModels = parseOptList(raw.top_models_7d, 32, parseModelUsage);
   const topAgents = parseOptList(raw.top_agents_7d, 32, parseAgentUsage);
-  if (tokenMix === false || cacheSavings === false || topModels === false || topAgents === false)
-    return undefined;
   return {
     version: 1,
     request_id: raw.request_id,

@@ -1879,7 +1879,7 @@
       "hideDominantTooltip": "Masquer {{account}} pour inspecter les comptes plus modestes",
       "resetFilterTooltip": "Afficher tous les comptes dont {{account}}",
       "dailyBarCostAria": "{{day}} : {{cost}}, {{tokens}} jetons",
-      "vs7dAvg": "{{delta}} % vs moy. 7 j",
+      "vs7dAvg": "{{delta}} vs moy. 7 j",
       "tokensShortUnit": "{{tokens}} jet.",
       "noDayActivity": "Aucune utilisation enregistrée ce jour-là.",
       "whereUsageGoes": "Où va l’utilisation",

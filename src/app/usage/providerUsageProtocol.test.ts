@@ -128,7 +128,7 @@ describe('providerUsageProtocol', () => {
     expect(parseProviderUsageResponse(negCost)).toBeUndefined();
   });
 
-  it('rejects oversized payloads (> 65536 bytes), duplicate ids, and unsafe keys', () => {
+  it('rejects oversized payloads (> 65536 bytes), duplicate ids, and unsafe core keys', () => {
     const oversized = clone(contractFixture);
     oversized.accounts[0]!.model_keys = Array.from(
       { length: 100 },
@@ -145,26 +145,38 @@ describe('providerUsageProtocol', () => {
     expect(parseProviderUsageResponse(unsafeDaily)).toBeUndefined();
   });
 
-  it('validates additive TokenMix, daily costs, top_models_7d, and top_agents_7d strictly', () => {
+  it('gracefully omits malformed optional additive fields without rejecting the core v1 snapshot', () => {
     const badMix = clone();
     badMix.token_mix_7d!.cache_read_tokens = -1;
-    expect(parseProviderUsageResponse(badMix)).toBeUndefined();
+    const parsedBadMix = parseProviderUsageResponse(badMix);
+    expect(parsedBadMix).toBeDefined();
+    expect(parsedBadMix?.token_mix_7d).toBeUndefined();
+    expect(parsedBadMix?.accounts[0]?.windows).toHaveLength(2);
 
     const badAccountMix = clone();
     badAccountMix.accounts[0]!.token_mix_7d!.output_tokens = Number.POSITIVE_INFINITY;
-    expect(parseProviderUsageResponse(badAccountMix)).toBeUndefined();
+    const parsedBadAccountMix = parseProviderUsageResponse(badAccountMix);
+    expect(parsedBadAccountMix).toBeDefined();
+    expect(parsedBadAccountMix?.accounts[0]?.token_mix_7d).toBeUndefined();
 
     const negSavings = clone();
     negSavings.cache_savings_usd_7d = -0.5;
-    expect(parseProviderUsageResponse(negSavings)).toBeUndefined();
+    const parsedNegSavings = parseProviderUsageResponse(negSavings);
+    expect(parsedNegSavings).toBeDefined();
+    expect(parsedNegSavings?.cache_savings_usd_7d).toBeUndefined();
 
     const unsafeDailyCost = clone();
     unsafeDailyCost.daily_7d[0]!.cost_by_account!['prototype'] = 1;
-    expect(parseProviderUsageResponse(unsafeDailyCost)).toBeUndefined();
+    const parsedUnsafeDailyCost = parseProviderUsageResponse(unsafeDailyCost);
+    expect(parsedUnsafeDailyCost).toBeDefined();
+    expect(parsedUnsafeDailyCost?.daily_7d[0]?.cost_by_account).toBeUndefined();
+    expect(parsedUnsafeDailyCost?.daily_7d[0]?.by_account['openrouter:1']).toBe(900000);
 
     const negDailyUnattrCost = clone();
     negDailyUnattrCost.daily_7d[0]!.unattributed_cost_usd = -2;
-    expect(parseProviderUsageResponse(negDailyUnattrCost)).toBeUndefined();
+    const parsedNegDailyUnattr = parseProviderUsageResponse(negDailyUnattrCost);
+    expect(parsedNegDailyUnattr).toBeDefined();
+    expect(parsedNegDailyUnattr?.daily_7d[0]?.unattributed_cost_usd).toBeUndefined();
 
     const tooManyModels = clone();
     tooManyModels.top_models_7d = Array.from({ length: 33 }, (_, i) => ({
@@ -174,11 +186,16 @@ describe('providerUsageProtocol', () => {
       cost_usd_7d: 0.1,
       run_count: 1,
     }));
-    expect(parseProviderUsageResponse(tooManyModels)).toBeUndefined();
+    const parsedTooManyModels = parseProviderUsageResponse(tooManyModels);
+    expect(parsedTooManyModels).toBeDefined();
+    expect(parsedTooManyModels?.top_models_7d).toBeUndefined();
 
     const badModelSpark = clone();
     badModelSpark.top_models_7d![0]!.daily_tokens_7d = [100, -5];
-    expect(parseProviderUsageResponse(badModelSpark)).toBeUndefined();
+    const parsedBadModelSpark = parseProviderUsageResponse(badModelSpark);
+    expect(parsedBadModelSpark).toBeDefined();
+    expect(parsedBadModelSpark?.top_models_7d).toHaveLength(4);
+    expect(parsedBadModelSpark?.top_models_7d?.[0]?.daily_tokens_7d).toBeUndefined();
 
     const tooManyAgents = clone();
     tooManyAgents.top_agents_7d = Array.from({ length: 33 }, (_, i) => ({
@@ -187,11 +204,15 @@ describe('providerUsageProtocol', () => {
       cost_usd_7d: null,
       run_count: 2,
     }));
-    expect(parseProviderUsageResponse(tooManyAgents)).toBeUndefined();
+    const parsedTooManyAgents = parseProviderUsageResponse(tooManyAgents);
+    expect(parsedTooManyAgents).toBeDefined();
+    expect(parsedTooManyAgents?.top_agents_7d).toBeUndefined();
 
     const badAgentRuns = clone();
     badAgentRuns.top_agents_7d![0]!.run_count = -3;
-    expect(parseProviderUsageResponse(badAgentRuns)).toBeUndefined();
+    const parsedBadAgentRuns = parseProviderUsageResponse(badAgentRuns);
+    expect(parsedBadAgentRuns).toBeDefined();
+    expect(parsedBadAgentRuns?.top_agents_7d).toBeUndefined();
   });
 
   it('parses valid unavailable_reason values and rejects unknown values', () => {
@@ -206,9 +227,7 @@ describe('providerUsageProtocol', () => {
     (invalid.accounts[3] as Record<string, unknown>).unavailable_reason = 'unknown_reason';
     expect(parseProviderUsageResponse(invalid)).toBeUndefined();
   });
-});
 
-describe('providerUsageProtocol edge cases', () => {
   it('validates boundary sizes for top_models_7d (32), top_agents_7d (32), and daily_tokens_7d (31)', () => {
     const validBoundary = clone();
     validBoundary.top_models_7d = Array.from({ length: 32 }, (_, i) => ({
@@ -234,30 +253,38 @@ describe('providerUsageProtocol edge cases', () => {
 
     const tooLongSpark = clone();
     tooLongSpark.top_agents_7d![0]!.daily_tokens_7d = Array.from({ length: 32 }, () => 1);
-    expect(parseProviderUsageResponse(tooLongSpark)).toBeUndefined();
+    const parsedTooLongSpark = parseProviderUsageResponse(tooLongSpark);
+    expect(parsedTooLongSpark).toBeDefined();
+    expect(parsedTooLongSpark?.top_agents_7d?.[0]?.daily_tokens_7d).toBeUndefined();
   });
 
-  it('rejects malformed optional fields on models, agents, and daily cost maps', () => {
+  it('omits individual bad optional fields on models, agents, and daily costs without failing parse', () => {
     const badModelProvider = clone();
     badModelProvider.top_models_7d![0]!.provider = '';
-    expect(parseProviderUsageResponse(badModelProvider)).toBeUndefined();
+    expect(parseProviderUsageResponse(badModelProvider)?.top_models_7d).toBeUndefined();
 
     const badModelAccountId = clone();
     (badModelAccountId.top_models_7d![0] as Record<string, unknown>).account_id = 42;
-    expect(parseProviderUsageResponse(badModelAccountId)).toBeUndefined();
+    expect(parseProviderUsageResponse(badModelAccountId)?.top_models_7d).toBeUndefined();
 
     const badAgentMix = clone();
     (badAgentMix.top_agents_7d![0] as Record<string, unknown>).token_mix_7d = 'bad';
-    expect(parseProviderUsageResponse(badAgentMix)).toBeUndefined();
+    const parsedBadAgentMix = parseProviderUsageResponse(badAgentMix);
+    expect(parsedBadAgentMix?.top_agents_7d).toHaveLength(3);
+    expect(parsedBadAgentMix?.top_agents_7d?.[0]?.token_mix_7d).toBeUndefined();
 
     const badDailyCostMap = clone();
     (badDailyCostMap.daily_7d[0] as Record<string, unknown>).cost_by_account = {
       'openrouter:1': -0.01,
     };
-    expect(parseProviderUsageResponse(badDailyCostMap)).toBeUndefined();
+    const parsedBadDailyCost = parseProviderUsageResponse(badDailyCostMap);
+    expect(parsedBadDailyCost).toBeDefined();
+    expect(parsedBadDailyCost?.daily_7d[0]?.cost_by_account).toBeUndefined();
 
     const missingMixField = clone();
     delete (missingMixField.token_mix_7d as Record<string, unknown>).input_tokens;
-    expect(parseProviderUsageResponse(missingMixField)).toBeUndefined();
+    const parsedMissingMix = parseProviderUsageResponse(missingMixField);
+    expect(parsedMissingMix).toBeDefined();
+    expect(parsedMissingMix?.token_mix_7d).toBeUndefined();
   });
 });

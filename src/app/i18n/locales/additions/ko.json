@@ -1755,7 +1755,7 @@
       "hideDominantTooltip": "작은 계정을 보려면 {{account}} 숨기기",
       "resetFilterTooltip": "{{account}} 포함 모든 계정 표시",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} 토큰",
-      "vs7dAvg": "7일 평균 대비 {{delta}}%",
+      "vs7dAvg": "7일 평균 대비 {{delta}}",
       "tokensShortUnit": "{{tokens}} 토큰",
       "noDayActivity": "이 날짜에는 기록된 사용량이 없습니다.",
       "whereUsageGoes": "사용처 분석",

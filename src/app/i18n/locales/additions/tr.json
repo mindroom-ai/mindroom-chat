@@ -1817,7 +1817,7 @@
       "hideDominantTooltip": "Daha küçük hesapları görmek için {{account}} hesabını gizle",
       "resetFilterTooltip": "{{account}} dahil tüm hesapları göster",
       "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} belirteç",
-      "vs7dAvg": "7g ort. göre %{{delta}}",
+      "vs7dAvg": "7g ort. göre {{delta}}",
       "tokensShortUnit": "{{tokens}} bel.",
       "noDayActivity": "Bu gün için kaydedilmiş kullanım yok.",
       "whereUsageGoes": "Kullanım nereye gidiyor",

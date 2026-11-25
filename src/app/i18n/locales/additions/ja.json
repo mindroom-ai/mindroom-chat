@@ -1755,7 +1755,7 @@
       "hideDominantTooltip": "{{account}} を非表示にして他のアカウントを確認",
       "resetFilterTooltip": "{{account}} を含むすべてのアカウントを表示",
       "dailyBarCostAria": "{{day}}: {{cost}}、{{tokens}} トークン",
-      "vs7dAvg": "7日平均比 {{delta}}%",
+      "vs7dAvg": "7日平均比 {{delta}}",
       "tokensShortUnit": "{{tokens}} トークン",
       "noDayActivity": "この日の利用記録はありません。",
       "whereUsageGoes": "利用の内訳",

@@ -1755,7 +1755,7 @@
       "hideDominantTooltip": "隱藏 {{account}} 以檢視其他帳號",
       "resetFilterTooltip": "顯示包含 {{account}} 在內的全部帳號",
       "dailyBarCostAria": "{{day}}：{{cost}}，{{tokens}} 權杖",
-      "vs7dAvg": "較 7 天均值 {{delta}}%",
+      "vs7dAvg": "較 7 天均值 {{delta}}",
       "tokensShortUnit": "{{tokens}} 權杖",
       "noDayActivity": "當天暫無使用紀錄。",
       "whereUsageGoes": "使用去向",
