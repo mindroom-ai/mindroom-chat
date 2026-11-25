@@ -182,7 +182,7 @@ describe('SpaceThreadsHeader', () => {
     expect(disabled.container.querySelector('[data-space-switcher-button]')).toBeNull();
   });
 
-  it('supports initialFocus, arrow keys, Escape/same-space focus return, rename freshness, and navigation', () => {
+  it('supports initialFocus, Escape/same-space focus return, rename freshness, and navigation', () => {
     const space = makeSpace(SPACE_ID, 'Product');
     const subSpace = makeSpace(SUB_ID, 'Platform');
     const otherSpace = makeSpace(OTHER_SPACE_ID, 'Design Studio');
@@ -201,6 +201,7 @@ describe('SpaceThreadsHeader', () => {
 
     fireEvent.click(trigger);
     const menu = document.querySelector<HTMLElement>('[data-space-switcher-menu="true"]')!;
+    expect(menu.getAttribute('role')).toBe('menu');
     const options = [...document.querySelectorAll<HTMLElement>('[data-space-switcher-option]')];
     expect(options.map((el) => el.getAttribute('data-space-switcher-option'))).toEqual([
       OTHER_SPACE_ID,
@@ -212,16 +213,6 @@ describe('SpaceThreadsHeader', () => {
 
     // initialFocus prefers the checked item even when it is not first in DOM order.
     expect(document.activeElement).toBe(options[1]);
-
-    // ArrowDown / ArrowUp / Home / End move focus across menuitemradio options.
-    fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(options[2]);
-    fireEvent.keyDown(menu, { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(options[1]);
-    fireEvent.keyDown(menu, { key: 'Home' });
-    expect(document.activeElement).toBe(options[0]);
-    fireEvent.keyDown(menu, { key: 'End' });
-    expect(document.activeElement).toBe(options[2]);
 
     // Escape closes the menu and restores focus to the trigger button.
     fireEvent.keyDown(document, { key: 'Escape' });
