@@ -125,18 +125,6 @@ const applyReorder = (
     return { items: base };
   }
 
-  // Dropping a space inside a folder as make-child onto its own folder header is a no-op.
-  if (
-    isFolderDrag(item) &&
-    item.spaceId &&
-    isFolderDrag(containerItem) &&
-    !containerItem.spaceId &&
-    item.folder.id === containerItem.folder.id &&
-    instructionType === 'make-child'
-  ) {
-    return { items: base };
-  }
-
   const below = instructionType === 'reorder-below';
 
   // Reordering inside one folder.
@@ -170,6 +158,9 @@ const applyReorder = (
     // Into an existing folder, or onto a space to start a new folder with it.
     if (isFolderDrag(containerItem)) {
       const folderId = containerItem.folder.id;
+      if (!withoutItem.some((entry) => isFolder(entry) && entry.id === folderId)) {
+        return { items: base };
+      }
       return {
         emptiedFolderId,
         items: withoutItem.map((entry) =>

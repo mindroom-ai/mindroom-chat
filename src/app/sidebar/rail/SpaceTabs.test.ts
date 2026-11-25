@@ -263,6 +263,33 @@ describe('SpaceTabs sidebar reorder persistence', () => {
     ]);
   });
 
+  it('moves the first space of a multi-child folder to the end when dropped onto its own folder header as make-child', () => {
+    const folder: SidebarFolder = { id: 'folder-1', content: [ALPHA, BRAVO] };
+    const topLevelSpaces = [ALPHA, BRAVO, CHARLIE];
+    const isJoinedSpace = joined(ALPHA, BRAVO, CHARLIE);
+    const mx = makeMatrixClient([folder, CHARLIE]);
+
+    const result = commitSidebarReorder({
+      mx,
+      orphanSpaces: topLevelSpaces,
+      savedItems: [folder, CHARLIE],
+      item: { folder, spaceId: ALPHA },
+      containerItem: { folder },
+      instructionType: 'make-child',
+    });
+
+    const expected = [{ id: 'folder-1', content: [BRAVO, ALPHA] }, CHARLIE];
+    expect(result.changed).toBe(true);
+    expect(result.items).toEqual(expected);
+    expect(mx.setAccountData).toHaveBeenCalledWith(AccountDataEvent.MindroomSpaces, {
+      existing: true,
+      sidebar: expected,
+    });
+    expect(getShownSidebarItems({ saved: result.items, topLevelSpaces, isJoinedSpace })).toEqual(
+      expected
+    );
+  });
+
   it('treats dragging an open folder onto its own child as a no-op', () => {
     const folder: SidebarFolder = { id: 'folder-1', content: [ALPHA, BRAVO] };
     const topLevelSpaces = [ALPHA, BRAVO, CHARLIE];
