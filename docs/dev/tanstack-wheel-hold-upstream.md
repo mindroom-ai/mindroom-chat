@@ -75,7 +75,7 @@
 
 ## PR 4: Opt-in `anchorSkipLeading` to skip stable leading items in view when picking the `anchorTo: 'end'` prepend anchor
 
-**Problem & repro:** When an `anchorTo: 'end'` list renders caller-owned stable leading items (e.g., a room `[+all]`/intro tile at index 0, or a thread "Load Older" chip and root at indices 0–1) and prepends older items after them while `scrollOffset` sits within that prefix, `getVirtualItemForOffset(scrollOffset)` returns a leading item whose key stays at its index (`merged.getItemKey(item.index) === getPreviousKey(item.index)`). `setOptions` then computes `newOffset = scrollOffset` and pushes every visible item down by the prepended height. Expose an opt-in `anchorSkipLeading?: number` option (default `0`, preserving upstream behaviour) so callers declare only their true leading prefix without accidentally skipping content rows (such as an expanding membership fold at index 1 in a room). Never advance onto an item whose `start >= scrollOffset + this.getSize() / 2`, so reading a tall leading item (such as an expanded thread root, even below a fixed-height thread header above the list) never jumps when items arrive below the top half of the viewport.
+**Problem & repro:** When an `anchorTo: 'end'` list renders caller-owned stable leading items (e.g., a room `[+all]`/intro tile at index 0, or a thread "Load Older" chip and root at indices 0–1) and prepends older items after them while `scrollOffset` sits within that prefix, `getVirtualItemForOffset(scrollOffset)` returns a leading item whose key stays at its index (`merged.getItemKey(item.index) === getPreviousKey(item.index)`). `setOptions` then computes `newOffset = scrollOffset` and pushes every visible item down by the prepended height. Expose an opt-in `anchorSkipLeading?: number` option (default `0`, preserving upstream behaviour) so callers declare only their true leading prefix without accidentally skipping content rows (such as an expanding membership fold at index 1 in a room). Never advance onto an item whose `start >= scrollOffset + this.getSize() / 2`, so reading a tall leading item (such as an expanded thread root, even below a fixed-height thread header above the list) never jumps when items arrive below the top half of the viewport. Skip runs only on growth (`nextCount > prevCount`, i.e. prepend), because same-count reorders must anchor normally.
 
 ```diff
 +  anchorSkipLeading?: number // VirtualizerOptions (default 0)
@@ -86,7 +86,7 @@
 -  }
 +  const scrollOffset = this.getScrollOffset()
 +  let item = prevCount > 0 ? this.getVirtualItemForOffset(scrollOffset) ?? measurements[0] : null
-+  while (item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
++  while (nextCount > prevCount && item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
 +    const next = measurements[item.index + 1]
 +    if (!next || next.start >= scrollOffset + this.getSize() / 2) break
 +    item = next
