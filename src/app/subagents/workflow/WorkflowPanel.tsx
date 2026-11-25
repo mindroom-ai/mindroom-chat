@@ -124,7 +124,7 @@ export function WorkflowPanel({
   return (
     <section tabIndex={-1} className={css.Panel} aria-label={heading} data-testid="workflow-panel">
       <header className={SidePanelHeader}>
-        <Box direction="Column" gap="100" grow="Yes" style={{ minInlineSize: 0 }}>
+        <Box direction="Column" gap="100" style={{ flex: '1 1 5rem', minInlineSize: 0 }}>
           <div className={cardCss.Row} style={{ gap: '4px' }}>
             <WorkflowRunTitleBadges heading={heading} view={entry} asHeading />
           </div>

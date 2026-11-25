@@ -44,7 +44,7 @@ export function PluginSidePanel({
     <section className={Panel} style={{ flexGrow: 1 }} aria-label={label}>
       {withTitle && (
         <header className={Header}>
-          <Text as="h2" size="H4" truncate>
+          <Text as="h2" size="H4" truncate style={{ flex: '1 1 5rem', minInlineSize: 0 }}>
             {label}
           </Text>
           <PanelHeaderControls

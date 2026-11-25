@@ -613,9 +613,11 @@ export function ComputerPanel({
     <aside className={panelClassName} aria-label="Computer panel">
       <div className={css.Layout}>
         <div className={css.Header}>
-          <Box alignItems="Center" gap="200">
+          <Box alignItems="Center" gap="200" style={{ flex: '1 1 5.5rem', minInlineSize: 0 }}>
             <Icon size="300" src={Icons.Monitor} />
-            <Text size="H4">Computer</Text>
+            <Text size="H4" truncate>
+              Computer
+            </Text>
           </Box>
           <PanelHeaderControls onClose={handleClose} closeLabel="Close computer">
             {onToggleExpanded && !frame && (

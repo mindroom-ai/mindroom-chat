@@ -47,7 +47,7 @@ const clearOfGrips: StyleRule = {
 
 export const WindowHeader = style(clearOfGrips);
 
-export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 auto' }));
+export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 5rem' }));
 
 export const HeaderButtons = style(
   lined('row', space.S100, { flexShrink: 0, alignItems: 'center' })

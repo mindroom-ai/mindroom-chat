@@ -1,6 +1,6 @@
 import { createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
+import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
 
@@ -14,16 +14,10 @@ export const Panel = style([
   },
 ]);
 
-export const Header = style([
-  SidePanelHeader,
-  {
-    flexWrap: 'wrap',
-    rowGap: config.space.S100,
-  },
-]);
+export { Header } from '../ui/panels/SidePanel.css';
 
 export const TitleGroup = style({
-  flex: '1 1 auto',
+  flex: '1 1 5rem',
   minWidth: 0,
 });
 

@@ -321,12 +321,9 @@ export const Divider = style({
 
 const headerLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 
-/** The open run's header: its buttons stay at the top beside a title of two lines, wrapping onto
- * a second row when a narrow desktop panel (200 px) cannot fit Back, logo, and the control pill on one line. */
+/** The open run's header: its buttons stay at the top beside a title of two lines. */
 export const RunHeader = style({
   alignItems: 'flex-start',
-  flexWrap: 'wrap',
-  rowGap: space.S100,
   vars: { [logoRing]: color.Surface.Container },
 });
 
