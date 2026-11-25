@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { Menu, MenuItem } from '../../src/app/ui/glass/GlassPrimitives';
+import { IconButton, Menu, MenuItem } from '../../src/app/ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../src/app/ui/glass/liquid/useLiquidGlass';
 import { LightTheme, DarkTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
@@ -31,7 +31,7 @@ function Optics() {
           top: 80,
           width: 320,
           height: 220,
-          borderRadius: 28,
+          borderRadius: params.get('optics') === 'sheet' ? '24px 24px 0 0' : 28,
           background: 'transparent',
           backdropFilter: 'var(--liquid-glass-filter, none)',
         }}
@@ -93,6 +93,14 @@ function Showcase() {
       >
         MINDROOM / MATERIAL STUDY
       </div>
+      <IconButton
+        data-testid="showcase-button"
+        type="button"
+        aria-label="Glass action"
+        style={{ position: 'absolute', left: '7%', top: '72%' }}
+      >
+        +
+      </IconButton>
       <Menu
         data-testid="showcase-menu"
         style={{

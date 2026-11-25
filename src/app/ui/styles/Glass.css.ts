@@ -10,10 +10,13 @@ const surfaceActive = createVar();
 const surfaceLine = createVar();
 const surfaceTint = createVar();
 const surfaceBlur = createVar();
-const highlight = createVar();
-const rimHighlight = createVar();
-const rimShade = createVar();
-const rimReflection = createVar();
+const rimTop = createVar();
+const rimSide = createVar();
+const rimBottom = createVar();
+const rimCornerTop = createVar();
+const rimCornerBottom = createVar();
+const rimGlint = createVar();
+const outerHairline = createVar();
 export const glassShadow = createVar();
 
 const backdropSupport = '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))';
@@ -22,8 +25,8 @@ const opaqueGlassMedia =
   '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)';
 const backdropTint = `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`;
 const backdropBlur = {
-  backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
-  WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+  backdropFilter: `blur(${surfaceBlur}) saturate(175%)`,
+  WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(175%)`,
 };
 
 const variantStyle = (variant: ContainerColor): StyleRule => ({
@@ -65,24 +68,34 @@ const material = (
     [glassShadow]: '0 0 0 transparent',
     [surfaceTint]: `${tint}%`,
     [surfaceBlur]: `${blur}px`,
-    [highlight]: 'rgb(255 255 255 / 22%)',
-    [rimHighlight]: 'rgb(255 255 255 / 32%)',
-    [rimShade]: 'rgb(65 70 90 / 24%)',
-    // Let the shaded rim show through so the top stays visible on white backgrounds.
-    [rimReflection]: 'rgb(255 255 255 / 50%)',
+    [rimTop]: 'rgb(255 255 255 / 78%)',
+    [rimSide]: 'rgb(55 62 82 / 12%)',
+    [rimBottom]: 'rgb(255 255 255 / 44%)',
+    [rimCornerTop]: 'rgb(255 255 255 / 96%)',
+    [rimCornerBottom]: 'rgb(255 255 255 / 54%)',
+    [rimGlint]: 'rgb(255 255 255 / 95%)',
+    [outerHairline]: 'rgb(15 23 42 / 13%)',
   },
   selectors: {
     '&&': {
+      // Reset pointer coordinates so nested glass controls never inherit an enclosing surface's glint.
+      vars: {
+        '--liquid-glass-light-x': 'initial',
+        '--liquid-glass-light-y': 'initial',
+      },
       backgroundColor: surfaceContainer,
       backgroundImage: 'none',
     },
     [`${DARK_THEMES} &&`]: {
       vars: {
         [surfaceTint]: `${darkTint}%`,
-        [highlight]: 'rgb(255 255 255 / 4%)',
-        [rimHighlight]: 'rgb(255 255 255 / 14%)',
-        [rimShade]: 'rgb(255 255 255 / 3%)',
-        [rimReflection]: 'rgb(255 255 255 / 32%)',
+        [rimTop]: 'rgb(255 255 255 / 26%)',
+        [rimSide]: 'rgb(255 255 255 / 6%)',
+        [rimBottom]: 'rgb(255 255 255 / 13%)',
+        [rimCornerTop]: 'rgb(255 255 255 / 46%)',
+        [rimCornerBottom]: 'rgb(255 255 255 / 24%)',
+        [rimGlint]: 'rgb(255 255 255 / 80%)',
+        [outerHairline]: 'rgb(0 0 0 / 52%)',
       },
     },
     'button&&:focus-visible': {
@@ -98,16 +111,24 @@ const material = (
       // surfaces. Leave positioning and stacking decisions with the caller.
       // Reserve ::before for the rim; sidebar drag indicators use ::after.
       selectors: {
-        '&&': { vars: { [glassShadow]: elevation } },
+        '&&': {
+          isolation: 'isolate',
+          vars: { [glassShadow]: elevation },
+        },
+        // Keep the 1px specular rim above relative children (hovered rows, badges, sticky titles).
         '&::before': {
           content: '""',
           position: 'absolute',
           inset: 0,
+          zIndex: 2,
           borderRadius: 'inherit',
           padding: 1,
           pointerEvents: 'none',
-          backgroundColor: rimShade,
-          backgroundImage: `linear-gradient(180deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
+          backgroundImage: [
+            `radial-gradient(circle 120px at var(--liquid-glass-light-x, -999px) var(--liquid-glass-light-y, -999px), ${rimGlint}, transparent 72%)`,
+            `linear-gradient(135deg, ${rimCornerTop} 0%, transparent 26%, transparent 74%, ${rimCornerBottom} 100%)`,
+            `linear-gradient(180deg, ${rimTop} 0%, ${rimSide} 36%, ${rimSide} 68%, ${rimBottom} 100%)`,
+          ].join(', '),
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           WebkitMaskComposite: 'xor',
@@ -120,12 +141,11 @@ const material = (
       selectors: {
         '&&': {
           backgroundColor: backdropTint,
-          backgroundImage: `radial-gradient(circle 90px at var(--liquid-glass-light-x, 0%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
           ...backdropBlur,
         },
         '&&[data-liquid-glass="active"]': {
-          backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
-          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
+          backdropFilter: 'var(--liquid-glass-filter) saturate(175%)',
+          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(175%)',
         },
       },
     },
@@ -178,8 +198,8 @@ export const glassExpanded = style({
   },
 });
 
-// Keep floating chrome as lightly blurred as the Chromium optical filter.
-const floatingBlur = '3px';
+// Match frosted floating pills, menus, and banners to the native 12px blur.
+const floatingBlur = '12px';
 export const glassFloating = style({
   selectors: {
     '&&&': {
@@ -301,44 +321,43 @@ export const glassOverFadingBackdrop = style([
 export const glassSurface = recipe({
   base: {
     boxShadow: glassShadow,
-    selectors: {
-      'button&': { transition: 'scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1)' },
-      'button&:active:not(:disabled)': { scale: '0.98' },
-    },
     '@media': {
-      '(hover: hover)': {
-        selectors: { 'button&:hover:not(:disabled):not(:active)': { scale: '1.025' } },
+      '(prefers-reduced-motion: no-preference)': {
+        selectors: {
+          'button&': { transition: 'scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1)' },
+          'button&:active:not(:disabled)': { scale: '0.98' },
+        },
       },
-      '(prefers-reduced-motion: reduce)': {
-        selectors: { 'button&&': { scale: 'none', transition: 'none' } },
+      '(hover: hover) and (prefers-reduced-motion: no-preference)': {
+        selectors: { 'button&:hover:not(:disabled):not(:active)': { scale: '1.025' } },
       },
     },
   },
   variants: {
     level: {
       overlay: [
-        // Vertical lighting catches the top and bottom while the sides recede. Menus, popovers
-        // and dialogs hold text over the page, so their glass is tinted nearly opaque.
+        // Vertical lighting and 45° corner gleams catch the edge while the sides recede. Menus,
+        // popovers and dialogs hold text over the page, so their glass is tinted nearly opaque.
         material(
           88,
-          12,
-          `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
-          '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)',
+          16,
+          `inset 0 1px 0 ${rimTop}, inset 0 -1px 0 ${rimBottom}, 0 0 0 0.5px ${outerHairline}, 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
+          `0 0 0 0.5px ${outerHairline}, 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
           88
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
       panel: material(
         60,
-        10,
-        'inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(255 255 255 / 6%)',
-        '0 0 0 transparent'
+        12,
+        `inset 0 1px 0 ${rimTop}, inset 0 -1px 0 ${rimBottom}, 0 0 0 0.5px ${outerHairline}`,
+        `0 0 0 0.5px ${outerHairline}`
       ),
       control: material(
         58,
-        8,
-        `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 2px 8px rgb(0 0 0 / 5%)`,
-        '0 2px 8px rgb(0 0 0 / 5%)'
+        12,
+        `inset 0 1px 0 ${rimTop}, inset 0 -1px 0 ${rimBottom}, 0 0 0 0.5px ${outerHairline}, 0 2px 8px rgb(0 0 0 / 5%)`,
+        `0 0 0 0.5px ${outerHairline}, 0 2px 8px rgb(0 0 0 / 5%)`
       ),
     },
     variant: {
@@ -371,9 +390,6 @@ export const glassScrollPanel = style({
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
         },
-        // PageScroll's sticky title (z-index 1) would otherwise paint over the rim,
-        // and Chromium's title blur smears the 1px rim into a band along the edge.
-        [`&${layeredContent}::before`]: { zIndex: 2 },
         [`&${layeredContent}::after`]: {
           content: '""',
           position: 'absolute',
@@ -384,8 +400,8 @@ export const glassScrollPanel = style({
           ...backdropBlur,
         },
         [`&[data-liquid-glass="active"]${layeredContent}::after`]: {
-          backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
-          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
+          backdropFilter: 'var(--liquid-glass-filter) saturate(175%)',
+          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(175%)',
         },
       },
     },
