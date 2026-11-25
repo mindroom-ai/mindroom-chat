@@ -121,32 +121,6 @@ describe('byPerson', () => {
   it("counts this person's other device as this device's person", () => {
     expect(byPerson([phone(me), mind, me])).toEqual([{ ...phone(me), local: true }, mind]);
   });
-
-  it("prefers the speaking device's audioTrack when merging a person's devices", () => {
-    const laptopTrack = { id: 'laptop' } as MediaStreamTrack;
-    const phoneTrack = { id: 'phone' } as MediaStreamTrack;
-
-    expect(
-      byPerson([
-        { ...ada, speaking: false, audioTrack: laptopTrack },
-        phone(ada, { speaking: true, audioTrack: phoneTrack }),
-      ])[0]?.audioTrack
-    ).toBe(phoneTrack);
-
-    expect(
-      byPerson([
-        { ...ada, speaking: true, audioTrack: laptopTrack },
-        phone(ada, { speaking: false, audioTrack: phoneTrack }),
-      ])[0]?.audioTrack
-    ).toBe(laptopTrack);
-
-    expect(
-      byPerson([
-        { ...ada, speaking: false },
-        phone(ada, { speaking: false, audioTrack: phoneTrack }),
-      ])[0]?.audioTrack
-    ).toBe(phoneTrack);
-  });
 });
 
 describe('screenKey', () => {

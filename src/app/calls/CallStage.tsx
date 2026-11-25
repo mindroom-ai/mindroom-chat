@@ -148,8 +148,17 @@ function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
   const localAudioTrack = microphone
     ? devices.find((participant) => participant.local)?.audioTrack
     : undefined;
+  const remoteAudioTrack = speaker
+    ? (devices.find(
+        (device) =>
+          !device.local && device.userId === speaker.userId && device.speaking && device.audioTrack
+      )?.audioTrack ??
+      devices.find(
+        (device) => !device.local && device.userId === speaker.userId && device.audioTrack
+      )?.audioTrack)
+    : undefined;
   const audioSource: VoiceAudioSource = speaker ? 'remote' : microphone ? 'local' : 'none';
-  const audioTrack = speaker ? speaker.audioTrack : localAudioTrack;
+  const audioTrack = speaker ? remoteAudioTrack : localAudioTrack;
   // Agents listen while nobody talks; quiet people are just quiet, so nothing is said of them. An
   // agent the call still waits for is not listening yet: its face says it is awaited.
   const agentsOnly = others.every(

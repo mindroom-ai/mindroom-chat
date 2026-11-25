@@ -16,9 +16,9 @@ import { STAGE_PADDING, TILE_GAP } from './stageLayout';
 // stage needs with that part (a 64 px face with a line under it, 28 px bars, 12 px gaps). Shorter
 // still, the faces shrink to the stage's height, down to FACE_MIN.
 const stage = createContainer();
-const HIDES_STATUS = `${stage} (max-height: 160px)`;
-const HIDES_NAMES = `${stage} (max-height: 128px)`;
-const HIDES_BARS = `${stage} (max-height: 100px)`;
+const HIDES_STATUS = `${stage} (max-height: 164px)`;
+const HIDES_NAMES = `${stage} (max-height: 132px)`;
+const HIDES_BARS = `${stage} (max-height: 104px)`;
 const hiddenWhen = (query: string): StyleRule => ({
   '@container': { [query]: { display: 'none' } },
 });
@@ -226,7 +226,7 @@ export const VoiceName = style([nameLine, hiddenWhen(HIDES_NAMES)]);
 
 export const VoiceBars = style([
   centredFlow('row nowrap', toRem(4)),
-  { height: toRem(28) },
+  { height: toRem(28), direction: 'ltr' },
   hiddenWhen(HIDES_BARS),
 ]);
 
@@ -247,6 +247,9 @@ export const VoiceBar = style({
     [`${VoiceBars}[data-audio-active="true"][data-audio-source="local"] &`]: {
       background: color.Primary.Main,
     },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transform: 'scaleY(0.5)' },
   },
 });
 

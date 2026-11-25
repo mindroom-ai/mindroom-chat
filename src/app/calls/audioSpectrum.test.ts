@@ -61,31 +61,28 @@ describe('audioSpectrum', () => {
     }
   });
 
-  it('smooths with fast attack, slower decay, gentler reducedMotion, settle, and scale mapping', () => {
+  it('smooths with fast attack, slower decay, frame-rate independence, settle, and scale mapping', () => {
     const high = new Float32Array([1, 0, 0, 0, 0]);
     const zero = new Float32Array(SPECTRUM_BAR_COUNT);
     const up = new Float32Array(SPECTRUM_BAR_COUNT);
     const down = new Float32Array([1, 0, 0, 0, 0]);
-    const reduced = new Float32Array(SPECTRUM_BAR_COUNT);
 
-    expect(stepSpectrumBars(high, up, 30, false)).toBe(true);
-    stepSpectrumBars(zero, down, 30, false);
-    stepSpectrumBars(high, reduced, 30, true);
+    expect(stepSpectrumBars(high, up, 30)).toBe(true);
+    stepSpectrumBars(zero, down, 30);
     expect(up[0]).toBeGreaterThan(1 - (down[0] ?? 1));
-    expect(reduced[0]).toBeLessThan(up[0] ?? 0);
 
     const two = new Float32Array(SPECTRUM_BAR_COUNT);
     const one = new Float32Array(SPECTRUM_BAR_COUNT);
-    stepSpectrumBars(high, two, 16, false);
-    stepSpectrumBars(high, two, 16, false);
-    stepSpectrumBars(high, one, 32, false);
+    stepSpectrumBars(high, two, 16);
+    stepSpectrumBars(high, two, 16);
+    stepSpectrumBars(high, one, 32);
     expect(two[0]).toBeCloseTo(one[0] ?? 0, 5);
 
     const tiny = new Float32Array([0.004, 0, 0, 0, 0]);
-    expect(stepSpectrumBars(zero, tiny, 16, false)).toBe(false);
+    expect(stepSpectrumBars(zero, tiny, 16)).toBe(false);
     expect(tiny[0]).toBe(0);
     const edge = new Float32Array([AUDIO_ACTIVE_THRESHOLD, 0, 0, 0, 0]);
-    expect(stepSpectrumBars(edge, edge, 0, false)).toBe(false);
+    expect(stepSpectrumBars(edge, edge, 0)).toBe(false);
 
     expect(barScaleFromLevel(0)).toBe(BAR_REST_SCALE);
     expect(barScaleFromLevel(1)).toBe(1);

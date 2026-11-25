@@ -53,24 +53,18 @@ export const byPerson = (participants: CallParticipant[]): CallParticipant[] => 
   const people = new Map<string, CallParticipant>();
   participants.forEach((device) => {
     const known = people.get(device.userId);
-    if (!known) {
-      people.set(device.userId, device);
-      return;
-    }
-    const audioTrack =
-      device.speaking && device.audioTrack
-        ? device.audioTrack
-        : known.speaking && known.audioTrack
-          ? known.audioTrack
-          : (known.audioTrack ?? device.audioTrack);
-    people.set(device.userId, {
-      ...known,
-      local: known.local || device.local,
-      connected: known.connected || device.connected,
-      speaking: known.speaking || device.speaking,
-      microphone: known.microphone || device.microphone,
-      ...(audioTrack ? { audioTrack } : {}),
-    });
+    people.set(
+      device.userId,
+      known
+        ? {
+            ...known,
+            local: known.local || device.local,
+            connected: known.connected || device.connected,
+            speaking: known.speaking || device.speaking,
+            microphone: known.microphone || device.microphone,
+          }
+        : device
+    );
   });
   return [...people.values()];
 };

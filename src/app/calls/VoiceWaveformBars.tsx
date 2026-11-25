@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import {
-  BAR_REST_SCALE,
   SPECTRUM_BAR_COUNT,
   barScaleFromLevel,
   extractSpectrumBands,
@@ -27,6 +26,7 @@ const FFT_SIZE = 1024;
 const DEFAULT_FRAME_DT_MS = 16;
 const MAX_FRAME_DT_MS = 100;
 const REDUCED_MOTION_INTERVAL_MS = 100;
+const RESUME_EVENTS = ['pointerdown', 'click', 'keydown'] as const;
 const BAR_INDICES = Array.from({ length: SPECTRUM_BAR_COUNT }, (_, index) => index);
 
 const createAudioEngine = (): AudioEngine | null => {
@@ -51,6 +51,13 @@ const createAudioEngine = (): AudioEngine | null => {
   }
 };
 
+const clearBarTransforms = (bars: Array<HTMLSpanElement | null>) => {
+  for (let i = 0; i < SPECTRUM_BAR_COUNT; i += 1) {
+    const bar = bars[i];
+    if (bar) bar.style.transform = '';
+  }
+};
+
 const resetWaveformDom = (
   container: HTMLSpanElement | null,
   bars: Array<HTMLSpanElement | null>,
@@ -58,10 +65,7 @@ const resetWaveformDom = (
 ) => {
   engine?.target.fill(0);
   engine?.current.fill(0);
-  for (let i = 0; i < SPECTRUM_BAR_COUNT; i += 1) {
-    const bar = bars[i];
-    if (bar) bar.style.transform = `scaleY(${BAR_REST_SCALE})`;
-  }
+  clearBarTransforms(bars);
   if (container) container.dataset.audioActive = 'false';
 };
 
@@ -108,8 +112,10 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
         ? window.matchMedia('(prefers-reduced-motion: reduce)')
         : undefined;
     let reducedMotion = motionQuery?.matches ?? false;
+    if (reducedMotion) clearBarTransforms(bars);
     const onMotionChange = (event: MediaQueryListEvent) => {
       reducedMotion = event.matches;
+      if (reducedMotion) clearBarTransforms(bars);
     };
     motionQuery?.addEventListener?.('change', onMotionChange);
 
@@ -121,29 +127,38 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
       lastUpdateTime = undefined;
     };
 
+    const isContextRunning = () => engine.context.state === 'running';
     const removeResumeListeners = () => {
       if (!resumeListening) return;
       resumeListening = false;
-      window.removeEventListener('pointerdown', onUserGesture);
-      window.removeEventListener('keydown', onUserGesture);
+      RESUME_EVENTS.forEach((event) => window.removeEventListener(event, onUserGesture));
+    };
+
+    const tryResume = () => {
+      if (isContextRunning()) {
+        removeResumeListeners();
+        return;
+      }
+      if (engine.context.state !== 'suspended') return;
+      const pending = engine.context.resume();
+      if (isContextRunning()) removeResumeListeners();
+      void Promise.resolve(pending)
+        .then(() => {
+          if (isContextRunning()) removeResumeListeners();
+        })
+        .catch(() => undefined);
     };
 
     const onUserGesture = () => {
-      removeResumeListeners();
-      if (engine.context.state === 'suspended') {
-        void Promise.resolve(engine.context.resume()).catch(() => undefined);
-      }
+      tryResume();
     };
 
     if (engine.context.state === 'suspended') {
       resumeListening = true;
-      window.addEventListener('pointerdown', onUserGesture, { passive: true, once: true });
-      window.addEventListener('keydown', onUserGesture, { passive: true, once: true });
-      void Promise.resolve(engine.context.resume())
-        .then(() => {
-          if (engine.context.state === 'running') removeResumeListeners();
-        })
-        .catch(() => undefined);
+      RESUME_EVENTS.forEach((event) =>
+        window.addEventListener(event, onUserGesture, { passive: true })
+      );
+      tryResume();
     }
 
     const tick = (now: number) => {
@@ -170,12 +185,14 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
         engine.analyser.fftSize,
         engine.target
       );
-      const audioActive = stepSpectrumBars(engine.target, engine.current, dtMs, reducedMotion);
+      const audioActive = stepSpectrumBars(engine.target, engine.current, dtMs);
 
-      for (let i = 0; i < SPECTRUM_BAR_COUNT; i += 1) {
-        const bar = bars[i];
-        if (bar)
-          bar.style.transform = `scaleY(${barScaleFromLevel(engine.current[i] ?? 0).toFixed(3)})`;
+      if (!reducedMotion) {
+        for (let i = 0; i < SPECTRUM_BAR_COUNT; i += 1) {
+          const bar = bars[i];
+          if (bar)
+            bar.style.transform = `scaleY(${barScaleFromLevel(engine.current[i] ?? 0).toFixed(3)})`;
+        }
       }
       if (container) container.dataset.audioActive = audioActive ? 'true' : 'false';
       frameId = requestAnimationFrame(tick);

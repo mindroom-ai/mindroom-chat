@@ -337,13 +337,28 @@ describe('CallStage without video', () => {
     const remote = showStage({
       participants: [
         { ...me, audioTrack: localMic },
-        { ...mind, speaking: true, audioTrack: remoteTrack },
+        { ...mind, speaking: false, audioTrack: audioTrack('mind-laptop') },
+        onPhone(mind, { speaking: true, audioTrack: remoteTrack }),
       ],
       microphone: false,
     });
     expect(remote.container.querySelectorAll('[data-call-voice-bar]')).toHaveLength(5);
     expect(sourceOf(remote.container)).toBe('remote');
     expect(attached).toEqual([remoteTrack]);
+    cleanup();
+
+    // Multi-device remote speaker falls back to another device's audioTrack if the speaking one lacks it.
+    attached.length = 0;
+    const laptopTrack = audioTrack('ada-laptop');
+    showStage({
+      participants: [
+        me,
+        { ...ada, speaking: false, audioTrack: laptopTrack },
+        onPhone(ada, { speaking: true }),
+      ],
+      microphone: false,
+    });
+    expect(attached).toEqual([laptopTrack]);
     cleanup();
 
     attached.length = 0;

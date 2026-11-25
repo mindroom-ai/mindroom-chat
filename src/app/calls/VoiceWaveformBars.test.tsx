@@ -115,14 +115,14 @@ describe('VoiceWaveformBars', () => {
 
   it('renders 5 bars at rest with no AudioContext or rAF when track is absent', () => {
     const { container } = render(<VoiceWaveformBars source="none" speaking={false} />);
-    const bars = container.querySelectorAll('[data-call-voice-bar]');
+    const bars = container.querySelectorAll<HTMLElement>('[data-call-voice-bar]');
     expect(bars).toHaveLength(SPECTRUM_BAR_COUNT);
     expect(
       container.querySelector('[data-call-voice-bars]')?.getAttribute('data-audio-active')
     ).toBe('false');
     expect(contexts).toHaveLength(0);
     expect(rafs.size).toBe(0);
-    bars.forEach((bar) => expect(scaleOf(bar)).toBeCloseTo(BAR_REST_SCALE, 3));
+    bars.forEach((bar) => expect(bar.style.transform).toBe(''));
   });
 
   it('peaks leftmost bar on bass and rightmost on treble without connecting analyser to destination', () => {
@@ -186,7 +186,7 @@ describe('VoiceWaveformBars', () => {
     track.dispatchEvent(new Event('ended'));
     expect(rafs.size).toBe(0);
     expect(root?.dataset.audioActive).toBe('false');
-    bars.forEach((bar) => expect(scaleOf(bar)).toBeCloseTo(BAR_REST_SCALE, 3));
+    bars.forEach((bar) => expect((bar as HTMLElement).style.transform).toBe(''));
 
     rerender(<VoiceWaveformBars track={makeTrack('m2')} source="local" speaking />);
     expect(rafs.size).toBe(1);
@@ -195,30 +195,96 @@ describe('VoiceWaveformBars', () => {
     expect(root?.dataset.audioActive).toBe('false');
   });
 
-  it('resumes a suspended AudioContext on user gesture and throttles under reduced motion', () => {
+  it('retries suspended AudioContext resume across touch/click gestures until running', () => {
     startState = 'suspended';
     resumeSucceeds = false;
-    reducedMotion = true;
-    const { container } = render(
-      <VoiceWaveformBars track={makeTrack('s1')} source="remote" speaking />
-    );
-    const bars = container.querySelectorAll('[data-call-voice-bar]');
+    render(<VoiceWaveformBars track={makeTrack('s1')} source="remote" speaking />);
     const ctx = contexts[0]!;
 
     expect(ctx.resume).toHaveBeenCalledTimes(1);
-    resumeSucceeds = true;
+    // First pointerdown still suspended (e.g. touch before click): listeners stay attached.
     window.dispatchEvent(new Event('pointerdown'));
     expect(ctx.resume).toHaveBeenCalledTimes(2);
+
+    // Click succeeds and transitions to running: all gesture listeners are removed.
+    resumeSucceeds = true;
+    window.dispatchEvent(new Event('click'));
+    expect(ctx.resume).toHaveBeenCalledTimes(3);
+    expect(ctx.state).toBe('running');
+
     window.dispatchEvent(new Event('keydown'));
-    expect(ctx.resume).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event('click'));
+    expect(ctx.resume).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps bars still under prefers-reduced-motion while toggling data-audio-active at ~100ms', () => {
+    reducedMotion = true;
+    const { container } = render(
+      <VoiceWaveformBars track={makeTrack('rm1')} source="remote" speaking />
+    );
+    const root = container.querySelector<HTMLElement>('[data-call-voice-bars]');
+    const bars = container.querySelectorAll<HTMLElement>('[data-call-voice-bar]');
+    const ctx = contexts[0]!;
 
     setTone(120);
     flush(0);
-    expect(scaleOf(bars[0])).toBeGreaterThan(BAR_REST_SCALE);
-    setTone(5000);
+    expect(root?.dataset.audioActive).toBe('true');
+    bars.forEach((bar) => expect(bar.style.transform).toBe(''));
+
+    // Within 100ms window, analyser is not re-polled.
+    bins.fill(0);
     flush(50);
-    expect(scaleOf(bars[4])).toBeCloseTo(BAR_REST_SCALE, 3);
-    flush(100);
-    expect(scaleOf(bars[4])).toBeGreaterThan(BAR_REST_SCALE);
+    expect(ctx.analyser.getByteFrequencyData).toHaveBeenCalledTimes(1);
+    expect(root?.dataset.audioActive).toBe('true');
+
+    // Continued silence across 100ms polls flips data-audio-active back to false without moving bars.
+    for (let t = 100; t <= 700; t += 100) flush(t);
+    expect(root?.dataset.audioActive).toBe('false');
+    bars.forEach((bar) => expect(bar.style.transform).toBe(''));
+  });
+
+  it('keeps direction ltr under dir=rtl and static reduced-motion bar height in CallStage.css', async () => {
+    const { container } = render(
+      <div dir="rtl">
+        <VoiceWaveformBars source="none" speaking={false} />
+      </div>
+    );
+    const root = container.querySelector<HTMLElement>('[data-call-voice-bars]');
+    expect(
+      Array.from(container.querySelectorAll('[data-call-voice-bar]'), (el) =>
+        el.getAttribute('data-call-voice-bar')
+      )
+    ).toEqual(['0', '1', '2', '3', '4']);
+
+    vi.resetModules();
+    const adapter = await import('@vanilla-extract/css/adapter');
+    const rules: Array<{ selector: string; rule?: Record<string, unknown> }> = [];
+    adapter.setAdapter({
+      appendCss: (css) =>
+        rules.push(css as unknown as { selector: string; rule?: Record<string, unknown> }),
+      registerClassName: () => undefined,
+      registerComposition: () => undefined,
+      markCompositionUsed: () => undefined,
+      onEndFileScope: () => undefined,
+      getIdentOption: () => 'debug',
+    });
+    try {
+      const css = await import('./CallStage.css');
+      const barsClasses = new Set(css.VoiceBars.split(' ').map((name) => `.${name}`));
+      const barsRules = rules.filter(
+        (entry) =>
+          barsClasses.has(entry.selector) || css.VoiceBars.split(' ').includes(entry.selector)
+      );
+      expect(barsRules.some((entry) => entry.rule?.direction === 'ltr')).toBe(true);
+      const barRule = rules.find(
+        (entry) => entry.selector === css.VoiceBar || entry.selector === `.${css.VoiceBar}`
+      )?.rule;
+      expect(barRule?.['@media']).toEqual({
+        '(prefers-reduced-motion: reduce)': { transform: 'scaleY(0.5)' },
+      });
+      expect(root?.className).toBeTruthy();
+    } finally {
+      adapter.removeAdapter();
+    }
   });
 });

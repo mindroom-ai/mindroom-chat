@@ -18,8 +18,6 @@ const NOISE_FLOOR = 0.02;
 const SETTLE_EPSILON = 0.005;
 const ATTACK_TAU_MS = 35;
 const DECAY_TAU_MS = 140;
-const REDUCED_ATTACK_TAU_MS = 120;
-const REDUCED_DECAY_TAU_MS = 260;
 
 /**
  * Extracts normalized [0, 1] energy for each frequency band from Web Audio byte FFT bins into
@@ -65,20 +63,17 @@ export function extractSpectrumBands(
 
 /**
  * Advances `current` toward `target` with frame-rate-independent exponential smoothing (fast
- * attack, smooth decay, calmer under `reducedMotion`), snapping tiny residuals to 0.
+ * attack, smooth decay), snapping tiny residuals to 0.
  * Returns whether any bar exceeds `AUDIO_ACTIVE_THRESHOLD`.
  */
 export function stepSpectrumBars(
   target: Float32Array,
   current: Float32Array,
-  dtMs: number,
-  reducedMotion: boolean
+  dtMs: number
 ): boolean {
   const dt = Number.isFinite(dtMs) && dtMs > 0 ? dtMs : 0;
-  const attackAlpha =
-    dt === 0 ? 0 : 1 - Math.exp(-dt / (reducedMotion ? REDUCED_ATTACK_TAU_MS : ATTACK_TAU_MS));
-  const decayAlpha =
-    dt === 0 ? 0 : 1 - Math.exp(-dt / (reducedMotion ? REDUCED_DECAY_TAU_MS : DECAY_TAU_MS));
+  const attackAlpha = dt === 0 ? 0 : 1 - Math.exp(-dt / ATTACK_TAU_MS);
+  const decayAlpha = dt === 0 ? 0 : 1 - Math.exp(-dt / DECAY_TAU_MS);
   const count = Math.min(SPECTRUM_BAR_COUNT, target.length, current.length);
   let active = false;
   for (let i = 0; i < count; i += 1) {
