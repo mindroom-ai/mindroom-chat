@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { isRecord } from '../lib/isRecord';
-import { decodeRouteParam } from './pathUtils';
+import { decodeRouteParam, isRoomIdOrAliasSegment } from './pathUtils';
 import { ACTIVITY_PATH, DIRECT_PATH, HOME_PATH, THREADS_PATH } from './paths';
 
 /** A page of this tab's history: its path and its query. */
@@ -146,6 +146,13 @@ const routeRooms = (pathname: string): string[] => {
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
   routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
+
+/** Whether a page is a space's All threads overview (`/<space>/threads/`). */
+export const isSpaceThreadsPage = (page: HistoryPage): boolean => {
+  const segments = page.pathname.split('/').filter(Boolean).map(decodeRouteParam);
+  const [space = '', section] = segments;
+  return segments.length === 2 && isRoomIdOrAliasSegment(space) && section === 'threads';
+};
 
 /**
  * `historyState` (the browser's, which holds the router's navigation state as `usr`) of the entry

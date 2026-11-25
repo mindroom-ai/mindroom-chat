@@ -42,6 +42,7 @@ import {
 } from '../routes/roomNavigateState';
 import {
   historyPageOf,
+  isSpaceThreadsPage,
   previousHistoryOrigin,
   RETURN_TO_ROOM_STATE,
   showsRoom,
@@ -198,11 +199,12 @@ export const useRoomViewThreadState = ({
     [effectiveThreadId, resolvedThreadRootEvent, room, t, threadSummaryInfo]
   );
 
-  // Leaving a thread always leads to its room, wherever the thread was opened from (Activity,
-  // search, another room's link). Opened from the room, it steps back to the room's own entry,
-  // which keeps the room as it was left (on native iOS and in the iOS home screen app, the room's
-  // path replaces the thread instead); from anywhere else, `toRoom` puts the room in the thread's
-  // place, so the browser's back still returns to where the thread was opened from.
+  // Leaving a thread leads to its room, except when opened from a space's All threads overview,
+  // where it returns there with the overview's selection intact. Opened from the room or Space All
+  // threads, it steps back to that entry (on native iOS and in the iOS home screen app, the origin
+  // path replaces the thread instead); from anywhere else (Activity, search, another room's link),
+  // `toRoom` puts the room in the thread's place, so the browser's back still returns to where the
+  // thread was opened from.
   const leaveThread = useCallback(
     (toRoom: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
@@ -227,15 +229,25 @@ export const useRoomViewThreadState = ({
           )
       );
       const originPath = origin?.path ?? exitTarget?.exitPath;
-      // The room itself, with no thread open in it.
-      if (!originPath || !showsRoom(historyPageOf(originPath), addresses, [''])) {
+      if (!originPath) {
+        toRoom();
+        return;
+      }
+      const originPage = historyPageOf(originPath);
+      const returnsToRoom = showsRoom(originPage, addresses, ['']);
+      // The room itself (with no thread open in it) or a space's All threads overview.
+      if (!returnsToRoom && !isSpaceThreadsPage(originPage)) {
         toRoom();
         return;
       }
       const historyBack =
         (exitTarget?.useHistoryBack ?? !isNativeIOS()) && !isIOSStandaloneWebApp();
-      if (!historyBack) navigatePath(originPath, { replace: true, state: RETURN_TO_ROOM_STATE });
-      else if (!origin || origin.steps === 1) window.history.back();
+      if (!historyBack) {
+        navigatePath(originPath, {
+          replace: true,
+          ...(returnsToRoom ? { state: RETURN_TO_ROOM_STATE } : {}),
+        });
+      } else if (!origin || origin.steps === 1) window.history.back();
       else window.history.go(-origin.steps);
     },
     [effectiveThreadId, mx, navigatePath, roomId, threadId]

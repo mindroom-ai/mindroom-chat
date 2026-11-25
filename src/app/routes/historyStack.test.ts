@@ -12,6 +12,7 @@ import {
   emptyHistoryStack,
   findHistoryOrigin,
   historyPageOf,
+  isSpaceThreadsPage,
   OPENED_FROM_OUTSIDE_STATE,
   previousHistoryOrigin,
   previousHistoryPathname,
@@ -232,5 +233,23 @@ describe('findHistoryOrigin', () => {
   it('finds nothing when every page the app has shown is the room', () => {
     const history = stack(page('a', `/home/${room}/`), page('b', `/home/${room}/`, '?threadId=x'));
     expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toBeUndefined();
+  });
+});
+
+describe('isSpaceThreadsPage', () => {
+  it.each([
+    ['/!space:example.org/threads', true],
+    ['/!space:example.org/threads/', true],
+    ['/%21space%3Aexample.org/threads/', true],
+    ['/%23space%3Aexample.org/threads', true],
+    ['/%23space%3Aexample.org/threads/', true],
+    ['/threads/', false],
+    ['/threads/!room:example.org/', false],
+    ['/!space:example.org/lobby/', false],
+    ['/!space:example.org/!room:example.org/', false],
+    ['/!space:example.org/threads/extra', false],
+    ['/home/threads/', false],
+  ])('returns %s -> %s', (pathname, expected) => {
+    expect(isSpaceThreadsPage({ pathname, search: '' })).toBe(expected);
   });
 });

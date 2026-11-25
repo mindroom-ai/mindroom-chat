@@ -1822,4 +1822,94 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(drawerScrim.style.translate).toBe('');
     forwardScene!.cleanup(false);
   });
+
+  it('captures roomPreview on 1 -> 2 slide from Space All threads and reveals it on interactive back swipe', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Space All Threads', 85);
+    setActivePhoneSwipeContext({
+      sessionId: SESSION,
+      roomId: '!space:example.org',
+      isSpaceThreads: true,
+    });
+
+    slidePhonePage(() => {
+      showThread(true);
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+      page.textContent = 'Thread View';
+    });
+    pageMock.frame();
+    await pageMock.finish();
+
+    const scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(scene).not.toBeNull();
+    const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+    expect(under?.textContent).toContain('Space All Threads');
+    expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(85);
+    scene!.cleanup(false);
+  });
+
+  it('rejects cross-session isSpaceThreads capture and clears stale roomPreview from unmatched surfaces', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Room Overview');
+    const slideIntoThread = async (
+      label: string,
+      departing: Parameters<typeof setActivePhoneSwipeContext>[0]
+    ) => {
+      showThread(false);
+      page.textContent = label;
+      setActivePhoneSwipeContext(departing);
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+        page.textContent = 'Thread View';
+      });
+      pageMock.frame();
+      await pageMock.finish();
+    };
+    const expectBackdrop = (fromLocationKey: string) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey,
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      scene!.cleanup(false);
+    };
+
+    await slideIntoThread('Room Overview', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Other Account Space Threads', {
+      sessionId: 'https://other.org::@bob:other.org',
+      roomId: '!space:other.org',
+      isSpaceThreads: true,
+    });
+    expectBackdrop('k-cross');
+
+    await slideIntoThread('Room Overview Again', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Activity', undefined);
+    expectBackdrop('k-activity');
+  });
+
+  it('aborts forward swipe commit if active context becomes Space All threads mid-settle', async () => {
+    makeStage('Room');
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+    const onCommit = vi.fn();
+    const forward = createThreadForwardSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-room',
+      onCommit,
+      dirSign: 1,
+    });
+    expect(forward).not.toBeNull();
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, isSpaceThreads: true });
+    await forward!.settle(true, 0, 180);
+    forward!.commit();
+    forward!.cleanup(true);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
 });

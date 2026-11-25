@@ -1056,6 +1056,7 @@ describe('SpaceThreadsPage', () => {
     const client = {
       getSafeUserId: () => ME,
       getUserId: () => ME,
+      getHomeserverUrl: () => 'https://example.org',
       getRoom: (id: string) => roomMap.get(id) ?? null,
       getRooms: () => [...roomMap.values()],
       getAccountData: () => undefined,

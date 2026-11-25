@@ -1432,6 +1432,64 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
   });
 
+  it('returns to Space All threads via exitTarget after a reload', async () => {
+    const room = makeRoom(nextRoomId('room-a'));
+    historyStub.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: '/%21space%3Aexample.org/threads/',
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: true,
+        },
+      },
+    };
+    const { RoomView } = await import('../RoomView');
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigatePathMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['native iOS', () => isNativeIOSMock.mockReturnValue(true), false],
+    ['iOS standalone web apps', () => isIOSStandaloneWebAppMock.mockReturnValue(true), true],
+  ])(
+    'replaces with Space All threads without RETURN_TO_ROOM_STATE in %s',
+    async (_platform, enablePlatform, useHistoryBack) => {
+      enablePlatform();
+      const room = makeRoom(nextRoomId('room-a'));
+      const spaceThreadsPath = '/%23eng%3Aexample.org/threads/';
+      historyStub.state = {
+        usr: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: spaceThreadsPath,
+            roomId: room.roomId,
+            threadId: '$thread',
+            useHistoryBack,
+          },
+        },
+      };
+      const { RoomView } = await import('../RoomView');
+      await act(async () => {
+        create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+      });
+      await act(async () => {
+        threadContextBannerState.props?.onExitThread?.();
+      });
+
+      expect(historyBackMock).not.toHaveBeenCalled();
+      expect(navigatePathMock).toHaveBeenCalledWith(spaceThreadsPath, { replace: true });
+      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+    }
+  );
+
   describe('with the pages the app has shown', () => {
     /** Shows `paths` one after another, as the app's router does, recording them as the app does. */
     const showPages = async (paths: string[]) => {
@@ -1512,6 +1570,39 @@ describe('RoomView', { timeout: 30_000 }, () => {
       expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
         replace: true,
       });
+      recorder?.unmount();
+    });
+
+    it('steps back to Space All threads when the thread was opened from there', async () => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const spaceThreadsPath = '/%21space%3Aexample.org/threads/';
+      const roomPath = `/%21space%3Aexample.org/${encodeURIComponent(room.roomId)}/`;
+      const recorder = await showPages([spaceThreadsPath, `${roomPath}?threadId=%24thread`]);
+
+      await exitThread(room);
+
+      expect(historyBackMock).toHaveBeenCalledOnce();
+      expect(historyGoMock).not.toHaveBeenCalled();
+      expect(navigatePathMock).not.toHaveBeenCalled();
+      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+      recorder?.unmount();
+    });
+
+    it('steps back past thread reply entries to Space All threads', async () => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const spaceThreadsPath = '/%21space%3Aexample.org/threads/';
+      const roomPath = `/%21space%3Aexample.org/${encodeURIComponent(room.roomId)}/`;
+      const recorder = await showPages([
+        spaceThreadsPath,
+        `${roomPath}?threadId=%24thread`,
+        `${roomPath}%24reply?threadId=%24thread`,
+      ]);
+
+      await exitThread(room);
+
+      expect(historyGoMock).toHaveBeenCalledWith(-2);
+      expect(historyBackMock).not.toHaveBeenCalled();
+      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
       recorder?.unmount();
     });
   });
