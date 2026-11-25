@@ -1072,7 +1072,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Event payload JSON"
+        "payloadLabel": "Event payload JSON",
+        "openTriggerLabel": "View trigger {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} todo ready",
@@ -2227,6 +2228,45 @@
     "cancellationSent": "Cancellation sent",
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
+  },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Loading…",
+    "empty": "No triggers in this room.",
+    "emptyHint": "Triggers configured for this room appear here.",
+    "loadError": "Couldn't load triggers.",
+    "missingTrigger": "Trigger {{id}} is no longer in this room.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Room watch",
+      "external_event": "Event subscription",
+      "thread_tag": "Thread tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Watching this room",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "disabledExpired": "Expired",
+    "disabledOnceConsumed": "Used",
+    "lastFired": "Last fired {{time}}",
+    "neverFired": "No recorded firing",
+    "destinationRoom": "Room timeline",
+    "destinationThread": "Thread",
+    "destinationNewThread": "New thread",
+    "destinationOrigin": "Origin thread",
+    "openThread": "Open thread",
+    "prompt": "Prompt",
+    "enable": "Enable",
+    "disable": "Disable",
+    "updating": "Updating...",
+    "toggleError": "Could not update trigger. Try again.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this trigger?",
+    "keep": "Keep",
+    "deleteTrigger": "Delete trigger",
+    "deleting": "Deleting...",
+    "deleteError": "Could not delete trigger. Try again."
   },
   "home": {
     "greeting": {

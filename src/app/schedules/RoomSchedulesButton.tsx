@@ -1,59 +1,18 @@
-import {
-  type CSSProperties,
-  type MouseEvent,
-  type RefObject,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { type RefObject, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  Tooltip,
-} from 'folds';
-import { TooltipProvider } from '../ui/directional';
+import { Icons } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
-import { headerDismissTrap } from '../ui/useHeaderPopup';
-import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
+import { RoomDialogOverlay, RoomHeaderCountButton } from '../ui/RoomDialogOverlay';
 import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
-import * as css from './roomSchedules.css';
 
 /** Pending tasks from the room's current state, shared by its header, menu and dialog. */
 export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
   const events = useScheduledTaskEvents(room);
   return useMemo(() => getPendingRoomSchedules(events), [events]);
-}
-
-/** The horizontal center of the header in viewport pixels, following layout changes. */
-function useCenterX(headerRef?: RefObject<HTMLElement | null>): number | undefined {
-  const [centerX, setCenterX] = useState<number>();
-  const header = useCallback(() => headerRef?.current, [headerRef]);
-  const measure = useCallback(() => {
-    const element = header();
-    if (!element) return;
-    const rect = element.getBoundingClientRect();
-    setCenterX(rect.left + rect.width / 2);
-  }, [header]);
-  useLayoutEffect(() => {
-    if (!header()) return undefined;
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [header, measure]);
-  useResizeObserver(measure, header);
-  return centerX;
 }
 
 type RoomSchedulesOverlayProps = {
@@ -79,32 +38,21 @@ export function RoomSchedulesOverlay({
   onCancelTask,
   onEditTask,
 }: RoomSchedulesOverlayProps) {
-  const centerX = useCenterX(headerRef);
   return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter
-        style={
-          centerX === undefined
-            ? undefined
-            : ({ [css.ROOM_VIEW_CENTER]: `${centerX}px` } as CSSProperties)
-        }
-      >
-        <FocusTrap focusTrapOptions={headerDismissTrap(onClose)}>
-          <RoomSchedulesDialog
-            roomId={roomId}
-            tasks={tasks}
-            openThreadId={openThreadId}
-            onClose={() => onClose(true)}
-            onOpenThread={(threadId) => {
-              onClose();
-              onOpenThread(threadId);
-            }}
-            onCancelTask={onCancelTask}
-            onEditTask={onEditTask}
-          />
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
+    <RoomDialogOverlay headerRef={headerRef} onClose={onClose}>
+      <RoomSchedulesDialog
+        roomId={roomId}
+        tasks={tasks}
+        openThreadId={openThreadId}
+        onClose={() => onClose(true)}
+        onOpenThread={(threadId) => {
+          onClose();
+          onOpenThread(threadId);
+        }}
+        onCancelTask={onCancelTask}
+        onEditTask={onEditTask}
+      />
+    </RoomDialogOverlay>
   );
 }
 
@@ -127,44 +75,18 @@ export function RoomSchedulesMenuEntry({
   );
 }
 
-type RoomSchedulesButtonProps = {
+/** Opens pending schedules from the room header, with the count for the current scope. */
+export function RoomSchedulesButton(props: {
   total: number;
   open: boolean;
   onOpen: (opener: HTMLButtonElement) => void;
-};
-
-/** Opens pending schedules from the room header, with the count for the current scope. */
-export function RoomSchedulesButton({ total, open, onOpen }: RoomSchedulesButtonProps) {
+}) {
   const { t } = useTranslation();
-  const label = t('roomSchedules.openLabel', { total });
-
-  const tooltip = (
-    <Tooltip>
-      <Text size="T300">{label}</Text>
-    </Tooltip>
-  );
-
   return (
-    <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          className={css.Trigger}
-          variant="Surface"
-          fill="None"
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
-        >
-          <Icon size="400" src={Icons.Clock} />
-          {total > 0 && (
-            <span className={css.Count} aria-hidden="true">
-              {total}
-            </span>
-          )}
-        </IconButton>
-      )}
-    </TooltipProvider>
+    <RoomHeaderCountButton
+      {...props}
+      icon={Icons.Clock}
+      label={t('roomSchedules.openLabel', { total: props.total })}
+    />
   );
 }

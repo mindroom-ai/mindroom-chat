@@ -1091,7 +1091,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Origine {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Payload dell’evento JSON"
+        "payloadLabel": "Payload dell’evento JSON",
+        "openTriggerLabel": "Visualizza trigger {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} attività pronta",
@@ -2305,6 +2306,45 @@
     "cancellationSent": "Annullamento inviato",
     "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
     "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
+  },
+  "roomTriggers": {
+    "title": "Trigger",
+    "openLabel": "Trigger ({{total}})",
+    "loading": "Caricamento…",
+    "empty": "Nessun trigger in questa stanza.",
+    "emptyHint": "I trigger configurati per questa stanza compaiono qui.",
+    "loadError": "Impossibile caricare i trigger.",
+    "missingTrigger": "Il trigger {{id}} non è più in questa stanza.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Monitoraggio stanza",
+      "external_event": "Sottoscrizione eventi",
+      "thread_tag": "Tag thread",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Monitora questa stanza",
+    "stateOn": "Attivo",
+    "stateOff": "Disattivo",
+    "disabledExpired": "Scaduto",
+    "disabledOnceConsumed": "Usato una volta",
+    "lastFired": "Ultimo avvio {{time}}",
+    "neverFired": "Nessuna attivazione registrata",
+    "destinationRoom": "Cronologia stanza",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Nuovo thread",
+    "destinationOrigin": "Thread di origine",
+    "openThread": "Apri thread",
+    "prompt": "Prompt",
+    "enable": "Attiva",
+    "disable": "Disattiva",
+    "updating": "Aggiornamento...",
+    "toggleError": "Impossibile aggiornare il trigger. Riprova.",
+    "delete": "Elimina",
+    "deleteConfirm": "Eliminare questo trigger?",
+    "keep": "Mantieni",
+    "deleteTrigger": "Elimina trigger",
+    "deleting": "Eliminazione...",
+    "deleteError": "Impossibile eliminare il trigger. Riprova."
   },
   "home": {
     "greeting": {

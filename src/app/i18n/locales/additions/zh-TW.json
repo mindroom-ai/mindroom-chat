@@ -1053,7 +1053,8 @@
         "triggerLabel": "觸發器 {{id}}",
         "sourceLabel": "來源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件酬載 JSON"
+        "payloadLabel": "事件酬載 JSON",
+        "openTriggerLabel": "檢視觸發器 {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 項待辦就緒",
@@ -2149,6 +2150,45 @@
     "cancellationSent": "已傳送取消請求",
     "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
     "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
+  },
+  "roomTriggers": {
+    "title": "觸發器",
+    "openLabel": "觸發器 ({{total}})",
+    "loading": "載入中…",
+    "empty": "此房間沒有觸發器。",
+    "emptyHint": "為此房間設定的觸發器會顯示在這裡。",
+    "loadError": "無法載入觸發器。",
+    "missingTrigger": "觸發器 {{id}} 已不在此房間中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房間監看",
+      "external_event": "事件訂閱",
+      "thread_tag": "討論串標籤",
+      "unknown": "觸發器"
+    },
+    "watchingRoom": "正在監看此房間",
+    "stateOn": "已開啟",
+    "stateOff": "已關閉",
+    "disabledExpired": "已過期",
+    "disabledOnceConsumed": "已執行一次",
+    "lastFired": "上次觸發 {{time}}",
+    "neverFired": "無觸發記錄",
+    "destinationRoom": "房間時間軸",
+    "destinationThread": "討論串",
+    "destinationNewThread": "新討論串",
+    "destinationOrigin": "原討論串",
+    "openThread": "開啟討論串",
+    "prompt": "提示詞",
+    "enable": "開啟",
+    "disable": "關閉",
+    "updating": "更新中...",
+    "toggleError": "無法更新觸發器，請重試。",
+    "delete": "刪除",
+    "deleteConfirm": "要刪除此觸發器嗎？",
+    "keep": "保留",
+    "deleteTrigger": "刪除觸發器",
+    "deleting": "刪除中...",
+    "deleteError": "無法刪除觸發器，請重試。"
   },
   "home": {
     "greeting": {

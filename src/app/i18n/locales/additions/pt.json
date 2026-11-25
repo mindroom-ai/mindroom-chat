@@ -1091,7 +1091,8 @@
         "triggerLabel": "Gatilho {{id}}",
         "sourceLabel": "Origem {{source}}",
         "triageLabel": "Triagem: {{reason}}",
-        "payloadLabel": "Carga do evento JSON"
+        "payloadLabel": "Carga do evento JSON",
+        "openTriggerLabel": "Ver gatilho {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tarefa pronta",
@@ -2305,6 +2306,45 @@
     "cancellationSent": "Cancelamento enviado",
     "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
     "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
+  },
+  "roomTriggers": {
+    "title": "Gatilhos",
+    "openLabel": "Gatilhos ({{total}})",
+    "loading": "Carregando…",
+    "empty": "Nenhum gatilho nesta sala.",
+    "emptyHint": "Os gatilhos configurados para esta sala aparecem aqui.",
+    "loadError": "Não foi possível carregar os gatilhos.",
+    "missingTrigger": "O gatilho {{id}} não está mais nesta sala.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Monitoramento da sala",
+      "external_event": "Assinatura de eventos",
+      "thread_tag": "Tag de tópico",
+      "unknown": "Gatilho"
+    },
+    "watchingRoom": "Monitorando esta sala",
+    "stateOn": "Ativo",
+    "stateOff": "Inativo",
+    "disabledExpired": "Expirado",
+    "disabledOnceConsumed": "Usado uma vez",
+    "lastFired": "Último disparo {{time}}",
+    "neverFired": "Nenhum disparo registrado",
+    "destinationRoom": "Linha do tempo da sala",
+    "destinationThread": "Tópico",
+    "destinationNewThread": "Novo tópico",
+    "destinationOrigin": "Tópico de origem",
+    "openThread": "Abrir tópico",
+    "prompt": "Prompt",
+    "enable": "Ativar",
+    "disable": "Desativar",
+    "updating": "Atualizando...",
+    "toggleError": "Não foi possível atualizar o gatilho. Tente novamente.",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir este gatilho?",
+    "keep": "Manter",
+    "deleteTrigger": "Excluir gatilho",
+    "deleting": "Excluindo...",
+    "deleteError": "Não foi possível excluir o gatilho. Tente novamente."
   },
   "home": {
     "greeting": {

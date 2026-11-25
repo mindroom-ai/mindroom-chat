@@ -1148,7 +1148,8 @@
         "triggerLabel": "المشغّل ⁨{{id}}⁩",
         "sourceLabel": "المصدر ⁨{{source}}⁩",
         "triageLabel": "الفرز: ⁨{{reason}}⁩",
-        "payloadLabel": "حمولة الحدث JSON"
+        "payloadLabel": "حمولة الحدث JSON",
+        "openTriggerLabel": "عرض المشغّل ⁨{{id}}⁩"
       },
       "todoPokeMarker": {
         "readyCount_zero": "⁨{{count}}⁩ مهام جاهزة",
@@ -2539,6 +2540,45 @@
     "cancellationSent": "تم إرسال الإلغاء",
     "editDraftBusy": "امسح المسودة الحالية قبل تعديل هذه المهمة المجدولة.",
     "copyFailed": "تعذر النسخ. حدد معرف المهمة في التفاصيل."
+  },
+  "roomTriggers": {
+    "title": "المشغّلات",
+    "openLabel": "المشغّلات (⁨{{total}}⁩)",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد مشغّلات في هذه الغرفة.",
+    "emptyHint": "تظهر هنا المشغّلات المُعدّة لهذه الغرفة.",
+    "loadError": "تعذر تحميل المشغلات.",
+    "missingTrigger": "لم يعد المشغّل ⁨{{id}}⁩ موجودًا في هذه الغرفة.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "مراقبة الغرفة",
+      "external_event": "اشتراك حدث",
+      "thread_tag": "وسم السلسلة",
+      "unknown": "مشغل"
+    },
+    "watchingRoom": "يراقب هذه الغرفة",
+    "stateOn": "مفعّل",
+    "stateOff": "متوقف",
+    "disabledExpired": "منتهي الصلاحية",
+    "disabledOnceConsumed": "استُخدم مرة واحدة",
+    "lastFired": "آخر تشغيل ⁨{{time}}⁩",
+    "neverFired": "لا يوجد تشغيل مسجل",
+    "destinationRoom": "الخط الزمني للغرفة",
+    "destinationThread": "سلسلة محادثة",
+    "destinationNewThread": "سلسلة جديدة",
+    "destinationOrigin": "السلسلة الأصلية",
+    "openThread": "فتح السلسلة",
+    "prompt": "الموجّه",
+    "enable": "تفعيل",
+    "disable": "تعطيل",
+    "updating": "جارٍ التحديث...",
+    "toggleError": "تعذر تحديث المشغّل. حاول مجددًا.",
+    "delete": "حذف",
+    "deleteConfirm": "هل تريد حذف هذا المشغّل؟",
+    "keep": "إبقاء",
+    "deleteTrigger": "حذف المشغّل",
+    "deleting": "جارٍ الحذف...",
+    "deleteError": "تعذر حذف المشغّل. حاول مجددًا."
   },
   "home": {
     "greeting": {

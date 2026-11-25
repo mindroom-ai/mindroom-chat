@@ -1072,7 +1072,8 @@
         "triggerLabel": "Auslöser {{id}}",
         "sourceLabel": "Quelle {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Ereignis-Payload JSON"
+        "payloadLabel": "Ereignis-Payload JSON",
+        "openTriggerLabel": "Auslöser {{id}} anzeigen"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} Aufgabe bereit",
@@ -2227,6 +2228,45 @@
     "cancellationSent": "Abbruch gesendet",
     "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
     "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
+  },
+  "roomTriggers": {
+    "title": "Auslöser",
+    "openLabel": "Auslöser ({{total}})",
+    "loading": "Wird geladen…",
+    "empty": "Keine Auslöser in diesem Raum.",
+    "emptyHint": "Für diesen Raum eingerichtete Auslöser erscheinen hier.",
+    "loadError": "Auslöser konnten nicht geladen werden.",
+    "missingTrigger": "Auslöser {{id}} ist nicht mehr in diesem Raum.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Raumüberwachung",
+      "external_event": "Ereignis-Abo",
+      "thread_tag": "Thread-Tag",
+      "unknown": "Auslöser"
+    },
+    "watchingRoom": "Überwacht diesen Raum",
+    "stateOn": "An",
+    "stateOff": "Aus",
+    "disabledExpired": "Abgelaufen",
+    "disabledOnceConsumed": "Einmalig ausgelöst",
+    "lastFired": "Zuletzt ausgelöst {{time}}",
+    "neverFired": "Keine Auslösung erfasst",
+    "destinationRoom": "Raum-Zeitleiste",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Neuer Thread",
+    "destinationOrigin": "Ursprungs-Thread",
+    "openThread": "Thread öffnen",
+    "prompt": "Prompt",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "updating": "Wird aktualisiert...",
+    "toggleError": "Auslöser konnte nicht aktualisiert werden. Erneut versuchen.",
+    "delete": "Löschen",
+    "deleteConfirm": "Diesen Auslöser löschen?",
+    "keep": "Behalten",
+    "deleteTrigger": "Auslöser löschen",
+    "deleting": "Wird gelöscht...",
+    "deleteError": "Auslöser konnte nicht gelöscht werden. Erneut versuchen."
   },
   "home": {
     "greeting": {

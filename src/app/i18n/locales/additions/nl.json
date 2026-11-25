@@ -1072,7 +1072,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Bron {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Gebeurtenispayload JSON"
+        "payloadLabel": "Gebeurtenispayload JSON",
+        "openTriggerLabel": "Trigger {{id}} bekijken"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} taak klaar",
@@ -2227,6 +2228,45 @@
     "cancellationSent": "Annulering verzonden",
     "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
     "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
+  },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Laden…",
+    "empty": "Geen triggers in deze kamer.",
+    "emptyHint": "Triggers die voor deze kamer zijn ingesteld verschijnen hier.",
+    "loadError": "Kon triggers niet laden.",
+    "missingTrigger": "Trigger {{id}} bevindt zich niet meer in deze kamer.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Kamerbewaking",
+      "external_event": "Gebeurtenisabonnement",
+      "thread_tag": "Thread-tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Bewaakt deze kamer",
+    "stateOn": "Aan",
+    "stateOff": "Uit",
+    "disabledExpired": "Verlopen",
+    "disabledOnceConsumed": "Eenmalig gebruikt",
+    "lastFired": "Laatst afgegaan {{time}}",
+    "neverFired": "Geen uitvoering geregistreerd",
+    "destinationRoom": "Kamertijdlijn",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Nieuwe thread",
+    "destinationOrigin": "Oorspronkelijke thread",
+    "openThread": "Thread openen",
+    "prompt": "Prompt",
+    "enable": "Inschakelen",
+    "disable": "Uitschakelen",
+    "updating": "Bijwerken...",
+    "toggleError": "Kon trigger niet bijwerken. Probeer het opnieuw.",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Deze trigger verwijderen?",
+    "keep": "Behouden",
+    "deleteTrigger": "Trigger verwijderen",
+    "deleting": "Verwijderen...",
+    "deleteError": "Kon trigger niet verwijderen. Probeer het opnieuw."
   },
   "home": {
     "greeting": {

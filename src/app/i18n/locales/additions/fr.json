@@ -1091,7 +1091,8 @@
         "triggerLabel": "Déclencheur {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage : {{reason}}",
-        "payloadLabel": "Charge utile de l’événement JSON"
+        "payloadLabel": "Charge utile de l’événement JSON",
+        "openTriggerLabel": "Afficher le déclencheur {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tâche prête",
@@ -2305,6 +2306,45 @@
     "cancellationSent": "Annulation envoyée",
     "editDraftBusy": "Effacez votre brouillon actuel avant de modifier cette tâche planifiée.",
     "copyFailed": "Impossible de copier. Sélectionnez l'ID de la tâche dans Détails."
+  },
+  "roomTriggers": {
+    "title": "Déclencheurs",
+    "openLabel": "Déclencheurs ({{total}})",
+    "loading": "Chargement…",
+    "empty": "Aucun déclencheur dans ce salon.",
+    "emptyHint": "Les déclencheurs configurés pour ce salon apparaissent ici.",
+    "loadError": "Impossible de charger les déclencheurs.",
+    "missingTrigger": "Le déclencheur {{id}} ne se trouve plus dans ce salon.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Veille du salon",
+      "external_event": "Abonnement d’événement",
+      "thread_tag": "Étiquette de fil",
+      "unknown": "Déclencheur"
+    },
+    "watchingRoom": "Surveille ce salon",
+    "stateOn": "Activé",
+    "stateOff": "Désactivé",
+    "disabledExpired": "Expiré",
+    "disabledOnceConsumed": "Utilisé une fois",
+    "lastFired": "Dernier déclenchement {{time}}",
+    "neverFired": "Aucun déclenchement enregistré",
+    "destinationRoom": "Fil du salon",
+    "destinationThread": "Fil",
+    "destinationNewThread": "Nouveau fil",
+    "destinationOrigin": "Fil d’origine",
+    "openThread": "Ouvrir le fil",
+    "prompt": "Prompt",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "updating": "Mise à jour...",
+    "toggleError": "Impossible de mettre à jour le déclencheur. Réessayez.",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer ce déclencheur ?",
+    "keep": "Conserver",
+    "deleteTrigger": "Supprimer le déclencheur",
+    "deleting": "Suppression...",
+    "deleteError": "Impossible de supprimer le déclencheur. Réessayez."
   },
   "home": {
     "greeting": {

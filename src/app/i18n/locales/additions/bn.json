@@ -1072,7 +1072,8 @@
         "triggerLabel": "ট্রিগার {{id}}",
         "sourceLabel": "উৎস {{source}}",
         "triageLabel": "ট্রায়াজ: {{reason}}",
-        "payloadLabel": "ইভেন্ট পেলোড JSON"
+        "payloadLabel": "ইভেন্ট পেলোড JSON",
+        "openTriggerLabel": "ট্রিগার {{id}} দেখুন"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}}টি করণীয় প্রস্তুত",
@@ -2227,6 +2228,45 @@
     "cancellationSent": "বাতিলের অনুরোধ পাঠানো হয়েছে",
     "editDraftBusy": "এই সময়সূচী সম্পাদনা করার আগে আপনার বর্তমান খসড়া মুছুন।",
     "copyFailed": "কপি করা যায়নি। বিস্তারিত অংশ থেকে টাস্ক আইডি নির্বাচন করুন।"
+  },
+  "roomTriggers": {
+    "title": "ট্রিগার",
+    "openLabel": "ট্রিগার ({{total}})",
+    "loading": "লোড হচ্ছে…",
+    "empty": "এই রুমে কোনো ট্রিগার নেই।",
+    "emptyHint": "এই রুমের জন্য সেট করা ট্রিগারগুলো এখানে দেখা যাবে।",
+    "loadError": "ট্রিগার লোড করা যায়নি।",
+    "missingTrigger": "ট্রিগার {{id}} আর এই রুমে নেই।",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "রুম পর্যবেক্ষণ",
+      "external_event": "ইভেন্ট সাবস্ক্রিপশন",
+      "thread_tag": "থ্রেড ট্যাগ",
+      "unknown": "ট্রিগার"
+    },
+    "watchingRoom": "এই রুম পর্যবেক্ষণ করছে",
+    "stateOn": "চালু",
+    "stateOff": "বন্ধ",
+    "disabledExpired": "মেয়াদ উত্তীর্ণ",
+    "disabledOnceConsumed": "একবার ব্যবহৃত",
+    "lastFired": "সর্বশেষ চলেছে {{time}}",
+    "neverFired": "কোনো নথিভুক্ত চালনা নেই",
+    "destinationRoom": "রুম টাইমলাইন",
+    "destinationThread": "থ্রেড",
+    "destinationNewThread": "নতুন থ্রেড",
+    "destinationOrigin": "মূল থ্রেড",
+    "openThread": "থ্রেড খুলুন",
+    "prompt": "প্রম্পট",
+    "enable": "চালু করুন",
+    "disable": "বন্ধ করুন",
+    "updating": "আপডেট হচ্ছে...",
+    "toggleError": "ট্রিগার আপডেট করা যায়নি। আবার চেষ্টা করুন।",
+    "delete": "মুছুন",
+    "deleteConfirm": "এই ট্রিগারটি মুছে ফেলবেন?",
+    "keep": "রেখে দিন",
+    "deleteTrigger": "ট্রিগার মুছুন",
+    "deleting": "মুছে ফেলা হচ্ছে...",
+    "deleteError": "ট্রিগার মুছে ফেলা যায়নি। আবার চেষ্টা করুন।"
   },
   "home": {
     "greeting": {

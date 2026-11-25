@@ -1053,7 +1053,8 @@
         "triggerLabel": "トリガー {{id}}",
         "sourceLabel": "ソース {{source}}",
         "triageLabel": "トリアージ：{{reason}}",
-        "payloadLabel": "イベントペイロード JSON"
+        "payloadLabel": "イベントペイロード JSON",
+        "openTriggerLabel": "トリガー {{id}} を表示"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 件のタスクが準備完了",
@@ -2149,6 +2150,45 @@
     "cancellationSent": "キャンセルを送信しました",
     "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
     "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
+  },
+  "roomTriggers": {
+    "title": "トリガー",
+    "openLabel": "トリガー ({{total}})",
+    "loading": "読み込み中…",
+    "empty": "このルームにトリガーはありません。",
+    "emptyHint": "このルームに設定されたトリガーがここに表示されます。",
+    "loadError": "トリガーを読み込めませんでした。",
+    "missingTrigger": "トリガー {{id}} はこのルームにもうありません。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "ルーム監視",
+      "external_event": "イベント購読",
+      "thread_tag": "スレッドタグ",
+      "unknown": "トリガー"
+    },
+    "watchingRoom": "このルームを監視中",
+    "stateOn": "オン",
+    "stateOff": "オフ",
+    "disabledExpired": "期限切れ",
+    "disabledOnceConsumed": "1回実行済み",
+    "lastFired": "最終発火 {{time}}",
+    "neverFired": "発火履歴なし",
+    "destinationRoom": "ルームタイムライン",
+    "destinationThread": "スレッド",
+    "destinationNewThread": "新しいスレッド",
+    "destinationOrigin": "元のスレッド",
+    "openThread": "スレッドを開く",
+    "prompt": "プロンプト",
+    "enable": "有効にする",
+    "disable": "無効にする",
+    "updating": "更新中...",
+    "toggleError": "トリガーを更新できませんでした。もう一度お試しください。",
+    "delete": "削除",
+    "deleteConfirm": "このトリガーを削除しますか？",
+    "keep": "残す",
+    "deleteTrigger": "トリガーを削除",
+    "deleting": "削除中...",
+    "deleteError": "トリガーを削除できませんでした。もう一度お試しください。"
   },
   "home": {
     "greeting": {

@@ -1091,7 +1091,8 @@
         "triggerLabel": "Activador {{id}}",
         "sourceLabel": "Origen {{source}}",
         "triageLabel": "Triaje: {{reason}}",
-        "payloadLabel": "Carga del evento JSON"
+        "payloadLabel": "Carga del evento JSON",
+        "openTriggerLabel": "Ver activador {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tarea lista",
@@ -2305,6 +2306,45 @@
     "cancellationSent": "Cancelación enviada",
     "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
     "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
+  },
+  "roomTriggers": {
+    "title": "Activadores",
+    "openLabel": "Activadores ({{total}})",
+    "loading": "Cargando…",
+    "empty": "No hay activadores en esta sala.",
+    "emptyHint": "Los activadores configurados para esta sala aparecen aquí.",
+    "loadError": "No se pudieron cargar los activadores.",
+    "missingTrigger": "El activador {{id}} ya no está en esta sala.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Vigilancia de sala",
+      "external_event": "Suscripción de eventos",
+      "thread_tag": "Etiqueta de hilo",
+      "unknown": "Activador"
+    },
+    "watchingRoom": "Vigilando esta sala",
+    "stateOn": "Activo",
+    "stateOff": "Inactivo",
+    "disabledExpired": "Caducado",
+    "disabledOnceConsumed": "Usado una vez",
+    "lastFired": "Última ejecución {{time}}",
+    "neverFired": "Sin activaciones registradas",
+    "destinationRoom": "Cronología de la sala",
+    "destinationThread": "Hilo",
+    "destinationNewThread": "Nuevo hilo",
+    "destinationOrigin": "Hilo de origen",
+    "openThread": "Abrir hilo",
+    "prompt": "Instrucción",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "updating": "Actualizando...",
+    "toggleError": "No se pudo actualizar el activador. Inténtalo de nuevo.",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar este activador?",
+    "keep": "Conservar",
+    "deleteTrigger": "Eliminar activador",
+    "deleting": "Eliminando...",
+    "deleteError": "No se pudo eliminar el activador. Inténtalo de nuevo."
   },
   "home": {
     "greeting": {

@@ -1072,7 +1072,8 @@
         "triggerLabel": "ट्रिगर {{id}}",
         "sourceLabel": "स्रोत {{source}}",
         "triageLabel": "ट्रायज: {{reason}}",
-        "payloadLabel": "इवेंट पेलोड JSON"
+        "payloadLabel": "इवेंट पेलोड JSON",
+        "openTriggerLabel": "ट्रिगर {{id}} देखें"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} कार्य तैयार",
@@ -2227,6 +2228,45 @@
     "cancellationSent": "रद्दीकरण भेजा गया",
     "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
     "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
+  },
+  "roomTriggers": {
+    "title": "ट्रिगर",
+    "openLabel": "ट्रिगर ({{total}})",
+    "loading": "लोड हो रहा है…",
+    "empty": "इस रूम में कोई ट्रिगर नहीं है।",
+    "emptyHint": "इस रूम के लिए बनाए गए ट्रिगर यहाँ दिखते हैं।",
+    "loadError": "ट्रिगर लोड नहीं हो सके।",
+    "missingTrigger": "ट्रिगर {{id}} अब इस रूम में नहीं है।",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "रूम वॉच",
+      "external_event": "इवेंट सब्सक्रिप्शन",
+      "thread_tag": "थ्रेड टैग",
+      "unknown": "ट्रिगर"
+    },
+    "watchingRoom": "इस रूम की निगरानी कर रहा है",
+    "stateOn": "चालू",
+    "stateOff": "बंद",
+    "disabledExpired": "समय समाप्त",
+    "disabledOnceConsumed": "एक बार उपयोग किया गया",
+    "lastFired": "आख़िरी बार चला {{time}}",
+    "neverFired": "कोई दर्ज संचालन नहीं",
+    "destinationRoom": "रूम टाइमलाइन",
+    "destinationThread": "थ्रेड",
+    "destinationNewThread": "नया थ्रेड",
+    "destinationOrigin": "मूल थ्रेड",
+    "openThread": "थ्रेड खोलें",
+    "prompt": "प्रॉम्प्ट",
+    "enable": "चालू करें",
+    "disable": "बंद करें",
+    "updating": "अपडेट हो रहा है...",
+    "toggleError": "ट्रिगर अपडेट नहीं हो सका। फिर से प्रयास करें।",
+    "delete": "हटाएँ",
+    "deleteConfirm": "क्या यह ट्रिगर हटाएँ?",
+    "keep": "रखें",
+    "deleteTrigger": "ट्रिगर हटाएँ",
+    "deleting": "हटाया जा रहा है...",
+    "deleteError": "ट्रिगर हटाया नहीं जा सका। फिर से प्रयास करें।"
   },
   "home": {
     "greeting": {

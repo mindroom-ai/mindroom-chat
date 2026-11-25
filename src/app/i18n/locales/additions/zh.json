@@ -1053,7 +1053,8 @@
         "triggerLabel": "触发器 {{id}}",
         "sourceLabel": "来源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件载荷 JSON"
+        "payloadLabel": "事件载荷 JSON",
+        "openTriggerLabel": "查看触发器 {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 项待办就绪",
@@ -2149,6 +2150,45 @@
     "cancellationSent": "已发送取消请求",
     "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
     "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
+  },
+  "roomTriggers": {
+    "title": "触发器",
+    "openLabel": "触发器 ({{total}})",
+    "loading": "正在加载…",
+    "empty": "此房间没有触发器。",
+    "emptyHint": "为此房间配置的触发器会显示在这里。",
+    "loadError": "无法加载触发器。",
+    "missingTrigger": "触发器 {{id}} 已不在此房间中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房间监听",
+      "external_event": "事件订阅",
+      "thread_tag": "话题标签",
+      "unknown": "触发器"
+    },
+    "watchingRoom": "正在监听此房间",
+    "stateOn": "已开启",
+    "stateOff": "已关闭",
+    "disabledExpired": "已过期",
+    "disabledOnceConsumed": "已运行一次",
+    "lastFired": "上次触发 {{time}}",
+    "neverFired": "无触发记录",
+    "destinationRoom": "房间时间线",
+    "destinationThread": "话题",
+    "destinationNewThread": "新话题",
+    "destinationOrigin": "原话题",
+    "openThread": "打开话题",
+    "prompt": "提示词",
+    "enable": "开启",
+    "disable": "关闭",
+    "updating": "正在更新...",
+    "toggleError": "无法更新触发器，请重试。",
+    "delete": "删除",
+    "deleteConfirm": "要删除此触发器吗？",
+    "keep": "保留",
+    "deleteTrigger": "删除触发器",
+    "deleting": "正在删除...",
+    "deleteError": "无法删除触发器，请重试。"
   },
   "home": {
     "greeting": {

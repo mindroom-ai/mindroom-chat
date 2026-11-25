@@ -99,6 +99,7 @@ src/
     threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/
                          (tags, resolve and snooze, the snooze picker), summary/, cross-room/ (index, signals), page/ (the
                          Threads section's list), banner, actions menu
+    triggers/            the room triggers dialog, row controls, API client and query hook
     account/             sign-in and the account: auth/, lifecycle/ (start, stop, wipe a session), switcher/,
                          settings/, devices/, encryption/, verification/, uia/, onboarding/
     activity/            the Activity bell: rows from thread signals and invites, inline answers, the popover, the
@@ -178,7 +179,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 6     | `approvals`, `bug-reports`, `calls`, `connections`, `editor`                           |
 | 7     | `members`, `messages`                                                                  |
 | 8     | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents`              |
-| 9     | `rooms`, `threads`                                                                     |
+| 9     | `rooms`, `threads`, `triggers`                                                         |
 | 10    | `account`, `activity`, `background-jobs`, `quick-capture`, `spaces`, `timeline`        |
 | 11    | `invites`, `local-mindroom`, `room`                                                    |
 | 12    | `settings`, `tour`                                                                     |
