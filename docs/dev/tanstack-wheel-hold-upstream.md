@@ -72,3 +72,16 @@
 -  const target = this.getCommandWrittenOffset() ?? this.getScrollOffset()
 +  const target = cmd ?? this.getScrollOffset()
 ```
+
+## PR 4: Skip a stable leading item when picking the `anchorTo: 'end'` prepend anchor
+
+**Problem & repro:** When an `anchorTo: 'end'` list keeps a stable leading tile at index 0 (e.g., a room `[+all]`/intro header or a thread "Load Older" chip) and prepends older items after index 0 while `scrollOffset` sits within item 0 (e.g., `scrollTop = 0`), `getVirtualItemForOffset(scrollOffset)` returns item 0. Because index 0's key does not move (`merged.getItemKey(0) === prevFirstKey`), `setOptions` computes `newOffset = scrollOffset` and lets the prepended page push every visible item down by the page height. Mount an `anchorTo: 'end'` list with a 22 px leading key at index 0 followed by 100 px items at `scrollTop = 0`, insert 8 items after index 0, and observe item 1 jump from `y = 22` to `y = 822`. When `item.index === 0`, `prevCount > 1`, `nextCount > 0`, and `merged.getItemKey(0) === prevFirstKey`, anchor on `measurements[1]` instead (keeping `anchorOffset = scrollOffset - item.start`, which may be negative, so `anchorItem.start + anchorOffset` lands at `scrollOffset + pageHeight`).
+
+```diff
+   // setOptions() inside `if (didEdgeKeysChange)` (already gated on `merged.anchorTo === 'end'`):
+-  const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null
++  let item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null
++  if (item && item.index === 0 && prevCount > 1 && nextCount > 0 && merged.getItemKey(0) === prevFirstKey) {
++    item = measurements[1] ?? item
++  }
+```

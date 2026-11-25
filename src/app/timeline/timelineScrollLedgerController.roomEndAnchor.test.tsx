@@ -3,7 +3,7 @@ import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ROOM_INTRO_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
+import { ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
 import {
   readVirtualizerHoldOffset,
@@ -11,6 +11,7 @@ import {
 } from './timelineScrollLedgerController';
 
 const ROW_HEIGHT = 100;
+const INTRO_ESTIMATE_PX = 160.5;
 const VIEWPORT_HEIGHT = 600;
 const SAFARI_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
@@ -164,7 +165,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       const getScrollElement = useCallback(() => scrollElement, []);
       const controller = useTimelineScrollLedgerController({
         estimateSize: (index = 0) =>
-          keys[index] === ROOM_INTRO_KEY ? ROOM_INTRO_ESTIMATE_PX : ROW_HEIGHT,
+          keys[index] === ROOM_INTRO_KEY ? INTRO_ESTIMATE_PX : ROW_HEIGHT,
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
@@ -334,7 +335,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     // Reaching the start of the room prepends ROOM_INTRO_KEY at index 0.
     render([ROOM_INTRO_KEY, ...initialKeys]);
 
-    expect(scrollElement.scrollTop).toBeCloseTo(800 + ROOM_INTRO_ESTIMATE_PX, 1);
+    expect(scrollElement.scrollTop).toBeCloseTo(800 + INTRO_ESTIMATE_PX, 1);
     expect(getTileTop('$ev-8')! - scrollElement.scrollTop).toBeCloseTo(visualBefore, 1);
   });
 

@@ -191,7 +191,6 @@ export const ROOM_INTRO_KEY = '__room_intro__';
 /** Height of `ExpandAllLine` (`paddingBlockStart` 4 px + 18 px button) in item 0. */
 export const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
 // Non-integer so virtual-core records the first DOM measurement on mount.
-export const ROOM_INTRO_ESTIMATE_PX = 160 + ROOM_ROW_UNMEASURED_PX;
 const ROOM_LEADING_ESTIMATE_PX = EXPAND_ALL_LINE_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
 
 export const timelineRowSizing = ({

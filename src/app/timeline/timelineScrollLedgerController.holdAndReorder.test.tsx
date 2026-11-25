@@ -4,11 +4,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  EXPAND_ALL_LINE_ESTIMATE_PX,
-  ROOM_INTRO_ESTIMATE_PX,
-  ROOM_INTRO_KEY,
-} from './roomTimelineRows';
+import { EXPAND_ALL_LINE_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
 import {
   readVirtualizerHoldOffset,
@@ -16,6 +12,7 @@ import {
 } from './timelineScrollLedgerController';
 
 const ROW_HEIGHT = 100;
+const INTRO_ESTIMATE_PX = 160.5;
 const VIEWPORT_HEIGHT = 600;
 const SAFARI_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
@@ -172,7 +169,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     function RoomHarness({
       keys,
       tick,
-      introEstimate = ROOM_INTRO_ESTIMATE_PX,
+      introEstimate = INTRO_ESTIMATE_PX,
       canLoadOlder = false,
     }: {
       keys: string[];
@@ -263,7 +260,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     }
 
     let currentKeys = initialKeys;
-    let currentIntroEstimate = ROOM_INTRO_ESTIMATE_PX;
+    let currentIntroEstimate = INTRO_ESTIMATE_PX;
     let currentCanLoadOlder = initialCanLoadOlder;
     let tick = 0;
     const render = (
