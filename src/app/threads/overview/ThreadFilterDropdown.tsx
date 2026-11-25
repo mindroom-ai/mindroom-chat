@@ -9,7 +9,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { IconChevronDown } from '@tabler/icons-react';
-import { Checkbox, Text } from 'folds';
+import { Checkbox, config, Text, toRem } from 'folds';
 import { Surface } from '../../ui/glass/GlassPrimitives';
 import * as overviewCss from './RoomThreadOverview.css';
 import * as css from './ThreadFilterDropdown.css';
@@ -23,9 +23,19 @@ const dataPart = (name: string, part: string, value: string | number = 'true') =
 /** One checkable row of a filter dropdown. */
 export type ThreadFilterOption = {
   id: string;
+  /** Optional React key when the same `id` can appear under multiple groups. */
+  key?: string;
+  /** Overrides `optionAttribute` for this row (e.g. `data-subspace-option`). */
+  rowAttribute?: string;
   checked: boolean;
+  /** Partial group selection: renders as indeterminate (`aria-checked="mixed"`). */
+  indeterminate?: boolean;
   /** Checked to hide the threads it matches rather than to keep them. */
   excluded?: boolean;
+  /** Logical indentation level (capped at 3) for nested items. */
+  indent?: number;
+  /** Renders the row as a subtle group header (bold name + top spacing). */
+  groupHeader?: boolean;
   /** How many of the room's threads it matches; 0 shows no number. */
   count: number;
   /** What the row shows after its checkbox: a picture or color, the name, labels. */
@@ -132,24 +142,41 @@ export function ThreadFilterPanel({
         onMouseDown={(event) => event.preventDefault()}
         {...dataPart(name, 'list')}
       >
-        {rows.map((option) => (
-          <label key={option.id} className={css.Option} {...{ [optionAttribute]: option.id }}>
-            <Checkbox
-              variant={option.excluded ? 'Critical' : 'Primary'}
-              size="200"
-              checked={option.checked}
-              // folds leaves onChange out of its Checkbox type; the click toggles the choice.
-              readOnly
-              onClick={() => onToggle(option.id)}
-            />
-            {option.content}
-            {option.count > 0 && (
-              <Text as="span" size="T200" className={css.OptionCount} aria-hidden="true">
-                {option.count}
-              </Text>
-            )}
-          </label>
-        ))}
+        {rows.map((option) => {
+          const indent = Math.min(option.indent ?? 0, 3);
+          return (
+            <label
+              key={option.key ?? option.id}
+              className={classNames(css.Option, option.groupHeader && css.OptionGroupHeader)}
+              style={
+                indent > 0
+                  ? { paddingInlineStart: `calc(${config.space.S200} + ${toRem(indent * 16)})` }
+                  : undefined
+              }
+              {...{ [option.rowAttribute ?? optionAttribute]: option.id }}
+            >
+              <Checkbox
+                ref={(el) => {
+                  if (el) el.indeterminate = Boolean(option.indeterminate);
+                }}
+                className={option.indeterminate ? css.CheckboxIndeterminate : undefined}
+                variant={option.excluded ? 'Critical' : 'Primary'}
+                size="200"
+                checked={option.checked}
+                aria-checked={option.indeterminate ? 'mixed' : option.checked}
+                // folds leaves onChange out of its Checkbox type; the click toggles the choice.
+                readOnly
+                onClick={() => onToggle(option.id)}
+              />
+              {option.content}
+              {option.count > 0 && (
+                <Text as="span" size="T200" className={css.OptionCount} aria-hidden="true">
+                  {option.count}
+                </Text>
+              )}
+            </label>
+          );
+        })}
         {rows.length === 0 && (
           <Text size="T200" className={css.Empty}>
             {noMatchLabel}

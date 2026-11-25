@@ -2339,7 +2339,8 @@
       "roomsCount_one": "{{count}} stanza",
       "roomsCount_many": "{{count}} stanze",
       "roomsCount_other": "{{count}} stanze",
-      "roomsFiltered": "{{active}} di {{total}} stanze"
+      "roomsFiltered": "{{active}} di {{total}} stanze",
+      "switchSpace": "Cambia spazio"
     },
     "roomFilter": {
       "label": "Stanze",

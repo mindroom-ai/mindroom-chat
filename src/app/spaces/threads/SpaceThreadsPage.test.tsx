@@ -194,6 +194,9 @@ const makeRoom = (
   const state = {
     getStateEvents: (type: string) => {
       if (type === 'm.room.power_levels') return powerEvent;
+      if (type === (StateEvent.RoomCreate as string)) {
+        return { getContent: () => (opts.isSpace ? { type: 'm.space' } : {}), getTs: () => 0 };
+      }
       if (type === (StateEvent.RoomPinnedEvents as string)) {
         return { getContent: () => ({ pinned: pinnedEventIds }) };
       }
@@ -305,6 +308,8 @@ const makeIgnoredAccountDataEvent = (userIds: string[]) => ({
 const renderSpaceThreads = ({
   rooms,
   entries,
+  extraSpaces = [],
+  parentOverrides,
   bootstrapped = true,
   threadListsSettled = true,
   ignoredUsers = [],
@@ -313,6 +318,8 @@ const renderSpaceThreads = ({
 }: {
   rooms: FakeRoom[];
   entries: CrossRoomThreadIndexEntry[];
+  extraSpaces?: FakeRoom[];
+  parentOverrides?: ReadonlyMap<string, Set<string>>;
   bootstrapped?: boolean;
   threadListsSettled?: boolean;
   ignoredUsers?: string[];
@@ -323,6 +330,7 @@ const renderSpaceThreads = ({
   const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
   const roomMap = new Map<string, FakeRoom>([
     [SPACE_ID, space],
+    ...extraSpaces.map((r) => [r.roomId, r] as const),
     ...rooms.map((r) => [r.roomId, r] as const),
   ]);
   const clientEmitter = createEmitter();
@@ -344,12 +352,16 @@ const renderSpaceThreads = ({
       mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
   } as unknown as MatrixClient;
 
-  store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ...rooms.map((r) => r.roomId)] });
-  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
-  store.set(roomToParentsAtom, {
+  store.set(allRoomsAtom, {
     type: 'INITIALIZE',
-    roomToParents: new Map(rooms.map((r) => [r.roomId, new Set([SPACE_ID])] as const)),
+    rooms: [SPACE_ID, ...extraSpaces.map((r) => r.roomId), ...rooms.map((r) => r.roomId)],
   });
+  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+  const roomToParents = new Map<string, Set<string>>(
+    rooms.map((r) => [r.roomId, new Set([SPACE_ID])] as const)
+  );
+  parentOverrides?.forEach((parents, id) => roomToParents.set(id, parents));
+  store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents });
   store.set(crossRoomThreadIndexAtom, {
     entries: new Map(entries.map((entry) => [entry.key, entry] as const)),
     eventIdToThreadRoots: new Map(),
@@ -1368,5 +1380,179 @@ describe('SpaceThreadsPage', () => {
         ?.getAttribute('data-room-filter-count')
     ).toBe('0');
     expect(screen.getByText('Deploy script')).toBeTruthy();
+  });
+
+  it('shows the header space switcher for multiple spaces/subspaces, indents subspaces, and navigates', () => {
+    const subId = '!sub-platform:example.org';
+    const otherSpaceId = '!space-design:example.org';
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+
+    // Single space hides the switcher button.
+    const single = renderSpaceThreads({ rooms: [eng], entries: [] });
+    expect(single.container.querySelector('[data-space-switcher-button]')).toBeNull();
+    cleanup();
+
+    const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
+    const subSpace = makeRoom(subId, 'Platform', { isSpace: true });
+    const otherSpace = makeRoom(otherSpaceId, 'Design Studio', { isSpace: true });
+    const roomMap = new Map<string, FakeRoom>([
+      [SPACE_ID, space],
+      [subId, subSpace],
+      [otherSpaceId, otherSpace],
+      [ROOM_ENG, eng],
+    ]);
+    const emitter = createEmitter();
+    const client = {
+      getSafeUserId: () => ME,
+      getUserId: () => ME,
+      getHomeserverUrl: () => 'https://example.org',
+      getUser: () => null,
+      getRoom: (id: string) => roomMap.get(id) ?? null,
+      getRooms: () => [...roomMap.values()],
+      getAccountData: () => undefined,
+      on: emitter.on,
+      off: emitter.off,
+      removeListener: emitter.removeListener,
+      mxcUrlToHttp: () => null,
+    } as unknown as MatrixClient;
+    const store = createStore();
+    store.set(allRoomsAtom, {
+      type: 'INITIALIZE',
+      rooms: [SPACE_ID, subId, otherSpaceId, ROOM_ENG],
+    });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        [subId, new Set([SPACE_ID])],
+        [ROOM_ENG, new Set([SPACE_ID])],
+      ]),
+    });
+    store.set(crossRoomThreadIndexAtom, {
+      entries: new Map(),
+      eventIdToThreadRoots: new Map(),
+      version: 1,
+      bootstrapped: true,
+    });
+
+    function SwitcherHarness() {
+      const location = useLocation();
+      return (
+        <>
+          <div data-testid="switcher-path">{location.pathname}</div>
+          <SpaceThreadsPage />
+        </>
+      );
+    }
+
+    const { container } = render(
+      <Provider store={store}>
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <MatrixClientProvider value={client}>
+            <MemoryRouter initialEntries={[`/${encodeURIComponent(SPACE_ID)}/threads`]}>
+              <SpaceProvider value={space}>
+                <SwitcherHarness />
+              </SpaceProvider>
+            </MemoryRouter>
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      </Provider>
+    );
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-space-switcher-button="true"]'
+    )!;
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger);
+
+    const options = [...document.querySelectorAll<HTMLElement>('[data-space-switcher-option]')];
+    expect(options.map((el) => el.getAttribute('data-space-switcher-option'))).toEqual([
+      otherSpaceId,
+      SPACE_ID,
+      subId,
+    ]);
+    expect(options[1]?.getAttribute('aria-checked')).toBe('true');
+    expect(options[2]?.style.paddingInlineStart).toContain('16px');
+
+    fireEvent.click(options[2]!);
+    expect(screen.getByTestId('switcher-path').textContent).toBe(
+      `/${encodeURIComponent(subId)}/threads`
+    );
+    expect(document.querySelector('[data-space-switcher-menu]')).toBeNull();
+  });
+
+  it('supports subspace group checkboxes, indeterminate state, trigger label, and search in Rooms dropdown', () => {
+    const subId = '!sub-platform:example.org';
+    const subSpace = makeRoom(subId, 'Platform', { isSpace: true });
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
+    const ops = makeRoom(ROOM_OPS, 'Ops', { hasAgent: true });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
+      makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
+      makeEntry(ROOM_OPS, 'Ops', '$t-ops', 'Cluster upgrade', NOW - 2000),
+    ];
+
+    const { container } = renderSpaceThreads({
+      rooms: [eng, des, ops],
+      entries,
+      extraSpaces: [subSpace],
+      parentOverrides: new Map([
+        [subId, new Set([SPACE_ID])],
+        [ROOM_ENG, new Set([SPACE_ID])],
+        [ROOM_DES, new Set([subId])],
+        [ROOM_OPS, new Set([subId])],
+      ]),
+    });
+
+    openRoomsDropdown(container);
+    const getSubspaceCheckbox = () =>
+      within(
+        container.querySelector<HTMLElement>(`[data-subspace-option="${subId}"]`)!
+      ).getByRole<HTMLInputElement>('checkbox');
+
+    expect(container.querySelector(`[data-subspace-option="${subId}"]`)?.textContent).toContain(
+      'Platform'
+    );
+    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('false');
+
+    // Checking Platform selects Design + Ops and labels the trigger "Platform".
+    fireEvent.click(getSubspaceCheckbox());
+    expect(screen.queryByText('Build failure')).toBeNull();
+    expect(screen.getByText('New button spec')).toBeTruthy();
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Platform');
+    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('true');
+
+    // Unchecking one room makes Platform indeterminate (aria-checked="mixed").
+    toggleRoomOption(container, ROOM_DES);
+    expect(screen.queryByText('New button spec')).toBeNull();
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('mixed');
+    expect(getSubspaceCheckbox().indeterminate).toBe(true);
+
+    // Clicking indeterminate Platform re-checks all rooms in Platform.
+    fireEvent.click(getSubspaceCheckbox());
+    expect(screen.getByText('New button spec')).toBeTruthy();
+    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
+    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('true');
+
+    // Clicking checked Platform unchecks its rooms and restores all rooms.
+    fireEvent.click(getSubspaceCheckbox());
+    expect(screen.getByText('Build failure')).toBeTruthy();
+    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
+
+    // Search matches subspace name (shows subspace + its rooms) and room name (keeps ancestor header).
+    const search = container.querySelector<HTMLInputElement>('[data-room-filter-search]')!;
+    fireEvent.change(search, { target: { value: 'plat' } });
+    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_DES}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_ENG}"]`)).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'ops' } });
+    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_DES}"]`)).toBeNull();
   });
 });

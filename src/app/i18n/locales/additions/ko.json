@@ -2181,7 +2181,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "방 {{count}}개",
-      "roomsFiltered": "방 {{total}}개 중 {{active}}개"
+      "roomsFiltered": "방 {{total}}개 중 {{active}}개",
+      "switchSpace": "스페이스 전환"
     },
     "roomFilter": {
       "label": "방",

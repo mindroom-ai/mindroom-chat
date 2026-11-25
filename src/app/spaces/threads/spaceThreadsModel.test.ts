@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { StateEvent } from '../../matrix/types/room';
 import {
   createDefaultThreadFilterState,
   type ThreadFilterState,
@@ -10,11 +11,14 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
 import {
+  buildSpaceRoomFilterGroups,
+  buildSwitchableSpaceItems,
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
   getRoomAccentColor,
   pruneSpaceRoomSelection,
   resolveComposerTargetRoom,
+  toggleSpaceRoomGroupSelection,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
@@ -66,13 +70,20 @@ const makeEvent = (id: string, body: string, sender = '@alice:example.org') => (
   isRedacted: () => false,
 });
 
-const makeFakeRoom = (roomId: string, name: string, events: unknown[]): Room =>
+const makeFakeRoom = (roomId: string, name: string, events: unknown[], space = false): Room =>
   ({
     roomId,
     name,
+    isSpaceRoom: () => space,
+    getType: () => (space ? 'm.space' : undefined),
     getLiveTimeline: () => ({
       getEvents: () => events,
-      getState: () => undefined,
+      getState: () => ({
+        getStateEvents: (type: string) =>
+          type === (StateEvent.RoomCreate as string)
+            ? { getContent: () => (space ? { type: 'm.space' } : {}) }
+            : null,
+      }),
     }),
     getThread: () => undefined,
     findEventById: () => undefined,
@@ -458,5 +469,160 @@ describe('spaceThreadsModel', () => {
       new Set(['@spam:example.org'])
     );
     expect(merged.map((e) => e.threadRootId)).toEqual(['$ok-indexed', '$ok-root']);
+  });
+
+  it('builds cycle-safe switchable space items in rail order with nested subspace depths', () => {
+    const spaces = [
+      makeFakeRoom('!s1:example.org', 'Engineering', [], true),
+      makeFakeRoom('!sub-z:example.org', 'Zeta', [], true),
+      makeFakeRoom('!sub-a:example.org', 'Alpha', [], true),
+      makeFakeRoom('!grand:example.org', 'Grand', [], true),
+      makeFakeRoom('!s2:example.org', 'Design', [], true),
+      makeFakeRoom('!cyc-a:example.org', 'Cycle A', [], true),
+      makeFakeRoom('!cyc-b:example.org', 'Cycle B', [], true),
+      makeFakeRoom(ROOM_A, 'Regular Room', [], false),
+    ];
+    const byId = new Map(spaces.map((r) => [r.roomId, r]));
+    const mx = { getRoom: (id: string) => byId.get(id) ?? null } as unknown as MatrixClient;
+    const roomToParents = new Map<string, Set<string>>([
+      ['!sub-z:example.org', new Set(['!s1:example.org'])],
+      ['!sub-a:example.org', new Set(['!s1:example.org'])],
+      ['!grand:example.org', new Set(['!sub-a:example.org'])],
+      ['!cyc-a:example.org', new Set(['!cyc-b:example.org'])],
+      ['!cyc-b:example.org', new Set(['!cyc-a:example.org'])],
+    ]);
+
+    const items = buildSwitchableSpaceItems(
+      mx,
+      ['!s1:example.org', '!s2:example.org'],
+      spaces.map((r) => r.roomId),
+      roomToParents
+    );
+    expect(items.map((item) => [item.spaceId, item.depth])).toEqual([
+      ['!s1:example.org', 0],
+      ['!sub-a:example.org', 1],
+      ['!grand:example.org', 2],
+      ['!sub-z:example.org', 1],
+      ['!s2:example.org', 0],
+      ['!cyc-a:example.org', 0],
+      ['!cyc-b:example.org', 1],
+    ]);
+  });
+
+  it('groups visible rooms by nested subspaces including empty organizers and omits flat/100% groups', () => {
+    const rootId = '!root:example.org';
+    const orgId = '!org:example.org';
+    const subAId = '!sub-a:example.org';
+    const subBId = '!sub-b:example.org';
+    const rRoot = makeFakeRoom('!r-root:example.org', 'General', []);
+    const rA = makeFakeRoom('!r-a:example.org', 'API', []);
+    const rB = makeFakeRoom('!r-b:example.org', 'CI', []);
+    const allObjects = [
+      makeFakeRoom(rootId, 'Workspace', [], true),
+      makeFakeRoom(orgId, 'Platform', [], true),
+      makeFakeRoom(subAId, 'Backend', [], true),
+      makeFakeRoom(subBId, 'Infra', [], true),
+      rRoot,
+      rA,
+      rB,
+    ];
+    const byId = new Map(allObjects.map((r) => [r.roomId, r]));
+    const mx = { getRoom: (id: string) => byId.get(id) ?? null } as unknown as MatrixClient;
+    const roomCatalog = new Map([
+      [rRoot.roomId, { room: rRoot, name: rRoot.name }],
+      [rA.roomId, { room: rA, name: rA.name }],
+      [rB.roomId, { room: rB, name: rB.name }],
+    ]);
+
+    // Flat space with no subspaces returns undefined.
+    const flatParents = new Map<string, Set<string>>([
+      [rRoot.roomId, new Set([rootId])],
+      [rA.roomId, new Set([rootId])],
+    ]);
+    expect(
+      buildSpaceRoomFilterGroups({
+        mx,
+        spaceId: rootId,
+        roomsById: roomCatalog,
+        orderedRoomIds: [rRoot.roomId, rA.roomId],
+        joinedRoomIds: [rootId, rRoot.roomId, rA.roomId],
+        directs: new Set(),
+        roomToParents: flatParents,
+        chatRooms: new Set(),
+      })
+    ).toBeUndefined();
+
+    // Root room + empty organizer subspace wrapping Backend and Infra.
+    const nestedParents = new Map<string, Set<string>>([
+      [rRoot.roomId, new Set([rootId])],
+      [orgId, new Set([rootId])],
+      [subAId, new Set([orgId])],
+      [subBId, new Set([orgId])],
+      [rA.roomId, new Set([subAId])],
+      [rB.roomId, new Set([subBId])],
+    ]);
+    const grouped = buildSpaceRoomFilterGroups({
+      mx,
+      spaceId: rootId,
+      roomsById: roomCatalog,
+      orderedRoomIds: [rRoot.roomId, rA.roomId, rB.roomId],
+      joinedRoomIds: allObjects.map((r) => r.roomId),
+      directs: new Set(),
+      roomToParents: nestedParents,
+      chatRooms: new Set(),
+    });
+    expect(grouped?.rootRoomIds).toEqual([rRoot.roomId]);
+    expect(
+      grouped?.subspaces.map((g) => ({
+        spaceId: g.spaceId,
+        depth: g.depth,
+        directRoomIds: g.directRoomIds,
+        subtreeRoomIds: g.subtreeRoomIds,
+      }))
+    ).toEqual([
+      { spaceId: orgId, depth: 1, directRoomIds: [], subtreeRoomIds: [rA.roomId, rB.roomId] },
+      { spaceId: subAId, depth: 2, directRoomIds: [rA.roomId], subtreeRoomIds: [rA.roomId] },
+      { spaceId: subBId, depth: 2, directRoomIds: [rB.roomId], subtreeRoomIds: [rB.roomId] },
+    ]);
+
+    // Lone subspace wrapping 100% of visible rooms is skipped as a no-op.
+    const loneParents = new Map<string, Set<string>>([
+      [subAId, new Set([rootId])],
+      [rA.roomId, new Set([subAId])],
+      [rB.roomId, new Set([subAId])],
+    ]);
+    expect(
+      buildSpaceRoomFilterGroups({
+        mx,
+        spaceId: rootId,
+        roomsById: roomCatalog,
+        orderedRoomIds: [rA.roomId, rB.roomId],
+        joinedRoomIds: [rootId, subAId, rA.roomId, rB.roomId],
+        directs: new Set(),
+        roomToParents: loneParents,
+        chatRooms: new Set(),
+      })
+    ).toBeUndefined();
+  });
+
+  it('toggles subspace room groups across unchecked, partial, checked, and full-selection states', () => {
+    const all = ['!r1', '!r2', '!r3', '!r4'];
+    const group = ['!r3', '!r4'];
+
+    // Unchecked -> checked.
+    const checked = toggleSpaceRoomGroupSelection(undefined, group, all);
+    expect([...(checked ?? [])].sort()).toEqual(['!r3', '!r4']);
+
+    // Checked -> unchecked (resets to undefined = all rooms).
+    expect(toggleSpaceRoomGroupSelection(checked, group, all)).toBeUndefined();
+
+    // Partial/indeterminate -> all checked.
+    const fromPartial = toggleSpaceRoomGroupSelection(new Set(['!r3']), group, all);
+    expect([...(fromPartial ?? [])].sort()).toEqual(['!r3', '!r4']);
+
+    // Completing all rooms resets to undefined.
+    expect(
+      toggleSpaceRoomGroupSelection(new Set(['!r1', '!r2', '!r3']), group, all)
+    ).toBeUndefined();
   });
 });

@@ -2418,7 +2418,8 @@
       "roomsCount_few": "{{count}} комнаты",
       "roomsCount_many": "{{count}} комнат",
       "roomsCount_other": "{{count}} комнат",
-      "roomsFiltered": "{{active}} из {{total}} комнат"
+      "roomsFiltered": "{{active}} из {{total}} комнат",
+      "switchSpace": "Сменить пространство"
     },
     "roomFilter": {
       "label": "Комнаты",

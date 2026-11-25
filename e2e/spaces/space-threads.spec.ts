@@ -94,7 +94,9 @@ type SeededWorkspace = {
   user: DisposableUser;
   peer: DisposableUser;
   spaceId: string;
-  rooms: Record<'backend-api' | 'web-client' | 'infra-ops', string>;
+  platformSpaceId: string;
+  designSpaceId: string;
+  rooms: Record<'backend-api' | 'web-client' | 'infra-ops' | 'ci-runners', string>;
 };
 
 const seedWorkspace = async (): Promise<SeededWorkspace> => {
@@ -114,6 +116,24 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     name: 'Dev Workspace',
     topic: 'Shared engineering rooms and active threads',
   });
+  const platformSpaceId = await createPrivateSpace(HOMESERVER, user.accessToken, {
+    name: 'Platform',
+    topic: 'Infrastructure and build pipelines',
+  });
+  await addRoomToSpace(HOMESERVER, user.accessToken, spaceId, platformSpaceId);
+
+  const designSpaceId = await createPrivateSpace(HOMESERVER, user.accessToken, {
+    name: 'Design Studio',
+    topic: 'Design systems and visual specs',
+  });
+  const brand = await createThreadFixture(HOMESERVER, user.accessToken, {
+    name: 'brand-kit',
+    topic: 'Tokens and typography',
+    rootBody: 'Typography scale adjustments',
+    replyBody: 'Updated heading weights for compact views.',
+    txnPrefix: 'space-threads',
+  });
+  await addRoomToSpace(HOMESERVER, user.accessToken, designSpaceId, brand.roomId);
 
   const backend = await createThreadFixture(HOMESERVER, user.accessToken, {
     name: 'backend-api',
@@ -155,16 +175,28 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     replyBody: 'Verified automated health check gate on staging.',
     txnPrefix: 'space-threads',
   });
-  await addRoomToSpace(HOMESERVER, user.accessToken, spaceId, infra.roomId);
+  await addRoomToSpace(HOMESERVER, user.accessToken, platformSpaceId, infra.roomId);
+
+  const ci = await createThreadFixture(HOMESERVER, user.accessToken, {
+    name: 'ci-runners',
+    topic: 'Build cache and CI jobs',
+    rootBody: 'Cache build artifacts across runners',
+    replyBody: 'Cut median CI job runtime by 40%.',
+    txnPrefix: 'space-threads',
+  });
+  await addRoomToSpace(HOMESERVER, user.accessToken, platformSpaceId, ci.roomId);
 
   return {
     user,
     peer,
     spaceId,
+    platformSpaceId,
+    designSpaceId,
     rooms: {
       'backend-api': backend.roomId,
       'web-client': web.roomId,
       'infra-ops': infra.roomId,
+      'ci-runners': ci.roomId,
     },
   };
 };
@@ -232,7 +264,7 @@ test.describe.serial('Space Threads overview', () => {
       await page.getByRole('link', { name: 'All threads' }).click();
       await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
 
-      // All 3 rooms' threads appear with room badges and the Rooms dropdown in the toolbar.
+      // All 4 rooms' threads (including Platform subspace) appear with room badges and Rooms dropdown.
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
         timeout: 20_000,
       });
@@ -242,19 +274,26 @@ test.describe.serial('Space Threads overview', () => {
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible({
         timeout: 20_000,
       });
-      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('3 rooms');
-      await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(5);
+      await expect(page.getByText('Cache build artifacts across runners')).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('4 rooms');
+      await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(6);
       const roomsTrigger = page.locator('[data-room-filter-button]');
       await expect(roomsTrigger).toHaveText('Rooms');
       await saveShot(page, 'after-space-threads-dark.png');
 
-      // Open the Rooms dropdown to verify checkboxes, room avatar image, and icon fallbacks.
+      // Open Rooms dropdown to verify room avatar image, icon fallbacks, and Platform subspace group.
       const backendRoomId = workspace.rooms['backend-api'];
       const webRoomId = workspace.rooms['web-client'];
       const infraRoomId = workspace.rooms['infra-ops'];
+      const ciRoomId = workspace.rooms['ci-runners'];
+      const platformOption = page.locator(`[data-subspace-option="${workspace.platformSpaceId}"]`);
+      const platformCheckbox = platformOption.locator('input[type="checkbox"]');
       await roomsTrigger.click();
       await expect(page.locator('[data-room-filter-panel]')).toBeVisible();
-      await expect(page.locator('[data-room-option]')).toHaveCount(3);
+      await expect(page.locator('[data-room-option]')).toHaveCount(4);
+      await expect(platformOption).toBeVisible();
       await expectAvatarImageLoaded(page.locator(`[data-room-option="${backendRoomId}"] img`));
       await expect(page.locator(`[data-room-option="${webRoomId}"] img`)).toHaveCount(0);
       await expect(
@@ -270,12 +309,35 @@ test.describe.serial('Space Threads overview', () => {
       ).toBeVisible();
       await saveShot(page, 'after-space-threads-dropdown.png');
 
+      // Toggle Platform subspace group: checked -> partial (indeterminate) -> re-checked -> Clear.
+      await platformOption.click();
+      await expect(roomsTrigger).toHaveText('Platform');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
+      await expect(platformCheckbox).toHaveAttribute('aria-checked', 'true');
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
+      await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
+
+      await page.locator(`[data-room-option="${ciRoomId}"]`).click();
+      await expect(roomsTrigger).toHaveText('infra-ops');
+      await expect(platformCheckbox).toHaveAttribute('aria-checked', 'mixed');
+      await expect(page.getByText('Cache build artifacts across runners')).toBeHidden();
+
+      await platformOption.click();
+      await expect(roomsTrigger).toHaveText('Platform');
+      await expect(platformCheckbox).toHaveAttribute('aria-checked', 'true');
+      await expect(page.getByText('Cache build artifacts across runners')).toBeVisible();
+
+      await page.locator('[data-room-filter-clear]').click();
+      await expect(roomsTrigger).toHaveText('Rooms');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('4 rooms');
+
       // Checking web-client downselects to 1 room, hides room badges, and retargets the composer.
       await page.locator(`[data-room-option="${webRoomId}"]`).click();
       await roomsTrigger.click();
       await expect(page.locator('[data-room-filter-panel]')).toBeHidden();
       await expect(roomsTrigger).toHaveText('web-client');
-      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 3 rooms');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 4 rooms');
       await expect(page.getByText('Keyboard navigation for command menu')).toBeVisible();
       await expect(page.getByText('Compact card spacing audit')).toBeVisible();
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
@@ -293,19 +355,50 @@ test.describe.serial('Space Threads overview', () => {
       await page.getByRole('link', { name: 'All threads' }).click();
       await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
       await expect(roomsTrigger).toHaveText('web-client');
-      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 3 rooms');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 4 rooms');
       await expect(page.getByText('Keyboard navigation for command menu')).toBeVisible();
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
 
-      // Opening the Rooms dropdown and clicking Clear restores all 3 rooms and room badges.
+      // Opening the Rooms dropdown and clicking Clear restores all 4 rooms and room badges.
       await roomsTrigger.click();
       await page.locator('[data-room-filter-clear]').click();
       await roomsTrigger.click();
       await expect(roomsTrigger).toHaveText('Rooms');
-      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('3 rooms');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('4 rooms');
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible();
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
-      await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(5);
+      await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(6);
+
+      // Header space switcher lists top-level spaces and indented subspaces and navigates cleanly.
+      const switcherTrigger = page.locator('[data-space-switcher-button="true"]');
+      await expect(switcherTrigger).toBeVisible();
+      await switcherTrigger.click();
+      await expect(page.locator('[data-space-switcher-menu="true"]')).toBeVisible();
+      await expect(page.locator('[data-space-switcher-option]')).toHaveCount(3);
+      await expect(
+        page.locator(`[data-space-switcher-option="${workspace.spaceId}"]`)
+      ).toHaveAttribute('aria-checked', 'true');
+      await saveShot(page, 'after-space-threads-switcher.png');
+
+      await page.locator(`[data-space-switcher-option="${workspace.platformSpaceId}"]`).click();
+      await expect(page.locator('[data-space-threads-page]')).toHaveAttribute(
+        'data-space-threads-page',
+        workspace.platformSpaceId
+      );
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 rooms');
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
+
+      await switcherTrigger.click();
+      await page.locator(`[data-space-switcher-option="${workspace.designSpaceId}"]`).click();
+      await expect(page.getByText('Typography scale adjustments')).toBeVisible({ timeout: 20_000 });
+
+      await switcherTrigger.click();
+      await page.locator(`[data-space-switcher-option="${workspace.spaceId}"]`).click();
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('4 rooms');
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
+        timeout: 20_000,
+      });
 
       // Advanced filters reveal the People dropdown with avatars, filtering, and Clear.
       const peopleTrigger = page.locator('[data-people-filter-button]');

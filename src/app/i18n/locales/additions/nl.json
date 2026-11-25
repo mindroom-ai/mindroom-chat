@@ -2260,7 +2260,8 @@
     "header": {
       "roomsCount_one": "{{count}} kamer",
       "roomsCount_other": "{{count}} kamers",
-      "roomsFiltered": "{{active}} van {{total}} kamers"
+      "roomsFiltered": "{{active}} van {{total}} kamers",
+      "switchSpace": "Space wisselen"
     },
     "roomFilter": {
       "label": "Kamers",

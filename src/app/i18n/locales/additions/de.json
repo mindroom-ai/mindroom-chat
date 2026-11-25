@@ -2260,7 +2260,8 @@
     "header": {
       "roomsCount_one": "{{count}} Raum",
       "roomsCount_other": "{{count}} Räume",
-      "roomsFiltered": "{{active}} von {{total}} Räumen"
+      "roomsFiltered": "{{active}} von {{total}} Räumen",
+      "switchSpace": "Space wechseln"
     },
     "roomFilter": {
       "label": "Räume",

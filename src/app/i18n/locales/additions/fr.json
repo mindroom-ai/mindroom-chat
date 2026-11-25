@@ -2339,7 +2339,8 @@
       "roomsCount_one": "{{count}} salon",
       "roomsCount_many": "{{count}} salons",
       "roomsCount_other": "{{count}} salons",
-      "roomsFiltered": "{{active}} sur {{total}} salons"
+      "roomsFiltered": "{{active}} sur {{total}} salons",
+      "switchSpace": "Changer d'espace"
     },
     "roomFilter": {
       "label": "Salons",

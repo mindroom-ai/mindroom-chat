@@ -25,6 +25,9 @@ import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
+import { mDirectAtom } from '../../matrix/state/mDirectList';
+import { allRoomsAtom } from '../../matrix/state/roomList';
+import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
@@ -49,9 +52,11 @@ import {
   type SpaceThreadsEmptyKey,
 } from './SpaceThreadsList';
 import {
+  buildSpaceRoomFilterGroups,
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
   pruneSpaceRoomSelection,
+  toggleSpaceRoomGroupSelection,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
 import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
@@ -85,6 +90,10 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   );
 
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const chatRooms = useAtomValue(chatRoomParentsAtom);
   const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const [storedFilterState, setFilterState] = useAtom(
     useMemo(() => roomThreadFilterAtomFamily(myUserId, space.roomId), [myUserId, space.roomId])
@@ -126,6 +135,29 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     [orderedRoomIds, storedSelectedRoomIds]
   );
   const memberLookupRooms = useMemo(() => rooms.map((item) => item.room), [rooms]);
+  const roomFilterGroups = useMemo(
+    () =>
+      buildSpaceRoomFilterGroups({
+        mx,
+        spaceId: space.roomId,
+        roomsById,
+        orderedRoomIds,
+        joinedRoomIds,
+        directs: directRoomIds,
+        roomToParents,
+        chatRooms,
+      }),
+    [
+      chatRooms,
+      directRoomIds,
+      joinedRoomIds,
+      mx,
+      orderedRoomIds,
+      roomToParents,
+      roomsById,
+      space.roomId,
+    ]
+  );
   const activeRoomIds = useMemo(
     () =>
       effectiveSelectedRoomIds
@@ -260,6 +292,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         space={space}
         activeRoomCount={activeRoomIds.length}
         totalRoomCount={spaceRooms.length}
+        showSpaceSwitcher
       />
 
       <div className={css.PageBody}>
@@ -271,6 +304,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                   rooms={rooms}
                   roomCounts={result.roomCounts}
                   selectedRoomIds={effectiveSelectedRoomIds}
+                  groups={roomFilterGroups}
                   onSelectAll={() => updateFilter((prev) => ({ ...prev, rooms: undefined }))}
                   onToggleRoom={(id) =>
                     updateFilter((prev) => {
@@ -279,6 +313,20 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                         orderedRoomIds
                       );
                       const next = toggleSpaceRoomSelection(current, id, orderedRoomIds);
+                      return { ...prev, rooms: next ? [...next].sort() : undefined };
+                    })
+                  }
+                  onToggleRoomGroup={(groupRoomIds) =>
+                    updateFilter((prev) => {
+                      const current = pruneSpaceRoomSelection(
+                        prev.rooms?.length ? new Set(prev.rooms) : undefined,
+                        orderedRoomIds
+                      );
+                      const next = toggleSpaceRoomGroupSelection(
+                        current,
+                        groupRoomIds,
+                        orderedRoomIds
+                      );
                       return { ...prev, rooms: next ? [...next].sort() : undefined };
                     })
                   }

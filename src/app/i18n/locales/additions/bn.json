@@ -2260,7 +2260,8 @@
     "header": {
       "roomsCount_one": "{{count}}টি রুম",
       "roomsCount_other": "{{count}}টি রুম",
-      "roomsFiltered": "{{total}}টির মধ্যে {{active}}টি রুম"
+      "roomsFiltered": "{{total}}টির মধ্যে {{active}}টি রুম",
+      "switchSpace": "স্পেস পরিবর্তন করুন"
     },
     "roomFilter": {
       "label": "রুম",
