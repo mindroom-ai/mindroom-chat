@@ -30,6 +30,7 @@ import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { getRoomThreadMode } from '../matrix/protocol/roomThreadMode';
@@ -237,6 +238,7 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
   const waiting =
     isDirect && valid && !!room && isDirectRoomWith(room, agentId, ['invite', undefined]);
   const composerRoom = room && !waiting ? room : null;
+  const composerThreadMode = useRoomThreadMode(composerRoom?.roomId ?? '', Boolean(composerRoom));
   const busy = starting === 'busy' || (valid && isDirect && roomId !== null && !room);
   const [, bumpRoomMeta] = useForceUpdate();
   const selectedNonDirectRoom = isDirect && (valid || !room) ? null : room;
@@ -428,7 +430,7 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
             editor={editor}
             room={composerRoom}
             roomId={composerRoom.roomId}
-            threadingEnabled={getRoomThreadMode(composerRoom) !== 'room'}
+            threadingEnabled={composerThreadMode !== 'room'}
             fileDropContainerRef={fileDropContainerRef ?? askRef}
             onRoomMessageSent={(eventId) => {
               if (isLocalEchoEventId(eventId)) return false;

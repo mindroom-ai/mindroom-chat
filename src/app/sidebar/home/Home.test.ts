@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
-import { RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
+import { RelationType, RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
@@ -1430,5 +1430,116 @@ describe('Home', () => {
     act(() => renderer.unmount());
     expect(unlistedDm.listenerCount(RoomEvent.Summary)).toBe(0);
     expect(customDm.listenerCount(RoomEvent.Summary)).toBe(0);
+  });
+
+  it('promotes a sole DM-only agent above a shared-room agent on live RoomEvent.Timeline and skips re-splits once already first', () => {
+    const client = getMockClient();
+    let dmLastActive = 1000;
+    let lastActiveReads = 0;
+    const unlistedMembers = [
+      { userId: '@alice:example.org', membership: 'join' },
+      { userId: '@mindroom_unlisted:example.org', membership: 'join' },
+    ];
+    const unlistedDm = Object.assign(new EventEmitter(), {
+      roomId: '!dm-unlisted:example.org',
+      name: 'Unlisted Agent',
+      myUserId: '@alice:example.org',
+      getJoinedMemberCount: () => 2,
+      getInvitedMemberCount: () => 0,
+      getLastActiveTimestamp: () => {
+        lastActiveReads += 1;
+        return dmLastActive;
+      },
+      getAvatarFallbackMember: () => ({
+        userId: '@mindroom_unlisted:example.org',
+        getMxcAvatarUrl: () => null,
+      }),
+      getMembers: () => unlistedMembers,
+      getMember: (userId: string) => unlistedMembers.find((m) => m.userId === userId) ?? null,
+      currentState: { getStateEvents: () => [] },
+    });
+
+    homeState.homeAgents = [
+      {
+        userId: '@mindroom_shared:example.org',
+        name: 'Shared Agent',
+        roomIds: ['!room:example.org'],
+        lastUsedTs: 2000,
+      },
+    ];
+    homeState.directRooms = [unlistedDm] as unknown as Array<Record<string, unknown>>;
+    const { renderer } = renderHome(['!room:example.org']);
+
+    const agentOrder = () =>
+      renderer.root
+        .findAll(
+          (n) => typeof n.type === 'string' && n.props['data-testid'] === 'home-agents-section'
+        )
+        .flatMap((section) =>
+          section
+            .findAll(
+              (n) =>
+                typeof n.type === 'string' &&
+                ('data-home-agent-id' in n.props || 'data-room-nav-item' in n.props)
+            )
+            .map((n) => n.props['data-home-agent-id'] ?? n.props['data-room-nav-item'])
+        );
+
+    expect(agentOrder()).toEqual(['@mindroom_shared:example.org', '!dm-unlisted:example.org']);
+
+    // State events and edits on the DM do not trigger a re-split.
+    lastActiveReads = 0;
+    act(() => {
+      client.emit(
+        RoomEvent.Timeline,
+        { isState: () => true, getRelation: () => null },
+        unlistedDm,
+        false,
+        false,
+        { liveEvent: true }
+      );
+      client.emit(
+        RoomEvent.Timeline,
+        { isState: () => false, getRelation: () => ({ rel_type: RelationType.Replace }) },
+        unlistedDm,
+        false,
+        false,
+        { liveEvent: true }
+      );
+    });
+    expect(lastActiveReads).toBe(0);
+
+    // A newer live reply in the sole DM promotes the unlisted agent to #1 above the shared-room agent.
+    dmLastActive = 3000;
+    act(() => {
+      client.emit(
+        RoomEvent.Timeline,
+        { isState: () => false, getRelation: () => null },
+        unlistedDm,
+        false,
+        false,
+        { liveEvent: true }
+      );
+    });
+    expect(agentOrder()).toEqual(['!dm-unlisted:example.org', '@mindroom_shared:example.org']);
+
+    // Once already #1 in Agents, a subsequent live reply does not trigger an extra re-split.
+    lastActiveReads = 0;
+    dmLastActive = 4000;
+    act(() => {
+      client.emit(
+        RoomEvent.Timeline,
+        { isState: () => false, getRelation: () => null },
+        unlistedDm,
+        false,
+        false,
+        { liveEvent: true }
+      );
+    });
+    expect(lastActiveReads).toBe(0);
+    expect(agentOrder()).toEqual(['!dm-unlisted:example.org', '@mindroom_shared:example.org']);
+
+    act(() => renderer.unmount());
+    expect(client.listenerCount(RoomEvent.Timeline)).toBe(0);
   });
 });

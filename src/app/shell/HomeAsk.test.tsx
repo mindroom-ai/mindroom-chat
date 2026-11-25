@@ -357,7 +357,7 @@ describe('HomeAsk', () => {
     eng.members[HELPER] = 'leave';
     const unfollowed = vi.spyOn(mx, 'removeListener');
     again.refresh([]);
-    expect(unfollowed).not.toHaveBeenCalled();
+    expect(unfollowed).not.toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.anything());
     expect(screen.queryByTestId('room-input')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
@@ -601,6 +601,46 @@ describe('HomeAsk', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
     expect(eng.listenerCount(RoomEvent.Name)).toBe(0);
     expect(eng.listenerCount(RoomStateEvent.Events)).toBe(0);
+
+    view.unmount();
+  });
+
+  it('updates RoomInput threadingEnabled when a live io.mindroom.thread_mode event arrives for a room or DM', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const dm = makeRoom('!dm', 'Helper', [HELPER], 2);
+    const mx = makeClient([eng, dm]);
+    const agentWithDm: HomeAgent = { ...helperAgent, direct: { roomId: '!dm', waiting: false } };
+
+    const view = renderAsk(mx, [agentWithDm]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(true);
+
+    // Live io.mindroom.thread_mode = 'room' on the selected non-DM room flips threadingEnabled to false.
+    eng.threadMode = 'room';
+    act(() => {
+      mx.emit(RoomStateEvent.Events, {
+        getRoomId: () => '!eng',
+        getType: () => ROOM_THREAD_MODE_EVENT,
+        getStateKey: () => '',
+      });
+    });
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
+
+    // Switch to the DM: starts threaded, then flips to false on a live io.mindroom.thread_mode event.
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(true);
+
+    dm.threadMode = 'room';
+    act(() => {
+      mx.emit(RoomStateEvent.Events, {
+        getRoomId: () => '!dm',
+        getType: () => ROOM_THREAD_MODE_EVENT,
+        getStateKey: () => '',
+      });
+    });
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
 
     view.unmount();
   });

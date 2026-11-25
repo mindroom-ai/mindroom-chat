@@ -2,8 +2,10 @@ import {
   type ComponentProps,
   type MouseEventHandler,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -13,10 +15,12 @@ import { Box, Icon, Icons, Text } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+  RelationType,
   RoomEvent,
   RoomStateEvent,
   type MatrixEvent,
   type Room,
+  type RoomEventHandlerMap,
   type RoomState,
 } from 'matrix-js-sdk';
 import { PageNav, PageNavContent } from '../../ui/page/Page';
@@ -181,13 +185,18 @@ function HomeUnspacedRoomsSection({
   );
 }
 
-/** Tracks mutable DM membership, summary, and router-roster updates that affect Direct vs Agents splitting. */
-const useDirectSectionMetaVersion = (directRooms: readonly Room[]): number => {
+/** Tracks mutable DM membership, summary, timeline ordering, and router-roster updates for Direct vs Agents. */
+const useDirectSectionMetaVersion = (
+  directRooms: readonly Room[],
+  topAgentDmRoomIdRef: RefObject<string | undefined>
+): number => {
   const mx = useMatrixClient();
   const [version, bump] = useForceUpdate();
   const directIds = useMemo(() => new Set(directRooms.map((room) => room.roomId)), [directRooms]);
   const directIdsRef = useRef<ReadonlySet<string>>(directIds);
-  directIdsRef.current = directIds;
+  useLayoutEffect(() => {
+    directIdsRef.current = directIds;
+  }, [directIds]);
 
   const onStateEvent = useCallback<StateEventCallback>(
     (event, roomState) => {
@@ -204,8 +213,24 @@ const useDirectSectionMetaVersion = (directRooms: readonly Room[]): number => {
     const onMembers = (_event?: MatrixEvent, roomState?: RoomState) => {
       if (!roomState?.roomId || directIdsRef.current.has(roomState.roomId)) bump();
     };
+    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      event,
+      room,
+      toStartOfTimeline,
+      _removed,
+      data
+    ) => {
+      if (!room || toStartOfTimeline || !data.liveEvent || !directIdsRef.current.has(room.roomId))
+        return;
+      if (event.isState() || event.getRelation()?.rel_type === RelationType.Replace) return;
+      if (room.roomId === topAgentDmRoomIdRef.current) return;
+      bump();
+    };
     const hasClientEvents = typeof mx.on === 'function' && typeof mx.removeListener === 'function';
-    if (hasClientEvents) mx.on(RoomStateEvent.Members, onMembers);
+    if (hasClientEvents) {
+      mx.on(RoomStateEvent.Members, onMembers);
+      mx.on(RoomEvent.Timeline, onTimeline);
+    }
     const summaryRooms: Room[] = [];
     directRooms.forEach((room) => {
       if (typeof room.on === 'function' && typeof room.removeListener === 'function') {
@@ -214,10 +239,13 @@ const useDirectSectionMetaVersion = (directRooms: readonly Room[]): number => {
       }
     });
     return () => {
-      if (hasClientEvents) mx.removeListener(RoomStateEvent.Members, onMembers);
+      if (hasClientEvents) {
+        mx.removeListener(RoomStateEvent.Members, onMembers);
+        mx.removeListener(RoomEvent.Timeline, onTimeline);
+      }
       summaryRooms.forEach((room) => room.removeListener(RoomEvent.Summary, bump));
     };
-  }, [mx, directRooms, bump]);
+  }, [mx, directRooms, topAgentDmRoomIdRef, bump]);
 
   return version;
 };
@@ -259,11 +287,16 @@ export function Home() {
   const mDirect = useMDirectContent();
   const { direct: directTabShown } = useRailButtons();
 
-  const dmMetaVersion = useDirectSectionMetaVersion(directRooms);
+  const topAgentDmRoomIdRef = useRef<string | undefined>(undefined);
+  const dmMetaVersion = useDirectSectionMetaVersion(directRooms, topAgentDmRoomIdRef);
   const { humanDms, agents, agentDmRoomIds } = useMemo(() => {
     void dmMetaVersion;
     return splitHomeDirectSections(directRooms, homeAgents, mDirect);
   }, [directRooms, homeAgents, mDirect, dmMetaVersion]);
+  const topAgentDmRoomId = agents[0]?.dmRoom?.roomId;
+  useLayoutEffect(() => {
+    topAgentDmRoomIdRef.current = topAgentDmRoomId;
+  }, [topAgentDmRoomId]);
   const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
   const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
   const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
