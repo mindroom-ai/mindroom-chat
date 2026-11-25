@@ -7,9 +7,9 @@ import { color, config, toRem } from 'folds';
 // Right-to-left languages mirror all of it.
 //
 // The Settings dialog keeps one inset, 12 px (S300). The search field, the menu's rows, the search
-// results and Logout stay that far from the dialog's edges and from the divider; so do the page's
-// close button and, on a phone, the menu's title and its close button. The icons and the group
-// headings start 8 px (S200) further in, 20 px from the column's edge, as the close button's icon
+// results and Logout stay that far from the menu column's edges; so do the page's close button and,
+// on a phone, the menu's title and its close button. The icons and the group headings start 8 px
+// (S200) further in, 20 px from the column's edge, as the close button's icon
 // does from the end edge; the page's breadcrumb starts where its sections' text does
 // (SettingsPageFrame). Between the field and the first group, between the groups and above Logout
 // the menu keeps the inset as well.
@@ -58,8 +58,8 @@ export const RoomSettingsMenuTitle = style({
 });
 
 /**
- * The menu column's rows keep the inset from the dialog's edge and from the divider: 8 px from the
- * scrolling list's own padding and these 4 px, so the open page's fill sits evenly in the column.
+ * The menu column's rows keep the inset from both of the column's edges: 8 px from the scrolling
+ * list's own padding and these 4 px, so the open page's fill sits evenly in the column.
  */
 export const SettingsMenu = style({
   flexGrow: 1,

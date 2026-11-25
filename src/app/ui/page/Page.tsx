@@ -39,18 +39,24 @@ export function PageMain({ children }: { children: ReactNode }) {
   );
 }
 
-/** Page layout: optional navigation column, a divider, then the page itself. */
+/**
+ * Page layout: optional navigation column, a divider outside glass surfaces, then the page itself.
+ */
 export function PageRoot({ nav, children, main }: PageRootProps) {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const surfaceClass = useInheritSurfaceClass();
-  // On mobile the navigation is in a drawer over the page, so nothing divides them.
+  const inSurface = useSurfaceContext();
+  // On mobile the navigation is in a drawer over the page, and inside a glass surface the column
+  // and page share one continuous surface, so nothing divides them.
   const divider =
-    nav && !mobile ? (
+    nav && !mobile && !inSurface ? (
       <Line className={PageDivider} direction="Vertical" size="300" variant="Background" />
     ) : null;
 
   return (
-    <Box className={classNames(ContainerColor({ variant: 'Background' }), surfaceClass)} grow="Yes">
+    <Box
+      className={classNames(ContainerColor({ variant: 'Background' }), inSurface && inheritSurface)}
+      grow="Yes"
+    >
       {nav}
       {divider}
       {main ? <PageMain>{children}</PageMain> : children}
