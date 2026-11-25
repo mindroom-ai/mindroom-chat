@@ -1,9 +1,46 @@
-import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
+import {
+  useCallback,
+  useRef,
+  type ComponentPropsWithoutRef,
+  type MouseEvent,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { IconTooltip } from '../../ui/IconTooltip';
+import { useCompactCardSwipeList } from './CompactCardSwipe';
+import { SwipeList } from './CompactCardSwipe.css';
 import * as css from './CompactRoomView.css';
+
+export type CompactCardListProps = ComponentPropsWithoutRef<'div'> & {
+  ref?: Ref<HTMLDivElement>;
+};
+
+/** Shared vertical list container for compact thread cards and flat section headers. */
+export function CompactCardList({ ref, className, ...props }: CompactCardListProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useCompactCardSwipeList(listRef);
+  const setRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      listRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as { current: HTMLDivElement | null }).current = node;
+    },
+    [ref]
+  );
+  return (
+    <Box
+      ref={setRef}
+      className={classNames(SwipeList, css.Cards, className)}
+      direction="Column"
+      gap="100"
+      shrink="No"
+      {...props}
+    />
+  );
+}
 
 export type CompactCardActionsProps = {
   pinned: boolean;
