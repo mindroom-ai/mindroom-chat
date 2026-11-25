@@ -317,7 +317,7 @@ export const useTimelineScrollLedgerController = ({
       virtualizerRef.current.scrollOffset = nextTop;
     }
     setCommitTick((tick) => tick + 1);
-  });
+  }, [anchoringRoomRows, getScrollElement, roomAnchorDeltaPx]);
   useLayoutEffect(() => {
     const scrollElement = getScrollElement();
     const inner = virtualInnerRef.current;
