@@ -381,7 +381,7 @@ describe('useHeldRowsLayout', () => {
       keys: VirtualItem['key'][];
       totalSizeCalls: number;
     }> = [];
-    let onCommit: ((index: number) => void) | undefined;
+    const onCommitRef: { current?: (index: number) => void } = {};
 
     function Harness() {
       const [, forceRender] = useReducer((value: number) => value + 1, 0);
@@ -402,7 +402,7 @@ describe('useHeldRowsLayout', () => {
           keys: layout.virtualItems.map((item) => item.key),
           totalSizeCalls: getTotalSize.mock.calls.length,
         });
-        onCommit?.(index);
+        onCommitRef.current?.(index);
       });
       return null;
     }
@@ -425,14 +425,10 @@ describe('useHeldRowsLayout', () => {
     getTotalSize.mockClear();
     rowMove = true;
     inRowReport = true;
-    measurementsCache = [
-      makeVirtualItem(0, 100),
-      makeVirtualItem(1, 200),
-      makeVirtualItem(2, 580),
-    ];
+    measurementsCache = [makeVirtualItem(0, 100), makeVirtualItem(1, 200), makeVirtualItem(2, 580)];
     // Window gained an overscan item (key 3) during the RO pass; it stays deferred until unheld.
     windowItems = [...measurementsCache, makeVirtualItem(3, 680)];
-    onCommit = (commitIndex) => {
+    onCommitRef.current = (commitIndex) => {
       if (commitIndex === 0) {
         // Second consecutive ResizeObserver pass arrives before the first deferred render settles.
         measurementsCache = [

@@ -12,32 +12,20 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  Direction,
-  RoomMemberEvent,
-  type MatrixEvent,
-  type Room,
-  type RoomMember,
-} from 'matrix-js-sdk';
+import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
-import { Box, Scroll, Spinner, config } from 'folds';
+import { Box, Spinner } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
-import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useInitialClientCatchup } from '../matrix/hooks/useInitialClientCatchup';
-import { useSettingValue } from '../preferences/useSettingValue';
 import { useRoomUnread } from '../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
-import { MessageLayout, settingsAtom } from '../preferences/settings';
+import { MessageLayout } from '../preferences/settings';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import { RoomIntro } from './RoomIntro';
-import { InsetScrollbar } from '../ui/InsetScrollbar';
-import { prefetchSettingsAtom } from '../event-store/engine/prefetchSettings';
-import { sanitizePrefetchDepth } from '../event-store/engine/prefetchPolicy';
 import { scheduleReconcile, useSyncEngine } from '../event-store/engine';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
@@ -45,11 +33,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
 import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
-import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
-import { TimelineMinimap } from './TimelineMinimap';
-import { buildImageSlides, ImageSlidesContext } from '../messages/content/imageSlides';
-import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from './forkPrefixTimelineSet';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -128,10 +112,7 @@ import { useThreadGapRecovery } from '../threads/open/useThreadGapRecovery';
 import { useThreadEditBackfillController } from '../threads/open/threadEditBackfillController';
 import { useThreadSummaryPublishController } from '../threads/summary/threadSummaryPublishController';
 import { useThreadSummaryTimeline } from '../threads/summary/useThreadSummaryTimeline';
-import {
-  ThreadConversationCostProvider,
-  useThreadConversationCostSummary,
-} from '../event-store/threads/useThreadConversationCost';
+import { useThreadConversationCostSummary } from '../event-store/threads/useThreadConversationCost';
 import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
@@ -140,25 +121,9 @@ import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPl
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useReplyCardPlan } from './replyCards';
 import { useModelChangePlan } from '../messages/modelChanges';
-import { useStateEvent } from '../matrix/hooks/useStateEvent';
-import { StateEvent } from '../matrix/types/room';
-import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
-import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
-import {
-  MINDROOM_ACCOUNTS_STATE_EVENT,
-  MINDROOM_ROUTER_STATE_EVENT,
-  boundRoomRoster,
-  trustedRoomAccountIds,
-  trustedRouterUserId,
-} from '../matrix/protocol/routerBinding';
-import {
-  InlineSecretRequestsContext,
-  useDrawnSecretRequestIds,
-} from '../messages/inlineSecretRequests';
+import { useDrawnSecretRequestIds } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
-import { useFooterBottomPin } from './useFooterBottomPin';
 import { useHeldRowsLayout, useTimelineLiveEnd } from './timelineLiveEnd';
 import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
@@ -177,7 +142,6 @@ import {
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
-  useTimelineScrollElement,
   useViewportAtBottomNow,
   type RoomRowsPlace,
 } from './roomTimelineScroll';
@@ -222,14 +186,19 @@ import { countsRoomRows } from './roomTimelineClassicRows';
 import {
   ExpandAllLine,
   FilterBarSlot,
-  JumpToLatestAction,
   ThreadLoadOlderLine,
   ThreadLoadingLines,
-  footerProbeStyle,
   listTopSentinelStyle,
   roomViewStyleUnder,
   threadViewStyle,
 } from './RoomTimelineOverlays';
+import {
+  TimelineViewport,
+  useTimelineDisplaySettings,
+  useTimelineImageSlides,
+  useTimelineScrollSetup,
+  useTrustedRoomAccounts,
+} from './TimelineViewport';
 
 export type RoomTimelineProps = {
   room: Room;
@@ -289,26 +258,12 @@ export type RoomTimelineProps = {
   forkTargetRoom?: Room;
 };
 
-type ScrollToBottomState = { count: number; smooth: boolean };
-
 const EMPTY_EVENTS: MatrixEvent[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 /** Stand-ins for filter bar handlers a caller leaves out. */
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
   undefined;
-
-/** The display settings the timeline follows, each read on its own so a change re-renders. */
-const useTimelineDisplaySettings = () => ({
-  hideActivity: !!useSettingValue(settingsAtom, 'hideActivity'),
-  hideMembershipEvents: !!useSettingValue(settingsAtom, 'hideMembershipEvents'),
-  hideNickAvatarEvents: !!useSettingValue(settingsAtom, 'hideNickAvatarEvents'),
-  messageLayout: useSettingValue(settingsAtom, 'messageLayout'),
-  messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
-  showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
-  hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
-  prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
-});
 
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
@@ -364,7 +319,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const alive = useAlive();
   const engine = useSyncEngine();
   const { sessionId } = engine;
-  const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const ignoredUsers = useIgnoredUsers();
@@ -412,18 +366,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const showThreadRepliesInRoom = viewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
-  // References the controllers share.
-  const { scrollRef, scrollElement, attachScroll, getScrollElement } = useTimelineScrollElement();
-  // As tall as the footer inset: a growing composer moves the newest row up with it.
-  const footerProbeRef = useRef<HTMLDivElement>(null);
   // Jump to Unread gives way while the "New messages" line it jumps to is in view.
   const [unreadMarker, setUnreadMarker] = useState<HTMLDivElement | null>(null);
-  const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const atBottomAnchorRef = useRef<HTMLElement | null>(null);
   const roomIdRef = useLatestRef(room.roomId);
   const threadIdRef = useLatestRef(threadId);
-  const scrollToBottomRef = useRef<ScrollToBottomState>({ count: 0, smooth: false });
   const prefetchDepthRef = useLatestRef(prefetchDepth);
   // The room mounts its newest rows in a window of this size and widens it as the reader scrolls.
   const windowLimit = Math.min(prefetchDepth, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE);
@@ -451,11 +397,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const backController = useThreadBackPaginationController();
   const cancelThreadScrollRef = useRef<(() => void) | undefined>(undefined);
   const onPrependBegin = useCallback(() => cancelThreadScrollRef.current?.(), []);
-  const prependViewport = useThreadPrependViewport({
-    controller: backController,
-    scrollRef,
-    onBegin: onPrependBegin,
-  });
 
   // The room's loaded timeline and the window of it that is mounted.
   const filterOpts = useMemo<RecalibrateFilterOpts>(
@@ -609,14 +550,23 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadIndex.roomThreadFilterActive &&
     sortBy === 'lastReply' &&
     sortDirection === 'desc';
-  const latestAtTopRef = useLatestRef(latestAtTop);
-  // Rows that wrap anew at another width still end at the bottom, as after a send.
-  const followLatestRows = useCallback(() => {
-    if (latestAtTopRef.current) return;
-    const { count } = scrollToBottomRef.current;
-    scrollToBottomRef.current = { count: count + 1, smooth: false };
-  }, [latestAtTopRef]);
-  useFooterBottomPin(scrollElement, footerProbeRef, followLatestRows);
+  const scroll = useTimelineScrollSetup({ latestAtTop });
+  const {
+    scrollRef,
+    scrollElement,
+    getScrollElement,
+    footerProbeRef,
+    contentRef,
+    atBottomAnchorRef,
+    scrollToBottomRef,
+    latestAtTopRef,
+  } = scroll;
+  const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
+  const prependViewport = useThreadPrependViewport({
+    controller: backController,
+    scrollRef,
+    onBegin: onPrependBegin,
+  });
   useThreadSortFreezeController({
     activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
     setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
@@ -703,7 +653,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         if (backController.requestOpenBottomPin(scrollToBottomRef)) pinnedAtLatest();
       },
     }),
-    [backController, pinnedAtLatest, startOpenAtLatest]
+    [backController, pinnedAtLatest, scrollToBottomRef, startOpenAtLatest]
   );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
   const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
@@ -841,37 +791,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // Rows read edits from the open thread's set, or in the room view from the room's.
   const rowTimelineSet =
     (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
-  // The image viewer pages through the pictures of the conversation on screen, as its rows show
-  // them. It reads them when it opens and on each step, so newly loaded ones join; the getter
-  // keeps its identity, so a timeline update does not render the open viewer again.
-  const imageSlideSourceRef = useLatestRef({
+  const getImageSlides = useTimelineImageSlides({
+    mx,
+    room,
     events: threadId ? threadEvents : loadedRoomRows,
     rowTimelineSet,
     forkPrefixEventIds,
     isHiddenByPlugin,
     ignoredUsersSet,
   });
-  const getImageSlides = useCallback(() => {
-    const source = imageSlideSourceRef.current;
-    return buildImageSlides(
-      source.events,
-      // As its row does.
-      (event) => {
-        const prefixThreadId = forkPrefixThreadId(
-          event,
-          event.getId() ?? '',
-          source.forkPrefixEventIds
-        );
-        return rowEditTimelineSet(
-          rowEventRoom(mx, room, event, prefixThreadId),
-          prefixThreadId,
-          source.rowTimelineSet
-        );
-      },
-      source.isHiddenByPlugin,
-      source.ignoredUsersSet
-    );
-  }, [imageSlideSourceRef, mx, room]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -911,53 +839,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
-  // Fold only messages from the bound account or joined accounts it vouches for.
-  // The SDK may redact and re-emit the same state event object.
-  const bindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
-  const routerBinding = bindingEvent?.isRedacted() ? undefined : bindingEvent;
-  const powerLevels = usePowerLevelsContext();
-  const roomCreators = useRoomCreators(room);
-  const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const boundUserId = useMemo(
-    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
-    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
-  );
-  const rosterEvent = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
-  const roster = rosterEvent?.isRedacted() ? undefined : rosterEvent;
-  const rosterAccountIds = useMemo(
-    () => boundRoomRoster(boundUserId, roster),
-    [boundUserId, roster]
-  );
-  const [membershipRevision, refreshMembership] = useForceUpdate();
-  const joinedAccountIds = useMemo(() => {
-    void membershipRevision;
-    // A new roster can list someone whose membership changes we were not following before.
-    void rosterAccountIds;
-    return new Set(room.getJoinedMembers().map((member) => member.userId));
-  }, [room, membershipRevision, rosterAccountIds]);
-  const trustedAccountIds = useMemo(
-    () => trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet),
-    [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]
-  );
-  const viewerId = mx.getUserId() ?? undefined;
-  const roomPermissions = useRoomPermissions(roomCreators, powerLevels);
-  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const canCompose = !!viewerId && roomPermissions.event('m.room.message', viewerId) && !tombstone;
-  useLayoutEffect(() => {
-    const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
-      if (
-        member.roomId === room.roomId &&
-        (member.membership === 'join') !== (previous === 'join') &&
-        (member.userId === boundUserId || rosterAccountIds.has(member.userId))
-      ) {
-        refreshMembership();
-      }
-    };
-    mx.on(RoomMemberEvent.Membership, onMembership);
-    return () => {
-      mx.removeListener(RoomMemberEvent.Membership, onMembership);
-    };
-  }, [mx, room.roomId, boundUserId, rosterAccountIds, refreshMembership]);
+  const { trustedAccountIds, viewerId, canCompose } = useTrustedRoomAccounts(room, ignoredUsersSet);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : loadedWindowRows,
@@ -1399,7 +1281,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   );
   const requestThreadOpenBottomPin = useCallback(
     () => backController.requestOpenBottomPin(scrollToBottomRef),
-    [backController]
+    [backController, scrollToBottomRef]
   );
   const gesturePins = useGestureBottomPins({
     backController,
@@ -1578,7 +1460,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     }
     const { count } = scrollToBottomRef.current;
     scrollToBottomRef.current = { count: count + 1, smooth: false };
-  }, [atLiveEndRef, compactViewRequested, handleJumpToLatest]);
+  }, [atLiveEndRef, compactViewRequested, handleJumpToLatest, scrollToBottomRef]);
 
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
@@ -2194,115 +2076,66 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       style={latestAtTop ? listTopSentinelStyle : { height: 1 }}
     />
   );
-  // Marks the rows' latest end for Jump to Latest and the read receipts.
-  const latestEndAnchor = <span ref={atBottomAnchorRef} style={{ display: 'block', height: 0 }} />;
-
   return (
-    <Box grow="Yes" direction="Column" style={threadId ? threadViewStyle : roomStyle}>
-      <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
-      {filterBar}
-      {showJumpToUnread && (
-        <UnreadActions
-          onJumpToUnread={handleJumpToUnread}
-          onMarkAsRead={markRoomAsRead}
-          clearStart={phone}
-        />
-      )}
-      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
-        {latestAtTop && latestEndAnchor}
-        <Box
-          ref={contentRef}
-          direction="Column"
-          justifyContent={threadId || compactCards || latestAtTop ? 'Start' : 'End'}
-          style={{
-            minHeight: '100%',
-            paddingTop: overlay.topInset,
-            paddingBottom: `calc(${overlay.footerInset} + ${config.space.S400})`,
-          }}
-        >
-          {threadId ? (
-            <>
-              {threadHeader && (
-                <ThreadTimelineHeader
-                  gapAbove={threadHeaderGapAbove}
-                  onResize={ledger.holdThreadBannerResize}
-                  scrollRef={scrollRef}
-                >
-                  {threadHeader}
-                </ThreadTimelineHeader>
-              )}
-              <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
-            </>
-          ) : (
-            latestAtTop && expandAllToggle
-          )}
-          <ThreadConversationCostProvider value={threadConversationCost}>
-            <ImageSlidesContext.Provider value={getImageSlides}>
-              {feature.wrapExpansion(
-                <div
-                  ref={ledger.virtualInnerRef}
-                  // This timeline's rows, for a row that looks for another (SecretRequestCard.tsx).
-                  data-timeline-rows=""
-                  data-thread-count={threadId ? threadEvents.length : undefined}
-                  data-testid={threadId ? undefined : 'room-virtual-inner'}
-                  style={{
-                    ...overlay.overviewInsetStop,
-                    position: 'relative',
-                    height: listHeight,
-                    visibility:
-                      automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
-                  }}
-                >
-                  {latestAtTop ? frontSentinel : backSentinel}
-                  <InlineSecretRequestsContext.Provider value={secretRequestPlan}>
-                    {tiles}
-                  </InlineSecretRequestsContext.Provider>
-                </div>
-              )}
-            </ImageSlidesContext.Provider>
-          </ThreadConversationCostProvider>
-          {latestAtTop ? (
-            <>
-              {roomIntro}
-              {backSentinel}
-            </>
-          ) : (
-            frontSentinel
-          )}
-        </Box>
-        {heldEndSpacer > 0 && (
-          <div
-            aria-hidden
-            data-held-end-spacer=""
-            style={{ height: heldEndSpacer, flexShrink: 0 }}
+    <TimelineViewport
+      containerStyle={threadId ? threadViewStyle : roomStyle}
+      justifyContent={threadId || compactCards || latestAtTop ? 'Start' : 'End'}
+      latestAtTop={latestAtTop}
+      filterBar={filterBar}
+      unreadActions={
+        showJumpToUnread && (
+          <UnreadActions
+            onJumpToUnread={handleJumpToUnread}
+            onMarkAsRead={markRoomAsRead}
+            clearStart={phone}
           />
-        )}
-        {/* After the content's padding, so "at the bottom" means the end of the scroll range,
-            not the last row, which sits a composer's height higher, behind the footer. */}
-        {!latestAtTop && latestEndAnchor}
-        {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
-            placed by the timeline box, so it stays between the header and the composer. */}
-        <InsetScrollbar
-          scrollRef={scrollRef}
-          contentRef={contentRef}
-          className={overlay.Scrollbar}
-          label={t('threadNav.messages')}
-        />
-        {/* Sits inside Scroll alongside InsetScrollbar for reader-gesture bubbling, while
-            forwarding vertical wheel events to scrollRef because its containing block is the
-            positioned timeline box outside Scroll. */}
-        {minimap.minimapItems.length > 0 && (
-          <TimelineMinimap
-            items={minimap.minimapItems}
-            stripMap={minimap.minimapStripMap}
-            scrollRef={scrollRef}
-            onSelect={minimap.handleMinimapSelect}
-            onScrub={minimap.handleMinimapScrub}
-          />
-        )}
-      </Scroll>
-      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
-      {feature.forkToRoomDialog}
-    </Box>
+        )
+      }
+      contentTop={
+        threadId ? (
+          <>
+            {threadHeader && (
+              <ThreadTimelineHeader
+                gapAbove={threadHeaderGapAbove}
+                onResize={ledger.holdThreadBannerResize}
+                scrollRef={scrollRef}
+              >
+                {threadHeader}
+              </ThreadTimelineHeader>
+            )}
+            <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
+          </>
+        ) : (
+          latestAtTop && expandAllToggle
+        )
+      }
+      contentBottom={
+        latestAtTop ? (
+          <>
+            {roomIntro}
+            {backSentinel}
+          </>
+        ) : (
+          frontSentinel
+        )
+      }
+      topSentinel={latestAtTop ? frontSentinel : backSentinel}
+      tiles={tiles}
+      scroll={scroll}
+      virtualInnerRef={ledger.virtualInnerRef}
+      listHeight={listHeight}
+      heldEndSpacer={heldEndSpacer}
+      hideRows={automaticFill.hideInitialRows || hideOpeningThreadRows}
+      threadCount={threadId ? threadEvents.length : undefined}
+      virtualInnerTestId={threadId ? undefined : 'room-virtual-inner'}
+      threadConversationCost={threadConversationCost}
+      getImageSlides={getImageSlides}
+      wrapExpansion={feature.wrapExpansion}
+      secretRequestPlan={secretRequestPlan}
+      minimap={minimap}
+      atBottom={atBottom}
+      onJumpToLatest={handleJumpToLatestTap}
+      forkToRoomDialog={feature.forkToRoomDialog}
+    />
   );
 }
