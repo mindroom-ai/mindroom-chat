@@ -1513,6 +1513,8 @@
       "stopping": "Menghentikan…",
       "resume": "Lanjutkan",
       "runAgain": "Jalankan lagi",
+      "confirmRunAgain": "Konfirmasi jalankan lagi",
+      "cancel": "Batalkan",
       "starting": "Memulai…",
       "failedCount_other": "{{count}} gagal",
       "question": {
@@ -1544,6 +1546,7 @@
         "noMessages": "Belum ada pesan antar langkah.",
         "noLog": "Belum ada entri log.",
         "omittedEdges_other": "{{count}} rute pesan dilewati.",
+        "omittedMessages_other": "{{count}} pesan dilewati.",
         "omittedLog_other": "{{count}} entri log dilewati.",
         "setupSteps_other": "{{count}} langkah penyiapan",
         "showMore": "Tampilkan {{count}} lagi",
@@ -1581,12 +1584,15 @@
         "messagesFrom": "Pesan dari {{name}}: {{count}}",
         "timeout": "Waktu habis",
         "routeTo": "{{from}} ke {{to}}: {{count}}",
+        "messageRoute": "{{from}} ke {{to}}",
+        "script": "skrip",
         "routeBetween": "{{from}} dan {{to}}: {{count}}",
         "duration": "Durasi",
         "tokens": "Token",
         "cost": "Biaya",
         "open": "Buka",
         "detailsUnavailable": "Detail tidak lagi tersedia setelah muat ulang.",
+        "transcriptUnavailable": "Transkrip lengkap tidak lagi tersedia setelah muat ulang.",
         "stop": "Hentikan agen"
       }
     },
