@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Bericht in een andere kamer"
     },
+    "callout": {
+      "note": "Opmerking",
+      "tip": "Tip",
+      "important": "Belangrijk",
+      "warning": "Waarschuwing",
+      "caution": "Voorzichtig"
+    },
     "deviceVerification": {
       "acceptStalled": "De andere sessie heeft niet geantwoord. Sluit dit en start de verificatie opnieuw."
     },
@@ -424,6 +431,7 @@
       },
       "sidebar": {
         "title": "Zijbalk",
+        "navigation": "Navigatie",
         "threads": "Threads in de zijbalk tonen",
         "threadsDescription": "Threads uit alle kamers in één lijst. Verborgen open je ze via het ⋮-menu in Home.",
         "canvasesDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Verborgen open je ze via het ⋮-menu in Home.",
@@ -453,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "Jij",
-          "app": "Deze app",
-          "agents": "Agents & verbindingen",
-          "help": "Hulp & geavanceerd"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "Systeem"
         },
         "pages": {
           "privacy": "Privacy & beveiliging",
           "language": "Taal & regio",
-          "storage": "Opslag & offline"
+          "storage": "Opslag & offline",
+          "agentsServers": "Agents & servers"
         }
       },
       "search": {
@@ -475,7 +484,9 @@
       "advanced": "Geavanceerd",
       "sections": {
         "display": "Weergave",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Antwoorden",
+        "connectionsComputers": "Verbindingen & computers"
       },
       "computers": {
         "inUse": "Server in gebruik",
@@ -1062,6 +1073,21 @@
         "sourceLabel": "Bron {{source}}",
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Gebeurtenispayload JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} taak klaar",
+        "readyCount_other": "{{count}} taken klaar",
+        "hide": "Verbergen",
+        "show": "Tonen",
+        "copyId": "Taak-ID {{id}} kopiëren",
+        "moreItems_one": "+{{count}} extra uitvoerbaar item",
+        "moreItems_other": "+{{count}} extra uitvoerbare items",
+        "priority": {
+          "critical": "Kritiek",
+          "high": "Hoog",
+          "medium": "Gemiddeld",
+          "low": "Laag"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
@@ -2269,5 +2295,13 @@
     "error": {
       "title": "Kon threads van de ruimte niet laden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Bron",
+    "showDiagram": "Diagram tonen",
+    "showSource": "Bron tonen",
+    "mermaidDiagram": "Mermaid-diagram",
+    "diagramUnavailable": "Bron wordt getoond"
   }
 }

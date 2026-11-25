@@ -45,6 +45,8 @@ type LongTextTextProps = {
     fallbackContent: Record<string, unknown>
   ) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
+  /** Renders a self-contained replacement (e.g. wake marker) without MessageTextBody chrome. */
+  renderOverride?: (content: Record<string, unknown>) => ReactNode;
   hydrate?: boolean;
 };
 
@@ -172,6 +174,7 @@ export function LongTextText({
   renderBody,
   renderAfterBody,
   renderUrlsPreview,
+  renderOverride,
   hydrate = true,
 }: LongTextTextProps) {
   const { t } = useTranslation();
@@ -318,8 +321,11 @@ export function LongTextText({
   const urlsPreview = toolMetadataStatus === 'loading' ? undefined : renderUrlsPreview;
   const previewHasText = !!trimReplyFromBody(getStringValue(displayContent, 'body') ?? '').trim();
 
+  const override = renderOverride?.(displayContent);
   let textContent: ReactNode;
-  if (kind === LongTextKind.Emote) {
+  if (override !== undefined && override !== null) {
+    textContent = override;
+  } else if (kind === LongTextKind.Emote) {
     textContent = (
       <MEmote
         displayName={displayName ?? ''}
@@ -358,7 +364,7 @@ export function LongTextText({
   return (
     <>
       {textContent}
-      {showLoadingIndicator && !previewHasText && (
+      {override == null && showLoadingIndicator && !previewHasText && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
           <FText size="T200">

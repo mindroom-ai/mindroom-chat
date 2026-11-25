@@ -159,7 +159,7 @@
         "title": "Cuentas conectadas",
         "description": "Conecta las cuentas que usan tus agentes, como Google o GitHub, en tu servidor MindRoom.",
         "open": "Abrir Conexiones",
-        "noBackend": "Define tu servidor MindRoom en «Ordenadores» para usar Conexiones.",
+        "noBackend": "Define tu servidor MindRoom en Ajustes → Agentes y servidores (Avanzado) para usar Conexiones.",
         "blocked": "Tu navegador bloqueó la ventana de Conexiones. Permite las ventanas emergentes de este sitio e inténtalo de nuevo."
       }
     }

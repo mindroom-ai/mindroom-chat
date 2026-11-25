@@ -316,6 +316,7 @@ export function Space() {
                 selectedRoomId={selectedRoomId}
                 onCategoryClick={onCategoryClick}
                 onReorder={onReorder}
+                pinMode="toggle"
               />
             ))}
           </SortableRoomGroup>

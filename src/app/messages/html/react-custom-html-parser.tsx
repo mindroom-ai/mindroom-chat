@@ -28,6 +28,7 @@ import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
+import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
   CheckIcon,
@@ -45,6 +46,7 @@ import { FootnoteItem, FootnoteLink } from '../../rich-text/Footnote';
 import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { Callout, extractCallout } from '../../rich-text/Callout';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
@@ -116,6 +118,13 @@ type StyledText = Array<string | JSX.Element>;
 
 const toGlobal = (regex: RegExp): RegExp =>
   new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
+
+const hasNonEmptyMatch = (text: string, regex: RegExp): boolean => {
+  for (const match of text.matchAll(toGlobal(regex))) {
+    if (match[0] !== '') return true;
+  }
+  return false;
+};
 
 /** Emoji in `text`, outside URLs, scaled up to match the text around them. */
 const scaleEmoji = (
@@ -515,65 +524,67 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     );
   }
 
-  return (
-    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
-      <div className={css.CodeBlockHeader}>
-        <div className={css.CodeBlockLabel}>
-          {iconToken && (
-            <span
-              role="img"
-              aria-label={t('messageCodeBlock.language', {
-                language: language ?? labelExtension,
-              })}
-            >
-              <CodeBlockLanguageIcon token={iconToken} />
-            </span>
-          )}
-          {(label || !iconToken) && (
-            <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
-          )}
-        </div>
-        <div
-          className={css.CodeBlockActions}
-          role="group"
-          aria-label={t('messageCodeBlock.actions')}
-          data-code-block-actions=""
+  const headerLabel = (
+    <div className={css.CodeBlockLabel}>
+      {iconToken && (
+        <span
+          role="img"
+          aria-label={t('messageCodeBlock.language', {
+            language: language ?? labelExtension,
+          })}
         >
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={t('messageCodeBlock.wrap')}
-            title={t('messageCodeBlock.wrap')}
-            aria-pressed={wrap}
-            onClick={() => setWrap((value) => !value)}
-          >
-            <WrapTextIcon />
-          </button>
-          {long && (
-            <button
-              ref={expandButtonRef}
-              type="button"
-              className={css.CodeBlockAction}
-              aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
-              aria-expanded={expanded}
-              onClick={() => {
-                if (!expanded) armReveal();
-                setExpanded((value) => !value);
-              }}
-            >
-              {expanded ? <CollapseIcon /> : <ExpandIcon />}
-            </button>
-          )}
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
-            onClick={() => void copy()}
-          >
-            {copied ? <CheckIcon /> : <CopyIcon />}
-          </button>
-        </div>
-      </div>
+          <CodeBlockLanguageIcon token={iconToken} />
+        </span>
+      )}
+      {(label || !iconToken) && (
+        <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
+      )}
+    </div>
+  );
+
+  const sourceActions = (
+    <>
+      <button
+        type="button"
+        className={css.CodeBlockAction}
+        aria-label={t('messageCodeBlock.wrap')}
+        title={t('messageCodeBlock.wrap')}
+        aria-pressed={wrap}
+        onClick={() => setWrap((value) => !value)}
+      >
+        <WrapTextIcon />
+      </button>
+      {long && (
+        <button
+          ref={expandButtonRef}
+          type="button"
+          className={css.CodeBlockAction}
+          aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
+          aria-expanded={expanded}
+          onClick={() => {
+            if (!expanded) armReveal();
+            setExpanded((value) => !value);
+          }}
+        >
+          {expanded ? <CollapseIcon /> : <ExpandIcon />}
+        </button>
+      )}
+    </>
+  );
+
+  const copyAction = (
+    <button
+      type="button"
+      className={css.CodeBlockAction}
+      aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
+      onClick={() => void copy()}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
+  );
+
+  const sourceBody = (
+    <>
       {/* Native scroll areas need a tab stop for keyboard scrolling. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
       <div
@@ -590,6 +601,38 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
         {collapsed && !atEnd && <div className={css.CodeBlockBottomShadow} />}
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+    </>
+  );
+
+  if (!formatted && language?.toLowerCase() === 'mermaid') {
+    return (
+      <MermaidBlock
+        source={source}
+        searchMatch={searchMatch}
+        wrap={wrap}
+        headerLabel={headerLabel}
+        sourceActions={sourceActions}
+        copyAction={copyAction}
+        sourceBody={sourceBody}
+      />
+    );
+  }
+
+  return (
+    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
+      <div className={css.CodeBlockHeader}>
+        {headerLabel}
+        <div
+          className={css.CodeBlockActions}
+          role="group"
+          aria-label={t('messageCodeBlock.actions')}
+          data-code-block-actions=""
+        >
+          {sourceActions}
+          {copyAction}
+        </div>
+      </div>
+      {sourceBody}
     </pre>
   );
 }
@@ -774,7 +817,41 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </p>
           );
-        case 'blockquote':
+        case 'blockquote': {
+          const callout = hasAncestor(domNode, ['blockquote', 'li'])
+            ? undefined
+            : extractCallout(children);
+          if (callout) {
+            const calloutProps = attributesToProps(withoutAttribute(attribs, 'cite'));
+            const { highlightRegex } = params;
+            return (
+              <Callout
+                {...calloutProps}
+                type={callout.type}
+                className={classNames(css.MarginSpaced, calloutProps.className)}
+                renderTitle={
+                  highlightRegex
+                    ? (title) => {
+                        if (hasNonEmptyMatch(title, highlightRegex)) {
+                          return renderStyledText(title, highlightRegex);
+                        }
+                        if (
+                          hasNonEmptyMatch(`[!${callout.type}]`, highlightRegex) ||
+                          hasNonEmptyMatch(`[!${callout.type.toUpperCase()}]`, highlightRegex)
+                        ) {
+                          return <span className={css.highlightText}>{title}</span>;
+                        }
+                        return title;
+                      }
+                    : undefined
+                }
+              >
+                {callout.bodyNodes.length > 0
+                  ? domToReact(callout.bodyNodes as DOMNode[], parserOptions)
+                  : undefined}
+              </Callout>
+            );
+          }
           return (
             <blockquote
               {...props}
@@ -783,6 +860,7 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </blockquote>
           );
+        }
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>

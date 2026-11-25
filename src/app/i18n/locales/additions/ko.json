@@ -262,6 +262,13 @@
       "threadIn": "{{room}}의 스레드",
       "messageElsewhere": "다른 방의 메시지"
     },
+    "callout": {
+      "note": "참고",
+      "tip": "팁",
+      "important": "중요",
+      "warning": "경고",
+      "caution": "주의"
+    },
     "deviceVerification": {
       "acceptStalled": "다른 세션이 응답하지 않았습니다. 이 창을 닫고 확인을 다시 시작하세요."
     },
@@ -411,6 +418,7 @@
       },
       "sidebar": {
         "title": "사이드바",
+        "navigation": "탐색",
         "threads": "사이드바에 스레드 표시",
         "threadsDescription": "모든 방의 스레드를 한 목록에서 봅니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "canvasesDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
@@ -440,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "나",
-          "app": "이 앱",
-          "agents": "에이전트 및 연결",
-          "help": "도움말 및 고급"
+          "app": "앱",
+          "mindroom": "MindRoom",
+          "system": "시스템"
         },
         "pages": {
           "privacy": "개인정보 및 보안",
           "language": "언어 및 지역",
-          "storage": "저장공간 및 오프라인"
+          "storage": "저장공간 및 오프라인",
+          "agentsServers": "에이전트 및 서버"
         }
       },
       "search": {
@@ -462,7 +471,9 @@
       "advanced": "고급",
       "sections": {
         "display": "표시",
-        "privacy": "개인정보"
+        "privacy": "개인정보",
+        "replying": "답장",
+        "connectionsComputers": "연결 및 컴퓨터"
       },
       "computers": {
         "inUse": "사용 중인 서버",
@@ -1043,6 +1054,19 @@
         "sourceLabel": "소스 {{source}}",
         "triageLabel": "트리아지: {{reason}}",
         "payloadLabel": "이벤트 페이로드 JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "할 일 {{count}}개 준비됨",
+        "hide": "숨기기",
+        "show": "표시",
+        "copyId": "할 일 ID {{id}} 복사",
+        "moreItems_other": "+실행 가능한 항목 {{count}}개 더 있음",
+        "priority": {
+          "critical": "긴급",
+          "high": "높음",
+          "medium": "보통",
+          "low": "낮음"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
@@ -2192,5 +2216,13 @@
     "error": {
       "title": "스페이스 스레드를 불러올 수 없습니다"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "다이어그램",
+    "source": "소스",
+    "showDiagram": "다이어그램 보기",
+    "showSource": "소스 보기",
+    "mermaidDiagram": "Mermaid 다이어그램",
+    "diagramUnavailable": "소스 표시 중"
   }
 }

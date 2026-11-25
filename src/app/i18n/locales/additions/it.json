@@ -278,6 +278,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Messaggio in un'altra stanza"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Suggerimento",
+      "important": "Importante",
+      "warning": "Avviso",
+      "caution": "Attenzione"
+    },
     "deviceVerification": {
       "acceptStalled": "L'altra sessione non ha risposto. Chiudi qui e avvia di nuovo la verifica."
     },
@@ -437,6 +444,7 @@
       },
       "sidebar": {
         "title": "Barra laterale",
+        "navigation": "Navigazione",
         "threads": "Mostra Thread nella barra laterale",
         "threadsDescription": "I thread di tutte le stanze in un unico elenco. Se nascosti, aprili dal menu ⋮ della Home.",
         "canvasesDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. Se lo nascondi, aprili dal menu ⋮ della Home.",
@@ -466,14 +474,15 @@
       "menu": {
         "groups": {
           "you": "Tu",
-          "app": "Questa app",
-          "agents": "Agenti e connessioni",
-          "help": "Aiuto e avanzate"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "Sistema"
         },
         "pages": {
           "privacy": "Privacy e sicurezza",
           "language": "Lingua e area geografica",
-          "storage": "Archiviazione e offline"
+          "storage": "Archiviazione e offline",
+          "agentsServers": "Agenti e server"
         }
       },
       "search": {
@@ -488,7 +497,9 @@
       "advanced": "Avanzate",
       "sections": {
         "display": "Visualizzazione",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Risposte",
+        "connectionsComputers": "Connessioni e computer"
       },
       "computers": {
         "inUse": "Server in uso",
@@ -1081,6 +1092,23 @@
         "sourceLabel": "Origine {{source}}",
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Payload dell’evento JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} attività pronta",
+        "readyCount_many": "{{count}} attività pronte",
+        "readyCount_other": "{{count}} attività pronte",
+        "hide": "Nascondi",
+        "show": "Mostra",
+        "copyId": "Copia ID attività {{id}}",
+        "moreItems_one": "+{{count}} altro elemento da gestire",
+        "moreItems_many": "+{{count}} altri elementi da gestire",
+        "moreItems_other": "+{{count}} altri elementi da gestire",
+        "priority": {
+          "critical": "Critica",
+          "high": "Alta",
+          "medium": "Media",
+          "low": "Bassa"
+        }
       },
       "finishedWork": {
         "workedFor": "Ha lavorato per {{duration}}",
@@ -2346,5 +2374,13 @@
     "error": {
       "title": "Impossibile caricare le discussioni dello spazio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramma",
+    "source": "Sorgente",
+    "showDiagram": "Mostra diagramma",
+    "showSource": "Mostra sorgente",
+    "mermaidDiagram": "Diagramma Mermaid",
+    "diagramUnavailable": "Sorgente visualizzato"
   }
 }

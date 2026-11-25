@@ -122,6 +122,12 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
 }));
 
 vi.mock('../../rich-text/Footnote.css', () => ({}));
+vi.mock('../../rich-text/Callout.css', () => ({
+  Callout: ({ tone }: { tone?: string } = {}) => `Callout-${tone ?? ''}`,
+  Header: ({ tone }: { tone?: string } = {}) => `CalloutHeader-${tone ?? ''}`,
+  Icon: 'CalloutIcon',
+  Body: 'CalloutBody',
+}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({
   Container: 'TableContainer',
   ScrollArea: 'TableScrollArea',
@@ -192,6 +198,9 @@ vi.mock('../SkillReviewMarker', () => ({
 }));
 vi.mock('../TriggerWakeMarker', () => ({
   TriggerWakeMarker: () => null,
+}));
+vi.mock('../TodoPokeMarker', () => ({
+  TodoPokeMarker: () => null,
 }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,

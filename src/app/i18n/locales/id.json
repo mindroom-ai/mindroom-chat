@@ -159,7 +159,7 @@
         "title": "Akun terhubung",
         "description": "Hubungkan akun yang digunakan agen Anda, seperti Google atau GitHub, di server MindRoom Anda.",
         "open": "Buka Koneksi",
-        "noBackend": "Atur server MindRoom Anda di bagian Komputer untuk menggunakan Koneksi.",
+        "noBackend": "Atur server MindRoom Anda di Pengaturan → Agen & server (Lanjutan) untuk menggunakan Koneksi.",
         "blocked": "Browser Anda memblokir jendela Koneksi. Izinkan pop-up untuk situs ini lalu coba lagi."
       }
     }

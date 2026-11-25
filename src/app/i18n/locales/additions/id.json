@@ -262,6 +262,13 @@
       "threadIn": "Utas di {{room}}",
       "messageElsewhere": "Pesan di ruang lain"
     },
+    "callout": {
+      "note": "Catatan",
+      "tip": "Tips",
+      "important": "Penting",
+      "warning": "Peringatan",
+      "caution": "Perhatian"
+    },
     "deviceVerification": {
       "acceptStalled": "Sesi lain tidak menjawab. Tutup ini dan mulai verifikasi lagi."
     },
@@ -411,6 +418,7 @@
       },
       "sidebar": {
         "title": "Bilah sisi",
+        "navigation": "Navigasi",
         "threads": "Tampilkan Utas di bilah sisi",
         "threadsDescription": "Utas dari semua ruang dalam satu daftar. Saat disembunyikan, buka dari menu ⋮ di Beranda.",
         "canvasesDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Saat disembunyikan, buka dari menu ⋮ di Beranda.",
@@ -440,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "Anda",
-          "app": "Aplikasi ini",
-          "agents": "Agen & koneksi",
-          "help": "Bantuan & lanjutan"
+          "app": "Aplikasi",
+          "mindroom": "MindRoom",
+          "system": "Sistem"
         },
         "pages": {
           "privacy": "Privasi & keamanan",
           "language": "Bahasa & wilayah",
-          "storage": "Penyimpanan & luring"
+          "storage": "Penyimpanan & luring",
+          "agentsServers": "Agen & server"
         }
       },
       "search": {
@@ -462,7 +471,9 @@
       "advanced": "Lanjutan",
       "sections": {
         "display": "Tampilan",
-        "privacy": "Privasi"
+        "privacy": "Privasi",
+        "replying": "Membalas",
+        "connectionsComputers": "Koneksi & komputer"
       },
       "computers": {
         "inUse": "Server yang digunakan",
@@ -1043,6 +1054,19 @@
         "sourceLabel": "Sumber {{source}}",
         "triageLabel": "Triase: {{reason}}",
         "payloadLabel": "Payload acara JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} tugas siap",
+        "hide": "Sembunyikan",
+        "show": "Tampilkan",
+        "copyId": "Salin ID tugas {{id}}",
+        "moreItems_other": "+{{count}} item lain yang dapat ditindaklanjuti",
+        "priority": {
+          "critical": "Kritis",
+          "high": "Tinggi",
+          "medium": "Sedang",
+          "low": "Rendah"
+        }
       },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
@@ -2192,5 +2216,13 @@
     "error": {
       "title": "Tidak dapat memuat utas space"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Sumber",
+    "showDiagram": "Tampilkan diagram",
+    "showSource": "Tampilkan sumber",
+    "mermaidDiagram": "Diagram Mermaid",
+    "diagramUnavailable": "Menampilkan sumber"
   }
 }

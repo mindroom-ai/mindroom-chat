@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Nachricht in einem anderen Raum"
     },
+    "callout": {
+      "note": "Hinweis",
+      "tip": "Tipp",
+      "important": "Wichtig",
+      "warning": "Warnung",
+      "caution": "Vorsicht"
+    },
     "deviceVerification": {
       "acceptStalled": "Die andere Sitzung hat nicht geantwortet. Schließe dies und starte die Verifizierung erneut."
     },
@@ -424,6 +431,7 @@
       },
       "sidebar": {
         "title": "Seitenleiste",
+        "navigation": "Navigation",
         "threads": "Threads in der Seitenleiste anzeigen",
         "threadsDescription": "Threads aus allen Räumen in einer Liste. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
         "canvasesDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
@@ -453,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "Du",
-          "app": "Diese App",
-          "agents": "Agenten & Verbindungen",
-          "help": "Hilfe & Erweitert"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "System"
         },
         "pages": {
           "privacy": "Datenschutz & Sicherheit",
           "language": "Sprache & Region",
-          "storage": "Speicher & Offline"
+          "storage": "Speicher & Offline",
+          "agentsServers": "Agenten & Server"
         }
       },
       "search": {
@@ -475,7 +484,9 @@
       "advanced": "Erweitert",
       "sections": {
         "display": "Anzeige",
-        "privacy": "Datenschutz"
+        "privacy": "Datenschutz",
+        "replying": "Antworten",
+        "connectionsComputers": "Verbindungen & Computer"
       },
       "computers": {
         "inUse": "Verwendeter Server",
@@ -1062,6 +1073,21 @@
         "sourceLabel": "Quelle {{source}}",
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Ereignis-Payload JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} Aufgabe bereit",
+        "readyCount_other": "{{count}} Aufgaben bereit",
+        "hide": "Ausblenden",
+        "show": "Anzeigen",
+        "copyId": "Aufgaben-ID {{id}} kopieren",
+        "moreItems_one": "+{{count}} weiterer offener Punkt",
+        "moreItems_other": "+{{count}} weitere offene Punkte",
+        "priority": {
+          "critical": "Kritisch",
+          "high": "Hoch",
+          "medium": "Mittel",
+          "low": "Niedrig"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
@@ -2269,5 +2295,13 @@
     "error": {
       "title": "Space-Threads konnten nicht geladen werden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramm",
+    "source": "Quelltext",
+    "showDiagram": "Diagramm anzeigen",
+    "showSource": "Quelltext anzeigen",
+    "mermaidDiagram": "Mermaid-Diagramm",
+    "diagramUnavailable": "Quelltext wird angezeigt"
   }
 }

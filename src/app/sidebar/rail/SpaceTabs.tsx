@@ -3,7 +3,7 @@ import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import {
   DndContext,
@@ -31,12 +31,10 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useSelectedSpace } from '../../navigation/useSelectedSpace';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
-import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
+import { getRoomAvatarUrl } from '../../matrix/room';
 import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
@@ -58,11 +56,7 @@ import {
   type SidebarItem as SidebarEntry,
   commitSidebarReorder,
 } from '../../spaces/sidebarReorder';
-import {
-  getShownSidebarItems,
-  useSavedSidebarItems,
-  useTopLevelSpaceIds,
-} from '../../spaces/sidebarSpaces';
+import { getShownSidebarItems, useShownSidebarItems } from '../../spaces/sidebarSpaces';
 import * as css from './SpaceTabs.css';
 import { revealDirectionControls } from '../../ui/directional';
 
@@ -83,17 +77,6 @@ type DragData = { drag: SidebarDragItem };
 
 const readDrag = (data: unknown): SidebarDragItem | undefined =>
   (data as { current?: DragData } | undefined)?.current?.drag;
-
-// One local order atom per account, made once, so every rail of that account shares it.
-const spaceOrderAtoms = new Map<string, SpaceOrderAtom>();
-const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
-  let orderAtom = spaceOrderAtoms.get(userId);
-  if (!orderAtom) {
-    orderAtom = makeSpaceOrderAtom(userId);
-    spaceOrderAtoms.set(userId, orderAtom);
-  }
-  return orderAtom;
-};
 
 /** Folders open in the rail in this session, by folder ID. */
 export const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
@@ -370,42 +353,36 @@ type SpaceTabsProps = {
 };
 
 /**
- * The spaces in the icon rail, in the saved order with the device's own order on top, folders
- * included. Dragging a space reorders the rail; dropping it on another space or a folder groups
- * them in a folder.
+ * The spaces in the icon rail, in the order saved in `io.mindroom.spaces`, folders included.
+ * Dragging a space reorders the rail; dropping it on another space or a folder groups them in a
+ * folder.
  */
 export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const joinedRoomIds = useAtomValue(allRoomsAtom);
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   const selectedSpaceId = useSelectedSpace();
-  const saved = useSavedSidebarItems();
-  const [localOrder, setLocalOrder] = useAtom(spaceOrderAtomFor(client.getSafeUserId()));
+  const { items: serverItems, saved, topLevelSpaces, joinedSpaces } = useShownSidebarItems();
+  const [pending, setPending] = useState<{
+    client: MatrixClient;
+    items: SidebarEntry[];
+  }>();
   const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
   const [hint, setHint] = useState<{ id: string; at: DropAt }>();
   const stackRef = useRef<HTMLDivElement>(null);
 
-  const joinedSpaces = useMemo(
-    () =>
-      new Map(
-        joinedRoomIds
-          .map((roomId) => client.getRoom(roomId))
-          .filter((room): room is Room => !!room && isSpace(room))
-          .map((room) => [room.roomId, room])
-      ),
-    [client, joinedRoomIds]
-  );
-  const topLevelSpaces = useTopLevelSpaceIds();
+  const pendingSaved = pending?.client === client ? pending.items : undefined;
+  const effectiveSaved = pendingSaved ?? saved;
   const items = useMemo(
     () =>
-      getShownSidebarItems({
-        saved,
-        topLevelSpaces,
-        isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
-        localOrder,
-      }),
-    [saved, topLevelSpaces, joinedSpaces, localOrder]
+      pendingSaved
+        ? getShownSidebarItems({
+            saved: pendingSaved,
+            topLevelSpaces,
+            isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
+          })
+        : serverItems,
+    [pendingSaved, topLevelSpaces, joinedSpaces, serverItems]
   );
 
   // A mouse drags after a short move; a finger moves on after a long press (which opens a space's
@@ -447,17 +424,31 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     item: SidebarDragItem,
     containerItem: SidebarDragItem,
     instructionType: SidebarInstructionType
-  ) =>
-    commitSidebarReorder({
+  ) => {
+    const result = commitSidebarReorder({
       mx: client,
       orphanSpaces: topLevelSpaces,
-      sidebarItems: items,
-      accountDataSidebarItems: saved,
+      savedItems: effectiveSaved,
       item,
       containerItem,
       instructionType,
-      setSpaceOrder: setLocalOrder,
+      onEmptyFolder: (folderId) =>
+        setOpenFolders((cur) => {
+          if (!cur.has(folderId)) return cur;
+          const next = new Set(cur);
+          next.delete(folderId);
+          return next;
+        }),
     });
+    if (!result.changed) return;
+    const change = { client, items: result.items };
+    setPending(change);
+    void result.save
+      .catch(() => undefined)
+      .finally(() => {
+        setPending((cur) => (cur === change ? undefined : cur));
+      });
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     preventClickDefaultsDuringPointerDrag(event.activatorEvent);
@@ -487,8 +478,16 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   });
   const moveBy = (drag: SidebarDragItem, direction: -1 | 1) => {
     const index = shownDrags.findIndex((entry) => dragId(entry) === dragId(drag));
-    const neighbour = shownDrags[index + direction];
-    if (index < 0 || !neighbour) return;
+    if (index < 0) return;
+    const movedFolderId = typeof drag !== 'string' && !drag.spaceId ? drag.folder.id : undefined;
+    let nextIndex = index + direction;
+    while (movedFolderId && nextIndex >= 0 && nextIndex < shownDrags.length) {
+      const entry = shownDrags[nextIndex];
+      if (!entry || typeof entry === 'string' || entry.folder.id !== movedFolderId) break;
+      nextIndex += direction;
+    }
+    const neighbour = shownDrags[nextIndex];
+    if (!neighbour) return;
     commit(drag, neighbour, direction < 0 ? 'reorder-above' : 'reorder-below');
   };
 

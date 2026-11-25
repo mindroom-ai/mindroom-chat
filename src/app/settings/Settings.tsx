@@ -11,7 +11,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
 import { ServerAccounts } from '../server-admin/ServerAccounts';
-import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
+import { MindroomSettingsPage } from './pages/AgentSettingsPages';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
@@ -83,24 +83,22 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <Appearance requestClose={requestClose} />;
     case 'chats':
       return <Chats requestClose={requestClose} />;
+    case 'archived-rooms':
+      return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
     case 'sidebar':
       return <Sidebar requestClose={requestClose} />;
     case 'plugins':
       return <Plugins requestClose={requestClose} />;
     case 'language':
       return <LanguageRegion requestClose={requestClose} />;
-    case 'connections':
-      return <ConnectionsSettingsPage requestClose={requestClose} />;
-    case 'computers':
-      return <ComputersSettingsPage requestClose={requestClose} />;
+    case 'mindroom':
+      return <MindroomSettingsPage requestClose={requestClose} />;
     case 'mindroom.local-mindroom':
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
-    case 'archived-rooms':
-      return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
-    case 'server-accounts':
-      return <ServerAccounts requestClose={requestClose} />;
     case 'storage':
       return <StorageOffline requestClose={requestClose} />;
+    case 'server-accounts':
+      return <ServerAccounts requestClose={requestClose} />;
     case 'developer-tools':
       return <DeveloperTools requestClose={requestClose} />;
     case 'about':
@@ -121,7 +119,7 @@ type SettingsMenuListProps = {
 };
 
 /**
- * The pages under their quiet group headings (You, This app, Agents & connections, ...), each a
+ * The pages under their quiet group headings (You, App, MindRoom, System), each a
  * 32 px row with its line icon, 4 px apart; the open page's row is filled.
  */
 function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {

@@ -10,11 +10,10 @@ import { isSpace } from '../matrix/room';
 import type { SidebarFolder, SidebarItem } from './sidebarReorder';
 
 /**
- * The icon rail's spaces. The `sidebar` list of the `io.mindroom.spaces` account data holds the
- * saved order: space IDs and folders of space IDs. Joined spaces without a parent always show,
- * after the saved entries when the list leaves them out; a subspace shows only while that list
- * names it (pinned from its lobby). Plain spaces may be reordered on one device only, by a local
- * order of top-level IDs (`sidebarOrder.ts`).
+ * The icon rail's spaces. The `sidebar` list of the `io.mindroom.spaces` account data is the
+ * single source of truth for the rail's order: space IDs and folders of space IDs. Joined spaces
+ * without a parent always show, after the saved entries when the list leaves them out; a subspace
+ * shows only while that list names it (pinned from its lobby).
  */
 
 type SidebarContent = { sidebar?: unknown; [key: string]: unknown };
@@ -91,38 +90,22 @@ const sidebarSpaceIds = (items: SidebarItem[]): Set<string> => {
   return ids;
 };
 
-/**
- * Fills the slots of the plain spaces in `items` in the device's `localOrder`; spaces it does not
- * mention keep their saved order after the ones it does. Folders stay where they are saved.
- */
-export const applyLocalOrder = (items: SidebarItem[], localOrder: string[]): SidebarItem[] => {
-  const plain = items.filter((item): item is string => !isFolder(item));
-  if (localOrder.length === 0 || plain.length < 2) return items;
-  const present = new Set(plain);
-  const ordered = localOrder.filter((id) => present.has(id));
-  const mentioned = new Set(ordered);
-  const queue = [...ordered, ...plain.filter((id) => !mentioned.has(id))];
-  return items.map((item) => (isFolder(item) ? item : (queue.shift() as string)));
-};
-
 type ShownSidebarOptions = {
   saved: SidebarItem[];
   /** Joined spaces with no parent space. */
   topLevelSpaces: string[];
   /** Whether the user is in the space now. */
   isJoinedSpace: (roomId: string) => boolean;
-  localOrder: string[];
 };
 
 /**
  * What the rail shows: the saved entries the user is still in (folders left empty vanish), then
- * the top-level spaces the entries leave out, with the device's order on the plain spaces.
+ * the top-level spaces the entries leave out.
  */
 export const getShownSidebarItems = ({
   saved,
   topLevelSpaces,
   isJoinedSpace,
-  localOrder,
 }: ShownSidebarOptions): SidebarItem[] => {
   const seen = new Set<string>();
   const keep = (id: string) => {
@@ -138,7 +121,35 @@ export const getShownSidebarItems = ({
   topLevelSpaces.forEach((id) => {
     if (keep(id)) shown.push(id);
   });
-  return applyLocalOrder(shown, localOrder);
+  return shown;
+};
+
+/** Live icon-rail space entries shared by `SpaceTabs` and Home's space sections. */
+export const useShownSidebarItems = () => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const saved = useSavedSidebarItems();
+  const topLevelSpaces = useTopLevelSpaceIds();
+  const joinedSpaces = useMemo(
+    () =>
+      new Map(
+        joinedRoomIds
+          .map((roomId) => client.getRoom(roomId))
+          .filter((room): room is Room => !!room && isSpace(room))
+          .map((room) => [room.roomId, room])
+      ),
+    [client, joinedRoomIds]
+  );
+  const items = useMemo(
+    () =>
+      getShownSidebarItems({
+        saved,
+        topLevelSpaces,
+        isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
+      }),
+    [saved, topLevelSpaces, joinedSpaces]
+  );
+  return { items, saved, topLevelSpaces, joinedSpaces };
 };
 
 const writeSidebar = (client: MatrixClient, items: SidebarItem[]) => {

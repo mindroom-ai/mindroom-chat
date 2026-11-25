@@ -16,7 +16,11 @@ import {
 import { isRecord } from '../lib/isRecord';
 import type { ViewedPlace } from '../navigation/viewedPlace';
 import { matchesEnum } from '../lib/matchesEnum';
-import { STREAM_STATUS_KEY, TERMINAL_STREAM_STATUSES } from '../matrix/protocol/aiRun';
+import {
+  STREAM_STATUS_KEY,
+  SUPPRESS_PUSH_KEY,
+  TERMINAL_STREAM_STATUSES,
+} from '../matrix/protocol/aiRun';
 import { threadReceiptNamesEvent } from '../event-store/threads/streamFinish';
 
 /** Messages older than this when they arrive are a catch-up after time offline, not news. */
@@ -65,6 +69,15 @@ const isUnfinishedReply = (content: IContent): boolean => {
   const status: unknown = content[STREAM_STATUS_KEY];
   return typeof status === 'string' && !TERMINAL_STREAM_STATUSES.has(status.toLowerCase());
 };
+
+/**
+ * Whether an event opts out of push and desktop notifications (`io.mindroom.suppress_push: true`)
+ * on its content, wire content (including hoisted encrypted keys), or finished edit content.
+ */
+export const isPushSuppressed = (event: MatrixEvent, completedContent?: IContent): boolean =>
+  event.getContent()[SUPPRESS_PUSH_KEY] === true ||
+  event.getWireContent()[SUPPRESS_PUSH_KEY] === true ||
+  completedContent?.[SUPPRESS_PUSH_KEY] === true;
 
 /**
  * A MindRoom agent sends its reply unfinished first (a placeholder, marked with a stream status
@@ -131,8 +144,8 @@ const isReadAlready = (
 
 /**
  * Whether a live event should notify, and how. Own messages, rooms the account is not in,
- * redacted or undecryptable events, messages read already, and old events (before
- * `now - MESSAGE_NOTIFY_MAX_AGE_MS`) never do; the rest follow the push rules.
+ * redacted or undecryptable events, push-suppressed events, messages read already, and old events
+ * (before `now - MESSAGE_NOTIFY_MAX_AGE_MS`) never do; the rest follow the push rules.
  */
 export const readMessageNotice = (
   client: MatrixClient,
@@ -152,6 +165,7 @@ export const readMessageNotice = (
 
   const completed = getCompletedAgentReply(room, event);
   if (isEditEvent(event) && !completed) return undefined;
+  if (isPushSuppressed(event, completed?.content)) return undefined;
 
   const actions = completed
     ? actionsForFinishedReply(client, completed.reply, completed.content)

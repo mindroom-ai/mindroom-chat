@@ -76,6 +76,7 @@ const openRoomSettings = vi.hoisted(() => vi.fn());
 // Its own test draws it; here only which row shows it counts.
 vi.mock('../../messages/ModelChangeMarker', () => ({ ModelChangeMarker: () => null }));
 vi.mock('../../messages/TriggerWakeMarker', () => ({ TriggerWakeMarker: () => null }));
+vi.mock('../../messages/TodoPokeMarker', () => ({ TodoPokeMarker: () => null }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => openRoomSettings,
 }));
@@ -821,6 +822,64 @@ describe('timeline message feature', () => {
     expect(feature().joinsQuietMarkerRun(reactive, data as never, noSet)).toBe(false);
     expect(feature().isQuietMarkerRow(external, data as never, noSet)).toBe(true);
     expect(feature().joinsQuietMarkerRun(external, data as never, noSet)).toBe(false);
+    expect(feature().isQuietMarkerRow(spoof, data as never, noSet)).toBe(false);
+  });
+
+  it("draws an agent todo wake as its own quiet marker row in a thread, and ignores a person's lookalike", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { TodoPokeMarker } = await import('../../messages/TodoPokeMarker');
+    const room = makeRoom();
+    room.getMember = ((userId: string) =>
+      userId === '@mindroom_maya:example.org' ? { name: 'Maya' } : null) as never;
+    const poke = makeEvent('$poke', {
+      sender: '@mindroom_maya:example.org',
+      threadRootId: '$thread',
+      ts: 10_000,
+      content: {
+        msgtype: 'm.text',
+        body: '@mindroom_maya:example.org **1 todo ready**',
+        'com.mindroom.hook_source': 'todo_poke',
+        'io.mindroom.todo_poke': {
+          version: 1,
+          assigned_agent: 'maya',
+          total_count: 1,
+          items: [
+            { id: 'a4f19c20', title: 'Publish API changelog for v2.4 release', priority: 'medium' },
+          ],
+        },
+      },
+    }) as unknown as MatrixEvent;
+    const spoof = makeEvent('$spoof-poke', {
+      sender: '@bob:example.org',
+      threadRootId: '$thread',
+      ts: 11_000,
+      content: poke.getContent(),
+    }) as unknown as MatrixEvent;
+    const noSet = {} as EventTimelineSet;
+
+    const { renderer, feature, data } = await mountFeature(
+      [rowFor(poke, 0), rowFor(spoof, 1)],
+      '$thread',
+      undefined,
+      { room: room as unknown as Room }
+    );
+
+    const markers = renderer.root.findAllByType(TodoPokeMarker);
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.props).toMatchObject({
+      poke: {
+        assignedAgent: 'maya',
+        totalCount: 1,
+        items: [
+          { id: 'a4f19c20', title: 'Publish API changelog for v2.4 release', priority: 'medium' },
+        ],
+      },
+      ts: 10_000,
+      senderDisplayName: 'Maya',
+    });
+    expect(renderer.root.findAllByType(Message)).toHaveLength(1);
+    expect(feature().isQuietMarkerRow(poke, data as never, noSet)).toBe(true);
+    expect(feature().joinsQuietMarkerRun(poke, data as never, noSet)).toBe(false);
     expect(feature().isQuietMarkerRow(spoof, data as never, noSet)).toBe(false);
   });
 

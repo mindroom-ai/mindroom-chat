@@ -278,6 +278,13 @@
       "threadIn": "Fil dans {{room}}",
       "messageElsewhere": "Message dans une autre salle"
     },
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "Important",
+      "warning": "Avertissement",
+      "caution": "Attention"
+    },
     "deviceVerification": {
       "acceptStalled": "L'autre session n'a pas répondu. Fermez ceci et relancez la vérification."
     },
@@ -437,6 +444,7 @@
       },
       "sidebar": {
         "title": "Barre latérale",
+        "navigation": "Navigation",
         "threads": "Afficher Fils dans la barre latérale",
         "threadsDescription": "Les fils de toutes les salles dans une seule liste. Masqués, ouvrez-les depuis le menu ⋮ de l’accueil.",
         "canvasesDescription": "Affichez un bouton pour les panneaux interactifs de vos agents dès que vous en avez un. Masqué, ouvrez-les depuis le menu ⋮ de l’accueil.",
@@ -466,14 +474,15 @@
       "menu": {
         "groups": {
           "you": "Vous",
-          "app": "Cette application",
-          "agents": "Agents et connexions",
-          "help": "Aide et options avancées"
+          "app": "Application",
+          "mindroom": "MindRoom",
+          "system": "Système"
         },
         "pages": {
           "privacy": "Confidentialité et sécurité",
           "language": "Langue et région",
-          "storage": "Stockage et hors ligne"
+          "storage": "Stockage et hors ligne",
+          "agentsServers": "Agents et serveurs"
         }
       },
       "search": {
@@ -488,7 +497,9 @@
       "advanced": "Avancé",
       "sections": {
         "display": "Affichage",
-        "privacy": "Confidentialité"
+        "privacy": "Confidentialité",
+        "replying": "Réponses",
+        "connectionsComputers": "Connexions et ordinateurs"
       },
       "computers": {
         "inUse": "Serveur utilisé",
@@ -1081,6 +1092,23 @@
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage : {{reason}}",
         "payloadLabel": "Charge utile de l’événement JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} tâche prête",
+        "readyCount_many": "{{count}} tâches prêtes",
+        "readyCount_other": "{{count}} tâches prêtes",
+        "hide": "Masquer",
+        "show": "Afficher",
+        "copyId": "Copier l’ID de tâche {{id}}",
+        "moreItems_one": "+{{count}} autre élément à traiter",
+        "moreItems_many": "+{{count}} autres éléments à traiter",
+        "moreItems_other": "+{{count}} autres éléments à traiter",
+        "priority": {
+          "critical": "Critique",
+          "high": "Haute",
+          "medium": "Moyenne",
+          "low": "Basse"
+        }
       },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
@@ -2346,5 +2374,13 @@
     "error": {
       "title": "Impossible de charger les fils de l’espace"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramme",
+    "source": "Source",
+    "showDiagram": "Afficher le diagramme",
+    "showSource": "Afficher la source",
+    "mermaidDiagram": "Diagramme Mermaid",
+    "diagramUnavailable": "Affichage de la source"
   }
 }

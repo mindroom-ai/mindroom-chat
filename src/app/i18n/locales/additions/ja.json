@@ -262,6 +262,13 @@
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
     },
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
     "deviceVerification": {
       "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     },
@@ -411,6 +418,7 @@
       },
       "sidebar": {
         "title": "サイドバー",
+        "navigation": "ナビゲーション",
         "threads": "サイドバーにスレッドを表示する",
         "threadsDescription": "すべてのルームのスレッドを1つのリストで表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
         "canvasesDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
@@ -440,14 +448,15 @@
       "menu": {
         "groups": {
           "you": "あなた",
-          "app": "このアプリ",
-          "agents": "エージェントと接続",
-          "help": "ヘルプと詳細設定"
+          "app": "アプリ",
+          "mindroom": "MindRoom",
+          "system": "システム"
         },
         "pages": {
           "privacy": "プライバシーとセキュリティ",
           "language": "言語と地域",
-          "storage": "ストレージとオフライン"
+          "storage": "ストレージとオフライン",
+          "agentsServers": "エージェントとサーバー"
         }
       },
       "search": {
@@ -462,7 +471,9 @@
       "advanced": "詳細設定",
       "sections": {
         "display": "表示",
-        "privacy": "プライバシー"
+        "privacy": "プライバシー",
+        "replying": "返信",
+        "connectionsComputers": "接続とコンピューター"
       },
       "computers": {
         "inUse": "使用中のサーバー",
@@ -1043,6 +1054,19 @@
         "sourceLabel": "ソース {{source}}",
         "triageLabel": "トリアージ：{{reason}}",
         "payloadLabel": "イベントペイロード JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 件のタスクが準備完了",
+        "hide": "非表示",
+        "show": "表示",
+        "copyId": "タスク ID {{id}} をコピー",
+        "moreItems_other": "+他 {{count}} 件の対応可能な項目",
+        "priority": {
+          "critical": "緊急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
       },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
@@ -2192,5 +2216,13 @@
     "error": {
       "title": "スペースのスレッドを読み込めませんでした"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "図",
+    "source": "ソース",
+    "showDiagram": "図を表示",
+    "showSource": "ソースを表示",
+    "mermaidDiagram": "Mermaid 図",
+    "diagramUnavailable": "ソースを表示中"
   }
 }

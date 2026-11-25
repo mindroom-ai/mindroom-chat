@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
     },
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
     "deviceVerification": {
       "acceptStalled": "The other session did not answer. Close this and start the verification again."
     },
@@ -424,6 +431,7 @@
       },
       "sidebar": {
         "title": "Sidebar",
+        "navigation": "Navigation",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
@@ -453,14 +461,15 @@
       "menu": {
         "groups": {
           "you": "You",
-          "app": "This app",
-          "agents": "Agents & connections",
-          "help": "Help & advanced"
+          "app": "App",
+          "mindroom": "MindRoom",
+          "system": "System"
         },
         "pages": {
           "privacy": "Privacy & security",
           "language": "Language & region",
-          "storage": "Storage & offline"
+          "storage": "Storage & offline",
+          "agentsServers": "Agents & servers"
         }
       },
       "search": {
@@ -475,7 +484,9 @@
       "advanced": "Advanced",
       "sections": {
         "display": "Display",
-        "privacy": "Privacy"
+        "privacy": "Privacy",
+        "replying": "Replying",
+        "connectionsComputers": "Connections & computers"
       },
       "computers": {
         "inUse": "Server in use",
@@ -1062,6 +1073,21 @@
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Event payload JSON"
+      },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} todo ready",
+        "readyCount_other": "{{count}} todos ready",
+        "hide": "Hide",
+        "show": "Show",
+        "copyId": "Copy todo ID {{id}}",
+        "moreItems_one": "+{{count}} more actionable item",
+        "moreItems_other": "+{{count}} more actionable items",
+        "priority": {
+          "critical": "Critical",
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        }
       },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
@@ -2269,5 +2295,13 @@
     "error": {
       "title": "Could not load space threads"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }
