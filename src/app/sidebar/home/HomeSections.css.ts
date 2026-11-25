@@ -31,9 +31,13 @@ export const AgentActiveRunDot = style({
   },
 });
 
-/** Muted inline toggle row (`Show all (N)` / `Show less`) inside Direct messages. */
-export const ToggleMoreRow = style({
-  opacity: config.opacity.P500,
+/** Inline error text shown below an agent row if starting its direct chat fails. */
+export const AgentStartError = style({
+  color: color.Critical.Main,
+  paddingInlineStart: toRem(36),
+  paddingInlineEnd: config.space.S200,
+  paddingBlockStart: config.space.S100,
+  margin: 0,
 });
 
 /** Full-width search field at the top of populated Home, spaced by the parent column gap. */

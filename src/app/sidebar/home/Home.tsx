@@ -24,6 +24,7 @@ import {
   SortableRoomRow,
   useRoomSectionDrop,
 } from '../room-nav/SortableRoomList';
+import { useMDirectContent } from '../room-nav/DirectRoomRowExtras';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
 import { useDirectRooms } from '../direct/useDirectRooms';
@@ -50,10 +51,11 @@ import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { useHomeAgents } from './homeAgents';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
 import {
-  collectHomeShortcutRoomIds,
   dedupeRoomIds,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
+  selectRenderedAgents,
+  selectRenderedDirectRooms,
   splitHomeDirectSections,
 } from './homeDirectSections';
 import {
@@ -177,7 +179,7 @@ export function Home() {
   const createSelected = useHomeCreateSelected();
   // A phone's top bar holds the same field.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
   const [showAllDms, setShowAllDms] = useState(false);
 
   const {
@@ -197,12 +199,14 @@ export function Home() {
   } = useHomeRoomSections(selectedRoomId);
   const directRooms = useDirectRooms();
   const homeAgents = useHomeAgents();
+  const mDirect = useMDirectContent();
   const { direct: directTabShown } = useRailButtons();
 
   const { humanDms, agents, agentDmRoomIds } = useMemo(
-    () => splitHomeDirectSections(directRooms, homeAgents),
-    [directRooms, homeAgents]
+    () => splitHomeDirectSections(directRooms, homeAgents, mDirect),
+    [directRooms, homeAgents, mDirect]
   );
+  const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
   const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
   const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
   const showDirectSection = humanDms.length > 0 || !directTabShown;
@@ -212,37 +216,30 @@ export function Home() {
     humanDms.length === 0 &&
     agents.length === 0;
 
+  const visibleDirectRooms = useMemo(
+    () =>
+      showDirectSection
+        ? selectRenderedDirectRooms(humanDms, selectedRoomId, directClosed, showAllDms).rooms
+        : [],
+    [showDirectSection, humanDms, selectedRoomId, directClosed, showAllDms]
+  );
+  const visibleAgents = useMemo(
+    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed),
+    [agents, selectedRoomId, agentsClosed]
+  );
+
   const allShortcutRoomIds = useMemo(
     () =>
-      collectHomeShortcutRoomIds({
-        roomShortcutIds: shortcutRoomIds,
-        humanDms,
-        agentDmRoomIds,
-        showDirectSection,
-        directClosed,
-        agentsClosed,
-        showAllDms,
-        selectedRoomId,
-      }),
-    [
-      shortcutRoomIds,
-      humanDms,
-      agentDmRoomIds,
-      showDirectSection,
-      directClosed,
-      agentsClosed,
-      showAllDms,
-      selectedRoomId,
-    ]
+      dedupeRoomIds(
+        shortcutRoomIds,
+        visibleDirectRooms.map((room) => room.roomId),
+        visibleAgents.flatMap((agent) => (agent.dmRoom ? [agent.dmRoom.roomId] : []))
+      ),
+    [shortcutRoomIds, visibleDirectRooms, visibleAgents]
   );
   const allMarkReadRoomIds = useMemo(
-    () =>
-      dedupeRoomIds(
-        allVisibleHomeRooms,
-        humanDms.map((room) => room.roomId),
-        agentDmRoomIds
-      ),
-    [allVisibleHomeRooms, humanDms, agentDmRoomIds]
+    () => dedupeRoomIds(allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds),
+    [allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds]
   );
 
   const homeRoomPath = useCallback(
@@ -252,7 +249,7 @@ export function Home() {
   useRoomListShortcuts(allShortcutRoomIds, selectedRoomId, homeRoomPath);
   const addRoomsMenu = useHomeAddRoomsMenu({
     onCreate: () => void navigate(getHomeCreatePath()),
-    onJoin: () => setJoinOpen(true),
+    onJoin: (opener) => setJoinPrompt({ returnFocusTo: opener }),
   });
 
   // A room's row, the same at top level and under the room it sits under, except that there it
@@ -280,7 +277,7 @@ export function Home() {
   });
 
   const handleJoinOpen = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => {
-    setJoinOpen(false);
+    setJoinPrompt(null);
     void navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
         viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
@@ -302,15 +299,19 @@ export function Home() {
         action="join"
         icon={Icons.Link}
         label={t('sharedUi.joinAddressPrompt.joinARoom')}
-        onSelect={() => setJoinOpen(true)}
+        onSelect={() => setJoinPrompt({})}
       />
     </NavCategory>
   );
 
   return (
     <PageNav label={t('nav.home')}>
-      {joinOpen && (
-        <JoinAddressPrompt onOpen={handleJoinOpen} onCancel={() => setJoinOpen(false)} />
+      {joinPrompt && (
+        <JoinAddressPrompt
+          returnFocusTo={joinPrompt.returnFocusTo}
+          onOpen={handleJoinOpen}
+          onCancel={() => setJoinPrompt(null)}
+        />
       )}
       {addRoomsMenu.popover}
       <PageNavContent
@@ -395,7 +396,8 @@ export function Home() {
             )}
             {showDirectSection && (
               <HomeDirectSection
-                humanDms={humanDms}
+                visibleRooms={visibleDirectRooms}
+                allRoomIds={humanDmRoomIds}
                 closed={directClosed}
                 selectedRoomId={selectedRoomId}
                 showAll={showAllDms}
@@ -407,7 +409,7 @@ export function Home() {
             )}
             {agents.length > 0 && (
               <HomeAgentsSection
-                agents={agents}
+                visibleAgents={visibleAgents}
                 agentDmRoomIds={agentDmRoomIds}
                 closed={agentsClosed}
                 selectedRoomId={selectedRoomId}

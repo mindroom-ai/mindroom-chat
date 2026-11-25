@@ -212,7 +212,7 @@ export function useHomeAddRoomsMenu({
   onJoin,
 }: {
   onCreate: () => void;
-  onJoin: () => void;
+  onJoin: (opener: HTMLElement | null) => void;
 }) {
   const { t } = useTranslation();
   const [menu, setMenu] = useState<AddRoomsMenuState>();
@@ -285,8 +285,9 @@ export function useHomeAddRoomsMenu({
                   label={t('sharedUi.joinAddressPrompt.joinARoom')}
                   data-home-room-action="join"
                   onSelect={() => {
+                    const opener = returnFocusRef.current;
                     close();
-                    onJoin();
+                    onJoin(opener);
                   }}
                 />
               </MenuGroup>

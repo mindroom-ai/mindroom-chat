@@ -1,8 +1,11 @@
 import type { Room } from 'matrix-js-sdk';
-import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
+import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
 import { getDirectPartnerId } from '../../matrix/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import { getDirectActiveMemberCount, getMDirectPartnerId } from '../room-nav/DirectRoomRowExtras';
 import { agentNameIn, type HomeAgent } from './homeAgents';
+
+export { getDirectActiveMemberCount };
 
 /** Category IDs in the `'mindroom'` namespace so Home space-section selectors (`home|`) stay unaffected. */
 export const HOME_DIRECT_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-direct');
@@ -23,7 +26,7 @@ export type HomeSidebarAgent = {
 };
 
 export type HomeDirectSections = {
-  /** Human 1:1 DMs, group DMs (> 2 active members), and self-DMs (1 active member). */
+  /** Human 1:1 DMs, group DMs (> 2 active members), self-DMs, and secondary duplicate agent DMs. */
   humanDms: Room[];
   /** Agents from `useHomeAgents` plus any 1:1 agent DM whose agent was not listed, by recency. */
   agents: HomeSidebarAgent[];
@@ -31,63 +34,81 @@ export type HomeDirectSections = {
   agentDmRoomIds: string[];
 };
 
-/** Count of active (joined + invited) members in a direct room. */
-export const getDirectActiveMemberCount = (room: Room): number =>
-  (room.getJoinedMemberCount?.() ?? 0) + (room.getInvitedMemberCount?.() ?? 0);
-
-/** Other active participant in a 1:1 direct room, falling back to active member lookup. */
-export const getDirectPartnerUserId = (room: Room): string | undefined => {
+/**
+ * Other active participant in a 1:1 direct room, checking avatar fallback member, loaded active
+ * members, and finally `m.direct` account data (for lazy-loaded rooms before members hydrate).
+ */
+export const getDirectPartnerUserId = (
+  room: Room,
+  mDirect?: Record<string, unknown>
+): string | undefined => {
   const fallback = getDirectPartnerId(room);
   if (fallback && fallback !== room.myUserId) return fallback;
-  const members = room.getMembers?.();
-  if (!members) return fallback;
-  return members.find(
-    (member) =>
-      member.userId !== room.myUserId &&
-      (member.membership === 'join' || member.membership === 'invite')
-  )?.userId;
+  const activeMember = room
+    .getMembers?.()
+    .find(
+      (member) =>
+        member.userId !== room.myUserId &&
+        (member.membership === 'join' || member.membership === 'invite')
+    );
+  if (activeMember) return activeMember.userId;
+  const fromMDirect = getMDirectPartnerId(mDirect, room.roomId, room.myUserId);
+  return fromMDirect && fromMDirect !== room.myUserId ? fromMDirect : undefined;
 };
 
 /**
- * Whether `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs where the viewer is
- * the only active member, with a partner matching MindRoom agent identity or `homeAgentIds`).
+ * Whether `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs and the router owner
+ * account, with a partner matching MindRoom agent identity or `homeAgentIds`).
  */
 export const isAgentOneToOneDirectRoom = (
   room: Room,
-  homeAgentIds: ReadonlySet<string>
+  homeAgentIds: ReadonlySet<string>,
+  mDirect?: Record<string, unknown>
 ): boolean => {
   const activeMembers = getDirectActiveMemberCount(room);
   if (activeMembers > 2 || activeMembers === 1) return false;
-  const partnerId = getDirectPartnerUserId(room);
+  const partnerId = getDirectPartnerUserId(room, mDirect);
   if (!partnerId || partnerId === room.myUserId) return false;
+  if (isMindroomOwnerUserId(partnerId)) return false;
   return isMindroomAgentUserId(partnerId) || homeAgentIds.has(partnerId);
 };
 
 /**
  * Splits joined direct rooms into Home's Direct messages section and Agents section, merging in
  * `homeAgents` (which may not have a DM yet) and ordering agents by recency.
+ *
+ * Conservation invariant: every room in `directRooms` appears strictly once across `humanDms` and
+ * `agentDmRoomIds`. When multiple 1:1 DMs exist for the same agent, the newest attaches to the
+ * agent row and any additional 1:1 DMs stay reachable in `humanDms`.
  */
 export const splitHomeDirectSections = (
   directRooms: readonly Room[],
-  homeAgents: readonly HomeAgent[]
+  homeAgents: readonly HomeAgent[],
+  mDirect?: Record<string, unknown>
 ): HomeDirectSections => {
   const homeAgentIds = new Set(homeAgents.map((agent) => agent.userId));
-  const humanDms: Room[] = [];
-  const agentDmByUserId = new Map<string, Room>();
+  const primaryAgentDmByUserId = new Map<string, Room>();
 
   for (const room of directRooms) {
-    if (isAgentOneToOneDirectRoom(room, homeAgentIds)) {
-      const partnerId = getDirectPartnerUserId(room);
-      if (partnerId && !agentDmByUserId.has(partnerId)) {
-        agentDmByUserId.set(partnerId, room);
-      }
-    } else {
-      humanDms.push(room);
+    if (!isAgentOneToOneDirectRoom(room, homeAgentIds, mDirect)) continue;
+    const partnerId = getDirectPartnerUserId(room, mDirect);
+    if (!partnerId) continue;
+    const existing = primaryAgentDmByUserId.get(partnerId);
+    if (
+      !existing ||
+      (room.getLastActiveTimestamp?.() ?? 0) > (existing.getLastActiveTimestamp?.() ?? 0)
+    ) {
+      primaryAgentDmByUserId.set(partnerId, room);
     }
   }
 
+  const primaryAgentDmIds = new Set(
+    Array.from(primaryAgentDmByUserId.values(), (room) => room.roomId)
+  );
+  const humanDms = directRooms.filter((room) => !primaryAgentDmIds.has(room.roomId));
+
   const agents: HomeSidebarAgent[] = homeAgents.map((agent) => {
-    const dmRoom = agentDmByUserId.get(agent.userId);
+    const dmRoom = primaryAgentDmByUserId.get(agent.userId);
     const dmTs = dmRoom?.getLastActiveTimestamp?.() ?? 0;
     return {
       userId: agent.userId,
@@ -99,7 +120,7 @@ export const splitHomeDirectSections = (
     };
   });
 
-  for (const [partnerId, dmRoom] of agentDmByUserId) {
+  for (const [partnerId, dmRoom] of primaryAgentDmByUserId) {
     if (homeAgentIds.has(partnerId)) continue;
     agents.push({
       userId: partnerId,
@@ -144,6 +165,41 @@ export const selectVisibleDirectRooms = (
   return { rooms: visible, capped: true };
 };
 
+/**
+ * Single source of truth for rendered Direct messages rows (used by both the section and keyboard
+ * shortcuts): when collapsed, shows only `selectedRoomId` if present; when expanded, applies the
+ * compact cap.
+ */
+export const selectRenderedDirectRooms = (
+  rooms: readonly Room[],
+  selectedRoomId: string | undefined,
+  closed: boolean,
+  expanded: boolean,
+  limit = HOME_DIRECT_COMPACT_LIMIT,
+  previewCount = HOME_DIRECT_COMPACT_PREVIEW
+): { rooms: Room[]; capped: boolean } => {
+  if (closed) {
+    const selected = selectedRoomId
+      ? rooms.find((room) => room.roomId === selectedRoomId)
+      : undefined;
+    return { rooms: selected ? [selected] : [], capped: false };
+  }
+  return selectVisibleDirectRooms(rooms, selectedRoomId, expanded, limit, previewCount);
+};
+
+/** Single source of truth for rendered Agents rows (collapsed shows only the selected agent DM). */
+export const selectRenderedAgents = (
+  agents: readonly HomeSidebarAgent[],
+  selectedRoomId: string | undefined,
+  closed: boolean
+): HomeSidebarAgent[] => {
+  if (!closed) return [...agents];
+  const selected = selectedRoomId
+    ? agents.find((agent) => agent.dmRoom?.roomId === selectedRoomId)
+    : undefined;
+  return selected ? [selected] : [];
+};
+
 /** Deduplicates room IDs while preserving first-seen visual order. */
 export const dedupeRoomIds = (...lists: readonly (readonly string[])[]): string[] => {
   const seen = new Set<string>();
@@ -156,41 +212,4 @@ export const dedupeRoomIds = (...lists: readonly (readonly string[])[]): string[
     }
   }
   return result;
-};
-
-/** Visible room IDs across Home Rooms/Spaces, Direct messages, and Agents for keyboard stepping. */
-export const collectHomeShortcutRoomIds = ({
-  roomShortcutIds,
-  humanDms,
-  agentDmRoomIds,
-  showDirectSection,
-  directClosed,
-  agentsClosed,
-  showAllDms,
-  selectedRoomId,
-}: {
-  roomShortcutIds: readonly string[];
-  humanDms: readonly Room[];
-  agentDmRoomIds: readonly string[];
-  showDirectSection: boolean;
-  directClosed: boolean;
-  agentsClosed: boolean;
-  showAllDms: boolean;
-  selectedRoomId: string | undefined;
-}): string[] => {
-  const directIds = !showDirectSection
-    ? []
-    : directClosed
-      ? selectedRoomId && humanDms.some((room) => room.roomId === selectedRoomId)
-        ? [selectedRoomId]
-        : []
-      : selectVisibleDirectRooms(humanDms, selectedRoomId, showAllDms).rooms.map(
-          (room) => room.roomId
-        );
-  const agentIds = agentsClosed
-    ? selectedRoomId && agentDmRoomIds.includes(selectedRoomId)
-      ? [selectedRoomId]
-      : []
-    : agentDmRoomIds;
-  return dedupeRoomIds(roomShortcutIds, directIds, agentIds);
 };

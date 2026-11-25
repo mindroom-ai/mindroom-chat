@@ -1,10 +1,11 @@
-import { type MouseEventHandler, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEventHandler, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { nameInitials } from '../../lib/common';
+import { useAlive } from '../../lib/hooks/useAlive';
 import { useCapabilities } from '../../matrix/hooks/useCapabilities';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -23,7 +24,6 @@ import {
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
   HOME_DIRECT_COMPACT_LIMIT,
-  selectVisibleDirectRooms,
   type HomeSidebarAgent,
 } from './homeDirectSections';
 import { HomeSectionHeader } from './HomeSectionChrome';
@@ -33,24 +33,49 @@ const AGENT_AVATAR_SIZE = 96;
 type RoomsNotificationPreferences = ReturnType<typeof useRoomsNotificationPreferencesContext>;
 
 /** Small green dot overlaid on an agent's avatar while `useRoomActiveRuns` reports an active run. */
-function AgentActiveRunDot({ room, agentId }: { room: Room; agentId: string }) {
+function AgentActiveRunDot({
+  room,
+  agentId,
+  descriptionId,
+}: {
+  room: Room;
+  agentId: string;
+  descriptionId: string;
+}) {
+  const { t } = useTranslation();
   const { runs } = useRoomActiveRuns(room);
-  if (!runs.some((run) => run.agentId === agentId)) return null;
-  return <span className={css.AgentActiveRunDot} data-agent-active-run="true" aria-hidden="true" />;
+  const active = runs.some((run) => run.agentId === agentId);
+  return (
+    <>
+      {active && (
+        <span className={css.AgentActiveRunDot} data-agent-active-run="true" aria-hidden="true" />
+      )}
+      <span id={descriptionId} hidden>
+        {active ? t('featureUi.homeNav.agentActive') : undefined}
+      </span>
+    </>
+  );
 }
 
 /** Agent row for an agent without a live DM room yet; clicking opens or starts its 1:1 DM in Home. */
 function HomeAgentStartRow({
   agent,
-  pending,
-  onSelect,
+  homeRoomPath,
+  roomVersion,
 }: {
   agent: HomeSidebarAgent;
-  pending: boolean;
-  onSelect: () => void;
+  homeRoomPath: (roomId: string) => string;
+  roomVersion: string | undefined;
 }) {
+  const { t } = useTranslation();
   const client = useMatrixClient();
+  const navigate = useNavigate();
   const useAuthentication = useMediaAuthentication();
+  const alive = useAlive();
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const startingRef = useRef(false);
+
   const avatarSrc = agent.avatarMxc
     ? (mxcUrlToHttp(
         client,
@@ -62,43 +87,76 @@ function HomeAgentStartRow({
       ) ?? undefined)
     : undefined;
 
+  const handleSelect = () => {
+    if (agent.directRoomId) {
+      void navigate(homeRoomPath(agent.directRoomId));
+      return;
+    }
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setPending(true);
+    setFailed(false);
+    startDirectChat(client, agent.userId, roomVersion)
+      .then(
+        (roomId) => {
+          if (alive()) void navigate(homeRoomPath(roomId));
+        },
+        () => {
+          if (alive()) setFailed(true);
+        }
+      )
+      .finally(() => {
+        startingRef.current = false;
+        if (alive()) setPending(false);
+      });
+  };
+
   return (
-    <NavItem radii="400" variant="Background">
-      <NavButton
-        data-home-agent-id={agent.userId}
-        disabled={pending}
-        aria-busy={pending || undefined}
-        onClick={onSelect}
-      >
-        <NavItemContent>
-          <Box as="span" grow="Yes" alignItems="Center" gap="200">
-            <Avatar size="200" radii="400">
-              <UserAvatar
-                userId={agent.userId}
-                src={avatarSrc}
-                alt={agent.name}
-                renderFallback={() => (
-                  <Text as="span" size="H6">
-                    {nameInitials(agent.name)}
-                  </Text>
-                )}
-              />
-            </Avatar>
-            <Box as="span" grow="Yes">
-              <Text as="span" size="Inherit" priority="300" truncate {...ownDirectionLine}>
-                {agent.name}
-              </Text>
+    <>
+      <NavItem radii="400" variant="Background">
+        <NavButton
+          data-home-agent-id={agent.userId}
+          aria-busy={pending || undefined}
+          onClick={handleSelect}
+        >
+          <NavItemContent>
+            <Box as="span" grow="Yes" alignItems="Center" gap="200">
+              <Avatar size="200" radii="400">
+                <UserAvatar
+                  userId={agent.userId}
+                  src={avatarSrc}
+                  alt={agent.name}
+                  renderFallback={() => (
+                    <Text as="span" size="H6">
+                      {nameInitials(agent.name)}
+                    </Text>
+                  )}
+                />
+              </Avatar>
+              <Box as="span" grow="Yes">
+                <Text as="span" size="Inherit" priority="300" truncate {...ownDirectionLine}>
+                  {agent.name}
+                </Text>
+              </Box>
+              {pending && <Spinner size="100" />}
             </Box>
-            {pending && <Spinner size="100" />}
-          </Box>
-        </NavItemContent>
-      </NavButton>
-    </NavItem>
+          </NavItemContent>
+        </NavButton>
+      </NavItem>
+      {failed && (
+        <Text as="p" size="T200" role="alert" className={css.AgentStartError}>
+          {t('home.ask.directChatFailed', { name: agent.name })}
+        </Text>
+      )}
+    </>
   );
 }
 
 export type HomeDirectSectionProps = {
-  humanDms: readonly Room[];
+  /** Direct rooms currently visible in the section (already resolved for collapse and compact cap). */
+  visibleRooms: readonly Room[];
+  /** All human direct room IDs in this section, for the collapsed unread dot and total count. */
+  allRoomIds: readonly string[];
   closed: boolean;
   selectedRoomId: string | undefined;
   showAll: boolean;
@@ -110,7 +168,8 @@ export type HomeDirectSectionProps = {
 
 /** Collapsible Direct messages section on Home with compact cap and `+ New direct message` row. */
 export function HomeDirectSection({
-  humanDms,
+  visibleRooms,
+  allRoomIds,
   closed,
   selectedRoomId,
   showAll,
@@ -121,18 +180,7 @@ export function HomeDirectSection({
 }: HomeDirectSectionProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
-  const visibleRooms = useMemo(() => {
-    if (closed) {
-      const selected = selectedRoomId
-        ? humanDms.find((room) => room.roomId === selectedRoomId)
-        : undefined;
-      return selected ? [selected] : [];
-    }
-    return selectVisibleDirectRooms(humanDms, selectedRoomId, showAll).rooms;
-  }, [closed, humanDms, selectedRoomId, showAll]);
-
-  const showCapToggle = !closed && humanDms.length > HOME_DIRECT_COMPACT_LIMIT;
+  const showCapToggle = !closed && allRoomIds.length > HOME_DIRECT_COMPACT_LIMIT;
 
   return (
     <NavCategory data-testid="home-direct-section">
@@ -141,7 +189,7 @@ export function HomeDirectSection({
         icon={Icons.Message}
         categoryId={HOME_DIRECT_CATEGORY_ID}
         closed={closed}
-        roomIds={humanDmRoomIds}
+        roomIds={allRoomIds}
         selectedRoomId={selectedRoomId}
         onCategoryClick={onCategoryClick}
         addAction={{
@@ -163,20 +211,20 @@ export function HomeDirectSection({
       ))}
       {showCapToggle && (
         <NavItem radii="400" variant="Background">
-          <NavButton
-            data-home-dm-action="toggle-all"
-            className={css.ToggleMoreRow}
-            onClick={onToggleShowAll}
-          >
+          <NavButton data-home-dm-action="toggle-all" onClick={onToggleShowAll}>
             <NavItemContent>
               <Box as="span" alignItems="Center" gap="200" grow="Yes">
                 <Avatar size="200" radii="400">
-                  <Icon size="100" src={showAll ? Icons.ChevronTop : Icons.ChevronBottom} />
+                  <Icon
+                    size="100"
+                    src={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
+                    className={css.SectionIcon}
+                  />
                 </Avatar>
                 <Text as="span" size="Inherit" priority="300" truncate>
                   {showAll
                     ? t('mindroomUi.notices.showLess')
-                    : t('featureUi.homeNav.showAllDirectMessages', { count: humanDms.length })}
+                    : t('featureUi.homeNav.showAllDirectMessages', { count: allRoomIds.length })}
                 </Text>
               </Box>
             </NavItemContent>
@@ -204,7 +252,8 @@ export function HomeDirectSection({
 }
 
 export type HomeAgentsSectionProps = {
-  agents: readonly HomeSidebarAgent[];
+  /** Agents currently visible in the section (already resolved for collapsed state). */
+  visibleAgents: readonly HomeSidebarAgent[];
   agentDmRoomIds: readonly string[];
   closed: boolean;
   selectedRoomId: string | undefined;
@@ -215,7 +264,7 @@ export type HomeAgentsSectionProps = {
 
 /** Collapsible Agents section on Home: opens or starts each agent's 1:1 DM while staying in Home. */
 export function HomeAgentsSection({
-  agents,
+  visibleAgents,
   agentDmRoomIds,
   closed,
   selectedRoomId,
@@ -224,50 +273,7 @@ export function HomeAgentsSection({
   notificationPreferences,
 }: HomeAgentsSectionProps) {
   const { t } = useTranslation();
-  const client = useMatrixClient();
-  const navigate = useNavigate();
   const roomVersion = useCapabilities()['m.room_versions']?.default;
-  const [pendingAgentIds, setPendingAgentIds] = useState<ReadonlySet<string>>(() => new Set());
-  const pendingRef = useRef(new Set<string>());
-  const aliveRef = useRef(true);
-
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
-
-  const visibleAgents = useMemo(() => {
-    if (closed) {
-      const selected = selectedRoomId
-        ? agents.find((agent) => agent.dmRoom?.roomId === selectedRoomId)
-        : undefined;
-      return selected ? [selected] : [];
-    }
-    return agents;
-  }, [agents, closed, selectedRoomId]);
-
-  const handleStartDirect = (agent: HomeSidebarAgent) => {
-    if (agent.directRoomId) {
-      void navigate(homeRoomPath(agent.directRoomId));
-      return;
-    }
-    if (pendingRef.current.has(agent.userId)) return;
-    pendingRef.current.add(agent.userId);
-    setPendingAgentIds(new Set(pendingRef.current));
-    startDirectChat(client, agent.userId, roomVersion)
-      .then(
-        (roomId) => {
-          if (aliveRef.current) void navigate(homeRoomPath(roomId));
-        },
-        () => undefined
-      )
-      .finally(() => {
-        pendingRef.current.delete(agent.userId);
-        if (aliveRef.current) setPendingAgentIds(new Set(pendingRef.current));
-      });
-  };
 
   return (
     <NavCategory data-testid="home-agents-section">
@@ -280,30 +286,40 @@ export function HomeAgentsSection({
         selectedRoomId={selectedRoomId}
         onCategoryClick={onCategoryClick}
       />
-      {visibleAgents.map((agent) =>
-        agent.dmRoom ? (
+      {visibleAgents.map((agent) => {
+        const { dmRoom } = agent;
+        if (!dmRoom) {
+          return (
+            <HomeAgentStartRow
+              key={agent.userId}
+              agent={agent}
+              homeRoomPath={homeRoomPath}
+              roomVersion={roomVersion}
+            />
+          );
+        }
+        return (
           <RoomNavItem
             key={agent.userId}
-            room={agent.dmRoom}
-            linkPath={homeRoomPath(agent.dmRoom.roomId)}
-            selected={agent.dmRoom.roomId === selectedRoomId}
-            notificationMode={getRoomNotificationMode(notificationPreferences, agent.dmRoom.roomId)}
+            room={dmRoom}
+            linkPath={homeRoomPath(dmRoom.roomId)}
+            selected={dmRoom.roomId === selectedRoomId}
+            notificationMode={getRoomNotificationMode(notificationPreferences, dmRoom.roomId)}
             direct
             showAvatar
             showDraft
             nameOverride={agent.name}
             fallbackAvatarMxc={agent.avatarMxc}
-            avatarBadge={<AgentActiveRunDot room={agent.dmRoom} agentId={agent.userId} />}
+            avatarBadge={(descriptionId) => (
+              <AgentActiveRunDot
+                room={dmRoom}
+                agentId={agent.userId}
+                descriptionId={descriptionId}
+              />
+            )}
           />
-        ) : (
-          <HomeAgentStartRow
-            key={agent.userId}
-            agent={agent}
-            pending={pendingAgentIds.has(agent.userId)}
-            onSelect={() => handleStartDirect(agent)}
-          />
-        )
-      )}
+        );
+      })}
     </NavCategory>
   );
 }

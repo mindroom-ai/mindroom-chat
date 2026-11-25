@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { Provider, createStore } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
+import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Room } from 'matrix-js-sdk';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
-import type { HomeSidebarAgent } from './homeDirectSections';
+import { selectRenderedDirectRooms, type HomeSidebarAgent } from './homeDirectSections';
+import { useHomeAddRoomsMenu } from './HomeSectionChrome';
 
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -19,6 +20,29 @@ vi.mock('react-i18next', async () => {
 });
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
+
+vi.mock('focus-trap-react', () => ({
+  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
+}));
+
+vi.mock('../../ui/directional', async () => {
+  const reactModule = await import('react');
+  return {
+    ownDirectionLine: {},
+    PopOut: ({ anchor, content }: { anchor?: unknown; content?: React.ReactNode }) =>
+      anchor ? reactModule.createElement('div', { 'data-popout': 'true' }, content) : null,
+  };
+});
+
+vi.mock('../../ui/glass/GlassPrimitives', async () => {
+  const reactModule = await import('react');
+  return {
+    Menu: ({ children }: { children?: React.ReactNode }) =>
+      reactModule.createElement('div', { role: 'menu' }, children),
+    MenuItem: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
+      reactModule.createElement('button', { role: 'menuitem', onClick, ...props }, children),
+  };
+});
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -43,6 +67,7 @@ vi.mock('folds', async () => {
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       reactModule.createElement('span', props, children),
     color: {
+      Critical: { Main: '#f00' },
       Primary: { Main: '#00f' },
       Success: { Main: '#0f0' },
       Background: { Container: '#fff' },
@@ -50,6 +75,7 @@ vi.mock('folds', async () => {
     },
     config: {
       opacity: { P300: 0.3, P500: 0.5 },
+      fontWeight: { W400: 400 },
       radii: { Pill: '999px' },
       space: { S100: '4px', S200: '8px' },
     },
@@ -118,13 +144,16 @@ vi.mock('../room-nav/RoomNavItem', async () => {
       room: { roomId: string };
       linkPath: string;
       nameOverride?: string;
-      avatarBadge?: React.ReactNode;
-    }) =>
-      reactModule.createElement(
+      avatarBadge?: React.ReactNode | ((descriptionId: string) => React.ReactNode);
+    }) => {
+      const descId = `badge-desc-${room.roomId}`;
+      const badge = typeof avatarBadge === 'function' ? avatarBadge(descId) : avatarBadge;
+      return reactModule.createElement(
         'div',
         { 'data-room-row': room.roomId, 'data-link': linkPath, 'data-name': nameOverride },
-        avatarBadge
-      ),
+        badge
+      );
+    },
   };
 });
 
@@ -183,14 +212,22 @@ describe('HomeDirectSection', () => {
 
   it('caps at 5 + selected when > 6 DMs, toggles Show all / Show less, and wires header + button', () => {
     const rooms = Array.from({ length: 8 }, (_, index) => makeRoom(`!dm-${index + 1}:example.org`));
+    const allRoomIds = rooms.map((r) => r.roomId);
     const store = makeUnreadStore();
 
     function Wrapper() {
       const [showAll, setShowAll] = useState(false);
+      const { rooms: visibleRooms } = selectRenderedDirectRooms(
+        rooms,
+        '!dm-8:example.org',
+        false,
+        showAll
+      );
       return (
         <Provider store={store}>
           <HomeDirectSection
-            humanDms={rooms}
+            visibleRooms={visibleRooms}
+            allRoomIds={allRoomIds}
             closed={false}
             selectedRoomId="!dm-8:example.org"
             showAll={showAll}
@@ -249,13 +286,15 @@ describe('HomeDirectSection', () => {
 
   it('shows a quiet unread or highlight dot only while collapsed with hidden unread DMs', () => {
     const rooms = [makeRoom('!dm-1:example.org'), makeRoom('!dm-2:example.org')];
+    const allRoomIds = rooms.map((r) => r.roomId);
     const store = makeUnreadStore([['!dm-2:example.org', { total: 2, highlight: 1 }]]);
 
     act(() => {
       renderer = create(
         <Provider store={store}>
           <HomeDirectSection
-            humanDms={rooms}
+            visibleRooms={[rooms[0]!]}
+            allRoomIds={allRoomIds}
             closed
             selectedRoomId="!dm-1:example.org"
             showAll={false}
@@ -279,7 +318,8 @@ describe('HomeDirectSection', () => {
       renderer!.update(
         <Provider store={store}>
           <HomeDirectSection
-            humanDms={rooms}
+            visibleRooms={[rooms[1]!]}
+            allRoomIds={allRoomIds}
             closed
             selectedRoomId="!dm-2:example.org"
             showAll={false}
@@ -308,7 +348,7 @@ describe('HomeAgentsSection', () => {
     state.activeRunsByRoom.clear();
   });
 
-  it('shows the active-run green dot only when the agent has an active run in its DM', () => {
+  it('shows the active-run green dot and accessible description only when the agent has an active run', () => {
     const devRoom = makeRoom('!dm-dev:example.org');
     const researcherRoom = makeRoom('!dm-researcher:example.org');
     state.activeRunsByRoom.set(devRoom.roomId, [{ agentId: '@mindroom_dev:example.org' }]);
@@ -335,7 +375,7 @@ describe('HomeAgentsSection', () => {
       renderer = create(
         <Provider store={makeUnreadStore()}>
           <HomeAgentsSection
-            agents={agents}
+            visibleAgents={agents}
             agentDmRoomIds={[devRoom.roomId, researcherRoom.roomId]}
             closed={false}
             selectedRoomId={undefined}
@@ -359,20 +399,38 @@ describe('HomeAgentsSection', () => {
         (n) => typeof n.type === 'string' && n.props['data-agent-active-run'] === 'true'
       )
     ).toHaveLength(1);
+    const devDesc = devRow.find(
+      (n) => n.type === 'span' && n.props.id === 'badge-desc-!dm-dev:example.org'
+    );
+    expect(devDesc.props.hidden).toBe(true);
+    expect(devDesc.children).toEqual(['Agent active']);
+
     expect(
       researcherRow.findAll(
         (n) => typeof n.type === 'string' && n.props['data-agent-active-run'] === 'true'
       )
     ).toHaveLength(0);
+    const researcherDesc = researcherRow.find(
+      (n) => n.type === 'span' && n.props.id === 'badge-desc-!dm-researcher:example.org'
+    );
+    expect(researcherDesc.props.hidden).toBe(true);
+    expect(researcherDesc.children).toEqual([]);
   });
 
-  it('guards double-clicks while startDirectChat is pending and navigates to existing directRoomId directly', async () => {
+  it('guards double-clicks without disabling the button, navigates existing directRoomId, and shows retryable alert on error', async () => {
     let resolveChat!: (roomId: string) => void;
-    state.startDirectChat.mockReturnValue(
-      new Promise<string>((resolve) => {
-        resolveChat = resolve;
-      })
-    );
+    let rejectChat!: (err: Error) => void;
+    state.startDirectChat
+      .mockReturnValueOnce(
+        new Promise<string>((_resolve, reject) => {
+          rejectChat = reject;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolveChat = resolve;
+        })
+      );
 
     const agents: HomeSidebarAgent[] = [
       {
@@ -392,7 +450,7 @@ describe('HomeAgentsSection', () => {
       renderer = create(
         <Provider store={makeUnreadStore()}>
           <HomeAgentsSection
-            agents={agents}
+            visibleAgents={agents}
             agentDmRoomIds={[]}
             closed={false}
             selectedRoomId={undefined}
@@ -404,9 +462,10 @@ describe('HomeAgentsSection', () => {
       );
     });
 
-    const devButton = renderer!.root.find(
-      (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
-    );
+    const getDevButton = () =>
+      renderer!.root.find(
+        (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
+      );
     const researcherButton = renderer!.root.find(
       (n) =>
         n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_researcher:example.org'
@@ -420,17 +479,39 @@ describe('HomeAgentsSection', () => {
     expect(state.navigate).toHaveBeenCalledWith('/home/!dm-existing:example.org');
     state.navigate.mockReset();
 
-    // Double-clicking an agent without a DM calls startDirectChat only once while pending.
+    // Double-clicking calls startDirectChat once; button stays enabled with aria-busy.
     act(() => {
-      devButton.props.onClick();
-      devButton.props.onClick();
+      getDevButton().props.onClick();
+      getDevButton().props.onClick();
     });
     expect(state.startDirectChat).toHaveBeenCalledTimes(1);
+    expect(getDevButton().props.disabled).toBeUndefined();
+    expect(getDevButton().props['aria-busy']).toBe(true);
     expect(
       renderer!.root.findAll(
         (n) => typeof n.type === 'string' && n.props['data-spinner'] === 'true'
       )
     ).toHaveLength(1);
+
+    // Rejection surfaces an inline role="alert" message and clears aria-busy so user can retry.
+    await act(async () => {
+      rejectChat(new Error('network'));
+    });
+    expect(getDevButton().props['aria-busy']).toBeUndefined();
+    const alerts = renderer!.root.findAll(
+      (n) => typeof n.type === 'string' && n.props.role === 'alert'
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.children).toEqual(['Could not start a chat with DevAgent. Try again.']);
+
+    // Retrying clears the error and navigates on success.
+    act(() => {
+      getDevButton().props.onClick();
+    });
+    expect(state.startDirectChat).toHaveBeenCalledTimes(2);
+    expect(
+      renderer!.root.findAll((n) => typeof n.type === 'string' && n.props.role === 'alert')
+    ).toHaveLength(0);
 
     await act(async () => {
       resolveChat('!dm-started:example.org');
@@ -441,5 +522,55 @@ describe('HomeAgentsSection', () => {
         (n) => typeof n.type === 'string' && n.props['data-spinner'] === 'true'
       )
     ).toHaveLength(0);
+  });
+});
+
+describe('useHomeAddRoomsMenu', () => {
+  let renderer: ReactTestRenderer | undefined;
+
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+  });
+
+  it('passes the opener element to onJoin so the Join dialog can return focus to it', () => {
+    const onCreate = vi.fn();
+    const onJoin = vi.fn();
+
+    function Harness() {
+      const menu = useHomeAddRoomsMenu({ onCreate, onJoin });
+      return (
+        <div>
+          <button data-testid="opener" onClick={menu.openFromRow}>
+            Add rooms
+          </button>
+          {menu.popover}
+        </div>
+      );
+    }
+
+    act(() => {
+      renderer = create(<Harness />);
+    });
+
+    const openerEl = {
+      focus: vi.fn(),
+      getBoundingClientRect: () => ({ x: 0, y: 0, width: 100, height: 32 }),
+    } as unknown as HTMLButtonElement;
+
+    const openerButton = renderer!.root.findByProps({ 'data-testid': 'opener' });
+    act(() => {
+      openerButton.props.onClick({ currentTarget: openerEl });
+    });
+
+    const joinItem = renderer!.root.find(
+      (n) => n.type === 'button' && n.props['data-home-room-action'] === 'join'
+    );
+    act(() => {
+      joinItem.props.onClick();
+    });
+
+    expect(onJoin).toHaveBeenCalledWith(openerEl);
+    expect(renderer!.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(0);
   });
 });

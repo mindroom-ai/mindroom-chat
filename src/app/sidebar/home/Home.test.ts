@@ -109,6 +109,7 @@ vi.mock('folds', async () => {
     Icon: passthrough,
     IconButton: button,
     color: {
+      Critical: { Main: '#f00' },
       Primary: { Main: '#00f' },
       Success: { Main: '#0f0' },
       Background: { Container: '#fff' },
@@ -471,12 +472,15 @@ vi.mock('../../rooms/join/JoinAddressPrompt', async () => {
   return {
     JoinAddressPrompt: ({
       onOpen,
+      returnFocusTo,
     }: {
       onOpen: (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => void;
+      returnFocusTo?: HTMLElement | null;
     }) =>
       reactModule.createElement('div', {
         'data-join-address-prompt': 'true',
         onOpen,
+        returnFocusTo,
       }),
   };
 });
@@ -623,6 +627,7 @@ const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
   const joinPrompt = renderer.root.find(
     (node) => node.type === 'div' && node.props['data-join-address-prompt'] === 'true'
   );
+  expect(joinPrompt.props.returnFocusTo).toBe(fakeAnchorEvent.currentTarget);
   act(() => {
     joinPrompt.props.onOpen('!joined:example.org');
   });

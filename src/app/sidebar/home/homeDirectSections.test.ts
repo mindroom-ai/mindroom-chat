@@ -6,6 +6,8 @@ import {
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
   isAgentOneToOneDirectRoom,
+  selectRenderedAgents,
+  selectRenderedDirectRooms,
   selectVisibleDirectRooms,
   splitHomeDirectSections,
 } from './homeDirectSections';
@@ -239,7 +241,7 @@ describe('homeDirectSections', () => {
     expect(result.agentDmRoomIds).toEqual(['!dm-researcher:example.org', '!dm-dev:example.org']);
   });
 
-  it('keeps duplicate 1:1 agent DMs out of humanDms while attaching the most recently active DM', () => {
+  it('conserves every direct room ID: newest duplicate 1:1 agent DM attaches to Agents and older stays in humanDms', () => {
     const newer = makeRoom({
       roomId: '!dm-dev-new:example.org',
       joined: 2,
@@ -252,10 +254,104 @@ describe('homeDirectSections', () => {
       partnerId: DEV_AGENT,
       lastActiveTs: 1000,
     });
-    const result = splitHomeDirectSections([newer, older], []);
-    expect(result.humanDms).toEqual([]);
-    expect(result.agents).toHaveLength(1);
-    expect(result.agents[0]?.dmRoom?.roomId).toBe('!dm-dev-new:example.org');
+    const liam = makeRoom({
+      roomId: '!dm-liam:example.org',
+      joined: 2,
+      partnerId: LIAM,
+      lastActiveTs: 3000,
+    });
+
+    for (const input of [
+      [newer, liam, older],
+      [older, liam, newer],
+    ]) {
+      const result = splitHomeDirectSections(input, []);
+      expect(result.agents).toHaveLength(1);
+      expect(result.agents[0]?.dmRoom?.roomId).toBe('!dm-dev-new:example.org');
+      expect(result.humanDms.map((r) => r.roomId)).toEqual(
+        input.filter((r) => r.roomId !== '!dm-dev-new:example.org').map((r) => r.roomId)
+      );
+      const allOutputIds = [...result.humanDms.map((r) => r.roomId), ...result.agentDmRoomIds];
+      expect(new Set(allOutputIds).size).toBe(input.length);
+      expect(allOutputIds).toHaveLength(input.length);
+    }
+  });
+
+  it('falls back to m.direct when members are lazy-loaded, excludes mindroom_router, and honors custom homeAgents', () => {
+    const lazyAgentDm = makeRoom({
+      roomId: '!dm-lazy-dev:example.org',
+      joined: 2,
+      members: [],
+      lastActiveTs: 4000,
+    });
+    const lazyCustomAgentDm = makeRoom({
+      roomId: '!dm-lazy-custom:example.org',
+      joined: 2,
+      members: [],
+      lastActiveTs: 3500,
+    });
+    const routerOwnerDm = makeRoom({
+      roomId: '!dm-router:example.org',
+      joined: 2,
+      partnerId: '@mindroom_router:example.org',
+      lastActiveTs: 3000,
+    });
+    const routerNamedAgentDm = makeRoom({
+      roomId: '!dm-router-agent:example.org',
+      joined: 2,
+      partnerId: '@mindroom_router_helper:example.org',
+      lastActiveTs: 2500,
+    });
+
+    const mDirect = {
+      [DEV_AGENT]: ['!dm-lazy-dev:example.org'],
+      [CUSTOM_AGENT]: ['!dm-lazy-custom:example.org'],
+    };
+    const customAgent = makeHomeAgent({
+      userId: CUSTOM_AGENT,
+      name: 'HelperBot',
+      lastUsedTs: 1000,
+    });
+
+    const result = splitHomeDirectSections(
+      [lazyAgentDm, lazyCustomAgentDm, routerOwnerDm, routerNamedAgentDm],
+      [customAgent],
+      mDirect
+    );
+
+    expect(result.humanDms.map((r) => r.roomId)).toEqual(['!dm-router:example.org']);
+    expect(result.agents.map((a) => ({ userId: a.userId, dmRoomId: a.dmRoom?.roomId }))).toEqual([
+      { userId: DEV_AGENT, dmRoomId: '!dm-lazy-dev:example.org' },
+      { userId: CUSTOM_AGENT, dmRoomId: '!dm-lazy-custom:example.org' },
+      { userId: '@mindroom_router_helper:example.org', dmRoomId: '!dm-router-agent:example.org' },
+    ]);
+  });
+
+  it('derives rendered direct rooms and agents consistently across collapsed and expanded states', () => {
+    const rooms = [
+      makeRoom({ roomId: '!dm-1:example.org', joined: 2, partnerId: LIAM }),
+      makeRoom({ roomId: '!dm-2:example.org', joined: 2, partnerId: NORA }),
+    ];
+    expect(selectRenderedDirectRooms(rooms, undefined, true, false)).toEqual({
+      rooms: [],
+      capped: false,
+    });
+    expect(selectRenderedDirectRooms(rooms, '!dm-2:example.org', true, false)).toEqual({
+      rooms: [rooms[1]],
+      capped: false,
+    });
+    expect(selectRenderedDirectRooms(rooms, undefined, false, false)).toEqual({
+      rooms,
+      capped: false,
+    });
+
+    const agents = [
+      { userId: DEV_AGENT, name: 'DevAgent', dmRoom: rooms[0], lastActivityTs: 2 },
+      { userId: RESEARCHER, name: 'Researcher', dmRoom: rooms[1], lastActivityTs: 1 },
+    ];
+    expect(selectRenderedAgents(agents, undefined, true)).toEqual([]);
+    expect(selectRenderedAgents(agents, '!dm-2:example.org', true)).toEqual([agents[1]]);
+    expect(selectRenderedAgents(agents, undefined, false)).toEqual(agents);
   });
 
   it('caps Direct messages at 5 + selected when > 6 and expands all when requested', () => {
