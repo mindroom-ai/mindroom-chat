@@ -146,12 +146,7 @@ export function RailVisibilityMenuProvider({ children }: { children: ReactNode }
     <RailVisibilityMenuContext value={value}>
       {children}
       {menu && (
-        <SidebarContextMenu
-          key={`${menu.target}:${menu.anchor.x}:${menu.anchor.y}`}
-          anchor={menu.anchor}
-          onClose={close}
-          width={220}
-        >
+        <SidebarContextMenu anchor={menu.anchor} onClose={close} width={220}>
           <RailVisibilityMenuContent
             target={menu.target}
             onClose={close}
