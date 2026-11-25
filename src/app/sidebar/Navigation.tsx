@@ -93,8 +93,9 @@ function PageNavToggle() {
 
 /**
  * The icon rail, with the page navigation's collapse toggle at its foot wherever the panel can
- * collapse. Choosing the section already shown toggles its navigation instead of navigating;
- * choosing another opens it.
+ * collapse. Choosing the section already shown expands its navigation when collapsed, or collapses
+ * it when open and `allowCollapse` is true (otherwise letting the tab navigate); choosing another
+ * opens it.
  */
 export function CollapsibleSidebarNav() {
   const { collapsed, canCollapse, setCollapsed } = useDesktopPageNav();
@@ -105,10 +106,15 @@ export function CollapsibleSidebarNav() {
   });
 
   const handlePageNavSelect = useCallback(
-    (selected: boolean): boolean => {
+    (selected: boolean, allowCollapse = true): boolean => {
       if (!canCollapse) return false;
       if (selected) {
-        setCollapsed(!collapsed);
+        if (collapsed) {
+          setCollapsed(false);
+          return true;
+        }
+        if (!allowCollapse) return false;
+        setCollapsed(true);
         return true;
       }
       // Commit the expand after the navigation so the page that mounts with it animates it in.

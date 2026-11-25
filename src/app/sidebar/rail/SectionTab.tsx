@@ -26,14 +26,21 @@ type SectionTabProps = {
   icon: IconSrc;
   label: string;
   selected: boolean;
+  /** When true, clicking while selected on a sub-route returns to `path` instead of collapsing. */
+  returnToRoot?: boolean;
+  /** Whether the route is already at `path` (used with `returnToRoot`). */
+  atRoot?: boolean;
   /** The rooms its unread badge counts. */
   rooms: string[];
   /** The menu's entries (Mark as Read for the same rooms); `close` dismisses it. */
   menu: (close: () => void) => ReactNode;
   /** Direct messages are personal, so any unread one stands out like a mention. */
   personal?: boolean;
-  /** Lets the navigation panel take the click, given whether the section is shown; true when it did. */
-  onSelect?: (selected: boolean) => boolean;
+  /**
+   * Lets the navigation panel take the click, given whether the section is shown and whether an
+   * open panel may collapse; true when it did.
+   */
+  onSelect?: (selected: boolean, allowCollapse?: boolean) => boolean;
 };
 
 /**
@@ -46,6 +53,8 @@ export function SectionTab({
   icon,
   label,
   selected,
+  returnToRoot,
+  atRoot,
   rooms,
   menu,
   personal,
@@ -58,7 +67,12 @@ export function SectionTab({
   const navigate = useNavigate();
 
   const open = () => {
-    if (onSelect?.(selected)) return;
+    const allowCollapse = !returnToRoot || Boolean(atRoot);
+    if (onSelect?.(selected, allowCollapse)) return;
+    if (returnToRoot && selected && !atRoot) {
+      void navigate(path);
+      return;
+    }
     // On phones the first tap shows the section's list; a second one returns to the last room.
     const lastPath = phone && !selected ? undefined : lastPaths.get(section);
     void navigate(lastPath ? joinPathComponent(lastPath) : path);

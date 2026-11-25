@@ -6,6 +6,7 @@ import { ScreenSize } from '../../lib/hooks/useScreenSize';
 
 const state = vi.hoisted(() => ({
   selected: false,
+  atRoot: false,
   mobile: false,
   directShown: true,
   homeRooms: [] as string[],
@@ -156,6 +157,7 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
 
 vi.mock('../../routes/useHomeSelected', () => ({
   useHomeSelected: () => state.selected,
+  useHomeIndexSelected: () => state.atRoot,
 }));
 
 vi.mock('../../ui/UnreadBadge', () => ({
@@ -190,6 +192,7 @@ describe('HomeTab', () => {
   afterEach(() => {
     navigate.mockReset();
     state.selected = false;
+    state.atRoot = false;
     state.mobile = false;
     state.directShown = true;
     state.homeRooms = [];
@@ -220,19 +223,47 @@ describe('HomeTab', () => {
     act(() => renderer.unmount());
   });
 
-  it.each([false, true])(
-    'shows the home list on mobile unless already selected: %s',
-    async (selected) => {
+  it.each([
+    { atRoot: false, handled: false, allowCollapse: false, expectedPath: '/home/' },
+    { atRoot: false, handled: true, allowCollapse: false, expectedPath: undefined },
+    { atRoot: true, handled: true, allowCollapse: true, expectedPath: undefined },
+  ])(
+    'handles desktop click when selected (atRoot=$atRoot, handled=$handled)',
+    async ({ atRoot, handled, allowCollapse, expectedPath }) => {
+      state.selected = true;
+      state.atRoot = atRoot;
+      const onSelect = vi.fn(() => handled);
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(HomeTab, { onSelect }));
+      });
+      await act(() => renderer.root.findByType('button').props.onClick());
+      expect(onSelect).toHaveBeenCalledWith(true, allowCollapse);
+      if (expectedPath) {
+        expect(navigate).toHaveBeenCalledWith(expectedPath);
+      } else {
+        expect(navigate).not.toHaveBeenCalled();
+      }
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each([
+    { selected: false, atRoot: false, expected: '/home/' },
+    { selected: true, atRoot: true, expected: '/home/%23room%3Amindroom.chat?threadId=%24thread' },
+    { selected: true, atRoot: false, expected: '/home/' },
+  ])(
+    'navigates on mobile (selected=$selected, atRoot=$atRoot) to $expected',
+    async ({ selected, atRoot, expected }) => {
       state.mobile = true;
       state.selected = selected;
+      state.atRoot = atRoot;
       let renderer!: ReturnType<typeof create>;
       act(() => {
         renderer = create(React.createElement(HomeTab));
       });
       await act(() => renderer.root.findByType('button').props.onClick());
-      expect(navigate).toHaveBeenCalledWith(
-        selected ? '/home/%23room%3Amindroom.chat?threadId=%24thread' : '/home/'
-      );
+      expect(navigate).toHaveBeenCalledWith(expected);
       act(() => renderer.unmount());
     }
   );
