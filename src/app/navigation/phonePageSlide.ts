@@ -81,7 +81,10 @@ export type PhoneSwipePreviewKey = {
   threadId?: string;
 };
 
-export type ActivePhoneSwipeContext = PhoneSwipePreviewKey;
+export type ActivePhoneSwipeContext = PhoneSwipePreviewKey & {
+  isSpaceThreads?: boolean;
+  returnToSpaceThreads?: boolean;
+};
 
 type StoredPreviewKey = {
   sessionId: string;
@@ -1077,27 +1080,31 @@ export const slidePhonePage = (change: Change): void => {
       end();
       return;
     }
-    if (snapshot && departingContext) {
-      if (from === 1 && to === 2) {
-        const enteredContext = activeSwipeContext;
-        if (
-          enteredContext?.threadId &&
-          enteredContext.sessionId === departingContext.sessionId &&
-          enteredContext.roomId === departingContext.roomId
-        ) {
-          storePhoneSwipePreview(
-            'room',
-            {
-              sessionId: departingContext.sessionId,
-              roomId: departingContext.roomId,
-              threadId: enteredContext.threadId,
-            },
-            snapshot
-          );
-        }
-      } else if (from === 2 && to === 1 && departingContext.threadId) {
-        storePhoneSwipePreview('thread', departingContext, snapshot);
+    if (from === 1 && to === 2) {
+      const enteredContext = activeSwipeContext;
+      if (
+        enteredContext?.threadId &&
+        departingContext &&
+        departingContext.sessionId === enteredContext.sessionId &&
+        ((!departingContext.isSpaceThreads && departingContext.roomId === enteredContext.roomId) ||
+          (departingContext.isSpaceThreads === true &&
+            enteredContext.returnToSpaceThreads === true))
+      ) {
+        storePhoneSwipePreview(
+          'room',
+          {
+            sessionId: enteredContext.sessionId,
+            roomId: enteredContext.roomId,
+            threadId: enteredContext.threadId,
+          },
+          snapshot
+        );
+      } else if (roomPreview) {
+        roomPreview = undefined;
+        syncPreviewResizeListener();
       }
+    } else if (from === 2 && to === 1 && departingContext?.threadId) {
+      storePhoneSwipePreview('thread', departingContext, snapshot);
     }
     const direction = to > from ? 'forward' : 'back';
     root.dataset.pageSlide = direction;

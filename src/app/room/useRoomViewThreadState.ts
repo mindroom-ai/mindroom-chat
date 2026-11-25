@@ -42,6 +42,7 @@ import {
 } from '../routes/roomNavigateState';
 import {
   historyPageOf,
+  isSpaceThreadsPage,
   previousHistoryOrigin,
   RETURN_TO_ROOM_STATE,
   showsRoom,
@@ -198,11 +199,12 @@ export const useRoomViewThreadState = ({
     [effectiveThreadId, resolvedThreadRootEvent, room, t, threadSummaryInfo]
   );
 
-  // Leaving a thread always leads to its room, wherever the thread was opened from (Activity,
-  // search, another room's link). Opened from the room, it steps back to the room's own entry,
-  // which keeps the room as it was left (on native iOS and in the iOS home screen app, the room's
-  // path replaces the thread instead); from anywhere else, `toRoom` puts the room in the thread's
-  // place, so the browser's back still returns to where the thread was opened from.
+  // Leaving a thread leads to its room, except when opened from a space's All threads overview,
+  // where it returns there with the overview's selection intact. Opened from the room or Space All
+  // threads, it steps back to that entry (on native iOS and in the iOS home screen app, the origin
+  // path replaces the thread instead); from anywhere else (Activity, search, another room's link),
+  // `toRoom` puts the room in the thread's place, so the browser's back still returns to where the
+  // thread was opened from.
   const leaveThread = useCallback(
     (toRoom: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
@@ -227,15 +229,29 @@ export const useRoomViewThreadState = ({
           )
       );
       const originPath = origin?.path ?? exitTarget?.exitPath;
-      // The room itself, with no thread open in it.
-      if (!originPath || !showsRoom(historyPageOf(originPath), addresses, [''])) {
+      if (!originPath) {
+        toRoom();
+        return;
+      }
+      const originPage = historyPageOf(originPath);
+      const returnsToRoom = showsRoom(originPage, addresses, ['']);
+      const openedForOrigin = origin
+        ? origin.returnToOrigin === true
+        : exitTarget?.returnToOrigin === true;
+      const returnsToSpaceThreads = openedForOrigin && isSpaceThreadsPage(originPage);
+      // The room itself (with no thread open in it) or the Space All threads page that opened it.
+      if (!returnsToRoom && !returnsToSpaceThreads) {
         toRoom();
         return;
       }
       const historyBack =
         (exitTarget?.useHistoryBack ?? !isNativeIOS()) && !isIOSStandaloneWebApp();
-      if (!historyBack) navigatePath(originPath, { replace: true, state: RETURN_TO_ROOM_STATE });
-      else if (!origin || origin.steps === 1) window.history.back();
+      if (!historyBack) {
+        navigatePath(originPath, {
+          replace: true,
+          ...(returnsToRoom ? { state: RETURN_TO_ROOM_STATE } : {}),
+        });
+      } else if (!origin || origin.steps === 1) window.history.back();
       else window.history.go(-origin.steps);
     },
     [effectiveThreadId, mx, navigatePath, roomId, threadId]
@@ -301,13 +317,33 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
-  const locationKey = useContext(UNSAFE_LocationContext)?.location.key;
+  const location = useContext(UNSAFE_LocationContext)?.location;
+  const locationKey = location?.key;
+  const locationState: unknown = location?.state;
 
   useLayoutEffect(() => {
-    const context = { sessionId, roomId, threadId: effectiveThreadId };
+    const browserHistoryState: unknown =
+      typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
+    const exitTarget =
+      (locationKey !== undefined || locationState !== undefined
+        ? getRoomThreadExitTargetFromHistoryState({ key: locationKey, usr: locationState })
+        : undefined) ?? getRoomThreadExitTargetFromHistoryState(browserHistoryState);
+    const activeSessionId = getActiveSession()?.sessionId ?? sessionId;
+    const returnToSpaceThreads =
+      !!effectiveThreadId &&
+      exitTarget?.returnToOrigin === true &&
+      exitTarget.roomId === roomId &&
+      (exitTarget.threadId === effectiveThreadId || exitTarget.threadId === threadId) &&
+      (exitTarget.sessionId === undefined || exitTarget.sessionId === activeSessionId);
+    const context = {
+      sessionId,
+      roomId,
+      threadId: effectiveThreadId,
+      ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+    };
     setActivePhoneSwipeContext(context);
     return () => clearActivePhoneSwipeContext(context);
-  }, [effectiveThreadId, roomId, sessionId]);
+  }, [effectiveThreadId, locationKey, locationState, roomId, sessionId, threadId]);
 
   const resolveFromLocationKey = useCallback(
     () =>

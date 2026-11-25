@@ -2,14 +2,20 @@ import { useEffect } from 'react';
 import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { isRecord } from '../lib/isRecord';
-import { decodeRouteParam } from './pathUtils';
+import { decodeRouteParam, isRoomIdOrAliasSegment } from './pathUtils';
 import { ACTIVITY_PATH, DIRECT_PATH, HOME_PATH, THREADS_PATH } from './paths';
+import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
 
 /** An entry, with the account active when it was shown. */
-type HistoryEntry = HistoryPage & { key: string; hash: string; sessionId?: string };
+type HistoryEntry = HistoryPage & {
+  key: string;
+  hash: string;
+  sessionId?: string;
+  returnToOrigin?: boolean;
+};
 
 /** The entries of this tab's history the app has shown, and which one is current. */
 export type HistoryStack = { entries: HistoryEntry[]; index: number };
@@ -77,13 +83,22 @@ export const useHistoryStackRecorder = (sessionId: string | undefined): void => 
   const { key, pathname, search, hash, state } = useLocation();
   const action = useNavigationType();
   const openedFromOutside = isOpenedFromOutside(state);
+  const returnToOrigin =
+    getRoomThreadExitTargetFromHistoryState({ usr: state })?.returnToOrigin === true;
   // Read as a page is shown, not recorded on a change of its own: a switch of accounts also
   // moves to the new account's page, which is the first one it shows.
   const sessionRef = useLatestRef(sessionId);
   useEffect(() => {
-    const entry = { key, pathname, search, hash, sessionId: sessionRef.current };
+    const entry: HistoryEntry = {
+      key,
+      pathname,
+      search,
+      hash,
+      sessionId: sessionRef.current,
+      ...(returnToOrigin ? { returnToOrigin: true } : {}),
+    };
     current = advanceHistoryStack(current, entry, action, openedFromOutside);
-  }, [key, pathname, search, hash, action, openedFromOutside, sessionRef]);
+  }, [key, pathname, search, hash, action, openedFromOutside, returnToOrigin, sessionRef]);
 };
 
 /**
@@ -97,7 +112,7 @@ export const previousHistoryPathname = (): string | undefined =>
   current.entries[current.index - 1]?.pathname;
 
 /** Where a page that is left by stepping back in history leads, and how many steps back that is. */
-export type HistoryOrigin = { steps: number; path: string };
+export type HistoryOrigin = { steps: number; path: string; returnToOrigin?: boolean };
 
 /**
  * The newest entry of `stack` before the current one that `isElsewhere` accepts: the page a room or
@@ -111,7 +126,11 @@ export const findHistoryOrigin = (
   for (let index = stack.index - 1; index >= 0; index -= 1) {
     const entry = stack.entries[index];
     if (entry && isElsewhere(entry)) {
-      return { steps: stack.index - index, path: `${entry.pathname}${entry.search}` };
+      return {
+        steps: stack.index - index,
+        path: `${entry.pathname}${entry.search}`,
+        ...(stack.entries[index + 1]?.returnToOrigin ? { returnToOrigin: true } : {}),
+      };
     }
   }
   return undefined;
@@ -146,6 +165,15 @@ const routeRooms = (pathname: string): string[] => {
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
   routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
+
+/** Whether a page is a space's All threads overview (`/<space>/threads/`). */
+export const isSpaceThreadsPage = (page: HistoryPage): boolean => {
+  const segments = page.pathname.split('/').filter(Boolean).map(decodeRouteParam);
+  const [space = '', section] = segments;
+  return (
+    segments.length === 2 && isRoomIdOrAliasSegment(space) && section?.toLowerCase() === 'threads'
+  );
+};
 
 /**
  * `historyState` (the browser's, which holds the router's navigation state as `usr`) of the entry

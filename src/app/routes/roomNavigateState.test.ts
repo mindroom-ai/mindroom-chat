@@ -128,4 +128,25 @@ describe('roomNavigateState', () => {
     ).toBe(false);
     expect(getRoomThreadExitTargetFromHistoryState({})).toBeUndefined();
   });
+
+  it('round-trips returnToOrigin in router usr state and sessionStorage', () => {
+    const target = {
+      exitPath: '/!space:example.org/threads/',
+      roomId: '!room',
+      threadId: '$thread',
+      useHistoryBack: true,
+      returnToOrigin: true,
+    };
+    expect(
+      getRoomThreadExitTargetFromHistoryState({
+        usr: withRoomThreadExitTargetState(undefined, target),
+      })
+    ).toEqual(target);
+
+    window.sessionStorage.setItem(
+      'mindroom.roomThreadExitTarget:entry-return-origin',
+      JSON.stringify(target)
+    );
+    expect(getRoomThreadExitTargetFromHistoryState({ key: 'entry-return-origin' })).toEqual(target);
+  });
 });
