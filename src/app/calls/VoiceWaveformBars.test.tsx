@@ -24,7 +24,7 @@ const scaleOf = (el: Element | null | undefined) =>
 describe('VoiceWaveformBars', () => {
   let contexts: FakeAudioContext[] = [];
   let bins = new Uint8Array(512);
-  let startState: AudioContextState = 'running';
+  let startState: AudioContextState | 'interrupted' = 'running';
   let resumeSucceeds = true;
   let rafs = new Map<number, FrameRequestCallback>();
   let nextRaf = 1;
@@ -36,7 +36,8 @@ describe('VoiceWaveformBars', () => {
 
   class FakeAudioContext {
     sampleRate = 48_000;
-    state: AudioContextState = startState;
+    state: AudioContextState | 'interrupted' = startState;
+    onstatechange: (() => void) | null = null;
     sources: Array<{ connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }> =
       [];
     analyser = {
@@ -61,6 +62,7 @@ describe('VoiceWaveformBars', () => {
     });
     close = vi.fn(async () => {
       this.state = 'closed';
+      this.onstatechange?.();
     });
     constructor() {
       contexts.push(this);
@@ -195,26 +197,42 @@ describe('VoiceWaveformBars', () => {
     expect(root?.dataset.audioActive).toBe('false');
   });
 
-  it('retries suspended AudioContext resume across touch/click gestures until running', () => {
+  it('resumes suspended and iOS interrupted contexts via keepAudioContextRunning and cleans up on unmount', () => {
     startState = 'suspended';
     resumeSucceeds = false;
-    render(<VoiceWaveformBars track={makeTrack('s1')} source="remote" speaking />);
+    const { unmount } = render(
+      <VoiceWaveformBars track={makeTrack('s1')} source="remote" speaking />
+    );
     const ctx = contexts[0]!;
 
     expect(ctx.resume).toHaveBeenCalledTimes(1);
-    // First pointerdown still suspended (e.g. touch before click): listeners stay attached.
+    expect(ctx.onstatechange).toEqual(expect.any(Function));
     window.dispatchEvent(new Event('pointerdown'));
     expect(ctx.resume).toHaveBeenCalledTimes(2);
 
-    // Click succeeds and transitions to running: all gesture listeners are removed.
     resumeSucceeds = true;
     window.dispatchEvent(new Event('click'));
     expect(ctx.resume).toHaveBeenCalledTimes(3);
     expect(ctx.state).toBe('running');
 
-    window.dispatchEvent(new Event('keydown'));
+    // iOS Safari interruption transitions to 'interrupted'; onstatechange and gestures resume it.
+    resumeSucceeds = false;
+    ctx.state = 'interrupted';
+    ctx.onstatechange?.();
+    expect(ctx.resume).toHaveBeenCalledTimes(4);
+
+    resumeSucceeds = true;
+    window.dispatchEvent(new Event('touchend'));
+    expect(ctx.resume).toHaveBeenCalledTimes(5);
+    expect(ctx.state).toBe('running');
+
+    // Unmount clears onstatechange and gesture listeners before closing the AudioContext.
+    unmount();
+    expect(ctx.onstatechange).toBeNull();
+    expect(ctx.close).toHaveBeenCalledTimes(1);
     window.dispatchEvent(new Event('click'));
-    expect(ctx.resume).toHaveBeenCalledTimes(3);
+    window.dispatchEvent(new Event('keydown'));
+    expect(ctx.resume).toHaveBeenCalledTimes(5);
   });
 
   it('keeps bars still under prefers-reduced-motion while toggling data-audio-active at ~100ms', () => {

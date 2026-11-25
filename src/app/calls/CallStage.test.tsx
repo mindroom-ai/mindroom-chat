@@ -347,10 +347,10 @@ describe('CallStage without video', () => {
     expect(attached).toEqual([remoteTrack]);
     cleanup();
 
-    // Multi-device remote speaker falls back to another device's audioTrack if the speaking one lacks it.
+    // Multi-device remote speaker does not substitute a quiet sibling device's audioTrack.
     attached.length = 0;
     const laptopTrack = audioTrack('ada-laptop');
-    showStage({
+    const quietSibling = showStage({
       participants: [
         me,
         { ...ada, speaking: false, audioTrack: laptopTrack },
@@ -358,7 +358,8 @@ describe('CallStage without video', () => {
       ],
       microphone: false,
     });
-    expect(attached).toEqual([laptopTrack]);
+    expect(sourceOf(quietSibling.container)).toBe('remote');
+    expect(attached).toEqual([]);
     cleanup();
 
     attached.length = 0;

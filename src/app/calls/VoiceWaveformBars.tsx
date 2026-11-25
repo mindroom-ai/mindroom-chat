@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { keepAudioContextRunning } from '../lib/speechModelAssets';
 import {
   SPECTRUM_BAR_COUNT,
   barScaleFromLevel,
@@ -17,6 +18,7 @@ export type VoiceWaveformBarsProps = {
 type AudioEngine = {
   context: AudioContext;
   analyser: AnalyserNode;
+  stopKeepingRunning: () => void;
   bins: Uint8Array<ArrayBuffer>;
   target: Float32Array;
   current: Float32Array;
@@ -26,7 +28,6 @@ const FFT_SIZE = 1024;
 const DEFAULT_FRAME_DT_MS = 16;
 const MAX_FRAME_DT_MS = 100;
 const REDUCED_MOTION_INTERVAL_MS = 100;
-const RESUME_EVENTS = ['pointerdown', 'click', 'keydown'] as const;
 const BAR_INDICES = Array.from({ length: SPECTRUM_BAR_COUNT }, (_, index) => index);
 
 const createAudioEngine = (): AudioEngine | null => {
@@ -39,9 +40,11 @@ const createAudioEngine = (): AudioEngine | null => {
     analyser.minDecibels = -75;
     analyser.maxDecibels = -18;
     analyser.smoothingTimeConstant = 0.5;
+    const stopKeepingRunning = keepAudioContextRunning(context);
     return {
       context,
       analyser,
+      stopKeepingRunning,
       bins: new Uint8Array(analyser.frequencyBinCount || FFT_SIZE / 2),
       target: new Float32Array(SPECTRUM_BAR_COUNT),
       current: new Float32Array(SPECTRUM_BAR_COUNT),
@@ -86,6 +89,7 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
       return undefined;
     }
 
+    const reused = audioRef.current !== null;
     const engine = audioRef.current ?? createAudioEngine();
     if (!engine) {
       resetWaveformDom(container, bars, null);
@@ -105,7 +109,6 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
     let activeTrack = true;
     let frameId: number | null = null;
     let lastUpdateTime: number | undefined;
-    let resumeListening = false;
 
     const motionQuery =
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -127,39 +130,12 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
       lastUpdateTime = undefined;
     };
 
-    const isContextRunning = () => engine.context.state === 'running';
-    const removeResumeListeners = () => {
-      if (!resumeListening) return;
-      resumeListening = false;
-      RESUME_EVENTS.forEach((event) => window.removeEventListener(event, onUserGesture));
-    };
-
-    const tryResume = () => {
-      if (isContextRunning()) {
-        removeResumeListeners();
-        return;
+    const resumeIfNeeded = () => {
+      if (engine.context.state !== 'running') {
+        void Promise.resolve(engine.context.resume()).catch(() => undefined);
       }
-      if (engine.context.state !== 'suspended') return;
-      const pending = engine.context.resume();
-      if (isContextRunning()) removeResumeListeners();
-      void Promise.resolve(pending)
-        .then(() => {
-          if (isContextRunning()) removeResumeListeners();
-        })
-        .catch(() => undefined);
     };
-
-    const onUserGesture = () => {
-      tryResume();
-    };
-
-    if (engine.context.state === 'suspended') {
-      resumeListening = true;
-      RESUME_EVENTS.forEach((event) =>
-        window.addEventListener(event, onUserGesture, { passive: true })
-      );
-      tryResume();
-    }
+    if (reused) resumeIfNeeded();
 
     const tick = (now: number) => {
       frameId = null;
@@ -204,13 +180,16 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
       }
     };
     const onVisibilityChange = () => {
-      if (document.hidden) stopLoop();
-      else startLoop();
+      if (document.hidden) {
+        stopLoop();
+      } else {
+        resumeIfNeeded();
+        startLoop();
+      }
     };
     const teardownTrack = () => {
       activeTrack = false;
       stopLoop();
-      removeResumeListeners();
       if (sourceNode) {
         try {
           sourceNode.disconnect();
@@ -238,7 +217,10 @@ export function VoiceWaveformBars({ track, source, speaking }: VoiceWaveformBars
     () => () => {
       const engine = audioRef.current;
       audioRef.current = null;
-      if (engine) void Promise.resolve(engine.context.close()).catch(() => undefined);
+      if (engine) {
+        engine.stopKeepingRunning();
+        void Promise.resolve(engine.context.close()).catch(() => undefined);
+      }
     },
     []
   );

@@ -149,13 +149,10 @@ function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
     ? devices.find((participant) => participant.local)?.audioTrack
     : undefined;
   const remoteAudioTrack = speaker
-    ? (devices.find(
+    ? devices.find(
         (device) =>
           !device.local && device.userId === speaker.userId && device.speaking && device.audioTrack
-      )?.audioTrack ??
-      devices.find(
-        (device) => !device.local && device.userId === speaker.userId && device.audioTrack
-      )?.audioTrack)
+      )?.audioTrack
     : undefined;
   const audioSource: VoiceAudioSource = speaker ? 'remote' : microphone ? 'local' : 'none';
   const audioTrack = speaker ? remoteAudioTrack : localAudioTrack;
