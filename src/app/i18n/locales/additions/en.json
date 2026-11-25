@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Sidebar",
         "navigation": "Navigation",
+        "direct": "Show Direct Messages in the sidebar",
+        "directDescription": "Direct messages in their own rail tab. When hidden, open them from Home or the ⋮ menu in Home.",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",

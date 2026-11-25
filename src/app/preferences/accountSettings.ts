@@ -11,6 +11,8 @@
 export const MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 
 export type AccountSettings = {
+  /** Show the sidebar's Direct Messages button. */
+  showDirectInSidebar: boolean;
   /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
   showCanvasesInSidebar: boolean;
   /** Show the sidebar's Usage button (once a runtime reports provider usage). */
@@ -48,6 +50,7 @@ export type BooleanAccountSetting = {
 const EMPTY_STRING_IDS: readonly string[] = Object.freeze([]);
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
+  showDirectInSidebar: true,
   showCanvasesInSidebar: false,
   showUsageInSidebar: false,
   showThreadsInSidebar: false,
@@ -119,6 +122,7 @@ export const setPluginEnabledPreference = (
 export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
   if (!isRecord(content)) return DEFAULT_MINDROOM_ACCOUNT_SETTINGS;
   return {
+    showDirectInSidebar: storedSwitch(content, 'showDirectInSidebar'),
     showCanvasesInSidebar:
       typeof content.showCanvasesInSidebar === 'boolean'
         ? content.showCanvasesInSidebar

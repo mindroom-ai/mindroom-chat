@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Kenar çubuğu",
         "navigation": "Gezinme",
+        "direct": "Doğrudan mesajları kenar çubuğunda göster",
+        "directDescription": "Doğrudan mesajlar kendi kenar çubuğu sekmesinde. Gizlendiğinde, Ana sayfadan veya Ana sayfadaki ⋮ menüsünden açın.",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",

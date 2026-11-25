@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barre latérale",
         "navigation": "Navigation",
+        "direct": "Afficher Messages directs dans la barre latérale",
+        "directDescription": "Les messages directs dans leur propre onglet latéral. Masqués, ouvrez-les depuis l’accueil ou depuis le menu ⋮ de l’accueil.",
         "threads": "Afficher Fils dans la barre latérale",
         "threadsDescription": "Les fils de toutes les salles dans une seule liste. Masqués, ouvrez-les depuis le menu ⋮ de l’accueil.",
         "canvasesDescription": "Affichez un bouton pour les panneaux interactifs de vos agents dès que vous en avez un. Masqué, ouvrez-les depuis le menu ⋮ de l’accueil.",

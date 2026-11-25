@@ -4,7 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeTab } from './HomeTab';
 import { ScreenSize } from '../../lib/hooks/useScreenSize';
 
-const state = vi.hoisted(() => ({ selected: false, mobile: false }));
+const state = vi.hoisted(() => ({
+  selected: false,
+  mobile: false,
+  directShown: true,
+  homeRooms: [] as string[],
+  directRooms: [] as string[],
+  roomsUnreadCalls: [] as string[][],
+}));
 vi.mock('../../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/hooks/useScreenSize')>()),
   useScreenSizeContext: () => (state.mobile ? ScreenSize.Mobile : ScreenSize.Desktop),
@@ -113,7 +120,18 @@ vi.mock('../../matrix/state/roomToUnread', () => ({
 }));
 
 vi.mock('../../matrix/state/useUnread', () => ({
-  useRoomsUnread: () => undefined,
+  useRoomsUnread: (rooms: string[]) => {
+    state.roomsUnreadCalls.push(rooms);
+    return undefined;
+  },
+}));
+
+vi.mock('../../settings/railButtons', () => ({
+  useRailButtons: () => ({ direct: state.directShown }),
+}));
+
+vi.mock('../direct/useDirectRooms', () => ({
+  useDirectRoomIds: () => state.directRooms,
 }));
 
 vi.mock('../../ui/sidebar/SidebarItem', () => ({
@@ -149,7 +167,7 @@ vi.mock('../../routes/useNavToActivePath', () => ({
 }));
 
 vi.mock('../../matrix/state/useHomeRooms', () => ({
-  useHomeRooms: () => [],
+  useHomeRooms: () => state.homeRooms,
 }));
 
 vi.mock('../../notifications/readReceipts', () => ({
@@ -173,6 +191,10 @@ describe('HomeTab', () => {
     navigate.mockReset();
     state.selected = false;
     state.mobile = false;
+    state.directShown = true;
+    state.homeRooms = [];
+    state.directRooms = [];
+    state.roomsUnreadCalls = [];
   });
 
   it('restores the saved home path when the home tab is clicked', async () => {
@@ -214,4 +236,32 @@ describe('HomeTab', () => {
       act(() => renderer.unmount());
     }
   );
+
+  it('keeps direct rooms out of Home unread counts while the Direct Messages rail button is shown', () => {
+    state.directShown = true;
+    state.homeRooms = ['!general:example.org'];
+    state.directRooms = ['!dm-maya:example.org'];
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(HomeTab));
+    });
+    expect(state.roomsUnreadCalls.at(-1)).toEqual(['!general:example.org']);
+    act(() => renderer.unmount());
+  });
+
+  it('rolls direct room unreads into Home when the Direct Messages rail button is hidden', () => {
+    state.directShown = false;
+    state.homeRooms = ['!general:example.org'];
+    state.directRooms = ['!dm-maya:example.org', '!dm-dev:example.org'];
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(HomeTab));
+    });
+    expect(state.roomsUnreadCalls.at(-1)).toEqual([
+      '!general:example.org',
+      '!dm-maya:example.org',
+      '!dm-dev:example.org',
+    ]);
+    act(() => renderer.unmount());
+  });
 });

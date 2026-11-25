@@ -432,6 +432,8 @@
       "sidebar": {
         "title": "Seitenleiste",
         "navigation": "Navigation",
+        "direct": "Direktnachrichten in der Seitenleiste anzeigen",
+        "directDescription": "Direktnachrichten als eigener Reiter in der Seitenleiste. Ausgeblendet öffnest du sie auf der Startseite oder über das ⋮-Menü auf der Startseite.",
         "threads": "Threads in der Seitenleiste anzeigen",
         "threadsDescription": "Threads aus allen Räumen in einer Liste. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
         "canvasesDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",

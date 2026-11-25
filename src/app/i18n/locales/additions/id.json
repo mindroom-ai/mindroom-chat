@@ -419,6 +419,8 @@
       "sidebar": {
         "title": "Bilah sisi",
         "navigation": "Navigasi",
+        "direct": "Tampilkan Pesan langsung di bilah sisi",
+        "directDescription": "Pesan langsung di tab bilah sisinya sendiri. Saat disembunyikan, buka dari Beranda atau menu ⋮ di Beranda.",
         "threads": "Tampilkan Utas di bilah sisi",
         "threadsDescription": "Utas dari semua ruang dalam satu daftar. Saat disembunyikan, buka dari menu ⋮ di Beranda.",
         "canvasesDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Saat disembunyikan, buka dari menu ⋮ di Beranda.",

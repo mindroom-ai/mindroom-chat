@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barra lateral",
         "navigation": "Navegación",
+        "direct": "Mostrar Mensajes directos en la barra lateral",
+        "directDescription": "Los mensajes directos en su propia pestaña lateral. Si lo ocultas, ábrelos desde Inicio o desde el menú ⋮ de Inicio.",
         "threads": "Mostrar Hilos en la barra lateral",
         "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
         "canvasesDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",

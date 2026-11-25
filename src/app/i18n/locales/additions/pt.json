@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barra lateral",
         "navigation": "Navegação",
+        "direct": "Mostrar Mensagens diretas na barra lateral",
+        "directDescription": "As mensagens diretas no seu próprio separador lateral. Se as ocultar, abra-as no Início ou no menu ⋮ do Início.",
         "threads": "Mostrar Tópicos na barra lateral",
         "threadsDescription": "Os tópicos de todas as salas numa só lista. Se os ocultar, abra-os no menu ⋮ do Início.",
         "canvasesDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. Se o ocultar, abra-os no menu ⋮ do Início.",

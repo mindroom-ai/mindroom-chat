@@ -72,7 +72,7 @@ const SETTINGS_CONTEXT: SettingsContext = {
   useSystemTheme: true,
   developerTools: false,
   errorReporting: true,
-  railButtons: { threads: true, explore: true, createSpace: true, search: true, help: true },
+  railButtons: { direct: true, threads: true, explore: true, createSpace: true, search: true, help: true },
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,

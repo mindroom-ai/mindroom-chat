@@ -445,6 +445,8 @@
       "sidebar": {
         "title": "Barra laterale",
         "navigation": "Navigazione",
+        "direct": "Mostra Messaggi diretti nella barra laterale",
+        "directDescription": "I messaggi diretti nella propria scheda della barra laterale. Se nascosti, aprili dalla Home o dal menu ⋮ della Home.",
         "threads": "Mostra Thread nella barra laterale",
         "threadsDescription": "I thread di tutte le stanze in un unico elenco. Se nascosti, aprili dal menu ⋮ della Home.",
         "canvasesDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. Se lo nascondi, aprili dal menu ⋮ della Home.",

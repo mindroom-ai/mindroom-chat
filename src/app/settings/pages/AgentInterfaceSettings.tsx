@@ -86,6 +86,11 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
       title: t('featureUi.settings.sidebar.navigation'),
       switches: [
         [
+          'direct',
+          t('featureUi.settings.sidebar.direct'),
+          t('featureUi.settings.sidebar.directDescription'),
+        ],
+        [
           'threads',
           t('featureUi.settings.sidebar.threads'),
           t('featureUi.settings.sidebar.threadsDescription'),

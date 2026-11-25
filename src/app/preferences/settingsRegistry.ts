@@ -180,6 +180,7 @@ const DEV = 'featureUi.settings.developerTools';
 
 /** The setting of each sidebar button's switch. */
 export const SIDEBAR_SWITCH_SETTINGS = {
+  direct: 'sidebarDirect',
   threads: 'sidebarThreads',
   canvases: 'sidebarCanvases',
   usage: 'sidebarUsage',
@@ -609,6 +610,12 @@ export const SETTINGS = [
     scope: 'room-personal',
   },
   // App: Sidebar
+  sidebarSwitch(
+    'direct',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.direct`,
+    `${SIDEBAR}.directDescription`
+  ),
   sidebarSwitch(
     'threads',
     `${SIDEBAR}.navigation`,
