@@ -374,6 +374,9 @@
     },
     "space": {
       "overview": "Space-Übersicht"
+    },
+    "footnote": {
+      "backToReference": "Zurück zum Verweis"
     }
   },
   "featureUi": {

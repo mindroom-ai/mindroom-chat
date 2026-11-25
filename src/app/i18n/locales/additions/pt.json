@@ -386,6 +386,9 @@
     },
     "space": {
       "overview": "Visão geral do espaço"
+    },
+    "footnote": {
+      "backToReference": "Voltar para a referência"
     }
   },
   "featureUi": {

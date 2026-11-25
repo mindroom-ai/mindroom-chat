@@ -374,6 +374,9 @@
     },
     "space": {
       "overview": "स्पेस का अवलोकन"
+    },
+    "footnote": {
+      "backToReference": "संदर्भ पर वापस जाएं"
     }
   },
   "featureUi": {

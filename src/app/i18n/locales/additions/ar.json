@@ -422,6 +422,9 @@
     },
     "space": {
       "overview": "نظرة عامة على المساحة"
+    },
+    "footnote": {
+      "backToReference": "العودة إلى المرجع"
     }
   },
   "featureUi": {

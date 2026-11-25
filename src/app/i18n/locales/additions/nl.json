@@ -374,6 +374,9 @@
     },
     "space": {
       "overview": "Space-overzicht"
+    },
+    "footnote": {
+      "backToReference": "Terug naar verwijzing"
     }
   },
   "featureUi": {

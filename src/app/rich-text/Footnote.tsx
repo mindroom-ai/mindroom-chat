@@ -6,6 +6,7 @@ import {
   useContext,
   useId,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const HIGHLIGHT_MS = 1200;
 const HIGHLIGHT_ATTRIBUTE = 'data-footnote-highlight';
@@ -16,6 +17,7 @@ const highlightTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>(
  * messages with footnotes in the same timeline never collide on DOM IDs.
  */
 export const FootnoteScopeContext = createContext<string | undefined>(undefined);
+const FootnoteSuppressIdsContext = createContext(false);
 
 /** Scopes a footnote ID (`fn1`, `fnref1`) under `scopeId`, or keeps it as-is when unscoped. */
 export const scopeFootnoteId = (scopeId: string | undefined, id: string): string =>
@@ -35,7 +37,23 @@ export function FootnoteScopeProvider({
   const existing = useContext(FootnoteScopeContext);
   const generated = useId();
   const scope = (!isolate && existing) || `fn-${generated.replace(/:/g, '_')}`;
-  return <FootnoteScopeContext value={scope}>{children}</FootnoteScopeContext>;
+  const content = isolate ? (
+    <FootnoteSuppressIdsContext value={false}>{children}</FootnoteSuppressIdsContext>
+  ) : (
+    children
+  );
+  return <FootnoteScopeContext value={scope}>{content}</FootnoteScopeContext>;
+}
+
+/** Suppresses footnote anchor `id` attributes inside repeated UI while keeping links active. */
+export function FootnoteSuppressIds({
+  children,
+  suppress = true,
+}: {
+  children: ReactNode;
+  suppress?: boolean;
+}) {
+  return <FootnoteSuppressIdsContext value={suppress}>{children}</FootnoteSuppressIdsContext>;
 }
 
 const prefersReducedMotion = (): boolean =>
@@ -82,8 +100,10 @@ export function FootnoteLink({
   title,
   ...props
 }: FootnoteLinkProps) {
+  const { t } = useTranslation();
   const scopeId = useContext(FootnoteScopeContext);
-  const scopedId = footnoteId ? scopeFootnoteId(scopeId, footnoteId) : undefined;
+  const suppressIds = useContext(FootnoteSuppressIdsContext);
+  const scopedId = footnoteId && !suppressIds ? scopeFootnoteId(scopeId, footnoteId) : undefined;
   const scopedTargetId = scopeFootnoteId(scopeId, href.slice(1));
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -106,8 +126,8 @@ export function FootnoteLink({
       {...props}
       id={scopedId}
       href={`#${scopedTargetId}`}
-      aria-label={ariaLabel ?? (backref ? 'Back to reference' : undefined)}
-      title={title ?? (backref ? 'Back to reference' : undefined)}
+      aria-label={ariaLabel ?? (backref ? t('sharedUi.footnote.backToReference') : undefined)}
+      title={title ?? (backref ? t('sharedUi.footnote.backToReference') : undefined)}
       onClick={handleClick}
     >
       {children}
@@ -123,6 +143,7 @@ export type FootnoteItemProps = Omit<ComponentPropsWithoutRef<'li'>, 'id'> & {
 /** A footnote definition `<li>` with a message-scoped DOM ID and programmatic focus target. */
 export function FootnoteItem({ footnoteId, tabIndex, ...props }: FootnoteItemProps) {
   const scopeId = useContext(FootnoteScopeContext);
-  const scopedId = footnoteId ? scopeFootnoteId(scopeId, footnoteId) : undefined;
+  const suppressIds = useContext(FootnoteSuppressIdsContext);
+  const scopedId = footnoteId && !suppressIds ? scopeFootnoteId(scopeId, footnoteId) : undefined;
   return <li {...props} id={scopedId} tabIndex={scopedId ? -1 : tabIndex} />;
 }

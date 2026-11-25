@@ -230,68 +230,87 @@ describe('Markdown footnotes rendering and navigation', () => {
     expect(externalLink.id).toBe('');
   });
 
-  it('shares one footnote scope across folded work and final answer in renderAgentMessageContent', () => {
+  it('leaves finished work unfolded when a footnote crosses the split, while folding self-contained answer footnotes', () => {
     const scrollIntoView = mockScrollIntoView();
-    const body =
-      'Checking note[^1].\n\n🔧 `web_search` [1]\n\nThe final answer.\n\n[^1]: Detail from work.';
-    const html = renderLiveMarkdown(body)!;
-    const mEvent = new MatrixEvent({
-      event_id: '$work-fn',
-      type: 'm.room.message',
-      room_id: '!room:example.org',
-      sender: '@agent:example.org',
-      origin_server_ts: 1_000_000,
-      content: {},
-    });
-
-    const { container } = render(
-      <ClientConfigProvider value={{}}>
-        <ToolCallMessageContext value={{ eventId: '$work-fn', roomId: '!room:example.org' }}>
-          {renderAgentMessageContent({
-            mEvent,
-            eventId: '$work-fn',
-            fromMindroomAgent: true,
-            displayName: 'Agent',
-            msgType: 'm.text',
-            content: {
-              msgtype: 'm.text',
-              body,
-              format: 'org.matrix.custom.html',
-              formatted_body: html,
-              'io.mindroom.ai_run': { version: 1, status: 'completed' },
-              'io.mindroom.tool_trace': {
-                version: 2,
-                events: [
-                  { type: 'tool_call_completed', tool_name: 'web_search', tool_call_id: 'c1' },
-                ],
+    const renderReply = (eventId: string, body: string) => {
+      const mEvent = new MatrixEvent({
+        event_id: eventId,
+        type: 'm.room.message',
+        room_id: '!room:example.org',
+        sender: '@agent:example.org',
+        origin_server_ts: 1_000_000,
+        content: {},
+      });
+      return render(
+        <ClientConfigProvider value={{}}>
+          <ToolCallMessageContext value={{ eventId, roomId: '!room:example.org' }}>
+            {renderAgentMessageContent({
+              mEvent,
+              eventId,
+              fromMindroomAgent: true,
+              displayName: 'Agent',
+              msgType: 'm.text',
+              content: {
+                msgtype: 'm.text',
+                body,
+                format: 'org.matrix.custom.html',
+                formatted_body: renderLiveMarkdown(body)!,
+                'io.mindroom.ai_run': { version: 1, status: 'completed' },
+                'io.mindroom.tool_trace': {
+                  version: 2,
+                  events: [
+                    { type: 'tool_call_completed', tool_name: 'web_search', tool_call_id: 'c1' },
+                  ],
+                },
               },
-            },
-            htmlReactParserOptions: makeParserOptions(),
-            linkifyOpts: LINKIFY_OPTS,
-          })}
-        </ToolCallMessageContext>
-      </ClientConfigProvider>
+              htmlReactParserOptions: makeParserOptions(),
+              linkifyOpts: LINKIFY_OPTS,
+            })}
+          </ToolCallMessageContext>
+        </ClientConfigProvider>
+      );
+    };
+
+    // Footnote ref before the tool call + definition after it: stays unfolded so backref works immediately.
+    const crossView = renderReply(
+      '$work-fn-cross',
+      'Checking note[^1].\n\n🔧 `web_search` [1]\n\nThe final answer.\n\n[^1]: Detail from work.'
     );
+    expect(crossView.container.querySelector('[data-work-fold]')).toBeNull();
+    const crossRef = crossView.container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    const crossItem = crossView.container.querySelector<HTMLLIElement>('li.footnote-item')!;
+    const crossBackref =
+      crossView.container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;
+    expect(crossBackref.getAttribute('href')).toBe(`#${crossRef.id}`);
 
-    // Expand the folded work half so both halves of the split reply are mounted.
-    const foldButton = container.querySelector<HTMLButtonElement>('[data-work-fold]')!;
-    expect(foldButton).not.toBeNull();
-    fireEvent.click(foldButton);
-
-    const refLink = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
-    const item = container.querySelector<HTMLLIElement>('li.footnote-item')!;
-    const backref = container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;
-    expect(refLink.getAttribute('href')).toBe(`#${item.id}`);
-    expect(backref.getAttribute('href')).toBe(`#${refLink.id}`);
-
-    fireEvent.click(refLink);
-    expect(scrollIntoView.mock.instances[0]).toBe(item);
-    expect(document.activeElement).toBe(item);
+    fireEvent.click(crossBackref);
+    expect(scrollIntoView.mock.instances[0]).toBe(crossRef);
+    expect(document.activeElement).toBe(crossRef);
 
     scrollIntoView.mockClear();
-    fireEvent.click(backref);
-    expect(scrollIntoView.mock.instances[0]).toBe(refLink);
-    expect(document.activeElement).toBe(refLink);
+    fireEvent.click(crossRef);
+    expect(scrollIntoView.mock.instances[0]).toBe(crossItem);
+    expect(document.activeElement).toBe(crossItem);
+    crossView.unmount();
+
+    // Footnote ref and definition both inside the answer: folds work normally.
+    scrollIntoView.mockClear();
+    const foldedView = renderReply(
+      '$work-fn-self',
+      'Checking.\n\n🔧 `web_search` [1]\n\nThe final answer[^1].\n\n[^1]: Answer detail.'
+    );
+    expect(foldedView.container.querySelector('[data-work-fold]')).not.toBeNull();
+    const ansRef = foldedView.container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    const ansItem = foldedView.container.querySelector<HTMLLIElement>('li.footnote-item')!;
+    const ansBackref = foldedView.container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;
+    fireEvent.click(ansBackref);
+    expect(scrollIntoView.mock.instances[0]).toBe(ansRef);
+    expect(document.activeElement).toBe(ansRef);
+
+    scrollIntoView.mockClear();
+    fireEvent.click(ansRef);
+    expect(scrollIntoView.mock.instances[0]).toBe(ansItem);
+    expect(document.activeElement).toBe(ansItem);
   });
 
   it('shares one footnote scope across before and after halves of QuestionReply', () => {

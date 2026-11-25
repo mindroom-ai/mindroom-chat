@@ -374,6 +374,9 @@
     },
     "space": {
       "overview": "স্পেসের সংক্ষিপ্ত বিবরণ"
+    },
+    "footnote": {
+      "backToReference": "তথ্যসূত্রে ফিরে যান"
     }
   },
   "featureUi": {
