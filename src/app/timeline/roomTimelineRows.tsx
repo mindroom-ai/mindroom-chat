@@ -55,15 +55,7 @@ import { MembershipBreak } from './MembershipBreak';
  * is measured, and the tiles the virtual list mounts, with their date and unread dividers.
  */
 
-const EMPTY_ENTRIES: TimelineEventEntry[] = [];
 const EMPTY_EVENTS: MatrixEvent[] = [];
-const EMPTY_ROOM_ROWS_REF: MutableRefObject<MatrixEvent[]> = { current: EMPTY_EVENTS };
-const EMPTY_ACTIVE_RANGE_REF: MutableRefObject<Timeline['range']> = {
-  current: { start: 0, end: 0 },
-};
-const EMPTY_THREAD_RECORD_MAP_REF: MutableRefObject<ReadonlyMap<string, ThreadRecord>> = {
-  current: new Map(),
-};
 const NEVER_HIDDEN = () => false;
 
 /**
@@ -71,41 +63,31 @@ const NEVER_HIDDEN = () => false;
  * threads hold and those its history pages brought, from the start of the history it holds on
  * (`placeClassicWindow` places its window). A thread shows none of them.
  */
-export const useRoomRowEntries = ({
-  room,
-  threadId,
-  timeline,
-  setTimeline,
-  ignoredUsersSet,
-  showHiddenEvents,
-  hideMembershipEvents,
-  hideNickAvatarEvents,
-  showThreadRepliesInRoom,
-}: Omit<RecalibrateFilterOpts, 'showThreadRepliesInRoom'> & {
-  timeline: Timeline;
-  setTimeline: Dispatch<SetStateAction<Timeline>>;
-  showThreadRepliesInRoom: boolean;
-}) => {
+export const useRoomRowEntries = (
+  o: Omit<RecalibrateFilterOpts, 'showThreadRepliesInRoom' | 'threadId'> & {
+    timeline: Timeline;
+    setTimeline: Dispatch<SetStateAction<Timeline>>;
+    showThreadRepliesInRoom: boolean;
+  }
+) => {
+  const { room, timeline, setTimeline, showThreadRepliesInRoom: classic } = o;
   const { roomEntryCount, renderableEventEntries } = useMemo(() => {
-    if (threadId) return { roomEntryCount: 0, renderableEventEntries: EMPTY_ENTRIES };
     const entries = getRenderableEventEntries(
       timeline.linkedTimelines,
       room,
       undefined,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      showThreadRepliesInRoom
+      o.ignoredUsersSet,
+      o.showHiddenEvents,
+      o.hideMembershipEvents,
+      o.hideNickAvatarEvents,
+      classic
     );
-    if (!showThreadRepliesInRoom) {
-      return { roomEntryCount: entries.length, renderableEventEntries: entries };
-    }
+    if (!classic) return { roomEntryCount: entries.length, renderableEventEntries: entries };
     const filters = {
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
+      ignoredUsersSet: o.ignoredUsersSet,
+      showHiddenEvents: o.showHiddenEvents,
+      hideMembershipEvents: o.hideMembershipEvents,
+      hideNickAvatarEvents: o.hideNickAvatarEvents,
     };
     const historyReplies = getShownHistoryReplies(room, timeline.linkedTimelines, filters);
     const historyStart = timeline.linkedTimelines
@@ -122,17 +104,15 @@ export const useRoomRowEntries = ({
       ),
     };
   }, [
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
+    classic,
+    o.hideMembershipEvents,
+    o.hideNickAvatarEvents,
+    o.ignoredUsersSet,
+    o.showHiddenEvents,
     room,
-    showHiddenEvents,
-    showThreadRepliesInRoom,
-    threadId,
     timeline,
   ]);
   const classicWindowRef = useRef<ClassicWindow>(undefined);
-  const classic = showThreadRepliesInRoom && !threadId;
   const previousWindow = classic ? classicWindowRef.current : undefined;
   const windowTimeline = useMemo(() => {
     const range = placeClassicWindow(
@@ -202,24 +182,7 @@ export const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
 // Non-integer so virtual-core records the first DOM measurement on mount.
 const ROOM_LEADING_ESTIMATE_PX = EXPAND_ALL_LINE_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
 
-export const timelineRowSizing = ({
-  threadId,
-  compactLayout,
-  showThreadRepliesInRoom = false,
-  threadEvents = EMPTY_EVENTS,
-  hasThreadLoadOlder = false,
-  hasRoomIntro = false,
-  roomWindowRows = EMPTY_EVENTS,
-  windowStart = 0,
-  roomRowsRef = EMPTY_ROOM_ROWS_REF,
-  activeRangeRef = EMPTY_ACTIVE_RANGE_REF,
-  threadRecordMapRef = EMPTY_THREAD_RECORD_MAP_REF,
-  turnFolds,
-  hiddenIds,
-  membershipFoldsRef,
-  renderedRoomRowsRef,
-  columnWidth,
-}: {
+export const timelineRowSizing = (o: {
   threadId?: string;
   compactLayout: boolean;
   showThreadRepliesInRoom?: boolean;
@@ -237,42 +200,38 @@ export const timelineRowSizing = ({
   turnFolds?: ThreadTurnFoldView;
   /** The open thread's rows that show nothing: priced as nothing, like the size they then get. */
   hiddenIds?: ReadonlySet<string>;
-  /**
-   * The room's folded membership runs, as a closed fold's row is its break alone and an open
-   * fold's first row holds its break too. Read through refs, as the rows are.
-   */
+  /** The room's folded membership runs, read through refs as the rows are. */
   membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
   /** The room's list as it last rendered (`useMembershipFoldRowSizes`). */
   renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
   columnWidth?: number;
 }) => {
-  const threadLeadingOffset = threadId && hasThreadLoadOlder ? 1 : 0;
-  const roomLeadingOffset = !threadId && hasRoomIntro ? 1 : 0;
-  const roomWrapChars = roomWrapCharsForWidth(columnWidth);
+  const threadLeadingOffset = o.threadId && o.hasThreadLoadOlder ? 1 : 0;
+  const roomLeadingOffset = !o.threadId && o.hasRoomIntro ? 1 : 0;
+  const roomWrapChars = roomWrapCharsForWidth(o.columnWidth);
   const estimateSize = (index?: number): number => {
-    if (!threadId) {
+    if (!o.threadId) {
       if (roomLeadingOffset && index === 0) return ROOM_LEADING_ESTIMATE_PX;
-      const rows = roomRowsRef.current;
+      const rows = o.roomRowsRef?.current ?? EMPTY_EVENTS;
       const rowIndex = index === undefined ? undefined : index - roomLeadingOffset;
-      const position = rowIndex === undefined ? undefined : activeRangeRef.current.start + rowIndex;
+      const position =
+        rowIndex === undefined ? undefined : (o.activeRangeRef?.current.start ?? 0) + rowIndex;
       const event = position === undefined ? undefined : rows[position];
-      const membershipFold = event && membershipFoldsRef?.current.breaks.get(event.getId() ?? '');
+      const membershipFold = event && o.membershipFoldsRef?.current.breaks.get(event.getId() ?? '');
       if (membershipFold?.open === false) {
-        // A fold that closed over rows of the last render takes their place at their height.
-        const heldPx = renderedRoomRowsRef
-          ? heldFoldHeight(renderedRoomRowsRef.current.sizes, membershipFold.fold)
+        const heldPx = o.renderedRoomRowsRef
+          ? heldFoldHeight(o.renderedRoomRowsRef.current.sizes, membershipFold.fold)
           : 0;
         return heldPx > 0 ? heldPx : TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
       }
       const breakPx = membershipFold ? TURN_BREAK_ESTIMATE_PX : 0;
-      if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact + breakPx;
+      if (o.compactLayout) return ROOM_ROW_ESTIMATE_PX.compact + breakPx;
       if (!event || position === undefined) {
         return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
       }
-      // The threaded view shows a badge under each message that starts a thread with replies.
       const threadBadge =
-        !showThreadRepliesInRoom &&
-        hasThreadReplies(threadRecordMapRef.current.get(event.getId() ?? ''));
+        !o.showThreadRepliesInRoom &&
+        hasThreadReplies(o.threadRecordMapRef?.current.get(event.getId() ?? ''));
       return (
         estimateRoomRowHeight(event, rows[position - 1], {
           threadBadge,
@@ -283,28 +242,28 @@ export const timelineRowSizing = ({
       );
     }
     if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_ESTIMATE_PX;
-    const event = index === undefined ? undefined : threadEvents[index - threadLeadingOffset];
+    const event = index === undefined ? undefined : o.threadEvents?.[index - threadLeadingOffset];
     if (!event) {
-      return compactLayout
+      return o.compactLayout
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
         : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
     }
     const id = event.getId() ?? '';
-    if (hiddenIds?.has(id)) return 0;
-    const open = turnFolds?.breaks.get(id)?.open;
+    if (o.hiddenIds?.has(id)) return 0;
+    const open = o.turnFolds?.breaks.get(id)?.open;
     if (open === false) return TURN_BREAK_ESTIMATE_PX;
-    const row = estimateMessageRowHeight(event, { compact: compactLayout });
+    const row = estimateMessageRowHeight(event, { compact: o.compactLayout });
     return open ? row + TURN_BREAK_ESTIMATE_PX : row;
   };
   const getItemKey = (index: number): string | number => {
     if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_KEY;
     if (roomLeadingOffset && index === 0) return ROOM_INTRO_KEY;
-    const event = threadId
-      ? threadEvents[index - threadLeadingOffset]
-      : roomWindowRows[index - roomLeadingOffset];
+    const event = o.threadId
+      ? o.threadEvents?.[index - threadLeadingOffset]
+      : o.roomWindowRows?.[index - roomLeadingOffset];
     return (
       event?.getId() ??
-      (threadId ? index - threadLeadingOffset : windowStart + index - roomLeadingOffset)
+      (o.threadId ? index - threadLeadingOffset : (o.windowStart ?? 0) + index - roomLeadingOffset)
     );
   };
   return { estimateSize, getItemKey };
@@ -373,10 +332,8 @@ export const isTimelineRowHidden = (
     showHiddenEvents,
     isHiddenByPlugin = NEVER_HIDDEN,
   }: {
-    messageData: Pick<
-      TimelineMessageData,
-      'approvalTimeline' | 'voiceTranscripts' | 'modelChanges' | 'replyCards'
-    >;
+    messageData: Pick<TimelineMessageData, 'approvalTimeline' | 'voiceTranscripts'> &
+      Partial<Pick<TimelineMessageData, 'modelChanges' | 'replyCards'>>;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
     isHiddenByPlugin?: (event: MatrixEvent) => boolean;
@@ -386,7 +343,7 @@ export const isTimelineRowHidden = (
   if (
     approvalTimeline.hiddenEventIds.has(id) ||
     voiceTranscripts.hiddenEventIds.has(id) ||
-    modelChanges.hiddenEventIds.has(id) ||
+    !!modelChanges?.hiddenEventIds.has(id) ||
     !!replyCards?.hiddenEventIds.has(id)
   ) {
     return true;
@@ -407,33 +364,7 @@ export const isTimelineRowHidden = (
  * the room's membership events is one row (`RoomRowProjection`), which draws its break under the
  * unread divider; an open one draws its break above its first row.
  */
-export const renderTimelineTiles = ({
-  virtualItems,
-  threadId,
-  threadEvents = EMPTY_EVENTS,
-  roomWindowRows = EMPTY_EVENTS,
-  roomRowEntries = EMPTY_ENTRIES,
-  windowStart = 0,
-  readUptoAbsoluteIndex,
-  ignoredUsersSet,
-  showHiddenEvents,
-  timelineSet,
-  focusItem,
-  messageData,
-  isHiddenByPlugin = NEVER_HIDDEN,
-  isHiddenByPluginId = NEVER_HIDDEN,
-  renderEvent,
-  isQuietMarkerRow,
-  joinsQuietMarkerRun,
-  forkDivider,
-  forkingDivider,
-  turnFolds,
-  membershipFolds,
-  threadLoadOlderNode,
-  roomIntroNode,
-  unreadMarkerRef = null,
-  measureElement,
-}: {
+export const renderTimelineTiles = (p: {
   virtualItems: VirtualItem[];
   threadId?: string;
   threadEvents?: MatrixEvent[];
@@ -479,11 +410,12 @@ export const renderTimelineTiles = ({
   unreadMarkerRef?: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
 }): ReactNode[] => {
-  const leadingNode = threadId ? threadLoadOlderNode : roomIntroNode;
+  const { threadId, timelineSet, messageData, turnFolds, membershipFolds } = p;
+  const unreadMarkerRef = p.unreadMarkerRef ?? null;
+  const leadingNode = threadId ? p.threadLoadOlderNode : p.roomIntroNode;
   const leadingOffset = leadingNode ? 1 : 0;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
-    threadId ? threadEvents[index] : roomWindowRows[index];
-  // A folded turn's rows show nothing, the one that draws its break included.
+    threadId ? p.threadEvents?.[index] : p.roomWindowRows?.[index];
   const isRowHidden = (event: MatrixEvent): boolean => {
     const id = event.getId() ?? '';
     return (
@@ -493,16 +425,16 @@ export const renderTimelineTiles = ({
       messageData.secretRequestTimeline.hiddenEventIds.has(id) ||
       isTimelineRowHidden(event, {
         messageData,
-        ignoredUsersSet,
-        showHiddenEvents,
-        isHiddenByPlugin,
+        ignoredUsersSet: p.ignoredUsersSet,
+        showHiddenEvents: p.showHiddenEvents,
+        isHiddenByPlugin: p.isHiddenByPlugin ?? NEVER_HIDDEN,
       })
     );
   };
   const membershipFoldAt = (event: MatrixEvent | undefined) =>
     threadId ? undefined : membershipFolds?.view.breaks.get(event?.getId() ?? '');
   const rowContexts = foldTimelineRowContexts({
-    indexes: virtualItems
+    indexes: p.virtualItems
       .filter((item) => item.index >= leadingOffset)
       .map((item) => item.index - leadingOffset),
     getEvent: getRowEvent,
@@ -512,13 +444,12 @@ export const renderTimelineTiles = ({
       : undefined,
     getAbsoluteIndex: threadId
       ? undefined
-      : (index) => roomRowEntries[windowStart + index]?.absoluteIndex,
-    readUptoAbsoluteIndex: threadId ? undefined : readUptoAbsoluteIndex,
-    // The fork's first own row starts its group under the divider, whoever wrote the row above.
-    groupStartIndex: forkDivider?.index,
-    isQuietMarker: (event) => isQuietMarkerRow(event, messageData, timelineSet),
-    joinsQuietRun: joinsQuietMarkerRun
-      ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
+      : (index) => p.roomRowEntries?.[(p.windowStart ?? 0) + index]?.absoluteIndex,
+    readUptoAbsoluteIndex: threadId ? undefined : p.readUptoAbsoluteIndex,
+    groupStartIndex: p.forkDivider?.index,
+    isQuietMarker: (event) => p.isQuietMarkerRow(event, messageData, timelineSet),
+    joinsQuietRun: p.joinsQuietMarkerRun
+      ? (event) => p.joinsQuietMarkerRun!(event, messageData, timelineSet)
       : undefined,
   });
 
@@ -527,7 +458,7 @@ export const renderTimelineTiles = ({
       return (
         <VirtualTile
           key={item.key}
-          ref={measureElement}
+          ref={p.measureElement}
           virtualItem={item}
           style={{ top: item.start }}
         >
@@ -538,40 +469,28 @@ export const renderTimelineTiles = ({
     const eventIndex = item.index - leadingOffset;
     const event = getRowEvent(eventIndex);
     if (!event) return null;
-    // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
-    // its tile mounted until measuring corrects it.
     const id = event.getId() ?? '';
-    // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
     if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.view.hiddenIds.has(id))) {
       return null;
     }
     const context = rowContexts.get(eventIndex);
-    // Outside the row's boundary, so the break keeps its focus when its fold opens or closes.
     const turnBreak = turnFolds?.view.breaks.get(id);
     const membershipFold = membershipFoldAt(event);
-    let breakNode: ReactNode;
-    if (turnBreak) {
-      breakNode = (
-        <TurnBreak
-          count={turnBreak.fold.count}
-          open={turnBreak.open}
-          onToggle={() => turnFolds?.toggle(turnBreak.fold)}
-        />
-      );
-    } else if (membershipFold) {
-      breakNode = (
-        <MembershipBreak
-          summary={membershipFold.fold.summary}
-          open={membershipFold.open}
-          onToggle={() => membershipFolds?.toggle(membershipFold.fold)}
-        />
-      );
-    }
-    // A closed membership fold's row is its break, under the unread divider when the fold holds
-    // the first unread event.
+    const breakNode: ReactNode = turnBreak ? (
+      <TurnBreak
+        count={turnBreak.fold.count}
+        open={turnBreak.open}
+        onToggle={() => turnFolds?.toggle(turnBreak.fold)}
+      />
+    ) : membershipFold ? (
+      <MembershipBreak
+        summary={membershipFold.fold.summary}
+        open={membershipFold.open}
+        onToggle={() => membershipFolds?.toggle(membershipFold.fold)}
+      />
+    ) : undefined;
     const foldClosed = membershipFold?.open === false;
     let content: ReactNode = null;
-    // A quiet marker folded into the run's first row, which shows it, renders nothing.
     if (!foldClosed && context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
       const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
         const marker = getRowEvent(index);
@@ -586,34 +505,32 @@ export const renderTimelineTiles = ({
         index: eventIndex,
         timelineSet,
         collapse: context.collapse,
-        highlighted: focusItem?.eventId === id && focusItem.highlight,
+        highlighted: p.focusItem?.eventId === id && p.focusItem.highlight,
         previousEventId: replyNeedingNoQuote(
           event,
           context.inPlaceReplyEventId,
-          // Nor one of a voice echo shown under its voice message.
           (replyId) =>
-            isHiddenByPluginId(replyId) || messageData.voiceTranscripts.hiddenEventIds.has(replyId)
+            (p.isHiddenByPluginId ?? NEVER_HIDDEN)(replyId) ||
+            messageData.voiceTranscripts.hiddenEventIds.has(replyId)
         ),
         quietRun,
       };
-      // A fork draft's line goes under its fork point, or under the run of markers it is in.
       const forkingHere =
-        forkingDivider !== undefined &&
-        (forkingDivider.index === eventIndex ||
-          !!context.quietRunIndexes?.includes(forkingDivider.index));
-      // A row that fails to render shows as broken; the rows around it stay.
+        p.forkingDivider !== undefined &&
+        (p.forkingDivider.index === eventIndex ||
+          !!context.quietRunIndexes?.includes(p.forkingDivider.index));
       content = (
         <MessageRowBoundary
           render={() => {
-            const rendered = renderEvent(row, messageData);
+            const rendered = p.renderEvent(row, messageData);
             if (rendered === null) return null;
             return (
               <>
-                {forkDivider?.index === eventIndex && forkDivider.node}
+                {p.forkDivider?.index === eventIndex && p.forkDivider.node}
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
                 {rendered}
-                {forkingHere && forkingDivider.node}
+                {forkingHere && p.forkingDivider?.node}
               </>
             );
           }}
@@ -623,7 +540,7 @@ export const renderTimelineTiles = ({
     return (
       <VirtualTile
         key={item.key}
-        ref={measureElement}
+        ref={p.measureElement}
         virtualItem={item}
         style={{ top: item.start }}
       >
@@ -635,5 +552,5 @@ export const renderTimelineTiles = ({
       </VirtualTile>
     );
   };
-  return virtualItems.map(renderTile);
+  return p.virtualItems.map(renderTile);
 };

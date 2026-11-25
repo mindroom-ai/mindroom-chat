@@ -13,9 +13,18 @@ import {
   walkProductionSources,
 } from '../../../test/architecture';
 
-const TIMELINE = appFile('timeline/RoomTimeline.tsx');
 const THREAD_TIMELINE = appFile('timeline/ThreadTimeline.tsx');
-const TIMELINE_SURFACES = [TIMELINE, THREAD_TIMELINE, appFile('timeline/TimelineViewport.tsx')];
+const ROOM_SURFACE = appFile('timeline/RoomSurface.tsx');
+const TIMELINE_SURFACES = [
+  appFile('timeline/RoomTimeline.tsx'),
+  THREAD_TIMELINE,
+  ROOM_SURFACE,
+  appFile('timeline/CompactRoomSurface.tsx'),
+  appFile('timeline/RoomRowsTimeline.tsx'),
+  appFile('timeline/TimelineViewport.tsx'),
+  appFile('timeline/timelineLiveEnd.ts'),
+  appFile('timeline/timelineListShrink.ts'),
+];
 const THREAD_SESSION = appFile('threads/open/useThreadSession.ts');
 const THREAD_PAGINATION = appFile('threads/open/useThreadPagination.ts');
 const THREAD_VIEWPORT = appFile('timeline/useThreadPrependViewport.ts');
@@ -82,7 +91,7 @@ describe('feature ownership architecture', () => {
         THREAD_LIFECYCLE_INSTALLER,
       ])
     );
-    expect([...resolvedDependencies(TIMELINE, { includeTypeOnly: false })]).toContain(
+    expect([...resolvedDependencies(ROOM_SURFACE, { includeTypeOnly: false })]).toContain(
       THREAD_SEED_SCHEDULER
     );
   });

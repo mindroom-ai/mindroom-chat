@@ -187,95 +187,67 @@ export type ThreadOpeningPinOptions = Pick<
  * A thread opened at its newest row is held there while its rows arrive and measure, until the
  * reader's first gesture or a jump target suppresses the opening pin.
  */
-export const useThreadOpeningPin = ({
-  readMeasurementCorrectionPx,
-  isThreadOpenBottomPinSuppressed,
-  requestThreadOpenBottomPin,
-  scrollRef,
-  scrollThreadToEnd,
-  setAtBottom,
-  threadEventsLength,
-  threadId,
-  threadInitialRenderMode,
-  threadLatestOpenPending,
-  threadOpenedAtLatest,
-  threadUserScrolled,
-}: ThreadOpeningPinOptions): void => {
-  // Whether the effect below pinned in this commit; the one after it then has nothing to do.
+const tryPinThreadOpening = (o: ThreadOpeningPinOptions, scrollArea: HTMLElement): boolean => {
+  const pinned = shouldPinThreadToBottomOnOpen({
+    suppressOpenBottomPin: o.isThreadOpenBottomPinSuppressed(),
+    threadId: o.threadId,
+    threadLatestOpenPending: o.threadLatestOpenPending,
+    threadOpenedAtLatest: o.threadOpenedAtLatest,
+    hasUserScrollIntent: o.threadUserScrolled,
+    threadInitialRenderMode: o.threadInitialRenderMode,
+    threadEventCount: o.threadEventsLength,
+  });
+  if (!pinned || !o.requestThreadOpenBottomPin()) return false;
+  if (o.scrollThreadToEnd) o.scrollThreadToEnd(false);
+  else scrollToBottom(scrollArea, 'instant');
+  return true;
+};
+
+export const useThreadOpeningPin = (o: ThreadOpeningPinOptions): void => {
+  const optsRef = useLatestRef(o);
   const pinnedInCommitRef = useRef(false);
-  // Where the last pin, or the last commit that found the view at the bottom, left the scroll
-  // position: a view above it was moved up by something else than the rows growing.
   const pinnedPositionRef = useRef<{ top: number; correction: number }>(undefined);
   useLayoutEffect(() => {
-    if (!threadId) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    const scrollArea = scrollRef.current;
-    if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
-    setAtBottom(true);
+    const cur = optsRef.current;
+    const scrollArea = cur.scrollRef.current;
+    if (!cur.threadId || !scrollArea || !tryPinThreadOpening(cur, scrollArea)) return;
+    cur.setAtBottom(true);
     pinnedInCommitRef.current = true;
     pinnedPositionRef.current = {
       top: scrollArea.scrollTop,
-      correction: readMeasurementCorrectionPx?.() ?? 0,
+      correction: cur.readMeasurementCorrectionPx?.() ?? 0,
     };
   }, [
-    readMeasurementCorrectionPx,
-    isThreadOpenBottomPinSuppressed,
-    requestThreadOpenBottomPin,
-    scrollRef,
-    scrollThreadToEnd,
-    setAtBottom,
-    threadEventsLength,
-    threadId,
-    threadInitialRenderMode,
-    threadLatestOpenPending,
-    threadOpenedAtLatest,
-    threadUserScrolled,
+    optsRef,
+    o.readMeasurementCorrectionPx,
+    o.isThreadOpenBottomPinSuppressed,
+    o.requestThreadOpenBottomPin,
+    o.scrollRef,
+    o.scrollThreadToEnd,
+    o.setAtBottom,
+    o.threadEventsLength,
+    o.threadId,
+    o.threadInitialRenderMode,
+    o.threadLatestOpenPending,
+    o.threadOpenedAtLatest,
+    o.threadUserScrolled,
   ]);
-  // Rows measure after the commit that pinned them: one taller than its estimate (a tool call, a
-  // reasoning summary) pushes the newest reply below the view. The commit that renders the
-  // measurement pins it again, as long as the opening pin holds and nothing else moved the view
-  // up (a script or assistive technology scrolls without the gestures that end the pin).
+  // Rows measure after the commit that pinned them; re-pin if still at our corrected position.
   useLayoutEffect(() => {
     if (pinnedInCommitRef.current) {
       pinnedInCommitRef.current = false;
       return;
     }
-    const scrollArea = scrollRef.current;
-    if (!threadId || !scrollArea) return;
-    const correction = readMeasurementCorrectionPx?.() ?? 0;
+    const scrollArea = o.scrollRef.current;
+    if (!o.threadId || !scrollArea) return;
+    const correction = o.readMeasurementCorrectionPx?.() ?? 0;
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
       pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
       return;
     }
-    const pinnedPosition = pinnedPositionRef.current;
-    if (!pinnedPosition) return;
-    // A shrink correction moves the scroll up even while other rows grow in the same pass.
-    // Compare against the position after our own corrections, so only an additional upward
-    // scroll hands ownership away. The ledger keeps the sum across its pre-paint renders.
-    const correctedTop = pinnedPosition.top + correction - pinnedPosition.correction;
-    if (scrollArea.scrollTop < correctedTop - 1) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    if (!pinned || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
+    const prev = pinnedPositionRef.current;
+    if (!prev || scrollArea.scrollTop < prev.top + correction - prev.correction - 1) return;
+    if (!tryPinThreadOpening(o, scrollArea)) return;
     pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
   });
 };
@@ -347,12 +319,14 @@ export const useTimelineLiveEnd = ({
   const seenCountRef = useRef(scrollToBottomRef?.current.count ?? 0);
   const viewRef = useRef(committedView);
   const roomRef = useRef(roomId);
-  const surfaceRef = useLatestRef(surface);
-  const virtualizerRef = useLatestRef(virtualizer);
-  const onReaderGestureRef = useLatestRef(onReaderGesture);
-  const latestAtTopRef = useLatestRef(latestAtTop);
-  const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
-  const scrollToBottomRefRef = useLatestRef(scrollToBottomRef);
+  const latestRef = useLatestRef({
+    surface,
+    virtualizer,
+    onReaderGesture,
+    latestAtTop,
+    pendingListShrinkPx,
+    scrollToBottomRef,
+  });
 
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
@@ -414,13 +388,13 @@ export const useTimelineLiveEnd = ({
     const listEnd = () =>
       scrollElement.scrollHeight -
       scrollElement.clientHeight -
-      (pendingListShrinkPxRef.current?.() ?? 0);
+      (latestRef.current.pendingListShrinkPx?.() ?? 0);
     const release = () => {
+      const cur = latestRef.current;
       requestRef.current = false;
-      const pins = scrollToBottomRefRef.current;
-      if (pins) seenCountRef.current = pins.current.count;
-      virtualizerRef.current?.cancelScroll();
-      if (surfaceRef.current === 'room') onReaderGestureRef.current?.();
+      if (cur.scrollToBottomRef) seenCountRef.current = cur.scrollToBottomRef.current.count;
+      cur.virtualizer?.cancelScroll();
+      if (cur.surface === 'room') cur.onReaderGesture?.();
     };
     // Capture-phase scroll detection runs ahead of the virtualizer, whose scroll handler renders
     // synchronously and would re-pin before seeing a scrollbar/script/AT scroll away from latest.
@@ -433,7 +407,7 @@ export const useTimelineLiveEnd = ({
       const below = roomBelow();
       const height = scrollElement.clientHeight;
       const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
-      const leftLatest = latestAtTopRef.current
+      const leftLatest = latestRef.current.latestAtTop
         ? top > lastTop + LEFT_LATEST_ROW_PX
         : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
       if (leftLatest) release();
@@ -525,14 +499,9 @@ export const useTimelineLiveEnd = ({
     contentRef,
     footerProbeRef,
     isViewportAtBottomNow,
-    latestAtTopRef,
+    latestRef,
     liveReplies,
-    onReaderGestureRef,
-    pendingListShrinkPxRef,
     roomId,
     scrollElement,
-    scrollToBottomRefRef,
-    surfaceRef,
-    virtualizerRef,
   ]);
 };

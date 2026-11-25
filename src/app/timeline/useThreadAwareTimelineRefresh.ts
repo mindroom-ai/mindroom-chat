@@ -36,16 +36,18 @@ const startThreadRefresh = (queue: ThreadRefreshQueue, threadId: string): void =
  * arrive during one folded into a single rerun; the room view rebuilds its window at the live
  * end, unless the reader is in older history that does not reach it.
  */
+const NOOP_REFRESH = async () => false;
+
 export const useThreadAwareTimelineRefresh = ({
   room,
   threadId,
-  liveTimelineLinked,
-  refreshLatestThreadSlice,
+  liveTimelineLinked = true,
+  refreshLatestThreadSlice = NOOP_REFRESH,
   onRoomRefresh,
 }: {
-  liveTimelineLinked: boolean;
-  onRoomRefresh: () => void;
-  refreshLatestThreadSlice: (threadId: string) => Promise<boolean>;
+  liveTimelineLinked?: boolean;
+  onRoomRefresh?: () => void;
+  refreshLatestThreadSlice?: (threadId: string) => Promise<boolean>;
   room: Room;
   threadId?: string;
 }): void => {
@@ -77,7 +79,7 @@ export const useThreadAwareTimelineRefresh = ({
     const followRefresh: RoomEventHandlerMap[typeof signal] = (refreshedRoom) => {
       if (refreshedRoom.roomId !== room.roomId) return;
       if (!threadId) {
-        if (liveTimelineLinked) onRoomRefresh();
+        if (liveTimelineLinked) onRoomRefresh?.();
         return;
       }
       // The server has not confirmed the thread root yet, so there is nothing to reload.

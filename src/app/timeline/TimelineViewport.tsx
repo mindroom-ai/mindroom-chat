@@ -5,9 +5,10 @@ import {
   useRef,
   type ComponentProps,
   type CSSProperties,
+  type Dispatch,
   type MutableRefObject,
   type ReactNode,
-  type RefObject,
+  type SetStateAction,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,10 +21,15 @@ import {
 } from 'matrix-js-sdk';
 import { Box, Scroll, config } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useAlive } from '../lib/hooks/useAlive';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
+import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useSyncEngine } from '../event-store/engine';
 import { useSettingValue } from '../preferences/useSettingValue';
-import { settingsAtom } from '../preferences/settings';
+import { MessageLayout, settingsAtom } from '../preferences/settings';
 import { prefetchSettingsAtom } from '../event-store/engine/prefetchSettings';
 import { sanitizePrefetchDepth } from '../event-store/engine/prefetchPolicy';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
@@ -31,6 +37,7 @@ import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
@@ -50,39 +57,93 @@ import {
   NO_INLINE_SECRET_REQUESTS,
   type InlineSecretRequestPlan,
 } from '../messages/inlineSecretRequests';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
+import { NO_REPLY_CARDS } from './replyCards';
+import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { InsetScrollbar } from '../ui/InsetScrollbar';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { TimelineMinimap } from './TimelineMinimap';
 import type { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useFooterBottomPin } from './useFooterBottomPin';
-import { useTimelineScrollElement } from './roomTimelineScroll';
-import type { ScrollToBottomState } from './roomFocusScrollController';
+import {
+  useFlickStop,
+  useGestureBottomPins,
+  useTimelineScrollElement,
+  useViewportAtBottomNow,
+} from './roomTimelineScroll';
+import type { ViewScopedFlag } from './roomTimelineViewScope';
+import type { ThreadBackPaginationController } from './threadBackPaginationController';
+import {
+  clearVirtualizerHoldOffset,
+  useTimelineScrollLedgerController,
+} from './timelineScrollLedgerController';
+import { useHeldRowsLayout } from './timelineLiveEnd';
+import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
+import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
+import { useTimelineReadReceiptController } from './timelineReadReceiptController';
+import { renderTimelineTiles } from './roomTimelineRows';
+import type { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
+import type { TimelineMessageData } from './message-rendering/types';
+import type { ThreadRecord } from '../event-store/threads/types';
+import type { Timeline } from '../event-store/timeline/timelinePagination';
 import { JumpToLatestAction, footerProbeStyle } from './RoomTimelineOverlays';
 
 const NEVER_HIDDEN = () => false;
+const EMPTY_IDS: ReadonlySet<string> = new Set();
+const EMPTY_MESSAGE_DATA = {
+  threadRecordMap: new Map<string, ThreadRecord>(),
+  threadSummaryTimeline: { hiddenEventIds: EMPTY_IDS, markersByEventId: new Map() },
+  secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
+  replyCards: NO_REPLY_CARDS,
+  modelChanges: NO_MODEL_CHANGES,
+};
 
-/** The display settings the timeline follows, each read on its own so a change re-renders. */
-export const useTimelineDisplaySettings = () => ({
-  hideActivity: !!useSettingValue(settingsAtom, 'hideActivity'),
-  hideMembershipEvents: !!useSettingValue(settingsAtom, 'hideMembershipEvents'),
-  hideNickAvatarEvents: !!useSettingValue(settingsAtom, 'hideNickAvatarEvents'),
-  messageLayout: useSettingValue(settingsAtom, 'messageLayout'),
-  messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
-  showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
-  hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
-  prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
-});
+/** Shared client, engine, navigation, screen size, ignored users, and display settings. */
+export const useTimelineEnvironment = () => {
+  const mx = useMatrixClient();
+  const alive = useAlive();
+  const engine = useSyncEngine();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const ignoredUsers = useIgnoredUsers();
+  const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
+  const settings = {
+    hideActivity: !!useSettingValue(settingsAtom, 'hideActivity'),
+    hideMembershipEvents: !!useSettingValue(settingsAtom, 'hideMembershipEvents'),
+    hideNickAvatarEvents: !!useSettingValue(settingsAtom, 'hideNickAvatarEvents'),
+    messageLayout: useSettingValue(settingsAtom, 'messageLayout'),
+    messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
+    showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
+    hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
+    prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
+  };
+  const { showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents } = settings;
+  const filters = useMemo(
+    () => ({ ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents }),
+    [ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents]
+  );
+  return {
+    mx,
+    alive,
+    engine,
+    sessionId: engine.sessionId,
+    phone,
+    navigateRoom,
+    navigateRoomThread,
+    ignoredUsersSet,
+    settings,
+    compactLayout: settings.messageLayout === MessageLayout.Compact,
+    filters,
+  };
+};
 
-/**
- * Resolves the room's bound router account, its joined roster accounts (filtered by ignored users),
- * the viewer ID, and whether the viewer can post messages in this room.
- */
+export type TimelineEnvironment = ReturnType<typeof useTimelineEnvironment>;
+
+/** Bound router account, joined roster accounts, viewer ID, and room compose permission. */
 export const useTrustedRoomAccounts = (room: Room, ignoredUsersSet: ReadonlySet<string>) => {
   const mx = useMatrixClient();
-  // Fold only messages from the bound account or joined accounts it vouches for.
-  // The SDK may redact and re-emit the same state event object.
-  const bindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
-  const routerBinding = bindingEvent?.isRedacted() ? undefined : bindingEvent;
+  const binding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBinding = binding?.isRedacted() ? undefined : binding;
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
@@ -99,9 +160,8 @@ export const useTrustedRoomAccounts = (room: Room, ignoredUsersSet: ReadonlySet<
   const [membershipRevision, refreshMembership] = useForceUpdate();
   const joinedAccountIds = useMemo(() => {
     void membershipRevision;
-    // A new roster can list someone whose membership changes we were not following before.
     void rosterAccountIds;
-    return new Set(room.getJoinedMembers().map((member) => member.userId));
+    return new Set(room.getJoinedMembers().map((m) => m.userId));
   }, [room, membershipRevision, rosterAccountIds]);
   const trustedAccountIds = useMemo(
     () => trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet),
@@ -122,27 +182,22 @@ export const useTrustedRoomAccounts = (room: Room, ignoredUsersSet: ReadonlySet<
       }
     };
     mx.on(RoomMemberEvent.Membership, onMembership);
-    return () => {
-      mx.removeListener(RoomMemberEvent.Membership, onMembership);
-    };
+    return () => void mx.removeListener(RoomMemberEvent.Membership, onMembership);
   }, [mx, room.roomId, boundUserId, rosterAccountIds, refreshMembership]);
-
   return { trustedAccountIds, viewerId, canCompose };
 };
 
-/**
- * Stable getter for the open conversation's image slides. Reading through a ref lets the viewer
- * pick up newly loaded slides without re-rendering when the timeline updates.
- */
-export const useTimelineImageSlides = ({
-  mx,
-  room,
-  events,
-  rowTimelineSet,
-  forkPrefixEventIds,
-  isHiddenByPlugin = NEVER_HIDDEN,
-  ignoredUsersSet,
-}: {
+export const roomExpectsVoiceAnswer = (
+  room: Room,
+  viewerId: string | undefined,
+  trustedAccountIds: ReadonlySet<string>
+) =>
+  room
+    .getJoinedMembers()
+    .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds));
+
+/** Stable getter for the open conversation's image slides. */
+export const useTimelineImageSlides = (opts: {
   mx: MatrixClient;
   room: Room;
   events: readonly MatrixEvent[];
@@ -151,70 +206,50 @@ export const useTimelineImageSlides = ({
   isHiddenByPlugin?: (event: MatrixEvent) => boolean;
   ignoredUsersSet: ReadonlySet<string>;
 }): (() => readonly ImageSlide[]) => {
-  const imageSlideSourceRef = useLatestRef({
-    events,
-    rowTimelineSet,
-    forkPrefixEventIds,
-    isHiddenByPlugin,
-    ignoredUsersSet,
-  });
+  const sourceRef = useLatestRef(opts);
   return useCallback(() => {
-    const source = imageSlideSourceRef.current;
+    const s = sourceRef.current;
     return buildImageSlides(
-      source.events,
-      // As its row does.
+      s.events,
       (event) => {
-        const prefixThreadId = source.forkPrefixEventIds
-          ? forkPrefixThreadId(event, event.getId() ?? '', source.forkPrefixEventIds)
+        const prefix = s.forkPrefixEventIds
+          ? forkPrefixThreadId(event, event.getId() ?? '', s.forkPrefixEventIds)
           : undefined;
         return rowEditTimelineSet(
-          rowEventRoom(mx, room, event, prefixThreadId),
-          prefixThreadId,
-          source.rowTimelineSet
+          rowEventRoom(s.mx, s.room, event, prefix),
+          prefix,
+          s.rowTimelineSet
         );
       },
-      source.isHiddenByPlugin,
-      source.ignoredUsersSet
+      s.isHiddenByPlugin ?? NEVER_HIDDEN,
+      s.ignoredUsersSet
     );
-  }, [imageSlideSourceRef, mx, room]);
-};
-
-export type TimelineScrollSetup = {
-  scrollRef: RefObject<HTMLDivElement | null>;
-  scrollElement: HTMLDivElement | null;
-  attachScroll: (element: HTMLDivElement | null) => void;
-  getScrollElement: () => HTMLDivElement | null;
-  footerProbeRef: RefObject<HTMLDivElement | null>;
-  contentRef: RefObject<HTMLDivElement | null>;
-  atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
-  scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-  latestAtTopRef: MutableRefObject<boolean>;
+  }, [sourceRef]);
 };
 
 /**
- * Sets up the shared viewport refs and installs `useFooterBottomPin`. Call this BEFORE
+ * Sets up shared viewport refs and installs `useFooterBottomPin`. Call BEFORE
  * `useTimelineScrollLedgerController` so footer resize pins run before the ledger's layout pass.
  */
 export const useTimelineScrollSetup = ({
   latestAtTop = false,
+  scrollRef: externalScrollRef,
   scrollToBottomRef: externalScrollToBottomRef,
 }: {
   latestAtTop?: boolean;
+  scrollRef?: MutableRefObject<HTMLDivElement | null>;
   scrollToBottomRef?: MutableRefObject<ScrollToBottomState>;
-} = {}): TimelineScrollSetup => {
-  const scroll = useTimelineScrollElement();
-  // As tall as the footer inset: a growing composer moves the newest row up with it.
+} = {}) => {
+  const scroll = useTimelineScrollElement(externalScrollRef);
   const footerProbeRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const atBottomAnchorRef = useRef<HTMLElement | null>(null);
   const internalScrollToBottomRef = useRef<ScrollToBottomState>({ count: 0, smooth: false });
   const scrollToBottomRef = externalScrollToBottomRef ?? internalScrollToBottomRef;
   const latestAtTopRef = useLatestRef(latestAtTop);
-  // Rows that wrap anew at another width still end at the bottom, as after a send.
   const followLatestRows = useCallback(() => {
     if (latestAtTopRef.current) return;
-    const { count } = scrollToBottomRef.current;
-    scrollToBottomRef.current = { count: count + 1, smooth: false };
+    scrollToBottomRef.current = { count: scrollToBottomRef.current.count + 1, smooth: false };
   }, [latestAtTopRef, scrollToBottomRef]);
   useFooterBottomPin(scroll.scrollElement, footerProbeRef, followLatestRows);
   return {
@@ -227,7 +262,167 @@ export const useTimelineScrollSetup = ({
   };
 };
 
+export type TimelineScrollSetup = ReturnType<typeof useTimelineScrollSetup>;
+
+/** Shared ledger -> held layout -> gesture pin setup for virtualized timeline rows. */
+export const useTimelineListLedger = (
+  scroll: TimelineScrollSetup,
+  {
+    startAligned,
+    forceRender,
+    readerScrolledRef,
+    backController,
+    onThreadTakeover,
+    ...ledgerOptions
+  }: Omit<Parameters<typeof useTimelineScrollLedgerController>[0], 'getScrollElement'> & {
+    startAligned: boolean;
+    forceRender: () => void;
+    readerScrolledRef: MutableRefObject<ViewScopedFlag>;
+    backController?: ThreadBackPaginationController;
+    onThreadTakeover?: () => void;
+  }
+) => {
+  const ledger = useTimelineScrollLedgerController({
+    ...ledgerOptions,
+    getScrollElement: scroll.getScrollElement,
+  });
+  const virtualizerRef = useLatestRef(ledger.virtualizer);
+  const heldLayout = useHeldRowsLayout({
+    ledger,
+    itemCount: ledgerOptions.itemCount,
+    contentRef: scroll.contentRef,
+    latestAtTop: ledgerOptions.latestAtTop ?? false,
+    startAligned,
+    forceRender,
+  });
+  const gesturePins = useGestureBottomPins({
+    backController,
+    scrollToBottomRef: scroll.scrollToBottomRef,
+    readerScrolledRef,
+    onFirstGesture: forceRender,
+    onThreadTakeover,
+  });
+  const clearHoldOffset = useCallback(
+    () => clearVirtualizerHoldOffset(virtualizerRef.current),
+    [virtualizerRef]
+  );
+  return {
+    ledger,
+    virtualizer: ledger.virtualizer,
+    virtualizerRef,
+    heldLayout,
+    gesturePins,
+    clearHoldOffset,
+  };
+};
+
+export type TimelineListLedger = ReturnType<typeof useTimelineListLedger>;
+
+/** Shared base fields for `useRoomFocusScrollController` from viewport setup. */
+export const timelineFocusBase = (
+  env: TimelineEnvironment,
+  room: Room,
+  scroll: TimelineScrollSetup,
+  list: TimelineListLedger,
+  feature: Pick<ReturnType<typeof useTimelineMessageFeature>, 'editingEventId'>
+) => ({
+  readMeasurementCorrectionPx: list.ledger.readMeasurementCorrectionPx,
+  alive: env.alive,
+  atBottomAnchorRef: scroll.atBottomAnchorRef,
+  editId: feature.editingEventId,
+  focusScrollResetToken: room.roomId,
+  roomId: room.roomId,
+  scrollRef: scroll.scrollRef,
+  onBottomPin: list.clearHoldOffset,
+  scrollToBottomRef: scroll.scrollToBottomRef,
+  shouldApplyThreadBottomPin: list.gesturePins.shouldApplyBottomPin,
+});
+
+/** Shared base fields for `useTimelineLiveEnd` from viewport setup. */
+export const timelineLiveEndBase = (
+  mx: MatrixClient,
+  scroll: TimelineScrollSetup,
+  list: TimelineListLedger
+) => ({
+  virtualizer: list.virtualizer,
+  listHeightHeld: list.heldLayout.listHeightHeld,
+  scrollElement: scroll.scrollElement,
+  scrollToBottomRef: scroll.scrollToBottomRef,
+  onReaderGesture: list.gesturePins.onRoomGesture,
+  pendingListShrinkPx: list.heldLayout.pendingListShrinkPx,
+  contentRef: scroll.contentRef,
+  footerProbeRef: scroll.footerProbeRef,
+  liveReplies: getLiveReplyStore(mx),
+});
+
+type ReadReceiptInput = Parameters<typeof useTimelineReadReceiptController>[0];
+
+/** Shared Jump-to-Latest / reply navigation, read receipts, and live viewport bottom check. */
+export const useTimelineNavReceipts = (
+  env: TimelineEnvironment,
+  room: Room,
+  scroll: TimelineScrollSetup,
+  setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>,
+  opts: Omit<
+    ReadReceiptInput,
+    'atBottomAnchorRef' | 'getScrollElement' | 'hideActivity' | 'mx' | 'room' | 'threadEventsLength'
+  > & {
+    eventId?: string;
+    prefetchDepth?: number;
+    setTimeline?: Dispatch<SetStateAction<Timeline>>;
+    showThreadRepliesInRoom?: boolean;
+  }
+) => {
+  const {
+    handleJumpToLatest: showLatestRows,
+    handleJumpToUnread,
+    handleOpenReply,
+  } = useRoomTimelineNavigationController({
+    ...env.filters,
+    eventId: opts.eventId,
+    handleOpenEvent: opts.handleOpenEvent,
+    navigateRoom: env.navigateRoom,
+    navigateRoomThread: env.navigateRoomThread,
+    room,
+    prefetchDepth: opts.prefetchDepth,
+    scrollToBottomRef: scroll.scrollToBottomRef,
+    setAtBottom: opts.setAtBottom,
+    setTimeline: opts.setTimeline,
+    showThreadRepliesInRoom: opts.showThreadRepliesInRoom,
+    threadId: opts.threadId,
+    readUptoEventId: opts.unreadInfo?.readUptoEventId,
+  });
+  const handleJumpToLatest = useCallback(() => {
+    setFocusItem(undefined);
+    showLatestRows();
+  }, [setFocusItem, showLatestRows]);
+  const stopFlick = useFlickStop(scroll.getScrollElement);
+  const handleJumpToLatestTap = useCallback(() => {
+    stopFlick();
+    handleJumpToLatest();
+  }, [handleJumpToLatest, stopFlick]);
+  const { handleMarkAsRead } = useTimelineReadReceiptController({
+    ...opts,
+    room,
+    mx: env.mx,
+    hideActivity: env.settings.hideActivity,
+    threadEventsLength: opts.threadEvents?.length,
+    atBottomAnchorRef: scroll.atBottomAnchorRef,
+    getScrollElement: scroll.getScrollElement,
+  });
+  const isViewportAtBottomNow = useViewportAtBottomNow(scroll.scrollRef, opts.atBottomRef);
+  return {
+    handleJumpToLatest,
+    handleJumpToLatestTap,
+    handleJumpToUnread,
+    handleOpenReply,
+    handleMarkAsRead,
+    isViewportAtBottomNow,
+  };
+};
+
 export type TimelineViewportProps = {
+  env: Pick<TimelineEnvironment, 'ignoredUsersSet' | 'settings'>;
   containerStyle?: CSSProperties;
   justifyContent: 'Start' | 'End';
   latestAtTop?: boolean;
@@ -236,124 +431,122 @@ export type TimelineViewportProps = {
   contentTop?: ReactNode;
   contentBottom?: ReactNode;
   topSentinel?: ReactNode;
-  tiles: ReactNode;
-  scroll: Pick<
-    TimelineScrollSetup,
-    'scrollRef' | 'attachScroll' | 'footerProbeRef' | 'contentRef' | 'atBottomAnchorRef'
-  >;
-  virtualInnerRef: RefObject<HTMLDivElement | null>;
-  listHeight: number;
-  heldEndSpacer: number;
+  scroll: TimelineScrollSetup;
+  list: TimelineListLedger;
   hideRows?: boolean;
   threadCount?: number;
   virtualInnerTestId?: string;
   threadConversationCost?: ComponentProps<typeof ThreadConversationCostProvider>['value'];
   getImageSlides: () => readonly ImageSlide[];
-  wrapExpansion: (node: ReactNode) => ReactNode;
+  feature: Pick<
+    ReturnType<typeof useTimelineMessageFeature>,
+    | 'renderEvent'
+    | 'isQuietMarkerRow'
+    | 'joinsQuietMarkerRun'
+    | 'wrapExpansion'
+    | 'forkToRoomDialog'
+  >;
   secretRequestPlan?: InlineSecretRequestPlan;
   minimap?: ReturnType<typeof useRoomTimelineMinimap>;
   atBottom: boolean;
   onJumpToLatest: () => void;
-  forkToRoomDialog?: ReactNode;
+  tiles: Omit<
+    Parameters<typeof renderTimelineTiles>[0],
+    | 'virtualItems'
+    | 'ignoredUsersSet'
+    | 'showHiddenEvents'
+    | 'renderEvent'
+    | 'isQuietMarkerRow'
+    | 'joinsQuietMarkerRun'
+    | 'measureElement'
+    | 'messageData'
+  > & {
+    messageData: Pick<
+      TimelineMessageData,
+      'approvalTimeline' | 'voiceTranscripts' | 'handleOpenReply'
+    > &
+      Partial<TimelineMessageData>;
+  };
 };
 
-export function TimelineViewport({
-  containerStyle,
-  justifyContent,
-  latestAtTop = false,
-  filterBar,
-  unreadActions,
-  contentTop,
-  contentBottom,
-  topSentinel,
-  tiles,
-  scroll,
-  virtualInnerRef,
-  listHeight,
-  heldEndSpacer,
-  hideRows = false,
-  threadCount,
-  virtualInnerTestId,
-  threadConversationCost,
-  getImageSlides,
-  wrapExpansion,
-  secretRequestPlan = NO_INLINE_SECRET_REQUESTS,
-  minimap,
-  atBottom,
-  onJumpToLatest,
-  forkToRoomDialog,
-}: TimelineViewportProps) {
+export function TimelineViewport(p: TimelineViewportProps) {
   const { t } = useTranslation();
-  // Marks the rows' latest end for Jump to Latest and the read receipts.
+  const { env, scroll, list, feature, minimap, latestAtTop = false } = p;
   const latestEndAnchor = (
     <span ref={scroll.atBottomAnchorRef} style={{ display: 'block', height: 0 }} />
   );
+  const tiles = renderTimelineTiles({
+    ...p.tiles,
+    messageData: { ...EMPTY_MESSAGE_DATA, ...p.tiles.messageData },
+    virtualItems: list.heldLayout.virtualItems,
+    ignoredUsersSet: env.ignoredUsersSet,
+    showHiddenEvents: env.settings.showHiddenEvents,
+    renderEvent: feature.renderEvent,
+    isQuietMarkerRow: feature.isQuietMarkerRow,
+    joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
+    measureElement: list.ledger.measureElement,
+  });
 
   return (
-    <Box grow="Yes" direction="Column" style={containerStyle}>
+    <Box grow="Yes" direction="Column" style={p.containerStyle}>
       <div ref={scroll.footerProbeRef} aria-hidden style={footerProbeStyle} />
-      {filterBar}
-      {unreadActions}
+      {p.filterBar}
+      {p.unreadActions}
       <Scroll ref={scroll.attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
         {latestAtTop && latestEndAnchor}
         <Box
           ref={scroll.contentRef}
           direction="Column"
-          justifyContent={justifyContent}
+          justifyContent={p.justifyContent}
           style={{
             minHeight: '100%',
             paddingTop: overlay.topInset,
             paddingBottom: `calc(${overlay.footerInset} + ${config.space.S400})`,
           }}
         >
-          {contentTop}
-          <ThreadConversationCostProvider value={threadConversationCost}>
-            <ImageSlidesContext.Provider value={getImageSlides}>
-              {wrapExpansion(
+          {p.contentTop}
+          <ThreadConversationCostProvider value={p.threadConversationCost}>
+            <ImageSlidesContext.Provider value={p.getImageSlides}>
+              {feature.wrapExpansion(
                 <div
-                  ref={virtualInnerRef}
+                  ref={list.ledger.virtualInnerRef}
                   // This timeline's rows, for a row that looks for another (SecretRequestCard.tsx).
                   data-timeline-rows=""
-                  data-thread-count={threadCount}
-                  data-testid={virtualInnerTestId}
+                  data-thread-count={p.threadCount}
+                  data-testid={p.virtualInnerTestId}
                   style={{
                     ...overlay.overviewInsetStop,
                     position: 'relative',
-                    height: listHeight,
-                    visibility: hideRows ? 'hidden' : undefined,
+                    height: list.heldLayout.listHeight,
+                    visibility: p.hideRows ? 'hidden' : undefined,
                   }}
                 >
-                  {topSentinel}
-                  <InlineSecretRequestsContext.Provider value={secretRequestPlan}>
+                  {p.topSentinel}
+                  <InlineSecretRequestsContext.Provider
+                    value={p.secretRequestPlan ?? NO_INLINE_SECRET_REQUESTS}
+                  >
                     {tiles}
                   </InlineSecretRequestsContext.Provider>
                 </div>
               )}
             </ImageSlidesContext.Provider>
           </ThreadConversationCostProvider>
-          {contentBottom}
+          {p.contentBottom}
         </Box>
-        {heldEndSpacer > 0 && (
+        {list.heldLayout.heldEndSpacer > 0 && (
           <div
             aria-hidden
             data-held-end-spacer=""
-            style={{ height: heldEndSpacer, flexShrink: 0 }}
+            style={{ height: list.heldLayout.heldEndSpacer, flexShrink: 0 }}
           />
         )}
-        {/* After the content's padding, so "at the bottom" means the end of the scroll range,
-            not the last row, which sits a composer's height higher, behind the footer. */}
         {!latestAtTop && latestEndAnchor}
-        {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
-            placed by the timeline box, so it stays between the header and the composer. */}
         <InsetScrollbar
           scrollRef={scroll.scrollRef}
           contentRef={scroll.contentRef}
           className={overlay.Scrollbar}
           label={t('threadNav.messages')}
         />
-        {/* Sits inside Scroll alongside InsetScrollbar for reader-gesture bubbling, while
-            forwarding vertical wheel events to scrollRef because its containing block is the
-            positioned timeline box outside Scroll. */}
         {minimap && minimap.minimapItems.length > 0 && (
           <TimelineMinimap
             items={minimap.minimapItems}
@@ -364,8 +557,8 @@ export function TimelineViewport({
           />
         )}
       </Scroll>
-      {!atBottom && <JumpToLatestAction onSelect={onJumpToLatest} up={latestAtTop} />}
-      {forkToRoomDialog}
+      {!p.atBottom && <JumpToLatestAction onSelect={p.onJumpToLatest} up={latestAtTop} />}
+      {feature.forkToRoomDialog}
     </Box>
   );
 }

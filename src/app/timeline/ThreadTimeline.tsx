@@ -1,18 +1,10 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useAlive } from '../lib/hooks/useAlive';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
-import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { MessageLayout } from '../preferences/settings';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
-import { scheduleReconcile, useSyncEngine } from '../event-store/engine';
-import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
-import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { scheduleReconcile } from '../event-store/engine';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
-import type { TimelineMessageData } from './message-rendering/types';
 import { useRoomLiveRenderController } from './roomLiveRenderController';
 import {
   useRoomFocusScrollController,
@@ -22,15 +14,9 @@ import {
   useRoomEventOpenController,
   useRoomEventRouteOpenController,
 } from './roomEventOpenController';
-import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
-import { useTimelineReadReceiptController } from './timelineReadReceiptController';
-import {
-  clearVirtualizerHoldOffset,
-  useTimelineScrollLedgerController,
-} from './timelineScrollLedgerController';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
-import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
@@ -40,7 +26,6 @@ import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
   ThreadOpenRuntime,
-  ThreadOpenViewportPort,
   ThreadRenderPort,
   ThreadRoute,
   ThreadSeedOpenPort,
@@ -61,100 +46,51 @@ import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPl
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useReplyCardPlan } from './replyCards';
 import { useModelChangePlan } from '../messages/modelChanges';
-import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import { useDrawnSecretRequestIds } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
-import { useHeldRowsLayout, useTimelineLiveEnd } from './timelineLiveEnd';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
-import type { ThreadRecord } from '../event-store/threads/types';
 import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { indexThreadBackgroundJobs } from '../matrix/protocol/threadBackgroundJobs';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import {
-  useFlickStop,
-  useGestureBottomPins,
-  useThreadOpenedAtLatest,
-  useThreadRowJumps,
-  useViewportAtBottomNow,
-} from './roomTimelineScroll';
+import { useThreadOpenedAtLatest, useTimelineRowJumps } from './roomTimelineScroll';
 import { useThreadAutoPaginateBack } from './roomTimelinePaginationWindow';
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
 import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
-import { isTimelineRowHidden, renderTimelineTiles, timelineRowSizing } from './roomTimelineRows';
+import { isTimelineRowHidden, timelineRowSizing } from './roomTimelineRows';
 import { useThreadLoadOlderMessages } from './roomTimelineWindowController';
 import { ThreadLoadOlderLine, ThreadLoadingLines, threadViewStyle } from './RoomTimelineOverlays';
 import {
   TimelineViewport,
-  useTimelineDisplaySettings,
+  roomExpectsVoiceAnswer,
+  timelineFocusBase,
+  timelineLiveEndBase,
+  useTimelineEnvironment,
   useTimelineImageSlides,
+  useTimelineListLedger,
+  useTimelineNavReceipts,
   useTimelineScrollSetup,
   useTrustedRoomAccounts,
 } from './TimelineViewport';
 import type { RoomTimelineProps } from './RoomTimeline';
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
-const EMPTY_THREAD_RECORD_MAP: ReadonlyMap<string, ThreadRecord> = new Map();
-const EMPTY_SUMMARY_INFO_MAP = new Map<string, ThreadSummaryInfo>();
 const NOOP_SEED_PORT: ThreadSeedOpenPort = { waitForExistingOrQueued: () => undefined };
-const NOOP = () => undefined;
 
-export type ThreadTimelineProps = Omit<RoomTimelineProps, 'threadId'> & {
-  threadId: string;
-};
-
-export function ThreadTimeline(props: ThreadTimelineProps) {
-  const {
-    room,
-    eventId,
-    threadId,
-    focusEventInRoom,
-    entryReturned,
-    summaryMap,
-    onStoreThreadSummary,
-    viewMode,
-    editor,
-    onThreadLoadError,
-    threadHeader,
-    threadHeaderGapAbove = false,
-    forkAt,
-    forkTargetRoom,
-  } = props;
+export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { threadId: string }) {
+  const { room, eventId, threadId, summaryMap, onStoreThreadSummary, viewMode, forkAt } = props;
   const crossRoomForkTarget =
-    forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
-  const forkTargetRoomName = crossRoomForkTarget
-    ? crossRoomForkTarget.name || crossRoomForkTarget.roomId
-    : undefined;
-  const mx = useMatrixClient();
-  const alive = useAlive();
-  const engine = useSyncEngine();
-  const { sessionId } = engine;
-  const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const { navigateRoomThread } = useRoomNavigate();
-  const ignoredUsers = useIgnoredUsers();
-  const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
-  const {
-    hideActivity,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    messageLayout,
-    messageSpacing,
-    showHiddenEvents,
-  } = useTimelineDisplaySettings();
-  const compactLayout = messageLayout === MessageLayout.Compact;
+    props.forkTargetRoom?.roomId !== room.roomId ? props.forkTargetRoom : undefined;
+  const env = useTimelineEnvironment();
+  const { mx, alive, engine, sessionId, phone, navigateRoomThread, ignoredUsersSet, settings } =
+    env;
   const viewKey = `${room.roomId}|${threadId}`;
   const threadIdRef = useLatestRef<string | undefined>(threadId);
-  const [, forceRender] = useReducer((value: number) => value + 1, 0);
+  const [, forceRender] = useReducer((v: number) => v + 1, 0);
+  const { threadDebugTraceId } = useTimelineDebugTraceIds({ eventId, room, threadId });
 
-  const { threadDebugTraceId } = useTimelineDebugTraceIds({
-    eventId,
-    room,
-    threadId,
-  });
-
-  // Thread session: its state comes first, so viewport consumers read it this render.
   const route = useMemo<ThreadRoute>(
     () => ({ roomId: room.roomId, threadId, eventId }),
     [room.roomId, threadId, eventId]
@@ -173,12 +109,9 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem>();
   const focusEventId = focusItem?.eventId;
 
-  // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
   const cachedThreadRoot = useCachedThreadRoot(room, threadId, liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
-
-  // Thread rows.
   const threadState = useThreadTimelineState({
     room,
     threadId,
@@ -199,17 +132,12 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     threadInitialRenderMode,
   } = threadState;
   const ownThreadEventsRef = useLatestRef(ownThreadEvents);
-  // A fork draft shows its thread up to the fork point, its last row.
   const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
   const shownForkPoint = forkPoint?.getId();
-  // A fork's parent messages, and in a fork draft every row, also before or without its fork
-  // point: what the fork will show of its parent, read-only as it will show it.
   const forkPrefixEventIds = useMemo(
-    () =>
-      new Set((forkAt ? threadEvents : forkPrefix.events).flatMap((event) => event.getId() ?? [])),
+    () => new Set((forkAt ? threadEvents : forkPrefix.events).flatMap((e) => e.getId() ?? [])),
     [forkAt, forkPrefix.events, threadEvents]
   );
-  // A draft's reader reads its thread up to the fork point; what follows is out of sight.
   const readThreadEvents = useMemo(
     () =>
       forkPoint
@@ -218,26 +146,17 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     [forkPoint, ownThreadEvents]
   );
   const threadEventIndexMap = threadState.threadEventIndexMap ?? threadEventIndexMapRef.current;
-  const threadTailLoaded = session.snapshot.history.tailLoaded;
-  const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
+  const { tailLoaded: threadTailLoaded, hasMoreCachedBack: threadHasMoreCachedBack } =
+    session.snapshot.history;
 
   // Scroll setup installs useFooterBottomPin BEFORE useTimelineScrollLedgerController.
   const scroll = useTimelineScrollSetup();
-  const {
-    scrollRef,
-    scrollElement,
-    getScrollElement,
-    footerProbeRef,
-    contentRef,
-    atBottomAnchorRef,
-    scrollToBottomRef,
-  } = scroll;
+  const { scrollRef, scrollElement, getScrollElement, scrollToBottomRef } = scroll;
   const prependViewport = useThreadPrependViewport({
     controller: backController,
     scrollRef,
     onBegin: onPrependBegin,
   });
-
   const showThreadLoadOlder = useThreadLoadOlderMessages({
     canPaginateThreadBack: threadState.canPaginateThreadBack,
     lastThreadBackwardPaginationToken: threadState.threadBackwardPaginationToken,
@@ -248,78 +167,66 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
   const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
 
-  // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
   const openAtLatest = useThreadOpenedAtLatest(viewKey, session.snapshot.open.latestPending);
   const { startOpen: startOpenAtLatest, pinnedAtLatest } = openAtLatest;
   const renderPort = useMemo<ThreadRenderPort>(
     () => ({
-      reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
-      append: (targetThreadId, events) =>
-        threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
-      getEvents: (targetThreadId) => threadStateRef.current.getThreadRenderEvents(targetThreadId),
+      reset: (id) => threadStateRef.current.resetThreadRenderState(id),
+      append: (id, events) => threadStateRef.current.setSupplementalThreadEvents(id, events),
+      getEvents: (id) => threadStateRef.current.getThreadRenderEvents(id),
       invalidateTimeline: forceRender,
     }),
     [threadStateRef]
-  );
-  const viewportPort = useMemo<ThreadOpenViewportPort>(
-    () => ({
-      resetForOpen: () => {
-        backController.reset();
-        startOpenAtLatest();
-      },
-      resetAfterLeave: () => backController.reset(),
-      // Queued: the next commit applies it, unless the reader scrolls first. From then on the
-      // opening pin holds the newest row while the rows measure.
-      requestLatestPin: () => {
-        if (backController.requestOpenBottomPin(scrollToBottomRef)) pinnedAtLatest();
-      },
-    }),
-    [backController, pinnedAtLatest, scrollToBottomRef, startOpenAtLatest]
   );
   const beginThreadCacheWrite = useCallback(
     () => engine.persist.forRoom(room).persistThreadEventCache,
     [engine, room]
   );
   const threadDebugTraceIdRef = useLatestRef(threadDebugTraceId);
-  const reconcile = useCallback<ThreadOpenRuntime['reconcile']>(
-    (args) =>
-      scheduleReconcile({
-        ...args,
-        mx,
-        sessionId,
-        scheduler: engine.scheduler,
-        debugTraceId: threadDebugTraceIdRef.current,
-      }),
-    [engine, mx, sessionId, threadDebugTraceIdRef]
-  );
-  const onThreadLoadErrorRef = useLatestRef(onThreadLoadError);
-  const reportThreadLoadError = useCallback(
-    (failedThreadId: string) => onThreadLoadErrorRef.current?.(failedThreadId),
-    [onThreadLoadErrorRef]
-  );
+  const onThreadLoadErrorRef = useLatestRef(props.onThreadLoadError);
   const runtime = useMemo<ThreadOpenRuntime>(
     () => ({
       room,
       mx,
       sessionId,
       beginCacheWrite: beginThreadCacheWrite,
-      reconcile,
+      reconcile: (args) =>
+        scheduleReconcile({
+          ...args,
+          mx,
+          sessionId,
+          scheduler: engine.scheduler,
+          debugTraceId: threadDebugTraceIdRef.current,
+        }),
       seed: NOOP_SEED_PORT,
       render: renderPort,
-      viewport: viewportPort,
+      viewport: {
+        resetForOpen: () => {
+          backController.reset();
+          startOpenAtLatest();
+        },
+        resetAfterLeave: () => backController.reset(),
+        requestLatestPin: () => {
+          if (backController.requestOpenBottomPin(scrollToBottomRef)) pinnedAtLatest();
+        },
+      },
       debugTraceId: threadDebugTraceId,
-      onThreadLoadError: reportThreadLoadError,
+      onThreadLoadError: (id) => onThreadLoadErrorRef.current?.(id),
     }),
     [
+      backController,
       beginThreadCacheWrite,
+      engine.scheduler,
       mx,
-      reconcile,
+      onThreadLoadErrorRef,
+      pinnedAtLatest,
       renderPort,
-      reportThreadLoadError,
       room,
+      scrollToBottomRef,
       sessionId,
+      startOpenAtLatest,
       threadDebugTraceId,
-      viewportPort,
+      threadDebugTraceIdRef,
     ]
   );
   useThreadOpenLifecycleController({ route, commands: session.commands, runtime });
@@ -334,25 +241,20 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     viewport: prependViewport,
   });
 
-  // A thread opened at its latest row stays pinned there until the reader scrolls. Whether the
-  // reader scrolled belongs to the open view; the render that switches views starts it over.
   const readerScrolledRef = useViewScopedFlag(viewKey);
-  const threadLatestOpenPending = openAtLatest.latestOpenPending;
-  const threadOpenedAtLatest = openAtLatest.openedAtLatest;
   const threadUserScrolled = readerScrolledRef.current.value;
 
   const feature = useTimelineMessageFeature({
     room,
     forkTargetRoom: crossRoomForkTarget,
-    editor,
+    editor: props.editor,
     threadId,
     scrollRef,
     showThreadRepliesInRoom: false,
-    messageLayout,
-    messageSpacing,
-    hideActivity,
+    messageLayout: settings.messageLayout,
+    messageSpacing: settings.messageSpacing,
+    hideActivity: settings.hideActivity,
   });
-
   const getRowContent = useCallback(
     (event: MatrixEvent) =>
       getLatestMessageContent(
@@ -361,8 +263,6 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       ) as Record<string, unknown>,
     [threadStateRef]
   );
-  // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
-  // rows show them; one the route or a jump opened stays visible after the route moves on.
   const threadRowHidden = useMessageRowHidden(mx.getUserId() ?? undefined);
   const pluginRevealedRef = useRef(new Set<string>());
   const isHiddenByPlugin = useMemo(() => {
@@ -372,25 +272,20 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     return (event: MatrixEvent) =>
       isPluginHiddenRow(event, getRowContent, threadRowHidden, revealed);
   }, [eventId, focusEventId, getRowContent, threadRowHidden]);
-  // Looked up among the thread's rows, the cache's too before the SDK has them: no row quotes a
-  // hidden one.
-  const threadEventMap = threadState.threadEventMap;
   const isHiddenByPluginId = useCallback(
     (id: string) => {
-      const event = threadRowHidden ? threadEventMap?.get(id) : undefined;
+      const event = threadRowHidden ? threadState.threadEventMap?.get(id) : undefined;
       return !!event && isHiddenByPlugin(event);
     },
-    [threadRowHidden, threadEventMap, isHiddenByPlugin]
+    [threadRowHidden, threadState.threadEventMap, isHiddenByPlugin]
   );
-  // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
   const pluginHiddenThreadIds = useMemo(
     () =>
       threadRowHidden
-        ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
+        ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((e) => e.getId() ?? []))
         : EMPTY_IDS,
     [threadRowHidden, threadEvents, isHiddenByPlugin]
   );
-  // Rows read edits from the open thread's set.
   const rowTimelineSet = threadState.threadTimelineSet || room.getUnfilteredTimelineSet();
   const getImageSlides = useTimelineImageSlides({
     mx,
@@ -401,18 +296,18 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     isHiddenByPlugin,
     ignoredUsersSet,
   });
-  // What each agent reply of the open thread and the thread so far cost, for Reply details.
+  const threadHistory = {
+    sdkLoaded: session.snapshot.open.sdkReady,
+    canPaginateBack: threadState.canPaginateThreadBack,
+    hasMoreCachedBack: threadHasMoreCachedBack,
+  };
+  const { trustedAccountIds, viewerId } = useTrustedRoomAccounts(room, ignoredUsersSet);
   const threadConversationCost = useThreadConversationCostSummary(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
+    history: threadHistory,
     getContent: getRowContent,
     ignoredUserIds: ignoredUsersSet,
-    viewerId: mx.getUserId() ?? undefined,
+    viewerId,
   });
-  // The parent's approvals keep their cards in a fork's prefix: the fork's plan leaves them be.
   const approvalTimeline = useThreadApprovalTimeline(
     ownThreadEvents,
     ignoredUsersSet,
@@ -420,14 +315,12 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     eventId,
     focusEventId
   );
-  // Secret request cards the open thread's replies may draw at their tool calls. A card's row
-  // hides while its line is mounted in a reply and at no other time, so the two never disagree.
   const secretRequestPlan = useInlineSecretRequestPlan({
     room,
     events: ownThreadEvents,
     getContent: getRowContent,
     ignored: ignoredUsersSet,
-    viewerId: mx.getUserId() ?? undefined,
+    viewerId,
     threadId,
     routeId: eventId,
     focusId: focusEventId,
@@ -437,8 +330,6 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
-  const { trustedAccountIds, viewerId } = useTrustedRoomAccounts(room, ignoredUsersSet);
-  // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadEvents,
     getContent: getRowContent,
@@ -446,10 +337,7 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    expectsAnswer: () =>
-      room
-        .getJoinedMembers()
-        .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
+    expectsAnswer: () => roomExpectsVoiceAnswer(room, viewerId, trustedAccountIds),
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (
@@ -458,19 +346,14 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       );
     },
   });
-  // The open thread's model changes these accounts applied: one line each at its reply, the
-  // command's row hidden.
-  const { forksByPoint } = feature;
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
     trustedAccountIds,
     ignored: ignoredUsersSet,
     keeps: (id) =>
-      pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),
+      pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || feature.forksByPoint.has(id),
   });
-  // What the open thread's agent replies left behind (a canvas, a reminder), cards under them; not
-  // under a model change's line, which draws none.
   const replyCards = useReplyCardPlan(room, {
     threadId,
     events: ownThreadEvents,
@@ -483,7 +366,7 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       isTimelineRowHidden(event, {
         messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
         ignoredUsersSet,
-        showHiddenEvents,
+        showHiddenEvents: settings.showHiddenEvents,
         isHiddenByPlugin,
       }),
     [
@@ -492,26 +375,20 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       replyCards,
       modelChanges,
       ignoredUsersSet,
-      showHiddenEvents,
+      settings.showHiddenEvents,
       isHiddenByPlugin,
     ]
   );
-  // Cards eligible to move into a reply do not split titles. Read the plan, not the mounted
-  // lines: which replies mount depends on the folds.
   const isTitleRowHidden = useMemo(() => {
     const inlineCardIds = new Set<string>();
     secretRequestPlan.byReply.forEach((calls) =>
-      calls.forEach(({ eventId: cardId }) => inlineCardIds.add(cardId))
+      calls.forEach((c) => inlineCardIds.add(c.eventId))
     );
     return (event: MatrixEvent) =>
       isHiddenBeforeFolding(event) || inlineCardIds.has(event.getId() ?? '');
   }, [isHiddenBeforeFolding, secretRequestPlan.byReply]);
   const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
+    history: threadHistory,
     getContent: getRowContent,
     isHidden: isTitleRowHidden,
     rowRepaintRevision: feature.rowRepaintRevision,
@@ -528,8 +405,6 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       ),
     [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
   );
-  // Secret request cards still count as rows of their turns: folding a reply can unmount its
-  // inline line and give the card its own row again.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
       threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),
@@ -537,7 +412,6 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
   const turnPinnedIds = useMemo(() => {
-    // The plugin rule's revealed rows, which its memo adds the route's and the jump's to.
     void isHiddenByPlugin;
     const ids = new Set(pluginRevealedRef.current);
     if (forkStartId) ids.add(forkStartId);
@@ -571,29 +445,23 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   });
   const atLiveEndRef = useLatestRef(timelineAtLiveEnd);
   const itemCount = threadEvents.length + threadLeadingOffset;
-  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break, also when it is a secret
-  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
   const threadHiddenIds = useMemo(() => {
-    if (
-      pluginHiddenThreadIds.size === 0 &&
-      secretRequestTimeline.hiddenEventIds.size === 0 &&
-      voiceTranscripts.hiddenEventIds.size === 0 &&
-      replyCards.hiddenEventIds.size === 0 &&
-      modelChanges.hiddenEventIds.size === 0 &&
-      turnFolds.view.hiddenIds.size === 0
-    ) {
+    const extra = [
+      voiceTranscripts.hiddenEventIds,
+      replyCards.hiddenEventIds,
+      modelChanges.hiddenEventIds,
+      pluginHiddenThreadIds,
+      turnFolds.view.hiddenIds,
+    ];
+    if (secretRequestTimeline.hiddenEventIds.size === 0 && extra.every((s) => s.size === 0)) {
       return approvalTimeline.hiddenEventIds;
     }
-    return new Set([
-      ...approvalTimeline.hiddenEventIds,
-      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
-      ...voiceTranscripts.hiddenEventIds,
-      ...replyCards.hiddenEventIds,
-      ...modelChanges.hiddenEventIds,
-      ...pluginHiddenThreadIds,
-      ...turnFolds.view.hiddenIds,
-    ]);
+    const ids = new Set(approvalTimeline.hiddenEventIds);
+    secretRequestTimeline.hiddenEventIds.forEach((id) => {
+      if (!turnFolds.view.breaks.has(id)) ids.add(id);
+    });
+    extra.forEach((set) => set.forEach((id) => ids.add(id)));
+    return ids;
   }, [
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
@@ -605,20 +473,16 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   ]);
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
-    compactLayout,
+    compactLayout: env.compactLayout,
     threadEvents,
     hasThreadLoadOlder: showThreadLoadOlder,
     turnFolds: turnFolds.view,
     hiddenIds: threadHiddenIds,
-    // Fixed per form factor so splitter drags do not re-estimate unmeasured rows above the reader.
     columnWidth: phone ? undefined : 960,
   });
-  const threadLoadError = session.snapshot.open.loadError;
-  const threadLoading = threadEvents.length === 0 && threadInitialRenderMode === 'loading';
-  const ledger = useTimelineScrollLedgerController({
+  const list = useTimelineListLedger(scroll, {
     estimateSize,
     getItemKey,
-    getScrollElement,
     itemCount,
     latestAtTop: false,
     roomId: room.roomId,
@@ -626,19 +490,14 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     pinThreadLeadingItem: showThreadLoadOlder,
     anchorSkipLeading: threadLeadingOffset + (threadEvents[0]?.getId() === threadId ? 1 : 0),
     canLoadOlder: showThreadLoadOlder,
+    startAligned: true,
+    forceRender,
+    readerScrolledRef,
+    backController,
+    onThreadTakeover: onPrependBegin,
   });
-  const { virtualizer } = ledger;
-  const virtualizerRef = useLatestRef(virtualizer);
+  const { ledger, virtualizer, virtualizerRef, clearHoldOffset, gesturePins } = list;
   cancelThreadScrollRef.current = () => virtualizerRef.current.cancelScroll();
-  const { virtualItems, listHeight, listHeightHeld, heldEndSpacer, pendingListShrinkPx } =
-    useHeldRowsLayout({
-      ledger,
-      itemCount,
-      contentRef,
-      latestAtTop: false,
-      startAligned: true,
-      forceRender,
-    });
   useThreadApprovalRowMeasurements(
     virtualizer,
     threadEvents,
@@ -654,7 +513,7 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     threadLeadingOffset
   );
 
-  const { scrollToElement, scrollThreadEventIntoView } = useThreadRowJumps({
+  const { scrollToElement, scrollThreadEventIntoView } = useTimelineRowJumps({
     getScrollElement,
     virtualizerRef,
     threadEventIndexMapRef,
@@ -668,17 +527,6 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     () => backController.requestOpenBottomPin(scrollToBottomRef),
     [backController, scrollToBottomRef]
   );
-  const gesturePins = useGestureBottomPins({
-    backController,
-    scrollToBottomRef,
-    readerScrolledRef,
-    onFirstGesture: forceRender,
-    onThreadTakeover: onPrependBegin,
-  });
-  const clearHoldOffset = useCallback(
-    () => clearVirtualizerHoldOffset(virtualizerRef.current),
-    [virtualizerRef]
-  );
   const scrollThreadToEnd = useCallback(
     (smooth = false) => {
       clearHoldOffset();
@@ -688,13 +536,11 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
   );
 
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
+    ...env.filters,
     alive,
     cancelThreadBottomSettle,
     effectiveViewMode: viewMode,
-    focusEventInRoom,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
+    focusEventInRoom: props.focusEventInRoom,
     mx,
     navigateRoomThread,
     threadTargets: session.targets,
@@ -706,56 +552,43 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     setFocusItem,
     notifyThreadEventsChanged: session.commands.notifyEventsChanged,
     setTimeline: forceRender,
-    showHiddenEvents,
     threadEventIndexMapRef,
     threadId,
   });
   useRoomEventRouteOpenController({
     effectiveViewMode: viewMode,
-    entryReturned,
+    entryReturned: props.entryReturned,
     eventId,
-    focusEventInRoom,
+    focusEventInRoom: props.focusEventInRoom,
     openRoomEventRoute,
     roomId: room.roomId,
     roomOverviewOrderActive: false,
     threadId,
   });
-
   useRoomFocusScrollController({
-    readMeasurementCorrectionPx: ledger.readMeasurementCorrectionPx,
+    ...timelineFocusBase(env, room, scroll, list, feature),
     cancelThreadBottomSettle,
-    alive,
-    atBottomAnchorRef,
-    editId: feature.editingEventId,
     focusItem,
-    focusScrollResetToken: room.roomId,
     threadTargets: session.targets,
     pendingThreadOpenTick: session.snapshot.targetRevision,
-    roomId: room.roomId,
-    scrollRef,
-    onBottomPin: clearHoldOffset,
     scrollThreadToEnd,
     scrollThreadEventIntoView,
-    scrollToBottomRef,
     scrollToElement,
     setAtBottom,
     setFocusItem,
     isThreadOpenBottomPinSuppressed: backController.isOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
     cancelThreadOpenBottomPin: gesturePins.onThreadGesture,
-    shouldApplyThreadBottomPin: gesturePins.shouldApplyBottomPin,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadId,
     threadInitialRenderMode,
-    threadLatestOpenPending,
-    threadOpenedAtLatest,
+    threadLatestOpenPending: openAtLatest.latestOpenPending,
+    threadOpenedAtLatest: openAtLatest.openedAtLatest,
     threadUserScrolled,
     threadTimelineTick: session.snapshot.timelineRevision,
     timelineAtLiveEnd,
   });
-  // After the pins above: a thread opening at its newest reply shows its rows once they rest there
-  // (a local echo root, a thread still being created, has no open to wait for).
   const hideOpeningThreadRows = useThreadOpeningReveal({
     viewKey,
     opensAtLatest: !eventId && !isLocalEchoEventId(threadId),
@@ -766,61 +599,34 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
   });
 
-  const { handleJumpToLatest: showLatestRows, handleOpenReply } =
-    useRoomTimelineNavigationController({
-      // A fork draft's address names its fork point, its last row: dropping it would end the draft.
+  const { handleJumpToLatestTap, handleOpenReply, isViewportAtBottomNow } = useTimelineNavReceipts(
+    env,
+    room,
+    scroll,
+    setFocusItem,
+    {
       eventId: forkAt ? undefined : eventId,
+      atBottom,
+      atBottomRef,
+      atLiveEndRef,
       handleOpenEvent,
-      navigateRoomThread,
-      room,
-      scrollToBottomRef,
+      readsMainTimeline: true,
       setAtBottom,
       threadId,
-    });
-  const handleJumpToLatest = useCallback(() => {
-    setFocusItem(undefined);
-    showLatestRows();
-  }, [showLatestRows]);
-  const stopFlick = useFlickStop(getScrollElement);
-  const handleJumpToLatestTap = useCallback(() => {
-    stopFlick();
-    handleJumpToLatest();
-  }, [handleJumpToLatest, stopFlick]);
+      threadInitialRenderMode,
+      threadEvents: readThreadEvents,
+      threadTailLoaded,
+      timelineAtLiveEnd,
+    }
+  );
 
-  useTimelineReadReceiptController({
-    atBottom,
-    atBottomAnchorRef,
-    atBottomRef,
-    atLiveEndRef,
-    getScrollElement,
-    handleOpenEvent,
-    hideActivity,
-    mx,
-    readsMainTimeline: true,
-    room,
-    setAtBottom,
-    threadEventsLength: readThreadEvents.length,
-    threadId,
-    threadInitialRenderMode,
-    threadEvents: readThreadEvents,
-    threadTailLoaded,
-    timelineAtLiveEnd,
-  });
-
-  const isViewportAtBottomNow = useViewportAtBottomNow(scrollRef, atBottomRef);
   const { refreshLatest, notifyEventsChanged, readEditResetEpoch, observeLiveTail } =
     session.commands;
   const refreshLatestThreadSlice = useCallback(
-    (refreshThreadId: string) => refreshLatest(refreshThreadId, runtime),
+    (id: string) => refreshLatest(id, runtime),
     [refreshLatest, runtime]
   );
-  useThreadAwareTimelineRefresh({
-    room,
-    threadId,
-    liveTimelineLinked: true,
-    refreshLatestThreadSlice,
-    onRoomRefresh: NOOP,
-  });
+  useThreadAwareTimelineRefresh({ room, threadId, refreshLatestThreadSlice });
   const getLoadedThreadEvents = useCallback(() => ownThreadEventsRef.current, [ownThreadEventsRef]);
   useThreadGapRecovery({
     engine,
@@ -853,19 +659,14 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     thread: threadState.thread,
     threadEvents: ownThreadEvents,
     threadId,
-    threadSummaryInfoMap: EMPTY_SUMMARY_INFO_MAP,
   });
-
-  // Live rows. This registers the room's last timeline listener, after every other one.
-  // Passing forceRender as setTimeline ensures local-echo transitions trigger a re-render.
+  // Live rows. Passing forceRender as setTimeline ensures local-echo transitions trigger repaint.
   useRoomLiveRenderController({
+    ...env.filters,
     atBottomRef,
     atLiveEndRef,
-    hideActivity,
+    hideActivity: settings.hideActivity,
     readsMainTimeline: true,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
     markLiveExpansionCandidate: feature.markLiveExpansionCandidate,
     mx,
     onStoreThreadSummary,
@@ -876,13 +677,11 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     observeLiveTail,
     notifyThreadEventsChanged: notifyEventsChanged,
     setTimeline: forceRender,
-    showHiddenEvents,
     threadEventIndexMapRef,
     threadId,
     timelineAtLiveEnd,
   });
 
-  // Scrolling near the top of a thread's loaded rows asks for older ones.
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
@@ -894,70 +693,45 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
     leadingOffset: threadLeadingOffset,
     paginateBack: threadPagination.paginateBack,
   });
-
-  const minimap = useRoomTimelineMinimap({
-    threadEvents,
-    scrollRef,
-    handleOpenEvent,
-  });
-
+  const minimap = useRoomTimelineMinimap({ threadEvents, scrollRef, handleOpenEvent });
   const { paginateBack: paginateThreadBack } = threadPagination;
-  const handleLoadOlderThread = useCallback(() => {
-    void paginateThreadBack();
-  }, [paginateThreadBack]);
+  const handleLoadOlderThread = useCallback(() => void paginateThreadBack(), [paginateThreadBack]);
 
-  // After every other timeline observer so its passive ResizeObserver runs last.
   useTimelineLiveEnd({
+    ...timelineLiveEndBase(mx, scroll, list),
+    roomId: room.roomId,
     surface: threadUserScrolled ? 'thread' : undefined,
     itemCount,
-    virtualizer,
-    listHeightHeld,
     opensAtLatest: !eventId,
     latestAtTop: false,
-    roomId: room.roomId,
-    scrollElement,
-    scrollToBottomRef,
     committedView: `${viewKey}|${viewMode}`,
     focusItem,
-    onReaderGesture: gesturePins.onRoomGesture,
-    pendingListShrinkPx,
-    contentRef,
-    footerProbeRef,
     isViewportAtBottomNow,
     atLiveEndRef,
-    liveReplies: getLiveReplyStore(mx),
   });
 
-  // The fork's divider sits over its first row of its own, after the parent's messages.
-  // For cross-room forks, show the divider even when the prefix is empty (e.g. unjoined parent
-  // room) so the reader still sees "Forked from another room" above the fork root.
   const { parent: forkParent } = forkPrefix;
   const ownStartIndex = threadEventIndexMap.get(ownThreadEvents[0]?.getId() ?? '');
   const isCrossRoomFork = Boolean(forkParent?.roomId && forkParent.roomId !== room.roomId);
-  const forkStartIndex =
-    forkParent && ownStartIndex !== undefined && (ownStartIndex > 0 || isCrossRoomFork)
-      ? ownStartIndex
-      : undefined;
   const forkParentRoomId = forkParent?.roomId ?? room.roomId;
   const forkDivider =
-    forkParent && forkStartIndex !== undefined
+    forkParent && ownStartIndex !== undefined && (ownStartIndex > 0 || isCrossRoomFork)
       ? {
-          index: forkStartIndex,
+          index: ownStartIndex,
           node: (
             <ThreadForkDivider
               room={room}
               parent={forkParent}
               root={forkPrefix.events.find(
-                (event) =>
-                  event.getId() === forkParent.threadId &&
-                  (event.getRoomId() ?? room.roomId) === forkParentRoomId
+                (e) =>
+                  e.getId() === forkParent.threadId &&
+                  (e.getRoomId() ?? room.roomId) === forkParentRoomId
               )}
               summaryInfo={isCrossRoomFork ? undefined : summaryMap.get(forkParent.threadId)}
             />
           ),
         }
       : undefined;
-  // A fork draft's line under its fork point, the last row it shows.
   const forkingDivider =
     shownForkPoint && forkPointIndex !== undefined
       ? {
@@ -968,82 +742,72 @@ export function ThreadTimeline(props: ThreadTimelineProps) {
               parent={{ threadId, eventId: shownForkPoint }}
               summaryInfo={summaryMap.get(threadId)}
               variant="forking"
-              targetRoomName={forkTargetRoomName}
+              targetRoomName={crossRoomForkTarget?.name || crossRoomForkTarget?.roomId}
             />
           ),
         }
       : undefined;
-  const messageData: TimelineMessageData = {
-    threadRecordMap: EMPTY_THREAD_RECORD_MAP,
-    approvalTimeline,
-    threadSummaryTimeline,
-    secretRequestTimeline,
-    voiceTranscripts,
-    replyCards,
-    modelChanges,
-    handleOpenReply,
-    forkPrefixEventIds,
-  };
-  const threadLoadOlderNode = showThreadLoadOlder ? (
-    <ThreadLoadOlderLine
-      paginatingBack={threadPaginatingBack}
-      onLoadOlder={handleLoadOlderThread}
-    />
-  ) : undefined;
-  const tiles = renderTimelineTiles({
-    virtualItems,
-    threadId,
-    threadEvents,
-    threadLoadOlderNode,
-    ignoredUsersSet,
-    showHiddenEvents,
-    timelineSet: rowTimelineSet,
-    focusItem,
-    messageData,
-    isHiddenByPlugin,
-    isHiddenByPluginId,
-    renderEvent: feature.renderEvent,
-    isQuietMarkerRow: feature.isQuietMarkerRow,
-    joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
-    forkDivider,
-    forkingDivider,
-    turnFolds,
-    measureElement: ledger.measureElement,
-  });
 
   return (
     <TimelineViewport
+      env={env}
       containerStyle={threadViewStyle}
       justifyContent="Start"
       contentTop={
         <>
-          {threadHeader && (
+          {props.threadHeader && (
             <ThreadTimelineHeader
-              gapAbove={threadHeaderGapAbove}
+              gapAbove={props.threadHeaderGapAbove ?? false}
               onResize={ledger.holdThreadBannerResize}
               scrollRef={scrollRef}
             >
-              {threadHeader}
+              {props.threadHeader}
             </ThreadTimelineHeader>
           )}
-          <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
+          <ThreadLoadingLines
+            loadError={session.snapshot.open.loadError}
+            loading={threadEvents.length === 0 && threadInitialRenderMode === 'loading'}
+          />
         </>
       }
-      tiles={tiles}
       scroll={scroll}
-      virtualInnerRef={ledger.virtualInnerRef}
-      listHeight={listHeight}
-      heldEndSpacer={heldEndSpacer}
+      list={list}
       hideRows={hideOpeningThreadRows}
       threadCount={threadEvents.length}
       threadConversationCost={threadConversationCost}
       getImageSlides={getImageSlides}
-      wrapExpansion={feature.wrapExpansion}
+      feature={feature}
       secretRequestPlan={secretRequestPlan}
       minimap={minimap}
       atBottom={atBottom}
       onJumpToLatest={handleJumpToLatestTap}
-      forkToRoomDialog={feature.forkToRoomDialog}
+      tiles={{
+        threadId,
+        threadEvents,
+        threadLoadOlderNode: showThreadLoadOlder ? (
+          <ThreadLoadOlderLine
+            paginatingBack={threadPaginatingBack}
+            onLoadOlder={handleLoadOlderThread}
+          />
+        ) : undefined,
+        timelineSet: rowTimelineSet,
+        focusItem,
+        messageData: {
+          approvalTimeline,
+          threadSummaryTimeline,
+          secretRequestTimeline,
+          voiceTranscripts,
+          replyCards,
+          modelChanges,
+          handleOpenReply,
+          forkPrefixEventIds,
+        },
+        isHiddenByPlugin,
+        isHiddenByPluginId,
+        forkDivider,
+        forkingDivider,
+        turnFolds,
+      }}
     />
   );
 }

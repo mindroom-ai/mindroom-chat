@@ -8,6 +8,7 @@ import {
 import type { Room } from 'matrix-js-sdk';
 import type { NavigateOptions } from 'react-router-dom';
 import { getInitialTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { countsRoomRows } from './roomTimelineClassicRows';
 
 type ScrollToBottomState = {
@@ -50,70 +51,34 @@ export type RoomTimelineNavigationControllerOptions = {
 
 /** Jump to Latest, Jump to Unread, and reply-quote navigation for the room or thread timeline. */
 const EMPTY_IGNORED = new Set<string>();
-const NOOP = () => undefined;
 
-export const useRoomTimelineNavigationController = ({
-  eventId,
-  handleOpenEvent,
-  hideMembershipEvents = false,
-  hideNickAvatarEvents = false,
-  ignoredUsersSet = EMPTY_IGNORED,
-  navigateRoom = NOOP,
-  navigateRoomThread,
-  room,
-  prefetchDepth = 0,
-  scrollToBottomRef,
-  setAtBottom,
-  setTimeline = NOOP,
-  showHiddenEvents = false,
-  showThreadRepliesInRoom,
-  threadId,
-  readUptoEventId,
-}: RoomTimelineNavigationControllerOptions) => {
-  const pinToBottom = useCallback(() => {
-    // An instant jump: the newest rows replace the window, so there is nothing to animate.
-    const { count } = scrollToBottomRef.current;
-    scrollToBottomRef.current = { count: count + 1, smooth: false };
-    setAtBottom(true);
-  }, [scrollToBottomRef, setAtBottom]);
-
-  /**
-   * Show the newest messages. A thread already renders its whole reply list, so it only drops a
-   * permalink and pins to the bottom, synchronously; the room swaps back to its live window.
-   */
+export const useRoomTimelineNavigationController = (o: RoomTimelineNavigationControllerOptions) => {
+  const { handleOpenEvent, readUptoEventId, scrollToBottomRef, setAtBottom } = o;
+  const optsRef = useLatestRef(o);
   const handleJumpToLatest = useCallback((): void => {
-    // A permalink left in the address would focus its event again on the next render.
-    const leavePermalink = Boolean(eventId);
-    if (!threadId) {
-      if (leavePermalink) navigateRoom(room.roomId, undefined, { replace: true });
-      const filters = {
-        hideMembershipEvents,
-        hideNickAvatarEvents,
-        ignoredUsersSet,
-        showHiddenEvents,
-        showThreadRepliesInRoom,
-        threadId: undefined,
-      };
-      setTimeline(countsRoomRows(getInitialTimeline(room, prefetchDepth, filters)));
+    const cur = optsRef.current;
+    const leavePermalink = Boolean(cur.eventId);
+    if (!cur.threadId) {
+      if (leavePermalink) cur.navigateRoom?.(cur.room.roomId, undefined, { replace: true });
+      cur.setTimeline?.(
+        countsRoomRows(
+          getInitialTimeline(cur.room, cur.prefetchDepth ?? 0, {
+            hideMembershipEvents: cur.hideMembershipEvents ?? false,
+            hideNickAvatarEvents: cur.hideNickAvatarEvents ?? false,
+            ignoredUsersSet: cur.ignoredUsersSet ?? EMPTY_IGNORED,
+            showHiddenEvents: cur.showHiddenEvents ?? false,
+            showThreadRepliesInRoom: cur.showThreadRepliesInRoom,
+            threadId: undefined,
+          })
+        )
+      );
     } else if (leavePermalink) {
-      navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
+      cur.navigateRoomThread(cur.room.roomId, cur.threadId, undefined, { replace: true });
     }
-    pinToBottom();
-  }, [
-    eventId,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
-    navigateRoom,
-    navigateRoomThread,
-    pinToBottom,
-    prefetchDepth,
-    room,
-    setTimeline,
-    showHiddenEvents,
-    showThreadRepliesInRoom,
-    threadId,
-  ]);
+    // An instant jump: the newest rows replace the window, so there is nothing to animate.
+    scrollToBottomRef.current = { count: scrollToBottomRef.current.count + 1, smooth: false };
+    setAtBottom(true);
+  }, [optsRef, scrollToBottomRef, setAtBottom]);
 
   /** Open the room at the reader's read marker. */
   const handleJumpToUnread = useCallback((): void => {

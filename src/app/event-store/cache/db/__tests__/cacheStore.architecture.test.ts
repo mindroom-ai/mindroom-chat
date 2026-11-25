@@ -45,11 +45,16 @@ const readSource = (file: string): string => readFileSync(file, 'utf8');
 
 describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
   it('(c) render components do not import cacheStore directly', () => {
-    // Timeline surface render components.
+    // Timeline surface render components and live-end modules.
     for (const relativeFile of [
       'timeline/RoomTimeline.tsx',
       'timeline/ThreadTimeline.tsx',
+      'timeline/RoomSurface.tsx',
+      'timeline/CompactRoomSurface.tsx',
+      'timeline/RoomRowsTimeline.tsx',
       'timeline/TimelineViewport.tsx',
+      'timeline/timelineLiveEnd.ts',
+      'timeline/timelineListShrink.ts',
     ]) {
       const timelineSource = readSource(path.resolve(APP_ROOT, relativeFile));
       expect(timelineSource, `${relativeFile} imports /cache/db`).not.toContain('/cache/db');

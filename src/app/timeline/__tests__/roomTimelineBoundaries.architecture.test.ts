@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { appFile, pathExists, resolvedDependencies } from '../../../test/architecture';
 
-const TIMELINE_FILE = appFile('timeline/RoomTimeline.tsx');
 const THREAD_TIMELINE_FILE = appFile('timeline/ThreadTimeline.tsx');
 const TIMELINE_SURFACE_FILES = [
-  TIMELINE_FILE,
+  appFile('timeline/RoomTimeline.tsx'),
   THREAD_TIMELINE_FILE,
+  appFile('timeline/RoomSurface.tsx'),
+  appFile('timeline/CompactRoomSurface.tsx'),
+  appFile('timeline/RoomRowsTimeline.tsx'),
   appFile('timeline/TimelineViewport.tsx'),
+  appFile('timeline/timelineLiveEnd.ts'),
+  appFile('timeline/timelineListShrink.ts'),
 ] as const;
 
 const FORBIDDEN_LOW_LEVEL_DEPENDENCIES = [

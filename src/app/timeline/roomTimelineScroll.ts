@@ -34,24 +34,33 @@ import { readScrollPadding } from '../ui/styles/threadHeaderInset';
  * the commit, changes the state. Even an equal update re-renders the timeline while slower updates
  * wait on it, and that render attaches the element again, without end.
  */
-export const useTimelineScrollElement = () => {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+export const useTimelineScrollElement = (
+  externalScrollRef?: MutableRefObject<HTMLDivElement | null>
+) => {
+  const internalScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = externalScrollRef ?? internalScrollRef;
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const publishedScrollRef = useRef<HTMLDivElement | null>(null);
-  const attachScroll = useCallback((element: HTMLDivElement | null) => {
-    scrollRef.current = element;
-    const publishAttached = () => {
-      const attached = scrollRef.current;
-      if (attached === publishedScrollRef.current) return;
-      publishedScrollRef.current = attached;
-      setScrollElement(attached);
-    };
-    if (element) publishAttached();
-    else queueMicrotask(publishAttached);
-  }, []);
+  const attachScroll = useCallback(
+    (element: HTMLDivElement | null) => {
+      scrollRef.current = element;
+      const publishAttached = () => {
+        const attached = scrollRef.current;
+        if (attached === publishedScrollRef.current) return;
+        publishedScrollRef.current = attached;
+        setScrollElement(attached);
+      };
+      if (element) publishAttached();
+      else queueMicrotask(publishAttached);
+    },
+    [scrollRef]
+  );
   // A new identity once the scroll area mounts, so observers built on it start over (the
   // compact view has none, and switching to the timeline mounts it later).
-  const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
+  const getScrollElement = useCallback(
+    () => scrollRef.current ?? scrollElement,
+    [scrollElement, scrollRef]
+  );
   return { scrollRef, scrollElement, attachScroll, getScrollElement };
 };
 
@@ -159,7 +168,7 @@ export const useThreadReturnPlace = ({
 }: {
   memoryRef: MutableRefObject<RoomRowsPlace | undefined>;
   roomId: string;
-  threadId: string | undefined;
+  threadId?: string;
   eventId: string | undefined;
   /** Whether the view shows the room's rows (not a thread, not Compact's cards). */
   roomRowsShown: boolean;
@@ -329,29 +338,40 @@ type RoomRowLookup = {
  * held wheel/gesture offset (`clearVirtualizerHoldOffset`) so quiescence cannot shift the landed
  * position away from the target.
  */
-export const useTimelineRowJumps = ({
-  paginatorScrollToItem,
-  paginatorScrollToElement,
-  activeRangeRef,
-  virtualizerRef,
-  threadEventIndexMapRef,
-  threadLeadingOffsetRef,
-  roomLeadingOffsetRef,
-  rows,
-}: {
-  paginatorScrollToItem: ScrollToItem;
-  paginatorScrollToElement: ScrollToElement;
-  activeRangeRef: MutableRefObject<ItemRange>;
+const NO_SCROLL_ELEMENT = () => null;
+const EMPTY_ROWS_LOOKUP: RoomRowLookup = {
+  getScrollElement: NO_SCROLL_ELEMENT,
+  getRowElement: () => undefined,
+  roomRowsRef: { current: [] },
+};
+
+export const useTimelineRowJumps = (o: {
+  paginatorScrollToItem?: ScrollToItem;
+  paginatorScrollToElement?: ScrollToElement;
+  getScrollElement?: () => HTMLElement | null;
+  activeRangeRef?: MutableRefObject<ItemRange>;
   virtualizerRef: MutableRefObject<
     Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
   >;
   threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
   threadLeadingOffsetRef?: MutableRefObject<number>;
   roomLeadingOffsetRef?: MutableRefObject<number>;
-  rows: RoomRowLookup;
+  rows?: RoomRowLookup;
 }) => {
+  const {
+    paginatorScrollToItem,
+    activeRangeRef,
+    virtualizerRef,
+    threadEventIndexMapRef,
+    threadLeadingOffsetRef,
+    roomLeadingOffsetRef,
+  } = o;
   const jumpCountRef = useRef(0);
-  const rowsRef = useLatestRef(rows);
+  const rowsRef = useLatestRef(o.rows ?? EMPTY_ROWS_LOOKUP);
+  const fallbackScrollToElement = useElementScroll(
+    o.getScrollElement ?? o.rows?.getScrollElement ?? NO_SCROLL_ELEMENT
+  );
+  const baseScrollToElement = o.paginatorScrollToElement ?? fallbackScrollToElement;
   const jumped = useCallback(() => {
     const v = virtualizerRef.current;
     v.cancelScroll();
@@ -360,9 +380,9 @@ export const useTimelineRowJumps = ({
   const scrollToElement = useCallback<ScrollToElement>(
     (element, opts) => {
       jumped();
-      return paginatorScrollToElement(element, opts);
+      return baseScrollToElement(element, opts);
     },
-    [jumped, paginatorScrollToElement]
+    [baseScrollToElement, jumped]
   );
 
   /**
@@ -425,12 +445,12 @@ export const useTimelineRowJumps = ({
           }
         }
         frame += 1;
-        const { start, end: stop } = activeRangeRef.current;
+        const { start, end: stop } = activeRangeRef?.current ?? { start: 0, end: 0 };
         if (index >= start && index < stop) {
           const row = getRowElement(index);
           jumped();
           if (row) {
-            paginatorScrollToElement(row, { align, offset, behavior: 'instant' });
+            baseScrollToElement(row, { align, offset, behavior: 'instant' });
             const top = row.getBoundingClientRect().top;
             settledFrames =
               lastTop !== undefined && Math.abs(top - lastTop) < 1 ? settledFrames + 1 : 0;
@@ -451,14 +471,7 @@ export const useTimelineRowJumps = ({
       if (afterSmoothScroll) requestAnimationFrame(step);
       else step();
     },
-    [
-      activeRangeRef,
-      jumped,
-      paginatorScrollToElement,
-      roomLeadingOffsetRef,
-      rowsRef,
-      virtualizerRef,
-    ]
+    [activeRangeRef, jumped, baseScrollToElement, roomLeadingOffsetRef, rowsRef, virtualizerRef]
   );
 
   const scrollToItem = useCallback<ScrollToItem>(
@@ -467,11 +480,11 @@ export const useTimelineRowJumps = ({
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       const mounted = getRowElement(index);
-      const { start, end } = activeRangeRef.current;
+      const { start, end } = activeRangeRef?.current ?? { start: 0, end: 0 };
       // Close by: the paginator's own scroll, smooth when asked; a row of the window it has not
       // mounted goes to the virtual list.
       if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
-        if (paginatorScrollToItem(index, opts)) {
+        if (paginatorScrollToItem?.(index, opts)) {
           if (scrollElement && opts?.behavior === 'smooth') {
             const eventId = roomRowsRef.current[index]?.getId();
             followFarRow(eventId, index, opts.align ?? 'center', true, opts.offset);
@@ -486,7 +499,7 @@ export const useTimelineRowJumps = ({
         return true;
       }
       // Outside the window the paginator moves it there first; then the row is followed in.
-      if ((index < start || index >= end) && !paginatorScrollToItem(index, opts)) return false;
+      if ((index < start || index >= end) && !paginatorScrollToItem?.(index, opts)) return false;
       const eventId = roomRowsRef.current[index]?.getId();
       followFarRow(eventId, index, opts?.align ?? 'center', false, opts?.offset);
       return true;
@@ -529,22 +542,17 @@ export const useElementScroll = (getScrollElement: () => HTMLElement | null): Sc
   const getScrollElementRef = useLatestRef(getScrollElement);
   const correctionFrameRef = useRef<number | undefined>(undefined);
 
-  useEffect(
-    () => () => {
-      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
-        cancelAnimationFrame(correctionFrameRef.current);
-      }
-      correctionFrameRef.current = undefined;
-    },
-    []
-  );
+  const cancelCorrection = () => {
+    if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(correctionFrameRef.current);
+    }
+    correctionFrameRef.current = undefined;
+  };
+  useEffect(() => cancelCorrection, []);
 
   return useCallback<ScrollToElement>(
     (element, opts = {}) => {
-      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
-        cancelAnimationFrame(correctionFrameRef.current);
-      }
-      correctionFrameRef.current = undefined;
+      cancelCorrection();
       const scrollElement = getScrollElementRef.current();
       if (!scrollElement) return false;
       const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
@@ -585,48 +593,6 @@ export const useElementScroll = (getScrollElement: () => HTMLElement | null): Sc
     },
     [getScrollElementRef]
   );
-};
-
-/** Thread jumps: scroll to a mounted row element or ask the virtualizer to mount an event by ID. */
-export const useThreadRowJumps = ({
-  getScrollElement,
-  virtualizerRef,
-  threadEventIndexMapRef,
-  threadLeadingOffsetRef,
-}: {
-  getScrollElement: () => HTMLElement | null;
-  virtualizerRef: MutableRefObject<
-    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
-  >;
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
-  threadLeadingOffsetRef?: MutableRefObject<number>;
-}) => {
-  const baseScrollToElement = useElementScroll(getScrollElement);
-  const jumped = useCallback(() => {
-    const v = virtualizerRef.current;
-    v.cancelScroll();
-    clearVirtualizerHoldOffset(v);
-  }, [virtualizerRef]);
-  const scrollToElement = useCallback<ScrollToElement>(
-    (element, opts) => {
-      jumped();
-      return baseScrollToElement(element, opts);
-    },
-    [baseScrollToElement, jumped]
-  );
-  const scrollThreadEventIntoView = useCallback(
-    (targetEventId: string) => {
-      const index = threadEventIndexMapRef.current.get(targetEventId);
-      if (index === undefined) return false;
-      jumped();
-      virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
-        align: 'center',
-      });
-      return true;
-    },
-    [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
-  );
-  return { scrollToElement, scrollThreadEventIntoView };
 };
 
 /**
