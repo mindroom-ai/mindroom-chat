@@ -50,6 +50,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadId?: string;
   /** Keep thread virtual item 0 (Load Older) mounted while scrolled down. */
   pinThreadLeadingItem?: boolean;
+  /** Stable leading items before prepended content (`anchorTo: 'end'`). */
+  anchorSkipLeading?: number;
   /** Whether older history can still prepend above item 0 (keeps clamped negative holds). */
   canLoadOlder?: boolean;
   automaticFill?: {
@@ -127,6 +129,7 @@ export const useTimelineScrollLedgerController = ({
   roomId,
   threadId,
   pinThreadLeadingItem = false,
+  anchorSkipLeading = 0,
   canLoadOlder = false,
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -235,10 +238,8 @@ export const useTimelineScrollLedgerController = ({
   // instance/options. A fresh callback invalidates the range cache on resize.
   const rangeExtractor = (range: Range): number[] =>
     threadScrollRange(range, virtualizer, pinThreadLeadingItem);
-  // Oldest-first rooms and threads use upstream key-based prepend anchoring (`anchorTo: 'end'`)
-  // with `scrollEndThreshold: -1` because scrollers include header and composer padding outside
-  // the virtual list; bottom-following is owned by the pin hooks. Newest-first Threads view keeps
-  // `anchorTo: 'start'` and anchors reorders via `roomScrollLedger`.
+  // Oldest-first rooms/threads use upstream `anchorTo: 'end'` (`scrollEndThreshold: -1`; pin hooks
+  // own bottom-following). Newest-first Threads view keeps `anchorTo: 'start'` + `roomScrollLedger`.
   const anchorToEnd = !!threadId || !latestAtTop;
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
@@ -246,12 +247,11 @@ export const useTimelineScrollLedgerController = ({
     estimateSize,
     overscan: 10,
     holdScrollDuringWheel: isDesktopWebKit(),
-    ...(anchorToEnd ? { anchorTo: 'end' as const, scrollEndThreshold: -1 } : {}),
+    ...(anchorToEnd ? { anchorTo: 'end' as const, scrollEndThreshold: -1, anchorSkipLeading } : {}),
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
     measureElement: measureRow,
-    // The caller intentionally supplies a fresh function on each render so
-    // updated estimates reach unmeasured virtual-core rows.
+    // Fresh each render so updated estimates reach unmeasured virtual-core rows.
     getItemKey,
   });
   const virtualizerRef = useRef(virtualizer);

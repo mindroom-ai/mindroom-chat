@@ -90,8 +90,10 @@ const roomList = (initial: {
   loaded: MatrixEvent[];
   stateRange: TimelineRange;
   compact?: boolean;
+  leadingTilePx?: number;
 }) => {
   let { loaded, stateRange } = initial;
+  const leadingOffset = initial.leadingTilePx === undefined ? 0 : 1;
   const openIds = new Set<string>();
   const pinnedIds = new Set<string>();
   /** The height the ledger took for rows that came out of a closed fold above the view. */
@@ -122,8 +124,14 @@ const roomList = (initial: {
     overscan: 10,
     anchorTo: 'end',
     scrollEndThreshold: -1,
+    anchorSkipLeading: leadingOffset,
     estimateSize: () => 0,
-    measureElement: (row) => tilePx(windowRows[Number(row.getAttribute('data-index'))]),
+    measureElement: (row) => {
+      const idx = Number(row.getAttribute('data-index'));
+      return leadingOffset && idx === 0
+        ? initial.leadingTilePx!
+        : tilePx(windowRows[idx - leadingOffset]);
+    },
     getScrollElement: () => element as unknown as HTMLDivElement,
     scrollToFn: (offset, options) => {
       element.scrollTop = offset + (options.adjustments ?? 0);
@@ -166,6 +174,7 @@ const roomList = (initial: {
       compactLayout: !!initial.compact,
       showThreadRepliesInRoom: false,
       threadEvents: [],
+      hasRoomIntro: leadingOffset > 0,
       roomWindowRows: windowRows,
       windowStart: range.start,
       roomRowsRef,
@@ -176,7 +185,7 @@ const roomList = (initial: {
     });
     virtualizer.setOptions({
       ...virtualizer.options,
-      count: windowRows.length,
+      count: windowRows.length + leadingOffset,
       estimateSize,
       getItemKey,
     });
@@ -195,19 +204,21 @@ const roomList = (initial: {
 
   const commit = () => {
     const mountedIds = new Set(render().map((item) => String(item.key)));
+    if (leadingOffset) virtualizer.resizeItem(0, initial.leadingTilePx!);
     virtualizer.elementsCache.clear();
     windowRows.forEach((event, index) => {
       const id = event.getId() ?? '';
       if (!mountedIds.has(id)) return;
-      const row = { isConnected: true, getAttribute: () => String(index) };
+      const row = { isConnected: true, getAttribute: () => String(index + leadingOffset) };
       virtualizer.elementsCache.set(id, row as unknown as Element);
-      virtualizer.resizeItem(index, tilePx(event));
+      virtualizer.resizeItem(index + leadingOffset, tilePx(event));
     });
     render();
     renderedRoomRowsRef.current = readRenderedRoomRows(
       virtualizer,
       windowRows,
-      membershipFoldsRef.current
+      membershipFoldsRef.current,
+      leadingOffset
     );
   };
 
@@ -221,12 +232,13 @@ const roomList = (initial: {
     windowIds: () => windowRows.map((event) => event.getId()),
     mountedIds: () => render().map((item) => String(item.key)),
     sizes: () =>
-      render() && windowRows.map((_, index) => virtualizer.measurementsCache[index]?.size),
+      render() &&
+      windowRows.map((_, index) => virtualizer.measurementsCache[index + leadingOffset]?.size),
     isMeasured: (id: string) => virtualizer.itemSizeCache.has(id),
     /** Where the row of `id` is painted, from the top of the view. */
     screenTop: (id: string) => {
       render();
-      const item = virtualizer.measurementsCache[indexOf(id)];
+      const item = virtualizer.measurementsCache[indexOf(id) + leadingOffset];
       if (!item) throw new Error(`${id} is no row of the window`);
       return item.start - element.scrollTop;
     },
@@ -236,7 +248,7 @@ const roomList = (initial: {
     },
     scrollToRow: (id: string, offset = 0) => {
       render();
-      const item = virtualizer.measurementsCache[indexOf(id)];
+      const item = virtualizer.measurementsCache[indexOf(id) + leadingOffset];
       if (!item) throw new Error(`${id} is no row of the window`);
       element.scrollTop = item.start + offset;
       reportOffset(element.scrollTop, false);
@@ -637,4 +649,28 @@ describe("the reader's rows as a page of history lands at a fold", () => {
       expect(list.screenTop(readingAt)).toBe(-10);
     });
   });
+
+  it.each([
+    ['[+all] toggle (22px)', 22],
+    ['roomIntro mounted (160px)', 160],
+  ] as const)(
+    'keeps the first visible membership-fold button on screen when opened below %s',
+    (_label, leadingTilePx) => {
+      const loaded = [...joins('j', 30), ...messages('b', 40)];
+      const list = roomList({
+        loaded,
+        stateRange: { start: 0, end: loaded.length },
+        leadingTilePx,
+      });
+      list.commit();
+      list.scrollTo(0);
+      list.commit();
+      const before = list.screenTop('$j0');
+      expect(before).toBe(leadingTilePx);
+
+      list.open('$j0');
+      list.commit();
+      expect(list.screenTop('$j0')).toBeCloseTo(before, 0);
+    }
+  );
 });
