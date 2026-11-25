@@ -1672,11 +1672,16 @@ class StubScenarioTests(unittest.TestCase):
         self.assertIn("Finished **delegate** after 1 tool call(s)", text)
         self.assertIn("delegated-ok.", text)
 
-    def test_schedule_scenarios_adapt_to_structured_and_legacy_tool_schemas(self) -> None:
+    def test_schedule_scenarios_adapt_to_unified_structured_and_legacy_tool_schemas(self) -> None:
         scenarios = stub_model.tool_scenarios([])
 
-        def request_body(prompt: str, properties: dict | None, *results: str) -> dict:
-            function: dict = {"name": "schedule"}
+        def request_body(
+            prompt: str,
+            properties: dict | None,
+            *results: str,
+            tool_name: str = "schedule",
+        ) -> dict:
+            function: dict = {"name": tool_name}
             if properties is not None:
                 function["parameters"] = {"type": "object", "properties": properties}
             return {
@@ -1688,6 +1693,13 @@ class StubScenarioTests(unittest.TestCase):
                 ],
             }
 
+        unified_props = {
+            "action": {"type": "string", "enum": ["create", "edit", "list", "cancel"]},
+            "message": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+            "delay_seconds": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        }
         structured_props = {
             "message": {"type": "string"},
             "new_thread": {"type": "boolean"},
@@ -1700,6 +1712,13 @@ class StubScenarioTests(unittest.TestCase):
         }
 
         for tag, delay_seconds in (("#schedulesoon", 20), ("#schedule", 150)):
+            unified_args = {
+                "action": "create",
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
             structured_args = {
                 "message": "@helper remind me to stretch",
                 "new_thread": False,
@@ -1711,21 +1730,22 @@ class StubScenarioTests(unittest.TestCase):
                 "new_thread": False,
             }
             cases = (
-                ("structured", structured_props, structured_args),
-                ("delay_seconds_only", {"delay_seconds": {"type": "integer"}}, structured_args),
-                ("message_only", {"message": {"type": "string"}}, structured_args),
-                ("legacy", legacy_props, legacy_args),
-                ("no_parameters", None, legacy_args),
+                ("unified", "scheduler", unified_props, unified_args),
+                ("structured", "schedule", structured_props, structured_args),
+                ("delay_seconds_only", "schedule", {"delay_seconds": {"type": "integer"}}, structured_args),
+                ("message_only", "schedule", {"message": {"type": "string"}}, structured_args),
+                ("legacy", "schedule", legacy_props, legacy_args),
+                ("no_parameters", "schedule", None, legacy_args),
             )
-            for label, props, expected in cases:
+            for label, tool_name, props, expected in cases:
                 with self.subTest(schema=label, tag=tag):
                     self.assertEqual(
-                        stub_model.plan(request_body(f"please {tag}", props), scenarios),
-                        ("tool", "schedule", expected),
+                        stub_model.plan(request_body(f"please {tag}", props, tool_name=tool_name), scenarios),
+                        ("tool", tool_name, expected),
                     )
 
         kind, text = stub_model.plan(
-            request_body("please #schedulesoon", structured_props, "Scheduled task task-1"),
+            request_body("please #schedulesoon", unified_props, "Scheduled task task-1", tool_name="scheduler"),
             scenarios,
         )
         self.assertEqual(kind, "text")

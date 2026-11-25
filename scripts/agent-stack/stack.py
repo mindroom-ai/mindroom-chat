@@ -733,10 +733,12 @@ REAL_INSTRUCTIONS = [
     "#tag: call tag_thread once with tag 'stub-tag' and note 'tagged by the stub model', then reply 'Done.'",
     "#expire: call untag_thread once with tag 'stub-tag', then reply with what the tool returned.",
     "#resolve: call resolve_thread once, then reply with what the tool returned.",
-    "#schedulesoon: call schedule once with request 'in 20 seconds remind me to stretch' and new_thread false, "
+    "#schedulesoon: schedule a one-time task with message '@helper remind me to stretch', new_thread false, "
+    "delay_seconds 20, and description 'Stretch reminder' (use scheduler(action='create', ...) or schedule), "
     "then reply 'Scheduled.'",
-    "#schedule (without 'soon'): call schedule once with request 'in 150 seconds remind me to stretch' and "
-    "new_thread false, then reply 'Scheduled.'",
+    "#schedule (without 'soon'): schedule a one-time task with message '@helper remind me to stretch', "
+    "new_thread false, delay_seconds 150, and description 'Stretch reminder' (use scheduler(action='create', ...) "
+    "or schedule), then reply 'Scheduled.'",
     "#canvas: call show_canvas once with title 'Stub canvas' and exactly this html: "
     "<!doctype html><html><body style='font-family:sans-serif;padding:16px'><h1>Pick a color</h1>"
     "<button id='red'>Red</button> <button id='blue'>Blue</button><script>for (const id of ['red', 'blue']) "
