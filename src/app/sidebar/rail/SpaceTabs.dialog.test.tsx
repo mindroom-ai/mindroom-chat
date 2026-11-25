@@ -151,7 +151,6 @@ vi.mock('../../spaces/sidebarSpaces', () => ({
   useShownSidebarItems: () => ({
     items: [mockSpace.roomId],
     saved: [],
-    savedEvent: undefined,
     topLevelSpaces: [mockSpace.roomId],
     joinedSpaces: new Map([[mockSpace.roomId, mockSpace]]),
   }),

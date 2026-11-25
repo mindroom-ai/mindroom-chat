@@ -67,6 +67,20 @@ const savedRoomOrder = async (account: Account): Promise<SavedRoomOrder | undefi
 const savedLists = async (account: Account): Promise<Record<string, unknown> | undefined> =>
   (await savedRoomOrder(account))?.lists;
 
+/** The saved `sidebar` of `io.mindroom.spaces`, straight from the homeserver. */
+const savedSidebar = async (account: Account): Promise<unknown[] | undefined> => {
+  try {
+    const content = await matrixFetch<{ sidebar?: unknown[] }>(
+      HOMESERVER,
+      `/user/${encodeURIComponent(account.userId)}/account_data/io.mindroom.spaces`,
+      { accessToken: account.accessToken }
+    );
+    return content.sidebar;
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Drags `from` with the mouse onto the upper edge of `to`, near enough to its middle that `to`
  * is the row it lands on. `whileOver` runs before the drop, with the pointer still held there.
@@ -276,8 +290,9 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
   });
   await page.mouse.up();
   await expect.poll(railOrder).toEqual([lower, upper]);
+  await expect.poll(() => savedSidebar(account)).toEqual([lower, upper]);
 
-  // Both orders hold after a reload: the rooms' from the account, the rail's from this device.
+  // Both orders hold after a reload, loaded from the account's saved data.
   await page.reload();
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })

@@ -128,11 +128,7 @@ export const getShownSidebarItems = ({
 export const useShownSidebarItems = () => {
   const client = useMatrixClient();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
-  const savedEvent = useAccountData(AccountDataEvent.MindroomSpaces);
-  const saved = useMemo(
-    () => parseSidebarItems(savedEvent?.getContent<SidebarContent>()),
-    [savedEvent]
-  );
+  const saved = useSavedSidebarItems();
   const topLevelSpaces = useTopLevelSpaceIds();
   const joinedSpaces = useMemo(
     () =>
@@ -153,7 +149,7 @@ export const useShownSidebarItems = () => {
       }),
     [saved, topLevelSpaces, joinedSpaces]
   );
-  return { items, saved, savedEvent, topLevelSpaces, joinedSpaces };
+  return { items, saved, topLevelSpaces, joinedSpaces };
 };
 
 const writeSidebar = (client: MatrixClient, items: SidebarItem[]) => {

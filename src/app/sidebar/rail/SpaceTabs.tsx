@@ -3,7 +3,7 @@ import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import {
   DndContext,
@@ -362,22 +362,16 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const { t } = useTranslation();
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   const selectedSpaceId = useSelectedSpace();
-  const {
-    items: serverItems,
-    saved,
-    savedEvent,
-    topLevelSpaces,
-    joinedSpaces,
-  } = useShownSidebarItems();
+  const { items: serverItems, saved, topLevelSpaces, joinedSpaces } = useShownSidebarItems();
   const [pending, setPending] = useState<{
-    event: MatrixEvent | undefined;
+    client: MatrixClient;
     items: SidebarEntry[];
   }>();
   const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
   const [hint, setHint] = useState<{ id: string; at: DropAt }>();
   const stackRef = useRef<HTMLDivElement>(null);
 
-  const pendingSaved = pending && pending.event === savedEvent ? pending.items : undefined;
+  const pendingSaved = pending?.client === client ? pending.items : undefined;
   const effectiveSaved = pendingSaved ?? saved;
   const items = useMemo(
     () =>
@@ -447,11 +441,13 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
         }),
     });
     if (!result.changed) return;
-    const change = { event: savedEvent, items: result.items };
+    const change = { client, items: result.items };
     setPending(change);
-    void result.save?.catch(() => {
-      setPending((cur) => (cur === change ? undefined : cur));
-    });
+    void result.save
+      .catch(() => undefined)
+      .finally(() => {
+        setPending((cur) => (cur === change ? undefined : cur));
+      });
   };
 
   const handleDragStart = (event: DragStartEvent) => {

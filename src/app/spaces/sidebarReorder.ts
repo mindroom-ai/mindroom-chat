@@ -34,11 +34,9 @@ type CommitSidebarReorderOptions = {
   onEmptyFolder?: (folderId: string) => void;
 };
 
-type CommitSidebarReorderResult = {
-  items: SidebarItem[];
-  changed: boolean;
-  save?: Promise<unknown>;
-};
+type CommitSidebarReorderResult =
+  | { items: SidebarItem[]; changed: false; save?: undefined }
+  | { items: SidebarItem[]; changed: true; save: Promise<unknown> };
 
 const isFolder = (item: SidebarItem): item is SidebarFolder => typeof item !== 'string';
 
@@ -218,6 +216,36 @@ const applyReorder = (
   return { items: insertRelative(withoutItem, removed, targetIndex, below), emptiedFolderId };
 };
 
+// Serialize io.mindroom.spaces writes per client so a quick undo waits for the previous write's
+// /sync echo instead of being skipped by matrix-js-sdk's deepCompare against stale store state.
+const pendingSaves = new WeakMap<MatrixClient, Promise<unknown>>();
+
+const enqueueSidebarSave = (mx: MatrixClient, items: SidebarItem[]): Promise<unknown> => {
+  const run = (): Promise<unknown> => {
+    const current = mx
+      .getAccountData(AccountDataEvent.MindroomSpaces as never)
+      ?.getContent<SidebarAccountData>();
+    return Promise.resolve(
+      mx.setAccountData(
+        AccountDataEvent.MindroomSpaces as never,
+        {
+          ...(current ?? {}),
+          sidebar: items,
+        } as never
+      )
+    );
+  };
+
+  const prev = pendingSaves.get(mx);
+  const save = prev ? prev.then(run, run) : run();
+  const cleanup = () => {
+    if (pendingSaves.get(mx) === save) pendingSaves.delete(mx);
+  };
+  void save.then(cleanup, cleanup);
+  pendingSaves.set(mx, save);
+  return save;
+};
+
 export const commitSidebarReorder = ({
   mx,
   orphanSpaces,
@@ -234,16 +262,5 @@ export const commitSidebarReorder = ({
 
   if (emptiedFolderId) onEmptyFolder?.(emptiedFolderId);
 
-  const current = mx
-    .getAccountData(AccountDataEvent.MindroomSpaces as never)
-    ?.getContent<SidebarAccountData>();
-  const save = mx.setAccountData(
-    AccountDataEvent.MindroomSpaces as never,
-    {
-      ...(current ?? {}),
-      sidebar: items,
-    } as never
-  );
-
-  return { items, changed: true, save };
+  return { items, changed: true, save: enqueueSidebarSave(mx, items) };
 };

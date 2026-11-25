@@ -285,4 +285,105 @@ describe('SpaceTabs sidebar reorder persistence', () => {
       CHARLIE,
     ]);
   });
+
+  it('serializes quick undo writes so the second save waits for the first echo and is not skipped', async () => {
+    let stored: Record<string, unknown> = { existing: true, sidebar: [ALPHA, BRAVO] };
+    const sent: unknown[] = [];
+    const gates: Array<() => void> = [];
+    const mx = {
+      getAccountData: vi.fn(() => ({ getContent: () => stored })),
+      setAccountData: vi.fn((_type: string, content: Record<string, unknown>) => {
+        // Mirror matrix-js-sdk's deepCompare check against the current local store.
+        if (JSON.stringify(stored) === JSON.stringify(content)) return Promise.resolve({});
+        sent.push(content.sidebar);
+        return new Promise<Record<string, never>>((resolve) => {
+          gates.push(() => {
+            stored = content;
+            resolve({});
+          });
+        });
+      }),
+    } as unknown as MatrixClient;
+
+    // Move Bravo above Alpha, then immediately undo before the first save settles.
+    const first = commitSidebarReorder({
+      mx,
+      orphanSpaces: [ALPHA, BRAVO],
+      savedItems: [ALPHA, BRAVO],
+      item: BRAVO,
+      containerItem: ALPHA,
+      instructionType: 'reorder-above',
+    });
+    const second = commitSidebarReorder({
+      mx,
+      orphanSpaces: [ALPHA, BRAVO],
+      savedItems: first.items,
+      item: BRAVO,
+      containerItem: ALPHA,
+      instructionType: 'reorder-below',
+    });
+
+    if (!first.changed || !second.changed) throw new Error('Expected both reorders to change');
+    expect(mx.setAccountData).toHaveBeenCalledTimes(1);
+    expect(sent).toEqual([[BRAVO, ALPHA]]);
+
+    // Echo the first write, then allow the queued undo write to resolve.
+    gates.shift()?.();
+    await first.save;
+    await vi.waitFor(() => expect(mx.setAccountData).toHaveBeenCalledTimes(2));
+    expect(sent).toEqual([
+      [BRAVO, ALPHA],
+      [ALPHA, BRAVO],
+    ]);
+
+    gates.shift()?.();
+    await second.save;
+    expect(stored).toEqual({ existing: true, sidebar: [ALPHA, BRAVO] });
+  });
+
+  it('runs a queued write even if the previous in-flight write rejects', async () => {
+    let rejectFirst!: (error: Error) => void;
+    const setAccountData = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockResolvedValueOnce({});
+    const mx = {
+      getAccountData: vi.fn(() => ({ getContent: () => ({ existing: true }) })),
+      setAccountData,
+    } as unknown as MatrixClient;
+
+    const first = commitSidebarReorder({
+      mx,
+      orphanSpaces: [ALPHA, BRAVO, CHARLIE],
+      savedItems: [ALPHA, BRAVO, CHARLIE],
+      item: BRAVO,
+      containerItem: ALPHA,
+      instructionType: 'reorder-above',
+    });
+    const second = commitSidebarReorder({
+      mx,
+      orphanSpaces: [ALPHA, BRAVO, CHARLIE],
+      savedItems: first.items,
+      item: CHARLIE,
+      containerItem: BRAVO,
+      instructionType: 'reorder-above',
+    });
+
+    if (!first.changed || !second.changed) throw new Error('Expected both reorders to change');
+    expect(setAccountData).toHaveBeenCalledTimes(1);
+    rejectFirst(new Error('network'));
+
+    await expect(first.save).rejects.toThrow('network');
+    await second.save;
+    expect(setAccountData).toHaveBeenCalledTimes(2);
+    expect(setAccountData).toHaveBeenLastCalledWith(AccountDataEvent.MindroomSpaces, {
+      existing: true,
+      sidebar: [CHARLIE, BRAVO, ALPHA],
+    });
+  });
 });
