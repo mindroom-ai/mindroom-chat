@@ -1,5 +1,6 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { CategoryButton } from '../room-nav/RoomNavCategoryButton.css';
 
 /** Subtle muted icon inside Home's compact section cap toggle row (`Show all` / `Show less`). */
 export const SectionIcon = style({
@@ -44,3 +45,20 @@ export const SecondarySectionGroup = style({
   borderBlockStart: '1px solid color-mix(in srgb, currentColor 10%, transparent)',
   paddingBlockStart: config.space.S200,
 });
+
+/**
+ * Cap collapsed category touch-target vertical reach inside the 2px secondary stack (matching
+ * SpaceSectionHeader.css.ts) so Threads' ::after hit area cannot overlap collapsed Agents above it.
+ * Repeating CategoryButton via :is() gives (0,4,1) specificity, beating CategoryButton's (0,3,1)
+ * touchTarget rule regardless of CSS chunk order.
+ */
+globalStyle(
+  `${SecondarySectionGroup} ${CategoryButton}:is(${CategoryButton})[aria-expanded="false"]::after`,
+  {
+    '@media': {
+      '(pointer: coarse)': {
+        insetBlock: 'min(0px, max(calc((100% - 44px) / 2), -1px))',
+      },
+    },
+  }
+);
