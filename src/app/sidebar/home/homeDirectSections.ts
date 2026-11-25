@@ -1,23 +1,13 @@
-import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
-import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
+import type { Room } from 'matrix-js-sdk';
 import {
   isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
 } from '../../matrix/protocol/agentIdentity';
-import {
-  boundRoomRoster,
-  MINDROOM_ACCOUNTS_STATE_EVENT,
-  MINDROOM_ROUTER_STATE_EVENT,
-  trustedRouterUserId,
-} from '../../matrix/protocol/routerBinding';
-import { getDirectPartnerId } from '../../matrix/room';
-import { StateEvent } from '../../matrix/types/room';
+import { roomBoundRoster } from '../../matrix/protocol/agentRoomState';
+import { getDirectActiveMemberCount, getDirectPartnerId } from '../../matrix/room';
+import { getMDirectPartnerId } from '../../matrix/state/mDirectList';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
-import { getDirectActiveMemberCount, getMDirectPartnerId } from '../room-nav/DirectRoomRowExtras';
 import { agentNameIn, type HomeAgent } from './homeAgents';
-
-export { getDirectActiveMemberCount };
 
 /** Category IDs in the `'mindroom'` namespace so Home space-section selectors (`home|`) stay unaffected. */
 export const HOME_DIRECT_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-direct');
@@ -68,58 +58,38 @@ export const getDirectPartnerUserId = (
   return fromMDirect && fromMDirect !== room.myUserId ? fromMDirect : undefined;
 };
 
-const getRoomStateByKey = (
-  room: Room,
-  eventType: string,
-  stateKey: string
-): MatrixEvent | undefined =>
-  room.currentState
-    ?.getStateEvents(eventType)
-    .find((event) => event.getStateKey() === stateKey && !event.isRedacted?.());
-
 /**
  * Custom-username agent vouched for by an explicit `io.mindroom.accounts` roster written by a
  * trusted same-homeserver MindRoom router (never a self-bound foreign DM creator with no roster).
  */
 const isRosteredLocalAgent = (room: Room, partnerId: string): boolean => {
-  if (!room.currentState) return false;
-  const binding = getRoomStateByKey(room, MINDROOM_ROUTER_STATE_EVENT, '');
-  if (!binding) return false;
-  const powerLevelsEvent = getRoomStateByKey(room, StateEvent.RoomPowerLevels, '');
-  const powerLevels = getPowersLevelFromMatrixEvent(powerLevelsEvent);
-  const createEvent = getRoomStateByKey(room, StateEvent.RoomCreate, '');
-  const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
-  const boundUserId = trustedRouterUserId(
-    binding,
-    powerLevels,
-    creators,
-    powerLevelsEvent?.getContent()
+  const bound = roomBoundRoster(room);
+  return Boolean(
+    bound &&
+    isMindroomAgentUserIdForViewer(bound.boundUserId, room.myUserId) &&
+    bound.roster.has(partnerId)
   );
-  if (!boundUserId || !isMindroomAgentUserIdForViewer(boundUserId, room.myUserId)) return false;
-  const rosterEvent = getRoomStateByKey(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId);
-  return boundRoomRoster(boundUserId, rosterEvent).has(partnerId);
 };
 
 /**
- * Whether `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs and the router owner
- * account, with a partner matching same-homeserver MindRoom agent identity, `homeAgentIds`, or
- * an explicit same-homeserver MindRoom router roster).
+ * Partner user ID if `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs and the
+ * router owner account, with a partner matching same-homeserver MindRoom agent identity,
+ * `homeAgentIds`, or an explicit same-homeserver MindRoom router roster), else `undefined`.
  */
-export const isAgentOneToOneDirectRoom = (
+export const getOneToOneAgentPartnerId = (
   room: Room,
   homeAgentIds: ReadonlySet<string>,
   mDirect?: Record<string, unknown>
-): boolean => {
+): string | undefined => {
   const activeMembers = getDirectActiveMemberCount(room);
-  if (activeMembers > 2 || activeMembers === 1) return false;
+  if (activeMembers > 2 || activeMembers === 1) return undefined;
   const partnerId = getDirectPartnerUserId(room, mDirect);
-  if (!partnerId || partnerId === room.myUserId) return false;
-  if (isMindroomOwnerUserId(partnerId)) return false;
-  return (
-    isMindroomAgentUserIdForViewer(partnerId, room.myUserId) ||
+  if (!partnerId || isMindroomOwnerUserId(partnerId)) return undefined;
+  return isMindroomAgentUserIdForViewer(partnerId, room.myUserId) ||
     homeAgentIds.has(partnerId) ||
     isRosteredLocalAgent(room, partnerId)
-  );
+    ? partnerId
+    : undefined;
 };
 
 /**
@@ -139,8 +109,7 @@ export const splitHomeDirectSections = (
   const primaryAgentDmByUserId = new Map<string, Room>();
 
   for (const room of directRooms) {
-    if (!isAgentOneToOneDirectRoom(room, homeAgentIds, mDirect)) continue;
-    const partnerId = getDirectPartnerUserId(room, mDirect);
+    const partnerId = getOneToOneAgentPartnerId(room, homeAgentIds, mDirect);
     if (!partnerId) continue;
     const existing = primaryAgentDmByUserId.get(partnerId);
     if (
@@ -193,31 +162,10 @@ export const splitHomeDirectSections = (
 };
 
 /**
- * Selects the visible direct rooms under Home's compact cap: all rooms when `rooms.length <= limit`
- * or `expanded`, otherwise the first `previewCount` plus `selectedRoomId` if it sits past the cap.
- */
-export const selectVisibleDirectRooms = (
-  rooms: readonly Room[],
-  selectedRoomId: string | undefined,
-  expanded: boolean,
-  limit = HOME_DIRECT_COMPACT_LIMIT,
-  previewCount = HOME_DIRECT_COMPACT_PREVIEW
-): { rooms: Room[]; capped: boolean } => {
-  if (expanded || rooms.length <= limit) {
-    return { rooms: [...rooms], capped: false };
-  }
-  const visible = rooms.slice(0, previewCount);
-  if (selectedRoomId && !visible.some((room) => room.roomId === selectedRoomId)) {
-    const selected = rooms.find((room) => room.roomId === selectedRoomId);
-    if (selected) visible.push(selected);
-  }
-  return { rooms: visible, capped: true };
-};
-
-/**
  * Single source of truth for rendered Direct messages rows (used by both the section and keyboard
- * shortcuts): when collapsed, shows only `selectedRoomId` if present; when expanded, applies the
- * compact cap.
+ * shortcuts): when collapsed, shows only `selectedRoomId` if present; when expanded, shows all
+ * rooms up to `limit` (or when `expanded`), otherwise the first `previewCount` plus
+ * `selectedRoomId` if it sits past the cap.
  */
 export const selectRenderedDirectRooms = (
   rooms: readonly Room[],
@@ -226,14 +174,20 @@ export const selectRenderedDirectRooms = (
   expanded: boolean,
   limit = HOME_DIRECT_COMPACT_LIMIT,
   previewCount = HOME_DIRECT_COMPACT_PREVIEW
-): { rooms: Room[]; capped: boolean } => {
+): Room[] => {
   if (closed) {
     const selected = selectedRoomId
       ? rooms.find((room) => room.roomId === selectedRoomId)
       : undefined;
-    return { rooms: selected ? [selected] : [], capped: false };
+    return selected ? [selected] : [];
   }
-  return selectVisibleDirectRooms(rooms, selectedRoomId, expanded, limit, previewCount);
+  if (expanded || rooms.length <= limit) return [...rooms];
+  const visible = rooms.slice(0, previewCount);
+  if (selectedRoomId && !visible.some((room) => room.roomId === selectedRoomId)) {
+    const selected = rooms.find((room) => room.roomId === selectedRoomId);
+    if (selected) visible.push(selected);
+  }
+  return visible;
 };
 
 /** Single source of truth for rendered Agents rows (collapsed shows only the selected agent DM). */
@@ -247,18 +201,4 @@ export const selectRenderedAgents = (
     ? agents.find((agent) => agent.dmRoom?.roomId === selectedRoomId)
     : undefined;
   return selected ? [selected] : [];
-};
-
-/** Deduplicates room IDs while preserving first-seen visual order. */
-export const dedupeRoomIds = (...lists: readonly (readonly string[])[]): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const list of lists) {
-    for (const roomId of list) {
-      if (seen.has(roomId)) continue;
-      seen.add(roomId);
-      result.push(roomId);
-    }
-  }
-  return result;
 };

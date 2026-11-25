@@ -217,12 +217,7 @@ describe('HomeDirectSection', () => {
 
     function Wrapper() {
       const [showAll, setShowAll] = useState(false);
-      const { rooms: visibleRooms } = selectRenderedDirectRooms(
-        rooms,
-        '!dm-8:example.org',
-        false,
-        showAll
-      );
+      const visibleRooms = selectRenderedDirectRooms(rooms, '!dm-8:example.org', false, showAll);
       return (
         <Provider store={store}>
           <HomeDirectSection

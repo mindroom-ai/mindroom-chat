@@ -1,110 +1,76 @@
-import {
-  type MouseEvent,
-  type MouseEventHandler,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  Avatar,
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Text,
-  toRem,
-  type IconSrc,
-  type RectCords,
-} from 'folds';
-import { FocusTrap } from 'focus-trap-react';
-import { atom, useAtomValue } from 'jotai';
+import { type MouseEvent, type MouseEventHandler, useCallback, useState } from 'react';
+import { Avatar, Box, Icon, Icons, Text, type IconSrc, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { stopPropagation } from '../../lib/keyboard';
-import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread';
-import {
-  type CollapsedSectionUnread,
-  getCollapsedSectionUnread,
-} from '../../spaces/spaceRoomSections';
-import { PopOut } from '../../ui/directional';
-import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
-import { NavButton, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
-import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
-import { UnreadBadgeCenter } from '../../ui/UnreadBadge';
-import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
+import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
+import * as roomNavCss from '../room-nav/RoomNavItem.css';
+import { SectionMenuPopOut } from '../SectionMenuPopOut';
+import {
+  COMPACT_HEADER_STYLE,
+  SectionActionButton,
+  SectionHeaderButton,
+} from '../space/SpaceSectionHeader';
 import * as spaceHeaderCss from '../space/SpaceSectionHeader.css';
 import * as css from './HomeSections.css';
 
-const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
-const COMPACT_HEADER_STYLE = { minHeight: undefined };
-
-type HomeEmptyRoomActionProps = {
-  /** Value of `data-home-room-action`, which tests and styles select on. */
-  action: 'create' | 'join';
+/** Shared leading-icon + label layout for Home's inline and empty-state action rows. */
+export function HomeActionRowContent({
+  icon,
+  label,
+  tintedTile = false,
+  iconClassName,
+  quiet = true,
+}: {
   icon: IconSrc;
   label: string;
-  selected?: boolean;
-} & ({ onSelect: () => void; to?: undefined } | { to: string; onSelect?: undefined });
+  /** Render the subtle rounded tile behind `+` action icons. */
+  tintedTile?: boolean;
+  iconClassName?: string;
+  /** Use muted `300` text priority (default for inline rows); empty-state rows omit priority. */
+  quiet?: boolean;
+}) {
+  return (
+    <NavItemContent>
+      <Box as="span" alignItems="Center" gap="200" grow="Yes">
+        <Avatar
+          size="200"
+          radii="400"
+          className={tintedTile ? roomNavCss.SubtleAvatarTile : undefined}
+        >
+          <Icon size="100" src={icon} className={iconClassName} />
+        </Avatar>
+        <Text as="span" size="Inherit" priority={quiet ? '300' : undefined} truncate>
+          {label}
+        </Text>
+      </Box>
+    </NavItemContent>
+  );
+}
 
-/** One of the empty-state shortcuts: a link when it opens a page, else a button. */
+/** One of the empty-state shortcuts (`Create Room`, `Join a Room`). */
 export function HomeEmptyRoomAction({
   action,
   icon,
   label,
   selected,
   onSelect,
-  to,
-}: HomeEmptyRoomActionProps) {
-  const content = (
-    <NavItemContent>
-      <Box as="span" alignItems="Center" gap="200" grow="Yes">
-        <Avatar radii="400" size="200">
-          <Icon size="100" src={icon} />
-        </Avatar>
-        <Text as="span" size="Inherit" truncate>
-          {label}
-        </Text>
-      </Box>
-    </NavItemContent>
-  );
+}: {
+  /** Value of `data-home-room-action`, which tests and styles select on. */
+  action: 'create' | 'join';
+  icon: IconSrc;
+  label: string;
+  selected?: boolean;
+  onSelect: () => void;
+}) {
   return (
     <NavItem aria-selected={selected} radii="400" variant="Background">
-      {to === undefined ? (
-        <NavButton data-home-room-action={action} onClick={onSelect}>
-          {content}
-        </NavButton>
-      ) : (
-        <NavLink data-home-room-action={action} to={to}>
-          {content}
-        </NavLink>
-      )}
+      <NavButton data-home-room-action={action} onClick={onSelect}>
+        <HomeActionRowContent icon={icon} label={label} quiet={false} />
+      </NavButton>
     </NavItem>
   );
 }
-
-const useCollapsedSectionUnread = (
-  closed: boolean,
-  roomIds: readonly string[],
-  selectedRoomId: string | undefined
-): CollapsedSectionUnread | undefined => {
-  const unreadAtom = useMemo(
-    () =>
-      closed
-        ? atom((get) =>
-            getCollapsedSectionUnread(
-              true,
-              roomIds,
-              selectedRoomId,
-              get(navigationRoomToUnreadAtom)
-            )
-          )
-        : EMPTY_UNREAD_ATOM,
-    [closed, roomIds, selectedRoomId]
-  );
-  return useAtomValue(unreadAtom);
-};
 
 export type HomeSectionHeaderProps = {
   label: string;
@@ -136,8 +102,6 @@ export function HomeSectionHeader({
   onCategoryClick,
   addAction,
 }: HomeSectionHeaderProps) {
-  const { t } = useTranslation();
-  const unread = useCollapsedSectionUnread(closed, roomIds, selectedRoomId);
   return (
     <NavCategoryHeader
       className={spaceHeaderCss.Header}
@@ -145,53 +109,29 @@ export function HomeSectionHeader({
       data-actions-count={addAction ? 1 : undefined}
       data-menu-open={addAction?.menuOpen ? 'true' : undefined}
     >
-      <RoomNavCategoryButton
-        className={spaceHeaderCss.HeaderButton}
-        closed={closed}
-        data-category-id={categoryId}
-        aria-label={unread ? t('featureUi.spaceNav.subspaceUnread', { name: label }) : undefined}
+      <SectionHeaderButton
+        label={label}
         before={
           icon ? (
             <Icon size="50" src={icon} className={css.SectionIcon} aria-hidden="true" />
           ) : undefined
         }
-        after={
-          unread && (
-            <span className={spaceHeaderCss.UnreadSlot}>
-              <UnreadBadgeCenter>
-                <span data-unread data-highlight={unread.highlight ? 'true' : undefined}>
-                  <span
-                    className={
-                      unread.highlight
-                        ? spaceHeaderCss.QuietHighlightDot
-                        : spaceHeaderCss.QuietUnreadDot
-                    }
-                    aria-hidden="true"
-                  />
-                </span>
-              </UnreadBadgeCenter>
-            </span>
-          )
-        }
+        categoryId={categoryId}
+        closed={closed}
+        shownRoomIds={roomIds}
+        selectedRoomId={selectedRoomId}
+        quietUnread
         onClick={onCategoryClick}
-      >
-        {label}
-      </RoomNavCategoryButton>
+      />
       {addAction && (
         <div className={spaceHeaderCss.SectionActions}>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Background"
-            fill="None"
-            className={spaceHeaderCss.ActionButton}
-            aria-label={addAction.label}
-            aria-haspopup={addAction.hasMenu ? 'menu' : undefined}
-            aria-expanded={addAction.hasMenu ? Boolean(addAction.menuOpen) : undefined}
+          <SectionActionButton
+            icon={Icons.Plus}
+            label={addAction.label}
+            hasMenu={addAction.hasMenu}
+            menuOpen={addAction.menuOpen}
             onClick={addAction.onClick}
-          >
-            <Icon size="50" src={Icons.Plus} />
-          </IconButton>
+          />
         </div>
       )}
     </NavCategoryHeader>
@@ -203,7 +143,7 @@ export type AddRoomsMenuSource = 'header' | 'row';
 type AddRoomsMenuState = {
   source: AddRoomsMenuSource;
   anchor: RectCords;
-  align: 'Start' | 'End';
+  opener: HTMLElement | null;
 };
 
 /** Manages the Create Room / Join a Room popover shared by the Rooms header `+` and `+ Add rooms`. */
@@ -216,118 +156,78 @@ export function useHomeAddRoomsMenu({
 }) {
   const { t } = useTranslation();
   const [menu, setMenu] = useState<AddRoomsMenuState>();
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const refocusRef = useRef(false);
 
-  const close = useCallback(() => {
-    setMenu(undefined);
-    if (refocusRef.current) {
-      refocusRef.current = false;
-      returnFocusRef.current?.focus();
-    }
-    returnFocusRef.current = null;
-  }, []);
-
+  const close = useCallback(() => setMenu(undefined), []);
   const open = useCallback(
-    (source: AddRoomsMenuSource, align: 'Start' | 'End', event: MouseEvent<HTMLButtonElement>) => {
-      refocusRef.current = false;
-      returnFocusRef.current = event.currentTarget;
-      setMenu({ source, align, anchor: event.currentTarget.getBoundingClientRect() });
-    },
+    (source: AddRoomsMenuSource, event: MouseEvent<HTMLButtonElement>) =>
+      setMenu({
+        source,
+        anchor: event.currentTarget.getBoundingClientRect(),
+        opener: event.currentTarget,
+      }),
     []
   );
   const openFromHeader = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => open('header', 'End', event),
+    (event: MouseEvent<HTMLButtonElement>) => open('header', event),
     [open]
   );
   const openFromRow = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => open('row', 'Start', event),
+    (event: MouseEvent<HTMLButtonElement>) => open('row', event),
     [open]
   );
 
   const popover = menu ? (
-    <PopOut
+    <SectionMenuPopOut
       anchor={menu.anchor}
-      position="Bottom"
-      align={menu.align}
-      offset={4}
-      content={
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: false,
-            clickOutsideDeactivates: true,
-            escapeDeactivates: (event) => {
-              if (!stopPropagation(event)) return false;
-              refocusRef.current = true;
-              return true;
-            },
-            onDeactivate: close,
+      align={menu.source === 'header' ? 'End' : 'Start'}
+      returnFocusTo={menu.opener}
+      onClose={close}
+    >
+      <MenuGroup>
+        <MenuEntry
+          icon={Icons.Plus}
+          label={t('nav.createRoom')}
+          data-home-room-action="create"
+          onSelect={() => {
+            close();
+            onCreate();
           }}
-        >
-          <Menu
-            className={scrollableMenuCss.ScrollableMenu}
-            style={{ width: '100vw', maxWidth: toRem(220) }}
-          >
-            <div className={scrollableMenuCss.ScrollableMenuRows}>
-              <MenuGroup>
-                <MenuEntry
-                  icon={Icons.Plus}
-                  label={t('nav.createRoom')}
-                  data-home-room-action="create"
-                  onSelect={() => {
-                    close();
-                    onCreate();
-                  }}
-                />
-                <MenuEntry
-                  icon={Icons.Link}
-                  label={t('sharedUi.joinAddressPrompt.joinARoom')}
-                  data-home-room-action="join"
-                  onSelect={() => {
-                    const opener = returnFocusRef.current;
-                    close();
-                    onJoin(opener);
-                  }}
-                />
-              </MenuGroup>
-            </div>
-          </Menu>
-        </FocusTrap>
-      }
-    />
+        />
+        <MenuEntry
+          icon={Icons.Link}
+          label={t('sharedUi.joinAddressPrompt.joinARoom')}
+          data-home-room-action="join"
+          onSelect={() => {
+            const { opener } = menu;
+            close();
+            onJoin(opener);
+          }}
+        />
+      </MenuGroup>
+    </SectionMenuPopOut>
   ) : null;
 
   return { source: menu?.source, openFromHeader, openFromRow, popover };
 }
 
+export type HomeAddRoomsMenu = ReturnType<typeof useHomeAddRoomsMenu>;
+
 /** Inline `+ Add rooms` row at the bottom of expanded Rooms (or below search/Spaces when unspaced is empty). */
-export function HomeAddRoomsRow({
-  menuOpen,
-  onOpenMenu,
-}: {
-  menuOpen: boolean;
-  onOpenMenu: (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
+export function HomeAddRoomsRow({ addRoomsMenu }: { addRoomsMenu: HomeAddRoomsMenu }) {
   const { t } = useTranslation();
   return (
     <NavItem radii="400" variant="Background">
       <NavButton
         data-home-room-action="add"
         aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={onOpenMenu}
+        aria-expanded={addRoomsMenu.source === 'row'}
+        onClick={addRoomsMenu.openFromRow}
       >
-        <NavItemContent>
-          <Box as="span" alignItems="Center" gap="200" grow="Yes">
-            <Avatar size="200" radii="400" className={css.InlinePlusAvatar}>
-              <Icon size="100" src={Icons.Plus} />
-            </Avatar>
-            <Text as="span" size="Inherit" priority="300" truncate>
-              {t('featureUi.homeNav.addRooms')}
-            </Text>
-          </Box>
-        </NavItemContent>
+        <HomeActionRowContent
+          icon={Icons.Plus}
+          label={t('featureUi.homeNav.addRooms')}
+          tintedTile
+        />
       </NavButton>
     </NavItem>
   );

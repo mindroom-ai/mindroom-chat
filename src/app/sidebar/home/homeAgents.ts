@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import {
-  EventType,
   MatrixEventEvent,
   RelationType,
   RoomEvent,
@@ -23,12 +22,12 @@ import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/proto
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import {
   canSendMessageInRoom,
+  getDirectActiveMemberCount,
   getMemberAvatarMxc,
   getMemberRawDisplayName,
 } from '../../matrix/room';
 import { navigationRoomsAtom } from '../../matrix/state/archivedRooms';
-import { mDirectAtom } from '../../matrix/state/mDirectList';
-import type { MDirectContent } from '../../matrix/types/accountData';
+import { mDirectAtom, readMDirectContent } from '../../matrix/state/mDirectList';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -69,14 +68,14 @@ export const isDirectRoomWith = (
     m.userId !== agentId;
   return (
     canSendIn(room) &&
-    room.getJoinedMemberCount() + room.getInvitedMemberCount() <= 2 &&
+    getDirectActiveMemberCount(room) <= 2 &&
     !room.getMembers().some(isThird) &&
     memberships.includes(room.getMember(agentId)?.membership)
   );
 };
 
 const listedDirectRooms = (mx: MatrixClient, agentId: string): Room[] => {
-  const raw: unknown = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>()?.[agentId];
+  const raw: unknown = readMDirectContent(mx)?.[agentId];
   return Array.isArray(raw)
     ? raw
         .map((id) => (typeof id === 'string' ? mx.getRoom(id) : null))

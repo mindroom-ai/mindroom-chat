@@ -2,13 +2,11 @@ import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import type { HomeAgent } from './homeAgents';
 import {
-  dedupeRoomIds,
+  getOneToOneAgentPartnerId,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
-  isAgentOneToOneDirectRoom,
   selectRenderedAgents,
   selectRenderedDirectRooms,
-  selectVisibleDirectRooms,
   splitHomeDirectSections,
 } from './homeDirectSections';
 
@@ -151,15 +149,15 @@ describe('homeDirectSections', () => {
 
     const homeAgentIds = new Set([CUSTOM_AGENT]);
 
-    expect(isAgentOneToOneDirectRoom(humanDm, homeAgentIds)).toBe(false);
-    expect(isAgentOneToOneDirectRoom(invitedHumanDm, homeAgentIds)).toBe(false);
-    expect(isAgentOneToOneDirectRoom(agentDm, homeAgentIds)).toBe(true);
-    expect(isAgentOneToOneDirectRoom(invitedAgentDm, homeAgentIds)).toBe(true);
-    expect(isAgentOneToOneDirectRoom(customAgentDm, homeAgentIds)).toBe(true);
-    expect(isAgentOneToOneDirectRoom(groupDmWithAgent, homeAgentIds)).toBe(false);
-    expect(isAgentOneToOneDirectRoom(groupDmWithInvitedAgent, homeAgentIds)).toBe(false);
-    expect(isAgentOneToOneDirectRoom(selfDm, homeAgentIds)).toBe(false);
-    expect(isAgentOneToOneDirectRoom(selfDmWithStalePartner, homeAgentIds)).toBe(false);
+    expect(getOneToOneAgentPartnerId(humanDm, homeAgentIds)).toBeUndefined();
+    expect(getOneToOneAgentPartnerId(invitedHumanDm, homeAgentIds)).toBeUndefined();
+    expect(getOneToOneAgentPartnerId(agentDm, homeAgentIds)).toBe(DEV_AGENT);
+    expect(getOneToOneAgentPartnerId(invitedAgentDm, homeAgentIds)).toBe(RESEARCHER);
+    expect(getOneToOneAgentPartnerId(customAgentDm, homeAgentIds)).toBe(CUSTOM_AGENT);
+    expect(getOneToOneAgentPartnerId(groupDmWithAgent, homeAgentIds)).toBeUndefined();
+    expect(getOneToOneAgentPartnerId(groupDmWithInvitedAgent, homeAgentIds)).toBeUndefined();
+    expect(getOneToOneAgentPartnerId(selfDm, homeAgentIds)).toBeUndefined();
+    expect(getOneToOneAgentPartnerId(selfDmWithStalePartner, homeAgentIds)).toBeUndefined();
   });
 
   it('merges useHomeAgents with unlisted 1:1 agent DMs and orders agents by recency', () => {
@@ -397,7 +395,10 @@ describe('homeDirectSections', () => {
       },
     });
 
-    const result = splitHomeDirectSections([foreignSpoofDm, foreignSelfBoundDm, rosteredCustomDm], []);
+    const result = splitHomeDirectSections(
+      [foreignSpoofDm, foreignSelfBoundDm, rosteredCustomDm],
+      []
+    );
     expect(result.humanDms.map((r) => r.roomId)).toEqual([
       '!dm-foreign:example.org',
       '!dm-foreign-selfbound:example.org',
@@ -412,18 +413,9 @@ describe('homeDirectSections', () => {
       makeRoom({ roomId: '!dm-1:example.org', joined: 2, partnerId: LIAM }),
       makeRoom({ roomId: '!dm-2:example.org', joined: 2, partnerId: NORA }),
     ];
-    expect(selectRenderedDirectRooms(rooms, undefined, true, false)).toEqual({
-      rooms: [],
-      capped: false,
-    });
-    expect(selectRenderedDirectRooms(rooms, '!dm-2:example.org', true, false)).toEqual({
-      rooms: [rooms[1]],
-      capped: false,
-    });
-    expect(selectRenderedDirectRooms(rooms, undefined, false, false)).toEqual({
-      rooms,
-      capped: false,
-    });
+    expect(selectRenderedDirectRooms(rooms, undefined, true, false)).toEqual([]);
+    expect(selectRenderedDirectRooms(rooms, '!dm-2:example.org', true, false)).toEqual([rooms[1]]);
+    expect(selectRenderedDirectRooms(rooms, undefined, false, false)).toEqual(rooms);
 
     const agents = [
       { userId: DEV_AGENT, name: 'DevAgent', dmRoom: rooms[0], lastActivityTs: 2 },
@@ -438,10 +430,7 @@ describe('homeDirectSections', () => {
     const six = Array.from({ length: 6 }, (_, i) =>
       makeRoom({ roomId: `!dm-${i + 1}:example.org`, joined: 2, partnerId: `@u${i}:example.org` })
     );
-    expect(selectVisibleDirectRooms(six, undefined, false)).toEqual({
-      rooms: six,
-      capped: false,
-    });
+    expect(selectRenderedDirectRooms(six, undefined, false, false)).toEqual(six);
 
     const eight = [
       ...six,
@@ -449,9 +438,7 @@ describe('homeDirectSections', () => {
       makeRoom({ roomId: '!dm-8:example.org', joined: 2, partnerId: '@u8:example.org' }),
     ];
 
-    const collapsedNoSelection = selectVisibleDirectRooms(eight, undefined, false);
-    expect(collapsedNoSelection.capped).toBe(true);
-    expect(collapsedNoSelection.rooms.map((r) => r.roomId)).toEqual([
+    expect(selectRenderedDirectRooms(eight, undefined, false, false).map((r) => r.roomId)).toEqual([
       '!dm-1:example.org',
       '!dm-2:example.org',
       '!dm-3:example.org',
@@ -460,9 +447,9 @@ describe('homeDirectSections', () => {
     ]);
 
     // Selected room past index 5 stays visible under the compact cap.
-    const collapsedWithLateSelection = selectVisibleDirectRooms(eight, '!dm-8:example.org', false);
-    expect(collapsedWithLateSelection.capped).toBe(true);
-    expect(collapsedWithLateSelection.rooms.map((r) => r.roomId)).toEqual([
+    expect(
+      selectRenderedDirectRooms(eight, '!dm-8:example.org', false, false).map((r) => r.roomId)
+    ).toEqual([
       '!dm-1:example.org',
       '!dm-2:example.org',
       '!dm-3:example.org',
@@ -472,21 +459,9 @@ describe('homeDirectSections', () => {
     ]);
 
     // Selected room within the first 5 is not duplicated.
-    const collapsedWithEarlySelection = selectVisibleDirectRooms(eight, '!dm-3:example.org', false);
-    expect(collapsedWithEarlySelection.rooms.map((r) => r.roomId)).toHaveLength(5);
+    expect(selectRenderedDirectRooms(eight, '!dm-3:example.org', false, false)).toHaveLength(5);
 
     // Expanded shows every room.
-    const expanded = selectVisibleDirectRooms(eight, '!dm-8:example.org', true);
-    expect(expanded.capped).toBe(false);
-    expect(expanded.rooms.map((r) => r.roomId)).toHaveLength(8);
-  });
-
-  it('deduplicates room IDs while preserving rendered visual order', () => {
-    expect(dedupeRoomIds(['!a', '!b'], ['!b', '!c'], ['!a', '!d'])).toEqual([
-      '!a',
-      '!b',
-      '!c',
-      '!d',
-    ]);
+    expect(selectRenderedDirectRooms(eight, '!dm-8:example.org', false, true)).toHaveLength(8);
   });
 });

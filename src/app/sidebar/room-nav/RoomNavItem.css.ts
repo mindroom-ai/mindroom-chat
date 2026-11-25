@@ -8,12 +8,19 @@ export const AvatarSlot = style({
   flexShrink: 0,
 });
 
-/** Rounded-square member count avatar for group direct messages (> 2 active members). */
-export const GroupCountAvatar = style({
+/** Subtle rounded tile behind non-photo row avatars (group DM count, inline `+` action rows). */
+export const SubtleAvatarTile = style({
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
-  fontVariantNumeric: 'tabular-nums',
 });
+
+/** Rounded-square member count avatar for group direct messages (> 2 active members). */
+export const GroupCountAvatar = style([
+  SubtleAvatarTile,
+  {
+    fontVariantNumeric: 'tabular-nums',
+  },
+]);
 
 /** Keeps the room name truncatable while a trailing self-DM tag stays visible. */
 export const NameRow = style({

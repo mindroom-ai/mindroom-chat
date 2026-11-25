@@ -243,7 +243,6 @@ const renderRoomNavItem = (
     room?: Room;
     direct?: boolean;
     showAvatar?: boolean;
-    showDraft?: boolean;
     nameOverride?: string;
     fallbackAvatarMxc?: string;
     avatarBadge?: React.ComponentProps<typeof RoomNavItem>['avatarBadge'];
@@ -663,12 +662,22 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(renderer.root.findAllByType('span').some((n) => n.children.includes('3'))).toBe(true);
     expect(findByTestId(renderer, 'room-avatar-image')).toHaveLength(0);
 
-    const describedBy = renderer.root.findByType('a').props['aria-describedby'] as string;
-    const description = renderer.root.find(
-      (node) => node.type === 'span' && node.props.id === describedBy
-    );
-    expect(description.props.hidden).toBe(true);
-    expect(description.children).toEqual(['3 members']);
+    const activeDescriptions = () => {
+      const ids =
+        (renderer.root.findByType('a').props['aria-describedby'] as string | undefined)?.split(
+          ' '
+        ) ?? [];
+      return ids
+        .flatMap((id) =>
+          renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
+        )
+        .filter((node) => node.children.length > 0);
+    };
+
+    const initialDescriptions = activeDescriptions();
+    expect(initialDescriptions).toHaveLength(1);
+    expect(initialDescriptions[0]!.props.hidden).toBe(true);
+    expect(initialDescriptions[0]!.children).toEqual(['3 members']);
 
     // Dropping back to 2 members switches back to the person avatar and drops the group description.
     act(() => dm.setCounts(2, 0));
@@ -678,7 +687,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
           typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
       )
     ).toHaveLength(0);
-    expect(renderer.root.findByType('a').props['aria-describedby']).toBeUndefined();
+    expect(activeDescriptions()).toHaveLength(0);
 
     // Sync summary updates (lazy-loaded rooms without full member events) also refresh the count.
     act(() => dm.setSummaryCounts(4, 0));
@@ -687,11 +696,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
         (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 4
       )
     ).toHaveLength(1);
-    const updatedDescribedBy = renderer.root.findByType('a').props['aria-describedby'] as string;
-    const updatedDescription = renderer.root.find(
-      (node) => node.type === 'span' && node.props.id === updatedDescribedBy
-    );
-    expect(updatedDescription.children).toEqual(['4 members']);
+    expect(activeDescriptions().flatMap((node) => node.children)).toEqual(['4 members']);
   });
 
   it('formats the group DM count avatar with locale-native digits', async () => {
@@ -767,10 +772,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
 
     testState.unread = { total: 1, highlight: 0 };
     useRoomNameMock.mockClear();
-    const renderer = renderRoomNavItem(
-      { room: dm, direct: true, showAvatar: true, showDraft: true },
-      store
-    );
+    const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true }, store);
 
     const pencils = () =>
       renderer.root.findAll(
@@ -819,7 +821,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
         .flatMap((node) => node.children);
     };
 
-    expect(pencils()[0]!.props['aria-hidden']).toBe('true');
+    expect(pencils()[0]!.props['aria-hidden']).toBe(true);
     expect(draftDescriptionText()).toEqual(['Draft']);
 
     // Hovering or focusing the row hides the visual pencil for options, while keeping "Draft" in aria-describedby.
@@ -871,11 +873,14 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(
       renderer.root.findAll((node) => node.props['data-agent-active-run'] === 'true')
     ).toHaveLength(1);
-    const describedBy = renderer.root.findByType('a').props['aria-describedby'] as string;
-    const badgeDesc = renderer.root.find(
-      (node) => node.type === 'span' && node.props.id === describedBy
-    );
-    expect(badgeDesc.props.hidden).toBe(true);
-    expect(badgeDesc.children).toEqual(['Agent active']);
+    const ids = (renderer.root.findByType('a').props['aria-describedby'] as string).split(' ');
+    const badgeDescs = ids
+      .flatMap((id) =>
+        renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
+      )
+      .filter((node) => node.children.length > 0);
+    expect(badgeDescs).toHaveLength(1);
+    expect(badgeDescs[0]!.props.hidden).toBe(true);
+    expect(badgeDescs[0]!.children).toEqual(['Agent active']);
   });
 });

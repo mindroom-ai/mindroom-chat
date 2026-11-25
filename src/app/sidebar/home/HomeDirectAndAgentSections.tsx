@@ -1,5 +1,5 @@
 import { type MouseEventHandler, useCallback, useRef, useState } from 'react';
-import { Avatar, Box, Icon, Icons, Spinner, Text } from 'folds';
+import { Avatar, Box, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
@@ -26,7 +26,7 @@ import {
   HOME_DIRECT_COMPACT_LIMIT,
   type HomeSidebarAgent,
 } from './homeDirectSections';
-import { HomeSectionHeader } from './HomeSectionChrome';
+import { HomeActionRowContent, HomeSectionHeader } from './HomeSectionChrome';
 import * as css from './HomeSections.css';
 
 const AGENT_AVATAR_SIZE = 96;
@@ -196,44 +196,31 @@ export function HomeDirectSection({
           notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
           direct
           showAvatar
-          showDraft
         />
       ))}
       {showCapToggle && (
         <NavItem radii="400" variant="Background">
           <NavButton data-home-dm-action="toggle-all" onClick={onToggleShowAll}>
-            <NavItemContent>
-              <Box as="span" alignItems="Center" gap="200" grow="Yes">
-                <Avatar size="200" radii="400">
-                  <Icon
-                    size="100"
-                    src={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
-                    className={css.SectionIcon}
-                  />
-                </Avatar>
-                <Text as="span" size="Inherit" priority="300" truncate>
-                  {showAll
-                    ? t('mindroomUi.notices.showLess')
-                    : t('featureUi.homeNav.showAllDirectMessages', { count: allRoomIds.length })}
-                </Text>
-              </Box>
-            </NavItemContent>
+            <HomeActionRowContent
+              icon={showAll ? Icons.ChevronTop : Icons.ChevronBottom}
+              iconClassName={css.SectionIcon}
+              label={
+                showAll
+                  ? t('mindroomUi.notices.showLess')
+                  : t('featureUi.homeNav.showAllDirectMessages', { count: allRoomIds.length })
+              }
+            />
           </NavButton>
         </NavItem>
       )}
       {!closed && (
         <NavItem radii="400" variant="Background">
           <NavLink data-home-dm-action="new" to={getDirectCreatePath()}>
-            <NavItemContent>
-              <Box as="span" alignItems="Center" gap="200" grow="Yes">
-                <Avatar size="200" radii="400" className={css.InlinePlusAvatar}>
-                  <Icon size="100" src={Icons.Plus} />
-                </Avatar>
-                <Text as="span" size="Inherit" priority="300" truncate>
-                  {t('featureUi.homeNav.newDirectMessage')}
-                </Text>
-              </Box>
-            </NavItemContent>
+            <HomeActionRowContent
+              icon={Icons.Plus}
+              label={t('featureUi.homeNav.newDirectMessage')}
+              tintedTile
+            />
           </NavLink>
         </NavItem>
       )}
@@ -308,7 +295,6 @@ export function HomeAgentsSection({
             notificationMode={getRoomNotificationMode(notificationPreferences, dmRoom.roomId)}
             direct
             showAvatar
-            showDraft
             nameOverride={agent.name}
             fallbackAvatarMxc={agent.avatarMxc}
             avatarBadge={(descriptionId) => (

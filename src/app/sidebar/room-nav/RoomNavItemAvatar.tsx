@@ -57,7 +57,7 @@ export function RoomNavItemAvatar({
       avatar
     );
 
-  if (personAvatar && groupMemberCount !== undefined && groupMemberCount > 2) {
+  if (groupMemberCount !== undefined) {
     return wrap(
       <GroupCountAvatar count={groupMemberCount} descriptionId={groupCountDescriptionId} />
     );

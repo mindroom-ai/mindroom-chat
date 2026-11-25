@@ -300,14 +300,12 @@ vi.mock('../room-nav/RoomNavItem', () => ({
     room,
     linkPath,
     direct,
-    showDraft,
     nameOverride,
     selected,
   }: {
     room: { roomId: string };
     linkPath: string;
     direct?: boolean;
-    showDraft?: boolean;
     nameOverride?: string;
     selected?: boolean;
   }) =>
@@ -315,7 +313,6 @@ vi.mock('../room-nav/RoomNavItem', () => ({
       'data-room-nav-item': room.roomId,
       'data-link-path': linkPath,
       'data-direct': direct ? 'true' : undefined,
-      'data-show-draft': showDraft ? 'true' : undefined,
       'data-name-override': nameOverride,
       'data-selected': selected ? 'true' : undefined,
     }),
@@ -1064,11 +1061,11 @@ describe('Home', () => {
         .map((n) => ({
           id: n.props['data-room-nav-item'],
           link: n.props['data-link-path'],
-          showDraft: n.props['data-show-draft'],
+          direct: n.props['data-direct'],
         }))
     ).toEqual([
-      { id: '!dm-maya:example.org', link: '/home/!dm-maya:example.org', showDraft: 'true' },
-      { id: '!dm-group:example.org', link: '/home/!dm-group:example.org', showDraft: 'true' },
+      { id: '!dm-maya:example.org', link: '/home/!dm-maya:example.org', direct: 'true' },
+      { id: '!dm-group:example.org', link: '/home/!dm-group:example.org', direct: 'true' },
     ]);
 
     const agentsSection = renderer.root.findByProps({ 'data-testid': 'home-agents-section' });
@@ -1079,14 +1076,14 @@ describe('Home', () => {
           id: n.props['data-room-nav-item'],
           link: n.props['data-link-path'],
           name: n.props['data-name-override'],
-          showDraft: n.props['data-show-draft'],
+          direct: n.props['data-direct'],
         }))
     ).toEqual([
       {
         id: '!dm-dev:example.org',
         link: '/home/!dm-dev:example.org',
         name: 'DevAgent',
-        showDraft: 'true',
+        direct: 'true',
       },
     ]);
 

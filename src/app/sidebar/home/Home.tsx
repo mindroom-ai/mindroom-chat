@@ -1,6 +1,5 @@
 import {
   type ComponentProps,
-  type MouseEvent,
   type MouseEventHandler,
   type ReactNode,
   useCallback,
@@ -24,7 +23,8 @@ import {
   SortableRoomRow,
   useRoomSectionDrop,
 } from '../room-nav/SortableRoomList';
-import { useMDirectContent } from '../room-nav/DirectRoomRowExtras';
+import { useMDirectContent } from '../../matrix/state/mDirectList';
+import { mergeSearchRoomSources } from '../../matrix/state/useSpaceSearchRooms';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
 import { useDirectRooms } from '../direct/useDirectRooms';
@@ -51,7 +51,6 @@ import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { useHomeAgents } from './homeAgents';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
 import {
-  dedupeRoomIds,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
   selectRenderedAgents,
@@ -59,7 +58,7 @@ import {
   splitHomeDirectSections,
 } from './homeDirectSections';
 import {
-  type AddRoomsMenuSource,
+  type HomeAddRoomsMenu,
   HomeAddRoomsRow,
   HomeEmptyRoomAction,
   HomeSectionHeader,
@@ -82,9 +81,7 @@ type HomeUnspacedRoomsSectionProps = {
   tree: SubRoomTree;
   roomOrder: Pick<RoomOrder, 'mode' | 'save'>;
   virtualizer: ReturnType<typeof useNavVirtualizer<HTMLDivElement, Element>>;
-  addMenuSource: AddRoomsMenuSource | undefined;
-  onOpenAddMenuFromHeader: (event: MouseEvent<HTMLButtonElement>) => void;
-  onOpenAddMenuFromRow: (event: MouseEvent<HTMLButtonElement>) => void;
+  addRoomsMenu: HomeAddRoomsMenu;
   onCategoryClick: MouseEventHandler<HTMLElement>;
   rowProps: (room: Room) => ComponentProps<typeof SortableRoomRow>;
   renderSubRoom: (room: Room) => ReactNode;
@@ -100,9 +97,7 @@ function HomeUnspacedRoomsSection({
   tree,
   roomOrder,
   virtualizer,
-  addMenuSource,
-  onOpenAddMenuFromHeader,
-  onOpenAddMenuFromRow,
+  addRoomsMenu,
   onCategoryClick,
   rowProps,
   renderSubRoom,
@@ -123,8 +118,8 @@ function HomeUnspacedRoomsSection({
         addAction={{
           label: t('featureUi.homeNav.addRooms'),
           hasMenu: true,
-          menuOpen: addMenuSource === 'header',
-          onClick: onOpenAddMenuFromHeader,
+          menuOpen: addRoomsMenu.source === 'header',
+          onClick: addRoomsMenu.openFromHeader,
         }}
       />
       <SortableRoomList
@@ -159,9 +154,7 @@ function HomeUnspacedRoomsSection({
           })}
         </div>
       </SortableRoomList>
-      {!roomsClosed && (
-        <HomeAddRoomsRow menuOpen={addMenuSource === 'row'} onOpenMenu={onOpenAddMenuFromRow} />
-      )}
+      {!roomsClosed && <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />}
     </NavCategory>
   );
 }
@@ -209,7 +202,7 @@ export function Home() {
   const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
   const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
   const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
-  const showDirectSection = humanDms.length > 0 || agentDmRoomIds.length > 0 || !directTabShown;
+  const showDirectSection = directRooms.length > 0 || !directTabShown;
   const isEmptyHome =
     unspaced.length === 0 &&
     sectionTree.length === 0 &&
@@ -217,11 +210,8 @@ export function Home() {
     agents.length === 0;
 
   const visibleDirectRooms = useMemo(
-    () =>
-      showDirectSection
-        ? selectRenderedDirectRooms(humanDms, selectedRoomId, directClosed, showAllDms).rooms
-        : [],
-    [showDirectSection, humanDms, selectedRoomId, directClosed, showAllDms]
+    () => selectRenderedDirectRooms(humanDms, selectedRoomId, directClosed, showAllDms),
+    [humanDms, selectedRoomId, directClosed, showAllDms]
   );
   const visibleAgents = useMemo(
     () => selectRenderedAgents(agents, selectedRoomId, agentsClosed),
@@ -230,7 +220,7 @@ export function Home() {
 
   const allShortcutRoomIds = useMemo(
     () =>
-      dedupeRoomIds(
+      mergeSearchRoomSources(
         shortcutRoomIds,
         visibleDirectRooms.map((room) => room.roomId),
         visibleAgents.flatMap((agent) => (agent.dmRoom ? [agent.dmRoom.roomId] : []))
@@ -238,7 +228,7 @@ export function Home() {
     [shortcutRoomIds, visibleDirectRooms, visibleAgents]
   );
   const allMarkReadRoomIds = useMemo(
-    () => dedupeRoomIds(allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds),
+    () => mergeSearchRoomSources(allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds),
     [allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds]
   );
 
@@ -355,9 +345,7 @@ export function Home() {
                     tree={tree}
                     roomOrder={roomOrder}
                     virtualizer={virtualizer}
-                    addMenuSource={addRoomsMenu.source}
-                    onOpenAddMenuFromHeader={addRoomsMenu.openFromHeader}
-                    onOpenAddMenuFromRow={addRoomsMenu.openFromRow}
+                    addRoomsMenu={addRoomsMenu}
                     onCategoryClick={onCategoryClick}
                     rowProps={rowProps}
                     renderSubRoom={renderSubRoom}
@@ -388,10 +376,7 @@ export function Home() {
             )}
             {unspaced.length === 0 && (
               <NavCategory>
-                <HomeAddRoomsRow
-                  menuOpen={addRoomsMenu.source === 'row'}
-                  onOpenMenu={addRoomsMenu.openFromRow}
-                />
+                <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />
               </NavCategory>
             )}
             {showDirectSection && (

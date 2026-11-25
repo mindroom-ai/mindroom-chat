@@ -13,16 +13,20 @@ import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { useRoomUnread } from '../../matrix/state/useUnread';
 import { useRoomActionDialog } from '../../room/RoomActionsMenu';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
-import { IconTooltip } from '../../ui/IconTooltip';
 import { NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
-import { RoomDraftMark, SelfDirectTag, useDirectMemberCount } from './DirectRoomRowExtras';
+import {
+  RoomDraftMark,
+  RowMarkIcon,
+  SelfDirectTag,
+  useDirectMemberCount,
+} from './DirectRoomRowExtras';
 import { RoomActivityTime } from './RoomActivityTime';
 import { RoomNavItemAvatar } from './RoomNavItemAvatar';
 import { RoomNavOptions } from './RoomNavOptions';
 import * as css from './RoomNavItem.css';
 
-type AvatarBadgeProp = React.ReactNode | ((descriptionId: string) => React.ReactNode);
+type AvatarBadgeRenderer = (descriptionId: string) => React.ReactNode;
 
 type RoomNavItemProps = {
   room: Room;
@@ -32,17 +36,15 @@ type RoomNavItemProps = {
 } & Partial<{
   /** Muted rooms without unread messages show a muted mark; rows without a mode show none. */
   notificationMode: RoomNotificationMode;
-  /** A direct message: shows the other person's avatar with initials as fallback. */
+  /** A direct message: shows partner avatar/group count/self tag and any unsent local draft mark. */
   direct: boolean;
   showAvatar: boolean;
-  /** Show a subtle pencil icon when this room has an unsent local composer draft. */
-  showDraft: boolean;
   /** Display name shown instead of `useRoomName(room)` (e.g. an agent's resolved display name). */
   nameOverride: string;
   /** Fallback MXC avatar URL when a direct partner has no room-level avatar yet. */
   fallbackAvatarMxc: string;
-  /** Optional corner badge; a render function receives an `aria-describedby` target ID. */
-  avatarBadge: AvatarBadgeProp;
+  /** Optional corner badge rendered with an `aria-describedby` target ID. */
+  avatarBadge: AvatarBadgeRenderer;
   /** The space whose list shows the row, which the room's settings and search stay in. */
   spaceId: string;
   /** The immediate space section listing this row; offers `Remove from <space>` when permitted. */
@@ -104,17 +106,7 @@ const useCutOffNameTooltip = (
 function CallMark({ id, label }: { id: string; label: string }) {
   return (
     <>
-      <IconTooltip label={label}>
-        {(triggerRef) => (
-          <Icon
-            ref={triggerRef}
-            src={Icons.Phone}
-            size="50"
-            aria-hidden
-            style={{ opacity: config.opacity.P500 }}
-          />
-        )}
-      </IconTooltip>
+      <RowMarkIcon src={Icons.Phone} label={label} />
       <span id={id} hidden>
         {label}
       </span>
@@ -127,7 +119,6 @@ type RoomNavTrailingProps = {
   callStatus?: string;
   callStatusId: string;
   showDraft: boolean;
-  showDraftIcon: boolean;
   draftStatusId: string;
   status: React.ReactNode;
   showOptions: boolean;
@@ -137,17 +128,15 @@ type RoomNavTrailingProps = {
  * Trailing marks and status slot. Isolates `useRoomBackgroundJobs` in a leaf component and
  * reserves `UnreadBadgeCenter` at rest while marks show so clocks and calls align across rows.
  */
-function RoomNavTrailing(props: RoomNavTrailingProps) {
-  const {
-    room,
-    callStatus,
-    callStatusId,
-    showDraft,
-    showDraftIcon,
-    draftStatusId,
-    status,
-    showOptions,
-  } = props;
+function RoomNavTrailing({
+  room,
+  callStatus,
+  callStatusId,
+  showDraft,
+  draftStatusId,
+  status,
+  showOptions,
+}: RoomNavTrailingProps) {
   const { t } = useTranslation();
   const hasBackgroundJobs = useRoomBackgroundJobs(room).total > 0;
   const hasMarks = hasBackgroundJobs || Boolean(callStatus);
@@ -155,22 +144,10 @@ function RoomNavTrailing(props: RoomNavTrailingProps) {
   const jobsLabel = hasBackgroundJobs ? t('mindroomUi.backgroundJobs.inRoom') : undefined;
   return (
     <>
-      {jobsLabel && (
-        <IconTooltip label={jobsLabel}>
-          {(triggerRef) => (
-            <Icon
-              ref={triggerRef}
-              src={Icons.Clock}
-              size="50"
-              aria-label={jobsLabel}
-              style={{ opacity: config.opacity.P500 }}
-            />
-          )}
-        </IconTooltip>
-      )}
+      {jobsLabel && <RowMarkIcon src={Icons.Clock} label={jobsLabel} labelled />}
       {callStatus && <CallMark id={callStatusId} label={callStatus} />}
       {showDraft && (
-        <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={showDraftIcon} />
+        <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={!showOptions} />
       )}
       {reserveStatusSlot && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
     </>
@@ -185,9 +162,8 @@ type RoomNavLinkProps = {
   groupMemberCount?: number;
   maybeSelfDirect: boolean;
   fallbackAvatarMxc?: string;
-  avatarBadge?: AvatarBadgeProp;
+  avatarBadge?: AvatarBadgeRenderer;
   showDraft: boolean;
-  showDraftIcon: boolean;
   selected: boolean;
   hasUnread: boolean;
   /** Unread badge or muted mark at the end of the row. */
@@ -211,7 +187,6 @@ function RoomNavLink({
   fallbackAvatarMxc,
   avatarBadge,
   showDraft,
-  showDraftIcon,
   selected,
   hasUnread,
   status,
@@ -227,17 +202,13 @@ function RoomNavLink({
   const draftStatusId = useId();
   const avatarBadgeDescId = useId();
   const callStatus = inCall ? t('featureUi.calls.transcription.inCall') : undefined;
-  const hasGroupCount = Boolean(
-    personAvatar && groupMemberCount !== undefined && groupMemberCount > 2
-  );
-  const hasDynamicBadgeDesc = typeof avatarBadge === 'function';
-  const badgeNode = hasDynamicBadgeDesc ? avatarBadge(avatarBadgeDescId) : avatarBadge;
+  const badgeNode = avatarBadge?.(avatarBadgeDescId);
   const describedBy =
     [
       inCall ? callStatusId : undefined,
-      hasGroupCount ? groupCountId : undefined,
+      groupMemberCount !== undefined ? groupCountId : undefined,
       showDraft ? draftStatusId : undefined,
-      hasDynamicBadgeDesc ? avatarBadgeDescId : undefined,
+      avatarBadge ? avatarBadgeDescId : undefined,
     ]
       .filter(Boolean)
       .join(' ') || undefined;
@@ -276,7 +247,6 @@ function RoomNavLink({
             callStatus={callStatus}
             callStatusId={callStatusId}
             showDraft={showDraft}
-            showDraftIcon={showDraftIcon}
             draftStatusId={draftStatusId}
             status={status}
             showOptions={showOptions}
@@ -315,7 +285,6 @@ export function RoomNavItem({
   notificationMode,
   direct,
   showAvatar,
-  showDraft,
   nameOverride,
   fallbackAvatarMxc,
   avatarBadge,
@@ -338,6 +307,8 @@ export function RoomNavItem({
   const nameRef = useRef<HTMLSpanElement>(null);
   const [nameAnchor, namePointerProps] = useCutOffNameTooltip(rowRef, nameRef);
 
+  const personAvatar = Boolean(direct && showAvatar);
+  const groupMemberCount = personAvatar && directMemberCount > 2 ? directMemberCount : undefined;
   const showOptions = engaged || optionsAnchor !== undefined;
   const mutedMark = notificationMode === RoomNotificationMode.Mute && !unread;
 
@@ -394,13 +365,12 @@ export function RoomNavItem({
         to={linkPath}
         room={room}
         name={name}
-        personAvatar={Boolean(direct && showAvatar)}
-        groupMemberCount={direct ? directMemberCount : undefined}
+        personAvatar={personAvatar}
+        groupMemberCount={groupMemberCount}
         maybeSelfDirect={Boolean(direct) && directMemberCount === 1}
         fallbackAvatarMxc={fallbackAvatarMxc}
         avatarBadge={avatarBadge}
-        showDraft={Boolean(showDraft)}
-        showDraftIcon={!showOptions}
+        showDraft={Boolean(direct)}
         selected={selected}
         hasUnread={Boolean(unread)}
         status={status}

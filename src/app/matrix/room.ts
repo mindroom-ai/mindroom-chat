@@ -348,6 +348,10 @@ export const getDirectPartnerId = (room: Room): string | undefined =>
   // Optional call: room list tests pass room stand-ins without member lookups.
   room.getAvatarFallbackMember?.()?.userId;
 
+/** Active (joined + invited) member count of a direct room. */
+export const getDirectActiveMemberCount = (room: Room): number =>
+  (room.getJoinedMemberCount?.() ?? 0) + (room.getInvitedMemberCount?.() ?? 0);
+
 /** Whether our pending invite to the room is marked as a direct chat (`is_direct`). */
 export const isDirectInvite = (room: Room, myUserId: string): boolean =>
   room.getMember(myUserId)?.events.member?.getContent().is_direct === true;

@@ -7,12 +7,6 @@ export const SectionIcon = style({
   flexShrink: 0,
 });
 
-/** Soft rounded tile behind the `+` icon on inline Home rows (`+ Add rooms`, `+ New direct message`). */
-export const InlinePlusAvatar = style({
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-});
-
 /** Small green dot on the bottom-end corner of an agent avatar while the agent has an active run. */
 export const AgentActiveRunDot = style({
   position: 'absolute',

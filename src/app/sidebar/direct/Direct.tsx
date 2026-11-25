@@ -98,7 +98,6 @@ export function Direct() {
                 notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
                 direct
                 showAvatar
-                showDraft
               />
             ))}
           </NavCategory>

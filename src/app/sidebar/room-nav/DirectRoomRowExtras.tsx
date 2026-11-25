@@ -1,85 +1,49 @@
 import { useEffect, useMemo, useReducer } from 'react';
-import { Avatar, Icon, Icons, Text, config } from 'folds';
+import { Avatar, Icon, Icons, Text, config, type IconSrc } from 'folds';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { EventType, RoomEvent, RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { RoomEvent, RoomStateEvent, type Room } from 'matrix-js-sdk';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
-import { BlockType } from '../../editor/types';
+import { VOID_BLOCK_TYPES } from '../../editor/types';
 import { isRecord } from '../../lib/isRecord';
 import { localDigits } from '../../lib/localDigits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { mDirectAtom } from '../../matrix/state/mDirectList';
+import { getDirectActiveMemberCount } from '../../matrix/room';
+import { isRoomInSelfMDirect, useMDirectContent } from '../../matrix/state/mDirectList';
 import { IconTooltip } from '../../ui/IconTooltip';
 import * as css from './RoomNavItem.css';
 
 const EMPTY_DRAFT_ATOM = atom<readonly unknown[]>(() => []);
 
-const MEANINGFUL_VOID_TYPES: ReadonlySet<string> = new Set([
-  BlockType.Mention,
-  BlockType.Emoticon,
-  BlockType.PasteMarker,
-]);
-
-/** Active (joined + invited) member count of a direct room. */
-export const getDirectActiveMemberCount = (room: Room): number =>
-  (room.getJoinedMemberCount?.() ?? 0) + (room.getInvitedMemberCount?.() ?? 0);
-
-/** Reads the raw `m.direct` account data dictionary (`userId -> roomId[]`) from `mx`. */
-export const readMDirectContent = (
-  mx: Pick<MatrixClient, 'getAccountData'> | undefined
-): Record<string, unknown> | undefined => {
-  const content: unknown = mx?.getAccountData?.(EventType.Direct)?.getContent();
-  return isRecord(content) ? content : undefined;
-};
-
-/** Live `m.direct` account-data dictionary (`userId -> roomId[]`), reacting to `mDirectAtom`. */
-export const useMDirectContent = (): Record<string, unknown> | undefined => {
-  const mx = useMatrixClient();
-  const directs = useAtomValue(mDirectAtom);
-  return useMemo(() => {
-    void directs;
-    return readMDirectContent(mx);
-  }, [mx, directs]);
-};
-
-/**
- * Returns the partner user ID mapped to `roomId` in `m.direct` account data.
- * Prefers a non-self entry when a room appears under multiple keys; returns `myUserId` only when
- * the room is mapped solely to the viewer.
- */
-export const getMDirectPartnerId = (
-  mDirect: Record<string, unknown> | undefined,
-  roomId: string,
-  myUserId?: string
-): string | undefined => {
-  if (!mDirect) return undefined;
-  let selfMatch: string | undefined;
-  for (const [userId, rooms] of Object.entries(mDirect)) {
-    if (!Array.isArray(rooms) || !rooms.includes(roomId)) continue;
-    if (myUserId && userId === myUserId) {
-      selfMatch = userId;
-      continue;
-    }
-    return userId;
-  }
-  return selfMatch;
-};
-
-/**
- * True only when `room` has 1 active member AND `m.direct` explicitly maps it under `room.myUserId`.
- * Avoids mislabeling abandoned 1:1 DMs ("Empty room (was Maya)") as self-DMs.
- */
-export const isSelfDirectRoom = (
-  room: Room,
-  activeMemberCount: number,
-  mDirect: Record<string, unknown> | undefined
-): boolean => {
-  if (activeMemberCount !== 1) return false;
-  const myUserId = room.myUserId;
-  if (!myUserId || !mDirect) return false;
-  const ownRooms = mDirect[myUserId];
-  return Array.isArray(ownRooms) && ownRooms.includes(room.roomId);
-};
+/** Subtle trailing row mark icon wrapped in an `IconTooltip`. */
+export function RowMarkIcon({
+  src,
+  label,
+  labelled = false,
+  ...dataProps
+}: {
+  src: IconSrc;
+  label: string;
+  /** Expose `label` directly via `aria-label`; otherwise hide the icon for an `aria-describedby` span. */
+  labelled?: boolean;
+  'data-draft-indicator'?: 'true';
+}) {
+  return (
+    <IconTooltip label={label}>
+      {(triggerRef) => (
+        <Icon
+          ref={triggerRef}
+          src={src}
+          size="50"
+          aria-label={labelled ? label : undefined}
+          aria-hidden={labelled ? undefined : true}
+          style={{ opacity: config.opacity.P500 }}
+          {...dataProps}
+        />
+      )}
+    </IconTooltip>
+  );
+}
 
 /** Live active member count of a direct room, listening to both member events and sync summaries. */
 export const useDirectMemberCount = (room: Room, enabled: boolean): number => {
@@ -101,7 +65,7 @@ const nodeHasDraftContent = (node: unknown): boolean => {
   if (typeof node.text === 'string' && !('children' in node)) {
     return node.text.trim().length > 0;
   }
-  if (typeof node.type === 'string' && MEANINGFUL_VOID_TYPES.has(node.type)) {
+  if (typeof node.type === 'string' && VOID_BLOCK_TYPES.has(node.type)) {
     return true;
   }
   return Array.isArray(node.children) && node.children.some(nodeHasDraftContent);
@@ -144,18 +108,7 @@ export function RoomDraftMark({
   return (
     <>
       {hasDraft && showIcon && (
-        <IconTooltip label={label}>
-          {(triggerRef) => (
-            <Icon
-              ref={triggerRef}
-              src={Icons.Pencil}
-              size="50"
-              aria-hidden="true"
-              data-draft-indicator="true"
-              style={{ opacity: config.opacity.P500 }}
-            />
-          )}
-        </IconTooltip>
+        <RowMarkIcon src={Icons.Pencil} label={label} data-draft-indicator="true" />
       )}
       <span id={descriptionId} hidden>
         {hasDraft ? label : undefined}
@@ -164,11 +117,11 @@ export function RoomDraftMark({
   );
 }
 
-/** Muted inline `you` label beside a verified self-DM (1 active member listed under `myUserId` in `m.direct`). */
+/** Muted inline `you` label beside a verified self-DM (caller checks active member count === 1). */
 export function SelfDirectTag({ room }: { room: Room }) {
   const { t } = useTranslation();
   const mDirect = useMDirectContent();
-  if (!isSelfDirectRoom(room, 1, mDirect)) return null;
+  if (!isRoomInSelfMDirect(mDirect, room.roomId, room.myUserId)) return null;
   return (
     <Text
       as="span"
