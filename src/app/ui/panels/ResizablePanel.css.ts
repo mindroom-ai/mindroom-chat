@@ -165,12 +165,12 @@ globalStyle(`${Panel} > [data-panel-collapse-overlay]`, {
 });
 
 globalStyle(`${Panel} > [data-panel-collapse-overlay] > [data-panel-collapse-badge]`, {
-  display: 'inline-flex',
-  alignItems: 'center',
+  display: 'inline-block',
   maxInlineSize: '100%',
+  boxSizing: 'border-box',
   paddingBlock: config.space.S100,
   paddingInline: config.space.S300,
-  borderRadius: config.radii.Pill,
+  borderRadius: config.radii.R500,
   backgroundColor: color.Surface.Container,
   color: color.Primary.Main,
   border: `1.5px solid color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
@@ -178,9 +178,9 @@ globalStyle(`${Panel} > [data-panel-collapse-overlay] > [data-panel-collapse-bad
   fontSize: config.fontSize.T200,
   fontWeight: config.fontWeight.W600,
   lineHeight: config.lineHeight.T200,
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
+  textAlign: 'center',
+  whiteSpace: 'normal',
+  overflowWrap: 'break-word',
 });
 
 // Full-room snap target silhouette shown while releasing the drag will fill the room.

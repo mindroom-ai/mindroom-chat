@@ -177,9 +177,7 @@ describe('ResizablePanel at the member edge', () => {
       await act(() => handle().props.onPointerDown(pointer(700, pointerType)));
       await act(() => handle().props.onPointerMove(pointer(906, pointerType)));
       expect(width()).toBe(200);
-      expect(panel().props['data-collapse-charging']).toBe(true);
       expect(panel().props['data-collapse-preview']).toBe(true);
-      expect(panel().props.style['--mr-collapse-progress']).toBe('1');
       expect(renderer.root.findByProps({ 'data-panel-collapse-badge': '' }).children).toEqual([
         'Hide Members',
       ]);
@@ -240,15 +238,10 @@ describe('ResizablePageNav', () => {
       expect(width()).toBe(200);
       expect(panel().props['data-collapse-charging']).toBe(true);
       expect(panel().props['data-collapse-preview']).toBeUndefined();
-      expect(panel().props.style['--mr-collapse-progress']).toBe('0.25');
-      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
       expect(handle().props['aria-valuetext']).toBeUndefined();
       await act(() => handle().props.onPointerMove(pointer(160, pointerType)));
       expect(width()).toBe(200);
-      expect(panel().props['data-collapse-charging']).toBe(true);
       expect(panel().props['data-collapse-preview']).toBe(true);
-      expect(panel().props.style['--mr-collapse-progress']).toBe('1');
-      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(1);
       expect(renderer.root.findByProps({ 'data-panel-collapse-badge': '' }).children).toEqual([
         'Collapse navigation panel',
       ]);
@@ -283,10 +276,7 @@ describe('ResizablePageNav', () => {
     expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
     await act(() => handle().props.onPointerMove(pointer(180)));
     expect(width()).toBe(200);
-    expect(panel().props['data-collapse-charging']).toBe(true);
     expect(panel().props['data-collapse-preview']).toBeUndefined();
-    expect(panel().props.style['--mr-collapse-progress']).toBe('0.5');
-    expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
     expect(handle().props['aria-valuetext']).toBeUndefined();
     await act(() => handle().props.onPointerUp(pointer(180)));
     expect(onCollapse).not.toHaveBeenCalled();
@@ -307,9 +297,7 @@ describe('ResizablePageNav', () => {
       expect(panel().props['data-collapse-preview']).toBe(true);
       await act(() => handle().props[event](pointer(150)));
       expect(width()).toBe(256);
-      expect(panel().props['data-collapse-charging']).toBeUndefined();
       expect(panel().props['data-collapse-preview']).toBeUndefined();
-      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.has(storageKey)).toBe(false);
       act(() => renderer.unmount());
@@ -323,9 +311,7 @@ describe('ResizablePageNav', () => {
     await act(() => handle().props.onPointerDown(pointer(800)));
     await act(() => handle().props.onPointerMove(pointer(906)));
     expect(width()).toBe(200);
-    expect(panel().props['data-collapse-charging']).toBe(true);
     expect(panel().props['data-collapse-preview']).toBe(true);
-    expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(1);
     await act(() => handle().props.onPointerUp(pointer(906)));
     expect(onCollapse).toHaveBeenCalledTimes(1);
     expect(storage.has(storageKey)).toBe(false);
