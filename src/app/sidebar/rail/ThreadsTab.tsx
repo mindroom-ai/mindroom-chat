@@ -12,6 +12,7 @@ import { useThreadsNeedsYouCount } from '../../activity/useActivityRows';
 import { ActivityBadge } from '../../activity/ActivityBadge';
 import { useThreadsSelected } from '../../routes/useThreadsSelected';
 import { getThreadsPath } from '../../routes/pathUtils';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 type ThreadsTabProps = {
   /** Lets the navigation panel take the click, given whether Threads is shown; true when it did. */
@@ -24,6 +25,7 @@ export function ThreadsTab({ onSelect }: ThreadsTabProps) {
   const active = useThreadsSelected();
   const { t } = useTranslation();
   const waiting = useThreadsNeedsYouCount();
+  const railMenuProps = useRailVisibilityMenuTrigger('threads');
   const label = waiting > 0 ? t('threadsPage.needsYouLabel', { count: waiting }) : t('nav.threads');
 
   const openThreads = () => {
@@ -38,6 +40,7 @@ export function ThreadsTab({ onSelect }: ThreadsTabProps) {
       aria-label={label}
       outlined
       onClick={openThreads}
+      {...railMenuProps}
     >
       <Icon filled={active} src={Icons.Thread} />
     </SidebarAvatar>

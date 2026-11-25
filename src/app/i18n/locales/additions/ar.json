@@ -2102,6 +2102,12 @@
       "show": "إظهار",
       "hide": "إخفاء",
       "zeroTokens": "0 رموز"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "إظهار في الشريط الجانبي",
+        "sidebarSettings": "إعدادات الشريط الجانبي…"
+      }
     }
   },
   "composer": {

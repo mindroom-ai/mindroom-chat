@@ -1777,6 +1777,12 @@
       "show": "보기",
       "hide": "숨기기",
       "zeroTokens": "0 토큰"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "사이드바에 표시",
+        "sidebarSettings": "사이드바 설정…"
+      }
     }
   },
   "composer": {

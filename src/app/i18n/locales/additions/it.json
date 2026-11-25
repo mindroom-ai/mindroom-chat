@@ -1907,6 +1907,12 @@
       "show": "Mostra",
       "hide": "Nascondi",
       "zeroTokens": "0 token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Mostra nella barra laterale",
+        "sidebarSettings": "Impostazioni della barra laterale…"
+      }
     }
   },
   "composer": {

@@ -1907,6 +1907,12 @@
       "show": "Afficher",
       "hide": "Masquer",
       "zeroTokens": "0 jeton"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Afficher dans la barre latérale",
+        "sidebarSettings": "Paramètres de la barre latérale…"
+      }
     }
   },
   "composer": {

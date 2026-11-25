@@ -1777,6 +1777,12 @@
       "show": "顯示",
       "hide": "隱藏",
       "zeroTokens": "0 權杖"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "在側邊欄顯示",
+        "sidebarSettings": "側邊欄設定…"
+      }
     }
   },
   "composer": {

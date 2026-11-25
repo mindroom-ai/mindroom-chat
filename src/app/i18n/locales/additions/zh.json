@@ -1777,6 +1777,12 @@
       "show": "显示",
       "hide": "隐藏",
       "zeroTokens": "0 令牌"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "在侧边栏显示",
+        "sidebarSettings": "侧边栏设置…"
+      }
     }
   },
   "composer": {

@@ -1777,6 +1777,12 @@
       "show": "表示",
       "hide": "非表示",
       "zeroTokens": "0 トークン"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "サイドバーに表示",
+        "sidebarSettings": "サイドバー設定…"
+      }
     }
   },
   "composer": {
