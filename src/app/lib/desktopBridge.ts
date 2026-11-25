@@ -220,6 +220,7 @@ export type DesktopAccessBridge = {
   beginSetup: () => Promise<DesktopResult<void>>;
   login: (request: DesktopAccessLoginRequest) => Promise<DesktopResult<DesktopAccessSnapshot>>;
   pair: (request: DesktopAccessPairRequest) => Promise<DesktopResult<DesktopAccessPairResult>>;
+  abortSetup: (controllerKey: string) => Promise<DesktopResult<DesktopAccessSnapshot>>;
   finishSetup: (
     request: DesktopAccessFinishSetupRequest
   ) => Promise<DesktopResult<DesktopAccessSnapshot>>;

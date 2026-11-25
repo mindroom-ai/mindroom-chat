@@ -21,8 +21,10 @@ function shouldBundleHelper(context) {
 module.exports = async function afterPack(context) {
   if (!shouldBundleHelper(context)) return;
 
-  const src = process.env.MINDROOM_DESKTOP_HELPER_STAGED || DEFAULT_STAGED_HELPER;
   const sign = process.env.MINDROOM_DESKTOP_SIGN === '1';
+  const src = sign
+    ? DEFAULT_STAGED_HELPER
+    : process.env.MINDROOM_DESKTOP_HELPER_STAGED || DEFAULT_STAGED_HELPER;
 
   if (!fs.existsSync(src)) {
     if (sign) {

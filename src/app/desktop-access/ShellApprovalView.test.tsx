@@ -20,7 +20,7 @@ vi.mock('../lib/nativeShell', () => ({
   isDesktopAccessAvailable: () => Boolean(mocks.bridge?.desktopAccess),
 }));
 
-import { ShellApprovalView } from './ShellApprovalView';
+import { ShellApprovalView, escapeShellDisplay } from './ShellApprovalView';
 
 const makeSnapshot = (pending: DesktopAccessShellPending | null): DesktopAccessSnapshot => ({
   availability: 'available',
@@ -114,10 +114,12 @@ afterEach(() => {
 });
 
 describe('ShellApprovalView', () => {
-  it('visibly escapes control characters, soft hyphens, zero-width chars, bidi controls, and Unicode tag characters', async () => {
+  it('visibly escapes backslashes, control characters, soft hyphens, zero-width chars, bidi controls, and Unicode tag characters', async () => {
+    expect(escapeShellDisplay('printf "\\n"\nnext')).toBe('printf "\\\\n"\\nnext');
+
     installBridge({
       command_id: 'cmd-escape',
-      command: 'echo ok\rrm -rf /\n\t\x1b[31mhi\u00ad\u200b\u202e\u{e0061}',
+      command: 'echo ok\\nlit\rrm -rf /\n\t\x1b[31mhi\u00ad\u200b\u202e\u{e0061}',
       cwd: '/tmp/dir\nfake\u00ad',
       agent_name: 'code',
       requester_id: '@alice:example.org',
@@ -130,7 +132,7 @@ describe('ShellApprovalView', () => {
 
     const commandEl = screen.getByTestId('shell-approval-command');
     expect(commandEl.textContent).toBe(
-      'echo ok\\rrm -rf /\\n\\t\\x1b[31mhi\\xad\\u200b\\u202e\\u{e0061}'
+      'echo ok\\\\nlit\\rrm -rf /\\n\\t\\x1b[31mhi\\xad\\u200b\\u202e\\u{e0061}'
     );
     expect(commandEl.textContent).not.toContain('\n');
     expect(commandEl.textContent).not.toContain('\r');

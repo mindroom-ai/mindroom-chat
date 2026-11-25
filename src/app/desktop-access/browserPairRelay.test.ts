@@ -302,6 +302,7 @@ const installMacBridge = () => {
         snapshot,
       },
     })),
+    abortSetup: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     finishSetup: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     updateLimits: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     removeController: vi.fn(async () => ({ ok: true as const, value: snapshot })),
@@ -615,6 +616,121 @@ describe('DesktopMacRelayFeature security and Browser-to-Mac relay flows', () =>
       'paired',
     ]);
 
+    unmount();
+  });
+
+  it('forwards authoritative offer.agent_name in pair_invite.v1 for namespaced agents', async () => {
+    const { desktopAccess } = installMacBridge();
+    const namespacedUser = '@mindroom_writer_ab12:mindroom.chat';
+    const namespacedAgentDevice = {
+      userId: namespacedUser,
+      deviceId: 'WRITER_DEV',
+      curveKey: 'curve-writer',
+      ed25519: 'ed-writer',
+      signedByOwner: true,
+    };
+    const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, namespacedAgentDevice]);
+    const mac = net.makeNode(MAC_DEVICE);
+    const browser = net.makeNode(BROWSER_DEVICE);
+    const agent = net.makeNode(namespacedAgentDevice);
+    const store = createStore();
+
+    agent.mx.on(ClientEvent.ReceivedToDeviceMessage, (payload: ReceivedToDeviceMessage) => {
+      const { message } = payload;
+      if (message.type === DESKTOP_SETUP_REQUEST_EVENT) {
+        const requested = message.content.agent_name as string;
+        browser.emitToDevice({
+          message: {
+            type: DESKTOP_SETUP_OFFER_EVENT,
+            sender: namespacedUser,
+            content:
+              requested === 'writer_ab12'
+                ? {
+                    v: 1,
+                    nonce: message.content.nonce,
+                    agent_name: 'writer',
+                    eligible: false,
+                    homeserver: null,
+                    user_id: null,
+                    code: null,
+                    cloudflare_access: false,
+                    error: 'Use configured agent name writer.',
+                  }
+                : {
+                    v: 1,
+                    nonce: message.content.nonce,
+                    agent_name: 'writer',
+                    eligible: true,
+                    homeserver: 'https://mindroom.chat',
+                    user_id: USER_ID,
+                    code: 'ns-relay-code',
+                    cloudflare_access: false,
+                  },
+          },
+          encryptionInfo: {
+            sender: namespacedUser,
+            senderDevice: namespacedAgentDevice.deviceId,
+            senderCurve25519KeyBase64: namespacedAgentDevice.curveKey,
+            senderVerified: false,
+          },
+        });
+      } else if (message.type === DESKTOP_PAIRING_CONFIRM_EVENT) {
+        browser.emitToDevice({
+          message: {
+            type: DESKTOP_PAIRING_CONFIRMED_EVENT,
+            sender: namespacedUser,
+            content: { v: 1, nonce: message.content.nonce, agent_name: 'writer', ok: true },
+          },
+          encryptionInfo: {
+            sender: namespacedUser,
+            senderDevice: namespacedAgentDevice.deviceId,
+            senderCurve25519KeyBase64: namespacedAgentDevice.curveKey,
+            senderVerified: false,
+          },
+        });
+      }
+    });
+
+    const { unmount } = render(
+      createElement(
+        Provider,
+        { store },
+        createElement(
+          MatrixClientProvider,
+          { value: mac.mx },
+          createElement(DesktopMacRelayFeature)
+        )
+      )
+    );
+
+    const relayPromise = relayPairToMac(
+      browser.mx,
+      { device_id: MAC_DEVICE.deviceId, label: 'Bas MacBook Pro', updated_at: 1_700_000_000_000 },
+      namespacedUser,
+      'writer_ab12'
+    );
+
+    await waitFor(() => {
+      expect(store.get(incomingPairInviteAtom)).not.toBeNull();
+    });
+    const incoming = store.get(incomingPairInviteAtom)!;
+    expect(incoming.invite.agent_name).toBe('writer');
+
+    await Promise.all([
+      relayPromise,
+      approveIncomingPairInvite(mac.mx, incoming, directRunUia, 'full', undefined, undefined, store),
+    ]);
+
+    expect(desktopAccess.pair).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowedAgentNames: ['writer'],
+      })
+    );
+    expect(desktopAccess.finishSetup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'writer',
+      })
+    );
     unmount();
   });
 
@@ -1023,5 +1139,9 @@ describe('DesktopMacRelayFeature security and Browser-to-Mac relay flows', () =>
     const [paired] = vi.mocked(desktopAccess.pair).mock.invocationCallOrder;
     expect(began).toBeLessThan(status ?? 0);
     expect(began).toBeLessThan(paired ?? 0);
+    expect(desktopAccess.abortSetup).toHaveBeenCalledWith(
+      '["@mindroom_general:mindroom.chat", "AGENT_DEV", "ed-agent"]'
+    );
+    expect(desktopAccess.finishSetup).not.toHaveBeenCalled();
   });
 });

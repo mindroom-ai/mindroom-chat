@@ -60,7 +60,17 @@ export const reapplyConsentedGrants = async (
 ): Promise<void> => {
   for (const ctrl of status.config.controllers) {
     if (isControllerFullAccess(consent, ctrl.controller_key)) {
-      await grantFullForController(client, ctrl.controller_key);
+      await client.request('grant_control', {
+        until_revoked: true,
+        scope: 'computer',
+        controller_key: ctrl.controller_key,
+      });
+      if (status.shell.enabled) {
+        await client.request('grant_shell', {
+          until_revoked: true,
+          controller_key: ctrl.controller_key,
+        });
+      }
     }
   }
 };
@@ -187,18 +197,10 @@ export const applyFinishSetup = async (
     return;
   }
 
-  const hadFullConsent = isControllerFullAccess(ctx.loadConsent(), req.controllerKey);
   ctx.clearConsent(req.controllerKey);
-  const keepOther = current.config.controllers.some((c) => c.controller_key !== req.controllerKey);
-  const apps = keepOther
-    ? unique([...current.config.allowed_app_ids, ...(req.allowedAppIds ?? [])])
-    : unique(req.allowedAppIds ?? current.config.allowed_app_ids);
-  const roots = keepOther
-    ? unique([...current.config.file_roots, ...(req.fileRoots ?? [])])
-    : unique(req.fileRoots ?? current.config.file_roots);
-  const shellEnabled = keepOther
-    ? current.config.shell_enabled || Boolean(req.shellEnabled)
-    : (req.shellEnabled ?? current.config.shell_enabled);
+  const apps = unique(req.allowedAppIds ?? current.config.allowed_app_ids);
+  const roots = unique(req.fileRoots ?? current.config.file_roots);
+  const shellEnabled = req.shellEnabled ?? current.config.shell_enabled;
   const satisfied =
     isBridgeRunning(current) &&
     current.config.enabled &&
@@ -213,13 +215,23 @@ export const applyFinishSetup = async (
       finish: true,
       start: true,
     });
-    await reapplyConsentedGrants(ctx.client, started, ctx.loadConsent());
-  } else if (hadFullConsent) {
+    if (isBridgeRunning(started)) {
+      await reapplyConsentedGrants(ctx.client, started, ctx.loadConsent());
+    }
+  } else {
     await ctx.client.request('revoke_control', { controller_key: req.controllerKey });
-    await ctx.client.request('revoke_shell', { controller_key: req.controllerKey });
+    if ((ctx.getLatest() ?? current).shell.enabled) {
+      await ctx.client.request('revoke_shell', { controller_key: req.controllerKey });
+    }
   }
-  if (isBridgeRunning(ctx.getLatest())) {
-    await applyBoundedGrants(ctx.client, req.controllerKey, req);
+  const latest = ctx.getLatest() ?? current;
+  if (isBridgeRunning(latest)) {
+    await applyBoundedGrants(ctx.client, req.controllerKey, {
+      ...req,
+      ...(latest.shell.enabled
+        ? {}
+        : { shellAutoApproveSeconds: undefined, shellAutoApproveUntilRevoked: undefined }),
+    });
   }
 };
 
@@ -252,27 +264,44 @@ export const applyUpdateLimits = async (
       ctx.saveFullConsent(req.controllerKey, req.agentName);
     if (isBridgeRunning(updated))
       await reapplyConsentedGrants(ctx.client, updated, ctx.loadConsent());
-    if (req.controllerKey && req.mode !== 'full' && isBridgeRunning(ctx.getLatest())) {
-      await applyBoundedGrants(ctx.client, req.controllerKey, req);
+    const latest = ctx.getLatest() ?? updated;
+    if (req.controllerKey && req.mode !== 'full' && isBridgeRunning(latest)) {
+      await applyBoundedGrants(ctx.client, req.controllerKey, {
+        ...req,
+        ...(latest.shell.enabled
+          ? {}
+          : {
+              revokeShell: false,
+              shellAutoApproveSeconds: undefined,
+              shellAutoApproveUntilRevoked: undefined,
+            }),
+      });
     }
     return;
   }
 
+  const latest = ctx.getLatest() ?? current;
   if (req.controllerKey && req.mode === 'full') {
-    if (isBridgeRunning(ctx.getLatest()))
-      await grantFullForController(ctx.client, req.controllerKey);
+    if (isBridgeRunning(latest)) await grantFullForController(ctx.client, req.controllerKey);
     ctx.saveFullConsent(req.controllerKey, req.agentName);
-  } else if (req.controllerKey && isBridgeRunning(ctx.getLatest())) {
+  } else if (req.controllerKey && isBridgeRunning(latest)) {
+    const shellActive = latest.shell.enabled;
     await applyBoundedGrants(ctx.client, req.controllerKey, {
       ...req,
       ...(req.mode === 'restricted' && req.controlDurationSeconds === undefined
         ? { revokeControl: true }
         : {}),
-      ...(req.mode === 'restricted' &&
-      req.shellAutoApproveSeconds === undefined &&
-      !req.shellAutoApproveUntilRevoked
-        ? { revokeShell: true }
-        : {}),
+      ...(shellActive
+        ? req.mode === 'restricted' &&
+          req.shellAutoApproveSeconds === undefined &&
+          !req.shellAutoApproveUntilRevoked
+          ? { revokeShell: true }
+          : {}
+        : {
+            revokeShell: false,
+            shellAutoApproveSeconds: undefined,
+            shellAutoApproveUntilRevoked: undefined,
+          }),
     });
   }
 };

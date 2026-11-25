@@ -114,6 +114,7 @@ const createMockBridge = (initialSnapshot: DesktopAccessSnapshot) => {
         snapshot: current,
       },
     })),
+    abortSetup: vi.fn(async () => ({ ok: true as const, value: current })),
     finishSetup: vi.fn(async () => ({ ok: true as const, value: current })),
     updateLimits: vi.fn(async () => ({ ok: true as const, value: current })),
     removeController: vi.fn(async () => ({ ok: true as const, value: current })),
@@ -414,6 +415,91 @@ describe('pairAgentOnThisMac', () => {
         directRunUia
       )
     ).rejects.toThrow('Desktop pairing is disabled by server policy.');
+  });
+
+  it('uses authoritative offer.agent_name from namespaced agents in pair and finishSetup', async () => {
+    const mock = createMockBridge(makeSnapshot({ sessionState: 'ready' }));
+    olmMocks.requestAgentSetupOffer.mockResolvedValue({
+      offer: {
+        ...ELIGIBLE_OFFER.offer,
+        agent_name: 'writer',
+      },
+      controller: {
+        user_id: '@mindroom_writer_ab12:mindroom.chat',
+        device_id: 'WRITER_DEV',
+        ed25519: 'writer-ed25519',
+      },
+    });
+
+    await pairAgentOnThisMac(
+      mockMx,
+      {
+        agentUserId: '@mindroom_writer_ab12:mindroom.chat',
+        agentName: 'writer_ab12',
+        mode: 'full',
+      },
+      directRunUia
+    );
+
+    expect(mock.desktopAccess.pair).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowedAgentNames: ['writer'],
+      })
+    );
+    expect(mock.desktopAccess.finishSetup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: 'writer',
+      })
+    );
+  });
+
+  it('calls abortSetup to roll back a newly-paired controller when confirmAgentPairing fails', async () => {
+    const mock = createMockBridge(makeSnapshot({ sessionState: 'ready' }));
+    olmMocks.confirmAgentPairing.mockRejectedValueOnce(new Error('Confirmation timed out.'));
+
+    await expect(
+      pairAgentOnThisMac(
+        mockMx,
+        {
+          agentUserId: '@mindroom_general:mindroom.chat',
+          agentName: 'general',
+          mode: 'full',
+        },
+        directRunUia
+      )
+    ).rejects.toThrow('Confirmation timed out.');
+
+    expect(mock.desktopAccess.abortSetup).toHaveBeenCalledWith(
+      '["@mindroom_general:mindroom.chat", "AGENT_DEV", "agent-ed25519"]'
+    );
+    expect(mock.desktopAccess.finishSetup).not.toHaveBeenCalled();
+
+    // Also rolls back when confirmAgentPairing returns ok: false.
+    vi.mocked(mock.desktopAccess.abortSetup).mockClear();
+    olmMocks.confirmAgentPairing.mockResolvedValueOnce({
+      v: 1,
+      nonce: '11111111111111111111111111111111',
+      agent_name: 'general',
+      ok: false,
+      error: 'Verification mismatch.',
+    });
+
+    await expect(
+      pairAgentOnThisMac(
+        mockMx,
+        {
+          agentUserId: '@mindroom_general:mindroom.chat',
+          agentName: 'general',
+          mode: 'full',
+        },
+        directRunUia
+      )
+    ).rejects.toThrow('Verification mismatch.');
+
+    expect(mock.desktopAccess.abortSetup).toHaveBeenCalledWith(
+      '["@mindroom_general:mindroom.chat", "AGENT_DEV", "agent-ed25519"]'
+    );
+    expect(mock.desktopAccess.finishSetup).not.toHaveBeenCalled();
   });
 });
 

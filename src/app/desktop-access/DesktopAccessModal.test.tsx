@@ -82,6 +82,7 @@ vi.mock('./macPairInvite', async (importOriginal) => {
   };
 });
 
+import { findPairedController } from './desktopAccessHelpers';
 import { DesktopAccessModalRenderer } from './DesktopAccessModal';
 import { IncomingPairInviteModal } from './IncomingPairInviteModal';
 import { incomingPairInviteAtom } from './macPairInvite';
@@ -187,6 +188,7 @@ const makeDesktopAccessMock = (
     beginSetup: vi.fn(async () => ({ ok: true as const, value: undefined })),
     login: vi.fn(async () => ({ ok: true as const, value: initialSnapshot })),
     pair: vi.fn(),
+    abortSetup: vi.fn(async () => ({ ok: true as const, value: initialSnapshot })),
     finishSetup: vi.fn(async () => ({ ok: true as const, value: initialSnapshot })),
     updateLimits: vi.fn(async () => ({ ok: true as const, value: initialSnapshot })),
     removeController: vi.fn(async () => ({ ok: true as const, value: initialSnapshot })),
@@ -657,7 +659,50 @@ describe('DesktopAccessModal', () => {
       name: 'Download MindRoom Chat for Mac',
     });
     expect(downloadLink.getAttribute('href')).toBe(mocks.downloadUrl);
+    expect(downloadLink.style.textDecoration).toBe('none');
     expect(screen.getByText(MAC_APP_BREW_COMMAND)).toBeTruthy();
+  });
+
+  it('matches paired controllers strictly on exact Matrix user ID and requester ID without falling back to agent name', () => {
+    const snapshot = makeSnapshot({
+      controllers: [
+        {
+          controller_key: 'ctrl:server-a',
+          user_id: '@mindroom_assistant:server-a.test',
+          device_id: 'DEV_A',
+          ed25519: 'KEY_A',
+          allowed_requester_ids: ['@alice:server-a.test'],
+          allowed_agent_names: ['assistant'],
+        },
+      ],
+    });
+
+    // Different homeserver sharing the same agent name "assistant" must NOT match.
+    expect(
+      findPairedController(
+        snapshot,
+        '@mindroom_assistant:server-b.test',
+        '@alice:server-a.test'
+      )
+    ).toBeUndefined();
+
+    // Same agent user ID but different requester must NOT match.
+    expect(
+      findPairedController(
+        snapshot,
+        '@mindroom_assistant:server-a.test',
+        '@bob:server-a.test'
+      )
+    ).toBeUndefined();
+
+    // Exact agent user ID + allowed requester ID matches cleanly.
+    expect(
+      findPairedController(
+        snapshot,
+        '@mindroom_assistant:server-a.test',
+        '@alice:server-a.test'
+      )?.controller_key
+    ).toBe('ctrl:server-a');
   });
 });
 

@@ -160,18 +160,36 @@ const askAgent = <T extends { nonce: string }>(
 export const requestAgentSetupOffer = async (
   mx: MatrixClient,
   agentUserId: string,
-  agentName: string,
+  guessedAgentName: string,
   signal?: AbortSignal,
   timeoutMs?: number
 ): Promise<AgentSetupOfferResult> => {
-  const content = { v: 1, nonce: createPairingNonce(), agent_name: agentName };
-  const { reply, device } = await askAgent(mx, agentUserId, DESKTOP_SETUP_REQUEST_EVENT, content, {
-    replyType: DESKTOP_SETUP_OFFER_EVENT,
-    parse: parseDesktopSetupOffer,
-    signal,
-    timeoutMs,
-  });
-  return { offer: reply, controller: device };
+  const ask = async (requestedName: string): Promise<AgentSetupOfferResult> => {
+    const content = { v: 1, nonce: createPairingNonce(), agent_name: requestedName };
+    const { reply, device } = await askAgent(
+      mx,
+      agentUserId,
+      DESKTOP_SETUP_REQUEST_EVENT,
+      content,
+      {
+        replyType: DESKTOP_SETUP_OFFER_EVENT,
+        parse: parseDesktopSetupOffer,
+        signal,
+        timeoutMs,
+      }
+    );
+    return { offer: reply, controller: device };
+  };
+
+  const first = await ask(guessedAgentName);
+  if (
+    !first.offer.eligible &&
+    first.offer.agent_name !== guessedAgentName &&
+    guessedAgentName.startsWith(`${first.offer.agent_name}_`)
+  ) {
+    return ask(first.offer.agent_name);
+  }
+  return first;
 };
 
 /**

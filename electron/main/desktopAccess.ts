@@ -61,7 +61,8 @@ const SCREEN_RECORDING_SETTINGS_URL =
  * a sign-in or a pairing, then a pairing, then finishing the setup of the controller that paired.
  */
 type SetupAuth = { expiresAt: number } & (
-  { stage: 'login_or_pair' | 'pair_only' } | { stage: 'finish'; controllerKey: string }
+  | { stage: 'login_or_pair' | 'pair_only' }
+  | { stage: 'finish'; controllerKey: string; newlyAdded: boolean }
 );
 
 export type DesktopAccessOptions = {
@@ -534,6 +535,12 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     pair: (req: DesktopAccessPairRequest) =>
       runBridge(authorizePair, async (client): Promise<DesktopAccessPairResult> => {
         const current = latestStatus ?? (await fetchStatus(client));
+        const existedBefore = current.config.controllers.some(
+          (c) =>
+            c.user_id === req.controller.userId &&
+            c.device_id === req.controller.deviceId &&
+            c.ed25519 === req.controller.ed25519
+        );
         const upsertRes = await client.request<{ status?: DesktopAccessHelperStatus }>(
           'upsert_controller',
           {
@@ -556,24 +563,41 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
         );
         if (!matched)
           throw new DesktopHelperError('controller_missing', 'Upserted controller not found.');
-        const res = await client.request<{
+        let res: {
           device_id?: string;
           device_ed25519?: string;
           verification?: string;
           confirmation_command?: string;
           agent_confirmation_command?: string;
-        }>('pair', {
-          code: req.code,
-          expected_revision: after.config.revision,
-          controller_key: matched.controller_key,
-          ...(req.cloudflareAccess !== undefined
-            ? { cloudflare_access: req.cloudflareAccess }
-            : {}),
-        });
+        };
+        try {
+          res = await client.request('pair', {
+            code: req.code,
+            expected_revision: after.config.revision,
+            controller_key: matched.controller_key,
+            ...(req.cloudflareAccess !== undefined
+              ? { cloudflare_access: req.cloudflareAccess }
+              : {}),
+          });
+        } catch (error) {
+          if (!existedBefore) {
+            const rollbackStatus = latestStatus ?? after;
+            const removeRes = await client
+              .request<{ status?: DesktopAccessHelperStatus }>('remove_controller', {
+                expected_revision: rollbackStatus.config.revision,
+                controller_key: matched.controller_key,
+              })
+              .catch(() => undefined);
+            if (removeRes?.status) latestStatus = removeRes.status;
+            syncUi();
+          }
+          throw error;
+        }
         setupAuth = {
           expiresAt: now() + SETUP_AUTH_TTL_MS,
           stage: 'finish',
           controllerKey: matched.controller_key,
+          newlyAdded: !existedBefore,
         };
         return {
           controllerKey: matched.controller_key,
@@ -587,6 +611,33 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           snapshot: syncUi(),
         };
       }),
+
+    abortSetup: async (controllerKey: string): Promise<DesktopResult<DesktopAccessSnapshot>> => {
+      const auth = activeSetupAuth();
+      if (!auth || auth.stage !== 'finish' || auth.controllerKey !== controllerKey) {
+        return { ok: false, code: 'NO_USER_GESTURE' };
+      }
+      const { newlyAdded } = auth;
+      setupAuth = undefined;
+      if (!newlyAdded) {
+        return { ok: true, value: syncUi() };
+      }
+      try {
+        const client = await requireBridge();
+        const current = latestStatus ?? (await fetchStatus(client));
+        const res = await client.request<{ status?: DesktopAccessHelperStatus }>(
+          'remove_controller',
+          {
+            expected_revision: current.config.revision,
+            controller_key: controllerKey,
+          }
+        );
+        if (res.status) latestStatus = res.status;
+        return { ok: true, value: syncUi() };
+      } catch (error) {
+        return toError(error);
+      }
+    },
 
     finishSetup: (req: DesktopAccessFinishSetupRequest) =>
       runBridge(
@@ -611,9 +662,11 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           await client
             .request('revoke_control', { controller_key: controllerKey })
             .catch(() => undefined);
-          await client
-            .request('revoke_shell', { controller_key: controllerKey })
-            .catch(() => undefined);
+          if (latestStatus?.shell.enabled) {
+            await client
+              .request('revoke_shell', { controller_key: controllerKey })
+              .catch(() => undefined);
+          }
         }
         const current = latestStatus ?? (await fetchStatus(client));
         await client.request('remove_controller', {

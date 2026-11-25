@@ -135,6 +135,8 @@ const bridge = {
           beginSetup: () => ipcRenderer.invoke('desktop:access-begin-setup'),
           login: (request) => ipcRenderer.invoke('desktop:access-login', request),
           pair: (request) => ipcRenderer.invoke('desktop:access-pair', request),
+          abortSetup: (controllerKey) =>
+            ipcRenderer.invoke('desktop:access-abort-setup', controllerKey),
           finishSetup: (request) => ipcRenderer.invoke('desktop:access-finish-setup', request),
           updateLimits: (request) => ipcRenderer.invoke('desktop:access-update-limits', request),
           removeController: (controllerKey) =>

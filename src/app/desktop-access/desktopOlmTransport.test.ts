@@ -457,4 +457,125 @@ describe('desktopOlmTransport', () => {
     await expect(promise).rejects.toThrow(/abort/i);
     expect(env.listenerCount()).toBe(0);
   });
+
+  it('retries setup_request.v1 once with authoritative offer.agent_name for namespaced MindRoom agents', async () => {
+    const namespacedUser = '@mindroom_writer_ab12:example.test';
+    const namespacedDevice: MockDevice = {
+      userId: namespacedUser,
+      deviceId: 'WRITER_DEV_1',
+      curveKey: 'curve-writer-1',
+      ed25519: 'ed25519-writer-1',
+      signedByOwner: true,
+    };
+    const env = createMockMatrix([namespacedDevice]);
+
+    env.onSent((packet) => {
+      if (packet.eventType !== DESKTOP_SETUP_REQUEST_EVENT) return;
+      const nonce = packet.payload.nonce as string;
+      const requested = packet.payload.agent_name as string;
+      if (requested === 'writer_ab12') {
+        env.emitToDevice({
+          message: {
+            type: DESKTOP_SETUP_OFFER_EVENT,
+            sender: namespacedUser,
+            content: {
+              v: 1,
+              nonce,
+              agent_name: 'writer',
+              eligible: false,
+              homeserver: null,
+              user_id: null,
+              code: null,
+              cloudflare_access: false,
+              error: 'Requested agent name writer_ab12 does not match writer.',
+            },
+          },
+          encryptionInfo: {
+            sender: namespacedUser,
+            senderDevice: namespacedDevice.deviceId,
+            senderCurve25519KeyBase64: namespacedDevice.curveKey,
+            senderVerified: false,
+          },
+        });
+        return;
+      }
+      if (requested === 'writer') {
+        env.emitToDevice({
+          message: {
+            type: DESKTOP_SETUP_OFFER_EVENT,
+            sender: namespacedUser,
+            content: {
+              v: 1,
+              nonce,
+              agent_name: 'writer',
+              eligible: true,
+              homeserver: 'https://example.test',
+              user_id: '@bas:mindroom.chat',
+              code: 'namespaced-code-1',
+              cloudflare_access: false,
+            },
+          },
+          encryptionInfo: {
+            sender: namespacedUser,
+            senderDevice: namespacedDevice.deviceId,
+            senderCurve25519KeyBase64: namespacedDevice.curveKey,
+            senderVerified: false,
+          },
+        });
+      }
+    });
+
+    const result = await requestAgentSetupOffer(env.mx, namespacedUser, 'writer_ab12', undefined, 500);
+    expect(env.sent).toHaveLength(2);
+    expect(env.sent.map((p) => p.payload.agent_name)).toEqual(['writer_ab12', 'writer']);
+    expect(result.offer).toMatchObject({
+      eligible: true,
+      agent_name: 'writer',
+      code: 'namespaced-code-1',
+    });
+    expect(result.controller).toEqual({
+      user_id: namespacedUser,
+      device_id: namespacedDevice.deviceId,
+      ed25519: namespacedDevice.ed25519,
+    });
+
+    // Unrelated agent_name (not a namespace prefix) must NOT trigger a retry.
+    const unrelatedEnv = createMockMatrix([namespacedDevice]);
+    unrelatedEnv.onSent((packet) => {
+      if (packet.eventType !== DESKTOP_SETUP_REQUEST_EVENT) return;
+      unrelatedEnv.emitToDevice({
+        message: {
+          type: DESKTOP_SETUP_OFFER_EVENT,
+          sender: namespacedUser,
+          content: {
+            v: 1,
+            nonce: packet.payload.nonce as string,
+            agent_name: 'other',
+            eligible: false,
+            homeserver: null,
+            user_id: null,
+            code: null,
+            cloudflare_access: false,
+            error: 'Wrong agent.',
+          },
+        },
+        encryptionInfo: {
+          sender: namespacedUser,
+          senderDevice: namespacedDevice.deviceId,
+          senderCurve25519KeyBase64: namespacedDevice.curveKey,
+          senderVerified: false,
+        },
+      });
+    });
+
+    const noRetry = await requestAgentSetupOffer(
+      unrelatedEnv.mx,
+      namespacedUser,
+      'writer_ab12',
+      undefined,
+      500
+    );
+    expect(unrelatedEnv.sent).toHaveLength(1);
+    expect(noRetry.offer.eligible).toBe(false);
+  });
 });

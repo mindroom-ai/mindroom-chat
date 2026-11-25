@@ -128,6 +128,7 @@ const installDesktopAccess = (snapshot: DesktopAccessSnapshot): DesktopAccessBri
     beginSetup: vi.fn(async () => ({ ok: true as const, value: undefined })),
     login: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     pair: vi.fn(),
+    abortSetup: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     finishSetup: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     updateLimits: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     removeController: vi.fn(async () => ({ ok: true as const, value: snapshot })),

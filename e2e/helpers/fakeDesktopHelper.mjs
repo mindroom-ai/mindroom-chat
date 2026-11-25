@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
-const HELPER_VERSION = '2026.11.568';
+const HELPER_VERSION = '2026.11.572';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_REQUEST_KEYS = new Set(['v', 'request_id', 'action', 'parameters']);
 const POLL_INTERVAL_MS = 50;
@@ -127,6 +127,7 @@ let bridgeState = 'stopped';
 let authorityControllers = {};
 let shellControllers = {};
 let pendingShell = null;
+let pendingControllerKey = null;
 let handles = [];
 const permissions = {
   accessibility: { state: 'missing', can_request: true, recovery: null },
@@ -217,7 +218,7 @@ const buildStatus = () => {
       pending: pendingShell ? { ...pendingShell } : null,
       auto_approve_remaining_seconds: autoApproveRemaining,
       auto_approve_until_revoked: autoApproveUntilRevoked,
-      active_request_id: pendingShell ? pendingShell.command_id : null,
+      active_request_id: pendingShell ? pendingShell.request_id : null,
       handles: handles.map((item) => ({ ...item })),
       controllers: Object.fromEntries(
         Object.entries(shellControllers).map(([key, entry]) => [key, { ...entry }])
@@ -260,28 +261,51 @@ const consumePendingShellFile = () => {
   }
   if (parsed === null || (isPlainObject(parsed) && parsed.clear === true)) {
     pendingShell = null;
+    pendingControllerKey = null;
     return true;
   }
+  let changed = false;
+  if (isPlainObject(parsed) && Array.isArray(parsed.handles)) {
+    handles = parsed.handles.filter(isPlainObject).map((item) => ({
+      handle: typeof item.handle === 'string' ? item.handle : '',
+      state: typeof item.state === 'string' ? item.state : 'running',
+      command_preview:
+        typeof item.command_preview === 'string'
+          ? item.command_preview
+          : typeof item.command === 'string'
+            ? item.command
+            : '',
+      cwd: typeof item.cwd === 'string' ? item.cwd : '',
+      ...(typeof item.started_at_ms === 'number' ? { started_at_ms: item.started_at_ms } : {}),
+    }));
+    changed = true;
+  }
+  const pendingRequestId =
+    isPlainObject(parsed) && typeof parsed.request_id === 'string' && parsed.request_id.trim()
+      ? parsed.request_id
+      : isPlainObject(parsed) && typeof parsed.command_id === 'string' && parsed.command_id.trim()
+        ? parsed.command_id
+        : '';
   if (
     isPlainObject(parsed) &&
-    typeof parsed.command_id === 'string' &&
-    parsed.command_id.trim() &&
+    pendingRequestId &&
     typeof parsed.command === 'string' &&
     typeof parsed.cwd === 'string'
   ) {
     pendingShell = {
-      command_id: parsed.command_id,
-      command: parsed.command,
-      cwd: parsed.cwd,
+      request_id: pendingRequestId,
       ...(typeof parsed.requester_id === 'string' ? { requester_id: parsed.requester_id } : {}),
       ...(typeof parsed.agent_name === 'string' ? { agent_name: parsed.agent_name } : {}),
-      ...(typeof parsed.controller_key === 'string'
-        ? { controller_key: parsed.controller_key }
-        : {}),
+      command: parsed.command,
+      cwd: parsed.cwd,
+      expires_at_ms:
+        typeof parsed.expires_at_ms === 'number' ? parsed.expires_at_ms : Date.now() + 60_000,
     };
-    return true;
+    pendingControllerKey =
+      typeof parsed.controller_key === 'string' ? parsed.controller_key : null;
+    changed = true;
   }
-  return false;
+  return changed;
 };
 
 const checkRevision = (requestId, params) => {
@@ -473,6 +497,7 @@ const handleAction = (requestId, action, params) => {
       authorityControllers = {};
       shellControllers = {};
       pendingShell = null;
+      pendingControllerKey = null;
       handles = [];
       pushStatus();
       respondOk(requestId, { status: buildStatus() });
@@ -544,6 +569,10 @@ const handleAction = (requestId, action, params) => {
     }
 
     case 'revoke_shell': {
+      if (!config.shell_enabled) {
+        respondErr(requestId, 'shell_denied', 'Shell access is disabled.');
+        return;
+      }
       if (typeof params.controller_key === 'string' && params.controller_key.trim()) {
         delete shellControllers[params.controller_key];
       } else {
@@ -558,7 +587,7 @@ const handleAction = (requestId, action, params) => {
       if (
         !pendingShell ||
         typeof params.command_id !== 'string' ||
-        params.command_id !== pendingShell.command_id
+        params.command_id !== pendingShell.request_id
       ) {
         respondErr(requestId, 'no_pending_command', 'No matching pending shell command.');
         return;
@@ -568,16 +597,18 @@ const handleAction = (requestId, action, params) => {
         typeof params.auto_approve_seconds === 'number' ? params.auto_approve_seconds : 0;
       const autoApproveUntilRevoked = Boolean(params.auto_approve_until_revoked);
       const resolved = pendingShell;
+      const resolvedControllerKey = pendingControllerKey;
       pendingShell = null;
+      pendingControllerKey = null;
 
-      if (approved && resolved.controller_key) {
+      if (approved && resolvedControllerKey) {
         if (autoApproveUntilRevoked) {
-          shellControllers[resolved.controller_key] = {
+          shellControllers[resolvedControllerKey] = {
             auto_approve_remaining_seconds: 0,
             auto_approve_until_revoked: true,
           };
         } else if (autoApproveSeconds > 0) {
-          shellControllers[resolved.controller_key] = {
+          shellControllers[resolvedControllerKey] = {
             auto_approve_remaining_seconds: autoApproveSeconds,
             auto_approve_until_revoked: false,
           };
@@ -588,7 +619,8 @@ const handleAction = (requestId, action, params) => {
       fs.appendFileSync(
         shellDecisionsPath,
         `${JSON.stringify({
-          command_id: resolved.command_id,
+          request_id: resolved.request_id,
+          command_id: resolved.request_id,
           command: resolved.command,
           cwd: resolved.cwd,
           approved,
@@ -627,6 +659,7 @@ const handleAction = (requestId, action, params) => {
         config.enabled = false;
         bridgeState = 'stopped';
         pendingShell = null;
+        pendingControllerKey = null;
         handles = [];
       }
       config.revision += 1;

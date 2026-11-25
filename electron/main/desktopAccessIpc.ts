@@ -18,6 +18,7 @@ export type DesktopAccessOperations = {
   beginSetup(): Promise<DesktopResult<void>>;
   login(request: DesktopAccessLoginRequest): Promise<DesktopResult<DesktopAccessSnapshot>>;
   pair(request: DesktopAccessPairRequest): Promise<DesktopResult<DesktopAccessPairResult>>;
+  abortSetup(controllerKey: string): Promise<DesktopResult<DesktopAccessSnapshot>>;
   finishSetup(
     request: DesktopAccessFinishSetupRequest
   ): Promise<DesktopResult<DesktopAccessSnapshot>>;
@@ -291,6 +292,12 @@ export const registerDesktopAccessHandlers = (
     mainOwners,
     (args) => (args.length === 1 ? parsePairRequest(args[0]) : undefined),
     (req) => access.pair(req)
+  );
+  handle(
+    'desktop:access-abort-setup',
+    mainOwners,
+    (args) => (args.length === 1 ? nonEmptyString(args[0]) : undefined),
+    (key) => access.abortSetup(key)
   );
   handle(
     'desktop:access-finish-setup',

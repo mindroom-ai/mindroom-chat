@@ -126,7 +126,7 @@ export const relayPairToMac = async (
   const invite: DesktopPairInvite = {
     v: 1,
     nonce,
-    agent_name: agentName,
+    agent_name: offer.agent_name,
     agent_user_id: agentUserId,
     controller,
     homeserver: offer.homeserver,

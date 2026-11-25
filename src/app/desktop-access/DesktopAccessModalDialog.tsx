@@ -97,8 +97,9 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
   );
 
   const snapshot = snapshotOverride ?? liveSnapshot;
+  const requesterId = mx.getUserId() ?? undefined;
   const pairedController = selectedAgent
-    ? findPairedController(snapshot, selectedAgent.userId, selectedAgent.agentName)
+    ? findPairedController(snapshot, selectedAgent.userId, requesterId)
     : undefined;
   const isFullAccess =
     pairedController !== undefined &&
@@ -252,7 +253,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
             </Text>
             <Box direction="Column" gap="200">
               {agents.map((agent) => {
-                const existing = findPairedController(snapshot, agent.userId, agent.agentName);
+                const existing = findPairedController(snapshot, agent.userId, requesterId);
                 const full = existing
                   ? isControllerFullAccess(snapshot, existing.controller_key)
                   : false;

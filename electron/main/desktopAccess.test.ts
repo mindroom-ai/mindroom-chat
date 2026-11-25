@@ -114,7 +114,7 @@ const makeBaseStatus = (
     ...overrides?.permissions,
   },
   shell: {
-    enabled: false,
+    enabled: Boolean(overrides?.config?.shell_enabled),
     ready: false,
     pending: null,
     auto_approve_remaining_seconds: 0,
@@ -227,6 +227,13 @@ const createFakeBridgeClient = (initialStatus: DesktopAccessHelperStatus) => {
       if (action === 'revoke_control') {
         status.authority.control_available = false;
         if (status.bridge.state === 'control') status.bridge.state = 'observe_only';
+        emitStatus();
+        return { status: structuredClone(status) };
+      }
+      if (action === 'grant_shell' || action === 'revoke_shell') {
+        if (!status.shell.enabled) {
+          throw new DesktopHelperError('shell_denied', 'Shell access is disabled.');
+        }
         emitStatus();
         return { status: structuredClone(status) };
       }
@@ -1479,5 +1486,453 @@ describe('desktopAccess', () => {
     );
     expect(fs.existsSync(expectedSessionFile)).toBe(true);
     await access.stop();
+  });
+
+  it('normalizes real shell.py request_id and command_preview from fakeDesktopHelper end-to-end', async () => {
+    const userDataDir = makeTempDir();
+    const fakeHelperBin = path.resolve(process.cwd(), 'e2e/helpers/fakeDesktopHelper.mjs');
+    const panel = makeFakeBrowserWindow();
+    electronMocks.BrowserWindow.mockImplementation(function () {
+      return panel;
+    });
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'linux',
+      arch: 'x64',
+      userDataDir,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: fakeHelperBin },
+      isTestHelper: true,
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    const storageDir = path.join(userDataDir, 'desktop-bridge-test', 'mindroom_data');
+    fs.mkdirSync(storageDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(storageDir, 'pending-shell.json'),
+      JSON.stringify({
+        request_id: 'req-real-wire-1',
+        requester_id: '@demo:example.test',
+        agent_name: 'calendar',
+        command: 'ls -la',
+        cwd: '/tmp',
+        expires_at_ms: Date.now() + 60_000,
+        handles: [
+          {
+            handle: 'sh_9',
+            state: 'running',
+            command_preview: 'npm test',
+            cwd: '/tmp',
+            started_at_ms: 1_760_000_000_000,
+          },
+        ],
+      }),
+      'utf8'
+    );
+
+    access.noteGesture();
+    const loginRes = await access.login({
+      homeserver: 'https://example.test',
+      userId: '@demo:example.test',
+      method: 'auto',
+      loginToken: 'demo_token',
+    });
+    expect(loginRes.ok).toBe(true);
+    if (!loginRes.ok) return;
+    expect(loginRes.value.status?.shell.pending).toEqual({
+      command_id: 'req-real-wire-1',
+      command: 'ls -la',
+      cwd: '/tmp',
+      requester_id: '@demo:example.test',
+      agent_name: 'calendar',
+    });
+    expect(loginRes.value.status?.shell.handles).toEqual([
+      {
+        handle: 'sh_9',
+        command: 'npm test',
+        state: 'running',
+        started_at_ms: 1_760_000_000_000,
+      },
+    ]);
+
+    access.noteShellApprovalGesture();
+    const decided = await access.decideShell({ commandId: 'req-real-wire-1', approved: true });
+    expect(decided.ok).toBe(true);
+    if (decided.ok) {
+      expect(decided.value.status?.shell.pending).toBeNull();
+    }
+    await access.stop();
+  });
+
+  it('honors explicit restricted Choose limits choices for a 2nd agent instead of unioning or OR-merging', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    setControllerFullAccess(userDataDir, 'ctrl-first', { agentName: 'General' });
+
+    const initial = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 4,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-first',
+            user_id: '@mindroom_general:mindroom.chat',
+            device_id: 'DEV1',
+            ed25519: 'key1',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['general'],
+          },
+        ],
+        allowed_app_ids: ['primary-screen', 'com.apple.Safari'],
+        file_roots: ['/Users/bas/Docs', '/Users/bas/Code'],
+        shell_enabled: true,
+      },
+      bridge: { state: 'control', active_action: null, last_error: null },
+    });
+    const fake = createFakeBridgeClient(initial);
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access.start();
+    fake.calls.length = 0;
+
+    access.noteGesture();
+    const pairResult = await access.pair({
+      controller: {
+        userId: '@mindroom_writer:mindroom.chat',
+        deviceId: 'DEV2',
+        ed25519: 'key2',
+      },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['writer'],
+      code: 'PAIR-2',
+    });
+    expect(pairResult.ok).toBe(true);
+    if (!pairResult.ok) return;
+
+    const finishResult = await access.finishSetup({
+      controllerKey: pairResult.value.controllerKey,
+      agentName: 'writer',
+      mode: 'restricted',
+      allowedAppIds: ['com.apple.Safari'],
+      fileRoots: ['/Users/bas/Code'],
+      shellEnabled: false,
+    });
+    expect(finishResult.ok).toBe(true);
+    expect(fake.currentStatus().config.allowed_app_ids).toEqual(['com.apple.Safari']);
+    expect(fake.currentStatus().config.file_roots).toEqual(['/Users/bas/Code']);
+    expect(fake.currentStatus().config.shell_enabled).toBe(false);
+    expect(fake.calls.some((c) => c.action === 'grant_shell')).toBe(false);
+    expect(fake.calls.some((c) => c.action === 'revoke_shell')).toBe(false);
+  });
+
+  it('revokes live shell auto-approve when a restricted controller is re-paired as ask-before-each-command, and never sends revoke_shell when shell.enabled is false', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    // (a) Restricted controller (NO saved Full Access consent) with live shell auto-approve
+    const initialWithShell = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 3,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-restricted',
+            user_id: '@agent:mindroom.chat',
+            device_id: 'D1',
+            ed25519: 'k1',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['code'],
+          },
+        ],
+        allowed_app_ids: ['com.apple.Safari'],
+        file_roots: [],
+        shell_enabled: true,
+      },
+      bridge: { state: 'control', active_action: null, last_error: null },
+      shell: {
+        enabled: true,
+        ready: true,
+        pending: null,
+        auto_approve_remaining_seconds: 900,
+        auto_approve_until_revoked: false,
+        active_request_id: null,
+        handles: [],
+        controllers: {
+          'ctrl-restricted': {
+            auto_approve_remaining_seconds: 900,
+            auto_approve_until_revoked: false,
+          },
+        },
+      },
+    });
+    const fake1 = createFakeBridgeClient(initialWithShell);
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access1 = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake1.setOnStatus(onStatus);
+        return fake1.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access1.start();
+    fake1.calls.length = 0;
+
+    // Re-pair in restricted mode as "Ask before each command" (no shellAutoApproveSeconds).
+    access1.noteGesture();
+    const repaired = await access1.finishSetup({
+      controllerKey: 'ctrl-restricted',
+      mode: 'restricted',
+      allowedAppIds: ['com.apple.Safari'],
+      fileRoots: [],
+      shellEnabled: true,
+    });
+    expect(repaired.ok).toBe(true);
+    expect(fake1.calls).toEqual([
+      { action: 'revoke_control', parameters: { controller_key: 'ctrl-restricted' } },
+      { action: 'revoke_shell', parameters: { controller_key: 'ctrl-restricted' } },
+    ]);
+
+    // (b) GUI-only bridge with shell.enabled = false: updateLimits and finishSetup must NOT send revoke_shell.
+    const initialGuiOnly = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 2,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-gui',
+            user_id: '@agent:mindroom.chat',
+            device_id: 'D2',
+            ed25519: 'k2',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['gui'],
+          },
+        ],
+        allowed_app_ids: ['com.apple.Safari'],
+        file_roots: [],
+        shell_enabled: false,
+      },
+      bridge: { state: 'observe_only', active_action: null, last_error: null },
+    });
+    const fake2 = createFakeBridgeClient(initialGuiOnly);
+    const access2 = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir: makeTempDir(),
+      storagePath: makeTempDir(),
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake2.setOnStatus(onStatus);
+        return fake2.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access2.start();
+    fake2.calls.length = 0;
+
+    access2.noteGesture();
+    const updated = await access2.updateLimits({
+      controllerKey: 'ctrl-gui',
+      mode: 'restricted',
+      allowedAppIds: ['com.apple.Safari'],
+      shellEnabled: false,
+      controlDurationSeconds: 300,
+    });
+    expect(updated.ok).toBe(true);
+    expect(fake2.calls).toEqual([
+      { action: 'grant_control', parameters: { duration_seconds: 300, controller_key: 'ctrl-gui' } },
+    ]);
+
+    fake2.calls.length = 0;
+    access2.noteGesture();
+    const finishGui = await access2.finishSetup({
+      controllerKey: 'ctrl-gui',
+      mode: 'restricted',
+      allowedAppIds: ['com.apple.Safari'],
+      shellEnabled: false,
+    });
+    expect(finishGui.ok).toBe(true);
+    expect(fake2.calls).toEqual([
+      { action: 'revoke_control', parameters: { controller_key: 'ctrl-gui' } },
+    ]);
+  });
+
+  it('rolls back newly-added controllers on pair or abortSetup failure while preserving already-paired controllers', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    let now = 5_000_000;
+    const fake = createFakeBridgeClient(makeBaseStatus());
+    const panel = makeFakeBrowserWindow();
+    electronMocks.BrowserWindow.mockImplementation(function () {
+      return panel;
+    });
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      now: () => now,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    const mainFrame = { url: `${APP_ORIGIN}/`, origin: APP_ORIGIN };
+    const mainWc = { mainFrame, isDestroyed: () => false } as unknown as Electron.WebContents;
+    const mainEvent = { sender: mainWc, senderFrame: mainFrame };
+    registerDesktopAccessHandlers(
+      () => [mainWc],
+      () => {
+        const wc = access.shellApprovalContents();
+        return wc ? [wc] : [];
+      },
+      access
+    );
+    const abortHandler = electronMocks.ipcHandlers.get('desktop:access-abort-setup');
+    expect(abortHandler).toBeDefined();
+
+    const pairReq = {
+      controller: { userId: '@mindroom_writer:mindroom.chat', deviceId: 'W1', ed25519: 'kw1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['writer'],
+      code: 'CODE-1',
+    };
+
+    // 1. Failed helper pair on a first-time controller rolls back via remove_controller.
+    const originalRequest = fake.client.request;
+    let failNextPair = true;
+    fake.client.request = vi.fn(
+      async (action: string, parameters: Record<string, unknown> = {}) => {
+        if (action === 'pair' && failNextPair) {
+          failNextPair = false;
+          throw new DesktopHelperError('invalid_code', 'Pairing code expired.');
+        }
+        return originalRequest(action, parameters);
+      }
+    ) as DesktopBridgeClient['request'];
+
+    access.noteGesture();
+    const failedPair = await access.pair(pairReq);
+    expect(failedPair).toEqual({
+      ok: false,
+      code: 'invalid_code',
+      message: 'Pairing code expired.',
+    });
+    expect(fake.currentStatus().config.controllers).toEqual([]);
+
+    // 2. Successful first-time pair followed by abortSetup removes the newly-added controller and clears setupAuth.
+    access.noteGesture();
+    const paired1 = await access.pair(pairReq);
+    expect(paired1.ok).toBe(true);
+    if (!paired1.ok) return;
+    const key = paired1.value.controllerKey;
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+
+    // Wrong controllerKey is refused and does not clear setupAuth.
+    expect(await abortHandler?.(mainEvent, 'wrong-key')).toEqual({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+
+    // Correct controllerKey removes the newly-added controller and consumes setupAuth.
+    const aborted1 = await abortHandler?.(mainEvent, key);
+    expect(aborted1).toMatchObject({ ok: true });
+    expect(fake.currentStatus().config.controllers).toEqual([]);
+    expect(await access.abortSetup(key)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    expect(await access.finishSetup({ controllerKey: key, mode: 'full' })).toEqual({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+
+    // 3. Complete a full pairing so the controller already exists.
+    access.noteGesture();
+    const paired2 = await access.pair(pairReq);
+    expect(paired2.ok).toBe(true);
+    expect((await access.finishSetup({ controllerKey: key, mode: 'full' })).ok).toBe(true);
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+
+    // Re-pair fails at helper pair RPC: existing controller MUST remain intact.
+    fake.calls.length = 0;
+    failNextPair = true;
+    access.noteGesture();
+    const failedRepair = await access.pair(pairReq);
+    expect(failedRepair).toMatchObject({ ok: false, code: 'invalid_code' });
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+    expect(fake.calls.some((c) => c.action === 'remove_controller')).toBe(false);
+
+    // Re-pair succeeds at helper pair RPC, then abortSetup clears setupAuth WITHOUT removing existing controller.
+    fake.calls.length = 0;
+    access.noteGesture();
+    expect((await access.pair(pairReq)).ok).toBe(true);
+    const abortedRepair = await access.abortSetup(key);
+    expect(abortedRepair).toMatchObject({ ok: true });
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+    expect(fake.calls.some((c) => c.action === 'remove_controller')).toBe(false);
+    expect(await access.finishSetup({ controllerKey: key, mode: 'full' })).toEqual({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+
+    // Expired setupAuth cannot call abortSetup.
+    access.noteGesture();
+    expect((await access.pair(pairReq)).ok).toBe(true);
+    now += 180_001;
+    expect(await access.abortSetup(key)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
   });
 });

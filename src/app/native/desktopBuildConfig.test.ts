@@ -198,6 +198,16 @@ describe('electron/afterPack.cjs', () => {
     Arch: { x64: number; arm64: number; universal: number };
   };
 
+  function makeAfterPackFixture(prefix: string) {
+    const root = makeTempDir(prefix);
+    mkdirSync(join(root, 'electron'), { recursive: true });
+    const hookPath = join(root, 'electron', 'afterPack.cjs');
+    copyFileSync(resolve('electron/afterPack.cjs'), hookPath);
+    symlinkSync(resolve('node_modules'), join(root, 'node_modules'));
+    const defaultStaged = join(root, 'build', 'electron', HELPER_BUNDLE_NAME);
+    return { root, hookPath, defaultStaged };
+  }
+
   async function runAfterPack(
     context: {
       electronPlatformName: string;
@@ -205,9 +215,9 @@ describe('electron/afterPack.cjs', () => {
       appOutDir: string;
       packager: { appInfo: { productFilename: string } };
     },
-    envOverrides: Record<string, string | undefined>
+    envOverrides: Record<string, string | undefined>,
+    hookPath = resolve('electron/afterPack.cjs')
   ) {
-    const hookPath = resolve('electron/afterPack.cjs');
     const saved = Object.fromEntries(Object.keys(envOverrides).map((k) => [k, process.env[k]]));
     for (const [k, v] of Object.entries(envOverrides)) {
       if (v === undefined) delete process.env[k];
@@ -242,19 +252,22 @@ describe('electron/afterPack.cjs', () => {
   ])(
     'bundles helper into Contents/Helpers for %s preserving symlinks and permissions',
     async (_label, arch, dirName) => {
-      const root = makeTempDir('mindroom-afterpack-');
-      const staged = join(root, HELPER_BUNDLE_NAME);
-      createFakeHelperBundle(staged, 'fresh-helper');
+      const { root, hookPath, defaultStaged } = makeAfterPackFixture('mindroom-afterpack-');
+      createFakeHelperBundle(defaultStaged, 'fresh-helper');
       const appOutDir = join(root, dirName);
       const context = makePackContext(appOutDir, arch);
       const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
       mkdirSync(dest, { recursive: true });
       writeFileSync(join(dest, 'stale.txt'), 'old');
 
-      await runAfterPack(context, {
-        MINDROOM_DESKTOP_HELPER_STAGED: staged,
-        MINDROOM_DESKTOP_SIGN: '1',
-      });
+      await runAfterPack(
+        context,
+        {
+          MINDROOM_DESKTOP_HELPER_STAGED: undefined,
+          MINDROOM_DESKTOP_SIGN: '1',
+        },
+        hookPath
+      );
 
       expect(existsSync(join(dest, 'stale.txt'))).toBe(false);
       expect(readFileSync(join(dest, HELPER_EXEC_REL), 'utf8')).toBe('fresh-helper');
@@ -273,16 +286,19 @@ describe('electron/afterPack.cjs', () => {
   ])(
     'skips helper bundling for %s even in signed mode',
     async (_label, arch, dirName, platform) => {
-      const root = makeTempDir('mindroom-afterpack-skip-');
-      const staged = join(root, HELPER_BUNDLE_NAME);
-      createFakeHelperBundle(staged);
+      const { root, hookPath, defaultStaged } = makeAfterPackFixture('mindroom-afterpack-skip-');
+      createFakeHelperBundle(defaultStaged);
       const appOutDir = join(root, dirName);
       const context = makePackContext(appOutDir, arch, platform);
 
-      await runAfterPack(context, {
-        MINDROOM_DESKTOP_HELPER_STAGED: staged,
-        MINDROOM_DESKTOP_SIGN: '1',
-      });
+      await runAfterPack(
+        context,
+        {
+          MINDROOM_DESKTOP_HELPER_STAGED: undefined,
+          MINDROOM_DESKTOP_SIGN: '1',
+        },
+        hookPath
+      );
 
       const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
       expect(existsSync(dest)).toBe(false);
@@ -295,29 +311,97 @@ describe('electron/afterPack.cjs', () => {
   ])(
     'fails closed in signed mode when staged helper is missing (%s)',
     async (_label, arch, dirName) => {
-      const root = makeTempDir('mindroom-afterpack-missing-');
+      const { root, hookPath } = makeAfterPackFixture('mindroom-afterpack-missing-');
       const appOutDir = join(root, dirName);
       const context = makePackContext(appOutDir, arch);
 
       await expect(
-        runAfterPack(context, {
-          MINDROOM_DESKTOP_HELPER_STAGED: join(root, 'does-not-exist.app'),
-          MINDROOM_DESKTOP_SIGN: '1',
-        })
+        runAfterPack(
+          context,
+          {
+            MINDROOM_DESKTOP_HELPER_STAGED: undefined,
+            MINDROOM_DESKTOP_SIGN: '1',
+          },
+          hookPath
+        )
       ).rejects.toThrow(/MindRoom Desktop Helper/);
     }
   );
 
+  it('ignores MINDROOM_DESKTOP_HELPER_STAGED in signed mode and honors it only in unsigned mode', async () => {
+    const { root, hookPath, defaultStaged } = makeAfterPackFixture('mindroom-afterpack-signed-ignore-');
+    const overrideHelper = join(root, 'override', HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(overrideHelper, 'override-helper');
+
+    // Without the official build/electron staged helper, signed mode fails closed even when override env is set.
+    const appOutMissing = join(root, 'mac-arm64-missing');
+    await expect(
+      runAfterPack(
+        makePackContext(appOutMissing, Arch.arm64),
+        {
+          MINDROOM_DESKTOP_HELPER_STAGED: overrideHelper,
+          MINDROOM_DESKTOP_SIGN: '1',
+        },
+        hookPath
+      )
+    ).rejects.toThrow(/MindRoom Desktop Helper/);
+
+    // When both official and override exist, signed mode bundles the official staged helper only.
+    createFakeHelperBundle(defaultStaged, 'official-helper');
+    const appOutSigned = join(root, 'mac-arm64-signed');
+    await runAfterPack(
+      makePackContext(appOutSigned, Arch.arm64),
+      {
+        MINDROOM_DESKTOP_HELPER_STAGED: overrideHelper,
+        MINDROOM_DESKTOP_SIGN: '1',
+      },
+      hookPath
+    );
+    const signedDest = join(
+      appOutSigned,
+      'MindRoom Chat.app',
+      'Contents',
+      'Helpers',
+      HELPER_BUNDLE_NAME,
+      HELPER_EXEC_REL
+    );
+    expect(readFileSync(signedDest, 'utf8')).toBe('official-helper');
+
+    // Unsigned mode still honors MINDROOM_DESKTOP_HELPER_STAGED.
+    const appOutUnsigned = join(root, 'mac-arm64-unsigned');
+    await runAfterPack(
+      makePackContext(appOutUnsigned, Arch.arm64),
+      {
+        MINDROOM_DESKTOP_HELPER_STAGED: overrideHelper,
+        MINDROOM_DESKTOP_SIGN: '0',
+      },
+      hookPath
+    );
+    const unsignedDest = join(
+      appOutUnsigned,
+      'MindRoom Chat.app',
+      'Contents',
+      'Helpers',
+      HELPER_BUNDLE_NAME,
+      HELPER_EXEC_REL
+    );
+    expect(readFileSync(unsignedDest, 'utf8')).toBe('override-helper');
+  });
+
   it('skips silently in unsigned mode when staged helper is missing', async () => {
-    const root = makeTempDir('mindroom-afterpack-unsigned-');
+    const { root, hookPath } = makeAfterPackFixture('mindroom-afterpack-unsigned-');
     const appOutDir = join(root, 'mac-arm64');
     const context = makePackContext(appOutDir, Arch.arm64);
 
     await expect(
-      runAfterPack(context, {
-        MINDROOM_DESKTOP_HELPER_STAGED: join(root, 'does-not-exist.app'),
-        MINDROOM_DESKTOP_SIGN: '0',
-      })
+      runAfterPack(
+        context,
+        {
+          MINDROOM_DESKTOP_HELPER_STAGED: join(root, 'does-not-exist.app'),
+          MINDROOM_DESKTOP_SIGN: '0',
+        },
+        hookPath
+      )
     ).resolves.toBeUndefined();
 
     const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
@@ -325,17 +409,21 @@ describe('electron/afterPack.cjs', () => {
   });
 
   it('fails closed when staged helper directory is missing the helper executable', async () => {
-    const root = makeTempDir('mindroom-afterpack-corrupt-');
+    const { root, hookPath } = makeAfterPackFixture('mindroom-afterpack-corrupt-');
     const staged = join(root, HELPER_BUNDLE_NAME);
     mkdirSync(staged, { recursive: true });
     const appOutDir = join(root, 'mac-arm64');
     const context = makePackContext(appOutDir, Arch.arm64);
 
     await expect(
-      runAfterPack(context, {
-        MINDROOM_DESKTOP_HELPER_STAGED: staged,
-        MINDROOM_DESKTOP_SIGN: '0',
-      })
+      runAfterPack(
+        context,
+        {
+          MINDROOM_DESKTOP_HELPER_STAGED: staged,
+          MINDROOM_DESKTOP_SIGN: '0',
+        },
+        hookPath
+      )
     ).rejects.toThrow(/MindRoom Desktop Helper/);
   });
 });

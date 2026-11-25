@@ -223,26 +223,38 @@ export const pairAgentOnThisMac = async (
   const { offer, controller } = await requestAgentSetupOffer(mx, agentUserId, agentName, signal);
   if (!offer.eligible) throw new Error(offer.error);
   requireOwnAccount(mx, offer.homeserver, offer.user_id);
+  const resolvedAgentName = offer.agent_name;
   const target: HelperPairingTarget = {
     controller,
-    agentName,
+    agentName: resolvedAgentName,
     homeserver: offer.homeserver,
     userId: offer.user_id,
     code: offer.code,
     cloudflareAccess: offer.cloudflare_access,
   };
   const paired = await pairHelperWithController(mx, target, runUia, onStep);
-  onStep?.('confirming');
-  const claimed = {
-    token: offer.code,
-    verification: paired.verification,
-    deviceId: paired.deviceId,
-    deviceEd25519: paired.deviceEd25519,
-  };
-  const confirmed = await confirmAgentPairing(mx, controller, claimed, signal);
-  if (!confirmed.ok) throw new Error(confirmed.error);
+  try {
+    onStep?.('confirming');
+    const claimed = {
+      token: offer.code,
+      verification: paired.verification,
+      deviceId: paired.deviceId,
+      deviceEd25519: paired.deviceEd25519,
+    };
+    const confirmed = await confirmAgentPairing(mx, controller, claimed, signal);
+    if (!confirmed.ok) throw new Error(confirmed.error);
+  } catch (error) {
+    await requireDesktopAccess()
+      .abortSetup(paired.controllerKey)
+      .catch(() => undefined);
+    throw error;
+  }
   onStep?.('finishing');
-  return finishHelperSetup(paired.controllerKey, { agentName, mode, limits });
+  return finishHelperSetup(paired.controllerKey, {
+    agentName: resolvedAgentName,
+    mode,
+    limits,
+  });
 };
 
 /**

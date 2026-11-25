@@ -81,16 +81,20 @@ export const getRoomMindroomAgents = (mx: MatrixClient, roomId: string): RoomMin
   return resolveRoomAgents(room.getJoinedMembers(), mx.getUserId() ?? undefined);
 };
 
-/** Finds the paired controller entry for an agent, matching by user ID first or agent name. */
+/**
+ * Finds the paired controller entry for an agent by exact Matrix user ID and, when provided,
+ * matching allowed requester ID.
+ */
 export const findPairedController = (
   snapshot: DesktopAccessSnapshot | null,
   agentUserId: string,
-  agentName: string
+  requesterId?: string
 ): DesktopAccessControllerConfig | undefined => {
   const controllers = snapshot?.status?.config.controllers ?? [];
-  return (
-    controllers.find((ctrl) => ctrl.user_id === agentUserId) ??
-    controllers.find((ctrl) => ctrl.allowed_agent_names.includes(agentName))
+  return controllers.find(
+    (ctrl) =>
+      ctrl.user_id === agentUserId &&
+      (requesterId === undefined || ctrl.allowed_requester_ids.includes(requesterId))
   );
 };
 
@@ -103,13 +107,14 @@ export const isControllerFullAccess = (
 const INVISIBLE_OR_CONTROL_RE = /^[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]$/u;
 
 /**
- * Visibly escapes control characters, tabs, CR, LF, ANSI escapes, and invisible Unicode
- * format/bidi/line/tag code points so shell commands and paths cannot disguise hidden text.
+ * Visibly escapes backslashes, control characters, tabs, CR, LF, ANSI escapes, and invisible
+ * Unicode format/bidi/line/tag code points so shell commands and paths cannot disguise hidden text.
  */
 export const escapeShellDisplay = (value: string): string => {
   let out = '';
   for (const ch of value) {
-    if (ch === '\n') out += '\\n';
+    if (ch === '\\') out += '\\\\';
+    else if (ch === '\n') out += '\\n';
     else if (ch === '\r') out += '\\r';
     else if (ch === '\t') out += '\\t';
     else if (INVISIBLE_OR_CONTROL_RE.test(ch)) {

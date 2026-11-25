@@ -5,6 +5,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { copyToClipboard } from '../lib/dom';
 import { errorMessage } from '../lib/errorMessage';
 import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl } from '../native/macApp';
+import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import { relayPairToMac, useRegisteredMacDevices, type RelayPairState } from './browserPairRelay';
 import { useDesktopT, type RoomMindroomAgent } from './desktopAccessHelpers';
@@ -91,6 +92,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
               radii="300"
               variant="Primary"
               fill="Solid"
+              style={{ textDecoration: 'none' }}
               before={<Icon size="100" src={Icons.Download} />}
             >
               <Text size="B400">
@@ -120,7 +122,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
                     void copyToClipboard(MAC_APP_BREW_COMMAND).then(setCopied);
                   }}
                 >
-                  <Icon size="100" src={copied ? Icons.Check : Icons.Code} />
+                  {copied ? <Icon size="100" src={Icons.Check} /> : <CopyIcon />}
                 </IconButton>
               </div>
               <Text

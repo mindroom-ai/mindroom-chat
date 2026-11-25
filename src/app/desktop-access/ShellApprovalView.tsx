@@ -117,19 +117,25 @@ export function ShellApprovalView() {
   return (
     <div className={css.ShellApprovalRoot}>
       <div className={css.ShellApprovalCard} role="main">
-        <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+        <div className={css.ShellApprovalHeader}>
           <Box alignItems="Center" gap="200" style={{ minWidth: 0 }}>
             <Icon size="200" src={Icons.Terminal} />
-            <Text as="h1" size="H5" truncate>
+            <Text as="h1" size="H5">
               {dt('featureUi.desktopAccess.shellApproval.title', 'Approve shell command?')}
             </Text>
           </Box>
           {actor && (
-            <Text size="T200" priority="300" truncate data-testid="shell-approval-actor">
+            <Text
+              size="T200"
+              priority="300"
+              truncate
+              className={css.ShellApprovalSubtitle}
+              data-testid="shell-approval-actor"
+            >
               {actor}
             </Text>
           )}
-        </Box>
+        </div>
 
         {!pending ? (
           <Box grow="Yes" alignItems="Center" justifyContent="Center">

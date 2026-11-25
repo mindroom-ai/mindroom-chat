@@ -6,6 +6,7 @@ import type { DesktopAccessHelperStatus } from '../../src/app/lib/desktopBridge'
 import {
   DesktopBridgeProcess,
   DesktopHelperError,
+  normalizeHelperStatus,
   resolveDesktopHelperBinary,
 } from './desktopBridgeProcess';
 
@@ -288,5 +289,116 @@ describe('DesktopBridgeProcess', () => {
     await expect(pending).rejects.toMatchObject({ code: 'helper_exited' });
     expect(proc.isRunning()).toBe(false);
     expect(exits).toEqual([{ code: 2, unexpected: true }]);
+  });
+});
+
+describe('normalizeHelperStatus', () => {
+  it('normalizes real shell.py wire fields (request_id in pending and command_preview in handles)', () => {
+    const normalized = normalizeHelperStatus({
+      config: {
+        state: 'ready',
+        revision: 3,
+        enabled: true,
+        controllers: [],
+        allowed_app_ids: ['primary-screen'],
+        file_roots: ['/Users/demo/project'],
+        shell_enabled: true,
+      },
+      pairing: {
+        state: 'paired',
+        session_state: 'ready',
+        homeserver: 'https://example.test',
+        user_id: '@demo:example.test',
+        device_id: 'DEV1',
+      },
+      helper: { state: 'running', version: '2026.11.572' },
+      bridge: { state: 'control', active_action: null, last_error: null },
+      authority: {
+        control_available: true,
+        lease_remaining_seconds: 0,
+        control_scope: 'computer',
+        controllers: {},
+      },
+      permissions: {
+        accessibility: { state: 'granted' },
+        screen_recording: { state: 'granted' },
+        gui_permissions_ready: true,
+      },
+      shell: {
+        enabled: true,
+        ready: true,
+        pending: {
+          request_id: 'req-shell-99',
+          requester_id: '@demo:example.test',
+          agent_name: 'calendar',
+          command: 'git status --short',
+          cwd: '/Users/demo/project',
+          expires_at_ms: 1_760_000_000_000,
+        },
+        auto_approve_remaining_seconds: 0,
+        auto_approve_until_revoked: false,
+        active_request_id: 'req-shell-99',
+        handles: [
+          {
+            handle: 'sh_01',
+            state: 'running',
+            command_preview: 'pytest -q',
+            cwd: '/Users/demo/project',
+            started_at_ms: 1_760_000_000_123,
+          },
+          {
+            handle: 'sh_02',
+            state: 'exited',
+            command: 'legacy command',
+          },
+        ],
+        controllers: {},
+      },
+    });
+
+    expect(normalized?.shell.pending).toEqual({
+      command_id: 'req-shell-99',
+      command: 'git status --short',
+      cwd: '/Users/demo/project',
+      requester_id: '@demo:example.test',
+      agent_name: 'calendar',
+    });
+    expect(normalized?.shell.handles).toEqual([
+      {
+        handle: 'sh_01',
+        command: 'pytest -q',
+        state: 'running',
+        started_at_ms: 1_760_000_000_123,
+      },
+      {
+        handle: 'sh_02',
+        command: 'legacy command',
+        state: 'exited',
+      },
+    ]);
+
+    // request_id takes precedence over legacy command_id, and blank/missing id maps to pending: null.
+    const prefersRequestId = normalizeHelperStatus({
+      shell: {
+        pending: {
+          request_id: 'req-primary',
+          command_id: 'cmd-legacy',
+          command: 'ls',
+          cwd: '/tmp',
+        },
+      },
+    });
+    expect(prefersRequestId?.shell.pending?.command_id).toBe('req-primary');
+
+    const missingId = normalizeHelperStatus({
+      shell: {
+        pending: {
+          request_id: '   ',
+          command: 'ls',
+          cwd: '/tmp',
+        },
+      },
+    });
+    expect(missingId?.shell.pending).toBeNull();
   });
 });

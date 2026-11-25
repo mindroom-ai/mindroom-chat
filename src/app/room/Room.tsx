@@ -340,10 +340,12 @@ function RoomContent() {
       bridgeState === 'control' ||
       Boolean(desktopAccessSnapshot.status?.shell.ready);
     if (!active) return false;
+    const requesterId = client.getUserId() ?? undefined;
     return roomAgents.some(
-      (agent) => findPairedController(desktopAccessSnapshot, agent.userId, agent.agentName) !== undefined
+      (agent) =>
+        findPairedController(desktopAccessSnapshot, agent.userId, requesterId) !== undefined
     );
-  }, [desktopAccessAvailable, desktopAccessSnapshot, roomAgents]);
+  }, [client, desktopAccessAvailable, desktopAccessSnapshot, roomAgents]);
   const onOpenMacAccess = useCallback(() => {
     const [onlyAgent] = roomAgents;
     if (roomAgents.length === 1 && onlyAgent) {

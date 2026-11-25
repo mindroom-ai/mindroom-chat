@@ -350,11 +350,12 @@ test('pending shell command opens floating /shell-approval/ window with escaped 
 
       const approvalWinPromise = app.waitForEvent('window');
       writeJsonAtomic(path.join(storageDir, 'pending-shell.json'), {
-        command_id: commandId,
-        command: rawCommand,
-        cwd: DEMO_PROJECT_ROOT,
+        request_id: commandId,
         requester_id: DEMO_USER_ID,
         agent_name: DEMO_AGENT_NAME,
+        command: rawCommand,
+        cwd: DEMO_PROJECT_ROOT,
+        expires_at_ms: Date.now() + 60_000,
         controller_key: setup.controllerKey,
       });
 

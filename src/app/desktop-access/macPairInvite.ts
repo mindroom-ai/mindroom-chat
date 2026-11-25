@@ -13,6 +13,7 @@ import {
   beginHelperSetup,
   finishHelperSetup,
   pairHelperWithController,
+  requireDesktopAccess,
   requireOwnAccount,
   type DesktopAccessLimits,
 } from './desktopAccessController';
@@ -94,24 +95,31 @@ export const approveIncomingPairInvite = async (
         throw error;
       }
     );
-    const claimed = {
-      ok: true,
-      device_id: paired.deviceId,
-      device_ed25519: paired.deviceEd25519,
-      verification: paired.verification,
-    };
-    const { reply: confirmed } = await exchangeOverOlm(
-      mx,
-      {
-        replyType: DESKTOP_PAIR_INVITE_CONFIRMED_EVENT,
-        parse: parseDesktopPairInviteConfirmed,
-        nonce: invite.nonce,
-        from: { userId: invite.user_id, deviceId: senderDeviceId, ed25519: senderEd25519 },
-        timeoutMs: confirmTimeoutMs,
-      },
-      () => answerInvite(mx, incoming, claimed)
-    );
-    if (!confirmed.ok) throw new Error(confirmed.error);
+    try {
+      const claimed = {
+        ok: true,
+        device_id: paired.deviceId,
+        device_ed25519: paired.deviceEd25519,
+        verification: paired.verification,
+      };
+      const { reply: confirmed } = await exchangeOverOlm(
+        mx,
+        {
+          replyType: DESKTOP_PAIR_INVITE_CONFIRMED_EVENT,
+          parse: parseDesktopPairInviteConfirmed,
+          nonce: invite.nonce,
+          from: { userId: invite.user_id, deviceId: senderDeviceId, ed25519: senderEd25519 },
+          timeoutMs: confirmTimeoutMs,
+        },
+        () => answerInvite(mx, incoming, claimed)
+      );
+      if (!confirmed.ok) throw new Error(confirmed.error);
+    } catch (error) {
+      await requireDesktopAccess()
+        .abortSetup(paired.controllerKey)
+        .catch(() => undefined);
+      throw error;
+    }
     const { agent_name: agentName } = invite;
     return await finishHelperSetup(paired.controllerKey, { agentName, mode, limits });
   } finally {

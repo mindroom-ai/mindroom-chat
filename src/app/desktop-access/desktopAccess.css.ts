@@ -302,6 +302,18 @@ export const ShellApprovalCard = style({
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
 });
 
+export const ShellApprovalHeader = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  minWidth: 0,
+});
+
+export const ShellApprovalSubtitle = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
 export const ShellCommandBox = style({
   margin: 0,
   padding: config.space.S200,

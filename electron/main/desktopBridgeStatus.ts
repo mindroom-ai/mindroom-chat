@@ -79,25 +79,31 @@ export const normalizeHelperStatus = (raw: unknown): DesktopAccessHelperStatus |
   }
 
   const pendingRaw = isRecord(shell.pending) ? shell.pending : null;
-  const pending: DesktopAccessShellPending | null = pendingRaw
-    ? {
-        command_id: asString(pendingRaw.command_id),
-        command: asString(pendingRaw.command),
-        cwd: asString(pendingRaw.cwd),
-        ...(typeof pendingRaw.requester_id === 'string'
-          ? { requester_id: pendingRaw.requester_id }
-          : {}),
-        ...(typeof pendingRaw.agent_name === 'string' ? { agent_name: pendingRaw.agent_name } : {}),
-        ...(typeof pendingRaw.controller_key === 'string'
-          ? { controller_key: pendingRaw.controller_key }
-          : {}),
-      }
-    : null;
+  const pendingCommandId = pendingRaw
+    ? asString(pendingRaw.request_id) || asString(pendingRaw.command_id)
+    : '';
+  const pending: DesktopAccessShellPending | null =
+    pendingRaw && pendingCommandId.trim().length > 0
+      ? {
+          command_id: pendingCommandId,
+          command: asString(pendingRaw.command),
+          cwd: asString(pendingRaw.cwd),
+          ...(typeof pendingRaw.requester_id === 'string'
+            ? { requester_id: pendingRaw.requester_id }
+            : {}),
+          ...(typeof pendingRaw.agent_name === 'string'
+            ? { agent_name: pendingRaw.agent_name }
+            : {}),
+          ...(typeof pendingRaw.controller_key === 'string'
+            ? { controller_key: pendingRaw.controller_key }
+            : {}),
+        }
+      : null;
 
   const handles: DesktopAccessShellHandle[] = Array.isArray(shell.handles)
     ? shell.handles.filter(isRecord).map((h) => ({
         handle: asString(h.handle),
-        command: asString(h.command),
+        command: asString(h.command_preview) || asString(h.command),
         state: asString(h.state),
         ...(typeof h.started_at_ms === 'number' ? { started_at_ms: h.started_at_ms } : {}),
       }))
