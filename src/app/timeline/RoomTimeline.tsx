@@ -215,7 +215,6 @@ import {
   useRoomRowWindow,
 } from './useMembershipFolds';
 import {
-  EXPAND_ALL_LINE_ESTIMATE_PX,
   isTimelineRowHidden,
   renderTimelineTiles,
   timelineRowSizing,
@@ -1200,13 +1199,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     !canPaginateRoomBack &&
     !roomHasMoreCachedBack;
   const hasRoomLeadingIntro = showRoomIntro && !latestAtTop;
-  const roomLeadingOffset = hasRoomLeadingIntro ? 1 : 0;
-  // When the outer [+all] line sits above the virtual list in an oldest-first room, report its
-  // height as scrollMargin so moving it into item 0 with roomIntro anchors by +roomIntro only.
-  const roomScrollMargin =
-    !threadId && !latestAtTop && !hasRoomLeadingIntro && roomWindowRows.length > 0
-      ? EXPAND_ALL_LINE_ESTIMATE_PX
-      : 0;
+  // Oldest-first rooms always keep one leading item 0 with one stable key (`[+all]` alone, or
+  // `{roomIntro}{expandAllToggle}` once start loads) so mounting the intro grows item 0 in place.
+  const hasRoomLeadingTile =
+    !threadId && !latestAtTop && (hasRoomLeadingIntro || roomWindowRows.length > 0);
+  const roomLeadingOffset = hasRoomLeadingTile ? 1 : 0;
   const roomLeadingOffsetRef = useLatestRef(roomLeadingOffset);
   // The virtual list and its scroll anchoring.
   const itemCount = threadId
@@ -1256,7 +1253,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     showThreadRepliesInRoom,
     threadEvents,
     hasThreadLoadOlder: showThreadLoadOlder,
-    hasRoomIntro: hasRoomLeadingIntro,
+    hasRoomIntro: hasRoomLeadingTile,
     roomWindowRows,
     windowStart: activeTimelineRange.start,
     roomRowsRef,
@@ -1293,7 +1290,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     pinThreadLeadingItem: showThreadLoadOlder,
     canLoadOlder: !latestAtTop && (threadId ? showThreadLoadOlder : !showRoomIntro),
-    scrollMargin: roomScrollMargin,
     automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });
   const { virtualizer } = ledger;
@@ -2148,13 +2144,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     threadEvents,
     threadLoadOlderNode,
-    roomIntroNode: hasRoomLeadingIntro ? (
+    roomIntroNode: hasRoomLeadingTile ? (
       <>
-        {roomIntro}
+        {hasRoomLeadingIntro && roomIntro}
         {expandAllToggle}
       </>
     ) : undefined,
-    scrollMargin: roomScrollMargin,
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
@@ -2185,12 +2180,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const holdOffset = readVirtualizerHoldOffset(virtualizer);
   const backHeadroomPx =
     !latestAtTop && readerScrolledRef.current.value
-      ? Math.max(
-          0,
-          (virtualizer.measurementsCache[
-            Math.min(THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS, itemCount - 1)
-          ]?.start ?? 0) - roomScrollMargin
-        )
+      ? (virtualizer.measurementsCache[
+          Math.min(THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS, itemCount - 1)
+        ]?.start ?? 0)
       : 0;
   const topSentinelStyle =
     holdOffset !== 0 || backHeadroomPx > 1
@@ -2249,7 +2241,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
-            !hasRoomLeadingIntro && expandAllToggle
+            latestAtTop && expandAllToggle
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>

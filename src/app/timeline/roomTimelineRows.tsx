@@ -188,10 +188,11 @@ const TURN_BREAK_ESTIMATE_PX = 42;
 export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
 const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
 export const ROOM_INTRO_KEY = '__room_intro__';
-/** Height of `ExpandAllLine` (`paddingBlockStart` 4 px + 18 px button) rendered under `roomIntro`. */
+/** Height of `ExpandAllLine` (`paddingBlockStart` 4 px + 18 px button) in item 0. */
 export const EXPAND_ALL_LINE_ESTIMATE_PX = 22;
-// Non-integer so virtual-core records the first DOM measurement even when RoomIntro matches.
+// Non-integer so virtual-core records the first DOM measurement on mount.
 export const ROOM_INTRO_ESTIMATE_PX = 160 + ROOM_ROW_UNMEASURED_PX;
+const ROOM_LEADING_ESTIMATE_PX = EXPAND_ALL_LINE_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
 
 export const timelineRowSizing = ({
   threadId,
@@ -242,10 +243,7 @@ export const timelineRowSizing = ({
   const roomWrapChars = roomWrapCharsForWidth(columnWidth);
   const estimateSize = (index?: number): number => {
     if (!threadId) {
-      if (roomLeadingOffset && index === 0)
-        return (
-          ROOM_INTRO_ESTIMATE_PX + (roomWindowRows.length > 0 ? EXPAND_ALL_LINE_ESTIMATE_PX : 0)
-        );
+      if (roomLeadingOffset && index === 0) return ROOM_LEADING_ESTIMATE_PX;
       const rows = roomRowsRef.current;
       const rowIndex = index === undefined ? undefined : index - roomLeadingOffset;
       const position = rowIndex === undefined ? undefined : activeRangeRef.current.start + rowIndex;
@@ -425,7 +423,6 @@ export const renderTimelineTiles = ({
   membershipFolds,
   threadLoadOlderNode,
   roomIntroNode,
-  scrollMargin = 0,
   unreadMarkerRef,
   measureElement,
 }: {
@@ -436,8 +433,6 @@ export const renderTimelineTiles = ({
   threadLoadOlderNode?: ReactNode;
   /** When set in a room, index 0 renders the room start intro as a virtual tile. */
   roomIntroNode?: ReactNode;
-  /** Offset of the virtual list from the scroll container start (outer expand-all line). */
-  scrollMargin?: number;
   roomWindowRows: MatrixEvent[];
   roomRowEntries: TimelineEventEntry[];
   windowStart: number;
@@ -526,7 +521,7 @@ export const renderTimelineTiles = ({
           key={item.key}
           ref={measureElement}
           virtualItem={item}
-          style={{ top: item.start - scrollMargin }}
+          style={{ top: item.start }}
         >
           {leadingNode}
         </VirtualTile>
@@ -622,7 +617,7 @@ export const renderTimelineTiles = ({
         key={item.key}
         ref={measureElement}
         virtualItem={item}
-        style={{ top: item.start - scrollMargin }}
+        style={{ top: item.start }}
       >
         <div data-room-row-index={threadId ? undefined : eventIndex}>
           {foldClosed && context?.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}

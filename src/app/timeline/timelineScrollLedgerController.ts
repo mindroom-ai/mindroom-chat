@@ -52,7 +52,6 @@ export type TimelineScrollLedgerControllerOptions = {
   pinThreadLeadingItem?: boolean;
   /** Whether older history can still prepend above item 0 (keeps clamped negative holds). */
   canLoadOlder?: boolean;
-  scrollMargin?: number;
   automaticFill?: {
     geometryReader: MutableRefObject<() => string | undefined>;
   };
@@ -129,7 +128,6 @@ export const useTimelineScrollLedgerController = ({
   threadId,
   pinThreadLeadingItem = false,
   canLoadOlder = false,
-  scrollMargin = 0,
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const virtualInnerRef = useRef<HTMLDivElement>(null);
@@ -248,7 +246,6 @@ export const useTimelineScrollLedgerController = ({
     getScrollElement,
     estimateSize,
     overscan: 10,
-    ...(scrollMargin ? { scrollMargin } : {}),
     ...(anchorToEnd
       ? { anchorTo: 'end' as const, scrollEndThreshold: -1, holdScrollDuringWheel }
       : {}),

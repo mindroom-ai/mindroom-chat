@@ -104,7 +104,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     initialScrollTop = 1200,
     withRowJumps = false,
     latestAtTop = false,
-    initialScrollMargin = 0,
     thread = false,
     shortHistory = false,
     initialCanLoadOlder = false,
@@ -113,7 +112,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     initialScrollTop?: number;
     withRowJumps?: boolean;
     latestAtTop?: boolean;
-    initialScrollMargin?: number;
     thread?: boolean;
     shortHistory?: boolean;
     initialCanLoadOlder?: boolean;
@@ -174,13 +172,11 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     function RoomHarness({
       keys,
       tick,
-      scrollMargin = 0,
       introEstimate = ROOM_INTRO_ESTIMATE_PX,
       canLoadOlder = false,
     }: {
       keys: string[];
       tick: number;
-      scrollMargin?: number;
       introEstimate?: number;
       canLoadOlder?: boolean;
     }) {
@@ -195,7 +191,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
         anchorRoomRows: latestAtTop ? () => true : undefined,
         roomId: '!room:example.org',
         threadId: thread ? '$thread-root' : undefined,
-        scrollMargin,
         canLoadOlder,
       });
       mounted.virtualizer = controller.virtualizer;
@@ -268,16 +263,14 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     }
 
     let currentKeys = initialKeys;
-    let currentMargin = initialScrollMargin;
     let currentIntroEstimate = ROOM_INTRO_ESTIMATE_PX;
     let currentCanLoadOlder = initialCanLoadOlder;
     let tick = 0;
     const render = (
       nextKeys = currentKeys,
-      opts?: { scrollMargin?: number; introEstimate?: number; canLoadOlder?: boolean }
+      opts?: { introEstimate?: number; canLoadOlder?: boolean }
     ) => {
       currentKeys = nextKeys;
-      if (opts?.scrollMargin !== undefined) currentMargin = opts.scrollMargin;
       if (opts?.introEstimate !== undefined) currentIntroEstimate = opts.introEstimate;
       if (opts?.canLoadOlder !== undefined) currentCanLoadOlder = opts.canLoadOlder;
       tick += 1;
@@ -286,7 +279,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
           <RoomHarness
             keys={currentKeys}
             tick={tick}
-            scrollMargin={currentMargin}
             introEstimate={currentIntroEstimate}
             canLoadOlder={currentCanLoadOlder}
           />
@@ -411,21 +403,31 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
   });
 
-  it('anchors without jumping when outer expand-all scrollMargin moves into roomIntro item 0', async () => {
-    const rows = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
-    const { scrollElement, render } = await mountRoom({
-      initialKeys: rows,
-      initialScrollTop: 1200,
-      initialScrollMargin: EXPAND_ALL_LINE_ESTIMATE_PX,
+  for (const [label, toggleHeightPx] of [
+    ['desktop (22px)', EXPAND_ALL_LINE_ESTIMATE_PX],
+    ['touch coarse-pointer (48px)', 48],
+  ] as const) {
+    it(`keeps a visible row in place when item 0 grows with roomIntro on ${label}`, async () => {
+      const keys = [ROOM_INTRO_KEY, ...Array.from({ length: 40 }, (_, i) => `$ev-${i}`)];
+      const { scrollElement, fireRowBatch, getTileTop, render } = await mountRoom({
+        initialKeys: keys,
+        initialScrollTop: 800,
+        initialCanLoadOlder: true,
+      });
+      const leadingTile = scrollElement.querySelector('[data-index="0"]')!;
+      expect(leadingTile).not.toBeNull();
+      // Initial item 0 mounts as [+all] alone at the platform's line height (22px desktop, 48px touch).
+      fireRowBatch([{ target: leadingTile, height: toggleHeightPx }]);
+      render();
+      const rowYBefore = getTileTop('$ev-8')! - scrollElement.scrollTop;
+
+      // Room intro mounts inside the same stable item 0 (+160px above the viewport).
+      render(keys, { canLoadOlder: false });
+      fireRowBatch([{ target: leadingTile, height: 160 + toggleHeightPx }]);
+      render();
+      expect(getTileTop('$ev-8')! - scrollElement.scrollTop).toBeCloseTo(rowYBefore, 0);
     });
-    // Outer [+all] (22px) unmounts (scrollMargin 22 -> 0) as item 0 ({roomIntro}{expandAllToggle},
-    // estimated 160.5 + 22 = 182.5px) prepends: scrollTop must advance by +160.5px, not +182.5px.
-    render([ROOM_INTRO_KEY, ...rows], {
-      scrollMargin: 0,
-      introEstimate: ROOM_INTRO_ESTIMATE_PX + EXPAND_ALL_LINE_ESTIMATE_PX,
-    });
-    expect(scrollElement.scrollTop).toBeCloseTo(1200 + ROOM_INTRO_ESTIMATE_PX, 1);
-  });
+  }
 
   it('shows the first reply when scrolling up to the start of an open fully-loaded thread', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

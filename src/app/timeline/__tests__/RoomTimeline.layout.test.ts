@@ -141,7 +141,7 @@ describe('RoomTimeline layout', () => {
     }
   });
 
-  it('renders the room intro before the [+all] toggle inside item 0, and keeps the outer toggle without an intro', async () => {
+  it('renders the room intro before [+all] inside item 0, and keeps [+all] in item 0 mid-history', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const { ExpandAllLine } = await import('../RoomTimelineOverlays');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -150,7 +150,7 @@ describe('RoomTimeline layout', () => {
         .findAll((node) => node.type === roomIntroType || node.type === ExpandAllLine)
         .map((node) => (node.type === roomIntroType ? 'intro' : 'toggle'));
 
-    // At the start of an oldest-first room (no back token): intro and toggle render together in order.
+    // At the start of an oldest-first room (no back token): intro and toggle render together in item 0.
     const roomAtStart = makeRoom({ liveEvents: [makeEvent('$m1')] });
     let renderer: ReturnType<typeof create> | undefined;
     try {
@@ -162,7 +162,7 @@ describe('RoomTimeline layout', () => {
       const virtualInner = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
       expect(virtualInner.findAllByType(ExpandAllLine)).toHaveLength(1);
 
-      // When older history can still paginate back (no intro), only the outer toggle renders.
+      // Mid-history (no intro yet): [+all] stays inside item 0 with the same stable leading key.
       const roomMidHistory = makeRoom({
         liveTimeline: makeTimeline([makeEvent('$m2')], { backwardToken: 'tok-back' }),
       });
@@ -172,29 +172,9 @@ describe('RoomTimeline layout', () => {
       });
       expect(readOrder(renderer!)).toEqual(['toggle']);
       const virtualInnerMid = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
-      expect(virtualInnerMid.findAllByType(ExpandAllLine)).toHaveLength(0);
+      expect(virtualInnerMid.findAllByType(ExpandAllLine)).toHaveLength(1);
     } finally {
       act(() => renderer?.unmount());
     }
-  });
-
-  it('includes the [+all] toggle height in the room intro estimate when rows exist', async () => {
-    const { ROOM_INTRO_ESTIMATE_PX, timelineRowSizing } = await import('../roomTimelineRows');
-    const row = makeEvent('$m1') as never;
-    const base = {
-      threadId: undefined,
-      compactLayout: false,
-      showThreadRepliesInRoom: true,
-      threadEvents: [],
-      hasRoomIntro: true,
-      windowStart: 0,
-      roomRowsRef: { current: [row] },
-      activeRangeRef: { current: { start: 0, end: 1 } },
-      threadRecordMapRef: { current: new Map() },
-    };
-    const withRows = timelineRowSizing({ ...base, roomWindowRows: [row] });
-    const empty = timelineRowSizing({ ...base, roomWindowRows: [] });
-    expect(empty.estimateSize(0)).toBe(ROOM_INTRO_ESTIMATE_PX);
-    expect(withRows.estimateSize(0)).toBeGreaterThan(ROOM_INTRO_ESTIMATE_PX);
   });
 });

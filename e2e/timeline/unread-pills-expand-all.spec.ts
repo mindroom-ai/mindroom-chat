@@ -219,7 +219,10 @@ const measure = (page: Page, labels: Labels) =>
       area: box(scroller.getBoundingClientRect()),
       pills,
       // The rows follow the line: a line that changes height moves every row.
-      rowsGap: inner.getBoundingClientRect().top - lineBox.bottom,
+      rowsGap:
+        (
+          inner.querySelector<HTMLElement>('[data-room-row-index="0"]') ?? inner
+        ).getBoundingClientRect().top - lineBox.bottom,
       lineHeight: lineBox.bottom - lineBox.top,
     };
   }, labels);

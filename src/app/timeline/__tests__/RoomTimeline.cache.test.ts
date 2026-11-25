@@ -333,7 +333,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       let renderer: ReturnType<typeof create> | undefined;
 
       settingsState.prefetchDepth = 10000;
-      roomTimelineVirtualizerState.virtualIndexes = [195, 196, 197, 198, 199];
+      // +1 for the leading item 0 (`[+all]` toggle / roomIntro).
+      roomTimelineVirtualizerState.virtualIndexes = [196, 197, 198, 199, 200];
 
       try {
         await act(async () => {
@@ -361,7 +362,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         });
 
         expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
-        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(200);
+        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(201);
         expect(getRenderedEventIds(renderer!)).toEqual([
           '$event-295',
           '$event-296',
