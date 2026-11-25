@@ -32,10 +32,14 @@ export type ThreadPeopleFilterProps = (
 type PersonOption = {
   userId: string;
   displayName: string;
+  disambiguator?: string;
   avatarUrl?: string;
   agent: boolean;
   threadCount: number;
 };
+
+const normalizeDisplayNameKey = (name: string): string =>
+  name.normalize('NFKC').trim().toLocaleLowerCase();
 
 function PeoplePanel({
   room,
@@ -101,14 +105,15 @@ function PeoplePanel({
   ];
   const nameCounts = new Map<string, number>();
   rawPeople.forEach((person) => {
-    nameCounts.set(person.displayName, (nameCounts.get(person.displayName) ?? 0) + 1);
+    const key = normalizeDisplayNameKey(person.displayName);
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
   });
-  const people = rawPeople.map((person) =>
-    (nameCounts.get(person.displayName) ?? 0) > 1 &&
-    !person.displayName.endsWith(` (${person.userId})`)
-      ? { ...person, displayName: `${person.displayName} (${person.userId})` }
-      : person
-  );
+  const people = rawPeople.map((person) => {
+    const key = normalizeDisplayNameKey(person.displayName);
+    return (nameCounts.get(key) ?? 0) > 1 && !person.displayName.endsWith(` (${person.userId})`)
+      ? { ...person, disambiguator: person.userId }
+      : person;
+  });
   const chosen = new Set(selected);
 
   return (
@@ -138,6 +143,16 @@ function PeoplePanel({
                 <Text as="span" size="T300" truncate className={css.Name}>
                   {person.displayName}
                 </Text>
+                {person.disambiguator && (
+                  <Text
+                    as="span"
+                    size="T200"
+                    className={css.OptionCount}
+                    data-person-disambiguator="true"
+                  >
+                    {person.disambiguator}
+                  </Text>
+                )}
                 {person.agent && (
                   <Text as="span" size="L400" className={css.Marker}>
                     {t('threadActions.agent')}

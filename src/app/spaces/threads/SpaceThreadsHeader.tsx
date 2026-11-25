@@ -121,9 +121,9 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
           <FocusTrap
             focusTrapOptions={{
               initialFocus: () =>
-                menuRef.current?.querySelector<HTMLElement>(
-                  '[aria-checked="true"], [role="menuitemradio"]'
-                ) ?? false,
+                menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
+                menuRef.current?.querySelector<HTMLElement>('[role="menuitemradio"]') ??
+                false,
               returnFocusOnDeactivate: false,
               onDeactivate: () => setAnchor(undefined),
               escapeDeactivates: (event) => {
@@ -177,12 +177,7 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
                       onClick={() => handleSelect(item.spaceId)}
                       data-space-switcher-option={item.spaceId}
                     >
-                      <Text
-                        size="T300"
-                        truncate
-                        style={{ flexGrow: 1, textAlign: 'start' }}
-                        {...ownDirectionLine}
-                      >
+                      <Text size="T300" truncate style={{ flexGrow: 1 }} {...ownDirectionLine}>
                         {item.name}
                       </Text>
                     </MenuItem>

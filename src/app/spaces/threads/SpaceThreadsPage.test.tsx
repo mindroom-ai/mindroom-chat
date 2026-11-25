@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -56,7 +56,21 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({ children }: { children: ReactNode }) => children,
+  FocusTrap: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children: ReactNode;
+    focusTrapOptions?: { initialFocus?: (() => HTMLElement | false) | false };
+  }) => {
+    useEffect(() => {
+      if (typeof focusTrapOptions?.initialFocus === 'function') {
+        const target = focusTrapOptions.initialFocus();
+        if (target instanceof HTMLElement) target.focus();
+      }
+    }, [focusTrapOptions]);
+    return children;
+  },
 }));
 
 vi.mock('../../navigation/useRoomNavigate', () => ({
@@ -1269,8 +1283,29 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByText('API migration')).toBeTruthy();
     expect(screen.getByText('Color tokens')).toBeTruthy();
 
-    // Scoping to Engineering limits People options to Engineering's participants.
+    // Selecting a room prefers that room's display name for shared participants.
+    rooms[1]!.setMembers([
+      agent,
+      { userId: bob, membership: 'join', name: 'Bob' },
+      { userId: alice, membership: 'join', name: 'Alice Design' },
+    ]);
+    act(() => rooms[1]!.emit(RoomStateEvent.Members));
+    fireEvent.click(
+      within(container.querySelector<HTMLElement>(`[data-person-option="${alice}"]`)!).getByRole(
+        'checkbox'
+      )
+    );
     fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+    toggleRoomOption(container, ROOM_DES);
+    fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+    expect(container.querySelector(`[data-person-option="${alice}"]`)?.textContent).toContain(
+      'Alice Design'
+    );
+    fireEvent.click(container.querySelector('[data-people-filter-clear]')!);
+    fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+
+    // Scoping to Engineering limits People options to Engineering's participants.
+    toggleRoomOption(container, ROOM_DES);
     toggleRoomOption(container, ROOM_ENG);
     fireEvent.click(container.querySelector('[data-people-filter-button]')!);
     expect(container.querySelector(`[data-person-option="${alice}"]`)).toBeTruthy();
@@ -1476,8 +1511,10 @@ describe('SpaceThreadsPage', () => {
     expect(options[1]?.getAttribute('aria-checked')).toBe('true');
     expect(options[2]?.style.paddingInlineStart).toContain('16px');
 
+    // initialFocus prefers the checked item even when it is not first in DOM order.
+    expect(document.activeElement).toBe(options[1]);
+
     // ArrowDown / ArrowUp / Home / End move focus across menuitemradio options.
-    options[1]!.focus();
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(options[2]);
     fireEvent.keyDown(menu, { key: 'ArrowUp' });

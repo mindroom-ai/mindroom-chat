@@ -261,7 +261,7 @@ describe('the People dropdown', () => {
     expect(imgSrcOf('@ghost:example.org')).toBeUndefined();
   });
 
-  it('disambiguates colliding display names across separate rooms with Matrix IDs', () => {
+  it('disambiguates Unicode-equivalent colliding display names across rooms outside the truncated name', () => {
     const makeRoomWith = (roomId: string, userId: string, rawDisplayName: string) =>
       ({
         roomId,
@@ -269,19 +269,22 @@ describe('the People dropdown', () => {
           id === userId ? { rawDisplayName, getMxcAvatarUrl: () => undefined } : null,
       }) as unknown as Room;
 
-    const alexA = '@alex-a:example.org';
-    const alexB = '@alex-b:example.org';
-    const roomA = makeRoomWith('!a:example.org', alexA, 'Alex');
-    const roomB = makeRoomWith('!b:example.org', alexB, 'Alex');
+    const joseA = '@jose-a:example.org';
+    const joseB = '@jose-b:example.org';
+    const solo = '@solo:example.org';
+    const roomA = makeRoomWith('!a:example.org', joseA, 'Jose\u0301');
+    const roomB = makeRoomWith('!b:example.org', joseB, 'Jos\u00e9');
+    const roomC = makeRoomWith('!c:example.org', solo, 'Solo');
     const collidingRecords = new Map([
-      ['$1', record('$1', [alexA])],
-      ['$2', record('$2', [alexB])],
+      ['$1', record('$1', [joseA])],
+      ['$2', record('$2', [joseB])],
+      ['$3', record('$3', [solo])],
     ]);
 
     act(() => {
       renderer = create(
         <ThreadPeopleFilter
-          rooms={[roomA, roomB]}
+          rooms={[roomA, roomB, roomC]}
           records={collidingRecords}
           selected={undefined}
           onToggle={vi.fn()}
@@ -291,14 +294,23 @@ describe('the People dropdown', () => {
     });
     open();
 
-    const textOf = (userId: string) =>
-      byData('data-person-option')
-        .find((node) => node.props['data-person-option'] === userId)!
-        .findAllByType('span')
-        .map((node) => node.children.join(''))
-        .join(' ');
+    const optionOf = (userId: string) =>
+      byData('data-person-option').find((node) => node.props['data-person-option'] === userId)!;
+    const disambiguatorOf = (userId: string) =>
+      optionOf(userId)
+        .findAll(
+          (node) => typeof node.type === 'string' && 'data-person-disambiguator' in node.props
+        )
+        .map((node) => node.children.join(''));
+    const truncatedNameOf = (userId: string) =>
+      optionOf(userId)
+        .findAll((node) => node.props.truncate === true)
+        .map((node) => node.props.children);
 
-    expect(textOf(alexA)).toContain(`Alex (${alexA})`);
-    expect(textOf(alexB)).toContain(`Alex (${alexB})`);
+    expect(disambiguatorOf(joseA)).toEqual([joseA]);
+    expect(disambiguatorOf(joseB)).toEqual([joseB]);
+    expect(truncatedNameOf(joseA)).toEqual(['Jose\u0301']);
+    expect(truncatedNameOf(joseB)).toEqual(['Jos\u00e9']);
+    expect(disambiguatorOf(solo)).toEqual([]);
   });
 });

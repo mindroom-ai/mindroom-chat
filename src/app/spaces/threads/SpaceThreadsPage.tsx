@@ -134,7 +134,16 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     () => pruneSpaceRoomSelection(storedSelectedRoomIds, orderedRoomIds),
     [orderedRoomIds, storedSelectedRoomIds]
   );
-  const memberLookupRooms = useMemo(() => rooms.map((item) => item.room), [rooms]);
+  const memberLookupRooms = useMemo(() => {
+    if (!effectiveSelectedRoomIds) return rooms.map((item) => item.room);
+    const active: Room[] = [];
+    const rest: Room[] = [];
+    rooms.forEach((item) => {
+      if (effectiveSelectedRoomIds.has(item.room.roomId)) active.push(item.room);
+      else rest.push(item.room);
+    });
+    return [...active, ...rest];
+  }, [effectiveSelectedRoomIds, rooms]);
   const roomFilterGroups = useMemo(
     () =>
       buildSpaceRoomFilterGroups({
