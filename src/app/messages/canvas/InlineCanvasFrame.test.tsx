@@ -13,7 +13,7 @@ import { makeUiEvent, makeUiRoom } from '../../ui-actions/testUtils';
 import { InlineCanvasFrame, inlineCanvasScale } from './InlineCanvasFrame';
 import { canvasFrameWindow, CANVAS_WRAPPER_SANDBOX, type CanvasSaved } from './canvasDocument';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
-import { CANVAS_SEND_ARM_DELAY_MS } from './useCanvasHost';
+import { CANVAS_SEND_ARM_DELAY_MS, CANVAS_UNDO_DELAY_MS } from './useCanvasHost';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const download = vi.hoisted(() => vi.fn());
@@ -226,7 +226,9 @@ describe('InlineCanvasFrame', () => {
     expect(container.querySelector('iframe')).toBeNull();
     download.mockResolvedValueOnce({ text: () => Promise.resolve('<p>Downloaded</p>') });
     await act(async () => {
-      container.querySelector('button')?.click();
+      [...container.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent === 'Retry')
+        ?.click();
     });
     expect(frame().srcdoc).toContain('Downloaded');
     expect(download).toHaveBeenCalledTimes(2);
@@ -389,7 +391,11 @@ describe('InlineCanvasFrame', () => {
     escape();
     expect(container.querySelector('iframe')).toBeNull();
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    act(() => container.querySelector('button')!.click());
+    act(() =>
+      [...container.querySelectorAll('button')]
+        .find((candidate) => candidate.textContent === 'Reload panel')!
+        .click()
+    );
     expect(container.querySelector('iframe')).not.toBeNull();
   });
   it('keeps the iframe mounted and counts no escape on web when srcDoc updates and loads again', () => {
@@ -614,12 +620,18 @@ describe('InlineCanvasFrame as a host', () => {
     vi.useRealTimers();
   });
 
-  const submit = (user?: boolean, label = 'Pro plan', data: unknown = { plan: 'pro' }) => ({
+  const submit = (
+    user?: boolean,
+    label = 'Pro plan',
+    data: unknown = { plan: 'pro' },
+    userGesture?: boolean
+  ) => ({
     type: 'mindroom.canvas.submit',
     version: 1,
     data,
     label,
     ...(user === undefined ? {} : { user }),
+    ...(userGesture === undefined ? {} : { userGesture }),
   });
   const save = (json: string, user: boolean) =>
     post({ type: 'mindroom.canvas.state', version: 1, json, user });
@@ -648,14 +660,26 @@ describe('InlineCanvasFrame as a host', () => {
       },
     });
 
+  it('shows provenance disclosure behind the header info tip instead of the answer bar', () => {
+    render();
+    expect(container.textContent).not.toContain('what you enter here may leave this page');
+    const info = container.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Interactive panel from"]'
+    )!;
+    expect(info).not.toBeNull();
+    act(() => info.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(
+      'what you enter here may leave this page'
+    );
+  });
+
   it('offers an answer for Send, as the panel does, and sends it once armed', async () => {
     render();
     expect(status()).toBe('');
-    // The user's Send in Chat's bar is the consent; nothing leaves before it.
+    // Non-gesture submissions wait for explicit Send in Chat's bar.
     post(submit());
     expect(container.textContent).toContain('Pro plan');
-    // The disclosure shows with the answer, not under every page.
-    expect(container.textContent).toContain('what you enter here may leave this page');
+    expect(container.textContent).not.toContain('what you enter here may leave this page');
     expect(sendButton()!.disabled).toBe(true);
     await later(CANVAS_SEND_ARM_DELAY_MS);
     expect(sendButton()!.disabled).toBe(false);
@@ -667,6 +691,43 @@ describe('InlineCanvasFrame as a host', () => {
     expect(sendButton()).toBeNull();
     await act(async () => requests.shift()?.resolve({ event_id: '$answer' }));
     expect(status()).toMatch(/^Sent to .+: Pro plan$/);
+  });
+
+  it('auto-sends a user-gesture inline submission after 2.5 s, pauses on inspect, and cancels on Undo', async () => {
+    render();
+    // 1. Undo cancels before auto-send.
+    post(submit(true, 'Pro plan', { plan: 'pro' }, true));
+    expect(container.textContent).toContain('Sending to');
+    expect(container.querySelector('[data-canvas-discard]')?.textContent).toBe('Undo');
+    expect(sendButton()!.textContent).toBe('Send now');
+    expect(sendButton()!.disabled).toBe(false);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-canvas-discard]')!.click()
+    );
+    await later(CANVAS_UNDO_DELAY_MS);
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    // 2. Opening Data pauses the countdown until Send now is clicked.
+    post(submit(true, 'Basic plan', { plan: 'basic' }, true));
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-canvas-inspect]')!.click()
+    );
+    expect(container.querySelector('pre')?.textContent).toContain('"plan": "basic"');
+    expect(container.textContent).toContain('Send to');
+    await later(CANVAS_UNDO_DELAY_MS * 2);
+    expect(sendMessage).not.toHaveBeenCalled();
+    await act(async () => sendButton()!.click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    await act(async () => requests.shift()?.resolve({ event_id: '$answer1' }));
+
+    // 3. Leaving a gesture submission alone sends automatically at 2.5 s.
+    await later(100);
+    post(submit(true, 'Auto plan', { plan: 'auto' }, true));
+    await later(CANVAS_UNDO_DELAY_MS);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[1]![1]).toMatchObject({
+      [CANVAS_RESPONSE_KEY]: { canvas_event_id: '$request', label: 'Auto plan' },
+    });
   });
 
   it('saves what the user enters without restarting the page, and starts from it again', () => {

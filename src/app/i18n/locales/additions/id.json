@@ -1627,7 +1627,10 @@
     "canvas": {
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
-      "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+      "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini.",
+      "sendingTo": "Mengirim ke {{agent}}:",
+      "undo": "Urungkan",
+      "sendNow": "Kirim sekarang"
     },
     "invites": {
       "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",

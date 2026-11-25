@@ -1743,7 +1743,10 @@
     "canvas": {
       "pageUpdated": "{{agent}} atualizou esta página.",
       "shownInPanel": "Mostrada no painel",
-      "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página."
+      "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página.",
+      "sendingTo": "Enviando para {{agent}}:",
+      "undo": "Desfazer",
+      "sendNow": "Enviar agora"
     },
     "invites": {
       "invalid": "Este link de convite está incompleto. Abra novamente o link do e-mail.",

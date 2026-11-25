@@ -13,7 +13,12 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
-import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
+import {
+  CANVAS_SEND_ARM_DELAY_MS,
+  CANVAS_UNDO_DELAY_MS,
+  CanvasPanel,
+  type CanvasPanelProps,
+} from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
 import {
   CANVAS_LIBRARY_SOURCE,
@@ -185,11 +190,12 @@ const post = async (data: unknown, source: unknown = canvasWindow()) => {
   });
 };
 
-const submit = (label = 'Pro plan', data: unknown = { plan: 'pro' }) => ({
+const submit = (label = 'Pro plan', data: unknown = { plan: 'pro' }, userGesture?: boolean) => ({
   type: 'mindroom.canvas.submit',
   version: 1,
   data,
   label,
+  ...(userGesture === undefined ? {} : { userGesture }),
 });
 
 const arm = () =>
@@ -330,7 +336,10 @@ describe('CanvasPanel', () => {
     await post(submit());
     expect(sendMessage).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Send to Planner: Pro plan');
-    expect(container.textContent).toContain('"plan": "pro"');
+    expect(container.querySelector('[data-canvas-summary]')?.textContent).toContain('plan: pro');
+    expect(container.querySelector('pre')).toBeNull();
+    await act(async () => button('[data-canvas-inspect]').click());
+    expect(container.querySelector('pre')?.textContent).toContain('"plan": "pro"');
     expect(button('[data-canvas-send]').disabled).toBe(true);
     await arm();
     await clickSend();
@@ -348,6 +357,123 @@ describe('CanvasPanel', () => {
     expect(status()).toContain('Sending to Planner');
     await accept();
     expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('auto-sends a user-gesture submission after the 2.5 s undo window', async () => {
+    render();
+    await post(submit('Pro plan', { plan: 'pro', seats: 3 }, true));
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Sending to Planner: Pro plan');
+    expect(button('[data-canvas-discard]').textContent).toBe('Undo');
+    expect(button('[data-canvas-send]').textContent).toBe('Send now');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS - 1);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
+      label: 'Pro plan',
+      data: { plan: 'pro', seats: 3 },
+    });
+    await accept();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('cancels an auto-send countdown when the user clicks Undo', async () => {
+    render();
+    await post(submit('Pro plan', { plan: 'pro' }, true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await act(async () => button('[data-canvas-discard]').click());
+    expect(button('[data-canvas-send]')).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('pauses the auto-send countdown when the user opens the data drawer', async () => {
+    render();
+    await post(submit('Pro plan', { plan: 'pro' }, true));
+    await act(async () => button('[data-canvas-inspect]').click());
+    expect(container.querySelector('pre')?.textContent).toContain('"plan": "pro"');
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    expect(button('[data-canvas-discard]').textContent).toBe('Undo');
+    expect(button('[data-canvas-send]').textContent).toBe('Send now');
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends immediately on Send now without double-sending when the timer elapses', async () => {
+    render();
+    await post(submit('Pro plan', { plan: 'pro' }, true));
+    await act(async () => {
+      const sendBtn = button('[data-canvas-send]');
+      sendBtn.click();
+      sendBtn.click();
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not swap a pending gesture submission when the page resubmits during countdown', async () => {
+    render();
+    await post(submit('Pro plan', { plan: 'pro' }, true));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    await post(submit('Everything', { plan: 'everything' }, false));
+    expect(container.textContent).toContain('Sending to Planner: Pro plan');
+    expect(container.textContent).toContain('To change your answer, discard this one first.');
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS - 1000);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
+      label: 'Pro plan',
+      data: { plan: 'pro' },
+    });
+  });
+
+  it('stops auto-sending if a gesture send is refused so the user can retry manually', async () => {
+    render();
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('offline');
+    });
+    await post(submit('Pro plan', { plan: 'pro' }, true));
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(status()).toBe('Could not send your response. Try again.');
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the pending snapshot until the user sends or discards it', async () => {

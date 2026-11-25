@@ -1685,7 +1685,10 @@
     "canvas": {
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
-      "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+      "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen.",
+      "sendingTo": "Wird an {{agent}} gesendet:",
+      "undo": "Rückgängig",
+      "sendNow": "Jetzt senden"
     },
     "invites": {
       "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",

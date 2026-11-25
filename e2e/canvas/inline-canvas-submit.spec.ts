@@ -86,22 +86,47 @@ for (const [name, viewport] of [
       const room = await openPanelRoom(context, page);
       await sendInlineForm(room);
       await expect(page.locator(`iframe[title="${TITLE}"]`)).toBeVisible({ timeout: 60_000 });
+      // Provenance disclosure sits behind the header info tip, not inside the answer bar.
+      const info = page.locator('button[aria-label^="Interactive panel from"]');
+      await expect(info).toBeVisible();
+      await info.click();
+      await expect(page.getByRole('tooltip')).toContainText(
+        'what you enter here may leave this page'
+      );
+
       const form = canvasPage(page);
       await form.locator('#team').fill('Team Lark');
       await form.locator('#plan').selectOption('Pro');
       await form.getByRole('button', { name: 'Choose' }).click();
 
-      // The answer waits in the thread, under the page, for the user's Send.
+      // Real user click enters the 2.5 s undo bar with summary chips, Data, Undo, and Send now.
       const send = page.locator('[data-canvas-send]');
-      await expect(send).toBeVisible();
-      await expect(page.getByText(/Send to .+: Plan chosen/)).toBeVisible();
-      await expect(page.getByText('what you enter here may leave this page')).toBeVisible();
+      const discard = page.locator('[data-canvas-discard]');
+      const inspect = page.locator('[data-canvas-inspect]');
+      await expect(send).toBeEnabled();
+      await expect(page.getByText(/Sending to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('[data-canvas-summary]')).toContainText('team: Team Lark');
+      await expect(page.locator('[data-canvas-summary]')).toContainText('plan: Pro');
+      await expect(discard).toHaveText('Undo');
+      await expect(send).toHaveText('Send now');
       const shots = process.env.INLINE_SUBMIT_SHOTS;
       if (shots) {
-        await page.waitForTimeout(600);
         await page.screenshot({ path: `${shots}/inline-confirm-bar-${name}.png` });
       }
-      await expect(send).toBeEnabled();
+      // Undo cancels before anything sends.
+      await discard.click();
+      await expect(send).toHaveCount(0);
+      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(0);
+      await page.waitForTimeout(150);
+
+      // Opening Data pauses the countdown and shows the JSON payload; Send now sends immediately.
+      await form.getByRole('button', { name: 'Choose' }).click();
+      await expect(inspect).toBeVisible();
+      await inspect.click();
+      await expect(page.getByText(/Send to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('pre')).toContainText('"team": "Team Lark"');
+      await page.waitForTimeout(2_800);
+      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(0);
       await send.click();
       await expect(page.locator('[data-canvas-status]')).toHaveText(/Sent to .+: Plan chosen/, {
         timeout: 30_000,
@@ -110,8 +135,15 @@ for (const [name, viewport] of [
         timeout: 30_000,
       });
 
-      // An answer staged again and left unsent is dropped when the row scrolls away.
+      // Leaving a gesture submission alone sends automatically after 2.5 s without a second click.
       await form.getByRole('button', { name: 'Choose' }).click();
+      await expect(page.getByText(/Sending to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(2, { timeout: 30_000 });
+
+      // A paused answer left unsent is dropped when the row scrolls away.
+      await form.getByRole('button', { name: 'Choose' }).click();
+      await expect(inspect).toBeVisible();
+      await inspect.click();
       await expect(send).toBeVisible();
       // Finds the thread's scroller while the canvas is still in it.
       await scrollThread(page, 'bottom');
@@ -195,6 +227,7 @@ for (const [name, viewport] of [
       if (shots) await page.screenshot({ path: `${shots}/inline-tall-bar-${name}.png` });
       await page.mouse.click(discard.x, discard.y);
       await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
+      await page.waitForTimeout(150);
       await form.getByRole('button', { name: 'Finish' }).click();
       await expect(page.locator('[data-canvas-send]')).toBeEnabled();
       const send = await target('[data-canvas-send]');

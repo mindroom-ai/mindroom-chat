@@ -26,6 +26,9 @@ import { uploadLongTextSidecar } from '../../matrix/send/longTextSidecarUpload';
 /** A new snapshot cannot be sent by a click that was already on its way. */
 export const CANVAS_SEND_ARM_DELAY_MS = 500;
 
+/** Grace window to undo a gesture-triggered submission before it sends automatically. */
+export const CANVAS_UNDO_DELAY_MS = 2500;
+
 export type CanvasView = {
   eventId: string;
   revisionEventId: string;
@@ -46,6 +49,10 @@ export type CanvasView = {
 export type Staged = {
   submission: CanvasSubmission;
   armed: boolean;
+  /** True during the 2.5 s undo countdown before automatic send. */
+  autoSend: boolean;
+  /** True after the user paused the countdown (e.g. by opening the data drawer). */
+  paused?: true;
   /** The page submitted again while this answer waited; only then does the user need to hear how to change it. */
   resubmitted?: true;
 };
@@ -148,6 +155,8 @@ export function useCanvasHost({
   const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
   const uploadingSubmission = useRef<CanvasSubmission>(undefined);
+  // Prevents double-send if Send now races with the auto-send timer before React re-renders.
+  const activeSend = useRef<CanvasSubmission>(undefined);
   const stagedNow = useRef(staged);
   stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
@@ -179,6 +188,8 @@ export function useCanvasHost({
       sameRevision && current && current.submission === uploadingSubmission.current
         ? current
         : undefined;
+    if (!sending) activeSend.current = undefined;
+    stagedNow.current = sending;
     touched.current = !!sending;
     used.current = false;
     lastStageAt.current = 0;
@@ -224,6 +235,10 @@ export function useCanvasHost({
     } else if (heldRevisionId.current !== latest.current.canvas.revisionEventId) {
       heldRevisionId.current = latest.current.canvas.revisionEventId;
       // An answer the user is already sending stays until it is sent or its upload fails.
+      if (stagedNow.current?.submission !== uploadingSubmission.current) {
+        if (activeSend.current === stagedNow.current?.submission) activeSend.current = undefined;
+        stagedNow.current = undefined;
+      }
       setStaged((current) =>
         current && current.submission === uploadingSubmission.current ? current : undefined
       );
@@ -287,7 +302,11 @@ export function useCanvasHost({
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
       setStaged((current) => {
-        if (!current) return { submission, armed: false };
+        if (!current) {
+          return submission.userGesture === true
+            ? { submission, armed: true, autoSend: true }
+            : { submission, armed: false, autoSend: false };
+        }
         return current.resubmitted || sameAnswer(current.submission, submission)
           ? current
           : { ...current, resubmitted: true };
@@ -302,8 +321,9 @@ export function useCanvasHost({
   }, [mx]);
 
   const stagedSubmission = staged?.submission;
+  const stagedArmed = staged?.armed ?? false;
   useEffect(() => {
-    if (!stagedSubmission) return undefined;
+    if (!stagedSubmission || stagedArmed) return undefined;
     const timer = window.setTimeout(
       () =>
         setStaged((current) =>
@@ -312,7 +332,7 @@ export function useCanvasHost({
       CANVAS_SEND_ARM_DELAY_MS
     );
     return () => window.clearTimeout(timer);
-  }, [stagedSubmission]);
+  }, [stagedArmed, stagedSubmission]);
 
   const answerStatus = useLocalEchoStatus(lastAnswer?.echo);
   const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
@@ -344,6 +364,7 @@ export function useCanvasHost({
       const echo = room.getEventForTxnId(txnId);
       // A newer snapshot staged during an upload stays.
       if (stagedNow.current?.submission === submission) {
+        stagedNow.current = undefined;
         setStaged(undefined);
         // Work in the frame after this answer marks it again.
         touched.current = false;
@@ -354,9 +375,15 @@ export function useCanvasHost({
     [mx, room]
   );
 
+  const busyNow = useRef(busy);
+  busyNow.current = busy;
+
   const handleSend = useCallback(() => {
-    if (!staged?.armed || busy) return;
-    const { submission } = staged;
+    const currentStaged = stagedNow.current;
+    if (!currentStaged?.armed || busyNow.current) return;
+    const { submission } = currentStaged;
+    if (activeSend.current === submission) return;
+    activeSend.current = submission;
     const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
     const content = buildCanvasResponseContent(
       {
@@ -369,10 +396,19 @@ export function useCanvasHost({
       submission
     );
     setSendError(false);
+    const stopAutoSend = () =>
+      setStaged((current) =>
+        current?.submission === submission && current.autoSend
+          ? { ...current, autoSend: false, paused: true }
+          : current
+      );
     // Until the answer is handed to the SDK, the frame still holds the user's work, so an update
     // during an upload waits for "Load update" and a failed upload can be tried again.
     const refused = () => {
+      if (activeSend.current === submission) activeSend.current = undefined;
       setSendError(true);
+      // Do not loop auto-send after a refusal; leave it paused for an explicit retry.
+      stopAutoSend();
       // The snapshot stays unsent, so an update must not replace the page without asking.
       touched.current = true;
     };
@@ -385,6 +421,7 @@ export function useCanvasHost({
     // and Discard until then cancels the answer.
     uploadingSubmission.current = submission;
     setUploading(true);
+    stopAutoSend();
     const current = () => uploadingSubmission.current === submission;
     uploadLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
       .then((preview) => {
@@ -398,7 +435,20 @@ export function useCanvasHost({
         uploadingSubmission.current = undefined;
         setUploading(false);
       });
-  }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
+  }, [agentName, deliver, displayed, mx, room, t]);
+
+  const sendNow = useRef(handleSend);
+  sendNow.current = handleSend;
+  const stagedAutoSend = staged?.autoSend ?? false;
+  useEffect(() => {
+    if (!stagedSubmission || !stagedAutoSend || busy) return undefined;
+    const timer = window.setTimeout(() => {
+      if (stagedNow.current?.submission === stagedSubmission && stagedNow.current.autoSend) {
+        sendNow.current();
+      }
+    }, CANVAS_UNDO_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [busy, stagedAutoSend, stagedSubmission]);
 
   const reportStatus = useLocalEchoStatus(pageErrors.report?.echo);
   const reportState =
@@ -442,12 +492,25 @@ export function useCanvasHost({
     }));
   }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
 
+  const handlePause = useCallback(() => {
+    if (stagedNow.current?.autoSend) {
+      stagedNow.current = { ...stagedNow.current, autoSend: false, paused: true };
+    }
+    setStaged((current) =>
+      current?.autoSend ? { ...current, autoSend: false, paused: true } : current
+    );
+  }, []);
+
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
     if (uploadingSubmission.current === stagedNow.current?.submission) {
       uploadingSubmission.current = undefined;
       setUploading(false);
     }
+    if (activeSend.current === stagedNow.current?.submission) {
+      activeSend.current = undefined;
+    }
+    stagedNow.current = undefined;
     setStaged(undefined);
     setSendError(false);
   }, []);
@@ -471,6 +534,7 @@ export function useCanvasHost({
     footer,
     sendError,
     send: handleSend,
+    pause: handlePause,
     discard: handleDiscard,
     pageErrors,
     reportState,

@@ -25,6 +25,8 @@ export const CANVAS_LABEL_MAX_LENGTH = 200;
 export type CanvasSubmission = {
   data: unknown;
   label?: string;
+  /** True only when the bridge observed a trusted submit or active user gesture. */
+  userGesture?: true;
 };
 
 export type CanvasTarget = {
@@ -130,7 +132,44 @@ export const readCanvasSubmission = (
     ?.trim()
     .slice(0, CANVAS_LABEL_MAX_LENGTH)
     .replace(/[\uD800-\uDBFF]$/, '');
-  return { data: JSON.parse(json), ...(label ? { label } : {}) };
+  return {
+    data: JSON.parse(json),
+    ...(label ? { label } : {}),
+    ...(message.userGesture === true ? { userGesture: true as const } : {}),
+  };
+};
+
+const MAX_SUMMARY_CHIPS = 3;
+const MAX_CHIP_LENGTH = 28;
+
+const trimChip = (text: string): string =>
+  text.length <= MAX_CHIP_LENGTH
+    ? text
+    : `${text.slice(0, MAX_CHIP_LENGTH - 1).replace(/[\uD800-\uDBFF]$/, '')}…`;
+
+/** Compact human-readable preview chips for a plain-object submission. */
+export const summarizeCanvasData = (data: unknown): string[] => {
+  if (!record(data)) return [];
+  const entries = Object.entries(data);
+  const chips: string[] = [];
+  for (const [key, value] of entries) {
+    if (
+      typeof value !== 'string' &&
+      typeof value !== 'boolean' &&
+      !(typeof value === 'number' && Number.isFinite(value))
+    ) {
+      continue;
+    }
+    const formatted = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : String(value);
+    if (!formatted) continue;
+    if (chips.length < MAX_SUMMARY_CHIPS) {
+      const label = key.replace(/\s+/g, ' ').trim();
+      chips.push(trimChip(label ? `${label}: ${formatted}` : formatted));
+    }
+  }
+  if (chips.length === 0) return [];
+  const more = entries.length - chips.length;
+  return more > 0 ? [...chips, `+${more}`] : chips;
 };
 
 const responseSummary = (canvasEventId: string, revisionEventId: string, label: string) =>

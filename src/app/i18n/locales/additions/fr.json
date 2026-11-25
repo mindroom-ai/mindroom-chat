@@ -1743,7 +1743,10 @@
     "canvas": {
       "pageUpdated": "{{agent}} a mis à jour cette page.",
       "shownInPanel": "Affichée dans le panneau",
-      "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page."
+      "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page.",
+      "sendingTo": "Envoi à {{agent}} :",
+      "undo": "Annuler",
+      "sendNow": "Envoyer maintenant"
     },
     "invites": {
       "invalid": "Ce lien d'invitation est incomplet. Rouvrez le lien depuis l'e-mail.",

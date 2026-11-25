@@ -318,13 +318,14 @@ const bridgeScript = (
 ): string => `(() => {
   // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
   const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
+  const gestureActive = () => (navigator.userActivation ? navigator.userActivation.isActive === true : false);
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
-${inline ? sizeScript : ''}  const post = (data, options) => {
+${inline ? sizeScript : ''}  const post = (data, options, userGesture) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
-    parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
+    parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label, userGesture: userGesture === true }, '*');
   };
   const formValues = (form, submitter) => {
     let entries;
@@ -388,7 +389,7 @@ ${unknownLibraries
   };
   Object.defineProperty(window, 'mindroom', {
     value: Object.freeze({
-      submit: (data, options) => post(data, options),
+      submit: (data, options) => post(data, options, gestureActive()),
       colorScheme: ${JSON.stringify(colorScheme)},
       state: ${stateLiteral(saved.json)},
       saveState,
@@ -402,7 +403,7 @@ ${unknownLibraries
       if (!(form instanceof HTMLFormElement)) return;
       const submitter = event.submitter;
       const label = form.dataset.mindroomLabel || (submitter && submitter.textContent ? submitter.textContent.trim() : '');
-      post(formValues(form, submitter), { label: label || undefined });
+      post(formValues(form, submitter), { label: label || undefined }, event.isTrusted === true || gestureActive());
     },
     true
   );

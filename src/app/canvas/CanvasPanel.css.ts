@@ -47,7 +47,7 @@ export const Footer = style({
   flex: '0 0 auto',
   gap: config.space.S200,
   minHeight: '2.5rem',
-  alignItems: 'flex-start',
+  alignItems: 'stretch',
   padding: `${config.space.S200} ${config.space.S300}`,
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
 });

@@ -10,6 +10,7 @@ import {
   readCanvasResponse,
   readCanvasState,
   readCanvasSubmission,
+  summarizeCanvasData,
 } from './canvasMessages';
 
 const frame = {} as Window;
@@ -28,6 +29,18 @@ describe('readCanvasSubmission', () => {
       data: { plan: 'pro' },
       label: 'Pro plan',
     });
+  });
+
+  it('sets userGesture only when the bridge sends boolean true', () => {
+    expect(readCanvasSubmission(message(submit({ userGesture: true })), frame)).toEqual({
+      data: { plan: 'pro' },
+      userGesture: true,
+    });
+    for (const value of [false, undefined, 'true', 1]) {
+      const parsed = readCanvasSubmission(message(submit({ userGesture: value })), frame);
+      expect(parsed).toEqual({ data: { plan: 'pro' } });
+      expect(parsed).not.toHaveProperty('userGesture');
+    }
   });
 
   it.each([
@@ -360,5 +373,55 @@ describe('readCanvasState', () => {
     ['a state over the limit', message(state(`"${'a'.repeat(256 * 1024)}"`))],
   ])('rejects %s', (_name, event) => {
     expect(readCanvasState(event, frame)).toBeUndefined();
+  });
+});
+
+describe('summarizeCanvasData', () => {
+  it('returns up to 3 compact scalar preview chips from a plain object', () => {
+    expect(summarizeCanvasData({ team: 'Team Lark', plan: 'Pro', seats: 3 })).toEqual([
+      'team: Team Lark',
+      'plan: Pro',
+      'seats: 3',
+    ]);
+    expect(summarizeCanvasData({ confirmed: true, price: 12.5 })).toEqual([
+      'confirmed: true',
+      'price: 12.5',
+    ]);
+  });
+
+  it('trims long chips without splitting surrogate pairs and appends +n for extra keys', () => {
+    expect(
+      summarizeCanvasData({
+        a: 'one',
+        b: 'two',
+        c: 'three',
+        d: 'four',
+        e: 'five',
+      })
+    ).toEqual(['a: one', 'b: two', 'c: three', '+2']);
+
+    expect(
+      summarizeCanvasData({
+        note: '  A very long   note value that exceeds twenty eight characters  ',
+      })
+    ).toEqual(['note: A very long note valu…']);
+
+    expect(summarizeCanvasData({ k: `${'a'.repeat(24)}😀😀` })).toEqual([`k: ${'a'.repeat(24)}…`]);
+
+    expect(summarizeCanvasData({ a: 'ok', nested: { x: 1 }, blank: '   ' })).toEqual([
+      'a: ok',
+      '+2',
+    ]);
+  });
+
+  it('returns an empty array for empty, non-object, or non-scalar-only values', () => {
+    expect(summarizeCanvasData({})).toEqual([]);
+    expect(summarizeCanvasData(null)).toEqual([]);
+    expect(summarizeCanvasData('hello')).toEqual([]);
+    expect(summarizeCanvasData(42)).toEqual([]);
+    expect(summarizeCanvasData(['a', 'b'])).toEqual([]);
+    expect(summarizeCanvasData({ nested: { x: 1 }, list: [1, 2], empty: '   ', bad: NaN })).toEqual(
+      []
+    );
   });
 });
