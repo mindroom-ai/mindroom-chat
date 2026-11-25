@@ -202,6 +202,90 @@ describe('useMarkdownHtml', () => {
     expect(shown.querySelector('code')?.textContent).toBe('index.html');
     expect(shown.querySelector('li strong')?.textContent).toBe('one');
   });
+
+  it('keeps line-start HTML comments escaped by default and strips them with stripHtmlComments', async () => {
+    const md = '<!-- note -->\n**after**';
+    const { result, rerender } = renderHook(
+      ({ stripHtmlComments }: { stripHtmlComments?: boolean }) =>
+        useMarkdownHtml(md, stripHtmlComments === undefined ? undefined : { stripHtmlComments }),
+      { initialProps: { stripHtmlComments: undefined as boolean | undefined } }
+    );
+    await waitFor(() => expect(result.current).toBeDefined());
+    expect(elementsOf(result.current ?? '').textContent).toContain('<!-- note -->');
+
+    rerender({ stripHtmlComments: true });
+    await waitFor(() => {
+      const shown = elementsOf(result.current ?? '');
+      expect(shown.textContent?.trim()).toBe('after');
+      expect(shown.querySelector('strong')?.textContent).toBe('after');
+    });
+  });
+
+  it('strips block, multiline, inline and empty HTML comments while keeping code, lists, paragraphs and XSS safety', async () => {
+    const md = [
+      '<!-- block -->',
+      '<!-- first line',
+      'second line -->',
+      '<!-->',
+      '<!--->',
+      'Before <!-- inline --> after.',
+      '',
+      'First.',
+      '<!-- split -->',
+      'Second.',
+      '',
+      '- one',
+      '  <!-- item note -->',
+      '- two',
+      '',
+      '```html',
+      '<!-- fenced -->',
+      '```',
+      '',
+      '- Example:',
+      '    ~~~html',
+      '    <!-- list-indented -->',
+      '    ~~~',
+      '',
+      'Inline `<!-- span -->` code.',
+      '',
+      '    <!-- indented -->',
+      '',
+      '<!-- <script>alert(1)</script> -->',
+      '**safe**',
+      '',
+      '<!-- after-close --><script>alert(2)</script>',
+    ].join('\n');
+
+    const { result } = renderHook(() => useMarkdownHtml(md, { stripHtmlComments: true }));
+    await waitFor(() => expect(result.current).toBeDefined());
+    const html = result.current ?? '';
+    const shown = elementsOf(html);
+
+    expect(html).not.toContain('<!--');
+    expect(shown.textContent).not.toMatch(
+      /block|first line|inline|split|item note|after-close|alert\(1\)/
+    );
+    expect(shown.querySelector('script')).toBeNull();
+    expect(shown.querySelector('strong')?.textContent).toBe('safe');
+
+    const paragraphs = [...shown.querySelectorAll('p')].map((p) => p.textContent);
+    expect(paragraphs).toContain('Before  after.');
+    expect(paragraphs).toContain('First.');
+    expect(paragraphs).toContain('Second.');
+
+    const tightItems = [...shown.querySelectorAll('ul:first-of-type > li')];
+    expect(tightItems.map((li) => li.textContent?.trim())).toEqual(['one', 'two']);
+    expect(tightItems.every((li) => li.querySelector('p') === null)).toBe(true);
+
+    const codeTexts = [...shown.querySelectorAll('code')].map((code) => code.textContent?.trim());
+    expect(codeTexts).toEqual([
+      '<!-- fenced -->',
+      '<!-- list-indented -->',
+      '<!-- span -->',
+      '<!-- indented -->',
+    ]);
+  });
 });
 
 describe('MarkdownContent', () => {

@@ -164,4 +164,53 @@ describe('live reply Markdown', () => {
     expect(withCodeBlock).toContain('<li id="fn1" class="footnote-item"><p>Real detail.');
     expect(withCodeBlock).toContain('<code>[^1]: Not a definition.\n</code>');
   });
+
+  it('keeps line-start HTML comments unescaped only when allowHtmlComments is true', () => {
+    expect(renderLiveMarkdown('<!-- note -->\n**after**')).toBe(
+      '<p>&lt;!-- note --&gt;<br>\n<strong>after</strong></p>\n'
+    );
+    expect(renderLiveMarkdown('<!-- note -->\n**after**', { allowHtmlComments: true })).toBe(
+      '<!-- note -->\n<p><strong>after</strong></p>\n'
+    );
+    expect(
+      renderLiveMarkdown('<!-- <script>alert(1)</script> -->\n**after**', {
+        allowHtmlComments: true,
+      })
+    ).toBe('<!-- <script>alert(1)</script> -->\n<p><strong>after</strong></p>\n');
+    expect(
+      renderLiveMarkdown('<!-- note --><script>alert(1)</script>', { allowHtmlComments: true })
+    ).toBe('<!-- note -->&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(renderLiveMarkdown('<!DOCTYPE html>', { allowHtmlComments: true })).toBe(
+      '<p>&lt;!DOCTYPE html&gt;</p>\n'
+    );
+    expect(renderLiveMarkdown('<?php echo 1; ?>', { allowHtmlComments: true })).toBe(
+      '<p>&lt;?php echo 1; ?&gt;</p>\n'
+    );
+  });
+
+  it.each([
+    ['fenced code', '```\n<!-- slot -->\n```', '<pre><code>&lt;!-- slot --&gt;\n</code></pre>\n'],
+    [
+      'list-indented fences',
+      '- Example:\n    ~~~html\n    <!-- slot -->\n    ~~~',
+      '<ul>\n<li>Example:<pre><code class="language-html">&lt;!-- slot --&gt;\n</code></pre>\n</li>\n</ul>\n',
+    ],
+    [
+      'list-marker fences',
+      '- ```html\n  <!-- slot -->\n  ```',
+      '<ul>\n<li>\n<pre><code class="language-html">&lt;!-- slot --&gt;\n</code></pre>\n</li>\n</ul>\n',
+    ],
+    [
+      'blockquote indented code',
+      '>     <!-- slot -->',
+      '<blockquote>\n<pre><code>&lt;!-- slot --&gt;\n</code></pre>\n</blockquote>\n',
+    ],
+    [
+      'inline code spans',
+      'Use `<!-- slot -->` here',
+      '<p>Use <code>&lt;!-- slot --&gt;</code> here</p>\n',
+    ],
+  ])('preserves comments inside %s when allowHtmlComments is true', (_name, md, html) => {
+    expect(renderLiveMarkdown(md, { allowHtmlComments: true })).toBe(html);
+  });
 });

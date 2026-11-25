@@ -112,11 +112,12 @@ const transformOutsideFencedCode = (text: string, transform: (prose: string) => 
 };
 
 // Comments, declarations, processing instructions and disallowed tags would open raw HTML blocks.
-const escapeHtmlBlockOpeners = (text: string): string =>
+const escapeHtmlBlockOpeners = (text: string, allowHtmlComments = false): string =>
   splitLinesKeepingEnds(text)
     .map((line) => {
       const stripped = stripLeadingSpaces(line);
       if (line.length - stripped.length > 3) return line;
+      if (allowHtmlComments && stripped.startsWith('<!--')) return line;
       if (stripped.startsWith('<!') || stripped.startsWith('<?')) {
         return line.slice(0, line.length - stripped.length) + escapeLikePython(stripped);
       }
@@ -322,10 +323,16 @@ export const loadLiveMarkdown = (): Promise<void> => {
 };
 
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
-export const renderLiveMarkdown = (md: string): string | undefined => {
+export const renderLiveMarkdown = (
+  md: string,
+  options?: { allowHtmlComments?: boolean }
+): string | undefined => {
   if (!renderer || !rendererWithoutFootnotes) return undefined;
+  const allowHtmlComments = options?.allowHtmlComments ?? false;
   const normalized = transformOutsideFencedCode(
-    transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
+    transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), (prose) =>
+      escapeHtmlBlockOpeners(prose, allowHtmlComments)
+    ),
     separateSupportedBlockHtml
   );
   const env: FootnoteRenderEnv = {};
