@@ -18,20 +18,14 @@ import { copyToClipboard } from '../lib/dom';
 import { localDigits } from '../lib/localDigits';
 import { RoomDialogEmpty, RoomDialogFrame } from '../ui/RoomDialogOverlay';
 import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useMentionClickHandler } from '../messages/useMentionClickHandler';
-import { getMatrixToUser } from '../matrix/matrix-to';
-import {
-  makeMentionCustomProps,
-  renderMatrixMention,
-} from '../messages/html/react-custom-html-parser';
-import { isUserId } from '../matrix/matrix';
+import { useOwnerMention } from '../messages/useOwnerMention';
+import { renderSchedulePrompt } from '../rich-text/schedulePrompt';
 import {
   parseScheduleTimestamp,
   type ParsedScheduledTask,
 } from '../matrix/protocol/scheduledTaskContract';
 import * as sched from './roomSchedules';
-import { renderSchedulePrompt } from './schedulePrompt';
+import { RowSubtitle } from './RowSubtitle';
 import { useScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
 
@@ -277,20 +271,7 @@ function ScheduleAccordionItem({
               </Text>
               {statusLabel && <span className={css.StatusPill[tone]}>{statusLabel}</span>}
             </span>
-            <span className={css.RowSubtitle}>
-              {subtitleParts.map((node, index) => (
-                <Fragment key={index}>
-                  {index > 0 && (
-                    <span className={css.SubtitleDot} aria-hidden="true">
-                      ·
-                    </span>
-                  )}
-                  <Text as="span" size="T200" className={css.Wrap}>
-                    {node}
-                  </Text>
-                </Fragment>
-              ))}
-            </span>
+            <RowSubtitle parts={subtitleParts} />
           </span>
           <span className={classNames(css.Chevron, open && css.ChevronOpen)} aria-hidden="true">
             <Icon size="100" src={Icons.ChevronBottom} />
@@ -487,7 +468,7 @@ function ScheduleAccordionItem({
               </MetaRow>
               {task.createdBy && (
                 <MetaRow label={t('roomSchedules.owner')} wrap>
-                  <bdi>{ctx.renderOwner(task.createdBy) ?? task.createdBy}</bdi>
+                  <bdi>{ctx.renderOwner(task.createdBy)}</bdi>
                 </MetaRow>
               )}
               <MetaRow label={t('roomSchedules.model')} wrap>
@@ -558,8 +539,7 @@ export function RoomSchedulesDialog({
   ref,
 }: RoomSchedulesDialogProps) {
   const { t, i18n } = useTranslation();
-  const mx = useMatrixClient();
-  const mentionClickHandler = useMentionClickHandler(roomId);
+  const renderOwner = useOwnerMention(roomId);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [now, setNow] = useState(Date.now);
@@ -639,14 +619,6 @@ export function RoomSchedulesDialog({
     const nextFiltered = filterByType(tasks, nextFilter);
     if (nextFiltered.length === 1) setExpandedId(nextFiltered[0]!.taskId);
   };
-
-  const renderOwner = (userId: string) =>
-    isUserId(userId)
-      ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
-          ...makeMentionCustomProps(mentionClickHandler),
-          title: userId,
-        })
-      : undefined;
 
   const itemCtx: ScheduleContext = {
     now,

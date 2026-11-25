@@ -8,7 +8,12 @@ const surfaceMix = (pct: number) =>
 const subtleBorder = surfaceMix(10);
 const activePillBorder = `color-mix(in srgb, ${color.Primary.OnContainer} 35%, transparent)`;
 const monoFont = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-const tones = { primary: color.Primary, success: color.Success, warning: color.Warning } as const;
+const tones = {
+  primary: color.Primary,
+  success: color.Success,
+  warning: color.Warning,
+  neutral: color.SurfaceVariant,
+} as const;
 const toneSurface = (tone: { Container: string; OnContainer: string; ContainerLine: string }) => ({
   backgroundColor: tone.Container,
   color: tone.OnContainer,
@@ -230,25 +235,6 @@ export const PromptClamped = style({
   WebkitLineClamp: 3,
   WebkitBoxOrient: 'vertical',
   overflow: 'hidden',
-});
-export const InlineCode = style([
-  Wrap,
-  {
-    fontFamily: monoFont,
-    fontSize: '0.9em',
-    paddingBlock: toRem(1),
-    paddingInline: toRem(4),
-    borderRadius: config.radii.R300,
-    backgroundColor: surfaceMix(8),
-    color: color.Surface.OnContainer,
-  },
-]);
-export const PromptMention = style({
-  color: color.Primary.OnContainer,
-  backgroundColor: color.Primary.Container,
-  borderRadius: config.radii.R300,
-  paddingInline: toRem(3),
-  fontWeight: config.fontWeight.W500,
 });
 export const PromptToggle = style([
   {

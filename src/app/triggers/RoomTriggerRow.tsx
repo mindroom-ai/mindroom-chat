@@ -1,10 +1,11 @@
-import { Fragment, type ReactNode, type Ref, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useId, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { revealDirectionControls } from '../ui/directional';
-import { renderSchedulePrompt } from '../schedules/schedulePrompt';
+import { renderSchedulePrompt } from '../rich-text/schedulePrompt';
+import { RowSubtitle } from '../schedules/RowSubtitle';
 import * as s from '../schedules/roomSchedules.css';
 import { TriggersIcon } from './TriggersIcon';
 import type { RoomTrigger } from './roomTriggersApi';
@@ -128,7 +129,7 @@ export function RoomTriggerRow(props: Props) {
       data-highlighted={highlighted ? 'true' : undefined}
     >
       <div className={css.CardHeader}>
-        <span className={trigger.enabled ? s.IconTile.primary : css.IconTileNeutral} aria-hidden>
+        <span className={trigger.enabled ? s.IconTile.primary : s.IconTile.neutral} aria-hidden>
           <Icon size="100" src={TriggersIcon} />
         </span>
         <span className={s.RowBody}>
@@ -142,24 +143,11 @@ export function RoomTriggerRow(props: Props) {
             >
               {desc ? revealDirectionControls(desc) : <bdi>{idLabel}</bdi>}
             </Text>
-            <span className={trigger.enabled ? s.StatusPill.success : css.StatusPillNeutral}>
+            <span className={trigger.enabled ? s.StatusPill.success : s.StatusPill.neutral}>
               {t(trigger.enabled ? 'roomTriggers.stateOn' : 'roomTriggers.stateOff')}
             </span>
           </span>
-          <span className={s.RowSubtitle}>
-            {subtitle.map((node, index) => (
-              <Fragment key={index}>
-                {index > 0 && (
-                  <span className={s.SubtitleDot} aria-hidden="true">
-                    ·
-                  </span>
-                )}
-                <Text as="span" size="T200" className={s.Wrap}>
-                  {node}
-                </Text>
-              </Fragment>
-            ))}
-          </span>
+          <RowSubtitle parts={subtitle} />
         </span>
       </div>
 

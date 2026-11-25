@@ -3,14 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import { RoomDialogEmpty, RoomDialogFrame } from '../ui/RoomDialogOverlay';
 import { revealDirectionControls } from '../ui/directional';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { isUserId } from '../matrix/matrix';
-import { getMatrixToUser } from '../matrix/matrix-to';
-import { useMentionClickHandler } from '../messages/useMentionClickHandler';
-import {
-  makeMentionCustomProps,
-  renderMatrixMention,
-} from '../messages/html/react-custom-html-parser';
+import { useOwnerMention } from '../messages/useOwnerMention';
 import * as s from '../schedules/roomSchedules.css';
 import { RoomTriggerRow } from './RoomTriggerRow';
 import { TriggersIcon } from './TriggersIcon';
@@ -42,8 +35,7 @@ export function RoomTriggersDialog({
   ref,
 }: RoomTriggersDialogProps) {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
-  const mentionClickHandler = useMentionClickHandler(roomId);
+  const renderOwner = useOwnerMention(roomId);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const highlightedRef = useRef<HTMLElement>(null);
@@ -67,14 +59,6 @@ export function RoomTriggersDialog({
       closeBtnRef.current?.focus({ preventScroll: true });
     }
   }, [highlightTriggerId, matched, loadFailed, triggers]);
-
-  const renderOwner = (userId: string) =>
-    isUserId(userId)
-      ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
-          ...makeMentionCustomProps(mentionClickHandler),
-          title: userId,
-        })
-      : undefined;
 
   return (
     <RoomDialogFrame
@@ -111,7 +95,7 @@ export function RoomTriggersDialog({
                   highlighted={trigger.triggerId === highlightTriggerId}
                   owner={
                     !trigger.canManage && trigger.ownerUserId
-                      ? (renderOwner(trigger.ownerUserId) ?? trigger.ownerUserId)
+                      ? renderOwner(trigger.ownerUserId)
                       : undefined
                   }
                   articleRef={trigger.triggerId === highlightTriggerId ? highlightedRef : undefined}

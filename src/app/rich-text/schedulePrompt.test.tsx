@@ -4,7 +4,7 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderSchedulePrompt } from './schedulePrompt';
 
-vi.mock('./roomSchedules.css', () => ({
+vi.mock('./schedulePrompt.css', () => ({
   InlineCode: 'inline-code',
   PromptMention: 'prompt-mention',
 }));

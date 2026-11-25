@@ -26,11 +26,21 @@ vi.mock('./roomSchedules.css', () => ({
   Item: 'item',
   RowHeading: 'row-heading',
   RowHeader: 'row-header',
-  IconTile: { primary: 'icon-primary', success: 'icon-success', warning: 'icon-warning' },
+  IconTile: {
+    primary: 'icon-primary',
+    success: 'icon-success',
+    warning: 'icon-warning',
+    neutral: 'icon-neutral',
+  },
   RowBody: 'row-body',
   RowTopLine: 'row-top-line',
   RowTitle: 'row-title',
-  StatusPill: { primary: 'pill-primary', success: 'pill-success', warning: 'pill-warning' },
+  StatusPill: {
+    primary: 'pill-primary',
+    success: 'pill-success',
+    warning: 'pill-warning',
+    neutral: 'pill-neutral',
+  },
   RowSubtitle: 'row-subtitle',
   SubtitleDot: 'subtitle-dot',
   Chevron: 'chevron',
@@ -42,8 +52,6 @@ vi.mock('./roomSchedules.css', () => ({
   Wrap: 'wrap',
   Prompt: 'prompt',
   PromptClamped: 'prompt-clamped',
-  InlineCode: 'inline-code',
-  PromptMention: 'prompt-mention',
   PromptToggle: 'prompt-toggle',
   CancelBar: 'cancel-bar',
   CancelBarActions: 'cancel-bar-actions',
@@ -63,6 +71,10 @@ vi.mock('./roomSchedules.css', () => ({
   TaskId: 'task-id',
   Awaiting: 'awaiting',
   SrOnly: 'sr-only',
+}));
+vi.mock('../rich-text/schedulePrompt.css', () => ({
+  InlineCode: 'inline-code',
+  PromptMention: 'prompt-mention',
 }));
 vi.mock('../lib/dom', () => ({ copyToClipboard: mocks.copyToClipboard }));
 vi.mock('../ui/page/PageScroll', () => ({

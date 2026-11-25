@@ -1,11 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import * as schedCss from '../schedules/roomSchedules.css';
 
-const neutral = {
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-} as const;
 const cardPad = { display: 'flex', minWidth: 0, paddingInline: config.space.S300 } as const;
 
 export const TriggerCard = style({
@@ -32,9 +27,3 @@ export const CardBody = style({
   gap: config.space.S200,
   paddingBlockEnd: config.space.S300,
 });
-
-export const IconTileNeutral = style([schedCss.IconTile.primary, neutral]);
-export const StatusPillNeutral = style([
-  schedCss.StatusPill.success,
-  { ...neutral, borderColor: color.SurfaceVariant.ContainerLine },
-]);

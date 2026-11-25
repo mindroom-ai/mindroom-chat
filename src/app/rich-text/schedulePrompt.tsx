@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import * as css from './roomSchedules.css';
+import * as css from './schedulePrompt.css';
 
 const FENCE_OPEN = /^[ \t]*`{3,}[^`\n]*\r?\n?$/;
 const FENCE_CLOSE = /^[ \t]*`{3,}[ \t]*\r?\n?$/;

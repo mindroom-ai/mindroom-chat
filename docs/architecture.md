@@ -99,6 +99,7 @@ src/
     threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/
                          (tags, resolve and snooze, the snooze picker), summary/, cross-room/ (index, signals), page/ (the
                          Threads section's list), banner, actions menu
+    triggers/            the room triggers dialog, row controls, API client and query hook
     account/             sign-in and the account: auth/, lifecycle/ (start, stop, wipe a session), switcher/,
                          settings/, devices/, encryption/, verification/, uia/, onboarding/
     activity/            the Activity bell: rows from thread signals and invites, inline answers, the popover, the
