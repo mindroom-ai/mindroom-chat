@@ -72,7 +72,7 @@ vi.mock('./roomSchedules.css', () => ({
   Awaiting: 'awaiting',
   SrOnly: 'sr-only',
 }));
-vi.mock('../rich-text/schedulePrompt.css', () => ({
+vi.mock('../rich-text/promptText.css', () => ({
   InlineCode: 'inline-code',
   PromptMention: 'prompt-mention',
 }));

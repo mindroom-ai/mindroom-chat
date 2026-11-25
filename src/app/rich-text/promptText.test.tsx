@@ -2,9 +2,9 @@
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderSchedulePrompt } from './schedulePrompt';
+import { renderPromptText } from './promptText';
 
-vi.mock('./schedulePrompt.css', () => ({
+vi.mock('./promptText.css', () => ({
   InlineCode: 'inline-code',
   PromptMention: 'prompt-mention',
 }));
@@ -15,7 +15,7 @@ const renderPrompt = (prompt: string) => {
   document.body.append(host);
   const root = createRoot(host);
   act(() => {
-    root.render(<>{renderSchedulePrompt(prompt)}</>);
+    root.render(<>{renderPromptText(prompt)}</>);
   });
   return {
     host,
@@ -33,7 +33,7 @@ afterEach(() => {
   cleanup = undefined;
 });
 
-describe('renderSchedulePrompt', () => {
+describe('renderPromptText', () => {
   it('leaves plain text unchanged and preserves newlines', () => {
     const view = renderPrompt('Line one\nLine two');
     cleanup = view.unmount;

@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { revealDirectionControls } from '../ui/directional';
-import { renderSchedulePrompt } from '../rich-text/schedulePrompt';
+import { renderPromptText } from '../rich-text/promptText';
+import { ConfirmBar } from '../schedules/ConfirmBar';
 import { RowSubtitle } from '../schedules/RowSubtitle';
 import * as s from '../schedules/roomSchedules.css';
 import { TriggersIcon } from './TriggersIcon';
@@ -13,7 +14,6 @@ import * as css from './roomTriggers.css';
 
 const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT = { ...BTN, variant: 'Secondary', fill: 'Soft', className: s.CompactAction } as const;
-const CONFIRM = { ...BTN, className: s.CancelBarButton } as const;
 
 const KNOWN_KIND_LIST = ['webhook', 'room_message', 'external_event', 'thread_tag'] as const;
 const KNOWN_KINDS: ReadonlySet<string> = new Set(KNOWN_KIND_LIST);
@@ -42,7 +42,7 @@ export function RoomTriggerRow(props: Props) {
   const { t } = useTranslation();
   const titleId = useId();
   const [busy, setBusy] = useState<'toggle' | 'delete' | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<'toggle' | 'delete' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteBtnRef = useRef<HTMLButtonElement>(null);
   const keepBtnRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +98,7 @@ export function RoomTriggerRow(props: Props) {
       await fn();
       if (kind === 'delete') setConfirmDelete(false);
     } catch {
-      setError(t(kind === 'toggle' ? 'roomTriggers.toggleError' : 'roomTriggers.deleteError'));
+      setError(kind);
     } finally {
       setBusy(null);
     }
@@ -153,7 +153,7 @@ export function RoomTriggerRow(props: Props) {
           {promptText && (
             <div className={s.PromptWell} role="region" aria-label={t('roomTriggers.prompt')}>
               <Text as="p" size="T300" className={s.Prompt} dir="auto">
-                {renderSchedulePrompt(promptText)}
+                {renderPromptText(promptText)}
               </Text>
             </div>
           )}
@@ -185,6 +185,7 @@ export function RoomTriggerRow(props: Props) {
                     aria-label={t('roomTriggers.delete')}
                     aria-describedby={titleId}
                     aria-expanded={showDeleteBar}
+                    aria-controls={showDeleteBar ? `${titleId}-confirm` : undefined}
                     aria-disabled={isBusy}
                     onClick={() => {
                       if (busy) return;
@@ -199,39 +200,26 @@ export function RoomTriggerRow(props: Props) {
             </div>
           )}
 
-          {error && (
+          {error === 'toggle' && (
             <Text size="T200" role="alert" className={s.CancelError}>
-              {error}
+              {t('roomTriggers.toggleError')}
             </Text>
           )}
 
           {showDeleteBar && (
-            <div role="group" aria-label={t('roomTriggers.deleteConfirm')} className={s.CancelBar}>
-              <Text size="T200">{t('roomTriggers.deleteConfirm')}</Text>
-              <div className={s.CancelBarActions}>
-                <Button
-                  ref={keepBtnRef}
-                  {...CONFIRM}
-                  variant="Secondary"
-                  fill="Soft"
-                  aria-disabled={isBusy}
-                  onClick={closeConfirm}
-                >
-                  <Text size="T200">{t('roomTriggers.keep')}</Text>
-                </Button>
-                <Button
-                  {...CONFIRM}
-                  variant="Critical"
-                  fill="Solid"
-                  aria-disabled={isBusy}
-                  onClick={() => void run('delete', onDelete)}
-                >
-                  <Text size="T200">
-                    {t(busy === 'delete' ? 'roomTriggers.deleting' : 'roomTriggers.deleteTrigger')}
-                  </Text>
-                </Button>
-              </div>
-            </div>
+            <ConfirmBar
+              id={`${titleId}-confirm`}
+              keepRef={keepBtnRef}
+              prompt={t('roomTriggers.deleteConfirm')}
+              error={error === 'delete' ? t('roomTriggers.deleteError') : undefined}
+              keepLabel={t('roomTriggers.keep')}
+              confirmLabel={t(
+                busy === 'delete' ? 'roomTriggers.deleting' : 'roomTriggers.deleteTrigger'
+              )}
+              busy={Boolean(busy)}
+              onKeep={closeConfirm}
+              onConfirm={() => void run('delete', onDelete)}
+            />
           )}
         </div>
       )}

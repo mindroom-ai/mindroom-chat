@@ -19,12 +19,13 @@ import { localDigits } from '../lib/localDigits';
 import { RoomDialogEmpty, RoomDialogFrame } from '../ui/RoomDialogOverlay';
 import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
 import { useOwnerMention } from '../messages/useOwnerMention';
-import { renderSchedulePrompt } from '../rich-text/schedulePrompt';
+import { renderPromptText } from '../rich-text/promptText';
 import {
   parseScheduleTimestamp,
   type ParsedScheduledTask,
 } from '../matrix/protocol/scheduledTaskContract';
 import * as sched from './roomSchedules';
+import { ConfirmBar } from './ConfirmBar';
 import { RowSubtitle } from './RowSubtitle';
 import { useScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
@@ -39,7 +40,6 @@ const IMMINENT_COUNTDOWN_WINDOW_MS = 120_000;
 const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT_BTN = { ...BTN, variant: 'Secondary', className: css.CompactAction } as const;
 const ICON_BTN = { ...BTN, fill: 'None', className: css.IconAction } as const;
-const CANCEL_BTN = { ...BTN, className: css.CancelBarButton } as const;
 
 const isLongPrompt = (p: string) =>
   p.length > LONG_PROMPT_CHAR_LIMIT || p.split('\n').length > LONG_PROMPT_LINE_LIMIT;
@@ -298,7 +298,7 @@ function ScheduleAccordionItem({
               dir="auto"
             >
               {promptText !== undefined
-                ? renderSchedulePrompt(promptText)
+                ? renderPromptText(promptText)
                 : t('roomSchedules.promptUnavailable')}
             </Text>
             {longPrompt && (
@@ -400,46 +400,20 @@ function ScheduleAccordionItem({
           </div>
 
           {showCancelBar && (
-            <div
+            <ConfirmBar
               ref={confirmBarRef}
+              keepRef={keepButtonRef}
               id={`${id}-confirm`}
-              role="group"
-              aria-labelledby={`${id}-confirm-q`}
-              className={css.CancelBar}
-            >
-              <Text id={`${id}-confirm-q`} size="T200">
-                {t('roomSchedules.cancelConfirm')}
-              </Text>
-              {cancelError && (
-                <Text size="T200" role="alert" className={css.CancelError}>
-                  {t('roomSchedules.cancelError')}
-                </Text>
+              prompt={t('roomSchedules.cancelConfirm')}
+              error={cancelError ? t('roomSchedules.cancelError') : undefined}
+              keepLabel={t('roomSchedules.keep')}
+              confirmLabel={t(
+                isCancelling ? 'roomSchedules.cancelling' : 'roomSchedules.cancelTask'
               )}
-              <div className={css.CancelBarActions}>
-                <Button
-                  ref={keepButtonRef}
-                  {...CANCEL_BTN}
-                  variant="Secondary"
-                  fill="Soft"
-                  aria-describedby={`${id}-confirm-q`}
-                  aria-disabled={isCancelling || undefined}
-                  onClick={handleKeepCancel}
-                >
-                  <Text size="T200">{t('roomSchedules.keep')}</Text>
-                </Button>
-                <Button
-                  {...CANCEL_BTN}
-                  variant="Critical"
-                  fill="Solid"
-                  aria-disabled={isCancelling || undefined}
-                  onClick={() => void handleConfirmCancelClick()}
-                >
-                  <Text size="T200">
-                    {t(isCancelling ? 'roomSchedules.cancelling' : 'roomSchedules.cancelTask')}
-                  </Text>
-                </Button>
-              </div>
-            </div>
+              busy={isCancelling}
+              onKeep={handleKeepCancel}
+              onConfirm={() => void handleConfirmCancelClick()}
+            />
           )}
 
           <div
