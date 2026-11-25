@@ -563,7 +563,8 @@
       "directMessages": "Directe berichten",
       "newDirectMessage": "Nieuw direct bericht",
       "showAllDirectMessages": "Alles tonen ({{count}})",
-      "agents": "Agenten"
+      "agents": "Agenten",
+      "agentActive": "Agent actief"
     },
     "directNav": {
       "options": "Opties voor directe berichten"
@@ -1098,7 +1099,9 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "jij",
-        "draft": "Concept"
+        "draft": "Concept",
+        "groupMemberCount_one": "{{count}} lid",
+        "groupMemberCount_other": "{{count}} leden"
       }
     }
   },

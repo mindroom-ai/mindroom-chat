@@ -563,7 +563,8 @@
       "directMessages": "Doğrudan mesajlar",
       "newDirectMessage": "Yeni doğrudan mesaj",
       "showAllDirectMessages": "Tümünü göster ({{count}})",
-      "agents": "Ajanlar"
+      "agents": "Ajanlar",
+      "agentActive": "Ajan etkin"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"
@@ -1098,7 +1099,9 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "sen",
-        "draft": "Taslak"
+        "draft": "Taslak",
+        "groupMemberCount_one": "{{count}} üye",
+        "groupMemberCount_other": "{{count}} üye"
       }
     }
   },

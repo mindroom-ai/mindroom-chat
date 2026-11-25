@@ -615,7 +615,8 @@
       "directMessages": "الرسائل المباشرة",
       "newDirectMessage": "رسالة مباشرة جديدة",
       "showAllDirectMessages": "عرض الكل (⁨{{count}}⁩)",
-      "agents": "الوكلاء"
+      "agents": "الوكلاء",
+      "agentActive": "الوكيل نشط"
     },
     "directNav": {
       "options": "خيارات الرسائل المباشرة"
@@ -1166,7 +1167,13 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "أنت",
-        "draft": "مسودة"
+        "draft": "مسودة",
+        "groupMemberCount_few": "⁨{{count}}⁩ أعضاء",
+        "groupMemberCount_many": "⁨{{count}}⁩ عضوًا",
+        "groupMemberCount_one": "عضو واحد (⁨{{count}}⁩)",
+        "groupMemberCount_two": "عضوان (⁨{{count}}⁩)",
+        "groupMemberCount_zero": "⁨{{count}}⁩ أعضاء",
+        "groupMemberCount_other": "⁨{{count}}⁩ عضو"
       }
     }
   },

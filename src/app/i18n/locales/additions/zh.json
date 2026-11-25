@@ -550,7 +550,8 @@
       "directMessages": "私信",
       "newDirectMessage": "新建私信",
       "showAllDirectMessages": "显示全部 ({{count}})",
-      "agents": "代理"
+      "agents": "代理",
+      "agentActive": "代理正在运行"
     },
     "directNav": {
       "options": "私信选项"
@@ -1081,7 +1082,8 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "自己",
-        "draft": "草稿"
+        "draft": "草稿",
+        "groupMemberCount_other": "{{count}} 位成员"
       }
     }
   },

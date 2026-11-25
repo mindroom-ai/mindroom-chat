@@ -550,7 +550,8 @@
       "directMessages": "ダイレクトメッセージ",
       "newDirectMessage": "新しいダイレクトメッセージ",
       "showAllDirectMessages": "すべて表示 ({{count}})",
-      "agents": "エージェント"
+      "agents": "エージェント",
+      "agentActive": "エージェントが稼働中"
     },
     "directNav": {
       "options": "ダイレクトメッセージのオプション"
@@ -1081,7 +1082,8 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "自分",
-        "draft": "下書き"
+        "draft": "下書き",
+        "groupMemberCount_other": "{{count}} 人のメンバー"
       }
     }
   },

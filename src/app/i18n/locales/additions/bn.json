@@ -563,7 +563,8 @@
       "directMessages": "সরাসরি বার্তা",
       "newDirectMessage": "নতুন সরাসরি বার্তা",
       "showAllDirectMessages": "সব দেখান ({{count}})",
-      "agents": "এজেন্ট"
+      "agents": "এজেন্ট",
+      "agentActive": "এজেন্ট সক্রিয়"
     },
     "directNav": {
       "options": "সরাসরি বার্তার বিকল্প"
@@ -1098,7 +1099,9 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "আপনি",
-        "draft": "খসড়া"
+        "draft": "খসড়া",
+        "groupMemberCount_one": "{{count}} জন সদস্য",
+        "groupMemberCount_other": "{{count}} জন সদস্য"
       }
     }
   },

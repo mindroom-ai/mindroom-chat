@@ -576,7 +576,8 @@
       "directMessages": "Messages directs",
       "newDirectMessage": "Nouveau message direct",
       "showAllDirectMessages": "Tout afficher ({{count}})",
-      "agents": "Agents"
+      "agents": "Agents",
+      "agentActive": "Agent actif"
     },
     "directNav": {
       "options": "Options des messages directs"
@@ -1115,7 +1116,10 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "vous",
-        "draft": "Brouillon"
+        "draft": "Brouillon",
+        "groupMemberCount_many": "{{count}} membres",
+        "groupMemberCount_one": "{{count}} membre",
+        "groupMemberCount_other": "{{count}} membres"
       }
     }
   },

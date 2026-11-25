@@ -550,7 +550,8 @@
       "directMessages": "다이렉트 메시지",
       "newDirectMessage": "새 다이렉트 메시지",
       "showAllDirectMessages": "모두 보기 ({{count}})",
-      "agents": "에이전트"
+      "agents": "에이전트",
+      "agentActive": "에이전트 활동 중"
     },
     "directNav": {
       "options": "다이렉트 메시지 옵션"
@@ -1081,7 +1082,8 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "나",
-        "draft": "초안"
+        "draft": "초안",
+        "groupMemberCount_other": "멤버 {{count}}명"
       }
     }
   },

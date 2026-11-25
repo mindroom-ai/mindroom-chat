@@ -563,7 +563,8 @@
       "directMessages": "सीधे संदेश",
       "newDirectMessage": "नया सीधा संदेश",
       "showAllDirectMessages": "सभी दिखाएँ ({{count}})",
-      "agents": "एजेंट"
+      "agents": "एजेंट",
+      "agentActive": "एजेंट सक्रिय है"
     },
     "directNav": {
       "options": "सीधे संदेश विकल्प"
@@ -1098,7 +1099,9 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "आप",
-        "draft": "ड्राफ़्ट"
+        "draft": "ड्राफ़्ट",
+        "groupMemberCount_one": "{{count}} सदस्य",
+        "groupMemberCount_other": "{{count}} सदस्य"
       }
     }
   },

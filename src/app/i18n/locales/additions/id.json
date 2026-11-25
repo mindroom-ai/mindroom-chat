@@ -550,7 +550,8 @@
       "directMessages": "Pesan langsung",
       "newDirectMessage": "Pesan langsung baru",
       "showAllDirectMessages": "Tampilkan semua ({{count}})",
-      "agents": "Agen"
+      "agents": "Agen",
+      "agentActive": "Agen aktif"
     },
     "directNav": {
       "options": "Opsi pesan langsung"
@@ -1081,7 +1082,8 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "Anda",
-        "draft": "Draf"
+        "draft": "Draf",
+        "groupMemberCount_other": "{{count}} anggota"
       }
     }
   },

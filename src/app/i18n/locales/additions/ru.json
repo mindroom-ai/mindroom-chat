@@ -589,7 +589,8 @@
       "directMessages": "Личные сообщения",
       "newDirectMessage": "Новое личное сообщение",
       "showAllDirectMessages": "Показать все ({{count}})",
-      "agents": "Агенты"
+      "agents": "Агенты",
+      "agentActive": "Агент активен"
     },
     "directNav": {
       "options": "Параметры личных сообщений"
@@ -1132,7 +1133,11 @@
     "roomNav": {
       "roomNavItem": {
         "selfTag": "вы",
-        "draft": "Черновик"
+        "draft": "Черновик",
+        "groupMemberCount_few": "{{count}} участника",
+        "groupMemberCount_many": "{{count}} участников",
+        "groupMemberCount_one": "{{count}} участник",
+        "groupMemberCount_other": "{{count}} участников"
       }
     }
   },
