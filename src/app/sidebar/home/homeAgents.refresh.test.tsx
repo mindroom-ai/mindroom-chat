@@ -337,16 +337,30 @@ describe('useHomeAgents', () => {
       });
     };
 
-    // Relevant state events that do not change output read once per event, never re-render, and keep reference.
+    // 20 relevant state events in one sync batch trigger only 1 scan and keep the exact array reference when unchanged.
     const unchangedBefore = result.current;
-    const rendersBefore = renders;
     reads = 0;
-    fireState(MINDROOM_SERVER_EVENT, HELPER, '!lobby');
-    fireState(StateEvent.RoomPowerLevels, '', '!eng');
-    fireState(StateEvent.RoomMember, HELPER, '!lobby');
-    fireState(StateEvent.RoomMember, HUMAN, '!dm');
-    expect(reads).toBe(4);
-    expect(renders).toBe(rendersBefore);
+    act(() => {
+      for (let i = 0; i < 20; i += 1) {
+        onStateEvent?.(
+          {
+            getType: () =>
+              i % 4 === 0
+                ? MINDROOM_SERVER_EVENT
+                : i % 4 === 1
+                  ? StateEvent.RoomPowerLevels
+                  : StateEvent.RoomMember,
+            getStateKey: () => (i % 4 === 3 ? HUMAN : HELPER),
+            getRoomId: () => (i % 4 === 3 ? '!dm' : '!lobby'),
+            isState: () => true,
+            getContent: () => ({}),
+          } as unknown as MatrixEvent,
+          { roomId: i % 4 === 3 ? '!dm' : '!lobby' } as unknown as RoomState,
+          null
+        );
+      }
+    });
+    expect(reads).toBe(1);
     expect(result.current).toBe(unchangedBefore);
 
     // 1. io.mindroom.server adds an agent (single-pass read + 1 render).
@@ -488,5 +502,50 @@ describe('useHomeAgents', () => {
     expect(result.current).toBe(afterUpdate);
 
     unmount();
+  });
+
+  it('refreshes when RoomEvent.Summary on a direct room drops member count from 3 to 2', () => {
+    const store = createStore();
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set(['!dm']) });
+    let joinedCount = 3;
+    const dmMembers = [
+      { userId: ME, membership: 'join' },
+      { userId: HELPER, membership: 'join' },
+    ];
+    const dm = Object.assign(new EventEmitter(), room('!dm', []), {
+      getJoinedMemberCount: () => joinedCount,
+      getInvitedMemberCount: () => 0,
+      membersLoaded: () => true,
+      getMembers: () => dmMembers,
+      getMember: (userId: string) => dmMembers.find((m) => m.userId === userId) ?? null,
+      currentState: { getStateEvents: () => [] },
+    }) as unknown as Room & EventEmitter;
+    const rooms = [room('!lobby', [message(SCOUT, 100)]), room('!eng', [message(HELPER, 200)]), dm];
+    const mx = Object.assign(new EventEmitter(), {
+      getUserId: () => ME,
+      getRoom: (roomId: string) => rooms.find((each) => each.roomId === roomId) ?? null,
+      getAccountData: () => ({ getContent: () => ({ [HELPER]: ['!dm'] }) }),
+    });
+    vi.mocked(useMatrixClient).mockReturnValue(mx as unknown as MatrixClient);
+
+    const { result, unmount } = renderHook(() => useHomeAgents(), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(Provider, { store }, children),
+    });
+
+    expect(result.current.find((a) => a.userId === HELPER)?.direct).toBeUndefined();
+
+    // Third member leaves; SDK updates the room summary count from 3 to 2 via RoomEvent.Summary.
+    joinedCount = 2;
+    act(() => {
+      dm.emit(RoomEvent.Summary, { 'm.joined_member_count': 2, 'm.invited_member_count': 0 });
+    });
+    expect(result.current.find((a) => a.userId === HELPER)?.direct).toEqual({
+      roomId: '!dm',
+      waiting: false,
+    });
+
+    unmount();
+    expect(dm.listenerCount(RoomEvent.Summary)).toBe(0);
   });
 });
