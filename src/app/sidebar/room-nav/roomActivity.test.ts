@@ -3,8 +3,10 @@ import { EventEmitter } from 'events';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  EventStatus,
   MatrixClient,
   MatrixEvent,
+  MatrixEventEvent,
   MemoryStore,
   RelationType,
   Room,
@@ -21,39 +23,66 @@ import {
 } from './roomActivity';
 
 type FakeRoom = { roomId: string; ts: number; getLastActiveTimestamp: () => number };
+type Rec = Record<string, unknown>;
+type Extra = Partial<{ state_key: string; redacts: string; unsigned: Rec }>;
 
-const makeFakeRoom = (roomId: string, ts: number): FakeRoom => {
+const fakeRoom = (roomId: string, ts: number): FakeRoom => {
   const room: FakeRoom = { roomId, ts, getLastActiveTimestamp: () => room.ts };
   return room;
 };
 
-const makeEvent = (
+const ev = (
   roomId: string,
-  eventId: string,
+  id: string,
   ts: number,
   type: string,
-  content: Record<string, unknown>,
-  extra?: Partial<{ state_key: string; redacts: string; unsigned: Record<string, unknown> }>
+  content: Rec = {},
+  extra?: Extra
 ) =>
   new MatrixEvent({
     type,
     room_id: roomId,
-    event_id: eventId,
+    event_id: id,
     sender: '@alice:example.org',
     origin_server_ts: ts,
     content,
     ...extra,
   });
 
-const makeMatrixEvent = (
-  roomId: string,
-  eventId: string,
-  ts: number,
-  content: Record<string, unknown>,
-  unsigned?: Record<string, unknown>
-) => makeEvent(roomId, eventId, ts, 'm.room.message', content, unsigned ? { unsigned } : undefined);
+const rel = (rel_type: string, event_id: string, extra?: Rec) => ({
+  'm.relates_to': { rel_type, event_id, ...extra },
+});
 
-const makeRealClient = () => {
+const msg = (roomId: string, id: string, ts: number, extra?: Rec, unsigned?: Rec) =>
+  ev(
+    roomId,
+    id,
+    ts,
+    'm.room.message',
+    { msgtype: 'm.text', body: id, ...extra },
+    unsigned ? { unsigned } : undefined
+  );
+
+const enc = (roomId: string, id: string, ts: number, extra?: Rec) =>
+  ev(roomId, id, ts, 'm.room.encrypted', {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    ciphertext: 'x',
+    ...extra,
+  });
+
+const addLive = (room: Room, ...events: MatrixEvent[]) =>
+  room.addLiveEvents(events, { addToState: false });
+const liveIds = (r: Room) =>
+  r
+    .getLiveTimeline()
+    .getEvents()
+    .map((e) => e.getId());
+const liveAct = (room: Room, ...events: MatrixEvent[]) =>
+  act(async () => {
+    await addLive(room, ...events);
+  });
+
+const makeRealRooms = (...roomIds: string[]) => {
   const client = new MatrixClient({
     baseUrl: 'https://example.org',
     userId: '@alice:example.org',
@@ -62,267 +91,147 @@ const makeRealClient = () => {
   });
   vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
   vi.spyOn(client, 'fetchRoomEvent').mockRejectedValue(new Error('offline'));
-  return client;
+  const rooms = roomIds.map(
+    (id) => new Room(id, client, '@alice:example.org', { timelineSupport: true })
+  );
+  const byId = new Map(rooms.map((r) => [r.roomId, r]));
+  vi.spyOn(client, 'getRoom').mockImplementation((id) => byId.get(id ?? '') ?? null);
+  return { client, rooms };
 };
-
-const makeRealRoom = (roomId: string, client: MatrixClient) =>
-  new Room(roomId, client, '@alice:example.org', { timelineSupport: true });
 
 describe('roomActivity helpers', () => {
   it('guards missing, zero, negative, and non-finite fallback activity timestamps', () => {
     expect(getRoomActivityTimestamp(undefined)).toBe(0);
-    expect(getRoomActivityTimestamp({ getLastActiveTimestamp: () => 0 } as unknown as Room)).toBe(
-      0
-    );
-    expect(getRoomActivityTimestamp({ getLastActiveTimestamp: () => -5 } as unknown as Room)).toBe(
-      0
-    );
-    expect(
-      getRoomActivityTimestamp({ getLastActiveTimestamp: () => Number.NaN } as unknown as Room)
-    ).toBe(0);
-    expect(
-      getRoomActivityTimestamp({ getLastActiveTimestamp: () => 1234 } as unknown as Room)
-    ).toBe(1234);
+    for (const bad of [0, -5, Number.NaN]) {
+      expect(getRoomActivityTimestamp(fakeRoom('!x', bad) as unknown as Room)).toBe(0);
+    }
+    expect(getRoomActivityTimestamp(fakeRoom('!x', 1234) as unknown as Room)).toBe(1234);
   });
 
   it('includes real matrix-js-sdk thread replies and excludes m.replace edits', async () => {
-    const client = makeRealClient();
-    const roomA = makeRealRoom('!a:example.org', client);
-    const roomB = makeRealRoom('!b:example.org', client);
-    const editOnly = makeRealRoom('!edit-only:example.org', client);
-    const roomsById = new Map([
-      [roomA.roomId, roomA],
-      [roomB.roomId, roomB],
-      [editOnly.roomId, editOnly],
-    ]);
-    vi.spyOn(client, 'getRoom').mockImplementation((id) => roomsById.get(id ?? '') ?? null);
+    const { client, rooms } = makeRealRooms('!a:ex', '!b:ex', '!edit:ex', '!sum:ex');
+    const [roomA, roomB, editOnly, summaryRoom] = rooms as [Room, Room, Room, Room];
+    const idA = roomA.roomId;
 
-    // Room A: main message at ts=100, then m.replace edit at ts=300.
-    // Room B: main message at ts=200.
-    const aRoot = makeMatrixEvent(roomA.roomId, '$a1', 100, { msgtype: 'm.text', body: 'hi' });
-    const aEdit = makeMatrixEvent(roomA.roomId, '$a2', 300, {
-      msgtype: 'm.text',
-      body: '* hi edited',
-      'm.new_content': { msgtype: 'm.text', body: 'hi edited' },
-      'm.relates_to': { rel_type: RelationType.Replace, event_id: '$a1' },
-    });
-    const bMsg = makeMatrixEvent(roomB.roomId, '$b1', 200, { msgtype: 'm.text', body: 'hey' });
-    await roomA.addLiveEvents([aRoot, aEdit], { addToState: false });
-    await roomB.addLiveEvents([bMsg], { addToState: false });
+    await addLive(
+      roomA,
+      msg(idA, '$a1', 100),
+      msg(idA, '$a2', 300, {
+        'm.new_content': { msgtype: 'm.text', body: 'ed' },
+        ...rel(RelationType.Replace, '$a1'),
+      })
+    );
+    await addLive(roomB, msg(roomB.roomId, '$b1', 200));
 
-    // SDK's getLastActiveTimestamp includes the m.replace edit (300), but ours stays at 100.
     expect(roomA.getLastActiveTimestamp()).toBe(300);
     expect(getRoomActivityTimestamp(roomA)).toBe(100);
     expect(getRoomActivityTimestamp(roomB)).toBe(200);
-    expect(sortRoomIdsByActivity(client, [roomA.roomId, roomB.roomId])).toEqual([
-      roomB.roomId,
-      roomA.roomId,
-    ]);
+    expect(sortRoomIdsByActivity(client, [idA, roomB.roomId])).toEqual([roomB.roomId, idA]);
 
-    // Room whose live timeline only has an m.replace edit does NOT fall back to getLastActiveTimestamp.
-    editOnly.getLiveTimeline().addEvent(
-      makeMatrixEvent(editOnly.roomId, '$e1', 900, {
-        msgtype: 'm.text',
-        body: '* edited',
-        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$missing' },
-      }),
-      { toStartOfTimeline: false, addToState: false }
-    );
+    // Edit-only live timeline does NOT fall back to getLastActiveTimestamp.
+    editOnly
+      .getLiveTimeline()
+      .addEvent(msg(editOnly.roomId, '$e1', 900, rel(RelationType.Replace, '$missing')), {
+        toStartOfTimeline: false,
+        addToState: false,
+      });
     expect(editOnly.getLastActiveTimestamp()).toBe(900);
     expect(getRoomActivityTimestamp(editOnly)).toBe(0);
 
-    // Real thread reply in Room A at ts=400 lifts Room A above Room B (ts=200), even though
-    // roomA.getLastActiveTimestamp() still only sees the main timeline!
-    const aReply = makeMatrixEvent(roomA.roomId, '$a3', 400, {
-      msgtype: 'm.text',
-      body: 'thread reply',
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$a1', is_falling_back: true },
-    });
-    await roomA.addLiveEvents([aReply], { addToState: false });
-    const thread = roomA.getThread('$a1');
-    expect(thread).toBeInstanceOf(Thread);
-    // Confirm the thread reply is NOT on the main timeline (SDK getLastActiveTimestamp misses it).
-    expect(
-      roomA
-        .getLiveTimeline()
-        .getEvents()
-        .map((e) => e.getId())
-    ).not.toContain('$a3');
+    // Real thread reply at ts=400 lifts Room A above Room B even though main timeline misses it.
+    await addLive(roomA, msg(idA, '$a3', 400, rel('m.thread', '$a1', { is_falling_back: true })));
+    expect(roomA.getThread('$a1')).toBeInstanceOf(Thread);
+    expect(liveIds(roomA)).not.toContain('$a3');
     expect(roomA.getLastActiveTimestamp()).toBe(300);
     expect(getRoomActivityTimestamp(roomA)).toBe(400);
-    expect(sortRoomIdsByActivity(client, [roomA.roomId, roomB.roomId])).toEqual([
-      roomA.roomId,
-      roomB.roomId,
-    ]);
+    expect(sortRoomIdsByActivity(client, [idA, roomB.roomId])).toEqual([idA, roomB.roomId]);
 
     // An m.replace edit targeting the thread reply at ts=500 must not bump Room A past 400.
-    const aReplyEdit = makeMatrixEvent(roomA.roomId, '$a4', 500, {
-      msgtype: 'm.text',
-      body: '* thread reply edited',
-      'm.new_content': { msgtype: 'm.text', body: 'thread reply edited' },
-      'm.relates_to': { rel_type: RelationType.Replace, event_id: '$a3' },
-    });
-    await roomA.addLiveEvents([aReplyEdit], { addToState: false });
+    await addLive(roomA, msg(idA, '$a4', 500, rel(RelationType.Replace, '$a3')));
     expect(getRoomActivityTimestamp(roomA)).toBe(400);
 
-    // Bundled thread summary (replyToEvent on an unopened thread without loaded reply events)
-    // also contributes its reply timestamp.
-    const summaryRoom = makeRealRoom('!summary:example.org', client);
-    const summaryReplyRaw = {
-      type: 'm.room.message',
-      room_id: summaryRoom.roomId,
-      event_id: '$s2',
-      sender: '@bob:example.org',
-      origin_server_ts: 750,
-      content: {
-        msgtype: 'm.text',
-        body: 'summary latest reply',
-        'm.relates_to': { rel_type: 'm.thread', event_id: '$s1' },
-      },
-    };
-    const summaryRoot = makeMatrixEvent(
-      summaryRoom.roomId,
-      '$s1',
-      100,
-      { msgtype: 'm.text', body: 'root' },
-      {
-        'm.relations': {
-          'm.thread': {
-            latest_event: summaryReplyRaw,
-            count: 1,
-            current_user_participated: false,
+    // Bundled thread summary (replyToEvent on an unopened thread) contributes its reply timestamp.
+    const summaryRoot = msg(summaryRoom.roomId, '$s1', 100, undefined, {
+      'm.relations': {
+        'm.thread': {
+          latest_event: {
+            type: 'm.room.message',
+            room_id: summaryRoom.roomId,
+            event_id: '$s2',
+            sender: '@bob:example.org',
+            origin_server_ts: 750,
+            content: { msgtype: 'm.text', body: 'reply', ...rel('m.thread', '$s1') },
           },
+          count: 1,
+          current_user_participated: false,
         },
-      }
-    );
-    await summaryRoom.addLiveEvents([summaryRoot], { addToState: false });
+      },
+    });
+    await addLive(summaryRoom, summaryRoot);
     summaryRoom.createThread('$s1', summaryRoot, [], false);
     expect(getRoomActivityTimestamp(summaryRoom)).toBe(750);
   });
 
   it('lifts parent rooms by descendant sub-room activity and breaks ties by input order', () => {
-    const rooms = new Map(
-      [
-        makeFakeRoom('!alpha', 100),
-        makeFakeRoom('!alpha-sub', 500),
-        makeFakeRoom('!alpha-grand', 900),
-        makeFakeRoom('!beta', 700),
-        makeFakeRoom('!gamma', 700),
-      ].map((room) => [room.roomId, room])
-    );
+    const fakeList = [
+      fakeRoom('!a', 100),
+      fakeRoom('!a1', 500),
+      fakeRoom('!a2', 900),
+      fakeRoom('!b', 700),
+      fakeRoom('!c', 700),
+    ];
+    const rooms = new Map(fakeList.map((r) => [r.roomId, r]));
     const client = { getRoom: (id: string) => rooms.get(id) ?? null } as unknown as MatrixClient;
     const tree = {
       children: new Map([
-        ['!alpha', ['!alpha-sub']],
-        ['!alpha-sub', ['!alpha-grand']],
+        ['!a', ['!a1']],
+        ['!a1', ['!a2']],
       ]),
     };
 
-    expect(getSubRoomTreeActivityTs(client, '!alpha', tree)).toBe(900);
-    expect(sortRoomIdsByActivity(client, ['!alpha', '!beta', '!gamma'], tree)).toEqual([
-      '!alpha',
-      '!beta',
-      '!gamma',
-    ]);
+    expect(getSubRoomTreeActivityTs(client, '!a', tree)).toBe(900);
+    expect(sortRoomIdsByActivity(client, ['!a', '!b', '!c'], tree)).toEqual(['!a', '!b', '!c']);
   });
 
   it('ignores state events, reactions, redactions, redacted messages, and hidden references while counting supported message types', async () => {
-    const client = makeRealClient();
-    const roomA = makeRealRoom('!a:example.org', client);
-    const roomB = makeRealRoom('!b:example.org', client);
-    const stateOnly = makeRealRoom('!state-only:example.org', client);
-    const roomsById = new Map([
-      [roomA.roomId, roomA],
-      [roomB.roomId, roomB],
-      [stateOnly.roomId, stateOnly],
-    ]);
-    vi.spyOn(client, 'getRoom').mockImplementation((id) => roomsById.get(id ?? '') ?? null);
+    const { client, rooms } = makeRealRooms('!a:ex', '!b:ex', '!state:ex');
+    const [roomA, roomB, stateOnly] = rooms as [Room, Room, Room];
+    const idA = roomA.roomId;
 
-    await roomA.addLiveEvents(
-      [
-        makeMatrixEvent(roomA.roomId, '$a1', 100, { msgtype: 'm.text', body: 'hello' }),
-        makeMatrixEvent(roomA.roomId, '$a2', 250, { msgtype: 'm.text', body: 'removed' }),
-        makeEvent(roomA.roomId, '$a3', 300, 'm.room.redaction', {}, { redacts: '$a2' }),
-        makeEvent(
-          roomA.roomId,
-          '$a4',
-          350,
-          'com.example.room_features',
-          { capabilities: ['threads'] },
-          { state_key: '' }
-        ),
-        makeEvent(
-          roomA.roomId,
-          '$a5',
-          400,
-          'm.room.member',
-          { membership: 'join' },
-          { state_key: '@bob:example.org' }
-        ),
-        makeEvent(
-          roomA.roomId,
-          '$a6',
-          450,
-          'm.room.topic',
-          { topic: 'updated' },
-          { state_key: '' }
-        ),
-        makeEvent(roomA.roomId, '$a7', 500, 'm.reaction', {
-          'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$a1', key: '👍' },
-        }),
-        makeEvent(roomA.roomId, '$a8', 550, 'm.room.encrypted', {
-          algorithm: 'm.megolm.v1.aes-sha2',
-          ciphertext: 'opaque',
-          'm.relates_to': { rel_type: RelationType.Reference, event_id: '$a1' },
-        }),
-      ],
-      { addToState: false }
+    await addLive(
+      roomA,
+      msg(idA, '$a1', 100),
+      msg(idA, '$a2', 250),
+      ev(idA, '$a3', 300, 'm.room.redaction', {}, { redacts: '$a2' }),
+      ev(idA, '$a4', 350, 'com.example.room_features', { caps: ['t'] }, { state_key: '' }),
+      ev(idA, '$a5', 400, 'm.room.member', { membership: 'join' }, { state_key: '@bob:ex' }),
+      ev(idA, '$a6', 450, 'm.room.topic', { topic: 'updated' }, { state_key: '' }),
+      ev(idA, '$a7', 500, 'm.reaction', rel(RelationType.Annotation, '$a1', { key: '👍' })),
+      enc(idA, '$a8', 550, rel(RelationType.Reference, '$a1'))
     );
-    await roomB.addLiveEvents(
-      [makeMatrixEvent(roomB.roomId, '$b1', 200, { msgtype: 'm.text', body: 'newer' })],
-      { addToState: false }
-    );
+    await addLive(roomB, msg(roomB.roomId, '$b1', 200));
 
     expect(roomA.findEventById('$a2')?.isRedacted()).toBe(true);
     expect(roomA.getLastActiveTimestamp()).toBe(550);
     expect(getRoomActivityTimestamp(roomA)).toBe(100);
-    expect(sortRoomIdsByActivity(client, [roomA.roomId, roomB.roomId])).toEqual([
-      roomB.roomId,
-      roomA.roomId,
-    ]);
+    expect(sortRoomIdsByActivity(client, [idA, roomB.roomId])).toEqual([roomB.roomId, idA]);
 
     // Room with only state events in its live timeline returns 0 (does not fall back).
-    await stateOnly.addLiveEvents(
-      [
-        makeEvent(stateOnly.roomId, '$s1', 100, 'm.room.create', {}, { state_key: '' }),
-        makeEvent(
-          stateOnly.roomId,
-          '$s2',
-          900,
-          'com.example.room_features',
-          { capabilities: ['threads'] },
-          { state_key: '' }
-        ),
-      ],
-      { addToState: false }
+    await addLive(
+      stateOnly,
+      ev(stateOnly.roomId, '$s1', 100, 'm.room.create', {}, { state_key: '' }),
+      ev(stateOnly.roomId, '$s2', 900, 'com.example.room_features', {}, { state_key: '' })
     );
     expect(stateOnly.getLastActiveTimestamp()).toBe(900);
     expect(getRoomActivityTimestamp(stateOnly)).toBe(0);
 
-    // Supported message types DO count as activity.
-    for (const [id, ts, type, content] of [
-      ['$a9', 600, 'm.sticker', { body: 'wave' }],
-      [
-        '$a10',
-        700,
-        'm.room.encrypted',
-        { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'opaque' },
-      ],
-      ['$a11', 800, 'io.mindroom.tool_approval', { status: 'pending' }],
+    // Supported non-text message types DO count as activity.
+    for (const [ts, event] of [
+      [600, ev(idA, '$a9', 600, 'm.sticker', { body: 'wave' })],
+      [700, enc(idA, '$a10', 700)],
+      [800, ev(idA, '$a11', 800, 'io.mindroom.tool_approval', { status: 'pending' })],
     ] as const) {
-      await roomA.addLiveEvents([makeEvent(roomA.roomId, id, ts, type, content)], {
-        addToState: false,
-      });
+      await addLive(roomA, event);
       expect(getRoomActivityTimestamp(roomA)).toBe(ts);
     }
   });
@@ -336,154 +245,44 @@ describe('useRoomActivityListener', () => {
     renderer = undefined;
   });
 
-  const makeTimelineEvent = (
-    opts: {
-      type?: string;
-      stateKey?: string;
-      replace?: boolean;
-      redaction?: boolean;
-    } = {}
-  ) => ({
-    getType: () => opts.type ?? (opts.redaction ? 'm.room.redaction' : 'm.room.message'),
+  function Harness(props: { sections: ActivityTrackedSection[]; onChange: () => void }) {
+    useRoomActivityListener(props.sections, props.onChange);
+    return null;
+  }
+
+  const mountListener = (
+    client: MatrixClient,
+    sections: ActivityTrackedSection[],
+    onChange: () => void
+  ) => {
+    const el = React.createElement(
+      MatrixClientProvider,
+      { value: client },
+      React.createElement(Harness, { sections, onChange })
+    );
+    act(() => {
+      if (renderer) renderer.update(el);
+      else renderer = create(el);
+    });
+  };
+
+  const mockEvent = (opts: { type?: string; stateKey?: string; replace?: boolean } = {}) => ({
+    getType: () => opts.type ?? 'm.room.message',
     getStateKey: () => opts.stateKey,
     getRelation: () => (opts.replace ? { rel_type: RelationType.Replace } : null),
     isRedacted: () => false,
-    isRedaction: () => Boolean(opts.redaction),
+    isRedaction: () => false,
   });
 
-  it('subscribes only when enabled and ignores non-messages, backfill, unrelated rooms, and no-op order updates', () => {
-    const rooms = new Map(
-      [makeFakeRoom('!a', 3000), makeFakeRoom('!b', 2000), makeFakeRoom('!b-sub', 1000)].map(
-        (room) => [room.roomId, room]
-      )
-    );
-    const emitter = new EventEmitter();
-    const onSpy = vi.spyOn(emitter, 'on');
-    const offSpy = vi.spyOn(emitter, 'off');
-    const client = Object.assign(emitter, {
-      getRoom: (id: string) => rooms.get(id) ?? null,
-    }) as unknown as MatrixClient;
-    const onChange = vi.fn();
-
-    const tree = { children: new Map([['!b', ['!b-sub']]]) };
-    const section = (opts: Partial<ActivityTrackedSection>): ActivityTrackedSection => ({
-      recent: false,
-      showTimes: false,
-      baseTop: ['!a', '!b'],
-      orderedTop: ['!a', '!b'],
-      tree,
-      trackedRoomIds: new Set(['!a', '!b', '!b-sub']),
-      ...opts,
-    });
-
-    function Harness({ sections }: { sections: ActivityTrackedSection[] }) {
-      useRoomActivityListener(sections, onChange);
-      return null;
+  const setupRealListener = async () => {
+    const { client, rooms } = makeRealRooms('!a:ex', '!b:ex');
+    const [roomA, roomB] = rooms as [Room, Room];
+    for (const room of [roomA, roomB]) {
+      room.on(RoomEvent.Timeline, (...args) => client.emit(RoomEvent.Timeline, ...args));
+      room.on(RoomEvent.Redaction, (...args) => client.emit(RoomEvent.Redaction, ...args));
     }
-
-    // Disabled -> no Timeline listener at all.
-    act(() => {
-      renderer = create(
-        React.createElement(
-          MatrixClientProvider,
-          { value: client },
-          React.createElement(Harness, { sections: [section({})] })
-        )
-      );
-    });
-    expect(onSpy).not.toHaveBeenCalled();
-
-    // Enabled for Recent mode only.
-    act(() => {
-      renderer!.update(
-        React.createElement(
-          MatrixClientProvider,
-          { value: client },
-          React.createElement(Harness, { sections: [section({ recent: true })] })
-        )
-      );
-    });
-    expect(onSpy).toHaveBeenCalledTimes(1);
-
-    const emitLive = (event: ReturnType<typeof makeTimelineEvent>, room: FakeRoom | undefined) =>
-      emitter.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent: true });
-
-    // Ignore backfill, non-live events, m.replace edits, state events, reactions, and untracked rooms.
-    rooms.get('!b')!.ts = 9000;
-    emitter.emit(RoomEvent.Timeline, makeTimelineEvent(), rooms.get('!b'), true, false, {
-      liveEvent: true,
-    });
-    emitter.emit(RoomEvent.Timeline, makeTimelineEvent(), rooms.get('!b'), false, false, {
-      liveEvent: false,
-    });
-    emitLive(makeTimelineEvent({ replace: true }), rooms.get('!b'));
-    emitLive(
-      makeTimelineEvent({ type: 'com.example.room_features', stateKey: '' }),
-      rooms.get('!b')
-    );
-    emitLive(makeTimelineEvent({ type: 'm.reaction' }), rooms.get('!b'));
-    emitLive(makeTimelineEvent(), makeFakeRoom('!other', 9999));
-    expect(onChange).not.toHaveBeenCalled();
-
-    // Message in top room that preserves order does not bump when showTimes is off.
-    rooms.get('!b')!.ts = 2000;
-    rooms.get('!a')!.ts = 4000;
-    emitLive(makeTimelineEvent(), rooms.get('!a'));
-    expect(onChange).not.toHaveBeenCalled();
-
-    // Live message in nested sub-room lifts !b above !a -> bumps!
-    rooms.get('!b-sub')!.ts = 5000;
-    emitLive(makeTimelineEvent(), rooms.get('!b-sub'));
-    expect(onChange).toHaveBeenCalledTimes(1);
-
-    // With showTimes on (even in A to Z mode), a live message or redaction refreshes, while state events do not.
-    onChange.mockClear();
-    act(() => {
-      renderer!.update(
-        React.createElement(
-          MatrixClientProvider,
-          { value: client },
-          React.createElement(Harness, { sections: [section({ recent: false, showTimes: true })] })
-        )
-      );
-    });
-    emitLive(makeTimelineEvent({ type: 'm.room.topic', stateKey: '' }), rooms.get('!a'));
-    expect(onChange).not.toHaveBeenCalled();
-    rooms.get('!a')!.ts = 6000;
-    emitLive(makeTimelineEvent(), rooms.get('!a'));
-    emitLive(makeTimelineEvent({ redaction: true }), rooms.get('!a'));
-    expect(onChange).toHaveBeenCalledTimes(2);
-
-    // Disabling unsubscribes cleanly.
-    act(() => {
-      renderer!.update(
-        React.createElement(
-          MatrixClientProvider,
-          { value: client },
-          React.createElement(Harness, { sections: [section({})] })
-        )
-      );
-    });
-    expect(offSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-sorts when a live thread reply arrives on a real matrix-js-sdk Room', async () => {
-    const client = makeRealClient();
-    const roomA = makeRealRoom('!a:example.org', client);
-    const roomB = makeRealRoom('!b:example.org', client);
-    const roomsById = new Map([
-      [roomA.roomId, roomA],
-      [roomB.roomId, roomB],
-    ]);
-    vi.spyOn(client, 'getRoom').mockImplementation((id) => roomsById.get(id ?? '') ?? null);
-    // Match MatrixClient sync re-emission of RoomEvent.Timeline from rooms.
-    roomA.on(RoomEvent.Timeline, (...args) => client.emit(RoomEvent.Timeline, ...args));
-    roomB.on(RoomEvent.Timeline, (...args) => client.emit(RoomEvent.Timeline, ...args));
-
-    const aRoot = makeMatrixEvent(roomA.roomId, '$a1', 100, { msgtype: 'm.text', body: 'root' });
-    const bMsg = makeMatrixEvent(roomB.roomId, '$b1', 200, { msgtype: 'm.text', body: 'newer' });
-    await roomA.addLiveEvents([aRoot], { addToState: false });
-    await roomB.addLiveEvents([bMsg], { addToState: false });
+    await addLive(roomA, msg(roomA.roomId, '$a1', 100));
+    await addLive(roomB, msg(roomB.roomId, '$b1', 200));
 
     const onChange = vi.fn();
     const trackedSection: ActivityTrackedSection = {
@@ -494,67 +293,201 @@ describe('useRoomActivityListener', () => {
       tree: { children: new Map() },
       trackedRoomIds: new Set([roomA.roomId, roomB.roomId]),
     };
-    const sections: ActivityTrackedSection[] = [trackedSection];
-    function Harness() {
-      useRoomActivityListener(sections, onChange);
-      return null;
-    }
-    act(() => {
-      renderer = create(
-        React.createElement(MatrixClientProvider, { value: client }, React.createElement(Harness))
-      );
-    });
+    mountListener(client, [trackedSection], onChange);
+    return { client, roomA, roomB, trackedSection, onChange };
+  };
 
-    // Live state events and reactions in roomA do not refresh or bump roomA.
+  const decryptEvent = async (
+    client: MatrixClient,
+    event: MatrixEvent,
+    type: string,
+    content: Rec
+  ) => {
+    event.on(MatrixEventEvent.Decrypted, (...args) =>
+      client.emit(MatrixEventEvent.Decrypted, ...args)
+    );
     await act(async () => {
-      await roomA.addLiveEvents(
-        [
-          makeEvent(
-            roomA.roomId,
-            '$a_state',
-            300,
-            'com.example.room_features',
-            { capabilities: ['threads'] },
-            { state_key: '' }
-          ),
-          makeEvent(roomA.roomId, '$a_react', 350, 'm.reaction', {
-            'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$a1', key: '🎉' },
-          }),
-        ],
-        { addToState: false }
-      );
+      await event.attemptDecryption({
+        decryptEvent: async () => ({
+          clearEvent: { type, content },
+          senderCurve25519Key: 'k',
+          claimedEd25519Key: 'k',
+          forwardingCurve25519KeyChain: [],
+        }),
+      } as never);
     });
+  };
+
+  it('subscribes only when enabled and ignores non-messages, backfill, unrelated rooms, and no-op order updates', () => {
+    const rooms = new Map(
+      [fakeRoom('!a', 3000), fakeRoom('!b', 2000), fakeRoom('!b-sub', 1000)].map((r) => [
+        r.roomId,
+        r,
+      ])
+    );
+    const emitter = new EventEmitter();
+    const [onSpy, offSpy, onChange] = [vi.spyOn(emitter, 'on'), vi.spyOn(emitter, 'off'), vi.fn()];
+    const client = Object.assign(emitter, {
+      getRoom: (id: string) => rooms.get(id) ?? null,
+    }) as unknown as MatrixClient;
+    const section = (opts: Partial<ActivityTrackedSection>): ActivityTrackedSection => ({
+      recent: false,
+      showTimes: false,
+      baseTop: ['!a', '!b'],
+      orderedTop: ['!a', '!b'],
+      tree: { children: new Map([['!b', ['!b-sub']]]) },
+      trackedRoomIds: new Set(['!a', '!b', '!b-sub']),
+      ...opts,
+    });
+    const emitLive = (event: ReturnType<typeof mockEvent>, room: FakeRoom | undefined) =>
+      emitter.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent: true });
+
+    mountListener(client, [section({})], onChange);
+    expect(onSpy).not.toHaveBeenCalled();
+    mountListener(client, [section({ recent: true })], onChange);
+    expect(onSpy).toHaveBeenCalledTimes(3);
+
+    rooms.get('!b')!.ts = 9000;
+    emitter.emit(RoomEvent.Timeline, mockEvent(), rooms.get('!b'), true, false, {
+      liveEvent: true,
+    });
+    emitter.emit(RoomEvent.Timeline, mockEvent(), rooms.get('!b'), false, false, {
+      liveEvent: false,
+    });
+    for (const ignored of [
+      { replace: true },
+      { type: 'com.example.room_features', stateKey: '' },
+      { type: 'm.reaction' },
+    ]) {
+      emitLive(mockEvent(ignored), rooms.get('!b'));
+    }
+    emitLive(mockEvent(), fakeRoom('!other', 9999));
+    expect(onChange).not.toHaveBeenCalled();
+
+    rooms.get('!b')!.ts = 2000;
+    rooms.get('!a')!.ts = 4000;
+    emitLive(mockEvent(), rooms.get('!a'));
+    expect(onChange).not.toHaveBeenCalled();
+
+    rooms.get('!b-sub')!.ts = 5000;
+    emitLive(mockEvent(), rooms.get('!b-sub'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    // With showTimes on (even in A to Z mode), live messages and RoomEvent.Redaction refresh; state events do not.
+    onChange.mockClear();
+    mountListener(client, [section({ recent: false, showTimes: true })], onChange);
+    emitLive(mockEvent({ type: 'm.room.topic', stateKey: '' }), rooms.get('!a'));
+    expect(onChange).not.toHaveBeenCalled();
+    rooms.get('!a')!.ts = 6000;
+    emitLive(mockEvent(), rooms.get('!a'));
+    emitter.emit(RoomEvent.Redaction, {}, rooms.get('!a'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    mountListener(client, [section({})], onChange);
+    expect(offSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it('re-sorts on live thread replies and remote or local-echo redactions on real matrix-js-sdk Rooms', async () => {
+    const { client, roomA, roomB, trackedSection, onChange } = await setupRealListener();
+    const idA = roomA.roomId;
+
+    // Live state events and reactions do not refresh or bump roomA.
+    await liveAct(
+      roomA,
+      ev(idA, '$a_state', 300, 'com.example.room_features', {}, { state_key: '' }),
+      ev(idA, '$a_react', 350, 'm.reaction', rel(RelationType.Annotation, '$a1', { key: '🎉' }))
+    );
     expect(getRoomActivityTimestamp(roomA)).toBe(100);
     expect(onChange).not.toHaveBeenCalled();
 
-    // Live thread reply in roomA at ts=400 emits RoomEvent.Timeline and lifts roomA above roomB.
-    const aReply = makeMatrixEvent(roomA.roomId, '$a2', 400, {
-      msgtype: 'm.text',
-      body: 'reply',
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$a1', is_falling_back: true },
-    });
-    await act(async () => {
-      await roomA.addLiveEvents([aReply], { addToState: false });
-    });
+    // Live thread reply at ts=400 lifts roomA above roomB.
+    await liveAct(roomA, msg(idA, '$a2', 400, rel('m.thread', '$a1', { is_falling_back: true })));
     expect(roomA.getThread('$a1')).toBeInstanceOf(Thread);
-    expect(
-      roomA
-        .getLiveTimeline()
-        .getEvents()
-        .map((e) => e.getId())
-    ).not.toContain('$a2');
+    expect(liveIds(roomA)).not.toContain('$a2');
     expect(getRoomActivityTimestamp(roomA)).toBe(400);
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    // Live redaction of the thread reply lets roomA fall back to ts=100 and triggers re-sort.
-    trackedSection.orderedTop = [roomA.roomId, roomB.roomId];
-    await act(async () => {
-      await roomA.addLiveEvents(
-        [makeEvent(roomA.roomId, '$a_redact', 500, 'm.room.redaction', {}, { redacts: '$a2' })],
-        { addToState: false }
-      );
+    // Remote redaction refreshes once via RoomEvent.Redaction and drops roomA back to ts=100.
+    trackedSection.orderedTop = [idA, roomB.roomId];
+    await liveAct(roomA, ev(idA, '$a_red', 500, 'm.room.redaction', {}, { redacts: '$a2' }));
+    expect(getRoomActivityTimestamp(roomA)).toBe(100);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    // Local-echo delete: Timeline fires while target is unredacted; sync confirmation fires RoomEvent.Redaction with no second Timeline.
+    trackedSection.orderedTop = [roomB.roomId, idA];
+    await liveAct(roomA, msg(idA, '$a3', 600));
+    expect(getRoomActivityTimestamp(roomA)).toBe(600);
+    expect(onChange).toHaveBeenCalledTimes(3);
+    trackedSection.orderedTop = [idA, roomB.roomId];
+
+    const localRedaction = ev(idA, '~local_red', 650, 'm.room.redaction', {}, { redacts: '$a3' });
+    localRedaction.setStatus(EventStatus.SENDING);
+    localRedaction.setTxnId('txn_del_1');
+    act(() => roomA.addPendingEvent(localRedaction, 'txn_del_1'));
+    expect(roomA.findEventById('$a3')?.isRedacted()).toBe(false);
+    expect(getRoomActivityTimestamp(roomA)).toBe(600);
+    expect(onChange).toHaveBeenCalledTimes(3);
+
+    const timelineSpy = vi.fn();
+    client.on(RoomEvent.Timeline, timelineSpy);
+    const remoteRed = ev(
+      idA,
+      '$a_echo',
+      700,
+      'm.room.redaction',
+      {},
+      { redacts: '$a3', unsigned: { transaction_id: 'txn_del_1' } }
+    );
+    await liveAct(roomA, remoteRed);
+    client.off(RoomEvent.Timeline, timelineSpy);
+    expect(timelineSpy).not.toHaveBeenCalled();
+    expect(roomA.findEventById('$a3')?.isRedacted()).toBe(true);
+    expect(getRoomActivityTimestamp(roomA)).toBe(100);
+    expect(onChange).toHaveBeenCalledTimes(4);
+  });
+
+  it('refreshes on MatrixEventEvent.Decrypted when decryption changes activity status and skips older events', async () => {
+    const { client, roomA, roomB, trackedSection, onChange } = await setupRealListener();
+    const idA = roomA.roomId;
+
+    // 1. Encrypted event lifts roomA, then decrypts to a non-message -> drops roomA back.
+    const encryptedNonMsg = enc(idA, '$e1', 400);
+    await liveAct(roomA, encryptedNonMsg);
+    expect(getRoomActivityTimestamp(roomA)).toBe(400);
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    trackedSection.orderedTop = [idA, roomB.roomId];
+    await decryptEvent(client, encryptedNonMsg, 'io.mindroom.background_job_cancel', {
+      job_id: 'job-1',
     });
     expect(getRoomActivityTimestamp(roomA)).toBe(100);
     expect(onChange).toHaveBeenCalledTimes(2);
+
+    // 2. Encrypted m.reference initially ignored, then decrypts to a visible message -> lifts roomA.
+    trackedSection.orderedTop = [roomB.roomId, idA];
+    const encryptedRef = enc(idA, '$e2', 500, rel(RelationType.Reference, '$a1'));
+    await liveAct(roomA, encryptedRef);
+    expect(getRoomActivityTimestamp(roomA)).toBe(100);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    await decryptEvent(client, encryptedRef, 'm.room.message', {
+      msgtype: 'm.text',
+      body: 'ref',
+      ...rel(RelationType.Reference, '$a1'),
+    });
+    expect(getRoomActivityTimestamp(roomA)).toBe(500);
+    expect(onChange).toHaveBeenCalledTimes(3);
+
+    // 3. Old backfilled encrypted event decrypting does NOT trigger onChange even with showTimes: true.
+    trackedSection.showTimes = true;
+    onChange.mockClear();
+    const oldEncrypted = enc(idA, '$e_old', 50);
+    roomA.getUnfilteredTimelineSet().addEventToTimeline(oldEncrypted, roomA.getLiveTimeline(), {
+      toStartOfTimeline: true,
+      addToState: false,
+    });
+    await decryptEvent(client, oldEncrypted, 'm.room.message', { msgtype: 'm.text', body: 'old' });
+    expect(getRoomActivityTimestamp(roomA)).toBe(500);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

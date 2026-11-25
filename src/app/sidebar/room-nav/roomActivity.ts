@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import {
+  MatrixEventEvent,
   RoomEvent,
   type MatrixClient,
   type MatrixEvent,
+  type MatrixEventHandlerMap,
   type Room,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
@@ -128,9 +130,10 @@ export type ActivityTrackedSection = {
 
 /**
  * Subscribes to live timeline events (both main timeline and thread replies, which `matrix-js-sdk`
- * re-emits on the client as `RoomEvent.Timeline`) only while at least one tracked section uses
- * Recent sorting or shows activity times, ignoring backfill and non-message events (state events,
- * reactions, `m.replace` edits, hidden references) while still refreshing on live redactions.
+ * re-emits on the client as `RoomEvent.Timeline`), `RoomEvent.Redaction` (covering both remote
+ * redactions and local-echo delete confirmations), and `MatrixEventEvent.Decrypted` only while at
+ * least one tracked section uses Recent sorting or shows activity times, ignoring backfill and
+ * non-message events (state events, reactions, `m.replace` edits, hidden references).
  */
 export const useRoomActivityListener = (
   sections: readonly ActivityTrackedSection[],
@@ -145,17 +148,15 @@ export const useRoomActivityListener = (
 
   useEffect(() => {
     if (!enabled) return undefined;
-    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
-      event,
-      room,
-      toStartOfTimeline,
-      _removed,
-      data
-    ) => {
-      if (!room || toStartOfTimeline || !data.liveEvent) return;
-      if (!isActivityMessageEvent(event) && !event?.isRedaction?.()) return;
+    const isTrackedRoom = (roomId: string): boolean =>
+      sectionsRef.current.some(
+        (section) => (section.recent || section.showTimes) && section.trackedRoomIds.has(roomId)
+      );
+
+    const refreshTrackedRoom = (roomId: string | undefined): void => {
+      if (!roomId) return;
       for (const section of sectionsRef.current) {
-        if ((!section.recent && !section.showTimes) || !section.trackedRoomIds.has(room.roomId)) {
+        if ((!section.recent && !section.showTimes) || !section.trackedRoomIds.has(roomId)) {
           continue;
         }
         if (
@@ -170,9 +171,40 @@ export const useRoomActivityListener = (
         }
       }
     };
+
+    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      event,
+      room,
+      toStartOfTimeline,
+      _removed,
+      data
+    ) => {
+      if (!room || toStartOfTimeline || !data.liveEvent) return;
+      if (!isActivityMessageEvent(event)) return;
+      refreshTrackedRoom(room.roomId);
+    };
+
+    const onRedaction: RoomEventHandlerMap[RoomEvent.Redaction] = (_event, room) => {
+      refreshTrackedRoom(room?.roomId);
+    };
+
+    const onDecrypted: MatrixEventHandlerMap[MatrixEventEvent.Decrypted] = (event) => {
+      const roomId = event?.getRoomId?.();
+      if (!roomId || !isTrackedRoom(roomId)) return;
+      const room = client.getRoom(roomId);
+      if (!room) return;
+      const eventTs = validTs(event.getTs?.());
+      if (eventTs > 0 && eventTs < getRoomActivityTimestamp(room)) return;
+      refreshTrackedRoom(roomId);
+    };
+
     client.on(RoomEvent.Timeline, onTimeline);
+    client.on(RoomEvent.Redaction, onRedaction);
+    client.on(MatrixEventEvent.Decrypted, onDecrypted);
     return () => {
       client.off(RoomEvent.Timeline, onTimeline);
+      client.off(RoomEvent.Redaction, onRedaction);
+      client.off(MatrixEventEvent.Decrypted, onDecrypted);
     };
   }, [client, enabled]);
 };
