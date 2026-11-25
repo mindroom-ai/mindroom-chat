@@ -85,7 +85,12 @@ const readThreadInsets = (page: Page) =>
     const composer = Number.parseFloat(style.getPropertyValue('--room-composer-height'));
     const footerHeight = Number.parseFloat(style.getPropertyValue('--room-footer-height'));
     if (!Number.isFinite(composer) || !Number.isFinite(footerHeight)) return null;
-    return { composer, footerHeight, dock: footerHeight - composer };
+    return {
+      composer,
+      composerOffsetHeight: footer.offsetHeight,
+      footerHeight,
+      dock: footerHeight - composer,
+    };
   });
 
 const saveShot = async (page: Page, name: string): Promise<void> => {
@@ -269,8 +274,8 @@ const verifyJumpToLatestStableWithTyping = async (
         timeout: 10_000,
       })
       .toBe(true);
-    const touchHits = await jumpToLatest.evaluate((button) => {
-      const probe = () => {
+    const probeTouchEdges = () =>
+      jumpToLatest.evaluate((button) => {
         const rect = button.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -285,25 +290,56 @@ const verifyJumpToLatestStableWithTyping = async (
           topInside: !!topHit && button.contains(topHit),
           bottomInside: !!bottomHit && button.contains(bottomHit),
         };
-      };
-      const defaultZoom = probe();
-      const previousFontSize = document.documentElement.style.fontSize;
-      let zoom75: ReturnType<typeof probe>;
-      try {
-        document.documentElement.style.fontSize = '75%';
-        zoom75 = probe();
-      } finally {
-        document.documentElement.style.fontSize = previousFontSize;
+      });
+
+    const defaultInsets = await readThreadInsets(page);
+    expect(defaultInsets).not.toBeNull();
+    const defaultTouch = await probeTouchEdges();
+    expect(defaultTouch.leftInside).toBe(true);
+    expect(defaultTouch.rightInside).toBe(true);
+    expect(defaultTouch.topInside).toBe(true);
+    expect(defaultTouch.bottomInside).toBe(true);
+
+    const previousFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+    try {
+      for (const [fontSize, maxButtonWidth] of [
+        ['75%', 25],
+        ['50%', 17],
+      ] as const) {
+        await page.evaluate((size) => {
+          document.documentElement.style.fontSize = size;
+        }, fontSize);
+        await expect
+          .poll(async () => {
+            const [insets, probe] = await Promise.all([readThreadInsets(page), probeTouchEdges()]);
+            return (
+              insets !== null &&
+              insets.composer === insets.composerOffsetHeight &&
+              probe.width <= maxButtonWidth
+            );
+          })
+          .toBe(true);
+        const zoomedTouch = await probeTouchEdges();
+        expect(zoomedTouch.leftInside).toBe(true);
+        expect(zoomedTouch.rightInside).toBe(true);
+        expect(zoomedTouch.topInside).toBe(true);
+        expect(zoomedTouch.bottomInside).toBe(true);
       }
-      return { defaultZoom, zoom75 };
-    });
-    expect(touchHits.defaultZoom.leftInside).toBe(true);
-    expect(touchHits.defaultZoom.rightInside).toBe(true);
-    expect(touchHits.defaultZoom.topInside).toBe(true);
-    expect(touchHits.defaultZoom.bottomInside).toBe(true);
-    expect(touchHits.zoom75.width).toBeLessThanOrEqual(25);
-    expect(touchHits.zoom75.leftInside).toBe(true);
-    expect(touchHits.zoom75.rightInside).toBe(true);
+    } finally {
+      await page.evaluate((size) => {
+        document.documentElement.style.fontSize = size;
+      }, previousFontSize);
+      await expect
+        .poll(async () => {
+          const insets = await readThreadInsets(page);
+          return (
+            insets !== null &&
+            insets.composer === insets.composerOffsetHeight &&
+            Math.abs(insets.composer - (defaultInsets?.composer ?? 0)) <= 1
+          );
+        })
+        .toBe(true);
+    }
   }
 
   await setTyping(false);

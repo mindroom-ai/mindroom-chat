@@ -62,6 +62,11 @@ export const JumpToLatestFloat = style({
     [compactJumpArea]: {
       bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S200})`,
       maxWidth: 'none',
+      '@media': {
+        '(pointer: coarse)': {
+          bottom: `calc(var(--room-composer-height, ${footerInset}) + max(${config.space.S200}, calc(22px - 1rem)))`,
+        },
+      },
     },
   },
 });
@@ -73,10 +78,10 @@ export const JumpToLatestFloat = style({
  * `FloatingAction`'s `&&` height/padding rules regardless of stylesheet order.
  */
 export const JumpToLatestButton = style([
-  // Placed after FloatingAction so its 12px inline reach overrides FloatingAction's 4px and
-  // guarantees a full 44 × 44 px hit area on the outlined 32 × 32 px button from 75% (22 px
-  // padding box, -11 px) through 100%+ (30 px padding box, -7 px) zoom.
-  touchTarget('12px'),
+  // Placed after FloatingAction so its 16px inline reach overrides FloatingAction's 4px and
+  // guarantees a full 44 × 44 px hit area on the outlined 32 × 32 px button across Page Zoom
+  // levels down to 50% (14 px padding box, -15 px) without exceeding 44 px.
+  touchTarget('16px'),
   {
     '@container': {
       [compactJumpArea]: {
