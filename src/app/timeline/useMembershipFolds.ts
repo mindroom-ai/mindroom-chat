@@ -183,7 +183,7 @@ export const readRenderedRoomRows = (
     }
     sizes.set(id, size);
   });
-  return { sizes, view, rows: windowRows, list: virtualizer };
+  return { sizes, view, list: virtualizer };
 };
 
 /**

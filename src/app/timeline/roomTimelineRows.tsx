@@ -181,11 +181,9 @@ const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 const TURN_BREAK_ESTIMATE_PX = 42;
 
 /**
- * The virtual list's row sizes and keys for this render. Room indexes count from the window's
- * first row; a fold prices rows above it (negative). The estimate reads the newest rows and window
- * through refs: the paginator folds a widened window in its layout effect, before the ledger hands
- * over this render's pricing, and a fold priced apart from the rows the virtual list then lays out
- * moves the reader.
+ * The virtual list's row sizes and keys for this render. Room indexes follow the leading room
+ * intro item when present, then count from the window's first row. Estimates read the newest rows
+ * and window through refs so a widened window is priced consistently with the rows laid out.
  */
 export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
 const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
@@ -249,10 +247,7 @@ export const timelineRowSizing = ({
           ROOM_INTRO_ESTIMATE_PX + (roomWindowRows.length > 0 ? EXPAND_ALL_LINE_ESTIMATE_PX : 0)
         );
       const rows = roomRowsRef.current;
-      // Negative indexes come from room-fold pricing above the current window; non-negative
-      // virtual indexes follow the leading room intro item when present.
-      const rowIndex =
-        index === undefined ? undefined : index < 0 ? index : index - roomLeadingOffset;
+      const rowIndex = index === undefined ? undefined : index - roomLeadingOffset;
       const position = rowIndex === undefined ? undefined : activeRangeRef.current.start + rowIndex;
       const event = position === undefined ? undefined : rows[position];
       const membershipFold = event && membershipFoldsRef?.current.breaks.get(event.getId() ?? '');

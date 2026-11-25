@@ -316,7 +316,7 @@ const useTimelineDisplaySettings = () => ({
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
  * Full (classic) views show the room timeline, the threaded one with a thread badge under each
  * thread root and the classic one with the replies inline; inside a thread, the root and its
- * replies. Rows are virtualized, and an offset ledger keeps the reader's rows still when rows
+ * replies. Rows are virtualized, and scroll anchoring keeps the reader's rows still when rows
  * land above them.
  *
  * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
@@ -1201,7 +1201,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const hasRoomLeadingIntro = showRoomIntro && !latestAtTop;
   const roomLeadingOffset = hasRoomLeadingIntro ? 1 : 0;
   const roomLeadingOffsetRef = useLatestRef(roomLeadingOffset);
-  // The virtual list and its offset ledger.
+  // The virtual list and its scroll anchoring.
   const itemCount = threadId
     ? threadEvents.length + threadLeadingOffset
     : roomWindowRows.length + roomLeadingOffset;

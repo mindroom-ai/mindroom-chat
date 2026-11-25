@@ -416,7 +416,6 @@ describe('the heights a fold takes over from the rows it holds', () => {
     ]);
     expect(rendered.view).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
     expect(rendered.list?.itemSizeCache).toBe(cache);
-    expect(rendered.rows).toEqual([m4, m5, msg]);
     // A fold that history made of these rows takes their place at their height.
     const fold = planMembershipFolds([m3, m4, m5], {
       isSkipped: () => false,

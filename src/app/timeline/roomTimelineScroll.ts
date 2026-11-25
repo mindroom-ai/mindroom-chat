@@ -390,7 +390,7 @@ export const useLatestRowPin = ({
 /**
  * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
  * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
- * compositor still owns can be discarded (see the offset ledger's discard watch). The area takes
+ * compositor still owns can be discarded. The area takes
  * `overflow-y: hidden` for the write and gets its own value back two frames later, so one frame
  * renders it hidden. iOS only; the timeline's own pins never call it.
  */

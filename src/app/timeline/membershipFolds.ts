@@ -331,8 +331,6 @@ export type RenderedRoomRows = {
   sizes: FoldedRowSizes;
   /** The folds of that render. */
   view: MembershipFoldView;
-  /** The rows of its window. */
-  rows?: readonly MatrixEvent[];
   /** The list itself: its record of the heights it measured, by row key, which it lays rows out by. */
   list?: { itemSizeCache: Map<string | number | bigint, number> };
 };

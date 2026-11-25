@@ -10,10 +10,10 @@
  *
  * The original fix split pagination fetch from its render commit: data
  * is fetched while the flick is in flight, but the commit waits for the
- * scroller to be quiescent. Current thread/room prepends are compensated
- * through the offset ledger without a commit-time scroll write; this
- * waiter also gates the later exactly-cancelling ledger settlement, which
- * DOES write `scrollTop` and therefore must only run at true rest.
+ * scroller to be quiescent. Current thread/room prepends are held by
+ * virtual-core without a commit-time scroll write during active gestures;
+ * this waiter gates consumers that must wait for genuine rest before
+ * updating scroll state or receipts.
  * Quiescence means no scroll events (or wheels that can still start one)
  * for `idleMs`, no sampled `scrollTop` movement during that window, and no
  * active touch. Sampling matters on iOS because compositor momentum can
@@ -22,9 +22,8 @@
  * so the edge case resolves through the same idle path.
  *
  * `maxWaitMs` caps finite pagination waits so a pathological continuous
- * scroller still gets content instead of being starved. Ledger-settlement
- * consumers pass Infinity because their coherent margin can remain live
- * until genuine rest without delaying the fetched content itself.
+ * scroller still gets content instead of being starved. Consumers that
+ * must only run at genuine rest pass Infinity.
  */
 
 // The shared "quiet window" used by every scroll-quiescence consumer.
@@ -34,17 +33,12 @@ export const SCROLL_QUIESCENCE_IDLE_MS = 150;
 // deliver no touch events and pause longer than any idle window while the
 // compositor still owns the scroll position — the DOM offset freezes at
 // the last delivered event, so neither the idle window nor the sampling
-// check can see the live session. A settle write landing in such a pause
-// is DISCARDED: both 2026-07-11 evening rides show folds up to +8,769px
-// reverted to the exact pre-settle offset within 74-300ms
-// (ride-trace-1783829722124 settles 491/617/650, pinned in
-// rideTraceReplay.test.ts). Where the platform ships `scrollend` (WebKit
-// since Safari/iOS 26.2) the session's end is observable directly: a
-// scroll event marks the session live and only its scrollend releases the
-// idle path. The stale TTL bounds a swallowed scrollend, so a wedged flag
-// degrades to a late settle rather than a starved one; the ledger
-// controller's discard watchdog remains the recovery on platforms
-// without the event.
+// check can see the live session. A scroll write landing in such a pause
+// can be discarded by the compositor. Where the platform ships `scrollend`
+// (WebKit since Safari/iOS 26.2) the session's end is observable directly:
+// a scroll event marks the session live and only its scrollend releases
+// the idle path. The stale TTL bounds a swallowed scrollend, so a wedged
+// flag degrades to a late settle rather than a starved one.
 export const SCROLL_SESSION_STALE_MS = 1500;
 
 // Detected per call: the check is one `in` lookup, and jsdom tests
@@ -59,7 +53,7 @@ export type WaitForScrollQuiescenceOptions = {
   // Upper bound on the total wait; the promise always resolves. Pass
   // Infinity for a wait that ONLY resolves on genuine quiescence — a
   // forced resolve mid-motion is a scroll write mid-momentum for
-  // consumers like the ledger settle. (Never pass huge finite values:
+  // consumers waiting for rest. (Never pass huge finite values:
   // setTimeout clamps int32-overflowing delays to 0, turning the cap
   // into an immediate fire — a real bug the ios-momentum e2e caught.)
   maxWaitMs?: number;
@@ -143,8 +137,7 @@ export const waitForScrollQuiescence = (
     // Scroll-session tracking (scrollend-capable platforms only): a wait
     // that observes a scroll event is inside a session until its scrollend
     // arrives or the session goes stale. A wait armed entirely within a
-    // session's pause sees no event and keeps today's idle behavior — the
-    // discard watchdog covers that residue.
+    // session's pause sees no event and keeps the idle-window fallback.
     let scrollSessionLive = false;
     let lastScrollEventAt = 0;
 
