@@ -22,7 +22,6 @@ import {
 } from './app/account/lifecycle/indexedDbLossRecovery';
 import { resolveInitialTheme } from './app/theme/themeBootstrap';
 import { applyAppTheme } from './app/theme/appliedTheme';
-import { bootstrapRideTraceFlagFromUrl } from './app/timeline/rideTraceRecorder';
 import { migratePrefetchSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
 import { isServiceWorkerEnabled } from './app/config/runtimeConfig';
@@ -106,7 +105,6 @@ const prepareDocument = (): void => {
     walkHistoryOnMouseButtons(window);
   });
   runSafely('theme', () => applyAppTheme(resolveInitialTheme()));
-  runSafely('ride trace flag', () => bootstrapRideTraceFlagFromUrl());
   // The legacy push flag moves first, so the settings store migration sees it.
   runSafely('push setting migration', () => {
     migrateLegacyIOSPushEnabled();

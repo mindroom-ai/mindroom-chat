@@ -8,6 +8,7 @@ import { ThreadActionsMenu } from './ThreadActionsMenu';
 import * as css from './ThreadActionsMenu.css';
 import type { RegisteredPlugin } from '../plugins/registry';
 import type { ThreadDetailProps } from '../plugins/threadDetails';
+import { popOutPx } from '../../test/popOutPlacement';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => () => undefined }));
@@ -219,13 +220,13 @@ describe("ThreadActionsMenu's thread details", () => {
       renderMenu(Detail, anchor);
       const positioned = menu().parentElement;
       if (!positioned) throw new Error('The menu has no pop-out');
-      expect(positioned.style.top).toBe('354px');
+      expect(popOutPx(positioned.style.top)).toBe('354px');
 
       await load();
       expect(positioned.textContent).toContain('Loaded details');
       resizeSurfaces();
       // Below the trigger the 600px menu would end at y954, past the 768px viewport.
-      expect(positioned.style.top).toBe('38px');
+      expect(popOutPx(positioned.style.top)).toBe('38px');
     }
   );
 

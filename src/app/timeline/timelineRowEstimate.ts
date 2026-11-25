@@ -26,8 +26,17 @@ const ROW_BASE_PX = { compact: 6, comfortable: 10 } as const;
 const FOLDED_LINES = 9;
 /** No estimate grows past this many lines, however long the content. */
 const MAX_LINES = 48;
-/** Characters per wrapped line, as the text estimate counts them. */
+/** Characters per wrapped line in narrow columns (threads, phones), as the text estimate counts them. */
 const WRAP_CHARS = 48;
+/** Horizontal chrome (avatar, gap, padding) and average glyph width in the classic room column. */
+const ROOM_ROW_CHROME_WIDTH_PX = 96;
+const CHAR_WIDTH_PX = 8;
+
+/** Characters per wrapped line for a room scroll container width; falls back to `WRAP_CHARS`. */
+export const roomWrapCharsForWidth = (widthPx: number | undefined): number =>
+  widthPx && widthPx > 0
+    ? Math.max(WRAP_CHARS, Math.floor((widthPx - ROOM_ROW_CHROME_WIDTH_PX) / CHAR_WIDTH_PX))
+    : WRAP_CHARS;
 /** A code block's language bar and padding around its lines. */
 const CODE_BLOCK_CHROME_PX = 50;
 /** A table row's cell padding, in lines. */
@@ -55,24 +64,28 @@ const TABLE_ROW = /<tr\b/gi;
 const BLOCK_START = /<(p|ul|ol|table|blockquote|h[1-6])\b/gi;
 const ANY_TAG = /<[^>]+>/g;
 
-const wrappedLines = (text: string): number =>
+const wrappedLines = (text: string, wrapChars = WRAP_CHARS): number =>
   text
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .reduce((lines, line) => lines + Math.ceil(line.length / WRAP_CHARS), 0);
+    .reduce((lines, line) => lines + Math.ceil(line.length / wrapChars), 0);
 
-const richHeights = new WeakMap<object, number | undefined>();
+const richHeights = new WeakMap<object, { wrapChars: number; height: number | undefined }>();
 
 /**
  * The height of a message's HTML when it has block structure (code, lists, tables, quotes,
  * headings), before any folding; undefined for plain text and inline-only HTML, which the text
  * estimate prices well.
  */
-export const estimateFormattedBodyPx = (content: unknown): number | undefined => {
+export const estimateFormattedBodyPx = (
+  content: unknown,
+  wrapChars = WRAP_CHARS
+): number | undefined => {
   // Content comes from the network; only an object can key the cache.
   if (!content || typeof content !== 'object') return undefined;
-  if (richHeights.has(content)) return richHeights.get(content);
+  const cached = richHeights.get(content);
+  if (cached && cached.wrapChars === wrapChars) return cached.height;
   const fields = content as Record<string, unknown>;
   const html = fields.format === 'org.matrix.custom.html' ? fields.formatted_body : undefined;
   let height: number | undefined;
@@ -90,13 +103,14 @@ export const estimateFormattedBodyPx = (content: unknown): number | undefined =>
     const text = prose.replace(/<\/(td|th)>/gi, ' ').replace(BLOCK_END, '\n');
     // Table cells share a line per row; the rest wraps like plain text.
     const textLines = wrappedLines(
-      text.replace(/<tr\b[\s\S]*?<\/tr>/gi, '\n').replace(ANY_TAG, '')
+      text.replace(/<tr\b[\s\S]*?<\/tr>/gi, '\n').replace(ANY_TAG, ''),
+      wrapChars
     );
     const lines =
       textLines + tableRows * TABLE_ROW_LINES + Math.max(0, blocks - 1) * BLOCK_GAP_LINES;
     height = Math.round(codePx + lines * LINE_PX);
   }
-  richHeights.set(content, height);
+  richHeights.set(content, { wrapChars, height });
   return height;
 };
 
@@ -120,16 +134,17 @@ const showsInFull = (event: MatrixEvent, content: Record<string, unknown>): bool
 const priceMessageRow = (
   event: MatrixEvent,
   content: Record<string, unknown>,
-  compact: boolean
+  compact: boolean,
+  wrapChars: number
 ): number => {
-  const textPx = estimateThreadEventRowHeight(event, { compact });
+  const textPx = estimateThreadEventRowHeight(event, { compact, wrapChars });
   if (textPx === 0) return 0;
   const relation = event.getRelation()?.rel_type;
   if (relation === RelationType.Replace || relation === RelationType.Annotation) return 0;
   const base = compact ? ROW_BASE_PX.compact : ROW_BASE_PX.comfortable;
   const mediaPx = estimateMediaPx(content, event.getType());
   if (mediaPx !== undefined) return Math.max(textPx, base + mediaPx);
-  const richPx = estimateFormattedBodyPx(content);
+  const richPx = estimateFormattedBodyPx(content, wrapChars);
   if (richPx === undefined) return textPx;
   const capLines = showsInFull(event, content) ? MAX_LINES : FOLDED_LINES;
   return Math.max(textPx, base + Math.min(richPx, capLines * LINE_PX));
@@ -139,6 +154,7 @@ type RowEstimate = {
   content: object;
   keyCount: number;
   compact: boolean;
+  wrapChars: number;
   px: number;
 };
 
@@ -158,7 +174,7 @@ const rowEstimates = new WeakMap<MatrixEvent, RowEstimate>();
  */
 export const estimateMessageRowHeight = (
   event: MatrixEvent,
-  { compact }: { compact: boolean }
+  { compact, wrapChars = WRAP_CHARS }: { compact: boolean; wrapChars?: number }
 ): number => {
   const content = event.getContent<Record<string, unknown>>();
   const keyCount = Object.keys(content).length;
@@ -167,12 +183,13 @@ export const estimateMessageRowHeight = (
     known &&
     known.content === content &&
     known.keyCount === keyCount &&
-    known.compact === compact
+    known.compact === compact &&
+    known.wrapChars === wrapChars
   ) {
     return known.px;
   }
-  const px = priceMessageRow(event, content, compact);
-  rowEstimates.set(event, { content, keyCount, compact, px });
+  const px = priceMessageRow(event, content, compact, wrapChars);
+  rowEstimates.set(event, { content, keyCount, compact, wrapChars, px });
   return px;
 };
 
@@ -184,13 +201,16 @@ export const estimateMessageRowHeight = (
 export const estimateRoomRowHeight = (
   event: MatrixEvent,
   above: MatrixEvent | undefined,
-  { threadBadge = false }: { threadBadge?: boolean } = {}
+  {
+    threadBadge = false,
+    wrapChars = WRAP_CHARS,
+  }: { threadBadge?: boolean; wrapChars?: number } = {}
 ): number => {
   const type = event.getType();
   if (event.getStateKey() !== undefined)
     return NOTICE_STATE_EVENT_TYPES.has(type) ? STATE_ROW_PX : 0;
   if (!getTimelineMessageKind(type)) return 0;
-  const bodyPx = estimateMessageRowHeight(event, { compact: false });
+  const bodyPx = estimateMessageRowHeight(event, { compact: false, wrapChars });
   if (bodyPx === 0) return 0;
   const content = event.getContent<Record<string, unknown>>();
   const ownRun =

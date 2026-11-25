@@ -72,7 +72,7 @@ type VirtualPaginatorOptions = PaginatorDom &
     readAhead?: boolean;
     /**
      * The owner keeps the rows on screen in place when the window grows towards older items
-     * (an offset ledger, say), so the paginator leaves the scroll position alone then.
+     * (virtual-core's `anchorTo: 'end'`, say), so the paginator leaves the scroll position alone then.
      */
     externalBackwardScrollRestore?: boolean;
   };

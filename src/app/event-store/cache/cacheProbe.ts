@@ -278,22 +278,6 @@ export type CacheProbeCounters = {
   threadPaginateBackNetworkErrors: number;
   // Thread switched mid-flight; pagination abandoned.
   threadPaginateBackStaleThreadBails: number;
-  // Offset-ledger settlement causes. Both counters increment only when
-  // the component performs the non-zero cancelling scrollTop write:
-  // `ledgerQuiescenceSettles` after a true-rest waiter resolves, and
-  // `ledgerBoundarySettles` when the safety guard rebases near an
-  // otherwise unreachable content edge. Ride trace v3 samples these
-  // scalars per frame so a visually coherent rebase can still be
-  // attributed when it cancels native iOS momentum.
-  ledgerQuiescenceSettles: number;
-  ledgerBoundarySettles: number;
-  // Settle write reverted by the platform: the compositor reasserted the
-  // pre-settle offset while a touchless scroll session (scrubber /
-  // trackpad) still owned the position, and the watchdog restored the
-  // fold to the ledger. Healthy reading is 0 on scrollend-capable WebKit
-  // (the session-aware waiter defers those settles); a non-zero reading
-  // on iOS 26.2+ means a session escaped the scrollend gate.
-  ledgerSettleWriteDiscarded: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -344,9 +328,6 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPaginateBackNoToken: 0,
   threadPaginateBackNetworkErrors: 0,
   threadPaginateBackStaleThreadBails: 0,
-  ledgerQuiescenceSettles: 0,
-  ledgerBoundarySettles: 0,
-  ledgerSettleWriteDiscarded: 0,
 });
 
 let counters = createEmptyCounters();

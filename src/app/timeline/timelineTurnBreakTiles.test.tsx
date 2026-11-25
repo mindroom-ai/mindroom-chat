@@ -80,7 +80,6 @@ const mounted = (open: boolean, sizes: number[], threadEvents = events) => {
     turnFolds,
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
-    ledgerPxAtRender: 0,
   });
   act(() => {
     renderer = create(<div>{tiles}</div>);

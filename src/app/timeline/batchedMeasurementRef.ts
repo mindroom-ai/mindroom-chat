@@ -29,6 +29,17 @@ export const createBatchedMeasurementRef = <T extends Element>(
 // measurement to rows near that target while it runs.
 type ProgrammaticScroll = { scrollState: { toEnd?: boolean } | null };
 type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolean };
+type ResizeBatch = { notify?: boolean; sync: boolean };
+type BatchedResizeVirtualizer = {
+  _resizeBatch?: ResizeBatch | null;
+  _holdOffset?: number;
+  _wheelLive?: boolean;
+  observer?: { observe: (el: Element) => void; unobserve: (el: Element) => void };
+  notify?: (sync: boolean) => void;
+  _noteClampMax?: () => void;
+  _flushHoldIfReady?: (sync: boolean) => void;
+  _retryClampedAdjustment?: () => void;
+};
 
 /**
  * Gives the mounted rows the height they have in the layout of now, the size virtual-core's row
@@ -84,12 +95,40 @@ export const createScrollMountMeasurement = <T extends Element>(
     attached.clear();
     // A programmatic scroll started by the same commit owns measurement now.
     if (programmaticScroll()) return;
-    flushSync(() => {
-      nodes.forEach((node) => {
-        if (!node.isConnected) return;
-        virtualizer.resizeItem(virtualizer.indexFromElement(node), readSize(node));
-      });
+    // Read every mounted row's size before writing into virtual-core so layout reads
+    // never interleave with scroll adjustments or synchronous re-renders.
+    const measurements: [number, number][] = [];
+    nodes.forEach((node) => {
+      if (!node.isConnected) return;
+      measurements.push([virtualizer.indexFromElement(node), readSize(node)]);
     });
+    if (measurements.length === 0) return;
+    const internal = virtualizer as unknown as BatchedResizeVirtualizer;
+    if (typeof internal.notify !== 'function' || internal._resizeBatch) {
+      flushSync(() => {
+        measurements.forEach(([index, size]) => virtualizer.resizeItem(index, size));
+      });
+      return;
+    }
+    // Batch the mount pass through virtual-core's _resizeBatch so a multi-row prepend
+    // notifies once instead of running one synchronous React render per newly mounted row.
+    const batch: ResizeBatch = { sync: false };
+    internal._resizeBatch = batch;
+    try {
+      measurements.forEach(([index, size]) => virtualizer.resizeItem(index, size));
+    } finally {
+      internal._resizeBatch = null;
+      if (batch.notify) {
+        if (batch.sync) {
+          internal.notify(true);
+        } else {
+          flushSync(() => internal.notify!(false));
+        }
+        internal._noteClampMax?.();
+        internal._flushHoldIfReady?.(true);
+        internal._retryClampedAdjustment?.();
+      }
+    }
   };
   return (node: T | null) => {
     if (!node || programmaticScroll()) {
@@ -101,8 +140,31 @@ export const createScrollMountMeasurement = <T extends Element>(
     const index = virtualizer.indexFromElement(node);
     const isNew =
       index >= 0 && !virtualizer.itemSizeCache.has(virtualizer.options.getItemKey(index));
-    virtualizer.measureElement(node);
-    if (!isNew) return;
+    if (!isNew) {
+      virtualizer.measureElement(node);
+      return;
+    }
+    // During a live wheel gesture or held prepend, isScrolling can time out to false while
+    // scrollTop sits at 0. Register with elementsCache and ResizeObserver without an unbatched
+    // synchronous resizeItem per row so measureAttached measures all new rows once in _resizeBatch.
+    // At rest (and during scrollToEnd), let virtual-core measure synchronously in the ref so
+    // opening pins and layout effects see measured heights before the microtask runs.
+    const internal = virtualizer as unknown as BatchedResizeVirtualizer;
+    if (
+      (internal._holdOffset || internal._wheelLive) &&
+      internal.observer &&
+      index < virtualizer.options.count
+    ) {
+      const key = virtualizer.options.getItemKey(index);
+      const prevNode = virtualizer.elementsCache.get(key);
+      if (prevNode !== node) {
+        if (prevNode) internal.observer.unobserve(prevNode);
+        internal.observer.observe(node);
+        virtualizer.elementsCache.set(key, node);
+      }
+    } else {
+      virtualizer.measureElement(node);
+    }
     if (attached.size === 0) queueMicrotask(measureAttached);
     attached.add(node);
   };

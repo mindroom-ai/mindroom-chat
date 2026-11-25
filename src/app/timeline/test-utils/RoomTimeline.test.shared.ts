@@ -183,12 +183,6 @@ const {
           scrollMargin?: number;
         }
       | undefined,
-    // Every options object passed to useVirtualizer, in render order.
-    // `lastOptions` cannot pin FIRST-render values (later renders
-    // overwrite it) — the stale-scrollMargin-on-switch pin needs the
-    // first post-switch render specifically (mutant audit 2026-07-07,
-    // survivor 7b). Tests that read it should reset it first.
-    optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
     // The row at the reader's top. Like virtual-core's offset lookup, it
@@ -463,7 +457,6 @@ vi.mock('@tanstack/react-virtual', () => {
       scrollMargin?: number;
     }) => {
       roomTimelineVirtualizerState.lastOptions = options;
-      roomTimelineVirtualizerState.optionsHistory.push(options);
       const latestOptionsRef = { current: options };
       const key = roomTimelineVirtualizerState as unknown as object;
       let instance = instances.get(key) as

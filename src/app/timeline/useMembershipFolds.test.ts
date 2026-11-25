@@ -13,9 +13,7 @@ import {
 } from './membershipFolds';
 import {
   forgetFormedFoldHeights,
-  readReaderTop,
   readRenderedRoomRows,
-  exposedFoldRowsPxOfRender,
   useMembershipFolds,
   useRoomRowWindow,
 } from './useMembershipFolds';
@@ -418,7 +416,6 @@ describe('the heights a fold takes over from the rows it holds', () => {
     ]);
     expect(rendered.view).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
     expect(rendered.list?.itemSizeCache).toBe(cache);
-    expect(rendered.rows).toEqual([m4, m5, msg]);
     // A fold that history made of these rows takes their place at their height.
     const fold = planMembershipFolds([m3, m4, m5], {
       isSkipped: () => false,
@@ -456,46 +453,6 @@ describe('the heights a fold takes over from the rows it holds', () => {
     const unmounted = list([60, 50], { $msg: 50 });
     expect(readRenderedRoomRows(unmounted.virtualizer, rows, view).sizes.get('$m3')).toBe(60);
     expect(unmounted.cache.has('$m3')).toBe(false);
-  });
-
-  it('notes where each closed fold ends, down from the top of the first row', () => {
-    const readerTop = () => 300;
-    // An open fold's rows are rows already: none to come out of it.
-    const open = readRenderedRoomRows(
-      list([72, 30, 30, 50], {}).virtualizer,
-      [m3, m4, m5, msg],
-      viewOf([m3, m4, m5, msg], true),
-      readerTop
-    );
-    expect(open.place).toEqual({ foldEnds: new Map(), readerTop });
-    // The offset ledger has the list count its rows from 75 px above its top.
-    const folded = list([50, 42, 50], { $m3: 42 }, {}, -75);
-    const rendered = readRenderedRoomRows(
-      folded.virtualizer,
-      [msg, m3, msgEvent('$after')],
-      viewOf([msg, m3, m4, m5, msgEvent('$after')]),
-      readerTop
-    );
-    expect(rendered.place).toEqual({ foldEnds: new Map([['$m3', 92]]), readerTop });
-  });
-
-  it("reads where the reader's view starts from the list as it is painted", () => {
-    const rect = (top: number) => () => ({ top }) as DOMRect;
-    const scroller = document.createElement('div');
-    const inner = document.createElement('div');
-    scroller.append(inner);
-    document.body.append(scroller);
-    // Bars cover 56 px of the scroll area, whose top is 10 px down the page. Scrolled 400 px
-    // down, with 180 px of the room's intro before the list, 220 px of the list are passed.
-    scroller.style.scrollPaddingTop = '56px';
-    scroller.getBoundingClientRect = rect(10);
-    inner.getBoundingClientRect = rect(10 - 400 + 180);
-    expect(readReaderTop(scroller, inner)).toBe(220 + 56);
-    expect(readReaderTop(null, inner)).toBeUndefined();
-    expect(readReaderTop(scroller, null)).toBeUndefined();
-    // A list that left the page is nowhere.
-    scroller.remove();
-    expect(readReaderTop(scroller, inner)).toBeUndefined();
   });
 
   it('has the list measure a mounted closed fold that is not as high as the rows it took over', () => {
@@ -543,59 +500,5 @@ describe('the heights a fold takes over from the rows it holds', () => {
       forgetFormedFoldHeights(stillOpen.last, viewOf(joined, true));
       expect(stillOpen.cache.get('$m1')).toBe(30);
     });
-  });
-});
-
-describe('exposedFoldRowsPxOfRender', () => {
-  const run = [
-    joinEvent('$m1', '@a:x'),
-    joinEvent('$m2', '@b:x'),
-    joinEvent('$m3', '@c:x'),
-    joinEvent('$m4', '@d:x'),
-  ];
-  const loaded = [...run, msgEvent('$msg0'), msgEvent('$msg1'), msgEvent('$msg2')];
-  const closed = viewMembershipFolds(
-    planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set() }),
-    () => false
-  );
-  const project = (view: typeof closed) =>
-    projectRoomRows(
-      loaded,
-      loaded.map((event, absoluteIndex) => ({ event, absoluteIndex })),
-      view
-    );
-  const now = (view: typeof closed) => {
-    const rows = project(view);
-    return {
-      view,
-      foldedRows: rows.foldedRows,
-      windowRows: rows.rows,
-      pinnedIds: new Set<string>(),
-    };
-  };
-
-  it("is a render's own height for the folds the list has not rendered yet", () => {
-    // The last render: the closed fold's break, 42 px high, above the three messages in view.
-    const rendered = {
-      sizes: new Map([['$m1', 42]]),
-      view: closed,
-      rows: project(closed).rows,
-      // The list measured the fold's row, which is the first join's row again.
-      list: { itemSizeCache: new Map([['$m1', 42]]) },
-      place: { foldEnds: new Map([['$m1', 42]]), readerTop: () => 42 },
-    };
-    expect(exposedFoldRowsPxOfRender(rendered, now(closed), () => 30)).toBe(0);
-
-    // The run is too short to fold now (as when it lost events): its four events are rows, the
-    // first at the height the list has for it and the others at the estimate.
-    const apart = viewMembershipFolds([], () => false);
-    expect(exposedFoldRowsPxOfRender(rendered, now(apart), () => 30)).toBe(3 * 30);
-    // Asked again by a render that follows one React did not commit: the same, and nothing of
-    // the last render is written.
-    expect(exposedFoldRowsPxOfRender(rendered, now(apart), () => 30)).toBe(3 * 30);
-    expect(rendered.sizes).toEqual(new Map([['$m1', 42]]));
-    expect(rendered.list.itemSizeCache).toEqual(new Map([['$m1', 42]]));
-    // Nothing once the list rendered those folds.
-    expect(exposedFoldRowsPxOfRender({ ...rendered, view: apart }, now(apart), () => 30)).toBe(0);
   });
 });
