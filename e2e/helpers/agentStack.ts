@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -245,6 +245,81 @@ export const openNewSession = async (
   return page;
 };
 
+const RUST_CRYPTO_DB_SUFFIX = '::matrix-sdk-crypto';
+const RUST_CRYPTO_META_SUFFIX = '::matrix-sdk-crypto-meta';
+
+type StoredIndexedDB = { name: string; [key: string]: unknown };
+type StoredOrigin = {
+  origin: string;
+  localStorage: Array<{ name: string; value: string }>;
+  indexedDB?: StoredIndexedDB[];
+};
+type StorageStateSnapshot = {
+  cookies: unknown[];
+  origins: StoredOrigin[];
+};
+
+/**
+ * Updates only the tester's Rust crypto IndexedDB stores in `file` from `latest`, keeping saved
+ * cookies, localStorage and non-crypto IndexedDB entries verbatim so per-test state does not leak
+ * while Olm ratchets keep advancing across tests sharing the same Matrix device.
+ */
+const persistTesterCryptoState = (file: string, latest: StorageStateSnapshot): void => {
+  const saved = JSON.parse(readFileSync(file, 'utf8')) as StorageStateSnapshot;
+  const latestByOrigin = new Map<string, StoredOrigin>();
+  for (const origin of latest.origins) {
+    latestByOrigin.set(origin.origin, origin);
+  }
+
+  let updated = false;
+  const origins = saved.origins.map((savedOrigin) => {
+    const savedDbs = savedOrigin.indexedDB;
+    if (!savedDbs) return savedOrigin;
+    const prefixes = savedDbs
+      .filter((db) => db.name.endsWith(RUST_CRYPTO_DB_SUFFIX))
+      .map((db) => db.name.slice(0, -RUST_CRYPTO_DB_SUFFIX.length));
+    if (prefixes.length === 0) return savedOrigin;
+
+    const latestDbs = latestByOrigin.get(savedOrigin.origin)?.indexedDB;
+    if (!latestDbs) return savedOrigin;
+    const latestByName = new Map<string, StoredIndexedDB>();
+    for (const db of latestDbs) {
+      latestByName.set(db.name, db);
+    }
+
+    const replacements = new Map<string, StoredIndexedDB>();
+    for (const prefix of prefixes) {
+      const cryptoName = `${prefix}${RUST_CRYPTO_DB_SUFFIX}`;
+      const latestCrypto = latestByName.get(cryptoName);
+      // Guard against tests that log out the tester and clear its crypto database.
+      if (!latestCrypto) continue;
+      replacements.set(cryptoName, latestCrypto);
+      const metaName = `${prefix}${RUST_CRYPTO_META_SUFFIX}`;
+      const latestMeta = latestByName.get(metaName);
+      if (latestMeta) replacements.set(metaName, latestMeta);
+    }
+    if (replacements.size === 0) return savedOrigin;
+
+    updated = true;
+    const seen = new Set<string>();
+    const indexedDB = savedDbs.map((db) => {
+      const replacement = replacements.get(db.name);
+      if (!replacement) return db;
+      seen.add(db.name);
+      return replacement;
+    });
+    for (const [name, db] of replacements) {
+      if (!seen.has(name)) indexedDB.push(db);
+    }
+    return { ...savedOrigin, indexedDB };
+  });
+
+  if (!updated) return;
+  const tempFile = `${file}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tempFile, JSON.stringify({ ...saved, origins }));
+  renameSync(tempFile, file);
+};
+
 type WorkerFixtures = {
   /** More options for `stack.py up`, such as `['--calls', <service URL>]`; another set restarts the stack. */
   agentStackArgs: string[];
@@ -303,6 +378,18 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
   storageState: async ({ testerStorageState }, provide) => {
     await provide(testerStorageState);
+  },
+  context: async ({ context, testerStorageState }, provide) => {
+    await provide(context);
+    if (!testerStorageState || !existsSync(testerStorageState)) return;
+    let latest: StorageStateSnapshot;
+    try {
+      latest = await context.storageState({ indexedDB: true });
+    } catch {
+      // A test may have closed its context early; leave the saved snapshot untouched.
+      return;
+    }
+    persistTesterCryptoState(testerStorageState, latest);
   },
   stack: async ({ agentStackOrSkip }, provide, testInfo) => {
     testInfo.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));

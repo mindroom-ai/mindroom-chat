@@ -69,9 +69,10 @@ import runpy
 import time
 import uuid
 import wave
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 
 from aiohttp import web
 
@@ -97,6 +98,41 @@ def terminal_command(turn: Turn) -> dict | str:
     return {"session_id": opened.group(1), "command": "echo stub-terminal-$((6 * 7))"}
 
 
+def tool_properties(tools: list[dict]) -> Mapping[str, frozenset[str]]:
+    """Parameter names declared in `function.parameters.properties` for each offered tool."""
+    by_name: dict[str, frozenset[str]] = {}
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        if not isinstance(function, dict):
+            continue
+        name = function.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        parameters = function.get("parameters")
+        properties = parameters.get("properties") if isinstance(parameters, dict) else None
+        by_name[name] = frozenset(properties) if isinstance(properties, dict) else frozenset()
+    return MappingProxyType(by_name)
+
+
+def schedule_arguments(delay_seconds: int) -> Callable[[Turn], dict]:
+    """Arguments for `schedule`, matching structured (`message`/`delay_seconds`) or legacy (`request`) schemas."""
+
+    def build(turn: Turn) -> dict:
+        properties = turn.tool_properties.get("schedule", frozenset())
+        if "delay_seconds" in properties or "message" in properties:
+            return {
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
+        return {"request": f"in {delay_seconds} seconds remind me to stretch", "new_thread": False}
+
+    return build
+
+
 TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
     "#multi": [
@@ -116,8 +152,8 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#tag": [("tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"})],
     "#resolve": [("resolve_thread", {})],
     "#expire": [("untag_thread", {"tag": "stub-tag"})],
-    "#schedulesoon": [("schedule", {"request": "in 20 seconds remind me to stretch", "new_thread": False})],
-    "#schedule": [("schedule", {"request": "in 150 seconds remind me to stretch", "new_thread": False})],
+    "#schedulesoon": [("schedule", schedule_arguments(20))],
+    "#schedule": [("schedule", schedule_arguments(150))],
     "#canvas": [("show_canvas", {"title": "Stub canvas", "html": CANVAS_PAGE})],
     "#canvasrtl": [("show_canvas", {"title": "لوحة التخطيط deploy.yaml للإطلاق", "html": CANVAS_PAGE})],
     "#job": [
@@ -167,6 +203,7 @@ class Turn:
     said: str
     system: str
     tools: tuple[str, ...]
+    tool_properties: Mapping[str, frozenset[str]] = field(default_factory=lambda: MappingProxyType({}))
 
 
 Step = tuple[str, dict | Callable[[Turn], dict | str]]
@@ -441,7 +478,8 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
         [text_of(m.get("content")) for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
     )
     last_result = results[-1][:400] if results else ""
-    available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
+    tools = body.get("tools") or []
+    available = [tool.get("function", {}).get("name", "") for tool in tools]
     # When background jobs end, MindRoom asks the agent to collect their results and report them.
     if JOBS_ENDED in latest and "job" in available:
         if not results:
@@ -474,7 +512,9 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
                 system = "\n".join(
                     text_of(m.get("content")) for m in messages if m.get("role") in ("system", "developer")
                 )
-                args = args(Turn(tuple(results), person_said(messages), system, tuple(available)))
+                args = args(
+                    Turn(tuple(results), person_said(messages), system, tuple(available), tool_properties(tools))
+                )
                 if isinstance(args, str):
                     return ("text", args)
             if name not in available:

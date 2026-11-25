@@ -1637,6 +1637,103 @@ class StubScenarioTests(unittest.TestCase):
         self.assertIn("Finished **delegate** after 1 tool call(s)", text)
         self.assertIn("delegated-ok.", text)
 
+    def test_schedule_scenarios_adapt_to_structured_and_legacy_tool_schemas(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+
+        def request_body(prompt: str, properties: dict | None, *results: str) -> dict:
+            function: dict = {"name": "schedule"}
+            if properties is not None:
+                function["parameters"] = {"type": "object", "properties": properties}
+            return {
+                "model": "stub-fast",
+                "tools": [{"type": "function", "function": function}],
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    *[{"role": "tool", "content": result} for result in results],
+                ],
+            }
+
+        structured_props = {
+            "message": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+            "delay_seconds": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        }
+        legacy_props = {
+            "request": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+        }
+
+        for tag, delay_seconds in (("#schedulesoon", 20), ("#schedule", 150)):
+            with self.subTest(schema="structured", tag=tag):
+                self.assertEqual(
+                    stub_model.plan(request_body(f"please {tag}", structured_props), scenarios),
+                    (
+                        "tool",
+                        "schedule",
+                        {
+                            "message": "@helper remind me to stretch",
+                            "new_thread": False,
+                            "delay_seconds": delay_seconds,
+                            "description": "Stretch reminder",
+                        },
+                    ),
+                )
+            with self.subTest(schema="delay_seconds_only", tag=tag):
+                self.assertEqual(
+                    stub_model.plan(request_body(f"please {tag}", {"delay_seconds": {"type": "integer"}}), scenarios),
+                    (
+                        "tool",
+                        "schedule",
+                        {
+                            "message": "@helper remind me to stretch",
+                            "new_thread": False,
+                            "delay_seconds": delay_seconds,
+                            "description": "Stretch reminder",
+                        },
+                    ),
+                )
+            with self.subTest(schema="message_only", tag=tag):
+                self.assertEqual(
+                    stub_model.plan(request_body(f"please {tag}", {"message": {"type": "string"}}), scenarios),
+                    (
+                        "tool",
+                        "schedule",
+                        {
+                            "message": "@helper remind me to stretch",
+                            "new_thread": False,
+                            "delay_seconds": delay_seconds,
+                            "description": "Stretch reminder",
+                        },
+                    ),
+                )
+            with self.subTest(schema="legacy", tag=tag):
+                self.assertEqual(
+                    stub_model.plan(request_body(f"please {tag}", legacy_props), scenarios),
+                    (
+                        "tool",
+                        "schedule",
+                        {"request": f"in {delay_seconds} seconds remind me to stretch", "new_thread": False},
+                    ),
+                )
+            with self.subTest(schema="no_parameters", tag=tag):
+                self.assertEqual(
+                    stub_model.plan(request_body(f"please {tag}", None), scenarios),
+                    (
+                        "tool",
+                        "schedule",
+                        {"request": f"in {delay_seconds} seconds remind me to stretch", "new_thread": False},
+                    ),
+                )
+
+        kind, text = stub_model.plan(
+            request_body("please #schedulesoon", structured_props, "Scheduled task task-1"),
+            scenarios,
+        )
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **schedulesoon** after 1 tool call(s)", text)
+        self.assertIn("Scheduled task task-1", text)
+
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
         said = "please #chain for Ada"
