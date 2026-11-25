@@ -310,7 +310,7 @@ const verifySnoozeAndPinAndTag = async (
   const menu2Box = await boxOf(page, '[data-tour-card-menu]');
   expect(inside(menu2Box, frame), `${name} p2: menu inside stage`).toBe(true);
 
-  // Phase 3: settled — pinned and tagged (1200ms phase 2).
+  // Phase 3: settled (pinned and tagged, after 1200ms phase 2).
   await page.clock.runFor(1_250);
   await expect(stage).toHaveAttribute('data-tour-phase', '3');
   const ring3 = await expectSpotlightOn(page, 'card:budget', `pinAndTag ${name} p3`);

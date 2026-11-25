@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '../i18n/i18n';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import * as indicatorCss from '../messages/ThreadIndicator.css';
 import * as overviewCss from '../threads/overview/RoomThreadOverview.css';
@@ -365,7 +366,7 @@ describe('TourStage', () => {
     expect(section && cardIds(section)).toEqual(['budget']);
     cleanup();
 
-    // Phase 2: Thread options open on pinned budget — shows Edit tags & Unpin, omits Resolve & Snooze.
+    // Phase 2: Thread options open on pinned budget (Edit tags & Unpin, no Resolve or Snooze).
     show('pinAndTag', 2, false);
     expect(parts('menuTags')[0]?.textContent).toBe('Edit tags');
     const pinnedMenu = stage().querySelector('[data-tour-card-menu]');
@@ -443,6 +444,7 @@ describe('TourStage', () => {
     cleanup();
 
     // Activity panel renders real header, tabs (including Replies 1), Today divider, and ActivityBadge.
+    // Opening the popover keeps only Home selected in the rail (never both Home and Activity).
     show('activity');
     const activity = stage().querySelector('[data-tour-activity]');
     const tablistText = activity?.querySelector('[role="tablist"]')?.textContent;
@@ -451,6 +453,7 @@ describe('TourStage', () => {
     expect(activity?.textContent).toContain('Unread');
     expect(activity?.textContent).toContain('Today');
     expect(stage().querySelector('[data-activity-badge="needs-you"]')?.textContent).toBe('3');
+    expect(stage().querySelectorAll('[data-tour-rail] [data-active="true"]')).toHaveLength(1);
     cleanup();
 
     // Phone Activity sheet renders two complete representative rows without clipping.
@@ -466,6 +469,30 @@ describe('TourStage', () => {
     show('activity', 0, true);
     expect(stage().querySelector('[data-tour-phone-bar]')?.textContent).toContain('Find anything');
     expect(stage().querySelector('[data-activity-badge="needs-you"]')?.textContent).toBe('3');
+  });
+
+  it('respects locale 24-hour clock on messages and localized digits on ActivityBadge', async () => {
+    const previousLanguage = i18n.language;
+    try {
+      await act(async () => {
+        await i18n.changeLanguage('de');
+      });
+      show('start');
+      const times = Array.from(stage().querySelectorAll('time'), (el) => el.textContent ?? '');
+      expect(times.length).toBeGreaterThan(0);
+      expect(times.every((text) => /^\d{2}:\d{2}$/.test(text))).toBe(true);
+      cleanup();
+
+      await act(async () => {
+        await i18n.changeLanguage('bn');
+      });
+      show('activity');
+      expect(stage().querySelector('[data-activity-badge="needs-you"]')?.textContent).toBe('৩');
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage(previousLanguage);
+      });
+    }
   });
 
   it('changes the view at once with reduced motion', () => {

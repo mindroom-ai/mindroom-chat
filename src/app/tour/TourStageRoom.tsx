@@ -42,6 +42,7 @@ import {
   type ThreadIndicatorParticipant,
 } from '../messages/ThreadIndicatorChip';
 import { Time } from '../messages/Time';
+import { useHour24Clock } from '../preferences/useHour24Clock';
 import { CompactViewIcon } from '../room/CompactViewIcon';
 import {
   HeaderActionButton,
@@ -428,6 +429,7 @@ type MessageRowProps = {
 /** A message rendered with the real timeline primitives (`MessageBase`, `ModernLayout`, `Time`). */
 function MessageRow({ message, ts, replyCount = 0, participants, isResolved }: MessageRowProps) {
   const { t } = useTranslation();
+  const [hour24Clock] = useHour24Clock();
   return (
     <MessageBase space="300" className={css.Arriving} data-tour-message={message.sender}>
       <ModernLayout
@@ -453,7 +455,7 @@ function MessageRow({ message, ts, replyCount = 0, participants, isResolved }: M
               <UsernameBold>{sampleName(message.sender, t)}</UsernameBold>
             </Text>
           </Username>
-          <Time ts={ts} />
+          <Time ts={ts} hour24Clock={hour24Clock} />
         </Box>
         <MessageTextBody>
           {t(`tour.sample.${message.text}`)}
@@ -600,7 +602,7 @@ function Rail({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
     <Sidebar className={css.Rail} data-tour-rail="">
       <SidebarStack>
         {tabs.map((tab) => (
-          <SidebarItem key={tab.id} active={tab.bell ? scene.activity : tab.active}>
+          <SidebarItem key={tab.id} active={tab.active}>
             <SidebarAvatar
               as="span"
               outlined={tab.bell}

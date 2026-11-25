@@ -194,7 +194,7 @@ describe('tourScenes', () => {
       expect(tagPhase.actionsOn).toBe(phone ? undefined : 'budget');
       expect(stateOf(tagPhase, 'budget')?.tags).toBeFalsy();
 
-      // Phase 3: settled — pinned and tagged.
+      // Phase 3: settled (pinned and tagged).
       const scene = lastScene('pinAndTag', phone);
       expect(scene).toMatchObject({
         pinned: ['budget'],
