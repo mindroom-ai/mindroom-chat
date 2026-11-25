@@ -15,6 +15,7 @@ const APP_ORIGIN = 'capacitor://localhost';
 type Telemetry = {
   blockedUrls: string[];
   networkPermissions: string[];
+  trackpadSwipe?: Array<{ attached: boolean; warning?: string }>;
 };
 
 const readTelemetry = async (
@@ -187,6 +188,10 @@ test.describe('Electron desktop shell', () => {
       });
 
       await expect.poll(() => page.evaluate(() => navigator.storage.persisted())).toBe(true);
+      if (process.platform === 'darwin') {
+        const telemetry = await readTelemetry(session.app);
+        expect(telemetry.trackpadSwipe).toEqual([{ attached: true }]);
+      }
     } finally {
       await session.close();
     }

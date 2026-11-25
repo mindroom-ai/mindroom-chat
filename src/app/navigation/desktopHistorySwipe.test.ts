@@ -16,7 +16,7 @@ const cleanups: Array<() => void> = [];
 const def = (obj: object, prop: PropertyKey, value: unknown) =>
   Object.defineProperty(obj, prop, { configurable: true, value });
 const pill = () => document.querySelector<HTMLElement>('[data-desktop-history-swipe]');
-const phase = (p: 'begin' | 'end') => emit({ type: 'scroll-gesture', phase: p });
+const phase = (p: 'begin' | 'end' | 'cancel') => emit({ type: 'scroll-gesture', phase: p });
 const counts = () => [backSpy.mock.calls.length, forwardSpy.mock.calls.length];
 const install = (o: SwipeOpts = {}, enabled = true) => {
   const stop = installDesktopHistorySwipe(window, {
@@ -185,7 +185,7 @@ describe('installDesktopHistorySwipe', () => {
     expect(backSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('blocks horizontal scrollers (incl. wheel-before-begin and input/textarea) and overscroll-x', () => {
+  it('blocks horizontal scrollers (incl. input/textarea) and overscroll-x', () => {
     const sized = (tag: string, sw: number) => {
       const el = addEl(tag);
       def(el, 'scrollWidth', sw);
@@ -214,9 +214,10 @@ describe('installDesktopHistorySwipe', () => {
     expect(backSpy).not.toHaveBeenCalled();
     expect(pill()).toBeNull();
     [fit, osY].forEach((el) => swipe(BACK, el));
+    // A stray wheel before native begin (e.g. mouse wheel) must not count toward a later gesture
     wheel({ deltaX: -30 });
     swipe(BACK.slice(1));
-    expect(backSpy).toHaveBeenCalledTimes(3);
+    expect(backSpy).toHaveBeenCalledTimes(2);
   });
 
   it('rejects modifiers, line-mode, defaultPrevented, untrusted, titlebar drag, diagonal drift, and swipe-tracking=false', () => {
@@ -298,5 +299,74 @@ describe('installDesktopHistorySwipe', () => {
       phase('end');
     }
     expect(backSpy).toHaveBeenCalledTimes(4);
+  });
+
+  it('ignores mouse wheels without native begin, aborts on cancel, flushes 1 rAF on unarmed end, and cancels rAF on cleanup', () => {
+    const rafQueue = new Map<number, FrameRequestCallback>();
+    let nextRafId = 1;
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      const id = nextRafId++;
+      rafQueue.set(id, cb);
+      return id;
+    });
+    const cafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      rafQueue.delete(id);
+    });
+    const flushRaf = () => {
+      for (const [id, cb] of [...rafQueue]) {
+        rafQueue.delete(id);
+        cb(16);
+      }
+    };
+
+    const stop = install();
+
+    // Mouse horizontal scroll wheels never emit native scroll-gesture begin -> 100% ignored
+    [...BACK, ...BACK, ...FWD].forEach((w) => wheel(w));
+    phase('end');
+    expect(counts()).toEqual([0, 0]);
+    expect(pill()).toBeNull();
+    expect(rafSpy).not.toHaveBeenCalled();
+
+    // Native cancel aborts an armed gesture without navigating and closes the touch gate
+    swipe(BACK, document.body, false);
+    expect(pill()?.dataset.armed).toBe('true');
+    phase('cancel');
+    expect(pill()?.dataset.visible).toBe('false');
+    BACK.forEach((w) => wheel(w));
+    phase('end');
+    expect(counts()).toEqual([0, 0]);
+
+    // Armed gesture commits immediately on end without scheduling a rAF
+    swipe(BACK);
+    expect(counts()).toEqual([1, 0]);
+    expect(rafSpy).not.toHaveBeenCalled();
+
+    // Unarmed gesture waits 1 rAF for a final coalesced compositor wheel sample, then commits
+    phase('begin');
+    wheel({ deltaX: -30 });
+    wheel({ deltaX: -30 });
+    phase('end');
+    expect(rafQueue.size).toBe(1);
+    expect(counts()).toEqual([1, 0]);
+    wheel({ deltaX: -30 });
+    flushRaf();
+    expect(counts()).toEqual([2, 0]);
+    expect(pill()?.dataset.visible).toBe('false');
+
+    // After the rAF closes the touch gate, stray mouse wheels are ignored again
+    BACK.forEach((w) => wheel(w));
+    expect(counts()).toEqual([2, 0]);
+
+    // Teardown cancels any pending end rAF cleanly
+    phase('begin');
+    wheel({ deltaX: -30 });
+    phase('end');
+    expect(rafQueue.size).toBe(1);
+    stop();
+    expect(cafSpy).toHaveBeenCalledTimes(1);
+    expect(rafQueue.size).toBe(0);
+    flushRaf();
+    expect(counts()).toEqual([2, 0]);
   });
 });

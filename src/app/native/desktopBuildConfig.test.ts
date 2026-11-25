@@ -83,8 +83,13 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       },
       extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
+      files: expect.arrayContaining([
+        '!build/electron/mindroom-screenshot-helper',
+        '!build/electron/mindroom-trackpad-swipe.node',
+      ]),
       extraResources: [
         { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+        { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
       ],
       mac: {
         artifactName: 'MindRoom-Chat-${arch}-mac.${ext}',
@@ -161,16 +166,25 @@ case "$cmd" in
       done
     fi ;;
   swiftc) printf 'fake-swift-bin' > "$target" ;;
-  lipo) printf 'fake-universal-helper' > "$target" ;;
+  lipo)
+    if [[ "\${1:-}" == "-archs" ]]; then
+      printf '%s\\n' "\${TEST_ADDON_ARCHS:-x86_64 arm64}"
+    else
+      printf 'fake-universal-bin' > "$target"
+    fi ;;
   ditto)
     mkdir -p "$target/MindRoom Chat.app/Contents/Resources"
     if [[ "$fail" != "helper:missing" ]]; then
       printf 'fake-helper' > "$target/MindRoom Chat.app/Contents/Resources/mindroom-screenshot-helper"
+    fi
+    if [[ "$fail" != "addon:missing" ]]; then
+      printf 'fake-addon' > "$target/MindRoom Chat.app/Contents/Resources/mindroom-trackpad-swipe.node"
     fi ;;
   codesign)
     if [[ "\${1:-}" == "--verify" ]] && {
       [[ "$fail" == "codesign:app" && "$target" == *.app ]] ||
-      [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]];
+      [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]] ||
+      [[ "$fail" == "codesign:addon" && "$target" == */mindroom-trackpad-swipe.node ]];
     }; then exit 1; fi
     if [[ "\${1:-}" == "-dv" ]]; then
       flags="0x0(none)"
@@ -184,6 +198,8 @@ case "$cmd" in
       printf '%s\\n' "/Fake/MacOSX.sdk"
     elif [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "swiftc" ]]; then
       printf 'fake-swift-bin' > "$target"
+    elif [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "clang++" ]]; then
+      printf 'fake-clang-bundle' > "$target"
     elif [[ "\${1:-}" == "stapler" && "\${2:-}" == "validate" ]] && { [[ "$fail" == "stapler:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "stapler:app" && "$target" == *.app ]]; }; then
       exit 65
     fi ;;
@@ -194,7 +210,11 @@ esac
   function createFixture() {
     const root = mkdtempSync(join(tmpdir(), 'mindroom-desktop-build-'));
     tempDirs.push(root);
-    for (const file of ['scripts/build-desktop-app.sh', 'scripts/desktop-latest-yml.mjs']) {
+    for (const file of [
+      'scripts/build-desktop-app.sh',
+      'scripts/build-trackpad-swipe-addon.sh',
+      'scripts/desktop-latest-yml.mjs',
+    ]) {
       mkdirSync(dirname(join(root, file)), { recursive: true });
       copyFileSync(resolve(file), join(root, file));
     }
@@ -299,6 +319,9 @@ esac
     ['missing screenshot helper', { TEST_FAIL: 'helper:missing' }],
     ['failed codesign on screenshot helper', { TEST_FAIL: 'codesign:helper' }],
     ['missing hardened runtime on screenshot helper', { TEST_HELPER_FLAGS: '0x0(none)' }],
+    ['missing trackpad swipe addon', { TEST_FAIL: 'addon:missing' }],
+    ['single-arch trackpad swipe addon', { TEST_ADDON_ARCHS: 'arm64' }],
+    ['failed codesign on trackpad swipe addon', { TEST_FAIL: 'codesign:addon' }],
   ])(
     '--verify-only fails closed on %s',
     (_label, overrides) => {
@@ -328,10 +351,37 @@ esac
       expect.stringContaining('-target arm64-apple-macosx13.0 electron/native/helper.swift'),
       expect.stringContaining('-target x86_64-apple-macosx13.0 electron/native/helper.swift'),
     ]);
-    expect(res.commands.find((c) => c.cmd === 'lipo')).toMatchObject({
-      hasNotary: false,
-      args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
-    });
+    const clang = res.commands.filter(
+      (c) => c.cmd === 'xcrun' && c.args.startsWith('--sdk macosx clang++ ')
+    );
+    expect(clang).toHaveLength(2);
+    expect(clang.every((c) => !c.hasNotary)).toBe(true);
+    expect(clang.every((c) => c.args.includes('-isysroot /Fake/MacOSX.sdk'))).toBe(true);
+    expect(clang.every((c) => c.args.includes('-DNAPI_VERSION=8'))).toBe(true);
+    expect(clang.map((c) => c.args)).toEqual([
+      expect.stringContaining('-target arm64-apple-macosx13.0 electron/native/trackpad_swipe.mm'),
+      expect.stringContaining('-target x86_64-apple-macosx13.0 electron/native/trackpad_swipe.mm'),
+    ]);
+    const lipoCreates = res.commands.filter(
+      (c) => c.cmd === 'lipo' && c.args.startsWith('-create ')
+    );
+    expect(lipoCreates).toEqual([
+      expect.objectContaining({
+        hasNotary: false,
+        args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
+      }),
+      expect.objectContaining({
+        hasNotary: false,
+        args: expect.stringContaining('-output build/electron/mindroom-trackpad-swipe.node'),
+      }),
+    ]);
+    expect(
+      res.commands.find(
+        (c) =>
+          c.cmd === 'codesign' &&
+          c.args === '--force --sign - build/electron/mindroom-trackpad-swipe.node'
+      )
+    ).toMatchObject({ hasNotary: false });
     expect(
       res.commands.find((c) => c.cmd === 'npx' && c.args.startsWith('electron-builder'))
     ).toMatchObject({
@@ -385,6 +435,8 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
       };
     };
     expect(desktop.on.pull_request.paths).toContain('scripts/macos-publish-appcast.sh');
+    expect(desktop.on.pull_request.paths).toContain('scripts/build-trackpad-swipe-addon.sh');
+    expect(desktop.on.pull_request.paths).toContain('src/app/navigation/desktopHistorySwipe*');
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });
     expect(desktop.jobs.release.if).toBe(
       "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"

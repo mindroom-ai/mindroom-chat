@@ -24,6 +24,7 @@ import {
   supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
 } from './security';
+import { setTrackpadSwipeRecorder, type TrackpadSwipeStatus } from './trackpadSwipe';
 import { startUpdater, type UpdaterHandle } from './updater';
 
 const SCREEN_RECORDING_SETTINGS_URL =
@@ -57,11 +58,13 @@ const telemetry = isTest
       networkPermissions: [] as string[],
       externalOpens: [] as string[],
       badgeCounts: [] as number[],
+      trackpadSwipe: [] as TrackpadSwipeStatus[],
     }
   : undefined;
 if (telemetry) {
   Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
   setBlockedUrlRecorder((url) => telemetry.blockedUrls.push(url));
+  setTrackpadSwipeRecorder((status) => telemetry.trackpadSwipe.push(status));
 }
 
 const focusMainWindow = (): void => {

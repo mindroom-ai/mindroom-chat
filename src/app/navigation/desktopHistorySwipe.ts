@@ -90,11 +90,24 @@ export const installDesktopHistorySwipe = (
   const { document: doc, history } = target;
   const indicator = createIndicator(doc);
   let enabled = false;
+  let inTouchGesture = false;
+  let pendingEndRaf: number | null = null;
   let lastCommitAt = -Infinity;
   let gesture: SwipeGesture | null = null;
+  const clearPendingEnd = (): void => {
+    if (pendingEndRaf !== null) {
+      target.cancelAnimationFrame(pendingEndRaf);
+      pendingEndRaf = null;
+    }
+  };
   const reset = (next: SwipeGesture | null = null): void => {
     gesture = next;
     indicator.hide();
+  };
+  const abortTouch = (): void => {
+    clearPendingEnd();
+    inTouchGesture = false;
+    reset(null);
   };
   const finish = (next: SwipeGesture | null): void => {
     const g = gesture;
@@ -107,21 +120,47 @@ export const installDesktopHistorySwipe = (
   const onShellEvent = (e: DesktopShellEvent): void => {
     if (e.type === 'swipe-tracking') {
       enabled = e.enabled;
-      if (!enabled) reset();
-    } else if (e.type === 'window-hidden') reset();
+      if (!enabled) abortTouch();
+    } else if (e.type === 'window-hidden') abortTouch();
     else if (e.type === 'swipe') {
       const dir: Dir = (e.direction === 'left') !== documentIsRightToLeft() ? 'back' : 'forward';
       if (now() - lastCommitAt > CFG.dedup && canGo(target, dir)) {
-        reset();
+        abortTouch();
         history[dir]();
       }
     } else if (e.type === 'scroll-gesture') {
-      if (e.phase === 'begin') gesture = gesture?.kind === 'ignored' ? null : gesture;
-      else finish(null);
+      if (e.phase === 'begin') {
+        if (pendingEndRaf !== null) {
+          clearPendingEnd();
+          finish(null);
+        } else if (gesture?.kind === 'ignored') {
+          gesture = null;
+        }
+        inTouchGesture = true;
+      } else if (e.phase === 'cancel') {
+        abortTouch();
+      } else if (gesture?.kind === 'track' && gesture.n >= CFG.min && gesture.dist >= CFG.commit) {
+        clearPendingEnd();
+        inTouchGesture = false;
+        finish(null);
+      } else if (gesture?.kind === 'ignored') {
+        abortTouch();
+      } else if (inTouchGesture && pendingEndRaf === null) {
+        pendingEndRaf = target.requestAnimationFrame(() => {
+          pendingEndRaf = null;
+          inTouchGesture = false;
+          finish(null);
+        });
+      }
     }
   };
   const onWheel = (e: WheelEvent): void => {
-    if ((!allowUntrusted && !e.isTrusted) || !enabled || e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL)
+    if (
+      (!allowUntrusted && !e.isTrusted) ||
+      !enabled ||
+      !inTouchGesture ||
+      e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
+    )
       return;
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)
       return reset(IGNORED);
@@ -159,10 +198,16 @@ export const installDesktopHistorySwipe = (
   const opts = { signal: ac.signal };
   const stopShell = bridge.onShellEvent(onShellEvent);
   target.addEventListener('wheel', onWheel, { passive: true, ...opts });
-  target.addEventListener('blur', () => reset(), opts);
-  target.addEventListener('popstate', () => gesture?.kind !== 'ignored' && reset(), opts);
-  doc.addEventListener('visibilitychange', () => doc.visibilityState === 'hidden' && reset(), opts);
+  target.addEventListener('blur', abortTouch, opts);
+  target.addEventListener('popstate', () => gesture?.kind !== 'ignored' && abortTouch(), opts);
+  doc.addEventListener(
+    'visibilitychange',
+    () => doc.visibilityState === 'hidden' && abortTouch(),
+    opts
+  );
   return () => {
+    clearPendingEnd();
+    inTouchGesture = false;
     stopShell();
     ac.abort();
     indicator.destroy();
