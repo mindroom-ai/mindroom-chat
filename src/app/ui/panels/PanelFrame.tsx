@@ -6,14 +6,12 @@ import { ExpandIcon, ShrinkIcon } from './panelIcons';
 import { usePanelFrame, type PanelFrame } from './panelFrameContext';
 import * as css from './PanelFrame.css';
 
-/** Fill and Fold icon buttons shared by the legacy open strip and the header control pill. */
+/** Fill and Fold icon buttons shared by the legacy open strip and the panel header controls. */
 function FrameActionButtons({
   frame: { label, layout, setLayout, fillLabel, foldLabel },
-  variant,
   tooltipPosition,
 }: {
   frame: PanelFrame;
-  variant: 'Surface' | 'SurfaceVariant';
   tooltipPosition: 'Right' | 'Bottom';
 }) {
   const { t } = useTranslation();
@@ -28,7 +26,7 @@ function FrameActionButtons({
             ref={triggerRef}
             size="300"
             radii="300"
-            variant={variant}
+            variant="Surface"
             fill="None"
             aria-label={fill}
             aria-pressed={filled}
@@ -45,7 +43,7 @@ function FrameActionButtons({
             ref={triggerRef}
             size="300"
             radii="300"
-            variant={variant}
+            variant="Surface"
             fill="None"
             aria-label={fold}
             onClick={() => setLayout('folded')}
@@ -61,7 +59,7 @@ function FrameActionButtons({
 /**
  * The frame's edge strip: folded, the vertical tab at the room's end edge that brings the panel
  * back beside the conversation. Open, renders nothing by default (Fill and Fold live in the
- * panel's header control pill), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
+ * panel's header controls), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
  * `title: 'own'` plugins that do not declare `frameControls: 'own'`.
  */
 export function PanelFrameStrip({
@@ -91,7 +89,7 @@ export function PanelFrameStrip({
 
   return (
     <div className={css.Strip}>
-      <FrameActionButtons frame={frame} variant="Surface" tooltipPosition="Right" />
+      <FrameActionButtons frame={frame} tooltipPosition="Right" />
     </div>
   );
 }
@@ -104,8 +102,9 @@ export type PanelHeaderControlsProps = {
 };
 
 /**
- * Floating control pill at the end of a side panel's header: optional panel-specific controls, a
- * divider when present, Fill and Fold from the enclosing PanelFrame, and Close.
+ * Flat, borderless header controls at the end of a side panel's header: optional panel-specific
+ * controls, a hairline divider when present, Fill and Fold from the enclosing PanelFrame, and
+ * Close.
  */
 export function PanelHeaderControls({
   children,
@@ -127,18 +126,12 @@ export function PanelHeaderControls({
       )}
       {(activeFrame || onClose) && (
         <span className={css.ControlCore}>
-          {activeFrame && (
-            <FrameActionButtons
-              frame={activeFrame}
-              variant="SurfaceVariant"
-              tooltipPosition="Bottom"
-            />
-          )}
+          {activeFrame && <FrameActionButtons frame={activeFrame} tooltipPosition="Bottom" />}
           {onClose && (
             <IconButton
               size="300"
               radii="300"
-              variant="SurfaceVariant"
+              variant="Surface"
               fill="None"
               aria-label={closeLabel}
               onClick={onClose}

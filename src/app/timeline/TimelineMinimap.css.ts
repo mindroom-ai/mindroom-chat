@@ -13,7 +13,9 @@ import { transition } from '../ui/styles/transition';
 export const MinimapContainer = style({
   position: 'absolute',
   top: controlsTopInset,
-  bottom: footerInset,
+  // Anchor above the composer so transient dock bars (typing, read receipts, jobs, approvals)
+  // do not shift the centered rail vertically, falling back to `footerInset` when unset.
+  bottom: `var(--room-composer-height, ${footerInset})`,
   insetInlineStart: 0,
   width: toRem(72),
   zIndex: 3,

@@ -33,15 +33,15 @@ export const Percent = style({
 
 export const Track = style({
   position: 'relative',
-  blockSize: toRem(8),
+  blockSize: toRem(7),
   inlineSize: '100%',
   borderRadius: config.radii.Pill,
   backgroundColor: color.SurfaceVariant.ContainerHover,
   overflow: 'visible',
   selectors: {
     '&:focus-visible': {
-      outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: '2px',
+      outline: `${toRem(2)} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(2),
     },
   },
 });
@@ -54,12 +54,12 @@ export const Fill = style({
 
 export const PaceTick = style({
   position: 'absolute',
-  insetBlockStart: toRem(-2),
+  insetBlockStart: toRem(-3),
   inlineSize: toRem(2),
-  blockSize: toRem(12),
+  blockSize: toRem(13),
   borderRadius: config.radii.Pill,
   backgroundColor: color.Surface.OnContainer,
-  opacity: 0.72,
+  opacity: 0.85,
   transform: 'translateX(-50%)',
   pointerEvents: 'none',
 });
@@ -71,8 +71,47 @@ export const Meta = style({
   flexWrap: 'wrap',
   gap: config.space.S100,
   fontSize: config.fontSize.T200,
+});
+
+export const MetaInfo = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S200,
   color: color.Surface.OnContainer,
   opacity: config.opacity.P400,
+});
+
+export const PaceBadge = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  paddingBlock: toRem(1),
+  paddingInline: toRem(7),
+  borderRadius: config.radii.Pill,
+  fontSize: toRem(11),
+  lineHeight: 1.4,
+  fontWeight: config.fontWeight.W600,
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+  marginInlineStart: 'auto',
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.Surface.Container,
+  color: color.Surface.OnContainer,
+  selectors: {
+    '&[data-pace-tone="ahead"]': {
+      color: color.Success.OnContainer,
+      borderColor: color.Success.ContainerLine,
+      backgroundColor: color.Success.Container,
+    },
+    '&[data-pace-tone="behind"]': {
+      color: color.Warning.Main,
+      borderColor: color.Warning.ContainerLine,
+      backgroundColor: color.Warning.Container,
+    },
+    '&[data-pace-tone="on_pace"]': {
+      opacity: config.opacity.P400,
+    },
+  },
 });
 
 export const InlineRoot = style({

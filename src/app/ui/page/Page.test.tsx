@@ -39,10 +39,13 @@ vi.mock('../../lib/hooks/useScreenSize', () => ({
 }));
 
 describe('PageRoot', () => {
-  it('preserves page colors and reveals the enclosing surface only inside glass', () => {
-    const renderLayout = (appearance: 'glass' | 'plain' | 'inherit') => (
+  it('preserves page colors, reveals the surface, and omits the divider only inside glass', () => {
+    const renderLayout = (
+      appearance: 'glass' | 'plain' | 'inherit',
+      nav: React.ReactNode = <nav />
+    ) => (
       <Modal appearance={appearance}>
-        <PageRoot nav={<nav />}>
+        <PageRoot nav={nav}>
           <Page data-testid="page-content">Settings</Page>
         </PageRoot>
       </Modal>
@@ -53,10 +56,12 @@ describe('PageRoot', () => {
     });
     const pageRoot = () => layout.root.findByType(PageRoot).findByType('div');
     const page = () => layout.root.findByType(Page).findByType('div');
+    const dividers = () => layout.root.findAllByProps({ 'data-testid': 'page-nav-divider' });
     expect(pageRoot().props.className).toContain('color-Background');
     expect(page().props.className).toContain('color-Surface');
     expect(pageRoot().props.className).toContain('surface-inherit');
     expect(page().props.className).toContain('surface-inherit');
+    expect(dividers()).toHaveLength(0);
 
     for (const appearance of ['plain', 'inherit'] as const) {
       act(() => {
@@ -64,6 +69,12 @@ describe('PageRoot', () => {
       });
       expect(pageRoot().props.className).not.toContain('surface-inherit');
       expect(page().props.className).not.toContain('surface-inherit');
+      expect(dividers()).toHaveLength(1);
+
+      act(() => {
+        layout.update(renderLayout(appearance, null));
+      });
+      expect(dividers()).toHaveLength(0);
     }
     layout.unmount();
   });

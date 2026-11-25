@@ -10,11 +10,12 @@ import {
 } from '../helpers/disposableAccounts';
 
 // The Settings dialog over a busy room: its menu column is inset evenly (the search field, the
-// group headings, the rows and Logout leave as much space at the dialog's edge as at the divider
-// beside the page), the search field keeps at least that much space from the dialog's top edge, in
-// line with the page's title bar beside it, and its surface is nearly opaque, so the room behind
-// it shows only as a faint blur and the menu's names keep their contrast. Checked in Chromium and,
-// when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// group headings, the rows and Logout leave as much space at the dialog's edge as at the column's
+// end beside the page, with no vertical divider between them), the search field keeps at least that
+// much space from the dialog's top edge, in line with the page's title bar beside it, and its
+// surface is nearly opaque, so the room behind it shows only as a faint blur and the menu's names
+// keep their contrast. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, in WebKit. Set
 // SETTINGS_SURFACE_SHOTS=<directory> to also save the dialog and the other large dialogs.
 const PASSWORD = 'settings-surface-spec-password';
 const SHOTS = process.env.SETTINGS_SURFACE_SHOTS;
@@ -101,16 +102,16 @@ const openAccount = async (page: Page, roomId: string, themeId: string, viewport
 type Inset = { part: string; start: number; end: number };
 
 /**
- * How far each part of the menu column stays from the dialog's start edge and from the divider
- * (on a phone, which has none, from the dialog's end edge), in CSS pixels.
+ * How far each part of the menu column stays from the dialog's start edge and from the column's
+ * end edge (on a phone, the dialog's end edge), in CSS pixels.
  */
 const menuInsets = (dialog: Locator) =>
   dialog.evaluate((element): Inset[] => {
     const nav = element.querySelector('nav')!;
-    const next = nav.nextElementSibling?.getBoundingClientRect();
     // Inside the dialog's 1 px border.
     const start = element.getBoundingClientRect().left + element.clientLeft;
-    const end = next && next.width <= 2 ? next.left : start + element.clientWidth;
+    const navBox = nav.getBoundingClientRect();
+    const end = Math.min(navBox.right, start + element.clientWidth);
     const field = nav.querySelector('[role="combobox"]')!.parentElement!;
     const headings = [...nav.querySelectorAll('[role="group"] > :first-child')];
     const rows = [...nav.querySelectorAll('button:not([aria-label])')];
@@ -122,6 +123,14 @@ const menuInsets = (dialog: Locator) =>
         end: end - box.right,
       };
     });
+  });
+
+/** Whether a thin vertical divider sits directly after the menu column. */
+const hasNavDivider = (dialog: Locator) =>
+  dialog.evaluate((element): boolean => {
+    let next = element.querySelector('nav')?.nextElementSibling ?? null;
+    while (next && getComputedStyle(next).display === 'contents') next = next.firstElementChild;
+    return next !== null && next.getBoundingClientRect().width <= 2;
   });
 
 const expectEvenInsets = (insets: Inset[]) => {
@@ -253,6 +262,7 @@ const checkSurface = async (
       await page.waitForTimeout(400);
       /* eslint-disable no-await-in-loop -- one theme after the other on one page. */
       const insets = await menuInsets(dialog);
+      const divider = await hasNavDivider(dialog);
       const line = await headerLine(dialog);
       const surface = await surfaceOf(dialog);
       const backdrop = await menuBackdrop(dialog, account);
@@ -264,8 +274,9 @@ const checkSurface = async (
         });
       }
       /* eslint-enable no-await-in-loop */
-      measured[theme] = { insets, line, surface, backdrop };
+      measured[theme] = { insets, divider, line, surface, backdrop };
       expectEvenInsets(insets);
+      expect.soft(divider, `${theme}: no vertical divider after menu`).toBe(false);
       expectHeaderLine(line, theme);
       // A blur, or the liquid glass filter where the browser draws it.
       expect.soft(surface.filter, theme).toMatch(/blur\(|url\(/);

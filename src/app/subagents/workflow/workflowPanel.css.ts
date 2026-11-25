@@ -188,17 +188,6 @@ export const ResultPre = style({
   ...surfaceCard,
   ...smallType,
 });
-export const PeerLinkButton = style({
-  ...flexRow,
-  ...surfaceCard,
-  ...smallType,
-  inlineSize: '100%',
-  padding: `${space.S100} ${space.S200}`,
-  borderRadius: radii.R300,
-  textAlign: 'start',
-  cursor: 'pointer',
-  selectors: surfaceHover,
-});
 
 export const GraphCanvas = style([Stack, { gap: 0 }]);
 export const Band = style([Stack, { gap: space.S200 }]);
@@ -220,7 +209,15 @@ export const FlowConnector = style({
 });
 export const BandGap = style({ blockSize: space.S300 });
 export const ItemGap = style({ blockSize: space.S200 });
-export const ForkJoinSvg = style({ display: 'block', inlineSize: '100%', blockSize: toRem(18) });
+export const ForkJoinSvg = style({
+  display: 'block',
+  inlineSize: '100%',
+  blockSize: toRem(18),
+  selectors: {
+    '&:dir(rtl)': { transform: 'scaleX(-1)' },
+    '[dir="rtl"] &': { transform: 'scaleX(-1)' },
+  },
+});
 export const ConnectorPath = style({
   fill: 'none',
   stroke: color.SurfaceVariant.OnContainer,
@@ -342,10 +339,8 @@ export const ChipMeta = style({
   columnGap: space.S200,
   rowGap: toRem(2),
   color: 'inherit',
-  opacity: opacity.P400,
   ...smallType,
 });
-globalStyle(`${ChipMeta} > span`, { minInlineSize: 0, maxInlineSize: '100%', ...truncate });
 export const ChipNote = style({ ...smallType, color: color.Warning.Main });
 const badgeText = style({ display: 'inline-block', minInlineSize: 0, ...smallType, ...truncate });
 export const StepStatusNote = style([
@@ -356,13 +351,19 @@ export const SessionBadge = style([
   badgeText,
   {
     flexShrink: 0,
-    maxInlineSize: toRem(120),
+    maxInlineSize: `min(100%, ${toRem(120)})`,
     padding: `${toRem(1)} ${space.S100}`,
     borderRadius: radii.Pill,
     backgroundColor: color.Primary.Container,
     color: color.Primary.OnContainer,
   },
 ]);
+globalStyle(`${ChipMeta} > span:not(${SessionBadge})`, {
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+  opacity: opacity.P400,
+  ...truncate,
+});
 export const ErrorPill = style([
   badgeText,
   {
@@ -431,16 +432,6 @@ export const StepRowBadges = style({
   gap: space.S100,
   marginInlineStart: 'auto',
   maxInlineSize: '100%',
-});
-export const MessageList = style([Stack, { margin: 0, padding: 0, listStyle: 'none' }]);
-export const MessageRow = style({
-  ...flexRow,
-  justifyContent: 'space-between',
-  gap: space.S200,
-  padding: `${space.S200} ${space.S300}`,
-  borderRadius: radii.R300,
-  ...variantCard,
-  ...smallType,
 });
 export const LogList = style([
   InsetBox,

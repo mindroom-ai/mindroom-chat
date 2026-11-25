@@ -110,9 +110,7 @@ test('discovers Helper profile card automatically with empty computers.apiUrl', 
 
   const card = page.getByRole('dialog', { name: 'Helper', exact: true });
   await expect(card.getByText('Stub Fast', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(
-    card.getByText('Test agent driven by a stub model', { exact: true })
-  ).toBeVisible();
+  await expect(card.getByText('Test agent driven by a stub model', { exact: true })).toBeVisible();
   await expect(card.getByText('Configured tools', { exact: true })).toBeVisible();
   await expect(card.getByText(/Shell Commands/)).toBeVisible();
 
@@ -182,19 +180,17 @@ test('loads provider usage limits over encrypted RPC without errors', async ({ p
     usageView.getByRole('heading', { name: 'Usage & Limits', exact: true })
   ).toBeVisible();
 
-  const limitsTab = usageView.getByRole('tab', { name: 'Limits', exact: true });
-  const tokensTab = usageView.getByRole('tab', { name: 'Tokens & Cost', exact: true });
-  await expect(limitsTab).toBeVisible({ timeout: 90_000 });
-  await expect(limitsTab).toHaveAttribute('aria-selected', 'true');
-  await expect(tokensTab).toBeVisible();
-  await expect(page.getByTestId('usage-unavailable')).toHaveCount(0);
-  await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
+  await expect(usageView.getByTestId('total-tokens-7d')).toBeVisible({ timeout: 90_000 });
+  await expect(usageView.getByText('7-day tokens', { exact: true })).toBeVisible();
+  await expect(usageView.getByTestId('daily-activity-card')).toBeVisible();
 
-  await tokensTab.click();
-  await expect(tokensTab).toHaveAttribute('aria-selected', 'true');
-  await expect(usageView.getByText('7-day total tokens', { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  const whereUsageGoes = usageView.getByTestId('where-usage-goes');
+  await expect(whereUsageGoes).toBeVisible();
+  const accountsTab = whereUsageGoes.getByRole('tab', { name: 'Accounts', exact: true });
+  await expect(accountsTab).toBeVisible();
+  await accountsTab.click();
+  await expect(accountsTab).toHaveAttribute('aria-selected', 'true');
+
   await expect(page.getByTestId('usage-unavailable')).toHaveCount(0);
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 });

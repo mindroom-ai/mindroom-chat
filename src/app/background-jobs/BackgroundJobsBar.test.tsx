@@ -1179,6 +1179,7 @@ it('renders a workflow run job row with title, counts, usage cells, and Stop', (
         groups: [],
         nodes: [],
         edges: [],
+        messages: [],
         log: [],
         omitted: {
           queued: 0,
@@ -1190,6 +1191,7 @@ it('renders a workflow run job row with title, counts, usage cells, and Stop', (
           groups: 0,
           phases: 0,
           log: 0,
+          messages: 0,
         },
       },
     },

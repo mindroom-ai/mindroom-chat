@@ -134,7 +134,9 @@ it('hides only a jobs bar that throws, and tries it again in the next conversati
 
 it("adds the thread's approvals and passes a confirmed thread to its provider", () => {
   const { rerender } = render(layout({ threadId: '$root' }));
-  expect(screen.getByTestId('approval-queue')).toBeTruthy();
+  const approvalQueue = screen.getByTestId('approval-queue');
+  expect(approvalQueue).toBeTruthy();
+  expect(approvalQueue.parentElement?.style.pointerEvents).toBe('none');
   expect(seen.approvals.at(-1)).toBe('$root');
   expect(seen.jobs.at(-1)).toBe('$root');
   expect(screen.getByTestId('typing').textContent).toBe('$root');
