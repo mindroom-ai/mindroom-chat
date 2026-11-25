@@ -78,6 +78,7 @@ describe('avatars that need the access token', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(AUTHED, {
       headers: { Authorization: 'Bearer token-1' },
+      cache: 'no-store',
     });
     expect(image()?.getAttribute('src')).toBe('blob:face');
   });

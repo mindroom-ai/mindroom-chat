@@ -66,6 +66,7 @@ describe('loadServerScaledPicture', () => {
       `${HOMESERVER}/_matrix/client/v1/media/thumbnail/example/photo?width=800&height=600&method=scale`
     );
     expect(init.headers).toEqual({ Authorization: 'Bearer secret-token' });
+    expect(init.cache).toBe('no-store');
     expect(blobs[0]?.type).toBe('image/png');
     expect(loadOriginal).not.toHaveBeenCalled();
   });

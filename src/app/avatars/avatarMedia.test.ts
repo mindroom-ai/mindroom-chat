@@ -64,7 +64,7 @@ describe('authenticatedAvatarRequest', () => {
   it('asks the authenticated endpoint with the token in a header', () => {
     expect(authenticatedAvatarRequest(client(), LEGACY)).toEqual({
       url: AUTHED,
-      init: { headers: { Authorization: 'Bearer secret-token' } },
+      init: { headers: { Authorization: 'Bearer secret-token' }, cache: 'no-store' },
     });
   });
 
@@ -173,6 +173,7 @@ describe('fetchAvatar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(AUTHED, {
       headers: { Authorization: 'Bearer secret-token' },
+      cache: 'no-store',
     });
     expect(peekFetchedAvatar(client(), AUTHED)).toBe('blob:avatar-1');
   });
@@ -215,6 +216,7 @@ describe('fetchAvatar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenLastCalledWith(AUTHED, {
       headers: { Authorization: 'Bearer bob-token' },
+      cache: 'no-store',
     });
   });
 

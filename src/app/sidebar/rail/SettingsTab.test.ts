@@ -617,7 +617,7 @@ describe('SettingsTab', () => {
 
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://mindroom.chat/_matrix/client/v1/media/thumbnail/mindroom.chat/avatar?width=96&height=96&method=crop',
-      expect.objectContaining({ headers: { Authorization: 'Bearer token-a' } })
+      { headers: { Authorization: 'Bearer token-a' }, cache: 'no-store' }
     );
   });
 

@@ -287,31 +287,27 @@ describe('authenticatedMediaRequestInit', () => {
     vi.unstubAllGlobals();
   });
 
-  it('sends the access token in a header to the homeserver media URL', () => {
-    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
-      headers: { Authorization: 'Bearer test-token' },
-    });
-  });
+  it('sends the access token in a header with cache no-store on web, Capacitor, and desktop', () => {
+    const expected = { headers: { Authorization: 'Bearer test-token' }, cache: 'no-store' };
+    vi.stubGlobal('window', { location: { protocol: 'https:' } });
+    vi.stubGlobal('navigator', { serviceWorker: { controller: null } });
+    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual(expected);
 
-  it('sets cache no-store on Capacitor shells and leaves Electron desktop unchanged', () => {
     vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
-    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
-      headers: { Authorization: 'Bearer test-token' },
-      cache: 'no-store',
-    });
+    vi.stubGlobal('navigator', {});
+    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual(expected);
 
     vi.stubGlobal('window', {
       location: { protocol: 'capacitor:' },
       mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
     });
-    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
-      headers: { Authorization: 'Bearer test-token' },
-    });
+    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual(expected);
   });
 
   it('sends the Bearer header even if an unrelated query parameter is present and skips legacy or foreign URLs', () => {
     expect(authenticatedMediaRequestInit(mx, `${mediaUrl}?access_token=legacy`)).toEqual({
       headers: { Authorization: 'Bearer test-token' },
+      cache: 'no-store',
     });
     expect(
       authenticatedMediaRequestInit(

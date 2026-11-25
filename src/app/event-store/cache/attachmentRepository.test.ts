@@ -292,6 +292,7 @@ describe('persistent attachment repository', () => {
         return new Response('Unauthenticated media is disabled.', { status: 403 });
       }
       expect(init?.headers).toEqual({ Authorization: 'Bearer test-token' });
+      expect(init?.cache).toBe('no-store');
       return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -364,6 +365,7 @@ describe('persistent attachment repository', () => {
         return new Response('Unauthenticated media is disabled.', { status: 403 });
       }
       expect(init?.headers).toEqual({ Authorization: 'Bearer test-token' });
+      expect(init?.cache).toBe('no-store');
       return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
     });
     vi.stubGlobal('fetch', fetchMock);
