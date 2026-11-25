@@ -615,7 +615,7 @@ export const createAgentRoom = async (
         invite: [stack.agents.helper],
         ...(helperPowerLevel !== undefined && {
           power_level_content_override: {
-            users: { [stack.tester.userId]: 100, [stack.agents.helper]: helperPowerLevel },
+            users: { [stack.agents.helper]: helperPowerLevel },
           },
         }),
         initial_state: encrypted
