@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
+import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
+import { getMemberAvatarMxc, getMemberDisplayName, splitUserIdSuffix } from '../../matrix/room';
 import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { ThreadFilterDropdown, ThreadFilterPanel } from './ThreadFilterDropdown';
 import * as css from './ThreadFilterDropdown.css';
@@ -39,7 +40,7 @@ type PersonOption = {
 };
 
 const normalizeDisplayNameKey = (name: string): string =>
-  name.normalize('NFKC').trim().toLocaleLowerCase();
+  removeHiddenChars(name).normalize('NFKC').trim().toLocaleLowerCase();
 
 function PeoplePanel({
   room,
@@ -79,13 +80,11 @@ function PeoplePanel({
         }
       }
     }
-    const user = mx.getUser?.(userId);
-    const resolvedAvatarMxc = avatarMxc ?? (user?.avatarUrl || undefined);
     return {
       userId,
-      displayName: displayName || user?.displayName || getMxIdLocalPart(userId) || userId,
-      avatarUrl: resolvedAvatarMxc
-        ? (mxcUrlToHttp(mx, resolvedAvatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
+      displayName: displayName ?? getMxIdLocalPart(userId) ?? userId,
+      avatarUrl: avatarMxc
+        ? (mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
         : undefined,
       agent: isMindroomAgentUserId(userId),
       threadCount,
@@ -103,17 +102,19 @@ function PeoplePanel({
     ...listed,
     ...(selected ?? []).filter((userId) => !listedIds.has(userId)).map((id) => toOption(id, 0)),
   ];
+  const splitPeople = rawPeople.map((person) => {
+    const [baseName, existingSuffix] = splitUserIdSuffix(person.displayName, person.userId);
+    return { person, baseName, existingSuffix, key: normalizeDisplayNameKey(baseName) };
+  });
   const nameCounts = new Map<string, number>();
-  rawPeople.forEach((person) => {
-    const key = normalizeDisplayNameKey(person.displayName);
+  splitPeople.forEach(({ key }) => {
     nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
   });
-  const people = rawPeople.map((person) => {
-    const key = normalizeDisplayNameKey(person.displayName);
-    return (nameCounts.get(key) ?? 0) > 1 && !person.displayName.endsWith(` (${person.userId})`)
-      ? { ...person, disambiguator: person.userId }
-      : person;
-  });
+  const people = splitPeople.map(({ person, baseName, existingSuffix, key }) =>
+    existingSuffix || (nameCounts.get(key) ?? 0) > 1
+      ? { ...person, displayName: baseName, disambiguator: person.userId }
+      : person
+  );
   const chosen = new Set(selected);
 
   return (
@@ -147,7 +148,9 @@ function PeoplePanel({
                   <Text
                     as="span"
                     size="T200"
-                    className={css.OptionCount}
+                    truncate
+                    dir="ltr"
+                    className={css.Disambiguator}
                     data-person-disambiguator="true"
                   >
                     {person.disambiguator}

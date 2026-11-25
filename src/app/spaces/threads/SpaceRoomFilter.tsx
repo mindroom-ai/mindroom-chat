@@ -13,8 +13,15 @@ import {
   type ThreadFilterOption,
 } from '../../threads/overview/ThreadFilterDropdown';
 import * as dropdownCss from '../../threads/overview/ThreadFilterDropdown.css';
-import { ownDirectionLine } from '../../ui/directional';
-import type { SpaceRoomFilterGroups, SpaceRoomItem } from './spaceThreadsModel';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
+import type {
+  SpaceRoomFilterGroup,
+  SpaceRoomFilterGroups,
+  SpaceRoomItem,
+} from './spaceThreadsModel';
+
+const getSubspaceName = (group: SpaceRoomFilterGroup): string =>
+  revealDirectionControls(group.room.name || group.spaceId);
 
 export type SpaceRoomFilterProps = {
   rooms: readonly SpaceRoomItem[];
@@ -101,7 +108,7 @@ function RoomFilterPanel({
         const forcedRoomIds = needle
           ? new Set(
               groups.subspaces
-                .filter((group) => group.name.toLocaleLowerCase().includes(needle))
+                .filter((group) => getSubspaceName(group).toLocaleLowerCase().includes(needle))
                 .flatMap((group) => group.subtreeRoomIds)
             )
           : undefined;
@@ -119,9 +126,10 @@ function RoomFilterPanel({
         });
 
         groups.subspaces.forEach((group) => {
+          const name = getSubspaceName(group);
           const matchesGroup =
             !needle ||
-            group.name.toLocaleLowerCase().includes(needle) ||
+            name.toLocaleLowerCase().includes(needle) ||
             group.subtreeRoomIds.some((id) => visibleRoomIds.has(id));
           if (!matchesGroup) return;
 
@@ -155,7 +163,7 @@ function RoomFilterPanel({
                     alt=""
                     renderFallback={() => (
                       <Text as="span" size="H6">
-                        {nameInitials(group.name)}
+                        {nameInitials(name)}
                       </Text>
                     )}
                   />
@@ -167,7 +175,7 @@ function RoomFilterPanel({
                   className={dropdownCss.Name}
                   {...ownDirectionLine}
                 >
-                  {group.name}
+                  {name}
                 </Text>
               </>
             ),
@@ -217,7 +225,7 @@ export function SpaceRoomFilter(props: SpaceRoomFilterProps) {
               group.subtreeRoomIds.length === selectedCount &&
               group.subtreeRoomIds.every((id) => selectedRoomIds.has(id))
           );
-          return matches.length === 1 ? matches[0]!.name : undefined;
+          return matches.length === 1 ? getSubspaceName(matches[0]!) : undefined;
         })()
       : undefined;
   const soleLabel = soleRoomName ?? soleSubspaceName;

@@ -10,12 +10,14 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-const USERS: Record<string, { displayName?: string; avatarUrl?: string }> = {
-  '@extern:example.org': { displayName: 'External User', avatarUrl: 'mxc://example.org/extern' },
-};
+const getUserSpy = vi.fn((userId: string) =>
+  userId === '@extern:example.org'
+    ? { displayName: 'Private Nickname', avatarUrl: 'mxc://example.org/private' }
+    : null
+);
 const mockClient = {
   getHomeserverUrl: () => 'https://example.org',
-  getUser: (userId: string) => USERS[userId] ?? null,
+  getUser: getUserSpy,
   mxcUrlToHttp: (mxc: string) =>
     mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
 };
@@ -60,6 +62,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   vi.mocked(peopleFilter.buildThreadPeopleActivity).mockClear();
+  getUserSpy.mockClear();
 });
 
 const render = (
@@ -253,38 +256,60 @@ describe('the People dropdown', () => {
     expect(imgSrcOf('@bob:example.org')).toBe(
       'https://example.org/_matrix/media/v3/download/example.org/bob'
     );
-    expect(textOf('@extern:example.org')).toContain('External User');
-    expect(imgSrcOf('@extern:example.org')).toBe(
-      'https://example.org/_matrix/media/v3/download/example.org/extern'
-    );
+    // Never leaks global mx.getUser profile/avatar when absent from supplied rooms.
+    expect(getUserSpy).not.toHaveBeenCalled();
+    expect(textOf('@extern:example.org')).toContain('extern');
+    expect(textOf('@extern:example.org')).not.toContain('Private Nickname');
+    expect(imgSrcOf('@extern:example.org')).toBeUndefined();
     expect(textOf('@ghost:example.org')).toContain('ghost');
     expect(imgSrcOf('@ghost:example.org')).toBeUndefined();
   });
 
-  it('disambiguates Unicode-equivalent colliding display names across rooms outside the truncated name', () => {
-    const makeRoomWith = (roomId: string, userId: string, rawDisplayName: string) =>
-      ({
+  it('disambiguates Unicode, homoglyph, and same-room suffixed names into an ltr disambiguator span', () => {
+    const makeMembersRoom = (
+      roomId: string,
+      entries: Array<{ userId: string; rawDisplayName: string; disambiguate?: boolean }>
+    ) => {
+      const members = entries.map((entry) => ({
+        ...entry,
+        membership: 'join',
+        getMxcAvatarUrl: () => undefined,
+      }));
+      return {
         roomId,
-        getMember: (id: string) =>
-          id === userId ? { rawDisplayName, getMxcAvatarUrl: () => undefined } : null,
-      }) as unknown as Room;
+        getMembers: () => members,
+        getMember: (id: string) => members.find((member) => member.userId === id) ?? null,
+      } as unknown as Room;
+    };
 
     const joseA = '@jose-a:example.org';
     const joseB = '@jose-b:example.org';
+    const latinAlice = '@alice-latin:example.org';
+    const cyrillicAlice = '@alice-cyr:example.org';
+    const sameRoomA = '@same-a:example.org';
+    const sameRoomB = '@same-b:example.org';
     const solo = '@solo:example.org';
-    const roomA = makeRoomWith('!a:example.org', joseA, 'Jose\u0301');
-    const roomB = makeRoomWith('!b:example.org', joseB, 'Jos\u00e9');
-    const roomC = makeRoomWith('!c:example.org', solo, 'Solo');
+
+    const roomA = makeMembersRoom('!a:example.org', [
+      { userId: joseA, rawDisplayName: 'Jose\u0301' },
+      { userId: latinAlice, rawDisplayName: 'Alice' },
+      { userId: sameRoomA, rawDisplayName: 'Long Name', disambiguate: true },
+      { userId: sameRoomB, rawDisplayName: 'Long Name', disambiguate: true },
+    ]);
+    const roomB = makeMembersRoom('!b:example.org', [
+      { userId: joseB, rawDisplayName: 'Jos\u00e9' },
+      { userId: cyrillicAlice, rawDisplayName: '\u0410lice' },
+      { userId: solo, rawDisplayName: 'Solo' },
+    ]);
     const collidingRecords = new Map([
-      ['$1', record('$1', [joseA])],
-      ['$2', record('$2', [joseB])],
-      ['$3', record('$3', [solo])],
+      ['$1', record('$1', [joseA, latinAlice, sameRoomA, sameRoomB])],
+      ['$2', record('$2', [joseB, cyrillicAlice, solo])],
     ]);
 
     act(() => {
       renderer = create(
         <ThreadPeopleFilter
-          rooms={[roomA, roomB, roomC]}
+          rooms={[roomA, roomB]}
           records={collidingRecords}
           selected={undefined}
           onToggle={vi.fn()}
@@ -296,21 +321,28 @@ describe('the People dropdown', () => {
 
     const optionOf = (userId: string) =>
       byData('data-person-option').find((node) => node.props['data-person-option'] === userId)!;
-    const disambiguatorOf = (userId: string) =>
+    const disambiguatorNodesOf = (userId: string) =>
+      optionOf(userId).findAll(
+        (node) => typeof node.type === 'string' && 'data-person-disambiguator' in node.props
+      );
+    const nameTextOf = (userId: string) =>
       optionOf(userId)
         .findAll(
-          (node) => typeof node.type === 'string' && 'data-person-disambiguator' in node.props
+          (node) =>
+            typeof node.type === 'string' &&
+            node.type === 'span' &&
+            !('data-person-disambiguator' in node.props) &&
+            node.children.every((child) => typeof child === 'string')
         )
         .map((node) => node.children.join(''));
-    const truncatedNameOf = (userId: string) =>
-      optionOf(userId)
-        .findAll((node) => node.props.truncate === true)
-        .map((node) => node.props.children);
 
-    expect(disambiguatorOf(joseA)).toEqual([joseA]);
-    expect(disambiguatorOf(joseB)).toEqual([joseB]);
-    expect(truncatedNameOf(joseA)).toEqual(['Jose\u0301']);
-    expect(truncatedNameOf(joseB)).toEqual(['Jos\u00e9']);
-    expect(disambiguatorOf(solo)).toEqual([]);
+    for (const userId of [joseA, joseB, latinAlice, cyrillicAlice, sameRoomA, sameRoomB]) {
+      const nodes = disambiguatorNodesOf(userId);
+      expect(nodes.map((node) => node.children.join(''))).toEqual([userId]);
+      expect(nodes[0]?.props.dir).toBe('ltr');
+    }
+    expect(nameTextOf(sameRoomA)).toContain('Long Name');
+    expect(nameTextOf(sameRoomA).join(' ')).not.toContain(sameRoomA);
+    expect(disambiguatorNodesOf(solo)).toEqual([]);
   });
 });

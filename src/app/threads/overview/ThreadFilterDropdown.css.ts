@@ -83,6 +83,13 @@ export const Name = style({
   minWidth: 0,
 });
 
+export const Disambiguator = style({
+  flexShrink: 1,
+  minWidth: 0,
+  maxInlineSize: '45%',
+  opacity: 0.65,
+});
+
 export const OptionGroupHeader = style({
   selectors: {
     '&:not(:first-child)': {

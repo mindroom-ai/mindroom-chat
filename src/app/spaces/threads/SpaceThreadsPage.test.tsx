@@ -1622,5 +1622,18 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
     expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
     expect(container.querySelector(`[data-room-option="${ROOM_DES}"]`)).toBeNull();
+
+    // Renaming the subspace updates its label and search match when reopening the Rooms dropdown.
+    fireEvent.click(container.querySelector('[data-room-filter-button]')!);
+    subSpace.setName('Infrastructure');
+    openRoomsDropdown(container);
+    expect(container.querySelector(`[data-subspace-option="${subId}"]`)?.textContent).toContain(
+      'Infrastructure'
+    );
+    fireEvent.change(container.querySelector<HTMLInputElement>('[data-room-filter-search]')!, {
+      target: { value: 'infra' },
+    });
+    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
   });
 });
