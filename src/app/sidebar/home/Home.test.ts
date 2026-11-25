@@ -1,14 +1,26 @@
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { Provider, atom, createStore } from 'jotai';
+import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import type { RoomToParents } from '../../matrix/types/room';
+import {
+  type ClosedNavCategoriesAtom,
+  makeClosedNavCategoriesAtom,
+} from '../../ui/nav/closedNavCategories';
 import { Home } from './Home';
 
-const { navigate, screen, sortState, roomsById, groupProps, sectionDropIds } = vi.hoisted(() => {
+const {
+  navigate,
+  screen,
+  sortState,
+  roomsById,
+  groupProps,
+  sectionDropIds,
+  closedState,
+} = vi.hoisted(() => {
   const sort: {
     mode: 'recent' | 'name' | 'manual';
     showTimes: boolean;
@@ -30,6 +42,7 @@ const { navigate, screen, sortState, roomsById, groupProps, sectionDropIds } = v
     sortState: sort,
     groupProps: [] as Array<{ canMoveRoom?: unknown; onMoveRoom?: unknown }>,
     sectionDropIds: [] as string[],
+    closedState: { atom: undefined as ClosedNavCategoriesAtom | undefined },
     roomsById: new Map<
       string,
       { roomId: string; name: string; lastActive: number; space?: boolean }
@@ -51,6 +64,14 @@ const { navigate, screen, sortState, roomsById, groupProps, sectionDropIds } = v
       [
         '!sketches:example.org',
         { roomId: '!sketches:example.org', name: 'Sketches', lastActive: 1500 },
+      ],
+      [
+        '!garden:example.org',
+        { roomId: '!garden:example.org', name: 'Garden Club', lastActive: 0, space: true },
+      ],
+      [
+        '!plants:example.org',
+        { roomId: '!plants:example.org', name: 'Plant Care', lastActive: 1200 },
       ],
     ]),
   };
@@ -284,30 +305,69 @@ vi.mock('../room-nav/SortableRoomList', () => ({
       'data-activity-ts': activityTimestamp ?? '',
     }),
 }));
-vi.mock('../space/SpaceRoomSection', () => ({
-  SpaceRoomSection: ({
+vi.mock('../space/SpaceRoomSection', () => {
+  type MockSection = {
+    spaceId: string;
+    categoryId: string;
+    closed: boolean;
+    listedRoomIds: string[];
+    shownRoomIds: string[];
+    ancestorSpaceIds: string[];
+  };
+  type MockChildNode = {
+    section: MockSection;
+    children: MockChildNode[];
+    subtreeShownRoomIds: string[];
+  };
+  const MockSpaceRoomSection = ({
     section,
+    childNodes = [],
+    subtreeShownRoomIds,
     roomPath,
     showOverview,
+    quietUnread,
     pinMode,
   }: {
-    section: { spaceId: string; categoryId: string; listedRoomIds: string[] };
+    section: MockSection;
+    childNodes?: MockChildNode[];
+    subtreeShownRoomIds?: string[];
     roomPath?: (roomId: string) => string;
     showOverview?: boolean;
-    pinMode?: string;
-  }) =>
-    React.createElement('div', {
-      'data-space-section': section.spaceId,
-      'data-category-id': section.categoryId,
-      'data-listed-rooms': section.listedRoomIds.join(','),
-      'data-room-path': roomPath?.('!sample') ?? '',
-      'data-show-overview': String(Boolean(showOverview)),
-      'data-pin-mode': pinMode ?? '',
-    }),
-}));
-vi.mock('../../ui/nav/closedNavCategories', () => ({
-  makeNavCategoryId: (...parts: string[]) => parts.join('|'),
-}));
+    quietUnread?: boolean;
+    pinMode?: string | ((target: MockSection) => string | undefined);
+  }): React.ReactElement => {
+    const resolvedPin = typeof pinMode === 'function' ? pinMode(section) : pinMode;
+    return React.createElement(
+      'div',
+      {
+        'data-space-section': section.spaceId,
+        'data-category-id': section.categoryId,
+        'data-closed': String(section.closed),
+        'data-listed-rooms': section.listedRoomIds.join(','),
+        'data-subtree-rooms': (subtreeShownRoomIds ?? section.shownRoomIds).join(','),
+        'data-room-path': roomPath?.('!sample') ?? '',
+        'data-show-overview': String(Boolean(showOverview)),
+        'data-quiet-unread': String(Boolean(quietUnread)),
+        'data-pin-mode': resolvedPin ?? '',
+      },
+      !section.closed
+        ? childNodes.map((child) =>
+            React.createElement(MockSpaceRoomSection, {
+              key: child.section.categoryId,
+              section: child.section,
+              childNodes: child.children,
+              subtreeShownRoomIds: child.subtreeShownRoomIds,
+              roomPath,
+              showOverview,
+              quietUnread,
+              pinMode,
+            })
+          )
+        : null
+    );
+  };
+  return { SpaceRoomSection: MockSpaceRoomSection };
+});
 vi.mock('../../ui/nav/useCategoryHandler', () => ({ useCategoryHandler: () => vi.fn() }));
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: vi.fn(),
@@ -325,10 +385,9 @@ vi.mock('../../ui/page/Page', async () => {
   }) => reactModule.createElement('div', { 'data-page-nav-content': true }, header, children);
   return { PageNav: passthrough, PageNavContent: pageNavContent, PageNavHeader: passthrough };
 });
-vi.mock('../../ui/nav/useClosedNavCategories', () => {
-  const closedAtom = atom(new Set<string>());
-  return { useClosedNavCategoriesAtom: () => closedAtom };
-});
+vi.mock('../../ui/nav/useClosedNavCategories', () => ({
+  useClosedNavCategoriesAtom: () => closedState.atom!,
+}));
 vi.mock('../../lib/keyboard', () => ({ stopPropagation: vi.fn() }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationMode: vi.fn(),
@@ -373,6 +432,7 @@ const makeStore = (rooms: string[], parents: Record<string, string[]> = {}) => {
 };
 
 const renderHome = (rooms: string[], parents: Record<string, string[]> = {}) => {
+  closedState.atom = makeClosedNavCategoriesAtom('@alice:example.org');
   const store = makeStore(rooms, parents);
   let renderer!: ReactTestRenderer;
   act(() => {
@@ -458,7 +518,7 @@ describe('Home', () => {
     act(() => renderer.unmount());
   });
 
-  it('hides the Rooms section and Home header sort when all rooms live in spaces, without showing No Rooms', () => {
+  it('opens a single-space all-spaced Home expanded by default without Rooms header, Home sort, or No Rooms', () => {
     const { renderer } = renderHome(
       [
         '!work:example.org',
@@ -488,26 +548,35 @@ describe('Home', () => {
       sections.map((node) => ({
         spaceId: node.props['data-space-section'],
         categoryId: node.props['data-category-id'],
+        closed: node.props['data-closed'],
         listed: node.props['data-listed-rooms'],
+        subtree: node.props['data-subtree-rooms'],
         roomPath: node.props['data-room-path'],
         showOverview: node.props['data-show-overview'],
+        quietUnread: node.props['data-quiet-unread'],
         pinMode: node.props['data-pin-mode'],
       }))
     ).toEqual([
       {
         spaceId: '!work:example.org',
         categoryId: 'home|space|!work:example.org',
+        closed: 'false',
         listed: '!planning:example.org',
+        subtree: '!planning:example.org,!sketches:example.org',
         roomPath: '/home/!sample',
         showOverview: 'true',
+        quietUnread: 'true',
         pinMode: '',
       },
       {
         spaceId: '!design:example.org',
         categoryId: 'home|space|!design:example.org',
+        closed: 'false',
         listed: '!sketches:example.org',
+        subtree: '!sketches:example.org',
         roomPath: '/home/!sample',
         showOverview: 'true',
+        quietUnread: 'true',
         pinMode: 'toggle',
       },
     ]);
@@ -526,6 +595,58 @@ describe('Home', () => {
         'data-mark-read-rooms': '!sketches:example.org,!planning:example.org',
       })
     ).toBeDefined();
+
+    act(() => renderer.unmount());
+  });
+
+  it('collapses multi-space all-spaced Home by default while hiding Rooms header and Home sort', () => {
+    const { renderer } = renderHome(
+      [
+        '!work:example.org',
+        '!design:example.org',
+        '!planning:example.org',
+        '!sketches:example.org',
+        '!garden:example.org',
+        '!plants:example.org',
+      ],
+      {
+        '!design:example.org': ['!work:example.org'],
+        '!planning:example.org': ['!work:example.org'],
+        '!sketches:example.org': ['!design:example.org'],
+        '!plants:example.org': ['!garden:example.org'],
+      }
+    );
+
+    expect(renderer.root.findAllByProps({ 'data-empty-layout': 'true' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'room-nav-category' })).toHaveLength(0);
+    expect(
+      renderer.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
+      )
+    ).toHaveLength(0);
+
+    // Top-level spaces start collapsed; nested Design Team stays hidden inside collapsed Work.
+    const sections = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-space-section' in node.props
+    );
+    expect(
+      sections.map((node) => ({
+        spaceId: node.props['data-space-section'],
+        closed: node.props['data-closed'],
+        subtree: node.props['data-subtree-rooms'],
+      }))
+    ).toEqual([
+      {
+        spaceId: '!garden:example.org',
+        closed: 'true',
+        subtree: '!plants:example.org',
+      },
+      {
+        spaceId: '!work:example.org',
+        closed: 'true',
+        subtree: '!planning:example.org,!sketches:example.org',
+      },
+    ]);
 
     act(() => renderer.unmount());
   });
@@ -586,12 +707,12 @@ describe('Home', () => {
           node.props['data-section-drop'] === 'home'
       )
     ).toHaveLength(1);
-    expect(
-      group.findAll(
-        (node) =>
-          typeof node.type === 'string' && node.props['data-space-section'] === '!work:example.org'
-      )
-    ).toHaveLength(1);
+    const workSections = group.findAll(
+      (node) =>
+        typeof node.type === 'string' && node.props['data-space-section'] === '!work:example.org'
+    );
+    expect(workSections).toHaveLength(1);
+    expect(workSections[0]?.props['data-closed']).toBe('true');
 
     act(() => renderer.unmount());
   });

@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useRef } from 'react';
+import { useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -25,7 +25,11 @@ import {
   toActivityTrackedSection,
   useSpaceEditPermissions,
 } from '../space/spaceSectionHelpers';
-import { collectShortcutRoomIds, getHomeSpaceSections } from '../space/spaceRoomSections';
+import {
+  buildSpaceSectionTree,
+  collectShortcutRoomIds,
+  getHomeSpaceSections,
+} from '../space/spaceRoomSections';
 
 /**
  * Derives Home's unspaced Rooms list and rail-ordered Space sections from one `useRoomOrders`
@@ -163,6 +167,18 @@ export function useHomeRoomSections(selectedRoomId: string | undefined) {
   ]);
   sectionsRef.current = sections;
 
+  const sectionTree = useMemo(() => buildSpaceSectionTree(sections), [sections]);
+
+  const spaceCategoryIds = useMemo(
+    () => rawSections.map((section) => section.categoryId),
+    [rawSections]
+  );
+  const shouldDefaultCloseSpaces = unspacedByName.length > 0 || sectionTree.length > 1;
+  useLayoutEffect(() => {
+    if (!shouldDefaultCloseSpaces || spaceCategoryIds.length === 0) return;
+    setClosedCategories({ type: 'INIT_CLOSED', categoryIds: spaceCategoryIds });
+  }, [shouldDefaultCloseSpaces, spaceCategoryIds, setClosedCategories]);
+
   const trackedSections = useMemo(
     () => [
       toActivityTrackedSection({
@@ -178,15 +194,24 @@ export function useHomeRoomSections(selectedRoomId: string | undefined) {
 
   const shortcutRoomIds = useMemo(
     () =>
-      collectShortcutRoomIds([
-        {
-          closed: roomsClosed,
-          listedRoomIds: unspacedList.listedRoomIds,
-          shownRoomIds: unspacedList.shownRoomIds,
-        },
-        ...sections,
-      ]),
-    [roomsClosed, unspacedList.listedRoomIds, unspacedList.shownRoomIds, sections]
+      collectShortcutRoomIds(
+        [
+          {
+            closed: roomsClosed,
+            listedRoomIds: unspacedList.listedRoomIds,
+            shownRoomIds: unspacedList.shownRoomIds,
+          },
+          ...sectionTree,
+        ],
+        selectedRoomId
+      ),
+    [
+      roomsClosed,
+      unspacedList.listedRoomIds,
+      unspacedList.shownRoomIds,
+      sectionTree,
+      selectedRoomId,
+    ]
   );
 
   return {
@@ -198,6 +223,7 @@ export function useHomeRoomSections(selectedRoomId: string | undefined) {
     listedRoomIds: unspacedList.listedRoomIds,
     roomOrder,
     sections,
+    sectionTree,
     shortcutRoomIds,
     onCategoryClick,
     onReorder: roomOrders.save,

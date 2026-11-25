@@ -34,6 +34,98 @@ type DescendantSubspaceEntry = {
   ancestorSpaceIds: string[];
 };
 
+type TreeAttachable = {
+  spaceId: string;
+  isRoot: boolean;
+  ancestorSpaceIds: readonly string[];
+};
+
+type AttachedNode<T extends TreeAttachable> = {
+  section: T;
+  children: AttachedNode<T>[];
+};
+
+const attachSpaceSectionNodes = <T extends TreeAttachable>(
+  sections: readonly T[]
+): AttachedNode<T>[] => {
+  const nodes: AttachedNode<T>[] = sections.map((section) => ({ section, children: [] }));
+  const nonRootBySpaceId = new Map<string, AttachedNode<T>>();
+  nodes.forEach((node) => {
+    if (!node.section.isRoot && !nonRootBySpaceId.has(node.section.spaceId)) {
+      nonRootBySpaceId.set(node.section.spaceId, node);
+    }
+  });
+
+  const attachedParent = new Map<AttachedNode<T>, AttachedNode<T>>();
+  const wouldCreateCycle = (node: AttachedNode<T>, candidate: AttachedNode<T>): boolean => {
+    let current: AttachedNode<T> | undefined = candidate;
+    while (current) {
+      if (current === node) return true;
+      current = attachedParent.get(current);
+    }
+    return false;
+  };
+
+  const roots: AttachedNode<T>[] = [];
+  nodes.forEach((node) => {
+    let parent: AttachedNode<T> | undefined;
+    if (!node.section.isRoot) {
+      for (const ancestorId of node.section.ancestorSpaceIds) {
+        const candidate = nonRootBySpaceId.get(ancestorId);
+        if (candidate && !wouldCreateCycle(node, candidate)) {
+          parent = candidate;
+          break;
+        }
+      }
+    }
+    if (parent) {
+      attachedParent.set(node, parent);
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+  return roots;
+};
+
+export type SpaceSectionTreeInput = {
+  spaceId: string;
+  isRoot: boolean;
+  ancestorSpaceIds: readonly string[];
+  closed: boolean;
+  listedRoomIds: readonly string[];
+  shownRoomIds: readonly string[];
+};
+
+export type SpaceSectionTreeNode<T extends SpaceSectionTreeInput> = {
+  section: T;
+  children: SpaceSectionTreeNode<T>[];
+  subtreeShownRoomIds: string[];
+};
+
+/**
+ * Arranges flat rendered space sections into a cycle-safe forest: each non-root section attaches
+ * under its nearest present non-root ancestor, and each node carries the deduplicated ordered
+ * union of visible rooms across its subtree.
+ */
+export const buildSpaceSectionTree = <T extends SpaceSectionTreeInput>(
+  sections: readonly T[]
+): SpaceSectionTreeNode<T>[] => {
+  const hydrate = (node: AttachedNode<T>): SpaceSectionTreeNode<T> => {
+    const children = node.children.map(hydrate);
+    const seen = new Set<string>(node.section.shownRoomIds);
+    children.forEach((child) => {
+      child.subtreeShownRoomIds.forEach((roomId) => seen.add(roomId));
+    });
+    return {
+      section: node.section,
+      children,
+      subtreeShownRoomIds: Array.from(seen),
+    };
+  };
+  return attachSpaceSectionNodes(sections).map(hydrate);
+};
+
 /**
  * Joined descendant sub-spaces of `rootSpaceId` in pre-order DFS along with each first visit's
  * immediate parent and full ancestor chain (nearest parent to `rootSpaceId`), ordering sibling
@@ -246,11 +338,12 @@ export type HomeSpaceSections = {
 };
 
 /**
- * Splits Home's visible ordinary rooms into unspaced rooms and flat ordered space sections:
+ * Splits Home's visible ordinary rooms into unspaced rooms and ordered space sections:
  * spaces follow `railSpaceIds` with each space's joined descendants immediately below in pre-order
  * DFS, then any remaining joined spaces (e.g. mutual cycles or sub-spaces whose parent was left).
  * Rooms listed in any Matrix descendant sub-space are omitted from ancestor spaces regardless of
- * rail pin order, and empty spaces are kept only when `canEditSpace` allows adding rooms.
+ * rail pin order. Read-only spaces with 0 direct rooms are kept when they have at least one kept
+ * descendant section so parent containers stay collapsible in Home's nested tree.
  */
 export const getHomeSpaceSections = (
   mx: MatrixClient,
@@ -315,19 +408,32 @@ export const getHomeSpaceSections = (
   );
   const bySpace = new Map(built.map((section, index) => [section.spaceId, { section, index }]));
 
-  const sections = built
-    .map((section, index) => {
-      const listedBelow = new Set<string>();
-      descendantsOf.get(section.spaceId)?.forEach((descendantId) => {
-        const entry = bySpace.get(descendantId);
-        if (!entry) return;
-        const mutualCycle = descendantsOf.get(descendantId)?.has(section.spaceId) ?? false;
-        if (mutualCycle && entry.index < index) return;
-        entry.section.scopeRoomsByName.forEach((roomId) => listedBelow.add(roomId));
-      });
-      return omitRooms(section, listedBelow);
-    })
-    .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
+  const deduped = built.map((section, index) => {
+    const listedBelow = new Set<string>();
+    descendantsOf.get(section.spaceId)?.forEach((descendantId) => {
+      const entry = bySpace.get(descendantId);
+      if (!entry) return;
+      const mutualCycle = descendantsOf.get(descendantId)?.has(section.spaceId) ?? false;
+      if (mutualCycle && entry.index < index) return;
+      entry.section.scopeRoomsByName.forEach((roomId) => listedBelow.add(roomId));
+    });
+    return omitRooms(section, listedBelow);
+  });
+
+  // Post-order prune on the display tree: keep empty read-only containers only when they have a
+  // kept descendant section, dropping truly empty read-only branches.
+  const keptSpaceIds = new Set<string>();
+  const prune = (node: AttachedNode<SpaceRoomSection>): boolean => {
+    let hasKeptDescendant = false;
+    node.children.forEach((child) => {
+      if (prune(child)) hasKeptDescendant = true;
+    });
+    const keep = !node.section.isEmpty || canEditSpace(node.section.spaceId) || hasKeptDescendant;
+    if (keep) keptSpaceIds.add(node.section.spaceId);
+    return keep;
+  };
+  attachSpaceSectionNodes(deduped).forEach(prune);
+  const sections = deduped.filter((section) => keptSpaceIds.has(section.spaceId));
 
   return { unspacedByName, sections };
 };
@@ -362,19 +468,70 @@ export const getCollapsedSectionUnread = (
   return highlight ? COLLAPSED_HIGHLIGHT : COLLAPSED_UNREAD;
 };
 
+export type ShortcutRoomSection = {
+  closed: boolean;
+  listedRoomIds: readonly string[];
+  shownRoomIds: readonly string[];
+};
+
+export type ShortcutRoomEntry =
+  | ShortcutRoomSection
+  | {
+      section: ShortcutRoomSection;
+      children: readonly ShortcutRoomEntry[];
+      subtreeShownRoomIds?: readonly string[];
+    };
+
+const isShortcutTreeEntry = (
+  entry: ShortcutRoomEntry
+): entry is {
+  section: ShortcutRoomSection;
+  children: readonly ShortcutRoomEntry[];
+  subtreeShownRoomIds?: readonly string[];
+} => 'section' in entry;
+
 /**
- * Deduplicated room IDs across rendered sections for keyboard room-stepping, preserving first
- * occurrence in rendered order (each collapsed section contributes only its lone visible room).
+ * Deduplicated room IDs across rendered sections or tree nodes for keyboard room-stepping,
+ * preserving first occurrence in rendered order and skipping rooms hidden under any collapsed
+ * ancestor (while still including the lone visible selected room, if shown).
  */
 export const collectShortcutRoomIds = (
-  sections: readonly {
-    closed: boolean;
-    listedRoomIds: readonly string[];
-    shownRoomIds: readonly string[];
-  }[]
-): string[] =>
-  Array.from(
-    new Set(
-      sections.flatMap((section) => (section.closed ? section.listedRoomIds : section.shownRoomIds))
-    )
-  );
+  entries: readonly ShortcutRoomEntry[],
+  selectedRoomId?: string
+): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  const push = (roomId: string) => {
+    if (seen.has(roomId)) return;
+    seen.add(roomId);
+    result.push(roomId);
+  };
+  const visit = (entry: ShortcutRoomEntry, ancestorClosed: boolean) => {
+    const section = isShortcutTreeEntry(entry) ? entry.section : entry;
+    const closed = section.closed || ancestorClosed;
+    const rooms = closed
+      ? selectedRoomId !== undefined
+        ? section.shownRoomIds.filter((id) => id === selectedRoomId)
+        : section.closed
+          ? section.listedRoomIds
+          : []
+      : section.shownRoomIds;
+    rooms.forEach(push);
+    if (!isShortcutTreeEntry(entry)) return;
+    if (!closed) {
+      entry.children.forEach((child) => visit(child, false));
+    } else if (selectedRoomId !== undefined) {
+      entry.children.forEach((child) => {
+        if (
+          !isShortcutTreeEntry(child) ||
+          !child.subtreeShownRoomIds ||
+          child.subtreeShownRoomIds.includes(selectedRoomId)
+        ) {
+          visit(child, true);
+        }
+      });
+    }
+  };
+  entries.forEach((entry) => visit(entry, false));
+  return result;
+};

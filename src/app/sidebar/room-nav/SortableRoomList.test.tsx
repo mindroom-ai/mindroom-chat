@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import {
@@ -113,11 +113,13 @@ function TestSection({
   roomIds,
   onReorder,
   reorderDisabled = false,
+  children,
 }: {
   spaceId: string;
   roomIds: string[];
   onReorder: (order: string[]) => void;
   reorderDisabled?: boolean;
+  children?: ReactNode;
 }) {
   const sectionDrop = useRoomSectionDrop(spaceId);
   return (
@@ -132,6 +134,7 @@ function TestSection({
           <SortableRoomRow key={roomId} room={room(roomId)} selected={false} linkPath="/" />
         ))}
       </SortableRoomList>
+      {children}
     </div>
   );
 }
@@ -147,6 +150,7 @@ describe('SortableRoomGroup', () => {
     'room:!birch': makeRect(60, 40),
     'section:!design': makeRect(140, 120),
     'room:!cedar': makeRect(160, 40),
+    'section:!nested': makeRect(200, 50),
     'section:!empty': makeRect(280, 40),
     viewport: makeRect(0, 200),
     'sticky-header': makeRect(0, 50),
@@ -447,5 +451,34 @@ describe('SortableRoomGroup', () => {
       expect(container.querySelector('[data-drop-at]')).toBeNull();
     });
     expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  it('targets the innermost nested section when a child section sits inside a parent section', async () => {
+    const onMoveRoom = vi.fn();
+
+    act(() => {
+      root.render(
+        <SortableRoomGroup canMoveRoom={() => true} onMoveRoom={onMoveRoom}>
+          <TestSection spaceId="!root" roomIds={['!alder', '!birch']} onReorder={vi.fn()} />
+          <TestSection spaceId="!design" roomIds={['!cedar']} onReorder={vi.fn()}>
+            <TestSection spaceId="!nested" roomIds={[]} onReorder={vi.fn()} />
+          </TestSection>
+        </SortableRoomGroup>
+      );
+    });
+
+    await dragRow('!alder', 40, 225, () => {
+      expect(
+        container
+          .querySelector('[data-section-id="!nested"]')!
+          .getAttribute('data-section-drop-target')
+      ).toBe('true');
+      expect(
+        container
+          .querySelector('[data-section-id="!design"]')!
+          .getAttribute('data-section-drop-target')
+      ).toBeNull();
+    });
+    expect(onMoveRoom).toHaveBeenCalledWith('!root', '!nested', '!alder');
   });
 });

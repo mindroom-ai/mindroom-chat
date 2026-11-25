@@ -60,6 +60,7 @@ import { BackToListButton } from '../../ui/page/PhoneBackButton';
 import { RoomSortMenu } from '../room-nav/RoomSortMenu';
 import { SortableRoomGroup } from '../room-nav/SortableRoomList';
 import { SpaceRoomSection, type SpaceSortControl, useSpaceRoomSections } from './SpaceRoomSection';
+import * as spaceSectionCss from './SpaceRoomSection.css';
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
 const readViaServers = (searchParams: URLSearchParams): string[] | undefined => {
@@ -275,7 +276,7 @@ export function Space() {
   );
   const {
     spaceRooms,
-    sections,
+    sectionTree,
     shortcutRoomIds,
     sort,
     onCategoryClick,
@@ -286,6 +287,23 @@ export function Space() {
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(shortcutRoomIds, selectedRoomId, spaceRoomPath);
+
+  const rootNodes = sectionTree.filter((node) => node.section.isRoot);
+  const subspaceNodes = sectionTree.filter((node) => !node.section.isRoot);
+  const renderSection = (node: (typeof sectionTree)[number]) => (
+    <SpaceRoomSection
+      key={node.section.categoryId}
+      section={node.section}
+      childNodes={node.children}
+      subtreeShownRoomIds={node.subtreeShownRoomIds}
+      spaceId={space.roomId}
+      spaceIdOrAlias={spaceIdOrAlias}
+      selectedRoomId={selectedRoomId}
+      onCategoryClick={onCategoryClick}
+      onReorder={onReorder}
+      pinMode="toggle"
+    />
+  );
 
   return (
     <PageNav label={title}>
@@ -307,18 +325,12 @@ export function Space() {
             />
           </NavCategory>
           <SortableRoomGroup canMoveRoom={canMoveRoom} onMoveRoom={onMoveRoom}>
-            {sections.map((section) => (
-              <SpaceRoomSection
-                key={section.categoryId}
-                section={section}
-                spaceId={space.roomId}
-                spaceIdOrAlias={spaceIdOrAlias}
-                selectedRoomId={selectedRoomId}
-                onCategoryClick={onCategoryClick}
-                onReorder={onReorder}
-                pinMode="toggle"
-              />
-            ))}
+            {rootNodes.map(renderSection)}
+            {subspaceNodes.length > 0 && (
+              <div className={spaceSectionCss.SpaceSectionStack}>
+                {subspaceNodes.map(renderSection)}
+              </div>
+            )}
           </SortableRoomGroup>
           <ThreadNavCategory spaceId={space.roomId} />
         </Box>
