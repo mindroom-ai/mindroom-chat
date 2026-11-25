@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
 import {
-  RelationType,
   RoomEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
+import { getTimelineMessageKind } from '../../event-store/timeline/timelineRowTypes';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { isHiddenReferenceEvent, reactionOrEditEvent } from '../../matrix/room';
 import type { RoomSortMode } from './roomOrder';
 
 export type SubRoomChildrenTree = { children: ReadonlyMap<string, string[]> };
@@ -15,14 +16,23 @@ export type SubRoomChildrenTree = { children: ReadonlyMap<string, string[]> };
 const validTs = (ts: unknown): number =>
   typeof ts === 'number' && Number.isFinite(ts) && ts > 0 ? ts : 0;
 
-const isReplaceEdit = (event: MatrixEvent | null | undefined): boolean =>
-  Boolean(event?.isRelation?.(RelationType.Replace));
+/** Whether `event` is a real, unredacted message event that counts toward room activity. */
+const isActivityMessageEvent = (event: MatrixEvent | null | undefined): boolean => {
+  if (!event) return false;
+  if (event.getStateKey?.() !== undefined) return false;
+  const type = event.getType?.();
+  if (!type || !getTimelineMessageKind(type)) return false;
+  if (event.isRedacted?.()) return false;
+  if (reactionOrEditEvent(event)) return false;
+  if (isHiddenReferenceEvent(event)) return false;
+  return true;
+};
 
-const latestNonEditTs = (events: readonly MatrixEvent[] | undefined): number => {
+const latestActivityMessageTs = (events: readonly MatrixEvent[] | undefined): number => {
   if (!events) return 0;
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
-    if (!event || isReplaceEdit(event)) continue;
+    if (!event || !isActivityMessageEvent(event)) continue;
     const ts = validTs(event.getTs?.());
     if (ts > 0) return ts;
   }
@@ -30,29 +40,31 @@ const latestNonEditTs = (events: readonly MatrixEvent[] | undefined): number => 
 };
 
 /**
- * Latest activity timestamp for `room`, combining the live main timeline and all known threads
- * (loaded thread timelines plus bundled `replyToEvent` summaries) while excluding `m.replace`
- * edits. Falls back to `room.getLastActiveTimestamp()` only when no live-timeline events are
- * loaded yet.
+ * Latest message activity timestamp for `room`, combining the live main timeline and all known
+ * threads (loaded thread timelines plus bundled `replyToEvent` summaries) while counting only
+ * real, unredacted message events (ignoring state events, reactions, `m.replace` edits,
+ * redactions, and hidden references). Falls back to `room.getLastActiveTimestamp()` only when no
+ * live-timeline events are loaded yet.
  */
 export const getRoomActivityTimestamp = (room: Room | null | undefined): number => {
   if (!room) return 0;
   const mainEvents = room.getLiveTimeline?.()?.getEvents?.();
-  let maxTs = latestNonEditTs(mainEvents);
+  let maxTs = latestActivityMessageTs(mainEvents);
 
   const threads = room.getThreads?.();
   if (threads) {
     for (const thread of threads) {
-      maxTs = Math.max(maxTs, latestNonEditTs(thread.events ?? thread.timeline));
+      maxTs = Math.max(maxTs, latestActivityMessageTs(thread.events ?? thread.timeline));
       const reply = thread.replyToEvent;
-      if (reply && !isReplaceEdit(reply)) {
+      if (reply && isActivityMessageEvent(reply)) {
         maxTs = Math.max(maxTs, validTs(reply.getTs?.()));
       }
     }
   }
 
   // Only fall back when the room has no loaded main-timeline events; if events are loaded (e.g.
-  // only an `m.replace` edit), never fall back because `getLastActiveTimestamp()` counts edits.
+  // only state events or `m.replace` edits), never fall back because `getLastActiveTimestamp()`
+  // counts non-message events.
   if (maxTs === 0 && (!mainEvents || mainEvents.length === 0)) {
     return validTs(room.getLastActiveTimestamp?.());
   }
@@ -117,7 +129,8 @@ export type ActivityTrackedSection = {
 /**
  * Subscribes to live timeline events (both main timeline and thread replies, which `matrix-js-sdk`
  * re-emits on the client as `RoomEvent.Timeline`) only while at least one tracked section uses
- * Recent sorting or shows activity times, ignoring backfill and `m.replace` edits.
+ * Recent sorting or shows activity times, ignoring backfill and non-message events (state events,
+ * reactions, `m.replace` edits, hidden references) while still refreshing on live redactions.
  */
 export const useRoomActivityListener = (
   sections: readonly ActivityTrackedSection[],
@@ -140,7 +153,7 @@ export const useRoomActivityListener = (
       data
     ) => {
       if (!room || toStartOfTimeline || !data.liveEvent) return;
-      if (isReplaceEdit(event)) return;
+      if (!isActivityMessageEvent(event) && !event?.isRedaction?.()) return;
       for (const section of sectionsRef.current) {
         if ((!section.recent && !section.showTimes) || !section.trackedRoomIds.has(room.roomId)) {
           continue;

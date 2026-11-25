@@ -4,6 +4,7 @@ import {
   addRoomToSpace,
   matrixFetch,
   sendRoomMessage,
+  sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
@@ -337,6 +338,14 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await sendRoomMessage(HOMESERVER, account.accessToken, alder, {
     msgtype: 'm.text',
     body: 'latest in alder',
+  });
+  await page.waitForTimeout(50);
+  // Newer state events in Birch must not bump Birch above Alder in Recent activity mode.
+  await sendStateEvent(HOMESERVER, account.accessToken, birch, 'm.room.topic', '', {
+    topic: 'birch topic',
+  });
+  await sendStateEvent(HOMESERVER, account.accessToken, birch, 'com.example.room_features', '', {
+    capabilities: ['threads'],
   });
   await sendRoomMessage(HOMESERVER, account.accessToken, dahlia, {
     msgtype: 'm.text',
