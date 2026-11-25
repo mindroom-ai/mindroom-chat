@@ -182,46 +182,46 @@ describe('Agents & servers settings page', () => {
   });
 
   it('offers a Use button for each of several found servers and saves the chosen origin', () => {
-    state.urls = ['https://lab.example.org', 'https://other.example.org:8765'];
+    state.urls = ['https://lab.example.org', 'https://other.example.org:9000'];
     render();
     expect(serverDescriptions()).toEqual([
       FOUND_CHOOSE_HINT,
       'https://lab.example.org',
-      'https://other.example.org:8765',
+      'https://other.example.org:9000',
     ]);
     expect(serverInUseTile().findAllByType('button')).toHaveLength(2);
     expect(findUseButton('lab.example.org')).toBeDefined();
-    const otherButton = findUseButton('other.example.org:8765');
+    const otherButton = findUseButton('other.example.org:9000');
     expect(otherButton).toBeDefined();
 
     act(() => {
       otherButton!.props.onClick();
     });
 
-    expect(loadComputerServicePreference()).toBe('https://other.example.org:8765');
-    expect(store.get(computerServicePreferenceAtom)).toBe('https://other.example.org:8765');
-    expect(serverDescriptions()).toEqual(['https://other.example.org:8765']);
+    expect(loadComputerServicePreference()).toBe('https://other.example.org:9000');
+    expect(store.get(computerServicePreferenceAtom)).toBe('https://other.example.org:9000');
+    expect(serverDescriptions()).toEqual(['https://other.example.org:9000']);
     expect(serverInUseTile().findAllByType('button')).toHaveLength(0);
     expect(texts()).not.toContain(FOUND_HINT);
     expect(serverDescriptions()).not.toContain(FOUND_CHOOSE_HINT);
   });
 
   it('labels Use buttons with full origins when found servers share a host', () => {
-    state.urls = ['http://localhost:8765', 'https://localhost:8765'];
+    state.urls = ['http://localhost:9000', 'https://localhost:9000'];
     render();
-    expect(findUseButton('http://localhost:8765')).toBeDefined();
-    const httpsButton = findUseButton('https://localhost:8765');
+    expect(findUseButton('http://localhost:9000')).toBeDefined();
+    const httpsButton = findUseButton('https://localhost:9000');
     expect(httpsButton).toBeDefined();
 
     act(() => {
       httpsButton!.props.onClick();
     });
 
-    expect(store.get(computerServicePreferenceAtom)).toBe('https://localhost:8765');
+    expect(store.get(computerServicePreferenceAtom)).toBe('https://localhost:9000');
   });
 
   it('says so when this device refuses to store the found server and keeps all choices for retry', () => {
-    state.urls = ['https://lab.example.org', 'https://other.example.org:8765'];
+    state.urls = ['https://lab.example.org', 'https://other.example.org:9000'];
     render();
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
@@ -233,6 +233,6 @@ describe('Agents & servers settings page', () => {
     expect(alert?.children).toEqual(['Could not save the computer service on this device.']);
     expect(store.get(computerServicePreferenceAtom)).toBeNull();
     expect(findUseButton('lab.example.org')).toBeDefined();
-    expect(findUseButton('other.example.org:8765')).toBeDefined();
+    expect(findUseButton('other.example.org:9000')).toBeDefined();
   });
 });
