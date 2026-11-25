@@ -107,6 +107,17 @@ The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and 
 4. Mark the bad GitHub release as a prerelease (`gh release edit <bad-tag> --prerelease --repo mindroom-ai/mindroom-chat`) so `src/app/native/macApp.ts` stops offering its DMG on the download page.
 5. Once a fixed release is ready, delete the `PAUSED` asset from `mac-feed` (`gh release delete-asset mac-feed PAUSED --yes --repo mindroom-ai/mindroom-chat`) so normal rollouts resume, then re-run the `feed` job for any release whose feed publication was skipped while paused.
 
+## Android
+
+`.github/workflows/android.yml` builds and publishes the Android app (`com.mindroom_ai.app`):
+
+- **`build-debug`** runs on pull requests touching Android/Capacitor/build inputs and on manual `workflow_dispatch` runs with an empty `tag`. It runs `npm run build:android`, `npx cap sync android`, and `./gradlew --no-daemon assembleDebug`, verifies the built APK declares `com.mindroom_ai.app` via `aapt2 dump badging`, and uploads `mindroom-chat-android-debug-apk`.
+- **`release`** runs via `workflow_call` (from `release.yml`) or manual `workflow_dispatch` with a published release tag `vYYYY.M.N` and track (`internal` or `alpha`). It validates the tag, track, published GitHub release, and signing secrets up front, signs `app-release.aab` with the upload keystore, verifies the signature via `jarsigner -verify`, uploads the AAB artifact, and publishes it to Google Play.
+
+`scripts/android-ci-version.mjs` maps each calendar release tag `vYYYY.M.N` to `versionName = YYYY.M.N` and `versionCode = (year - 2000) * 1_000_000 + month * 10_000 + n` (for example, `v2026.11.424` -> `26110424`). Starting in `26110xxx` guarantees every calver release sits strictly above the highest legacy Google Play `versionCode` (`4120899`, from `v4.12.6-mindroom.299`) while staying strictly monotonic across `n` (`0..9999`), month, and year rollovers up to Google Play's `2_100_000_000` limit.
+
+Publishing requires five repository secrets — `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — and setting the repository variable `ANDROID_PLAY_PUBLISH=true` enables automatic `internal` track uploads from `.github/workflows/release.yml`. Manual `alpha` dispatch is for tags not yet uploaded to Play (promote an already-uploaded `internal` release in Play Console instead of re-uploading the same `versionCode`), and only tags containing `scripts/android-ci-version.mjs` can be built by `android.yml`.
+
 ## Moving the App Store app to this repository
 
 The app keeps its App Store record (MindRoom AI, Apple ID 6760272172), bundle identifier `chat.mindroom.app` and team `DNA6966LGZ`; this repository's Xcode project already uses them. Only the repository Xcode Cloud builds from changes, so people who have the app get the next version as an ordinary update. These steps happen in GitHub, App Store Connect and the dev repository's `app-store/` tooling; nothing in them can be done from this repository.
