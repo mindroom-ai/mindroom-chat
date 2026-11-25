@@ -1,43 +1,35 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { IconTooltip } from '../IconTooltip';
 import { ExpandIcon, ShrinkIcon } from './panelIcons';
-import type { PanelFrame } from './panelFrameContext';
+import { usePanelFrame, type PanelFrame } from './panelFrameContext';
 import * as css from './PanelFrame.css';
 
-/**
- * The frame's strip at the panel's start edge: Fill the room and Fold beside the conversation or
- * across the room. Folded, the strip is all of the panel that shows: a tab with its name, which
- * brings it back beside the conversation.
- */
-export function PanelFrameStrip({ frame: { label, layout, setLayout } }: { frame: PanelFrame }) {
+/** Fill and Fold icon buttons shared by the legacy open strip and the header control pill. */
+function FrameActionButtons({
+  frame: { label, layout, setLayout, fillLabel, foldLabel },
+  variant,
+  tooltipPosition,
+}: {
+  frame: PanelFrame;
+  variant: 'Surface' | 'SurfaceVariant';
+  tooltipPosition: 'Right' | 'Bottom';
+}) {
   const { t } = useTranslation();
-  if (layout === 'folded') {
-    return (
-      <button
-        type="button"
-        className={css.Tab}
-        aria-label={t('mindroomUi.sidePanel.unfold', { label })}
-        onClick={() => setLayout('beside')}
-      >
-        <Icon size="200" src={Icons.ChevronLeft} data-directional />
-        <Text as="span" size="L400" className={css.TabLabel}>
-          {label}
-        </Text>
-      </button>
-    );
-  }
   const filled = layout === 'filled';
-  const fill = t('mindroomUi.sidePanel.fill', { label });
-  const fold = t('mindroomUi.sidePanel.fold', { label });
+  const fill = fillLabel ?? t('mindroomUi.sidePanel.fill', { label });
+  const fold = foldLabel ?? t('mindroomUi.sidePanel.fold', { label });
   return (
-    <div className={css.Strip}>
-      <IconTooltip label={fill} position="Right">
+    <>
+      <IconTooltip label={fill} position={tooltipPosition}>
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
             size="300"
             radii="300"
+            variant={variant}
+            fill="None"
             aria-label={fill}
             aria-pressed={filled}
             onClick={() => setLayout(filled ? 'beside' : 'filled')}
@@ -46,12 +38,14 @@ export function PanelFrameStrip({ frame: { label, layout, setLayout } }: { frame
           </IconButton>
         )}
       </IconTooltip>
-      <IconTooltip label={fold} position="Right">
+      <IconTooltip label={fold} position={tooltipPosition}>
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
             size="300"
             radii="300"
+            variant={variant}
+            fill="None"
             aria-label={fold}
             onClick={() => setLayout('folded')}
           >
@@ -59,6 +53,100 @@ export function PanelFrameStrip({ frame: { label, layout, setLayout } }: { frame
           </IconButton>
         )}
       </IconTooltip>
+    </>
+  );
+}
+
+/**
+ * The frame's edge strip: folded, the vertical tab at the room's end edge that brings the panel
+ * back beside the conversation. Open, renders nothing by default (Fill and Fold live in the
+ * panel's header control pill), or the 40 px Fill/Fold strip when `openStrip` is set for legacy
+ * `title: 'own'` plugins that do not declare `frameControls: 'own'`.
+ */
+export function PanelFrameStrip({
+  frame,
+  openStrip = false,
+}: {
+  frame: PanelFrame;
+  openStrip?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (frame.layout === 'folded') {
+    return (
+      <button
+        type="button"
+        className={css.Tab}
+        aria-label={t('mindroomUi.sidePanel.unfold', { label: frame.label })}
+        onClick={() => frame.setLayout('beside')}
+      >
+        <Icon size="200" src={Icons.ChevronLeft} data-directional />
+        <Text as="span" size="L400" className={css.TabLabel}>
+          {frame.label}
+        </Text>
+      </button>
+    );
+  }
+  if (!openStrip) return null;
+
+  return (
+    <div className={css.Strip}>
+      <FrameActionButtons frame={frame} variant="Surface" tooltipPosition="Right" />
+    </div>
+  );
+}
+
+export type PanelHeaderControlsProps = {
+  children?: ReactNode;
+  onClose?: () => void;
+  closeLabel?: string;
+  showFrame?: boolean;
+};
+
+/**
+ * Floating control pill at the end of a side panel's header: optional panel-specific controls, a
+ * divider when present, Fill and Fold from the enclosing PanelFrame, and Close.
+ */
+export function PanelHeaderControls({
+  children,
+  onClose,
+  closeLabel,
+  showFrame = true,
+}: PanelHeaderControlsProps) {
+  const frame = usePanelFrame();
+  const activeFrame = showFrame && frame && frame.layout !== 'folded' ? frame : undefined;
+  if (children === undefined && !activeFrame && !onClose) return null;
+
+  return (
+    <div className={css.ControlPill}>
+      {children !== undefined && (
+        <>
+          <span className={css.ControlExtras}>{children}</span>
+          <span className={css.ControlSeparator} aria-hidden="true" />
+        </>
+      )}
+      {(activeFrame || onClose) && (
+        <span className={css.ControlCore}>
+          {activeFrame && (
+            <FrameActionButtons
+              frame={activeFrame}
+              variant="SurfaceVariant"
+              tooltipPosition="Bottom"
+            />
+          )}
+          {onClose && (
+            <IconButton
+              size="300"
+              radii="300"
+              variant="SurfaceVariant"
+              fill="None"
+              aria-label={closeLabel}
+              onClick={onClose}
+            >
+              <Icon size="200" src={Icons.Cross} />
+            </IconButton>
+          )}
+        </span>
+      )}
     </div>
   );
 }

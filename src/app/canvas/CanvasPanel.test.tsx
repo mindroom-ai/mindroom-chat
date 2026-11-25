@@ -13,6 +13,7 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
 import {
@@ -78,7 +79,12 @@ vi.mock('folds', () => ({
       {children}
     </button>
   ),
-  Icons: { Cross: 'Cross', Category: 'Category' },
+  Icons: {
+    Cross: 'Cross',
+    Category: 'Category',
+    ChevronLeft: 'ChevronLeft',
+    ChevronRight: 'ChevronRight',
+  },
   // Icon buttons name themselves in tooltips; render only the trigger.
   Tooltip: () => null,
   TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
@@ -103,15 +109,27 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 
+vi.mock('../ui/panels/PanelFrame.css', () => ({
+  STRIP_WIDTH: 40,
+  Strip: 'Strip',
+  Tab: 'Tab',
+  TabLabel: 'TabLabel',
+  ControlPill: 'ControlPill',
+  ControlExtras: 'ControlExtras',
+  ControlCore: 'ControlCore',
+  ControlSeparator: 'ControlSeparator',
+}));
+
 vi.mock('./CanvasPanel.css.ts', () => ({
   Panel: 'Panel',
   Header: 'Header',
   TitleGroup: 'TitleGroup',
-  Controls: 'Controls',
   Title: 'Title',
   FrameWrap: 'FrameWrap',
   Frame: 'Frame',
   Footer: 'Footer',
+  VersionRow: 'VersionRow',
+  VersionPill: 'VersionPill',
   Error: 'Error',
   Notice: 'Notice',
   Staged: 'Staged',
@@ -1045,6 +1063,31 @@ describe('CanvasPanel', () => {
     expect(button('[aria-label="Expand canvas"]').getAttribute('aria-pressed')).toBe('true');
     render({ onToggleExpanded: undefined });
     expect(button('[aria-label="Expand canvas"]')).toBeNull();
+  });
+
+  it('uses the frame Fill and Fold controls inside a PanelFrame instead of a duplicate Expand button', () => {
+    const setLayout = vi.fn();
+    act(() => {
+      root.render(
+        <PanelFrameProvider value={{ label: 'Canvas', layout: 'beside', setLayout }}>
+          <CanvasPanel
+            mx={mx}
+            room={room}
+            canvas={canvas}
+            agentName="Analyst"
+            colorScheme="light"
+            theme={FALLBACK_CANVAS_THEMES.light}
+            onClose={vi.fn()}
+            onToggleExpanded={vi.fn()}
+          />
+        </PanelFrameProvider>
+      );
+    });
+    expect(button('[aria-label="Expand canvas"]')).toBeNull();
+    act(() => button('[aria-label="Fill the room with Canvas"]').click());
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    act(() => button('[aria-label="Fold Canvas to the edge"]').click());
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
   });
 
   it('closes', () => {

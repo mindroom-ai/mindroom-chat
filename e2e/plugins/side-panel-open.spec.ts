@@ -207,7 +207,7 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     // Folded, its toggle is not pressed; choosing it unfolds the panel, which still shows the
     // greeting.
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
-    // The frame's strip, with Fold, is beside the panel's own region.
+    // Fold sits inside the panel's floating header control pill.
     await page.getByRole('button', { name: 'Fold Example panel to the edge', exact: true }).click();
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
     await shot(page, 'folded');

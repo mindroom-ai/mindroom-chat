@@ -21,7 +21,9 @@ describe('canvas theme', () => {
 
   it('renders every token as a --mr variable', () => {
     const css = canvasThemeCss(FALLBACK_CANVAS_THEMES.light);
-    expect(css).toContain('--mr-bg:#f5f6f8');
+    expect(css).toContain('--mr-bg:#ffffff');
+    expect(css).toContain('--mr-surface:#f4f5f8');
+    expect(css).toContain('--mr-surface-raised:#e9ecf1');
     expect(css).toContain('--mr-accent-text:#ffffff');
     expect(css).toContain('--mr-font:system-ui');
   });

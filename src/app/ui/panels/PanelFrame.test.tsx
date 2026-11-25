@@ -2,12 +2,14 @@
 import type { ReactElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PanelHeaderControls } from './PanelFrame';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';
 
-// A room's side panel in its frame (ResizablePanel inside a PanelFrameProvider), in each layout.
+// A room's side panel in its frame (ResizablePanel + PanelHeaderControls inside a
+// PanelFrameProvider), in each layout.
 
 /** The panel in a frame of `layout` (none when undefined), keyed as the room keys it. */
 const framed = (
@@ -25,7 +27,10 @@ const framed = (
       side="end"
       minContentWidth={minContentWidth}
     >
-      <p>content</p>
+      <div>
+        <PanelHeaderControls />
+        <p>content</p>
+      </div>
     </ResizablePanel>
   </PanelFrameProvider>
 );
@@ -49,7 +54,7 @@ function Slot({ panel }: { panel?: ReactElement }) {
 }
 
 const panel = () => screen.getByTestId('panel');
-const content = () => screen.getByText('content').parentElement!;
+const content = () => screen.getByText('content').parentElement!.parentElement!;
 const separator = () => screen.queryByRole('separator');
 
 describe('the frame of a side panel', () => {
@@ -77,11 +82,10 @@ describe('the frame of a side panel', () => {
     expect(separator()).not.toBeNull();
   });
 
-  it('beside the conversation, keeps the resizable column and offers Fill and Fold', async () => {
+  it('beside the conversation, uses full panel width with no open strip and offers Fill and Fold', async () => {
     const setLayout = renderFramed('beside');
     expect(panel().style.width).toBe('300px');
-    // The strip at the start edge takes its width from the content.
-    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('260px');
+    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('300px');
     expect(separator()).not.toBeNull();
     const fill = screen.getByRole('button', { name: 'Fill the room with Notes' });
     expect(fill.getAttribute('aria-pressed')).toBe('false');
@@ -91,26 +95,24 @@ describe('the frame of a side panel', () => {
     expect(setLayout).toHaveBeenLastCalledWith('folded');
   });
 
-  it('keeps the content as wide as an unframed panel allows at its narrowest', () => {
+  it('keeps the panel at its minimum width without adding an open strip width', () => {
     localStorage.setItem('test.width', JSON.stringify(100));
     renderFramed('beside');
-    // The strip adds its width to the smallest panel, so the content keeps its own smallest width.
-    expect(panel().style.width).toBe('240px');
+    expect(panel().style.width).toBe('200px');
     expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('200px');
-    expect(separator()?.getAttribute('aria-valuemin')).toBe('240');
+    expect(separator()?.getAttribute('aria-valuemin')).toBe('200');
   });
 
   it('keeps that smallest width in a room too narrow for the panel and the conversation', () => {
     render(framed('beside', vi.fn(), 360), { container: row(500) });
-    expect(panel().style.width).toBe('240px');
+    expect(panel().style.width).toBe('200px');
     expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('200px');
   });
 
-  it('filling the room, takes its full width with no splitter, and Fill brings it back', async () => {
+  it('filling the room, takes 100% width with no splitter, and Fill brings it back', async () => {
     const setLayout = renderFramed('filled');
     expect(panel().style.width).toBe('100%');
-    // The content takes the room's width but for the strip, so its end edge stays in view.
-    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('calc(100% - 40px)');
+    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('100%');
     expect(separator()).toBeNull();
     const fill = screen.getByRole('button', { name: 'Fill the room with Notes' });
     expect(fill.getAttribute('aria-pressed')).toBe('true');
@@ -118,7 +120,7 @@ describe('the frame of a side panel', () => {
     expect(setLayout).toHaveBeenLastCalledWith('beside');
   });
 
-  it('folded, shows only its tab and keeps its content mounted out of sight', async () => {
+  it('folded, shows only its edge tab and keeps its content mounted out of sight', async () => {
     const setLayout = renderFramed('folded');
     expect(panel().style.width).toBe('');
     expect(separator()).toBeNull();
@@ -186,5 +188,93 @@ describe('the frame of a side panel', () => {
     } finally {
       Reflect.deleteProperty(HTMLElement.prototype, 'animate');
     }
+  });
+  it('renders an open Fill/Fold strip when openStrip is enabled for legacy own-title panels', () => {
+    const setLayout = vi.fn<PanelFrame['setLayout']>();
+    render(
+      <PanelFrameProvider value={{ label: 'Pull Request', layout: 'beside', setLayout }}>
+        <ResizablePanel
+          side="end"
+          openStrip
+          storageKey="panel-open-strip"
+          defaultWidth={320}
+          minContentWidth={300}
+          maxPanelWidth={600}
+          resizeLabel="Resize panel"
+          testId="panel"
+        >
+          <p>PR body</p>
+        </ResizablePanel>
+      </PanelFrameProvider>,
+      { container: row() }
+    );
+    expect(
+      (panel().firstElementChild as HTMLElement).style.getPropertyValue('--mr-panel-content-width')
+    ).toBe('280px');
+    fireEvent.click(screen.getByRole('button', { name: 'Fill the room with Pull Request' }));
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Pull Request to the edge' }));
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
+  });
+});
+
+describe('PanelHeaderControls', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('renders panel actions, frame controls, and close inside the pill', () => {
+    const onClose = vi.fn();
+    const setLayout = vi.fn<PanelFrame['setLayout']>();
+    render(
+      <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
+        <PanelHeaderControls onClose={onClose} closeLabel="Close Notes">
+          <button type="button">Extra</button>
+        </PanelHeaderControls>
+      </PanelFrameProvider>
+    );
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      'Extra',
+      'Fill the room with Notes',
+      'Fold Notes to the edge',
+      'Close Notes',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Close Notes' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('prefers host-supplied fillLabel and foldLabel when present', () => {
+    render(
+      <PanelFrameProvider
+        value={{
+          label: 'Notes',
+          layout: 'beside',
+          fillLabel: 'Expand Notes',
+          foldLabel: 'Dock Notes',
+          setLayout: vi.fn(),
+        }}
+      >
+        <PanelHeaderControls />
+      </PanelFrameProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Expand Notes' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dock Notes' })).toBeTruthy();
+  });
+
+  it('omits Fill and Fold when showFrame is false or outside a PanelFrameProvider', () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout: vi.fn() }}>
+        <PanelHeaderControls onClose={onClose} closeLabel="Close Notes" showFrame={false} />
+      </PanelFrameProvider>
+    );
+    expect(screen.queryByRole('button', { name: 'Fill the room with Notes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fold Notes to the edge' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Close Notes' })).toBeTruthy();
+
+    rerender(<PanelHeaderControls onClose={onClose} closeLabel="Close Notes" />);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
   });
 });

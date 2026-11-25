@@ -37,6 +37,7 @@ import { settingsAtom } from '../preferences/settings';
 import { useHour24Clock } from '../preferences/useHour24Clock';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { textDirection } from '../ui/directional';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
@@ -507,50 +508,45 @@ export function SubagentRunView({
             )}
           </Text>
         </div>
-        {threadId && threadId !== viewThreadId && (
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('threadActions.open')}
-            title={t('threadActions.open')}
-            onClick={() => navigateRoomThread(room.roomId, threadId)}
-          >
-            <Icon size="200" src={Icons.Thread} />
-          </IconButton>
-        )}
-        {active && stop.stopping && (
-          <span className={css.HeaderStopping} title={t('mindroomUi.backgroundJobs.stopping')}>
-            <Spinner size="100" variant="Secondary" aria-hidden />
-            <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
-          </span>
-        )}
-        {active && stop.stop && (
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            className={css.HeaderStop}
-            aria-label={stopLabel}
-            title={stopLabel}
-            onClick={() => {
-              heading.current?.focus();
-              stop.stop?.();
-            }}
-            data-subagent-stop=""
-          >
-            <IconPlayerStopFilled size={16} aria-hidden />
-          </IconButton>
-        )}
-        <IconButton
-          size="300"
-          radii="300"
-          variant="Surface"
-          aria-label={t('mindroomUi.subagents.close')}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.subagents.close')}>
+          {threadId && threadId !== viewThreadId && (
+            <IconButton
+              size="300"
+              radii="300"
+              variant="SurfaceVariant"
+              fill="None"
+              aria-label={t('threadActions.open')}
+              title={t('threadActions.open')}
+              onClick={() => navigateRoomThread(room.roomId, threadId)}
+            >
+              <Icon size="200" src={Icons.Thread} />
+            </IconButton>
+          )}
+          {active && stop.stopping && (
+            <span className={css.HeaderStopping} title={t('mindroomUi.backgroundJobs.stopping')}>
+              <Spinner size="100" variant="Secondary" aria-hidden />
+              <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
+            </span>
+          )}
+          {active && stop.stop && (
+            <IconButton
+              size="300"
+              radii="300"
+              variant="SurfaceVariant"
+              fill="None"
+              className={css.HeaderStop}
+              aria-label={stopLabel}
+              title={stopLabel}
+              onClick={() => {
+                heading.current?.focus();
+                stop.stop?.();
+              }}
+              data-subagent-stop=""
+            >
+              <IconPlayerStopFilled size={16} aria-hidden />
+            </IconButton>
+          )}
+        </PanelHeaderControls>
       </header>
       {used && <RunStrip node={node} totals={totals} time={time} />}
       {activity && (

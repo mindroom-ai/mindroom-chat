@@ -21,9 +21,9 @@ export type CanvasTheme = Record<
 
 // Read lazily: the tokens are CSS variable references that only resolve against the page.
 const themeSources = (): Record<Exclude<keyof CanvasTheme, 'font'>, string> => ({
-  bg: color.Background.Container,
-  surface: color.Surface.Container,
-  'surface-raised': color.SurfaceVariant.Container,
+  bg: color.Surface.Container,
+  surface: color.SurfaceVariant.Container,
+  'surface-raised': color.SurfaceVariant.ContainerHover,
   border: color.Surface.ContainerLine,
   text: color.Surface.OnContainer,
   'text-muted': color.SurfaceVariant.OnContainer,
@@ -39,9 +39,9 @@ const SYSTEM_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
 export const FALLBACK_CANVAS_THEMES: Record<CanvasColorScheme, CanvasTheme> = {
   light: {
-    bg: '#f5f6f8',
-    surface: '#ffffff',
-    'surface-raised': '#eef0f4',
+    bg: '#ffffff',
+    surface: '#f4f5f8',
+    'surface-raised': '#e9ecf1',
     border: '#d9dde4',
     text: '#1b1f24',
     'text-muted': '#5b6573',
@@ -54,9 +54,9 @@ export const FALLBACK_CANVAS_THEMES: Record<CanvasColorScheme, CanvasTheme> = {
     font: SYSTEM_FONT,
   },
   dark: {
-    bg: '#14161a',
-    surface: '#1c1f25',
-    'surface-raised': '#252932',
+    bg: '#1c1f25',
+    surface: '#252932',
+    'surface-raised': '#2e333e',
     border: '#343a46',
     text: '#e8eaee',
     'text-muted': '#9aa3b2',

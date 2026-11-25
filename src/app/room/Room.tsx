@@ -472,8 +472,7 @@ function RoomContent() {
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call or its live transcript and show
-  // again when it closes. The computer and a canvas have their own Expand, which fills the room as
-  // their frame's Fill does.
+  // again when it closes.
   const panels: PanelEntry[] = [
     {
       id: 'computer',
@@ -658,6 +657,7 @@ function RoomContent() {
             minContentWidth={CONVERSATION_MIN_WIDTH}
             maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
             passthrough={mobile}
+            openStrip={panel.title === 'own' && panel.frameControls !== 'own'}
             resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
             collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
             onCollapse={closePluginPanel}
@@ -799,11 +799,13 @@ function RoomContent() {
         : {
             label: frameLabel,
             layout,
+            fillLabel: t('mindroomUi.sidePanel.fill', { label: frameLabel }),
+            foldLabel: t('mindroomUi.sidePanel.fold', { label: frameLabel }),
             setLayout: (next) => {
               if (now.current.roomId === roomId) setLayout(shownId, next);
             },
           },
-    [frameLabel, layout, now, roomId, setLayout, shownId]
+    [frameLabel, layout, now, roomId, setLayout, shownId, t]
   );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
   // does not run again when another panel shows or the panels' labels change with the language.

@@ -12,6 +12,7 @@ import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useShortcut } from '../shortcuts/useShortcut';
 import type { CallParticipant } from './RoomCall';
@@ -48,8 +49,9 @@ type TitleButtonProps = {
 
 /** A small icon button of the title bar or the window's line, named in a tooltip. */
 export function TitleButton(props: TitleButtonProps) {
-  const { label, icon, onClick, variant = 'Surface', directional, className, above } = props;
+  const { label, icon, onClick, variant, directional, className, above } = props;
   const { pressed, held, size = '300' } = props;
+  const inWindow = !!useCallWindowFrame();
   return (
     <IconTooltip label={label} position={above ? 'Top' : 'Bottom'}>
       {(tipAnchor) => (
@@ -58,7 +60,8 @@ export function TitleButton(props: TitleButtonProps) {
           className={className}
           size={size}
           radii="300"
-          variant={variant}
+          variant={variant ?? (inWindow ? 'Surface' : 'SurfaceVariant')}
+          fill={inWindow || variant ? 'Soft' : 'None'}
           aria-label={label}
           aria-pressed={pressed}
           aria-disabled={held || undefined}
@@ -237,11 +240,7 @@ export function CallViewChrome(props: CallViewChromeProps) {
   });
 
   return (
-    <Shell
-      className={classNames(css.Panel, frame && css.InWindow)}
-      aria-label={frame ? undefined : title}
-      data-testid="call-panel"
-    >
+    <Shell className={css.Panel} aria-label={frame ? undefined : title} data-testid="call-panel">
       {frame?.bar ? (
         <div ref={handleRef} className={css.Bar} {...frame.handleProps}>
           {bar?.faces}
@@ -270,23 +269,29 @@ export function CallViewChrome(props: CallViewChromeProps) {
             {...frame?.handleProps}
           >
             {heading}
-            <div className={css.HeaderButtons}>
-              {actions}
-              {/* Phones show the call view in the room's side panel only. */}
-              {!phone && (frame ? <DockButton home={home} /> : <FloatButton />)}
-              {frame && (
+            {frame ? (
+              <div className={css.HeaderButtons}>
+                {actions}
+                {/* Phones show the call view in the room's side panel only. */}
+                {!phone && <DockButton home={home} />}
                 <TitleButton
                   label={t('featureUi.calls.window.minimize')}
                   icon={Icons.Minus}
                   onClick={frame.minimize}
                 />
-              )}
-              <TitleButton
-                label={t('featureUi.calls.panel.close')}
-                icon={Icons.Cross}
-                onClick={onClose}
-              />
-            </div>
+                <TitleButton
+                  label={t('featureUi.calls.panel.close')}
+                  icon={Icons.Cross}
+                  onClick={onClose}
+                />
+              </div>
+            ) : (
+              <PanelHeaderControls onClose={onClose} closeLabel={t('featureUi.calls.panel.close')}>
+                {actions}
+                {/* Phones show the call view in the room's side panel only. */}
+                {!phone && <FloatButton />}
+              </PanelHeaderControls>
+            )}
           </header>
           <div className={css.Body}>{children}</div>
           {footer}

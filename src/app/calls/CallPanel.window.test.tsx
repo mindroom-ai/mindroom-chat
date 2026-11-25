@@ -7,6 +7,7 @@ import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { PanelFrameProvider, type PanelFrame } from '../ui/panels/panelFrameContext';
 import { useInert } from '../lib/hooks/useInert';
 import { phoneLayerOpenAtom, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import type { IconTooltipProps } from '../ui/IconTooltip';
@@ -584,6 +585,29 @@ describe('the call view title bar', () => {
     press('Float');
     expect(settings().mode).toBe('floating');
     expect(navigation.navigateRoom).not.toHaveBeenCalled();
+  });
+
+  it('puts Fill and Fold in the docked header pill inside a PanelFrame, never in the floating window', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const setLayout = vi.fn<PanelFrame['setLayout']>();
+    render(
+      <PanelFrameProvider value={{ label: 'Call', layout: 'beside', setLayout }}>
+        {panel()}
+      </PanelFrameProvider>
+    );
+    press('Fill the room with Call');
+    expect(setLayout).toHaveBeenLastCalledWith('filled');
+    press('Fold Call to the edge');
+    expect(setLayout).toHaveBeenLastCalledWith('folded');
+    cleanup();
+
+    render(
+      <PanelFrameProvider value={{ label: 'Call', layout: 'beside', setLayout }}>
+        {panel({ frame: frame() })}
+      </PanelFrameProvider>
+    );
+    expect(button('Fill the room with Call')).toBeNull();
+    expect(button('Fold Call to the edge')).toBeNull();
   });
 
   it('offers neither Dock nor Float on phones', () => {
