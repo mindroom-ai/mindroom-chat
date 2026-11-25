@@ -79,6 +79,41 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(pick("ask scout"), "scout")
         self.assertEqual(pick("hello"), "helper")
 
+    def test_thread_summary_schema_supports_title_and_limits_length(self) -> None:
+        title_schema = {"type": "object", "properties": {"title": {"type": "string"}}}
+        legacy_schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+        prompt = f"Summarize this thread.\n{TESTER}: alpha123 plain extra words beyond the limit"
+
+        for schema, field in ((title_schema, "title"), (legacy_schema, "summary")):
+            with self.subTest(field=field):
+                result = stub_model.schema_value(schema, {}, prompt)
+                value = result[field]
+                self.assertEqual(value, "Stub title: alpha123 plain extra words")
+                self.assertLessEqual(len(value.split()), 6)
+                self.assertLessEqual(len(value), 80)
+
+        # Hashtags are stripped and long words stay within MindRoom's 80-char / 6-word cap.
+        tagged = stub_model.schema_value(title_schema, {}, f"{TESTER}: stream42 #slow")
+        self.assertEqual(tagged, {"title": "Stub title: stream42 slow"})
+
+        long_prompt = f"{TESTER}: {'a' * 35} {'b' * 35} {'c' * 35}"
+        long_title = stub_model.schema_value(title_schema, {}, long_prompt)["title"]
+        self.assertLessEqual(len(long_title), 80)
+        self.assertLessEqual(len(long_title.split()), 6)
+        self.assertEqual(long_title, long_title.rstrip())
+
+        self.assertEqual(stub_model.schema_value(title_schema, {}, "  ###  "), {"title": "Stub title"})
+
+        # Call notes keep their dedicated summary and do not turn a title field into a thread title.
+        notes_schema = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}, "title": {"type": "string"}},
+        }
+        self.assertEqual(
+            stub_model.schema_value(notes_schema, {}, "<transcript>Hello world</transcript>"),
+            {"summary": "Stub notes of the call.", "title": "stub"},
+        )
+
     def test_agents_are_refused_with_a_real_model(self) -> None:
         with (
             mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--model", "real", "--agents", "2"]),

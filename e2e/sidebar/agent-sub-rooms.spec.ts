@@ -4,6 +4,7 @@ import {
   createAgentRoom,
   expect,
   routeClientConfig,
+  scrollHomeToRoom,
   test,
   uniqueWord,
   type AgentStack,
@@ -42,6 +43,7 @@ const goHome = async (page: Page): Promise<void> => {
 const homeRooms = (page: Page) => page.getByTestId('room-nav-category');
 
 const expectUnderParent = async (page: Page, parentId: string, subName: string) => {
+  await scrollHomeToRoom(page, parentId);
   await expect(
     page.locator(`[data-sub-rooms-of="${parentId}"]`).getByRole('link', { name: subName })
   ).toBeVisible({ timeout: 60_000 });
@@ -50,6 +52,7 @@ const expectUnderParent = async (page: Page, parentId: string, subName: string) 
 };
 
 const expectAtTopLevel = async (page: Page, subId: string, subName: string) => {
+  await scrollHomeToRoom(page, subId);
   await expect(homeRooms(page).locator(`[data-room-id="${subId}"]`)).toBeVisible({
     timeout: 60_000,
   });
