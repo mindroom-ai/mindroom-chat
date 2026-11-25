@@ -316,6 +316,7 @@ export function RoomView({
       <CrossRoomForkDraftBanner
         sourceRoom={crossRoomFork ? crossRoomFork.sourceRoom : room}
         targetRoom={room}
+        canCompose={composerShown}
         onBack={crossRoomFork ? handleExitCrossRoomFork : threadState.handleExitThread}
         onShowBeside={onShowBeside}
         onShowFull={onShowFull}

@@ -225,6 +225,7 @@ export function ThreadView({
       <CrossRoomForkDraftBanner
         sourceRoom={readRoom}
         targetRoom={room}
+        canCompose={composerShown}
         onBack={isCrossRoomDraft ? onExitCrossRoomFork : undefined}
       />
     ) : undefined);
@@ -246,6 +247,7 @@ export function ThreadView({
                   eventId={isCrossRoomDraft ? draftForkAt : eventId}
                   forkAt={draftForkAt}
                   forkTargetRoom={isCrossRoomDraft ? room : undefined}
+                  canCompose={composerShown}
                   threadHeader={resolvedHeader}
                   threadHeaderGapAbove={!roomHeader}
                   onThreadLoadError={onThreadLoadError}

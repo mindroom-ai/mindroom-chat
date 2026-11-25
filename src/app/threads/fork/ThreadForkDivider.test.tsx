@@ -108,6 +108,24 @@ describe('ThreadForkDivider in a fork draft', () => {
     expect(text(renderer.root)).toBe('Draft · send a message below to fork into Project Beta');
     expect(renderer.root.findAllByType('button')).toHaveLength(0);
   });
+
+  it('reveals direction controls in the destination room name', () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <ThreadForkDivider
+          room={room}
+          parent={{ threadId: '$parent', eventId: '$p2' }}
+          variant="forking"
+          targetRoomName={'Project \u202EBeta'}
+        />
+      );
+    });
+
+    expect(text(renderer.root)).toBe(
+      'Draft · send a message below to fork into Project <U+202E>Beta'
+    );
+  });
 });
 
 describe('ThreadForkDivider for cross-room forks', () => {

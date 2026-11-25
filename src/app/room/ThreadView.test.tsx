@@ -652,4 +652,33 @@ describe('a fork draft', () => {
     expect(state.composerHidden).toBe(true);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('suppresses draft compose prompts in timeline and fallback banner when the user cannot post', () => {
+    state.mayPost = false;
+    const sourceRoom = new Room('!alpha:example.org', mx, '@alice:example.org');
+    sourceRoom.name = 'Project Alpha';
+    room.name = 'Project Beta';
+    const onBack = vi.fn();
+
+    render(
+      <ThreadView
+        room={room}
+        sourceRoom={sourceRoom}
+        threadId={THREAD}
+        forkAt="$point"
+        onExitCrossRoomFork={onBack}
+      />
+    );
+
+    expect(state.timeline?.canCompose).toBe(false);
+    expect(state.composer).toBeUndefined();
+    render(<>{state.timeline?.threadHeader}</>);
+    expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.queryByText('Not in Project Beta yet. Send a message below to create this thread.')
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });

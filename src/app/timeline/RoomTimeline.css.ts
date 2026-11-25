@@ -150,9 +150,8 @@ export const ExpandAllToggle = style({
   },
 });
 
-/** Softens read-only parent messages shown above the fork divider in an unsent fork draft. */
+/** Frames read-only parent messages shown above the fork divider in an unsent fork draft. */
 export const ForkDraftPrefixRow = style({
-  opacity: 0.78,
   marginInlineStart: config.space.S300,
   paddingInlineStart: config.space.S100,
   borderInlineStart: `2px dashed ${color.SurfaceVariant.ContainerLine}`,

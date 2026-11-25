@@ -5,6 +5,7 @@ import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import nlBase from '../../i18n/locales/nl.json';
 import nlAdditions from '../../i18n/locales/additions/nl.json';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { CrossRoomForkDraftBanner } from './CrossRoomForkDraftBanner';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -147,6 +148,66 @@ describe('CrossRoomForkDraftBanner', () => {
     expect(
       screen.getByText(
         'Nog niet aangemaakt. Stuur hieronder een bericht om deze afgesplitste thread te starten.'
+      )
+    ).toBeDefined();
+  });
+
+  it('omits the compose hint when canCompose is false while keeping title, DRAFT pill, and Back', () => {
+    const sourceRoom = makeRoom('!alpha:example.org', 'Project Alpha');
+    const targetRoom = makeRoom('!beta:example.org', 'Project Beta');
+    const onBack = vi.fn();
+
+    const { rerender } = render(
+      <CrossRoomForkDraftBanner
+        sourceRoom={sourceRoom}
+        targetRoom={targetRoom}
+        canCompose={false}
+        onBack={onBack}
+      />
+    );
+    expect(screen.getByText('Forking from Project Alpha')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.queryByText('Not in Project Beta yet. Send a message below to create this thread.')
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <CrossRoomForkDraftBanner
+        sourceRoom={sourceRoom}
+        targetRoom={sourceRoom}
+        canCompose={false}
+      />
+    );
+    expect(screen.getByText('Forking thread')).toBeDefined();
+    expect(screen.getByText('Draft')).toBeDefined();
+    expect(
+      screen.queryByText('Not created yet. Send a message below to start this forked thread.')
+    ).toBeNull();
+  });
+
+  it('uses the 44x44 PhoneBackButton target on mobile and reveals direction controls in room names', () => {
+    const sourceRoom = makeRoom('!alpha:example.org', 'Project \u202EAlpha');
+    const targetRoom = makeRoom('!beta:example.org', 'Project \u202EBeta');
+    const onBack = vi.fn();
+
+    render(
+      <ScreenSizeProvider value={ScreenSize.Mobile}>
+        <CrossRoomForkDraftBanner sourceRoom={sourceRoom} targetRoom={targetRoom} onBack={onBack} />
+      </ScreenSizeProvider>
+    );
+
+    const back = screen.getByRole('button', { name: 'Back' });
+    expect(back.style.width).toBe('2.75rem');
+    expect(back.style.height).toBe('2.75rem');
+    fireEvent.click(back);
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText('Forking from Project <U+202E>Alpha')).toBeDefined();
+    expect(
+      screen.getByText(
+        'Not in Project <U+202E>Beta yet. Send a message below to create this thread.'
       )
     ).toBeDefined();
   });

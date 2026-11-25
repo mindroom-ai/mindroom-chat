@@ -404,4 +404,57 @@ describe('a fork draft', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('omits the draft compose divider when canCompose is false while keeping parent rows framed', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
+    forkPrefix.value = { events: [], parent: undefined };
+    const rows = [root, a];
+    const timeline = makeTimeline(rows, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [a],
+        getUnfilteredTimelineSet: () => timelineSet,
+      }) as never;
+    threadRenderStateMock.threadEvents = rows;
+    threadRenderStateMock.ownThreadEvents = rows;
+    threadRenderStateMock.forkPointIndex = 1;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      rows.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = [0, 1];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            threadId: '$parent',
+            forkAt: '$a',
+            extraProps: { canCompose: false },
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(
+        renderer!.root.findAll((node) => (node.type as unknown) === 'fork-divider')
+      ).toHaveLength(0);
+      expect(
+        renderer!.root.findAll(
+          (node) => node.type === 'div' && node.props['data-fork-draft-prefix'] === 'true'
+        )
+      ).toHaveLength(2);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

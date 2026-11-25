@@ -17,7 +17,7 @@ export const Rule = style({
   background: color.SurfaceVariant.ContainerLine,
 });
 
-export const DividerForking = style([Divider, { color: color.Warning.Main }]);
+export const DividerForking = style([Divider, { color: color.Warning.OnContainer }]);
 
 export const RuleForking = style({
   height: 0,

@@ -12,6 +12,7 @@ import { useJoinedRoom } from '../../matrix/hooks/useJoinedRoom';
 import { useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { ForkIcon } from '../../messages/ForkIcon';
+import { revealDirectionControls } from '../../ui/directional';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import * as css from './ThreadForkDivider.css';
 
@@ -74,7 +75,7 @@ function JoinedThreadForkDivider({
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(parentRoom, parent.threadId, root, summaryInfo);
-  const parentRoomName = parentRoom.name || parentRoom.roomId;
+  const parentRoomName = revealDirectionControls(parentRoom.name || parentRoom.roomId);
   const text = isCrossRoom
     ? t('threadFork.forkedFromInRoom', { title, room: parentRoomName })
     : t('threadFork.forkedFrom', { title });
@@ -128,7 +129,7 @@ export function ThreadForkDivider({
     const forking = variant === 'forking';
     const text = forking
       ? targetRoomName
-        ? t('threadFork.forkingIntoRoom', { room: targetRoomName })
+        ? t('threadFork.forkingIntoRoom', { room: revealDirectionControls(targetRoomName) })
         : t('threadFork.forking')
       : t('threadFork.forkedFromAnotherRoom');
     return (
