@@ -193,6 +193,7 @@ for (const direction of ['ltr', 'rtl'] as const) {
           const pillStyle = getComputedStyle(pill);
           return {
             center: pillRect.left + pillRect.width / 2,
+            centerY: pillRect.top + pillRect.height / 2,
             handleCenter: rect.left + rect.width / 2,
             opacity: pillStyle.opacity,
             color: pillStyle.backgroundColor,
@@ -206,7 +207,12 @@ for (const direction of ['ltr', 'rtl'] as const) {
         if (SHOTS) {
           await page.screenshot({
             path: `${SHOTS}/L9-sidebar-splitter-${name}-${direction}.png`,
-            clip: { x: gapCenter - 60, y: 0, width: 120, height: 240 },
+            clip: {
+              x: gapCenter - 60,
+              y: Math.max(0, line.centerY - 120),
+              width: 120,
+              height: 240,
+            },
           });
         }
         await page.mouse.move(900, 450);

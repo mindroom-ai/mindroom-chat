@@ -406,8 +406,7 @@ export function usePanelFillMotion({
 
     setJustFilled(false);
     const parent = layoutParentOf(panel);
-    const fromWidth =
-      runningWidth > 0 ? runningWidth : parent ? measureFullRowWidth(parent) : 0;
+    const fromWidth = runningWidth > 0 ? runningWidth : parent ? measureFullRowWidth(parent) : 0;
     if (!mobile && fromWidth > 0 && Math.abs(fromWidth - width) > 1) {
       const motion = animatePanel(panel, { width: fromWidth, gap: 0 }, { width, gap: 0 }, false);
       motionRef.current = motion;
