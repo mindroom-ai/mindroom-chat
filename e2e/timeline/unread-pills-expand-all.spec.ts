@@ -221,7 +221,7 @@ const measure = (page: Page, labels: Labels) =>
       // The rows follow the line: a line that changes height moves every row.
       rowsGap:
         (
-          inner.querySelector<HTMLElement>('[data-room-row-index="0"]') ?? inner
+          inner.querySelector<HTMLElement>('[data-room-row-index="0"]')?.parentElement ?? inner
         ).getBoundingClientRect().top - lineBox.bottom,
       lineHeight: lineBox.bottom - lineBox.top,
     };
