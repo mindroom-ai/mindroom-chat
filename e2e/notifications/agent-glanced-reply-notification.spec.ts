@@ -81,7 +81,8 @@ const askHelper = async (stack: AgentStack, name: string, roomId: string): Promi
             event.sender === stack.agents.helper &&
             event.type === 'm.room.message' &&
             relationOf(event)?.rel_type === 'm.thread' &&
-            relationOf(event)?.event_id === rootId
+            relationOf(event)?.event_id === rootId &&
+            typeof event.content['io.mindroom.stream_status'] === 'string'
         )?.event_id;
         return !!replyId;
       },
@@ -185,8 +186,35 @@ const replyNotifications = async (device: Device, stream: Stream): Promise<numbe
   ).length;
 
 /**
- * Opens the reply's thread while it streams, until the page sent its receipt on the reply (in
- * the thread, accepted by the server), and fails when the reply finished before that.
+ * Whether `device` has an accepted (200) thread read receipt in `stream.rootId` at or after
+ * `targetEventId`. A provisional or post-reply `thread_summary` notice can arrive right after the
+ * reply event, causing the client to send its thread receipt on that newer event instead.
+ */
+const hasAcceptedThreadReceiptAtOrAfter = async (
+  device: Device,
+  stack: AgentStack,
+  stream: Stream,
+  targetEventId: string
+): Promise<boolean> => {
+  const accepted = device.receipts.filter(
+    (receipt) =>
+      receipt.threadId === stream.rootId &&
+      receipt.status === 200 &&
+      receipt.eventId !== stream.rootId
+  );
+  if (accepted.some((receipt) => receipt.eventId === targetEventId)) return true;
+  if (accepted.length === 0) return false;
+  // roomEvents returns events newest first, so an event at or after targetEventId has index <= targetIndex.
+  const events = await roomEvents(stack, stream.roomId);
+  const targetIndex = events.findIndex((event) => event.event_id === targetEventId);
+  if (targetIndex < 0) return false;
+  const atOrAfter = new Set(events.slice(0, targetIndex + 1).map((event) => event.event_id));
+  return accepted.some((receipt) => atOrAfter.has(receipt.eventId));
+};
+
+/**
+ * Opens the reply's thread while it streams, until the page sent its receipt covering the reply
+ * (in the thread, accepted by the server), and fails when the reply finished before that.
  */
 const glance = async (device: Device, stack: AgentStack, stream: Stream) => {
   await navigate(device.page, threadRoute(stream));
@@ -194,16 +222,10 @@ const glance = async (device: Device, stack: AgentStack, stream: Stream) => {
     timeout: 60_000,
   });
   await expect
-    .poll(
-      () =>
-        device.receipts.some(
-          (receipt) =>
-            receipt.eventId === stream.replyId &&
-            receipt.threadId === stream.rootId &&
-            receipt.status === 200
-        ),
-      { timeout: 30_000, message: `${device.name} reads the start of the reply in ${stream.name}` }
-    )
+    .poll(() => hasAcceptedThreadReceiptAtOrAfter(device, stack, stream, stream.replyId), {
+      timeout: 30_000,
+      message: `${device.name} reads the start of the reply in ${stream.name}`,
+    })
     .toBe(true);
   const { status } = await streamState(stack, stream);
   expect(status, `the reply in ${stream.name} still streams after the glance`).not.toBe(
@@ -302,18 +324,12 @@ const run = async (browser: Browser, stack: AgentStack, baseURL: string | undefi
 
     const finishIds = await Promise.all(streams.map((stream) => waitForFinish(stack, stream)));
     const watchedFinish = finishIds[3]!;
-    // The watching desk reads the finished reply: a receipt on the edit that finished it.
+    // The watching desk reads the finished reply: a receipt covering the edit that finished it.
     await expect
-      .poll(
-        () =>
-          watching.receipts.some(
-            (receipt) =>
-              receipt.eventId === watchedFinish &&
-              receipt.threadId === watched.rootId &&
-              receipt.status === 200
-          ),
-        { timeout: 30_000, message: 'the watching desk reads the finished reply' }
-      )
+      .poll(() => hasAcceptedThreadReceiptAtOrAfter(watching, stack, watched, watchedFinish), {
+        timeout: 30_000,
+        message: 'the watching desk reads the finished reply',
+      })
       .toBe(true);
 
     const expected: [Device, Stream, number][] = [

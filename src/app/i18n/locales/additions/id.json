@@ -1503,7 +1503,9 @@
         "use": "Gunakan {{tool}}"
       },
       "jobTotal_other": "{{count}} tugas latar belakang",
-      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
+      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai",
+      "reviewApprovalFor": "Tinjau persetujuan: {{tool}}",
+      "checkingApproval": "Memeriksa persetujuan…"
     },
     "workflowRun": {
       "title": "Alur kerja",
@@ -1790,6 +1792,12 @@
       "show": "Tampilkan",
       "hide": "Sembunyikan",
       "zeroTokens": "0 token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Tampilkan di bilah sisi",
+        "sidebarSettings": "Pengaturan bilah sisi…"
+      }
     }
   },
   "composer": {

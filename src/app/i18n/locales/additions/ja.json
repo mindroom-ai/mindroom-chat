@@ -1503,7 +1503,9 @@
         "use": "{{tool}} を使う"
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
-      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
+      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了",
+      "reviewApprovalFor": "承認を確認：{{tool}}",
+      "checkingApproval": "承認を確認中…"
     },
     "workflowRun": {
       "title": "ワークフロー",
@@ -1790,6 +1792,12 @@
       "show": "表示",
       "hide": "非表示",
       "zeroTokens": "0 トークン"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "サイドバーに表示",
+        "sidebarSettings": "サイドバー設定…"
+      }
     }
   },
   "composer": {

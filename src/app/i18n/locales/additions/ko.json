@@ -1503,7 +1503,9 @@
         "use": "{{tool}} 사용"
       },
       "jobTotal_other": "백그라운드 작업 {{count}}개",
-      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
+      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨",
+      "reviewApprovalFor": "승인 검토: {{tool}}",
+      "checkingApproval": "승인 확인 중…"
     },
     "workflowRun": {
       "title": "워크플로",
@@ -1790,6 +1792,12 @@
       "show": "보기",
       "hide": "숨기기",
       "zeroTokens": "0 토큰"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "사이드바에 표시",
+        "sidebarSettings": "사이드바 설정…"
+      }
     }
   },
   "composer": {

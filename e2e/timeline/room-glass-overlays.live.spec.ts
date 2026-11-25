@@ -125,7 +125,7 @@ for (const width of [390, 1280]) {
           return [css.borderTopWidth, css.borderBottomWidth, css.boxShadow, css.backgroundImage];
         })
       ).toEqual(['0px', '0px', 'none', 'none']);
-      await expect(headerSurface).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
+      await expect(headerSurface).toHaveCSS('backdrop-filter', /^blur\(12px\)/);
       await expectRoomCompact(page, true);
       const headerBox = (await header.boundingBox())!;
       const filtersBox = (await filters.boundingBox())!;

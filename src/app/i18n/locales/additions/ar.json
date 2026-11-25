@@ -1738,7 +1738,9 @@
       "jobTotalFinished_two": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
-      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
+      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "reviewApprovalFor": "مراجعة الموافقة: ⁨{{tool}}⁩",
+      "checkingApproval": "جارٍ التحقق من الموافقة…"
     },
     "workflowRun": {
       "title": "سير العمل",
@@ -2115,6 +2117,12 @@
       "show": "إظهار",
       "hide": "إخفاء",
       "zeroTokens": "0 رموز"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "إظهار في الشريط الجانبي",
+        "sidebarSettings": "إعدادات الشريط الجانبي…"
+      }
     }
   },
   "composer": {

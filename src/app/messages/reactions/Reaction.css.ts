@@ -1,5 +1,6 @@
 import { createVar, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { touchTarget } from '../../ui/styles/touchTarget';
 
 // The pill's three colors are variables, so the pressed and hover states only swap their values.
 const fill = createVar();
@@ -10,6 +11,9 @@ const ink = createVar();
 // reaction is among them.
 export const Reaction = style([
   DefaultReset,
+  // Pills sit 8 px (`gap="200"`) apart in `ReactionsContainer`: 4 px (`S100`) inline stays disjoint
+  // while extending the 28 px pill 8 px up and down to a 44 px hit area.
+  touchTarget(config.space.S100),
   {
     vars: {
       [fill]: color.SurfaceVariant.Container,

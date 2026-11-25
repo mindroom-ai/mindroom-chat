@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { IconButton } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
-import { ControlPill, HeaderPill } from './PanelFrame.css';
+import { ControlPill } from './PanelFrame.css';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
@@ -243,8 +243,7 @@ describe('PanelHeaderControls', () => {
       </PanelFrameProvider>
     );
 
-    expect(ControlPill.split(' ')).not.toContain(HeaderPill);
-    expect(container.firstElementChild?.classList.contains(HeaderPill)).toBe(false);
+    expect(container.firstElementChild?.classList.contains(ControlPill)).toBe(true);
 
     const buttons = screen.getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([

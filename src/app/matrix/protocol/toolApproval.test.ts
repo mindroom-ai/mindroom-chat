@@ -1,9 +1,11 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
+import { STREAM_STATUS_KEY, SUPPRESS_PUSH_KEY } from './aiRun';
 import {
   buildToolApprovalResponseContent,
   getEffectiveToolApprovalStatus,
   getToolApprovalRenderContent,
+  isUndecryptedApprovalCandidate,
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApprovalContent,
   parseToolApprovalExpiryTimestamp,
@@ -607,5 +609,68 @@ describe('buildToolApprovalResponseContent', () => {
         },
       },
     });
+  });
+});
+
+describe('isUndecryptedApprovalCandidate', () => {
+  const makeEncryptedEvent = (content: Record<string, unknown>) =>
+    new MatrixEvent({
+      content,
+      event_id: '$encrypted',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@mindroom_router:example.org',
+      type: 'm.room.encrypted',
+    });
+
+  it('excludes encrypted events that carry suppress_push or stream_status in cleartext', () => {
+    expect(isUndecryptedApprovalCandidate(makeEncryptedEvent({ ciphertext: 'abc' }))).toBe(true);
+    expect(
+      isUndecryptedApprovalCandidate(
+        makeEncryptedEvent({ ciphertext: 'abc', [SUPPRESS_PUSH_KEY]: false })
+      )
+    ).toBe(true);
+    expect(
+      isUndecryptedApprovalCandidate(
+        makeEncryptedEvent({ ciphertext: 'abc', [SUPPRESS_PUSH_KEY]: true })
+      )
+    ).toBe(false);
+    expect(
+      isUndecryptedApprovalCandidate(
+        makeEncryptedEvent({ ciphertext: 'abc', [STREAM_STATUS_KEY]: 'streaming' })
+      )
+    ).toBe(false);
+    const redacted = new MatrixEvent({
+      content: {},
+      event_id: '$encrypted',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@mindroom_router:example.org',
+      type: 'm.room.encrypted',
+      unsigned: {
+        redacted_because: {
+          content: {},
+          event_id: '$redaction',
+          origin_server_ts: 2,
+          room_id: '!room:example.org',
+          sender: '@mindroom_router:example.org',
+          type: 'm.room.redaction',
+          unsigned: {},
+        },
+      },
+    });
+    expect(isUndecryptedApprovalCandidate(redacted)).toBe(false);
+  });
+
+  it('excludes failed-decryption events whose wire content suppresses push', async () => {
+    const failed = makeEncryptedEvent({ ciphertext: 'abc', [SUPPRESS_PUSH_KEY]: true });
+    const crypto = {
+      decryptEvent: async () => {
+        throw new Error('Missing room key');
+      },
+    } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
+    await failed.attemptDecryption(crypto);
+    expect(failed.isDecryptionFailure()).toBe(true);
+    expect(isUndecryptedApprovalCandidate(failed)).toBe(false);
   });
 });

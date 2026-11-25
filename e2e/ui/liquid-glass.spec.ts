@@ -88,3 +88,123 @@ test('tracks light without rebuilding the filter and releases it for accessibili
   await page.emulateMedia({ contrast: 'no-preference' });
   await expect(menu).toHaveAttribute('data-liquid-glass', 'active');
 });
+
+test('lights the rim near the pointer without a resting interior glow', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto('/e2e/fixtures/liquid-glass.html?theme=dark');
+  const menu = page.getByTestId('showcase-menu');
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  });
+  await expect(menu).toHaveCSS('background-image', 'none');
+  await page.mouse.move(0, 0);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+  const box = (await menu.boundingBox())!;
+  const points = [
+    { x: box.x + box.width / 2, y: Math.floor(box.y) },
+    { x: box.x + box.width / 2, y: Math.floor(box.y) + 1 },
+    { x: box.x + box.width / 2, y: Math.floor(box.y) + 12 },
+  ];
+  const resting = await sampleScreenshot(page, points);
+
+  await menu.hover({ position: { x: Math.round(box.width / 2), y: 6 } });
+  await expect
+    .poll(() =>
+      menu.evaluate((element) => element.style.getPropertyValue('--liquid-glass-light-x'))
+    )
+    .not.toBe('');
+  await expect(menu).toHaveCSS('background-image', 'none');
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+  const hovered = await sampleScreenshot(page, points);
+  const rimDelta =
+    pixelDifference(hovered[0]!, resting[0]!) + pixelDifference(hovered[1]!, resting[1]!);
+  const interiorDelta = pixelDifference(hovered[2]!, resting[2]!);
+  expect(rimDelta, 'pointer hover brightens the rim near the cursor').toBeGreaterThan(40);
+  expect(interiorDelta, 'interior glass stays unclouded').toBeLessThan(10);
+  expect(rimDelta, 'rim catches more pointer light than the interior').toBeGreaterThan(
+    interiorDelta + 30
+  );
+});
+
+test('keeps glass buttons at scale none on hover and active under reduced motion', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto('/e2e/fixtures/liquid-glass.html');
+  const button = page.getByTestId('showcase-button');
+  await expect(button).toBeVisible();
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await button.hover();
+  expect(await button.evaluate((element) => element.matches(':hover'))).toBe(true);
+  await expect(button).toHaveCSS('scale', 'none');
+  await page.mouse.down();
+  expect(await button.evaluate((element) => element.matches(':active'))).toBe(true);
+  await expect(button).toHaveCSS('scale', 'none');
+  await page.mouse.up();
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await button.hover();
+  await expect(button).not.toHaveCSS('scale', 'none');
+});
+
+test('matches asymmetric corner radii in the optical displacement map', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 400 });
+  await page.goto('/e2e/fixtures/liquid-glass.html?optics=sheet');
+  const lens = page.getByTestId('optical-lens');
+  await expect(lens).toHaveAttribute('data-liquid-glass', 'active');
+  await expect(page.locator('feGaussianBlur[edgeMode="duplicate"]')).toHaveCount(1);
+  await expect(page.locator('feDisplacementMap')).toHaveCount(1);
+  await expect(page.locator('feColorMatrix')).toHaveCount(0);
+  await expect(page.locator('feBlend')).toHaveCount(0);
+
+  const topRounded: Array<{ x: number; y: number }> = [];
+  for (let x = 108; x <= 113; x += 1) {
+    for (let y = 88; y <= 92; y += 1) {
+      if (Math.hypot(124 - x, 104 - y) <= 22.5) topRounded.push({ x, y });
+    }
+  }
+  const botSquare: Array<{ x: number; y: number }> = [];
+  for (let x = 101; x <= 106; x += 1) {
+    for (let y = 293; y <= 298; y += 1) botSquare.push({ x, y });
+  }
+  const botInnerMirror: Array<{ x: number; y: number }> = [];
+  for (let x = 108; x <= 113; x += 1) {
+    for (let y = 287; y <= 291; y += 1) {
+      if (Math.hypot(124 - x, y - 275) <= 22.5) botInnerMirror.push({ x, y });
+    }
+  }
+
+  const allPoints = [...topRounded, ...botSquare, ...botInnerMirror];
+  const bent = await sampleScreenshot(page, allPoints);
+  await lens.evaluate((element) => {
+    element.style.backdropFilter = 'blur(3px)';
+  });
+  const flat = await sampleScreenshot(page, allPoints);
+  const deltas = bent.map((pixel, index) => pixelDifference(pixel, flat[index]!));
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const roundedEnd = topRounded.length;
+  const squareEnd = roundedEnd + botSquare.length;
+  expect(mean(deltas.slice(0, roundedEnd)), 'rounded top corner bends').toBeGreaterThan(30);
+  expect(
+    mean(deltas.slice(roundedEnd, squareEnd)),
+    'square bottom corner bends to edge'
+  ).toBeGreaterThan(40);
+  expect(
+    mean(deltas.slice(squareEnd)),
+    'square corner interior does not curve like a rounded arc'
+  ).toBeLessThan(25);
+});

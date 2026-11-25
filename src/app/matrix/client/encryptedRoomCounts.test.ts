@@ -873,4 +873,76 @@ describe('unread counts of an encrypted room', () => {
       1
     );
   });
+
+  // Regression: when a provisional thread summary notice arrives after a streaming reply starts
+  // and receives the reader's thread receipt before the reader leaves, the later terminal edit
+  // must still be counted even though the read non-streamed notice sits between them in timeline
+  // order.
+  it('count a finished reply when a later provisional summary notice was read while it streamed', async () => {
+    const readProvisional = {
+      type: 'm.receipt',
+      content: { $provisional: { 'm.read': { [ME]: { ts: 4, thread_id: ROOT } } } },
+    };
+    const initial = [
+      encrypted(ROOT, ME, 1),
+      streamedReply(REPLY, 2),
+      encrypted('$provisional', AGENT, 3, inThread),
+    ];
+    const finish = [finishingEdit('$done', REPLY, 10), encrypted('$summary', AGENT, 11, inThread)];
+
+    const f = await fixture(true);
+    await f.deliver(initial, [readProvisional]);
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$provisional'), titleNotice);
+    expect([f.threadCount(), f.totalCount()]).toEqual([0, 0]);
+
+    await f.deliver(finish, [], { counts: { room: 0, threads: { [ROOT]: 2 } } });
+    await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    await f.decrypt(f.find('$summary'), titleNotice);
+    expect([f.threadCount(), f.totalCount()]).toEqual([1, 1]);
+    clients.splice(0).forEach((mx) => mx.stopClient());
+
+    // After a reload, all events re-decrypt with the same receipt on the provisional notice.
+    const reloaded = await fixture(true);
+    await reloaded.deliver([...initial, ...finish], [readProvisional], {
+      counts: { room: 0, threads: { [ROOT]: 2 } },
+    });
+    await reloaded.decrypt(reloaded.find(ROOT), clear[ROOT]);
+    await reloaded.decrypt(reloaded.find(REPLY), clear[REPLY]);
+    await reloaded.decrypt(reloaded.find('$provisional'), titleNotice);
+    await reloaded.decrypt(reloaded.find('$done'), finishedContent(REPLY));
+    await reloaded.decrypt(reloaded.find('$summary'), titleNotice);
+    expect([reloaded.threadCount(), reloaded.totalCount()]).toEqual([1, 1]);
+  });
+
+  it('stay read when the receipt is on the terminal edit or a summary notice after it', async () => {
+    const events = [
+      encrypted(ROOT, ME, 1),
+      streamedReply(REPLY, 2),
+      encrypted('$provisional', AGENT, 3, inThread),
+      finishingEdit('$done', REPLY, 10),
+      encrypted('$summary', AGENT, 11, inThread),
+    ];
+
+    for (const [receiptEventId, receiptTs] of [
+      ['$done', 10],
+      ['$summary', 11],
+    ] as const) {
+      const f = await fixture(true);
+      await f.deliver(events, [
+        {
+          type: 'm.receipt',
+          content: { [receiptEventId]: { 'm.read': { [ME]: { ts: receiptTs, thread_id: ROOT } } } },
+        },
+      ]);
+      await f.decrypt(f.find(ROOT), clear[ROOT]);
+      await f.decrypt(f.find(REPLY), clear[REPLY]);
+      await f.decrypt(f.find('$provisional'), titleNotice);
+      await f.decrypt(f.find('$done'), finishedContent(REPLY));
+      await f.decrypt(f.find('$summary'), titleNotice);
+      expect([f.threadCount(), f.totalCount()]).toEqual([0, 0]);
+      clients.splice(0).forEach((mx) => mx.stopClient());
+    }
+  });
 });

@@ -12,6 +12,7 @@ import {
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
 import { useProviderUsage } from '../../usage/useProviderUsage';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 const LOW_QUOTA_DOT_STYLE: CSSProperties = {
   display: 'block',
@@ -34,6 +35,7 @@ export function UsageTab() {
   const active = useUsageSelected();
   const { t } = useTranslation();
   const { available, hasLowQuota } = useProviderUsage();
+  const railMenuProps = useRailVisibilityMenuTrigger('usage');
   const tooltip = t('nav.usage');
   const label = hasLowQuota ? t('mindroomUi.usage.navLowQuota') : tooltip;
 
@@ -47,6 +49,7 @@ export function UsageTab() {
       aria-label={label}
       outlined
       onClick={() => void navigate(getUsagePath())}
+      {...railMenuProps}
     >
       <IconGauge size={20} stroke={active ? 2.2 : 1.8} aria-hidden="true" />
     </SidebarAvatar>

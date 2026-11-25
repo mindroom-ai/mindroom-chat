@@ -1550,7 +1550,9 @@
       "jobTotal_one": "{{count}} Hintergrundaufgabe",
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
-      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
+      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "reviewApprovalFor": "Freigabe prüfen: {{tool}}",
+      "checkingApproval": "Freigabe wird geprüft…"
     },
     "workflowRun": {
       "title": "Workflow",
@@ -1855,6 +1857,12 @@
       "show": "Anzeigen",
       "hide": "Ausblenden",
       "zeroTokens": "0 Token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "In der Seitenleiste anzeigen",
+        "sidebarSettings": "Seitenleisten-Einstellungen…"
+      }
     }
   },
   "composer": {

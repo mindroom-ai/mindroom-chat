@@ -1550,7 +1550,9 @@
       "jobTotal_one": "{{count}} arka plan işi",
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
-      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
+      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı",
+      "reviewApprovalFor": "Onayı incele: {{tool}}",
+      "checkingApproval": "Onay denetleniyor…"
     },
     "workflowRun": {
       "title": "İş akışı",
@@ -1855,6 +1857,12 @@
       "show": "Göster",
       "hide": "Gizle",
       "zeroTokens": "0 belirteç"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Kenar çubuğunda göster",
+        "sidebarSettings": "Kenar çubuğu ayarları…"
+      }
     }
   },
   "composer": {

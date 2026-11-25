@@ -11,6 +11,7 @@ import {
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
 import * as css from './HelpTab.css';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 const HelpMenu = lazyPart(() =>
   import('../../tour/HelpMenu').then((module) => ({ default: module.HelpMenu }))
@@ -32,6 +33,10 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
   const { tip } = useContextualTip();
   const [menuButton, setMenuButton] = useState<HTMLElement>();
   const closeMenu = useCallback(() => setMenuButton(undefined), []);
+  const railMenuProps = useRailVisibilityMenuTrigger('help', {
+    disabled: inTopBar,
+    onBeforeOpen: closeMenu,
+  });
   const toggleMenu = (event: MouseEvent<HTMLElement>) => {
     const button = event.currentTarget;
     setMenuButton((open) => (open ? undefined : button));
@@ -73,9 +78,10 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
       aria-label={label}
       aria-haspopup="menu"
       aria-expanded={!!menuButton}
-      data-menu-open={menuButton ? 'true' : undefined}
       outlined
       onClick={toggleMenu}
+      {...railMenuProps}
+      data-menu-open={menuButton || railMenuProps?.['data-menu-open'] ? 'true' : undefined}
     >
       <IconHelpCircle size={20} stroke={menuButton ? 2.2 : 1.8} aria-hidden="true" />
     </SidebarAvatar>
