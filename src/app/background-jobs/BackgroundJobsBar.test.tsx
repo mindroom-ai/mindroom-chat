@@ -106,31 +106,39 @@ const reviewDialog = vi.hoisted(() => ({
         viewThreadId: string | null;
         onClose: () => void;
         returnFocus: React.RefObject<HTMLElement | null>;
+        focusConversation?: () => void;
+        fallbackFocus?: () => void;
       }
     | undefined,
 }));
-vi.mock('./JobApprovalDialog', () => ({
-  JobApprovalDialog: (props: {
-    room: Room;
-    job: BackgroundJobsBarItem;
-    viewThreadId: string | null;
-    onClose: () => void;
-    returnFocus: React.RefObject<HTMLElement | null>;
-  }) => {
-    reviewDialog.lastProps = props;
-    return (
-      <div
-        data-testid="job-approval-dialog"
-        data-job-id={props.job.jobId}
-        data-view-thread-id={props.viewThreadId ?? ''}
-      >
-        <button type="button" data-close-review="" onClick={props.onClose}>
-          Close review
-        </button>
-      </div>
-    );
-  },
-}));
+vi.mock('./JobApprovalDialog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./JobApprovalDialog')>();
+  return {
+    ...actual,
+    JobApprovalDialog: (props: {
+      room: Room;
+      job: BackgroundJobsBarItem;
+      viewThreadId: string | null;
+      onClose: () => void;
+      returnFocus: React.RefObject<HTMLElement | null>;
+      focusConversation?: () => void;
+      fallbackFocus?: () => void;
+    }) => {
+      reviewDialog.lastProps = props;
+      return (
+        <div
+          data-testid="job-approval-dialog"
+          data-job-id={props.job.jobId}
+          data-view-thread-id={props.viewThreadId ?? ''}
+        >
+          <button type="button" data-close-review="" onClick={props.onClose}>
+            Close review
+          </button>
+        </div>
+      );
+    },
+  };
+});
 vi.mock('../subagents/RunLogo.css', () => ({
   Logo: 'Logo',
   Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', stopped: 'Dot', finished: 'Dot' },
@@ -174,7 +182,8 @@ const render = (
   threadId: string | null = '$thread',
   canCancel = true,
   readOnly = false,
-  targetRoom: Room = room
+  targetRoom: Room = room,
+  focusConversation?: () => void
 ) =>
   act(() => {
     root.render(
@@ -183,6 +192,7 @@ const render = (
         threadId={threadId}
         canCancel={canCancel}
         readOnly={readOnly}
+        focusConversation={focusConversation}
       />
     );
   });
@@ -1389,4 +1399,41 @@ it('disables clickable approval review when readOnly is true', () => {
   expect(container.textContent).toContain('mindroomUi.backgroundJobs.waiting');
   expect(container.querySelectorAll('[data-job-review-approval]')).toHaveLength(0);
   expect(container.querySelectorAll('[data-job-reviewable]')).toHaveLength(0);
+});
+
+it('restores focus to the surviving bar toggle when the folded pill disappears after approval, or focusConversation when the bar unmounts', async () => {
+  vi.useFakeTimers();
+  try {
+    const focusConversation = vi.fn();
+    state.jobs = [job('a', { status: 'awaiting_approval' })];
+    render(null, true, false, room, focusConversation);
+    const pill = container.querySelector<HTMLButtonElement>('[data-job-review-approval]')!;
+    act(() => {
+      pill.click();
+    });
+    expect(reviewDialog.lastProps?.returnFocus.current).toBe(pill);
+
+    // Approval resolves: pill unmounts while job stays running in the folded bar.
+    state.jobs = [job('a', { status: 'running' })];
+    render(null, true, false, room, focusConversation);
+    expect(pill.isConnected).toBe(false);
+    act(() => {
+      reviewDialog.lastProps?.fallbackFocus?.();
+    });
+    expect(document.activeElement).toBe(toggle());
+    expect(focusConversation).not.toHaveBeenCalled();
+
+    // Job finishes, hold expires, and bar unmounts while dialog stays open: fallbackFocus calls focusConversation.
+    state.jobs = [];
+    render(null, true, false, room, focusConversation);
+    await act(() => vi.advanceTimersByTime(2_000));
+    expect(container.querySelector('[data-jobs-bar]')).toBeNull();
+    expect(container.querySelector('[data-testid="job-approval-dialog"]')).not.toBeNull();
+    act(() => {
+      reviewDialog.lastProps?.fallbackFocus?.();
+    });
+    expect(focusConversation).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
 });

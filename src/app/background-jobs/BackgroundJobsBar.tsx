@@ -31,7 +31,7 @@ import { keepCancelsOf, useSentCancels } from '../matrix/state/sentCancels';
 import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 import { useJobLookups } from './useJobLookups';
-import { JobApprovalDialog } from './JobApprovalDialog';
+import { JobApprovalDialog, useJobApprovalReview } from './JobApprovalDialog';
 
 type BackgroundJobsBarProps = {
   room: Room;
@@ -40,6 +40,8 @@ type BackgroundJobsBarProps = {
   canCancel: boolean;
   // A read-only view (such as a fork draft) shows jobs without interactive approval review.
   readOnly?: boolean;
+  // Restores focus to the conversation when a closed approval dialog's trigger and bar are gone.
+  focusConversation?: () => void;
 };
 
 // The last failed cancel of a job, with the view it was sent from, where it shows.
@@ -58,6 +60,7 @@ export function BackgroundJobsBar({
   threadId,
   canCancel,
   readOnly = false,
+  focusConversation,
 }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
@@ -68,12 +71,6 @@ export function BackgroundJobsBar({
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
-  const [review, setReview] = useState<{
-    roomId: string;
-    item: BackgroundJobsBarItem;
-    fromList: boolean;
-  }>();
-  const reviewReturnFocus = useRef<HTMLElement | null>(null);
   const bar = useRef<HTMLDivElement>(null);
   // The title that lists the jobs: several jobs' title line, or the folded bar's one job.
   const toggle = useRef<HTMLButtonElement>(null);
@@ -164,10 +161,6 @@ export function BackgroundJobsBar({
     keepCancelsOf(room.roomId, new Set(roomJobs.map((job) => job.jobId)));
   }, [room.roomId, roomJobs]);
 
-  useEffect(() => {
-    setReview(undefined);
-  }, [room.roomId]);
-
   const cancel = useCallback(
     async (request: BackgroundJobCancelRequest, jobIds: string[], failure: string) => {
       const view = threadId;
@@ -189,17 +182,21 @@ export function BackgroundJobsBar({
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
   const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups, details);
-  const dialog = review && (
-    <JobApprovalDialog
-      key={`${room.roomId}:${review.item.jobId}:${review.item.threadId ?? ''}`}
-      room={room}
-      job={review.item}
-      viewThreadId={threadId}
-      onClose={() => setReview(undefined)}
-      returnFocus={review.fromList ? toggle : reviewReturnFocus}
-    />
+  const { dialog: reviewDialog, reviewApproval } = useJobApprovalReview({
+    room,
+    threadId,
+    readOnly,
+    expanded,
+    hide,
+    toggle,
+    bar,
+    focusConversation,
+  });
+  const dialog = reviewDialog && (
+    <JobApprovalDialog key={reviewDialog.key} {...reviewDialog.props} />
   );
   if (!model) {
+    // Keep the dialog at Fragment index 1 so it stays mounted when the bar unmounts.
     return dialog ? (
       <>
         {null}
@@ -207,15 +204,6 @@ export function BackgroundJobsBar({
       </>
     ) : null;
   }
-  const openApprovalReview = (item: BackgroundJobsBarItem, trigger: HTMLElement) => {
-    reviewReturnFocus.current = expanded ? (toggle.current ?? trigger) : trigger;
-    setReview({ roomId: room.roomId, item, fromList: expanded });
-    hide();
-  };
-  const reviewApproval = (item: BackgroundJobsBarItem) =>
-    item.waiting && !item.stopping && !item.finished && !readOnly
-      ? (trigger: HTMLElement) => openApprovalReview(item, trigger)
-      : undefined;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
   const shownFailures = [

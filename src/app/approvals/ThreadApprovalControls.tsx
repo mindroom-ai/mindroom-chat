@@ -26,7 +26,6 @@ import {
   parseToolApprovalExpiryTimestamp,
 } from '../matrix/protocol/toolApproval';
 import { mergeArgumentFields, summarizeArguments } from './argumentFields';
-import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
 import { ActivityIcon, ThreadActivity } from '../ui/ThreadActivity';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
@@ -37,15 +36,10 @@ import { ApprovalReceipt } from './ApprovalReceipt';
 import {
   describeApprovalChip,
   describeApprovalHistory,
-  describeReviewHeader,
   describeWaitingApprovals,
 } from './approvalLabels';
-import {
-  agentDisplayName,
-  type ApprovalMemberRoom,
-  useApprovalRoom,
-  userDisplayName,
-} from './approvalPeople';
+import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
+import { ApprovalReviewDialog, HISTORY_ERROR_KEYS } from './ApprovalReviewDialog';
 import {
   ApprovalAgentAvatar,
   ApprovalDurations,
@@ -63,6 +57,7 @@ export function ApprovalDialog({
   onClose,
   children,
   returnFocus,
+  fallbackFocus,
 }: {
   title: string;
   subtitle?: string;
@@ -70,19 +65,24 @@ export function ApprovalDialog({
   onClose: () => void;
   children: React.ReactNode;
   returnFocus: React.RefObject<HTMLElement | null>;
+  fallbackFocus?: () => void;
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
   const titleId = useId();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const fallbackRef = useRef<(() => void) | undefined>(undefined);
+  fallbackRef.current = fallbackFocus ?? context?.focusConversation;
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
         <FocusTrap
           focusTrapOptions={{
-            setReturnFocus: () => returnFocus.current ?? false,
-            onDeactivate: onClose,
+            setReturnFocus: () => (returnFocus.current?.isConnected ? returnFocus.current : false),
+            onDeactivate: () => onCloseRef.current(),
             onPostDeactivate: () => {
-              if (!returnFocus.current?.isConnected) context?.focusConversation?.();
+              if (!returnFocus.current?.isConnected) fallbackRef.current?.();
             },
             clickOutsideDeactivates: true,
           }}
@@ -379,114 +379,13 @@ export function ApprovalReviewGroup({
   );
 }
 
-export const HISTORY_ERROR_KEYS = {
-  unavailable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unavailable',
-  undecryptable: 'mindroomUi.messages.threadApprovalControls.historyErrors.undecryptable',
-  unloadable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unloadable',
-} as const;
-
-export function ApprovalReviewDialog({
-  room,
-  selection,
-  onClose,
-  returnFocus,
-  extraActions,
-  children,
-}: {
-  room: ApprovalMemberRoom | null | undefined;
-  selection?: string[][];
-  onClose: () => void;
-  returnFocus: React.RefObject<HTMLElement | null>;
-  extraActions?: React.ReactNode;
-  children?: React.ReactNode;
-}) {
-  const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const context = useThreadApprovals();
-  const user = useMatrixClient().getUserId();
-  if (!context) return null;
-  const reviewGroups = selection
-    ? groupApprovalRecords(
-        selection
-          .flat()
-          .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
-      )
-    : [];
-  const review = describeReviewHeader(reviewGroups.flat(), user);
-  const reviewTitle =
-    review.agents.length === 1
-      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentWants', {
-          agent: agentDisplayName(room, review.agents[0]!),
-          count: review.count,
-        })
-      : review.agents.length > 1
-        ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
-            agents: review.agents.length,
-            count: review.count,
-          })
-        : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
-  const reviewSubtitle = [
-    review.requester &&
-      t('mindroomUi.messages.threadApprovalControls.reviewRequestedBy', {
-        requester:
-          review.requester === 'you'
-            ? t('mindroomUi.messages.threadApprovalControls.you')
-            : userDisplayName(room, review.requester),
-      }),
-    review.expiresAt &&
-      t('mindroomUi.messages.threadApprovalControls.expires', {
-        time:
-          formatExpiryDistance(review.expiresAt, Date.now(), language) ??
-          formatApprovalTime(review.expiresAt, language),
-      }),
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  return (
-    <ApprovalDialog
-      title={reviewTitle}
-      subtitle={reviewSubtitle || undefined}
-      leading={
-        review.agents.length === 1 ? (
-          <ApprovalAgentAvatar room={room} agentName={review.agents[0]!} size="300" />
-        ) : undefined
-      }
-      onClose={onClose}
-      returnFocus={returnFocus}
-    >
-      {selection ? (
-        <>
-          {reviewGroups.map((records) => (
-            <ApprovalReviewGroup
-              key={records[0]!.eventId}
-              records={records}
-              flat
-              showMeta={review.agents.length > 1 || review.requester === null}
-            />
-          ))}
-          {selection
-            .flat()
-            .some((id) => !context.records.some((record) => record.eventId === id)) && (
-            <p>
-              {t('mindroomUi.messages.threadApprovalControls.someRequestsAreNoLongerAvailable')}
-            </p>
-          )}
-          {extraActions}
-        </>
-      ) : (
-        children
-      )}
-    </ApprovalDialog>
-  );
-}
-
 export function ThreadApprovalQueue() {
   const { t } = useTranslation();
   const context = useThreadApprovals();
   const mx = useMatrixClient();
   const user = mx.getUserId();
   const room = useApprovalRoom();
-  const [selection, setSelection] = useState<string[][]>();
+  const [selection, setSelection] = useState<string[]>();
   const trigger = useRef<HTMLButtonElement>(null);
   const noticed = useRef(new Set<string>());
   const [pulse, setPulse] = useState(0);
@@ -591,7 +490,7 @@ export function ThreadApprovalQueue() {
               className={classNames(css.ReviewButton, needsAttention && css.ReviewButtonPending)}
               onClick={() => {
                 setPulse(0);
-                setSelection(groups.map((group) => group.map((record) => record.eventId)));
+                setSelection(groups.flatMap((group) => group.map((record) => record.eventId)));
               }}
               // ReviewButtonPending draws its own warning ring.
               outlined={!needsAttention}
@@ -622,7 +521,7 @@ export function ThreadApprovalQueue() {
       {selection && (
         <ApprovalReviewDialog
           room={room}
-          selection={selection}
+          eventIds={selection}
           onClose={() => setSelection(undefined)}
           returnFocus={trigger}
         />

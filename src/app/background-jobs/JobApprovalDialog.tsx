@@ -1,12 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Button, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import {
-  ApprovalDialog,
-  ApprovalReviewDialog,
-  HISTORY_ERROR_KEYS,
-} from '../approvals/ThreadApprovalControls';
+import { ApprovalReviewDialog, HISTORY_ERROR_KEYS } from '../approvals/ApprovalReviewDialog';
+import { ApprovalDialog } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider, useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { ToolApprovalCard } from '../approvals/ToolApprovalCard';
 import * as approvalCss from '../approvals/ThreadApprovals.css';
@@ -16,7 +13,6 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import {
   collectThreadApprovals,
-  groupApprovalRecords,
   isPendingApproval,
   type ThreadApprovalRecord,
 } from '../matrix/protocol/threadApprovalModel';
@@ -30,11 +26,87 @@ type JobApprovalDialogProps = {
   viewThreadId: string | null;
   onClose: () => void;
   returnFocus: React.RefObject<HTMLElement | null>;
+  focusConversation?: () => void;
+  fallbackFocus?: () => void;
 };
 
-const matchesJob = (record: ThreadApprovalRecord, job: BackgroundJobsBarItem): boolean =>
-  record.approval.jobId === job.jobId ||
-  (job.toolCallId !== undefined && record.approval.toolCallId === job.toolCallId);
+/**
+ * Matches pending approvals for one job: exact `jobId`/`toolCallId` matches first, otherwise only
+ * untagged cards (workflow `wf-...` runs or older backends without `background_run_id`) — never a
+ * card tagged with a different job or tool call.
+ */
+export const matchJobApprovals = (
+  pending: readonly ThreadApprovalRecord[],
+  job: Pick<BackgroundJobsBarItem, 'jobId' | 'toolCallId'>,
+  allowUntaggedFallback: boolean
+): ThreadApprovalRecord[] => {
+  const exact = pending.filter(
+    (record) =>
+      record.approval.jobId === job.jobId ||
+      (job.toolCallId !== undefined && record.approval.toolCallId === job.toolCallId)
+  );
+  if (exact.length > 0 || !allowUntaggedFallback) return exact;
+  return pending.filter(
+    (record) =>
+      record.approval.jobId === null &&
+      (job.toolCallId === undefined || record.approval.toolCallId === null)
+  );
+};
+
+export function useJobApprovalReview({
+  room,
+  threadId,
+  readOnly,
+  expanded,
+  hide,
+  toggle,
+  bar,
+  focusConversation,
+}: {
+  room: Room;
+  threadId: string | null;
+  readOnly: boolean;
+  expanded: boolean;
+  hide: () => void;
+  toggle: React.RefObject<HTMLButtonElement | null>;
+  bar: React.RefObject<HTMLDivElement | null>;
+  focusConversation?: () => void;
+}) {
+  const [target, setTarget] = useState<BackgroundJobsBarItem>();
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTarget(undefined);
+  }, [room.roomId]);
+
+  const reviewApproval = (item: BackgroundJobsBarItem) =>
+    item.waiting && !item.stopping && !item.finished && !readOnly
+      ? (trigger: HTMLElement) => {
+          returnFocus.current = expanded ? (toggle.current ?? trigger) : trigger;
+          setTarget(item);
+          hide();
+        }
+      : undefined;
+
+  const dialog = target && {
+    key: `${room.roomId}:${target.jobId}:${target.threadId ?? ''}`,
+    props: {
+      room,
+      job: target,
+      viewThreadId: threadId,
+      onClose: () => setTarget(undefined),
+      returnFocus,
+      focusConversation,
+      fallbackFocus: () => {
+        const fallback = toggle.current ?? bar.current;
+        if (fallback?.isConnected) fallback.focus();
+        else focusConversation?.();
+      },
+    } satisfies JobApprovalDialogProps,
+  };
+
+  return { dialog, reviewApproval };
+}
 
 function ThreadJobApprovalDialog({
   room,
@@ -43,29 +115,27 @@ function ThreadJobApprovalDialog({
   viewThreadId,
   onClose,
   returnFocus,
+  fallbackFocus,
 }: JobApprovalDialogProps & { threadId: string }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
   const { navigateRoomThread } = useRoomNavigate();
-  const [selection, setSelection] = useState<string[][]>();
+  const [eventIds, setEventIds] = useState<string[]>();
 
-  const candidateSelection = useMemo(() => {
-    if (selection || !context) return undefined;
+  const candidateEventIds = useMemo(() => {
+    if (eventIds || !context) return undefined;
     const pending = context.records.filter((record) => context.pendingEventIds.has(record.eventId));
-    const matched = pending.filter((record) => matchesJob(record, job));
-    // Wait for history backfill before falling back to an unrelated approval in the same thread.
-    const chosen = matched.length > 0 ? matched : !context.loading ? pending : [];
-    return chosen.length > 0
-      ? groupApprovalRecords(chosen).map((group) => group.map((record) => record.eventId))
-      : undefined;
-  }, [selection, context, job]);
+    // Wait for history backfill before falling back to an untagged approval in the same thread.
+    const chosen = matchJobApprovals(pending, job, !context.loading);
+    return chosen.length > 0 ? chosen.map((record) => record.eventId) : undefined;
+  }, [eventIds, context, job]);
 
   useEffect(() => {
-    if (!selection && candidateSelection) setSelection(candidateSelection);
-  }, [selection, candidateSelection]);
+    if (!eventIds && candidateEventIds) setEventIds(candidateEventIds);
+  }, [eventIds, candidateEventIds]);
 
   if (!context) return null;
-  const activeSelection = selection ?? candidateSelection;
+  const activeEventIds = eventIds ?? candidateEventIds;
   const openThreadButton =
     threadId !== viewThreadId ? (
       <Button
@@ -85,7 +155,7 @@ function ThreadJobApprovalDialog({
     ) : null;
 
   let pendingBody: React.ReactNode = null;
-  if (!activeSelection) {
+  if (!activeEventIds) {
     if (context.loading) {
       pendingBody = (
         <Box alignItems="Center" gap="300" role="status">
@@ -132,9 +202,10 @@ function ThreadJobApprovalDialog({
   return (
     <ApprovalReviewDialog
       room={room}
-      selection={activeSelection}
+      eventIds={activeEventIds}
       onClose={onClose}
       returnFocus={returnFocus}
+      fallbackFocus={fallbackFocus}
     >
       {pendingBody}
     </ApprovalReviewDialog>
@@ -146,7 +217,8 @@ function RoomJobApprovalDialog({
   job,
   onClose,
   returnFocus,
-}: Omit<JobApprovalDialogProps, 'viewThreadId'>) {
+  fallbackFocus,
+}: Omit<JobApprovalDialogProps, 'viewThreadId' | 'focusConversation'>) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
@@ -171,8 +243,7 @@ function RoomJobApprovalDialog({
   const candidateIds = useMemo(() => {
     if (selectedIds) return undefined;
     const pending = records.filter((record) => isPendingApproval(record));
-    const matched = pending.filter((record) => matchesJob(record, job));
-    const chosen = matched.length > 0 ? matched : pending;
+    const chosen = matchJobApprovals(pending, job, true);
     return chosen.length > 0 ? chosen.map((record) => record.eventId) : undefined;
   }, [selectedIds, records, job]);
 
@@ -190,6 +261,7 @@ function RoomJobApprovalDialog({
       title={t('mindroomUi.messages.threadApprovalControls.reviewToolCalls')}
       onClose={onClose}
       returnFocus={returnFocus}
+      fallbackFocus={fallbackFocus}
     >
       {shownRecords.map((record) => (
         <ToolApprovalCard
@@ -208,17 +280,55 @@ function RoomJobApprovalDialog({
   );
 }
 
+function UnavailableJobApprovalDialog({
+  onClose,
+  returnFocus,
+  fallbackFocus,
+}: Pick<JobApprovalDialogProps, 'onClose' | 'returnFocus' | 'fallbackFocus'>) {
+  const { t } = useTranslation();
+  return (
+    <ApprovalDialog
+      title={t('mindroomUi.messages.threadApprovalControls.reviewToolCalls')}
+      onClose={onClose}
+      returnFocus={returnFocus}
+      fallbackFocus={fallbackFocus}
+    >
+      <Text as="p" size="T300">
+        {t('mindroomUi.messages.threadApprovalControls.someRequestsAreNoLongerAvailable')}
+      </Text>
+    </ApprovalDialog>
+  );
+}
+
 export function JobApprovalDialog({
   room,
   job,
   viewThreadId,
   onClose,
   returnFocus,
+  focusConversation,
+  fallbackFocus,
 }: JobApprovalDialogProps) {
   const existing = useThreadApprovals();
+  const resolveFallback = fallbackFocus ?? focusConversation;
+  if (job.threadId === null) {
+    return (
+      <RoomJobApprovalDialog
+        room={room}
+        job={job}
+        onClose={onClose}
+        returnFocus={returnFocus}
+        fallbackFocus={resolveFallback}
+      />
+    );
+  }
   if (!isConfirmedMatrixEventId(job.threadId)) {
     return (
-      <RoomJobApprovalDialog room={room} job={job} onClose={onClose} returnFocus={returnFocus} />
+      <UnavailableJobApprovalDialog
+        onClose={onClose}
+        returnFocus={returnFocus}
+        fallbackFocus={resolveFallback}
+      />
     );
   }
   const threadId = job.threadId;
@@ -230,13 +340,14 @@ export function JobApprovalDialog({
       viewThreadId={viewThreadId}
       onClose={onClose}
       returnFocus={returnFocus}
+      fallbackFocus={resolveFallback}
     />
   );
   if (existing && existing.roomId === room.roomId && existing.threadId === threadId) {
     return content;
   }
   return (
-    <ThreadApprovalProvider room={room} threadId={threadId}>
+    <ThreadApprovalProvider room={room} threadId={threadId} focusConversation={focusConversation}>
       {content}
     </ThreadApprovalProvider>
   );

@@ -268,9 +268,8 @@ describe('JobApprovalDialog', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('waits for backfill before falling back to an unrelated pending approval in the same thread', async () => {
-    const unrelated = approvalEvent('$unrelated', {
-      background_run_id: 'tool-job:job-other',
+  it('waits for backfill before falling back to an untagged pending approval in the same thread', async () => {
+    const untagged = approvalEvent('$untagged', {
       tool_name: 'other_tool',
     });
     const matching = approvalEvent('$exact', {
@@ -278,7 +277,7 @@ describe('JobApprovalDialog', () => {
       tool_name: 'run_sample_check',
     });
     // Put only the unrelated event into the live timeline before backfill finishes.
-    await room.addLiveEvents([unrelated], { addToState: false });
+    await room.addLiveEvents([untagged], { addToState: false });
 
     let resolveBackfill!: (value: { events: MatrixEvent[]; repairedEventIds: string[] }) => void;
     mocks.backfill.mockImplementationOnce(
@@ -317,18 +316,25 @@ describe('JobApprovalDialog', () => {
     expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain('other_tool');
   });
 
-  it('falls back to other pending approvals in the thread once backfill finishes with no exact match', async () => {
-    const fallback = approvalEvent('$fallback', {
+  it('never offers a pending card tagged for a different job or tool call', async () => {
+    const otherJobCard = approvalEvent('$other-job', {
       background_run_id: 'tool-job:job-other',
-      tool_name: 'fallback_tool',
+      tool_name: 'other_job_tool',
     });
-    mocks.backfill.mockResolvedValueOnce({ events: [fallback], repairedEventIds: [] });
+    const otherCallCard = approvalEvent('$other-call', {
+      tool_call_id: 'call-other',
+      tool_name: 'other_call_tool',
+    });
+    mocks.backfill.mockResolvedValueOnce({
+      events: [otherJobCard, otherCallCard],
+      repairedEventIds: [],
+    });
 
     await act(async () => {
       root.render(
         <JobApprovalDialog
           room={room}
-          job={makeJob()}
+          job={makeJob({ jobId: 'job-target', toolCallId: 'call-target' })}
           viewThreadId={null}
           onClose={vi.fn()}
           returnFocus={createRef<HTMLElement | null>()}
@@ -336,7 +342,59 @@ describe('JobApprovalDialog', () => {
       );
     });
 
-    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('fallback_tool');
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain('Some requests are no longer available.');
+    expect(dialog?.textContent).not.toContain('other_job_tool');
+    expect(dialog?.textContent).not.toContain('other_call_tool');
+  });
+
+  it('falls back to an untagged workflow/legacy approval after backfill finishes', async () => {
+    const workflowCard = approvalEvent('$wf-card', {
+      background_run_id: 'wf-1234',
+      tool_call_id: 'call-wf',
+      tool_name: 'workflow_step_tool',
+    });
+    mocks.backfill.mockResolvedValueOnce({ events: [workflowCard], repairedEventIds: [] });
+
+    await act(async () => {
+      root.render(
+        <JobApprovalDialog
+          room={room}
+          job={makeJob({ jobId: 'job-wf', toolCallId: undefined, workflow: 'wf-1234' })}
+          viewThreadId={null}
+          onClose={vi.fn()}
+          returnFocus={createRef<HTMLElement | null>()}
+        />
+      );
+    });
+
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
+      'workflow_step_tool'
+    );
+  });
+
+  it('shows unavailable state for a non-null unconfirmed threadId instead of room-level approvals', async () => {
+    const roomApproval = approvalEvent('$room-only', {
+      thread_id: null,
+      tool_name: 'room_only_tool',
+    });
+    await room.addLiveEvents([roomApproval], { addToState: false });
+
+    await act(async () => {
+      root.render(
+        <JobApprovalDialog
+          room={room}
+          job={makeJob({ threadId: '~pending-local-thread' })}
+          viewThreadId={null}
+          onClose={vi.fn()}
+          returnFocus={createRef<HTMLElement | null>()}
+        />
+      );
+    });
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain('Some requests are no longer available.');
+    expect(dialog?.textContent).not.toContain('room_only_tool');
   });
 
   it('shows Retry and Open thread on backfill error when outside the thread, and omits Open thread inside it', async () => {
@@ -476,5 +534,71 @@ describe('JobApprovalDialog', () => {
       mocks.signals.forEach((listener) => listener());
     });
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('Approved');
+  });
+
+  it('restores focus via fallbackFocus or focusConversation when the trigger disappears after approval', async () => {
+    const matching = approvalEvent('$focus-appr', {
+      background_run_id: 'tool-job:job-alpha',
+    });
+    mocks.backfill.mockResolvedValueOnce({ events: [matching], repairedEventIds: [] });
+
+    const pill = document.createElement('button');
+    const barToggle = document.createElement('button');
+    const composer = document.createElement('input');
+    document.body.append(pill, barToggle, composer);
+    const returnFocus = { current: pill } as React.RefObject<HTMLElement | null>;
+    const focusConversation = vi.fn(() => composer.focus());
+
+    const Harness = ({ fallbackToBar }: { fallbackToBar: boolean }) => {
+      const [open, setOpen] = React.useState(true);
+      if (!open) return null;
+      return (
+        <JobApprovalDialog
+          room={room}
+          job={makeJob()}
+          viewThreadId={null}
+          onClose={() => setOpen(false)}
+          returnFocus={returnFocus}
+          focusConversation={focusConversation}
+          fallbackFocus={
+            fallbackToBar
+              ? () => {
+                  if (barToggle.isConnected) barToggle.focus();
+                  else focusConversation();
+                }
+              : undefined
+          }
+        />
+      );
+    };
+
+    try {
+      await act(async () => {
+        root.render(<Harness fallbackToBar />);
+      });
+      // Simulate the folded pill detaching after approval while the bar toggle remains connected.
+      pill.remove();
+      await act(async () => {
+        buttonByText('Close')?.click();
+      });
+      await vi.waitFor(() => expect(document.activeElement).toBe(barToggle));
+      expect(focusConversation).not.toHaveBeenCalled();
+
+      // When the bar itself unmounts too, closing falls back to focusConversation.
+      barToggle.remove();
+      mocks.backfill.mockResolvedValueOnce({ events: [matching], repairedEventIds: [] });
+      await act(async () => {
+        root.render(<Harness key="bar-gone" fallbackToBar />);
+      });
+      await act(async () => {
+        buttonByText('Close')?.click();
+      });
+      await vi.waitFor(() => expect(document.activeElement).toBe(composer));
+      expect(focusConversation).toHaveBeenCalledTimes(1);
+    } finally {
+      pill.remove();
+      barToggle.remove();
+      composer.remove();
+    }
   });
 });
