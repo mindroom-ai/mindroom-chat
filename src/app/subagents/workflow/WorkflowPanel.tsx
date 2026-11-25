@@ -104,9 +104,11 @@ export function WorkflowPanel({
   const splitRef = useRef<HTMLDivElement | null>(null);
   const inspectorRef = useRef<HTMLElement | null>(null);
   const scrollInspectorRef = useRef(false);
+  const focusInspectorRef = useRef(false);
 
   useEffect(() => {
     scrollInspectorRef.current = false;
+    focusInspectorRef.current = false;
     setActiveTab('flow');
     setSelectedId(null);
     setErrorBanner(null);
@@ -120,6 +122,7 @@ export function WorkflowPanel({
   const selectNode = useCallback((id: string) => setSelectedId(id), []);
   const jumpToNode = useCallback((id: string) => {
     scrollInspectorRef.current = true;
+    focusInspectorRef.current = true;
     setSelectedId(id);
     setActiveTab('flow');
   }, []);
@@ -144,14 +147,20 @@ export function WorkflowPanel({
   );
   const selectedNode = selectedId ? nodesById.get(selectedId) : undefined;
   useEffect(() => {
-    if (!scrollInspectorRef.current || !selectedNode) return;
-    scrollInspectorRef.current = false;
+    if (!selectedNode) return;
     const el = inspectorRef.current;
-    if (el && isNarrowSplit(splitRef.current) && typeof el.scrollIntoView === 'function') {
-      const reducedMotion =
-        typeof window !== 'undefined' &&
-        Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
-      el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+    if (focusInspectorRef.current && activeTab === 'flow') {
+      focusInspectorRef.current = false;
+      el?.focus({ preventScroll: true });
+    }
+    if (scrollInspectorRef.current) {
+      scrollInspectorRef.current = false;
+      if (el && isNarrowSplit(splitRef.current) && typeof el.scrollIntoView === 'function') {
+        const reducedMotion =
+          typeof window !== 'undefined' &&
+          Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+        el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+      }
     }
   }, [activeTab, selectedNode]);
   const selectedSessionId = selectedNode
@@ -172,8 +181,8 @@ export function WorkflowPanel({
   const edges = graph?.edges ?? [];
   const messages = graph?.messages ?? [];
   const logLines = graph?.log ?? [];
-  const messageCount =
-    messages.length > 0 ? messages.length : edges.reduce((sum, e) => sum + e.count, 0);
+  const edgeTotal = edges.reduce((sum, e) => sum + e.count, 0);
+  const messageCount = messages.length > 0 ? messages.length : edgeTotal;
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
   const hasOmitted = Boolean(omitted && Object.values(omitted).some(Boolean));
@@ -182,7 +191,12 @@ export function WorkflowPanel({
     : 0;
   const omittedMessages = omitted?.messages ?? 0;
   const omittedEdges = omitted?.edges ?? 0;
-  const omittedMessageTab = messages.length > 0 ? omittedMessages : omittedMessages + omittedEdges;
+  const omittedMessageTab =
+    messages.length > 0
+      ? omittedMessages + Math.max(0, edgeTotal - messages.length)
+      : edgeTotal > 0
+        ? omittedEdges
+        : omittedMessages + omittedEdges;
   const omittedLog = omitted?.log ?? 0;
   const askAgentLine = entry
     ? t('mindroomUi.workflowRun.panel.askAgent', { agent: agentProfile.name || entry.agent })

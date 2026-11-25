@@ -1928,4 +1928,103 @@ describe('WorkflowPanel', () => {
     const n1Details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
     expect(within(n1Details).getByText('Messages to second: 2')).toBeTruthy();
   });
+
+  it('computes Messages tab + suffix accurately for retained windows and edge-only fallbacks, and focuses Inspector only on message jump', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    const fiftyMessages = Array.from({ length: 50 }, (_, i) => ({
+      seq: i + 2,
+      from: 'n1',
+      fromName: 'backend',
+      to: 'n2',
+      toName: 'frontend',
+      text: `msg-${i + 2}`,
+      sentAt: 1795389740 + i,
+    }));
+
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Backend',
+            name: 'backend',
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n2', {
+            label: 'Frontend',
+            name: 'frontend',
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+        ],
+        edges: [{ from: 'n1', to: 'n2', count: 51 }],
+        messages: fiftyMessages,
+        omitted: emptyOmitted,
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // 50 retained messages with edgeTotal 51 shows 50+.
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 50+');
+
+    // Ordinary Flow chip click keeps focus on the clicked chip (does not steal focus to Inspector).
+    const backendChip = screen.getByRole('button', { name: /Backend/ });
+    backendChip.focus();
+    fireEvent.click(backendChip);
+    expect(document.activeElement).toBe(backendChip);
+
+    // Explicit jump from Messages tab moves focus to the Inspector container.
+    fireEvent.click(screen.getAllByRole('tab')[2]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'frontend' })[0]!);
+    const n2Inspector = document.querySelector('[data-workflow-node-details="n2"]') as HTMLElement;
+    expect(n2Inspector.getAttribute('tabindex')).toBe('-1');
+    expect(document.activeElement).toBe(n2Inspector);
+
+    // Edge-only fallback with omitted.edges === 0 and omitted.messages === 2 does not append '+'.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes: [
+              makeNode('n1', {
+                label: 'Backend',
+                name: 'backend',
+                status: 'completed',
+                endedAt: 1795389760,
+              }),
+              makeNode('n2', {
+                label: 'Frontend',
+                name: 'frontend',
+                status: 'completed',
+                endedAt: 1795389765,
+              }),
+            ],
+            edges: [{ from: 'n1', to: 'n2', count: 3 }],
+            messages: [],
+            omitted: { ...emptyOmitted, edges: 0, messages: 2 },
+          },
+          {},
+          2
+        ),
+        Date.now() + 10
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 3');
+  });
 });

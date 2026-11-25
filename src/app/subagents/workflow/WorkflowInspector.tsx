@@ -95,7 +95,12 @@ export function WorkflowNodeInspector({
   const canOpenSubagent = Boolean(node.run && subagentRun);
 
   return (
-    <aside ref={inspectorRef} className={css.InspectorPane} data-workflow-node-details={node.id}>
+    <aside
+      ref={inspectorRef}
+      tabIndex={-1}
+      className={css.InspectorPane}
+      data-workflow-node-details={node.id}
+    >
       <div className={css.Stack}>
         <div className={css.ChipTop}>
           <span className={css.NodeDot[node.status]} aria-hidden />
