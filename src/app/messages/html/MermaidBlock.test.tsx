@@ -182,6 +182,7 @@ describe('Mermaid sandbox policy and document', () => {
     expect(doc).toContain('htmlLabels: false');
     expect(doc).toContain('flowchart: { htmlLabels: false }');
     expect(doc).toContain('class: { htmlLabels: false }');
+    expect(doc).toContain("journey: { textPlacement: 'tspan' }");
     expect(doc).toContain('suppressErrorRendering: true');
     expect(SECURE_CONFIG_KEYS).toEqual(
       expect.arrayContaining([
@@ -190,6 +191,7 @@ describe('Mermaid sandbox policy and document', () => {
         'htmlLabels',
         'flowchart',
         'class',
+        'journey',
         'themeCSS',
         'fontFamily',
         'altFontFamily',
@@ -436,6 +438,7 @@ describe('MermaidBlock', () => {
       '<a href="javascript:alert(3)"><text>Label kept</text></a>',
       '<use href="#valid-marker"/>',
       '<use xlink:href="https://evil.example/sprite.svg#icon"/>',
+      '<g srcset="https://evil.example/s.png 1x" background="https://evil.example/b.png"/>',
       '<rect fill="url(https://evil.example/attr.png)" stroke="url(#stroke-grad)" width="10" height="10"/>',
       '<rect style="background:url(\\68ttps://evil.example/esc.png);fill:u\\72l(https://evil.example/esc2.png)" width="5" height="5"/>',
       `<rect style="background-image:image-set('https://evil.example/set.png' 1x)" width="5" height="5"/>`,

@@ -45,7 +45,7 @@ const FALLBACK_PALETTE = {
 } as const;
 
 export const SECURE_CONFIG_KEYS =
-  'secure securityLevel startOnLoad maxTextSize suppressErrorRendering maxEdges htmlLabels flowchart class theme themeVariables themeCSS fontFamily altFontFamily'.split(
+  'secure securityLevel startOnLoad maxTextSize suppressErrorRendering maxEdges htmlLabels flowchart class journey theme themeVariables themeCSS fontFamily altFontFamily'.split(
     ' '
   );
 
@@ -55,10 +55,10 @@ const FORBIDDEN_SVG_TAGS = new Set(
   )
 );
 const FORBIDDEN_ATTRS = new Set(
-  'src srcdoc action formaction poster data ping dynsrc lowsrc'.split(' ')
+  'src srcdoc srcset background action formaction poster data ping dynsrc lowsrc'.split(' ')
 );
 const SVG_URL_ATTRS = new Set(
-  'fill stroke filter clip-path mask mask-image marker marker-start marker-mid marker-end cursor background background-image'.split(
+  'fill stroke filter clip-path mask mask-image marker marker-start marker-mid marker-end cursor background-image'.split(
     ' '
   )
 );
@@ -141,6 +141,7 @@ export const buildMermaidSandboxDocument = (scriptUrl: string): string => {
             htmlLabels: false,
             flowchart: { htmlLabels: false },
             class: { htmlLabels: false },
+            journey: { textPlacement: 'tspan' },
             suppressErrorRendering: true,
             secure: SECURE,
             theme: 'base',
