@@ -2057,4 +2057,253 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     await slideIntoThread('Activity', undefined);
     expectBackdrop('k-activity');
   });
+
+  const addCanvas = (parent: HTMLElement, width = 48, height = 32) => {
+    const canvas = Object.assign(document.createElement('canvas'), { width, height });
+    parent.append(canvas);
+    return canvas;
+  };
+  const mockCanvas2d = () =>
+    vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+  const expectDisposed = (el: HTMLElement, canvas: HTMLCanvasElement) =>
+    expect([canvas.width, canvas.height, el.childElementCount]).toEqual([0, 0, 0]);
+  const key = { sessionId: SESSION, roomId: ROOM, threadId: THREAD };
+  const openScene = (
+    create: typeof createThreadBackSwipeScene | typeof createThreadForwardSwipeScene,
+    fromLocationKey = 'k-thread'
+  ) => create({ key, fromLocationKey, onCommit: vi.fn(), dirSign: 1 })!;
+
+  it('retains roomPreview canvas on cancel for retry and disposes on commit release or stale claim', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    try {
+      const { stage, page } = makeStage('Room Overview', 145);
+      addCanvas(page);
+      capturePhoneSwipePreview('room', key);
+      const { router, emit } = routerAt('k-thread');
+      unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+
+      const cancelled = openScene(createThreadBackSwipeScene);
+      const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]')!;
+      const canvas = under.querySelector('canvas')!;
+      await cancelled.settle(false, 0, 120);
+      cancelled.cleanup(false);
+      expect([canvas.width, canvas.height]).toEqual([48, 32]);
+      expect(under.childElementCount).toBeGreaterThan(0);
+
+      const cancelAnim = vi.fn();
+      under.getAnimations = vi.fn(() => [{ cancel: cancelAnim } as unknown as Animation]);
+      const retry = openScene(createThreadBackSwipeScene);
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBe(under);
+      await retry.settle(true, 0, 260);
+      retry.commit();
+      retry.cleanup(true);
+      expect([canvas.width, canvas.height]).toEqual([48, 32]);
+      emit(stateAt('k-room', 'POP'));
+      pageMock.frame();
+      expect(cancelAnim).toHaveBeenCalledOnce();
+      expectDisposed(under, canvas);
+
+      const stale = captureStageSnapshot(stage);
+      const staleCanvas = stale.copy.querySelector('canvas')!;
+      claimInteractivePhoneSlide({
+        fromLocationKey: 'k-stale',
+        holdElement: stale.copy,
+        holdSnapshot: stale,
+      });
+      expectDisposed(stale.copy, staleCanvas);
+      expect(stale.scrolled).toHaveLength(0);
+    } finally {
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('disposes evicted previews on replace, resize, and clear, deferring disposal while mounted', () => {
+    const ctxSpy = mockCanvas2d();
+    const { stage, page } = makeStage('Room Overview');
+    addCanvas(page);
+    const origWidth = window.innerWidth;
+    const mountCaptured = () => {
+      capturePhoneSwipePreview('room', key);
+      const scene = openScene(createThreadBackSwipeScene, 'k1');
+      const el = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]')!;
+      return { scene, el, canvas: el.querySelector('canvas')! };
+    };
+    try {
+      const a = mountCaptured();
+      a.scene.cleanup(false);
+      capturePhoneSwipePreview('room', key);
+      expectDisposed(a.el, a.canvas);
+
+      const b = mountCaptured();
+      b.scene.cleanup(false);
+      Object.defineProperty(window, 'innerWidth', { value: origWidth + 100, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      expectDisposed(b.el, b.canvas);
+
+      const c = mountCaptured();
+      c.scene.cleanup(false);
+      clearPhoneSwipePreviews();
+      expectDisposed(c.el, c.canvas);
+
+      const d = mountCaptured();
+      clearPhoneSwipePreviews();
+      expect([d.canvas.width, d.canvas.height]).toEqual([48, 32]);
+      expect(d.el.childElementCount).toBeGreaterThan(0);
+      d.scene.cleanup(false);
+      expectDisposed(d.el, d.canvas);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('settles matched snapshots via CSS translate transition without WAAPI .animate(), snapping on 0ms/reduced motion', async () => {
+    const pageMock = browser();
+    const { stage } = makeStage('Snapshot View');
+    const { router, emit } = routerAt('k-0');
+    unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+
+    const animated: HTMLElement[] = [];
+    const finishers: Array<() => void> = [];
+    const origAnimate = HTMLElement.prototype.animate;
+    const origMatchMedia = window.matchMedia;
+    HTMLElement.prototype.animate = vi.fn(function (this: HTMLElement) {
+      animated.push(this);
+      let finish: () => void = () => undefined;
+      const finished = new Promise<void>((r) => {
+        finish = r;
+      });
+      finishers.push(finish);
+      return { finished, cancel: vi.fn() } as unknown as Animation;
+    });
+    const finishAll = async (p: Promise<void>) => {
+      finishers.splice(0).forEach((fn) => fn());
+      await p;
+    };
+
+    try {
+      const fallback = openScene(createThreadBackSwipeScene, 'k-0');
+      const backdrop = stage.querySelector<HTMLElement>('[data-swipe-preview="backdrop"]')!;
+      await finishAll(fallback.settle(false, 200, 130));
+      expect(animated).toContain(backdrop);
+      fallback.cleanup(false);
+
+      for (const [kind, selector, create, from, to] of [
+        ['room', '[data-swipe-preview="under"]', createThreadBackSwipeScene, 'k-0', 'k-1'],
+        ['thread', '[data-swipe-preview="over"]', createThreadForwardSwipeScene, 'k-1', 'k-2'],
+      ] as const) {
+        capturePhoneSwipePreview(kind, key);
+
+        animated.length = 0;
+        const scene = openScene(create, from);
+        const clone = stage.querySelector<HTMLElement>(selector)!;
+        const settling = scene.settle(false, 200, 130);
+        expect(animated).not.toContain(clone);
+        expect(animated.length).toBeGreaterThan(0);
+        expect(clone.hasAttribute('data-swiping')).toBe(false);
+        expect(clone.style.transition).toBe('translate 200ms cubic-bezier(0.2, 0, 0, 1)');
+        await finishAll(settling);
+        expect(clone.style.transition).toBe('');
+        scene.cleanup(false);
+
+        const aborted = openScene(create, from);
+        const abortClone = stage.querySelector<HTMLElement>(selector)!;
+        const abortSettle = aborted.settle(false, 200, 130);
+        aborted.cleanup(false);
+        expect(abortClone.style.transition).toBe('');
+        await finishAll(abortSettle);
+
+        const zero = openScene(create, from);
+        const zeroClone = stage.querySelector<HTMLElement>(selector)!;
+        await zero.settle(true, 0, 260);
+        expect([zeroClone.style.transition, zeroClone.style.translate]).toEqual(['', '0px']);
+        zero.cleanup(false);
+
+        window.matchMedia = ((q: string) => ({
+          matches: q.includes('reduce'),
+        })) as typeof window.matchMedia;
+        const reduced = openScene(create, from);
+        const reducedClone = stage.querySelector<HTMLElement>(selector)!;
+        await reduced.settle(true, 200, 260);
+        expect([reducedClone.style.transition, reducedClone.style.translate]).toEqual(['', '0px']);
+        reduced.cleanup(false);
+        window.matchMedia = origMatchMedia;
+
+        animated.length = 0;
+        const committed = openScene(create, from);
+        const commitClone = stage.querySelector<HTMLElement>(selector)!;
+        const commitSettle = committed.settle(true, 200, 260);
+        expect(animated).not.toContain(commitClone);
+        await finishAll(commitSettle);
+        committed.commit();
+        committed.cleanup(true);
+        expect(commitClone.style.transition).toBe('');
+        emit(stateAt(to, 'POP'));
+        pageMock.frame();
+      }
+    } finally {
+      window.matchMedia = origMatchMedia;
+      HTMLElement.prototype.animate = origAnimate;
+    }
+  });
+
+  it('disposes non-retained slidePhonePage snapshots on completion, early exit, and error while keeping retained previews', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    const { page } = makeStage('Room');
+    addCanvas(page, 64, 48);
+    const origAdopt = document.adoptNode.bind(document);
+    let last!: { copy: HTMLElement; canvas: HTMLCanvasElement };
+    const adoptSpy = vi.spyOn(document, 'adoptNode').mockImplementation((node) => {
+      const adopted = origAdopt(node);
+      if (adopted instanceof HTMLElement && adopted.querySelector('canvas')) {
+        last = { copy: adopted, canvas: adopted.querySelector('canvas')! };
+      }
+      return adopted;
+    });
+    const slideRetained = () => {
+      showThread(false);
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext(key);
+      });
+      pageMock.frame();
+      return last;
+    };
+    try {
+      slidePhonePage(() => showThread(true));
+      pageMock.frame();
+      const nonRetained = last;
+      await pageMock.finish();
+      expectDisposed(nonRetained.copy, nonRetained.canvas);
+
+      slidePhonePage(() => undefined);
+      pageMock.frame();
+      expectDisposed(last.copy, last.canvas);
+
+      slidePhonePage(() => {
+        throw new Error('boom');
+      });
+      expect(() => pageMock.frame()).toThrow('boom');
+      expectDisposed(last.copy, last.canvas);
+
+      const retained = slideRetained();
+      await pageMock.finish();
+      expect([retained.canvas.width, retained.canvas.height]).toEqual([64, 48]);
+      expect(retained.copy.childElementCount).toBeGreaterThan(0);
+
+      const evictedMidSlide = slideRetained();
+      clearPhoneSwipePreviews();
+      expect([evictedMidSlide.canvas.width, evictedMidSlide.canvas.height]).toEqual([64, 48]);
+      await pageMock.finish();
+      expectDisposed(evictedMidSlide.copy, evictedMidSlide.canvas);
+    } finally {
+      adoptSpy.mockRestore();
+      ctxSpy.mockRestore();
+    }
+  });
 });
