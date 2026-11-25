@@ -202,8 +202,8 @@ for (const mobile of [false, true]) {
           await section.button.click();
           await expect(page).toHaveURL(homeRootUrl);
           await expect(
-            page.getByRole('button', { name: 'Send message', exact: true })
-          ).toHaveCount(0);
+            page.getByRole('button', { name: 'How threads work', exact: true })
+          ).toBeVisible();
           await expect(panel).toBeVisible();
           // Open on /home/: clicking Home collapses the panel, and clicking again expands it.
           await section.button.click();
