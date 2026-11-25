@@ -1584,7 +1584,9 @@
       "jobTotal_other": "{{count}} tareas en segundo plano",
       "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
       "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
-      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas",
+      "reviewApprovalFor": "Revisar aprobación: {{tool}}",
+      "checkingApproval": "Comprobando aprobación…"
     },
     "workflowRun": {
       "title": "Flujo de trabajo",

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
@@ -339,4 +341,202 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await publish(coder, []);
   await publish(researcher, []);
   await expect(page.locator('[data-jobs-bar]')).toHaveCount(0, { timeout: 15_000 });
+});
+
+test('reviewing and approving a waiting background job works from Room Overview via both folded pill and expanded row', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
+  const shotsDir = process.env.JOBS_BAR_APPROVAL_SHOTS;
+  const shotPath = (name: string) => {
+    if (!shotsDir) return testInfo.outputPath(name);
+    mkdirSync(shotsDir, { recursive: true });
+    return path.join(shotsDir, name);
+  };
+
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  const password = randomUUID();
+  const register = (username: string) =>
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
+    });
+  const username = `jobs_approver_${suffix}`;
+  const viewer = await register(username);
+  const builder = await register(`mindroom_builder_${suffix}`);
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
+    name: 'Sample workspace',
+    topic: 'Background job approvals',
+    rootBody: 'Run the sample verification commands',
+    replyBody: 'Queued the sample commands',
+    invite: [builder.user_id],
+  });
+  await joinRoom(HOMESERVER, builder.access_token, fixture.roomId);
+
+  const powerLevelsPath = `/rooms/${encodeURIComponent(fixture.roomId)}/state/m.room.power_levels`;
+  const powerLevels = await matrixFetch<Record<string, unknown>>(HOMESERVER, powerLevelsPath, {
+    accessToken: viewer.access_token,
+  });
+  await sendStateEvent(HOMESERVER, viewer.access_token, fixture.roomId, 'm.room.power_levels', '', {
+    ...powerLevels,
+    events: {
+      ...(powerLevels.events as Record<string, number>),
+      'io.mindroom.background_jobs': 0,
+    },
+  });
+
+  const sendTimelineEvent = async (
+    agent: typeof builder,
+    eventType: string,
+    content: Record<string, unknown>
+  ): Promise<string> => {
+    const txnId = `jobs-approval-${randomUUID()}`;
+    const body = await matrixFetch<{ event_id: string }>(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/send/${encodeURIComponent(eventType)}/${txnId}`,
+      {
+        method: 'PUT',
+        accessToken: agent.access_token,
+        body: JSON.stringify(content),
+      }
+    );
+    return body.event_id;
+  };
+
+  const sendApproval = (jobId: string, command: string) =>
+    sendTimelineEvent(builder, 'io.mindroom.tool_approval', {
+      approval_id: `appr-${jobId}-${suffix}`,
+      background_run_id: `tool-job:${jobId}`,
+      tool_name: 'run_shell_command',
+      arguments: { command },
+      agent_name: 'builder',
+      requester_id: viewer.user_id,
+      approver_user_id: viewer.user_id,
+      approvable: true,
+      status: 'pending',
+      requested_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      thread_id: fixture.rootId,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: fixture.rootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: fixture.replyId },
+      },
+    });
+
+  const publish = (jobs: Record<string, unknown>[]) =>
+    sendStateEvent(
+      HOMESERVER,
+      builder.access_token,
+      fixture.roomId,
+      'io.mindroom.background_jobs',
+      builder.user_id,
+      { jobs }
+    );
+
+  const jobEntry = (jobId: string, tool: string, status: string, startedSec: number) => ({
+    job_id: jobId,
+    thread_id: fixture.rootId,
+    kind: 'tool',
+    tool,
+    status,
+    requester_id: viewer.user_id,
+    started_at: `2026-10-11T12:00:0${startedSec}+00:00`,
+  });
+
+  const foldedApprovalId = await sendApproval('job_folded', 'echo sample-folded-check');
+  await publish([jobEntry('job_folded', 'shell', 'awaiting_approval', 1)]);
+
+  await context.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({
+      json: {
+        ...config,
+        homeserverList: [HOMESERVER],
+        defaultHomeserver: 0,
+        allowCustomHomeservers: true,
+        hashRouter: { enabled: false },
+        auth: { allowRegistration: false, disablePasswordLogin: false },
+      },
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
+
+  // Open Room Overview (outside the thread): ThreadApprovalQueue is absent here.
+  await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+  const foldedBar = page.locator('[data-jobs-bar]');
+  const foldedPill = foldedBar.locator('button[data-job-review-approval]');
+  await expect(foldedPill).toBeVisible();
+  await expect(foldedPill).toContainText('Waiting for approval');
+  await page.screenshot({ path: shotPath('folded-waiting-pill.png') });
+
+  // Clicking the folded Waiting for approval pill opens the review dialog without expanding the bar.
+  await foldedPill.click();
+  await expect(foldedBar.getByRole('listitem')).toHaveCount(0);
+  const foldedDialog = page.getByRole('dialog');
+  await expect(foldedDialog).toBeVisible();
+  await expect(foldedDialog).toContainText('echo sample-folded-check');
+  await foldedDialog.getByRole('button', { name: 'Approve', exact: true }).click();
+
+  const approvalResponses = async () => {
+    const messages = await matrixFetch<MessagesPage>(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=30`,
+      { accessToken: viewer.access_token }
+    );
+    return messages.chunk
+      .filter(
+        (event) =>
+          event.type === 'io.mindroom.tool_approval_response' && event.sender === viewer.user_id
+      )
+      .map((event) => ({
+        status: event.content.status,
+        replyTo: (event.content['m.relates_to'] as { 'm.in_reply_to'?: { event_id?: string } })?.[
+          'm.in_reply_to'
+        ]?.event_id,
+      }));
+  };
+
+  await expect.poll(approvalResponses).toContainEqual({
+    status: 'approved',
+    replyTo: foldedApprovalId,
+  });
+  await foldedDialog.getByRole('button', { name: 'Close' }).click();
+  await expect(foldedDialog).toHaveCount(0);
+
+  // Publish two jobs (one running, one waiting) and approve from the expanded tool row.
+  const expandedApprovalId = await sendApproval('job_expanded', 'echo sample-expanded-check');
+  await publish([
+    jobEntry('job_running', 'web_search', 'running', 2),
+    jobEntry('job_expanded', 'shell', 'awaiting_approval', 3),
+  ]);
+
+  const multiBar = page.getByRole('region', { name: '2 background jobs' });
+  await expect(multiBar).toBeVisible();
+  await multiBar.getByRole('button', { name: /2 background jobs/ }).click();
+  const waitingRow = multiBar.locator('li[data-job-reviewable]');
+  await expect(waitingRow).toBeVisible();
+  await expect(waitingRow).toContainText('Waiting for approval');
+  await page.screenshot({ path: shotPath('expanded-waiting-row.png') });
+
+  await waitingRow.locator('[data-job-review-approval]').click();
+  await expect(multiBar.getByRole('listitem')).toHaveCount(0);
+  const expandedDialog = page.getByRole('dialog');
+  await expect(expandedDialog).toBeVisible();
+  await expect(expandedDialog).toContainText('echo sample-expanded-check');
+  await page.screenshot({ path: shotPath('approval-dialog.png') });
+
+  await expandedDialog.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect.poll(approvalResponses).toContainEqual({
+    status: 'approved',
+    replyTo: expandedApprovalId,
+  });
 });

@@ -1725,7 +1725,9 @@
       "jobTotalFinished_two": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
-      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
+      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "reviewApprovalFor": "مراجعة الموافقة: ⁨{{tool}}⁩",
+      "checkingApproval": "جارٍ التحقق من الموافقة…"
     },
     "workflowRun": {
       "title": "سير العمل",

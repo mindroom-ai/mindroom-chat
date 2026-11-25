@@ -74,6 +74,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Activity: 'Activity',
   Preview: 'Preview',
   Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
+  PillButton: 'PillButton',
   PillText: 'PillText',
   PillIcon: 'PillIcon',
   WithThreads: 'WithThreads',
@@ -96,6 +97,39 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   FoldedToggle: 'FoldedToggle',
   FoldedActions: 'FoldedActions',
   Quiet: 'Quiet',
+}));
+const reviewDialog = vi.hoisted(() => ({
+  lastProps: undefined as
+    | {
+        room: Room;
+        job: BackgroundJobsBarItem;
+        viewThreadId: string | null;
+        onClose: () => void;
+        returnFocus: React.RefObject<HTMLElement | null>;
+      }
+    | undefined,
+}));
+vi.mock('./JobApprovalDialog', () => ({
+  JobApprovalDialog: (props: {
+    room: Room;
+    job: BackgroundJobsBarItem;
+    viewThreadId: string | null;
+    onClose: () => void;
+    returnFocus: React.RefObject<HTMLElement | null>;
+  }) => {
+    reviewDialog.lastProps = props;
+    return (
+      <div
+        data-testid="job-approval-dialog"
+        data-job-id={props.job.jobId}
+        data-view-thread-id={props.viewThreadId ?? ''}
+      >
+        <button type="button" data-close-review="" onClick={props.onClose}>
+          Close review
+        </button>
+      </div>
+    );
+  },
 }));
 vi.mock('../subagents/RunLogo.css', () => ({
   Logo: 'Logo',
@@ -136,9 +170,21 @@ const room = {
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (threadId: string | null = '$thread', canCancel = true) =>
+const render = (
+  threadId: string | null = '$thread',
+  canCancel = true,
+  readOnly = false,
+  targetRoom: Room = room
+) =>
   act(() => {
-    root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
+    root.render(
+      <BackgroundJobsBar
+        room={targetRoom}
+        threadId={threadId}
+        canCancel={canCancel}
+        readOnly={readOnly}
+      />
+    );
   });
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 // Without the usage details, a tool job's Stop names it as its row does: what it does, in words.
@@ -178,6 +224,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.jobs = [];
   state.total = undefined;
+  reviewDialog.lastProps = undefined;
   state.send = vi.fn().mockResolvedValue({ event_id: '$sent' });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -1227,4 +1274,119 @@ it('renders a workflow run job row with title, counts, usage cells, and Stop', (
     getDefaultStore().set(workflowRunPanelAtom, undefined);
     workflowStore.clear();
   });
+});
+
+it('opens approval review from the folded waiting pill without toggling, and keeps it open until closed or the room changes', () => {
+  state.jobs = [job('a', { status: 'awaiting_approval', toolCallId: 'call-a' })];
+  render(null);
+  const pill = container.querySelector<HTMLButtonElement>('[data-job-review-approval]');
+  expect(pill).not.toBeNull();
+  expect(pill?.textContent).toContain('mindroomUi.backgroundJobs.waiting');
+  expect(pill?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.reviewApprovalFor', { tool: taskName('tool a') })
+  );
+  act(() => {
+    pill?.click();
+  });
+  expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+  expect(
+    container.querySelector('[data-testid="job-approval-dialog"]')?.getAttribute('data-job-id')
+  ).toBe('a');
+  expect(reviewDialog.lastProps?.job.toolCallId).toBe('call-a');
+  expect(reviewDialog.lastProps?.viewThreadId).toBeNull();
+  expect(reviewDialog.lastProps?.returnFocus.current).toBe(pill);
+
+  // Flipping waiting off or removing the job does not auto-close the open review dialog.
+  state.jobs = [];
+  render(null);
+  expect(container.querySelector('[data-testid="job-approval-dialog"]')).not.toBeNull();
+
+  // Switching rooms closes the dialog.
+  const otherRoom = { ...room, roomId: '!other:example.org' } as unknown as Room;
+  render(null, true, false, otherRoom);
+  expect(container.querySelector('[data-testid="job-approval-dialog"]')).toBeNull();
+});
+
+it('opens approval review from an expanded waiting tool row, collapses the list, and returns focus to the toggle', () => {
+  state.jobs = [job('a'), job('b', { status: 'awaiting_approval' })];
+  render(null);
+  expand();
+  const rows = [...container.querySelectorAll('li')];
+  expect(rows[0]?.hasAttribute('data-job-reviewable')).toBe(false);
+  expect(rows[1]?.hasAttribute('data-job-reviewable')).toBe(true);
+  const reviewButtons = rows[1]?.querySelectorAll<HTMLButtonElement>('[data-job-review-approval]');
+  expect(reviewButtons).toHaveLength(1);
+  expect(reviewButtons?.[0]?.classList.contains('RowOpen')).toBe(true);
+  // The pill inside a reviewable tool row is a non-interactive span (one focus stop per row).
+  expect(rows[1]?.querySelector('span.Pill')?.textContent).toContain(
+    'mindroomUi.backgroundJobs.waiting'
+  );
+
+  act(() => {
+    reviewButtons?.[0]?.click();
+  });
+  expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+  expect(container.querySelector('li')).toBeNull();
+  expect(
+    container.querySelector('[data-testid="job-approval-dialog"]')?.getAttribute('data-job-id')
+  ).toBe('b');
+  expect(reviewDialog.lastProps?.returnFocus.current).toBe(toggle());
+
+  act(() => {
+    container.querySelector<HTMLButtonElement>('[data-close-review]')?.click();
+  });
+  expect(container.querySelector('[data-testid="job-approval-dialog"]')).toBeNull();
+});
+
+it('on a waiting sub-agent row with a run, clicking the waiting pill opens review without opening the Sub-agents panel while clicking the row still opens it', () => {
+  ingestRun('s1');
+  state.jobs = [
+    subagentJob('a', { subagent: 's1', run: 'run-s1', status: 'awaiting_approval' }),
+    job('b'),
+  ];
+  render('$thread');
+  expand();
+  const row = container.querySelector('li[data-job-kind="subagent"]');
+  expect(row?.hasAttribute('data-job-reviewable')).toBe(false);
+  const pill = row?.querySelector<HTMLButtonElement>('button.PillButton[data-job-review-approval]');
+  expect(pill).not.toBeNull();
+
+  act(() => {
+    pill?.click();
+  });
+  expect(
+    container.querySelector('[data-testid="job-approval-dialog"]')?.getAttribute('data-job-id')
+  ).toBe('a');
+  expect(getDefaultStore().get(subagentsPanelAtom)).toBeUndefined();
+
+  act(() => {
+    container.querySelector<HTMLButtonElement>('[data-close-review]')?.click();
+  });
+  expand();
+  const openBtn = container.querySelector<HTMLButtonElement>(
+    'li[data-job-kind="subagent"] [data-job-open]'
+  );
+  act(() => {
+    openBtn?.click();
+  });
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
+    roomId: room.roomId,
+    threadId: '$thread',
+    run: 'run-s1',
+  });
+  expect(container.querySelector('[data-testid="job-approval-dialog"]')).toBeNull();
+});
+
+it('disables clickable approval review when readOnly is true', () => {
+  state.jobs = [job('a', { status: 'awaiting_approval' })];
+  render('$thread', false, true);
+  expect(container.textContent).toContain('mindroomUi.backgroundJobs.waiting');
+  expect(container.querySelectorAll('[data-job-review-approval]')).toHaveLength(0);
+
+  state.jobs = [job('a'), job('b', { status: 'awaiting_approval' })];
+  render('$thread', false, true);
+  expand();
+  expect(container.textContent).toContain('mindroomUi.backgroundJobs.waiting');
+  expect(container.querySelectorAll('[data-job-review-approval]')).toHaveLength(0);
+  expect(container.querySelectorAll('[data-job-reviewable]')).toHaveLength(0);
 });

@@ -1490,7 +1490,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 個背景工作",
-      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成",
+      "reviewApprovalFor": "審核核准：{{tool}}",
+      "checkingApproval": "正在檢查核准…"
     },
     "workflowRun": {
       "title": "工作流程",

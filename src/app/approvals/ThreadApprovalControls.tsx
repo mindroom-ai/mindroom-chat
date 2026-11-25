@@ -40,7 +40,12 @@ import {
   describeReviewHeader,
   describeWaitingApprovals,
 } from './approvalLabels';
-import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
+import {
+  agentDisplayName,
+  type ApprovalMemberRoom,
+  useApprovalRoom,
+  userDisplayName,
+} from './approvalPeople';
 import {
   ApprovalAgentAvatar,
   ApprovalDurations,
@@ -64,7 +69,7 @@ export function ApprovalDialog({
   leading?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-  returnFocus: React.RefObject<HTMLButtonElement | null>;
+  returnFocus: React.RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
@@ -374,15 +379,109 @@ export function ApprovalReviewGroup({
   );
 }
 
-const HISTORY_ERROR_KEYS = {
+export const HISTORY_ERROR_KEYS = {
   unavailable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unavailable',
   undecryptable: 'mindroomUi.messages.threadApprovalControls.historyErrors.undecryptable',
   unloadable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unloadable',
 } as const;
 
-export function ThreadApprovalQueue() {
+export function ApprovalReviewDialog({
+  room,
+  selection,
+  onClose,
+  returnFocus,
+  extraActions,
+  children,
+}: {
+  room: ApprovalMemberRoom | null | undefined;
+  selection?: string[][];
+  onClose: () => void;
+  returnFocus: React.RefObject<HTMLElement | null>;
+  extraActions?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const context = useThreadApprovals();
+  const user = useMatrixClient().getUserId();
+  if (!context) return null;
+  const reviewGroups = selection
+    ? groupApprovalRecords(
+        selection
+          .flat()
+          .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
+      )
+    : [];
+  const review = describeReviewHeader(reviewGroups.flat(), user);
+  const reviewTitle =
+    review.agents.length === 1
+      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentWants', {
+          agent: agentDisplayName(room, review.agents[0]!),
+          count: review.count,
+        })
+      : review.agents.length > 1
+        ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
+            agents: review.agents.length,
+            count: review.count,
+          })
+        : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
+  const reviewSubtitle = [
+    review.requester &&
+      t('mindroomUi.messages.threadApprovalControls.reviewRequestedBy', {
+        requester:
+          review.requester === 'you'
+            ? t('mindroomUi.messages.threadApprovalControls.you')
+            : userDisplayName(room, review.requester),
+      }),
+    review.expiresAt &&
+      t('mindroomUi.messages.threadApprovalControls.expires', {
+        time:
+          formatExpiryDistance(review.expiresAt, Date.now(), language) ??
+          formatApprovalTime(review.expiresAt, language),
+      }),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <ApprovalDialog
+      title={reviewTitle}
+      subtitle={reviewSubtitle || undefined}
+      leading={
+        review.agents.length === 1 ? (
+          <ApprovalAgentAvatar room={room} agentName={review.agents[0]!} size="300" />
+        ) : undefined
+      }
+      onClose={onClose}
+      returnFocus={returnFocus}
+    >
+      {selection ? (
+        <>
+          {reviewGroups.map((records) => (
+            <ApprovalReviewGroup
+              key={records[0]!.eventId}
+              records={records}
+              flat
+              showMeta={review.agents.length > 1 || review.requester === null}
+            />
+          ))}
+          {selection
+            .flat()
+            .some((id) => !context.records.some((record) => record.eventId === id)) && (
+            <p>
+              {t('mindroomUi.messages.threadApprovalControls.someRequestsAreNoLongerAvailable')}
+            </p>
+          )}
+          {extraActions}
+        </>
+      ) : (
+        children
+      )}
+    </ApprovalDialog>
+  );
+}
+
+export function ThreadApprovalQueue() {
+  const { t } = useTranslation();
   const context = useThreadApprovals();
   const mx = useMatrixClient();
   const user = mx.getUserId();
@@ -463,43 +562,6 @@ export function ThreadApprovalQueue() {
       status: statusText,
     });
   }
-  const reviewGroups = selection
-    ? groupApprovalRecords(
-        selection
-          .flat()
-          .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
-      )
-    : [];
-  const review = describeReviewHeader(reviewGroups.flat(), user);
-  const reviewTitle =
-    review.agents.length === 1
-      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentWants', {
-          agent: agentDisplayName(room, review.agents[0]!),
-          count: review.count,
-        })
-      : review.agents.length > 1
-        ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
-            agents: review.agents.length,
-            count: review.count,
-          })
-        : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
-  const reviewSubtitle = [
-    review.requester &&
-      t('mindroomUi.messages.threadApprovalControls.reviewRequestedBy', {
-        requester:
-          review.requester === 'you'
-            ? t('mindroomUi.messages.threadApprovalControls.you')
-            : userDisplayName(room, review.requester),
-      }),
-    review.expiresAt &&
-      t('mindroomUi.messages.threadApprovalControls.expires', {
-        time:
-          formatExpiryDistance(review.expiresAt, Date.now(), language) ??
-          formatApprovalTime(review.expiresAt, language),
-      }),
-  ]
-    .filter(Boolean)
-    .join(' · ');
   return (
     <>
       {(pendingCount > 0 || context.error) && (
@@ -558,33 +620,12 @@ export function ThreadApprovalQueue() {
         </div>
       )}
       {selection && (
-        <ApprovalDialog
-          title={reviewTitle}
-          subtitle={reviewSubtitle || undefined}
-          leading={
-            review.agents.length === 1 ? (
-              <ApprovalAgentAvatar room={room} agentName={review.agents[0]!} size="300" />
-            ) : undefined
-          }
+        <ApprovalReviewDialog
+          room={room}
+          selection={selection}
           onClose={() => setSelection(undefined)}
           returnFocus={trigger}
-        >
-          {reviewGroups.map((records) => (
-            <ApprovalReviewGroup
-              key={records[0]!.eventId}
-              records={records}
-              flat
-              showMeta={review.agents.length > 1 || review.requester === null}
-            />
-          ))}
-          {selection
-            .flat()
-            .some((id) => !context.records.some((record) => record.eventId === id)) && (
-            <p>
-              {t('mindroomUi.messages.threadApprovalControls.someRequestsAreNoLongerAvailable')}
-            </p>
-          )}
-        </ApprovalDialog>
+        />
       )}
     </>
   );

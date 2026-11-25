@@ -31,12 +31,15 @@ import { keepCancelsOf, useSentCancels } from '../matrix/state/sentCancels';
 import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 import { useJobLookups } from './useJobLookups';
+import { JobApprovalDialog } from './JobApprovalDialog';
 
 type BackgroundJobsBarProps = {
   room: Room;
   threadId: string | null;
   // Whether the viewer may send the cancel event here; without it the jobs show without controls.
   canCancel: boolean;
+  // A read-only view (such as a fork draft) shows jobs without interactive approval review.
+  readOnly?: boolean;
 };
 
 // The last failed cancel of a job, with the view it was sent from, where it shows.
@@ -50,7 +53,12 @@ type OpenMode = 'hover' | 'pinned';
  * Stop, or several with Stop all. Their title lists each job with its own Stop on hover or when
  * pressed, one job too.
  */
-export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
+export function BackgroundJobsBar({
+  room,
+  threadId,
+  canCancel,
+  readOnly = false,
+}: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const mx = useMatrixClient();
@@ -60,6 +68,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
+  const [review, setReview] = useState<{
+    roomId: string;
+    item: BackgroundJobsBarItem;
+    fromList: boolean;
+  }>();
+  const reviewReturnFocus = useRef<HTMLElement | null>(null);
   const bar = useRef<HTMLDivElement>(null);
   // The title that lists the jobs: several jobs' title line, or the folded bar's one job.
   const toggle = useRef<HTMLButtonElement>(null);
@@ -150,6 +164,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     keepCancelsOf(room.roomId, new Set(roomJobs.map((job) => job.jobId)));
   }, [room.roomId, roomJobs]);
 
+  useEffect(() => {
+    setReview(undefined);
+  }, [room.roomId]);
+
   const cancel = useCallback(
     async (request: BackgroundJobCancelRequest, jobIds: string[], failure: string) => {
       const view = threadId;
@@ -171,7 +189,33 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
   const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups, details);
-  if (!model) return null;
+  const dialog = review && (
+    <JobApprovalDialog
+      key={`${room.roomId}:${review.item.jobId}:${review.item.threadId ?? ''}`}
+      room={room}
+      job={review.item}
+      viewThreadId={threadId}
+      onClose={() => setReview(undefined)}
+      returnFocus={review.fromList ? toggle : reviewReturnFocus}
+    />
+  );
+  if (!model) {
+    return dialog ? (
+      <>
+        {null}
+        {dialog}
+      </>
+    ) : null;
+  }
+  const openApprovalReview = (item: BackgroundJobsBarItem, trigger: HTMLElement) => {
+    reviewReturnFocus.current = expanded ? (toggle.current ?? trigger) : trigger;
+    setReview({ roomId: room.roomId, item, fromList: expanded });
+    hide();
+  };
+  const reviewApproval = (item: BackgroundJobsBarItem) =>
+    item.waiting && !item.stopping && !item.finished && !readOnly
+      ? (trigger: HTMLElement) => openApprovalReview(item, trigger)
+      : undefined;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
   const shownFailures = [
@@ -292,161 +336,168 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     </>
   );
   return (
-    <div
-      ref={anchor}
-      className={classNames(css.Anchor, expanded && css.Listed)}
-      style={expanded ? { height: anchorHeight } : undefined}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !expanded) return;
-        // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
-        event.stopPropagation();
-        toggle.current?.focus();
-        hide();
-      }}
-    >
+    <>
       <div
-        ref={bar}
-        tabIndex={-1}
-        // Listed jobs hold irreversible actions over the timeline; the thread behind them must not compete.
-        className={classNames(
-          css.Bar,
-          expanded && glassDenseOverBackdrop,
-          // A row's Thread button needs its slot in every row, so the buttons line up.
-          model.items.some((item) => item.threadId !== null && item.threadId !== threadId) &&
-            css.WithThreads,
-          // Without the usage details, the rows have no number columns.
-          !details && css.Quiet
-        )}
-        role="region"
-        aria-label={model.title}
-        data-jobs-bar=""
-        onPointerLeave={(event: React.PointerEvent) => {
-          if (event.pointerType !== 'mouse') return;
-          window.clearTimeout(hoverTimer.current);
-          if (open === 'hover') hide();
-        }}
-        onFocus={() => {
-          focused.current = true;
-        }}
-        onBlur={(event) => {
-          const { currentTarget, relatedTarget, target } = event;
-          if (relatedTarget) {
-            if (!currentTarget.contains(relatedTarget)) {
-              focused.current = false;
-              hide();
-            }
-            return;
-          }
-          // Without a new target, focus left for the page or another window, unless its control unmounted.
-          queueMicrotask(() => {
-            if (target.isConnected) focused.current = false;
-          });
+        ref={anchor}
+        className={classNames(css.Anchor, expanded && css.Listed)}
+        style={expanded ? { height: anchorHeight } : undefined}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || !expanded) return;
+          // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
+          event.stopPropagation();
+          toggle.current?.focus();
+          hide();
         }}
       >
-        {!several && (
-          <span role="status" className={css.VisuallyHidden}>
-            {model.title}
-          </span>
-        )}
-        {folded ? (
-          <BackgroundJobRow
-            room={room}
-            item={folded}
-            viewThreadId={threadId}
-            endedAt={endedAt(folded)}
-            onOpen={openRun(folded) || undefined}
-            stop={stop(folded)}
-            folded={{ ref: toggle, props: toggleProps }}
-          />
-        ) : (
-          <small className={css.Status}>
-            <button ref={toggle} type="button" className={css.Toggle} {...toggleProps}>
-              {status}
-              <BackgroundJobsSummary room={room} model={model} />
-              <span className={css.Chevron}>
-                <Icon src={Icons.ChevronTop} size="100" aria-hidden />
-              </span>
-            </button>
-          </small>
-        )}
-        {expanded && (
-          // Shown above the title, so the title and Stop all stay under the pointer, but read and
-          // reached right after the title, before Stop all. Focus in the list keeps it listed.
-          // Sub-agents and tools are lists of their own, headed when both show.
-          <div id={listId} className={css.Jobs} onFocus={() => setOpen('pinned')}>
-            {model.groups.map((group) => (
-              <React.Fragment key={group.kind}>
-                {/* The group's name, when both show, over the names of its number columns. */}
-                <div className={css.GroupHeading}>
-                  {model.groups.length > 1 ? (
-                    <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
-                      {t(
-                        group.kind === 'workflow'
-                          ? 'mindroomUi.backgroundJobs.groupWorkflows'
-                          : group.kind === 'subagent'
-                            ? 'mindroomUi.backgroundJobs.groupSubagents'
-                            : 'mindroomUi.backgroundJobs.groupTools',
-                        { number: group.items.length }
-                      )}
-                    </h3>
-                  ) : (
-                    <span className={css.GroupName} />
-                  )}
-                  {details &&
-                    (['calls', 'tokens', 'cost'] as const).map((column) => (
-                      <span key={column} className={css.StatColumn} aria-hidden>
-                        {(group.kind === 'subagent' || group.kind === 'workflow') &&
-                          t(`mindroomUi.backgroundJobs.column.${column}`)}
-                      </span>
+        <div
+          ref={bar}
+          tabIndex={-1}
+          // Listed jobs hold irreversible actions over the timeline; the thread behind them must not compete.
+          className={classNames(
+            css.Bar,
+            expanded && glassDenseOverBackdrop,
+            // A row's Thread button needs its slot in every row, so the buttons line up.
+            model.items.some((item) => item.threadId !== null && item.threadId !== threadId) &&
+              css.WithThreads,
+            // Without the usage details, the rows have no number columns.
+            !details && css.Quiet
+          )}
+          role="region"
+          aria-label={model.title}
+          data-jobs-bar=""
+          onPointerLeave={(event: React.PointerEvent) => {
+            if (event.pointerType !== 'mouse') return;
+            window.clearTimeout(hoverTimer.current);
+            if (open === 'hover') hide();
+          }}
+          onFocus={() => {
+            focused.current = true;
+          }}
+          onBlur={(event) => {
+            const { currentTarget, relatedTarget, target } = event;
+            if (relatedTarget) {
+              if (!currentTarget.contains(relatedTarget)) {
+                focused.current = false;
+                hide();
+              }
+              return;
+            }
+            // Without a new target, focus left for the page or another window, unless its control unmounted.
+            queueMicrotask(() => {
+              if (target.isConnected) focused.current = false;
+            });
+          }}
+        >
+          {!several && (
+            <span role="status" className={css.VisuallyHidden}>
+              {model.title}
+            </span>
+          )}
+          {folded ? (
+            <BackgroundJobRow
+              room={room}
+              item={folded}
+              viewThreadId={threadId}
+              endedAt={endedAt(folded)}
+              onOpen={openRun(folded) || undefined}
+              onReviewApproval={reviewApproval(folded)}
+              stop={stop(folded)}
+              folded={{ ref: toggle, props: toggleProps }}
+            />
+          ) : (
+            <small className={css.Status}>
+              <button ref={toggle} type="button" className={css.Toggle} {...toggleProps}>
+                {status}
+                <BackgroundJobsSummary room={room} model={model} />
+                <span className={css.Chevron}>
+                  <Icon src={Icons.ChevronTop} size="100" aria-hidden />
+                </span>
+              </button>
+            </small>
+          )}
+          {expanded && (
+            // Shown above the title, so the title and Stop all stay under the pointer, but read and
+            // reached right after the title, before Stop all. Focus in the list keeps it listed.
+            // Sub-agents and tools are lists of their own, headed when both show.
+            <div id={listId} className={css.Jobs} onFocus={() => setOpen('pinned')}>
+              {model.groups.map((group) => (
+                <React.Fragment key={group.kind}>
+                  {/* The group's name, when both show, over the names of its number columns. */}
+                  <div className={css.GroupHeading}>
+                    {model.groups.length > 1 ? (
+                      <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
+                        {t(
+                          group.kind === 'workflow'
+                            ? 'mindroomUi.backgroundJobs.groupWorkflows'
+                            : group.kind === 'subagent'
+                              ? 'mindroomUi.backgroundJobs.groupSubagents'
+                              : 'mindroomUi.backgroundJobs.groupTools',
+                          { number: group.items.length }
+                        )}
+                      </h3>
+                    ) : (
+                      <span className={css.GroupName} />
+                    )}
+                    {details &&
+                      (['calls', 'tokens', 'cost'] as const).map((column) => (
+                        <span key={column} className={css.StatColumn} aria-hidden>
+                          {(group.kind === 'subagent' || group.kind === 'workflow') &&
+                            t(`mindroomUi.backgroundJobs.column.${column}`)}
+                        </span>
+                      ))}
+                    <span className={css.ColumnName} aria-hidden>
+                      {t('mindroomUi.backgroundJobs.column.time')}
+                    </span>
+                  </div>
+                  {/* Lists without bullets keep their role in WebKit only when it is stated. */}
+                  {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
+                  <ul
+                    role="list"
+                    className={css.JobList}
+                    aria-labelledby={
+                      model.groups.length > 1 ? `${listId}-${group.kind}` : undefined
+                    }
+                  >
+                    {group.items.map((item) => (
+                      <BackgroundJobRow
+                        key={item.jobId}
+                        room={room}
+                        item={item}
+                        viewThreadId={threadId}
+                        endedAt={endedAt(item)}
+                        onOpen={openRun(item) || undefined}
+                        onReviewApproval={reviewApproval(item)}
+                        // One job's Stop is the labelled one under the list, unless it is stopping.
+                        stop={several || item.stopping ? stop(item) : null}
+                      />
                     ))}
-                  <span className={css.ColumnName} aria-hidden>
-                    {t('mindroomUi.backgroundJobs.column.time')}
-                  </span>
-                </div>
-                {/* Lists without bullets keep their role in WebKit only when it is stated. */}
-                {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
-                <ul
-                  role="list"
-                  className={css.JobList}
-                  aria-labelledby={model.groups.length > 1 ? `${listId}-${group.kind}` : undefined}
-                >
-                  {group.items.map((item) => (
-                    <BackgroundJobRow
-                      key={item.jobId}
-                      room={room}
-                      item={item}
-                      viewThreadId={threadId}
-                      endedAt={endedAt(item)}
-                      onOpen={openRun(item) || undefined}
-                      // One job's Stop is the labelled one under the list, unless it is stopping.
-                      stop={several || item.stopping ? stop(item) : null}
-                    />
-                  ))}
-                </ul>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
-        {!folded && (
-          <div className={css.Action}>
-            {several
-              ? canCancel &&
-                stoppable.length > 0 && (
-                  // Its own button, so a focused Stop never turns into Stop all when a job arrives.
-                  <button key="all" type="button" className={css.StopAll} onClick={stopAll}>
-                    <IconPlayerStopFilled size={16} aria-hidden />
-                    {t('mindroomUi.backgroundJobs.stopAll')}
-                  </button>
-                )
-              : !single!.stopping && stop(single!, true)}
-          </div>
-        )}
-        {shownFailures.length > 0 && (
-          <Text as="small" size="T200" role="alert" className={css.Alert}>
-            {shownFailures.join(' ')}
-          </Text>
-        )}
+                  </ul>
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+          {!folded && (
+            <div className={css.Action}>
+              {several
+                ? canCancel &&
+                  stoppable.length > 0 && (
+                    // Its own button, so a focused Stop never turns into Stop all when a job arrives.
+                    <button key="all" type="button" className={css.StopAll} onClick={stopAll}>
+                      <IconPlayerStopFilled size={16} aria-hidden />
+                      {t('mindroomUi.backgroundJobs.stopAll')}
+                    </button>
+                  )
+                : !single!.stopping && stop(single!, true)}
+            </div>
+          )}
+          {shownFailures.length > 0 && (
+            <Text as="small" size="T200" role="alert" className={css.Alert}>
+              {shownFailures.join(' ')}
+            </Text>
+          )}
+        </div>
       </div>
-    </div>
+      {dialog}
+    </>
   );
 }
