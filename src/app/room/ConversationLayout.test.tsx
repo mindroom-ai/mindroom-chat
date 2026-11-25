@@ -85,6 +85,7 @@ it('draws the header, timeline, dock and footer of the room', () => {
   );
 
   expect(headerRef?.current).toBe(screen.getByTestId('header').parentElement);
+  expect(headerRef?.current?.getAttribute('data-room-header')).toBe('true');
   expect(screen.getByTestId('timeline')).toBeTruthy();
   expect(seen.jobs).toContain(null);
   expect(screen.queryByTestId('approval-queue')).toBeNull();
@@ -133,7 +134,9 @@ it('hides only a jobs bar that throws, and tries it again in the next conversati
 
 it("adds the thread's approvals and passes a confirmed thread to its provider", () => {
   const { rerender } = render(layout({ threadId: '$root' }));
-  expect(screen.getByTestId('approval-queue')).toBeTruthy();
+  const approvalQueue = screen.getByTestId('approval-queue');
+  expect(approvalQueue).toBeTruthy();
+  expect(approvalQueue.parentElement?.style.pointerEvents).toBe('none');
   expect(seen.approvals.at(-1)).toBe('$root');
   expect(seen.jobs.at(-1)).toBe('$root');
   expect(screen.getByTestId('typing').textContent).toBe('$root');
@@ -164,6 +167,7 @@ it('shows only its children while collapsed', () => {
   expect(screen.getByTestId('cover')).toBeTruthy();
   expect(screen.queryByTestId('header')).toBeNull();
   expect(screen.queryByTestId('timeline')).toBeNull();
+  expect(document.querySelector('[data-room-header="true"]')).toBeNull();
   expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
   expect(areaRef.current?.style.flex).toBe('0 0 0px');
   expect(areaRef.current?.style.getPropertyValue('content-visibility')).toBe('hidden');

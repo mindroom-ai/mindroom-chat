@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { Panel } from './ResizablePanel.css';
 
@@ -60,7 +60,7 @@ export const TabLabel = style({
   textOverflow: 'ellipsis',
 });
 
-// Shared surface and >= 32 px button hit targets for floating header pills (ControlPill and
+// Rounded pill surface and >= 32 px button hit targets for bordered header pills (such as
 // CanvasPanel's VersionPill).
 export const HeaderPill = style({
   display: 'inline-flex',
@@ -78,18 +78,23 @@ globalStyle(`${HeaderPill} button`, {
   minBlockSize: toRem(32),
 });
 
-// Compact rounded control pill at the end of a side panel's header: panel-specific actions, then
-// frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
-export const ControlPill = style([
-  HeaderPill,
-  {
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    flexShrink: 0,
-    marginInlineStart: 'auto',
-    maxInlineSize: '100%',
-  },
-]);
+// Flat, borderless header controls at the end of a side panel's header: panel-specific actions,
+// then frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
+export const ControlPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+  gap: toRem(2),
+  flexShrink: 0,
+  marginInlineStart: 'auto',
+  maxInlineSize: '100%',
+});
+
+globalStyle(`${ControlPill} button`, {
+  minInlineSize: toRem(32),
+  minBlockSize: toRem(32),
+});
 
 export const ControlExtras = style({
   display: 'inline-flex',
@@ -110,11 +115,52 @@ export const ControlCore = style({
 export const ControlSeparator = style({
   inlineSize: config.borderWidth.B300,
   blockSize: toRem(16),
-  marginInline: toRem(2),
+  marginInline: toRem(4),
   flexShrink: 0,
-  backgroundColor: color.SurfaceVariant.ContainerLine,
+  backgroundColor: color.Surface.ContainerLine,
   selectors: {
     [`${ControlExtras}:empty + &`]: { display: 'none' },
     '&:last-child': { display: 'none' },
+  },
+});
+
+const fillButtonPulse = keyframes({
+  '0%': {
+    backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 24%, transparent)`,
+    color: color.Primary.Main,
+    boxShadow: `0 0 0 0 color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+    transform: 'scale(1.08)',
+  },
+  '45%': {
+    backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 16%, transparent)`,
+    color: color.Primary.Main,
+    boxShadow: `0 0 0 5px color-mix(in srgb, ${color.Primary.Main} 0%, transparent)`,
+    transform: 'scale(1)',
+  },
+  '100%': {
+    backgroundColor: 'transparent',
+    boxShadow: '0 0 0 0 transparent',
+    transform: 'scale(1)',
+  },
+});
+
+// Fill/Shrink button lights up while dragging past maxWidth and pulses briefly on landing in full width.
+globalStyle(`${Panel} [data-panel-fill-button]`, {
+  transition: 'background-color 140ms ease, color 140ms ease, box-shadow 140ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+});
+
+globalStyle(`${Panel}[data-expand-highlight] [data-panel-fill-button]`, {
+  backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 16%, transparent)`,
+  color: color.Primary.Main,
+  boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.Primary.Main} 75%, transparent)`,
+});
+
+globalStyle(`${Panel}[data-just-filled] [data-panel-fill-button]`, {
+  animation: `${fillButtonPulse} 700ms cubic-bezier(0.2, 0, 0, 1)`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { animation: 'none' },
   },
 });

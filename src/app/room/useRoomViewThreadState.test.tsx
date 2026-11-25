@@ -18,7 +18,9 @@ import { matchesThreadRecordFilterState } from '../event-store/threads/threadRec
 import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
+import { createSessionId } from '../matrix/session/sessions';
 import {
+  capturePhoneSwipePreview,
   clearPhoneSwipePreviews,
   PHONE_PAGE,
   PHONE_STAGE,
@@ -61,7 +63,10 @@ vi.mock('../event-store/threads/recentThreadSummaryUtils', () => ({
 vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({ summaryMap: new Map(), storeThreadSummary: vi.fn() }),
 }));
-vi.mock('../threads/useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));
+const resolvedThreadRoot = vi.hoisted(() => ({ current: undefined as string | undefined }));
+vi.mock('../threads/useThreadRootEvent', () => ({
+  useThreadRootEvent: () => resolvedThreadRoot.current,
+}));
 // What this room's event cache holds of a thread: its root and its rows.
 const cachedPage = vi.hoisted(() => ({ rootEvent: undefined, events: [] as unknown[] }));
 vi.mock('../event-store/cache/eventRepository', () => ({
@@ -106,6 +111,7 @@ afterEach(() => {
   clearPhoneSwipePreviews();
   setActivePhoneSwipeContext(undefined);
   document.body.replaceChildren();
+  resolvedThreadRoot.current = undefined;
   vi.clearAllMocks();
   viewMode.current = 'compact';
 });
@@ -654,5 +660,35 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     await Promise.resolve();
     stage.setAttribute(PHONE_STAGE, '');
     rerender();
+  });
+
+  it('rekeys the retained room preview when a local-echo threadId confirms', () => {
+    const localThreadId = `~${ROOM_ID}:txn1`;
+    const confirmedThreadId = '$confirmed-thread';
+    const sessionId = createSessionId('https://example.org', USER_ID);
+    const { stage, page } = mountPhoneStage('Room Overview');
+
+    capturePhoneSwipePreview('room', { sessionId, roomId: ROOM_ID, threadId: localThreadId });
+    page.textContent = 'New Thread';
+
+    const { rerender } = mountThreadState({ threadId: localThreadId });
+    resolvedThreadRoot.current = confirmedThreadId;
+    rerender();
+
+    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(
+      ROOM_ID,
+      confirmedThreadId,
+      undefined,
+      { replace: true }
+    );
+
+    const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+    const scene = begin?.({ axisSign: 1, dirSign: 1 });
+    expect(scene).not.toBeNull();
+    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
+      'Room Overview'
+    );
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+    scene!.cleanup(false);
   });
 });

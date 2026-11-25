@@ -402,16 +402,35 @@ test.describe('live issue073 persistent thread navigation', () => {
       await expect(threadsCategory).toBeVisible();
       await expect(recentlyOpenedCategory).toBeVisible();
       await expect(recentlyOpenedPanel).toBeVisible();
-      await expect(
-        page.locator(
-          '[data-testid="room-nav-category"] ~ [data-testid="thread-nav-category"]:last-child'
-        )
-      ).toHaveCount(1);
-      await expect(
-        page.locator(
-          '[data-testid="thread-nav-category"] + [data-testid="recently-opened-nav-panel"]'
-        )
-      ).toHaveCount(0);
+      const navLayout = await page.evaluate(() => {
+        const rooms = document.querySelector('[data-testid="room-nav-category"]');
+        const nav = rooms?.closest('nav');
+        const threads = nav?.querySelector('[data-testid="thread-nav-category"]');
+        const recentPanel = nav?.querySelector('[data-testid="recently-opened-nav-panel"]');
+        const scrollContainer = rooms?.closest('[data-y-scrollbar-width]');
+        return {
+          roomsBeforeThreads: Boolean(
+            rooms &&
+            threads &&
+            (rooms.compareDocumentPosition(threads) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+          ),
+          threadsIsLastInScrollNav: Boolean(
+            scrollContainer &&
+            threads &&
+            scrollContainer.contains(threads) &&
+            threads.matches(':last-child') &&
+            threads.parentElement?.matches(':last-child')
+          ),
+          recentPanelOutsideScrollNav: Boolean(
+            scrollContainer && recentPanel && !scrollContainer.contains(recentPanel)
+          ),
+        };
+      });
+      expect(navLayout).toEqual({
+        roomsBeforeThreads: true,
+        threadsIsLastInScrollNav: true,
+        recentPanelOutsideScrollNav: true,
+      });
       await expect(getRoomsCategoryButton(page)).toHaveText('Rooms');
       await expect(getThreadsCategoryButton(page)).toHaveText('Threads');
       await expect(getRecentlyOpenedCategoryButton(page)).toHaveText('Recently Opened');

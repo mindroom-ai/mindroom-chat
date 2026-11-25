@@ -25,11 +25,11 @@ type SidebarNavProps = {
   /** Shown under a rule below the account controls, such as the panel collapse toggle. */
   footer?: ReactNode;
   /**
-   * Called when a section button is pressed, with whether that section is
-   * already shown; returning true means the click was handled (the page
-   * navigation toggled) and the tab does not navigate.
+   * Called when a section button is pressed, with whether that section is already shown and
+   * whether an open navigation panel may collapse (defaults to true); returning true means the
+   * click was handled (the page navigation toggled) and the tab does not navigate.
    */
-  onPageNavSelect?: (selected: boolean) => boolean;
+  onPageNavSelect?: (selected: boolean, allowCollapse?: boolean) => boolean;
 };
 
 /**

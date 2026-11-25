@@ -587,7 +587,7 @@ describe('the call view title bar', () => {
     expect(navigation.navigateRoom).not.toHaveBeenCalled();
   });
 
-  it('puts Fill and Fold in the docked header pill inside a PanelFrame, never in the floating window', () => {
+  it('puts Fill and Fold in the docked header controls inside a PanelFrame, never in the floating window', () => {
     roomCall([me, person('@ana:panel.test')]);
     const setLayout = vi.fn<PanelFrame['setLayout']>();
     render(

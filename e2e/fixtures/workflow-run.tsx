@@ -327,6 +327,7 @@ const createFixtureClient = () => {
           { from: 'n4', to: 'n5', count: 2 },
           { from: 'n5', to: 'n8', count: 1 },
         ],
+        messages: [],
         log: ['Round 1: 12 done, 8 running', 'Large run: 40 agents, about $0.89 projected.'],
         omitted: {
           queued: 4,
@@ -338,6 +339,7 @@ const createFixtureClient = () => {
           groups: 0,
           phases: 0,
           log: 0,
+          messages: 0,
         },
       },
     },

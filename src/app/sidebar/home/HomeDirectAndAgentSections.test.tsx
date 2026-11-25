@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
-import { selectRenderedDirectRooms, type HomeSidebarAgent } from './homeDirectSections';
+import {
+  selectRenderedAgents,
+  selectRenderedDirectRooms,
+  type HomeSidebarAgent,
+} from './homeDirectSections';
 
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -91,24 +95,16 @@ vi.mock('../room-nav/RoomNavCategoryButton', async () => {
   return {
     RoomNavCategoryButton: ({
       children,
-      before,
       after,
       closed,
       ...props
     }: {
       children?: React.ReactNode;
-      before?: React.ReactNode;
       after?: React.ReactNode;
       closed?: boolean;
       [key: string]: unknown;
     }) =>
-      reactModule.createElement(
-        'button',
-        { 'aria-expanded': !closed, ...props },
-        before,
-        children,
-        after
-      ),
+      reactModule.createElement('button', { 'aria-expanded': !closed, ...props }, children, after),
   };
 });
 
@@ -218,9 +214,12 @@ const renderAgents = (
     <Provider store={store}>
       <HomeAgentsSection
         visibleAgents={[]}
+        totalCount={props.visibleAgents?.length ?? 0}
         agentDmRoomIds={[]}
         closed={false}
         selectedRoomId={undefined}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
         onCategoryClick={vi.fn()}
         homeRoomPath={(id) => `/home/${id}`}
         notificationPreferences={new Map()}
@@ -273,18 +272,21 @@ describe('HomeDirectSection', () => {
       );
 
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(8);
+    expect(toggle().props['aria-expanded']).toBe(true);
     expect(toggle().findByType('span').children).toEqual(['Show less']);
 
     act(() => {
       toggle().props.onClick();
     });
     expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     const headerPlus = renderer!.root.find(
@@ -319,6 +321,35 @@ describe('HomeDirectSection', () => {
     expect(
       renderer!.root.findAll((n) => typeof n.type === 'string' && 'data-unread' in n.props)
     ).toHaveLength(0);
+  });
+
+  it('renders plain headers without leading icons and tracks depth/expanded attributes for spacing', () => {
+    const room = makeRoom('!dm-1:example.org');
+    renderDirect({ visibleRooms: [room], allRoomIds: [room.roomId], closed: false });
+    const dmHeaderBtn = renderer!.root.find(
+      (n) => n.type === 'button' && n.props['data-category-id'] === 'mindroom|home-direct'
+    );
+    expect(dmHeaderBtn.findAllByType('i')).toHaveLength(0);
+    expect(dmHeaderBtn.props.before).toBeUndefined();
+    const dmNode = renderer!.root.findByProps({ 'data-testid': 'home-direct-section' });
+    expect(dmNode.props['data-depth']).toBe('0');
+    expect(dmNode.props['data-expanded']).toBe('true');
+
+    renderDirect({ visibleRooms: [], allRoomIds: [room.roomId], closed: true });
+    expect(
+      renderer!.root.findByProps({ 'data-testid': 'home-direct-section' }).props['data-expanded']
+    ).toBeUndefined();
+
+    // Collapsed with a selected visible room retains expanded spacing below the row.
+    renderDirect({
+      visibleRooms: [room],
+      allRoomIds: [room.roomId],
+      closed: true,
+      selectedRoomId: room.roomId,
+    });
+    expect(
+      renderer!.root.findByProps({ 'data-testid': 'home-direct-section' }).props['data-expanded']
+    ).toBe('true');
   });
 });
 
@@ -517,5 +548,96 @@ describe('HomeAgentsSection', () => {
 
     await act(async () => resolveChat('!dm-synced:example.org'));
     expect(state.navigate).toHaveBeenCalledWith('/home/!dm-synced:example.org');
+  });
+
+  it('toggles Show all / Show less under the compact cap, omits leading header icon, and tracks expanded spacing', () => {
+    const agents: HomeSidebarAgent[] = Array.from({ length: 8 }, (_, index) => {
+      const dmRoom = makeRoom(`!dm-agent-${index + 1}:example.org`);
+      return {
+        userId: `@mindroom_a${index + 1}:example.org`,
+        name: `Agent ${index + 1}`,
+        dmRoom,
+        directRoomId: dmRoom.roomId,
+        lastActivityTs: 100 - index,
+      };
+    });
+    const agentDmRoomIds = agents.map((a) => a.dmRoom!.roomId);
+    const store = makeUnreadStore();
+
+    function Wrapper({ closed = false }: { closed?: boolean }) {
+      const [showAll, setShowAll] = useState(false);
+      return (
+        <Provider store={store}>
+          <HomeAgentsSection
+            visibleAgents={selectRenderedAgents(agents, '!dm-agent-8:example.org', closed, showAll)}
+            totalCount={agents.length}
+            agentDmRoomIds={agentDmRoomIds}
+            closed={closed}
+            selectedRoomId="!dm-agent-8:example.org"
+            showAll={showAll}
+            onToggleShowAll={() => setShowAll((prev) => !prev)}
+            onCategoryClick={vi.fn()}
+            homeRoomPath={(id) => `/home/${id}`}
+            notificationPreferences={new Map()}
+          />
+        </Provider>
+      );
+    }
+
+    renderTree(<Wrapper />);
+
+    const headerBtn = renderer!.root.find(
+      (n) => n.type === 'button' && n.props['data-category-id'] === 'mindroom|home-agents'
+    );
+    expect(headerBtn.findAllByType('i')).toHaveLength(0);
+    expect(headerBtn.props.before).toBeUndefined();
+    const agentsNode = renderer!.root.findByProps({ 'data-testid': 'home-agents-section' });
+    expect(agentsNode.props['data-depth']).toBe('0');
+    expect(agentsNode.props['data-expanded']).toBe('true');
+
+    const rowCount = () =>
+      renderer!.root.findAll((n) => typeof n.type === 'string' && 'data-room-row' in n.props)
+        .length;
+    const toggle = () =>
+      renderer!.root.find(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      );
+
+    expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
+    expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
+
+    act(() => {
+      toggle().props.onClick();
+    });
+    expect(rowCount()).toBe(8);
+    expect(toggle().props['aria-expanded']).toBe(true);
+    expect(toggle().findByType('span').children).toEqual(['Show less']);
+
+    act(() => {
+      toggle().props.onClick();
+    });
+    expect(rowCount()).toBe(6);
+    expect(toggle().props['aria-expanded']).toBe(false);
+    expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
+
+    // Collapsing hides the cap toggle; no toggle appears when totalCount <= 6.
+    renderTree(<Wrapper closed />);
+    expect(
+      renderer!.root.findAll(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      )
+    ).toHaveLength(0);
+
+    renderAgents({ visibleAgents: agents.slice(0, 6), totalCount: 6, closed: false });
+    expect(
+      renderer!.root.findAll(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      )
+    ).toHaveLength(0);
+    renderAgents({ visibleAgents: [], totalCount: 6, closed: true });
+    expect(
+      renderer!.root.findByProps({ 'data-testid': 'home-agents-section' }).props['data-expanded']
+    ).toBeUndefined();
   });
 });

@@ -12,7 +12,6 @@ import {
   SectionHeaderButton,
 } from '../space/SpaceSectionHeader';
 import * as spaceHeaderCss from '../space/SpaceSectionHeader.css';
-import * as css from './HomeSections.css';
 
 /** Shared leading-icon + label layout for Home's inline and empty-state action rows. */
 export function HomeActionRowContent({
@@ -74,7 +73,6 @@ export function HomeEmptyRoomAction({
 
 export type HomeSectionHeaderProps = {
   label: string;
-  icon?: IconSrc;
   categoryId: string;
   closed: boolean;
   roomIds: readonly string[];
@@ -89,12 +87,11 @@ export type HomeSectionHeaderProps = {
 };
 
 /**
- * Compact collapsible heading for Home sections (`Rooms`, `Direct messages`, `Agents`) with an
- * optional leading icon, collapsed quiet unread dot, and hover `+` quick action.
+ * Compact collapsible heading for Home sections (`Rooms`, `Direct messages`, `Agents`) with a
+ * collapsed quiet unread dot and optional hover `+` quick action.
  */
 export function HomeSectionHeader({
   label,
-  icon,
   categoryId,
   closed,
   roomIds,
@@ -111,11 +108,6 @@ export function HomeSectionHeader({
     >
       <SectionHeaderButton
         label={label}
-        before={
-          icon ? (
-            <Icon size="50" src={icon} className={css.SectionIcon} aria-hidden="true" />
-          ) : undefined
-        }
         categoryId={categoryId}
         closed={closed}
         shownRoomIds={roomIds}

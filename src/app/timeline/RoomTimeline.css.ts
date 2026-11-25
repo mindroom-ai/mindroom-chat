@@ -149,3 +149,12 @@ export const ExpandAllToggle = style({
     },
   },
 });
+
+/** Frames read-only parent messages shown above the fork divider in an unsent fork draft. */
+export const ForkDraftPrefixRow = style({
+  marginInlineStart: config.space.S300,
+  paddingInlineStart: config.space.S100,
+  borderInlineStart: `2px dashed ${color.SurfaceVariant.ContainerLine}`,
+  minWidth: 0,
+  boxSizing: 'border-box',
+});

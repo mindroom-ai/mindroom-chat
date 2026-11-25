@@ -23,6 +23,7 @@ import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerSendButton } from './ComposerSendButton';
 
 type EditorProps = {
+  className?: string;
   editableName?: string;
   placeholder?: string;
   onKeyDown?: (event: unknown) => void;
@@ -61,7 +62,7 @@ vi.mock('folds', () => {
     Icons: {},
     PopOut: () => null,
     Text: passthrough,
-    color: { Primary: {}, Critical: {} },
+    color: { Primary: {}, Warning: {}, Critical: {} },
     config: { space: {}, radii: {}, borderWidth: {} },
   };
 });
@@ -467,6 +468,12 @@ describe('composer', () => {
       view: VIEW,
       forkFrom: { roomId: '!source:example.org', threadId: '$root', eventId: '$point' },
     });
+    const { ComposerForkDraft } = await import('./RoomInput.css');
+    expect(
+      renderer!.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
+    expect(state.editorProps?.className).toContain(ComposerForkDraft);
+    expect(state.editorProps?.placeholder).toBe('Send first message to create fork in Room…');
 
     const emojiButton = renderer!.root
       .findAllByType(ComposerIconButton)

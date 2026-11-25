@@ -7,8 +7,10 @@ import { conversationUnderThreadAtom } from './conversationCover';
 import {
   animateSwipeElements,
   type InteractiveSwipeScene,
+  isReducedMotion,
   resolveLogicalDirectionSign,
   setInteractivePhoneSlideClaimed,
+  SWIPE_SETTLE_EASING,
 } from './interactiveSwipe';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import './phonePageSlide.css';
@@ -72,7 +74,6 @@ type Router = ReturnType<typeof createBrowserRouter>;
 export type StageSnapshot = {
   copy: HTMLElement;
   scrolled: [Element, number, number][];
-  height: number;
 };
 
 export type PhoneSwipePreviewKey = {
@@ -91,7 +92,6 @@ type StoredPreviewKey = {
   roomId: string;
   threadId: string;
   width: number;
-  height: number;
 };
 
 type StoredPreview = {
@@ -121,6 +121,55 @@ const clearInlineTranslate = (element: HTMLElement): void => {
   element.style.translate = '';
 };
 
+const clearInlineTransition = (element: HTMLElement): void => {
+  element.style.removeProperty('transition');
+  element.style.transition = '';
+};
+
+const detachPreviewElement = (element: HTMLElement): void => {
+  clearInlineTransition(element);
+  element.remove();
+  element.removeAttribute(SWIPE_PREVIEW);
+  clearInlineTranslate(element);
+};
+
+/**
+ * Settles a swipe scene: cloned snapshots transition via CSS `translate` (clocked by
+ * `animateSwipeElements`), while live layers, `dim`, and fallback empty backdrops stay on WAAPI
+ * because only cloned snapshot subtrees trigger WebKit's retained-subtree / `<canvas>` leak.
+ */
+const settleSwipeWithPreview = (
+  snapshot: StageSnapshot | undefined,
+  element: HTMLElement,
+  fromTranslate: string,
+  toTranslate: string,
+  animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }>,
+  durationMs: number,
+  isCleanedUp: () => boolean
+): Promise<void> => {
+  if (!snapshot) {
+    animations.push({
+      element,
+      keyframes: [{ translate: fromTranslate }, { translate: toTranslate }],
+    });
+    return animateSwipeElements(animations, durationMs);
+  }
+  element.removeAttribute('data-swiping');
+  clearInlineTransition(element);
+  if (durationMs <= 0 || isReducedMotion()) {
+    element.style.translate = toTranslate;
+  } else {
+    element.style.translate = fromTranslate;
+    // Flush the start `translate` before enabling the transition so WebKit interpolates cleanly.
+    void element.offsetWidth;
+    element.style.transition = `translate ${durationMs}ms ${SWIPE_SETTLE_EASING}`;
+    element.style.translate = toTranslate;
+  }
+  return animateSwipeElements(animations, durationMs).finally(() => {
+    if (!isCleanedUp()) clearInlineTransition(element);
+  });
+};
+
 const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
   Array.from(stage.children).filter(
     (child): child is HTMLElement =>
@@ -133,13 +182,23 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
       !child.hasAttribute(SWIPE_HOLD_SHIELD)
   );
 
-const measureStageHeight = (
-  stage: Element,
-  bounds: DOMRect = stage.getBoundingClientRect()
-): number => (bounds.height > 0 ? Math.round(bounds.height) : window.innerHeight);
+/**
+ * Refreshes inline `--room-header-height` on cloned conversation areas after mounting `copy`.
+ * A preview captured in a short room area (`<= 240px`, where `HeaderInShortArea` hides the
+ * floating header) stores `--room-header-height: 0px`; once mounted at a taller height, the
+ * cloned header becomes visible again and its parent's inset must match before scroll restoration.
+ */
+const syncMountedOverlayInsets = (copy: HTMLElement): void => {
+  copy.querySelectorAll<HTMLElement>('[data-room-header="true"]').forEach((header) => {
+    const area = header.parentElement;
+    if (!area || !area.style.getPropertyValue('--room-header-height').trim()) return;
+    area.style.setProperty('--room-header-height', `${header.offsetHeight}px`);
+  });
+};
 
 const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
   over.append(snapshot.copy);
+  syncMountedOverlayInsets(snapshot.copy);
   snapshot.scrolled.forEach(([element, scrollTop, scrollLeft]) =>
     Object.assign(element, { scrollTop, scrollLeft })
   );
@@ -308,13 +367,14 @@ export const captureStageSnapshot = (
   return {
     copy,
     scrolled: scrolled.filter(([element]) => copy.contains(element)),
-    height: measureStageHeight(stage, bounds),
   };
 };
 
 /** Two single-entry retained preview slots for finger-following thread <-> room swipes. */
 let roomPreview: StoredPreview | undefined;
 let threadPreview: StoredPreview | undefined;
+/** Snapshots currently owned by an active scene, slide, or handoff (must not be disposed mid-use). */
+const ownedSnapshots = new WeakSet<StageSnapshot>();
 let resizeListenerAttached = false;
 /** The currently active room/thread context, synced by `useRoomViewThreadState`. */
 let activeSwipeContext: ActivePhoneSwipeContext | undefined;
@@ -336,18 +396,58 @@ export const getCurrentPhoneLocationKey = (): string | undefined => currentPhone
 
 export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
 
+const isRetainedPreview = (snapshot: StageSnapshot): boolean =>
+  roomPreview?.snapshot === snapshot || threadPreview?.snapshot === snapshot;
+
 /**
- * Another width discards a preview. Another height alone (a soft keyboard) keeps it:
- * `getMatchingPreview` shows it again once the height it was taken at is back.
+ * Releases `<canvas>` backing stores, active animations, and detached children for a snapshot that
+ * is neither retained in a preview slot nor currently owned by an active scene/slide/handoff.
+ */
+export const disposeStageSnapshot = (snapshot: StageSnapshot): void => {
+  if (ownedSnapshots.has(snapshot) || isRetainedPreview(snapshot)) return;
+  snapshot.copy.getAnimations?.().forEach((animation) => {
+    try {
+      animation.cancel();
+    } catch {
+      // Ignore cancellation errors on detached or mocked animations.
+    }
+  });
+  snapshot.copy.querySelectorAll('canvas').forEach((canvas) => {
+    canvas.width = 0;
+    canvas.height = 0;
+  });
+  snapshot.copy.replaceChildren();
+  snapshot.scrolled.length = 0;
+};
+
+const releaseOwnedSnapshot = (snapshot: StageSnapshot | undefined): void => {
+  if (!snapshot) return;
+  ownedSnapshots.delete(snapshot);
+  disposeStageSnapshot(snapshot);
+};
+
+const setPreviewSlot = (kind: 'room' | 'thread', next: StoredPreview | undefined): void => {
+  const previous = kind === 'room' ? roomPreview : threadPreview;
+  if (kind === 'room') roomPreview = next;
+  else threadPreview = next;
+  if (previous && previous.snapshot !== next?.snapshot) {
+    disposeStageSnapshot(previous.snapshot);
+  }
+  syncPreviewResizeListener();
+};
+
+/**
+ * Another width discards a preview. Height-only changes (soft keyboard, browser toolbar) keep and
+ * display the preview: `copy` fills the stage with `inset: 0` and retains buffered rows.
  */
 const handlePreviewResize = (): void => {
   if (typeof window === 'undefined') return;
   const width = window.innerWidth;
   if (roomPreview && roomPreview.key.width !== width) {
-    roomPreview = undefined;
+    setPreviewSlot('room', undefined);
   }
   if (threadPreview && threadPreview.key.width !== width) {
-    threadPreview = undefined;
+    setPreviewSlot('thread', undefined);
   }
   syncPreviewResizeListener();
 };
@@ -378,12 +478,9 @@ const storePhoneSwipePreview = (
       roomId: key.roomId,
       threadId: key.threadId,
       width: window.innerWidth,
-      height: snapshot.height,
     },
   };
-  if (kind === 'room') roomPreview = stored;
-  else threadPreview = stored;
-  syncPreviewResizeListener();
+  setPreviewSlot(kind, stored);
   return stored;
 };
 
@@ -397,7 +494,10 @@ const capturePhoneSwipePreviewEntry = (
   const stage = document.querySelector(`[${PHONE_STAGE}]`);
   if (!stage) return undefined;
   try {
-    return storePhoneSwipePreview(kind, key, captureStageSnapshot(stage, options));
+    const snapshot = captureStageSnapshot(stage, options);
+    const stored = storePhoneSwipePreview(kind, key, snapshot);
+    if (!stored) disposeStageSnapshot(snapshot);
+    return stored;
   } catch {
     // Snapshot failures must never block navigation or swipes.
     return undefined;
@@ -413,17 +513,40 @@ export const capturePhoneSwipePreview = (
   capturePhoneSwipePreviewEntry(kind, key, options);
 };
 
-/** Discards both retained phone swipe previews (e.g. on account switch, sign-out, or resize). */
-export const clearPhoneSwipePreviews = (): void => {
-  roomPreview = undefined;
-  threadPreview = undefined;
-  syncPreviewResizeListener();
+/** Rekeys a retained `room` or `thread` preview when its local-echo thread ID confirms. */
+export const rekeyPhoneSwipePreviewThread = (
+  kind: 'room' | 'thread',
+  key: { sessionId: string; roomId: string; threadId: string },
+  nextThreadId: string
+): void => {
+  if (!key.sessionId || !key.roomId || !key.threadId || !nextThreadId) return;
+  if (key.threadId === nextThreadId) return;
+  const entry = kind === 'room' ? roomPreview : threadPreview;
+  if (
+    !entry ||
+    entry.key.sessionId !== key.sessionId ||
+    entry.key.roomId !== key.roomId ||
+    entry.key.threadId !== key.threadId
+  ) {
+    return;
+  }
+  entry.key.threadId = nextThreadId;
 };
 
+/** Discards both retained phone swipe previews (e.g. on account switch, sign-out, or resize). */
+export const clearPhoneSwipePreviews = (): void => {
+  setPreviewSlot('room', undefined);
+  setPreviewSlot('thread', undefined);
+};
+
+/**
+ * Returns the retained preview when width, session, room, and thread match.
+ * Width changes discard previews; height-only changes (soft keyboard, browser toolbar) keep and
+ * display the preview.
+ */
 const getMatchingPreview = (
   kind: 'room' | 'thread',
-  key: PhoneSwipePreviewKey,
-  stage: Element
+  key: PhoneSwipePreviewKey
 ): StageSnapshot | undefined => {
   const entry = kind === 'room' ? roomPreview : threadPreview;
   if (!entry || typeof window === 'undefined') return undefined;
@@ -436,16 +559,12 @@ const getMatchingPreview = (
     return undefined;
   }
   if (entry.key.roomId !== key.roomId) {
-    if (kind === 'room') roomPreview = undefined;
-    else threadPreview = undefined;
-    syncPreviewResizeListener();
+    setPreviewSlot(kind, undefined);
     return undefined;
   }
   if (!key.threadId || entry.key.threadId !== key.threadId) {
     return undefined;
   }
-  // Taken at another stage height (the keyboard is open): kept, not shown, as its rows would not fit.
-  if (entry.key.height !== measureStageHeight(stage)) return undefined;
   if (entry.snapshot.copy.isConnected) return undefined;
   return entry.snapshot;
 };
@@ -497,15 +616,19 @@ let active: Slide | undefined;
 export const claimInteractivePhoneSlide = ({
   fromLocationKey,
   holdElement,
+  holdSnapshot,
   shield: settleShield,
   timeoutMs = DEFAULT_HANDOFF_TIMEOUT_MS,
 }: {
   fromLocationKey: string;
   holdElement?: HTMLElement;
+  /** Snapshot backing `holdElement`, transferred from a committed swipe scene for disposal on release. */
+  holdSnapshot?: StageSnapshot;
   /** The shield the scene mounted for its settle: the handoff keeps it, with no second one. */
   shield?: HTMLElement;
   timeoutMs?: number;
 }): (() => void) => {
+  const heldElement = holdElement ?? holdSnapshot?.copy;
   if (
     fromLocationKey &&
     activeRouterSubscribers > 0 &&
@@ -513,24 +636,24 @@ export const claimInteractivePhoneSlide = ({
     currentPhoneLocationKey !== fromLocationKey
   ) {
     settleShield?.remove();
-    if (holdElement) {
-      holdElement.remove();
-      holdElement.removeAttribute(SWIPE_PREVIEW);
-      clearInlineTranslate(holdElement);
-    }
+    if (heldElement) detachPreviewElement(heldElement);
+    releaseOwnedSnapshot(holdSnapshot);
     return () => undefined;
   }
 
   if (interactiveHandoff) interactiveHandoff.release();
   if (active) active.skip();
 
+  if (holdSnapshot) ownedSnapshots.add(holdSnapshot);
+
   const page = typeof document === 'undefined' ? undefined : document;
   const stage = page?.querySelector(`[${PHONE_STAGE}]`) ?? null;
 
-  if (holdElement) {
-    if (stage && !holdElement.isConnected) stage.append(holdElement);
-    holdElement.setAttribute(SWIPE_PREVIEW, 'hold');
-    holdElement.style.translate = '0px 0';
+  if (heldElement) {
+    clearInlineTransition(heldElement);
+    if (stage && !heldElement.isConnected) stage.append(heldElement);
+    heldElement.setAttribute(SWIPE_PREVIEW, 'hold');
+    heldElement.style.translate = '0px 0';
   }
 
   const shield = settleShield ?? (stage ? mountHoldShield(stage) : undefined);
@@ -556,11 +679,8 @@ export const claimInteractivePhoneSlide = ({
     watch?.disconnect();
     page?.removeEventListener('visibilitychange', onVisibilityChange);
     shield?.remove();
-    if (holdElement) {
-      holdElement.remove();
-      holdElement.removeAttribute(SWIPE_PREVIEW);
-      clearInlineTranslate(holdElement);
-    }
+    if (heldElement) detachPreviewElement(heldElement);
+    releaseOwnedSnapshot(holdSnapshot);
     if (interactiveHandoff === handoff) {
       interactiveHandoff = undefined;
       setInteractivePhoneSlideClaimed(false);
@@ -681,7 +801,8 @@ export const createThreadBackSwipeScene = ({
   const topPage = topElements.find((element) => element.hasAttribute(PHONE_PAGE));
 
   const topBarHeight = getTopBarHeight(stage);
-  const matchedRoom = getMatchingPreview('room', key, stage);
+  const matchedRoom = getMatchingPreview('room', key);
+  if (matchedRoom) ownedSnapshots.add(matchedRoom);
   const under = matchedRoom
     ? mountStageSnapshot(matchedRoom, stage)
     : (() => {
@@ -707,13 +828,13 @@ export const createThreadBackSwipeScene = ({
 
   const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let cleanedUp = false;
   let shield: HTMLElement | undefined;
   let capturedPreview: StoredPreview | undefined;
 
   const rollbackCapturedPreview = () => {
     if (capturedPreview && threadPreview === capturedPreview) {
-      threadPreview = undefined;
-      syncPreviewResizeListener();
+      setPreviewSlot('thread', undefined);
     }
     capturedPreview = undefined;
   };
@@ -757,13 +878,6 @@ export const createThreadBackSwipeScene = ({
           ],
         })),
         {
-          element: under,
-          keyframes: [
-            { translate: `${-0.3 * width * (1 - currentProgress) * sign}px 0` },
-            { translate: `${shouldCommit ? 0 : -0.3 * width * sign}px 0` },
-          ],
-        },
-        {
           element: dim,
           keyframes: [
             { opacity: String(DIM_MAX_OPACITY * (1 - currentProgress)) },
@@ -771,7 +885,15 @@ export const createThreadBackSwipeScene = ({
           ],
         },
       ];
-      return animateSwipeElements(animations, durationMs);
+      return settleSwipeWithPreview(
+        matchedRoom,
+        under,
+        `${-0.3 * width * (1 - currentProgress) * sign}px 0`,
+        `${shouldCommit ? 0 : -0.3 * width * sign}px 0`,
+        animations,
+        durationMs,
+        () => cleanedUp
+      );
     },
     commit() {
       if (!isSceneContextCurrent('back', key, fromLocationKey, startedWithContext)) {
@@ -781,26 +903,32 @@ export const createThreadBackSwipeScene = ({
       handedOff = true;
       dim.remove();
       under.removeAttribute('data-swiping');
+      clearInlineTransition(under);
       under.style.translate = '0px 0';
       under.setAttribute(SWIPE_PREVIEW, 'hold');
-      if (roomPreview?.snapshot.copy === under) {
-        roomPreview = undefined;
-        syncPreviewResizeListener();
+      if (matchedRoom && roomPreview?.snapshot === matchedRoom) {
+        setPreviewSlot('room', undefined);
       }
-      claimInteractivePhoneSlide({ fromLocationKey, holdElement: under, shield });
+      claimInteractivePhoneSlide({
+        fromLocationKey,
+        holdElement: under,
+        holdSnapshot: matchedRoom,
+        shield,
+      });
       clearTopStyles();
       onCommit();
     },
     cleanup() {
+      if (cleanedUp) return;
+      cleanedUp = true;
       dim.remove();
       clearTopStyles();
       if (!handedOff) {
         shield?.remove();
         rollbackCapturedPreview();
-        under.remove();
-        under.removeAttribute(SWIPE_PREVIEW);
+        detachPreviewElement(under);
         under.removeAttribute('data-swiping');
-        clearInlineTranslate(under);
+        releaseOwnedSnapshot(matchedRoom);
       }
     },
   };
@@ -843,7 +971,8 @@ export const createThreadForwardSwipeScene = ({
   dim.style.opacity = '0';
   stage.append(dim);
 
-  const matchedThread = getMatchingPreview('thread', key, stage);
+  const matchedThread = getMatchingPreview('thread', key);
+  if (matchedThread) ownedSnapshots.add(matchedThread);
   const over = matchedThread
     ? mountStageSnapshot(matchedThread, stage)
     : (() => {
@@ -864,13 +993,13 @@ export const createThreadForwardSwipeScene = ({
 
   const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let cleanedUp = false;
   let shield: HTMLElement | undefined;
   let capturedPreview: StoredPreview | undefined;
 
   const rollbackCapturedPreview = () => {
     if (capturedPreview && roomPreview === capturedPreview) {
-      roomPreview = undefined;
-      syncPreviewResizeListener();
+      setPreviewSlot('room', undefined);
     }
     capturedPreview = undefined;
   };
@@ -905,13 +1034,6 @@ export const createThreadForwardSwipeScene = ({
         });
       }
       const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
-        {
-          element: over,
-          keyframes: [
-            { translate: `${(width - currentOffsetPx) * sign}px 0` },
-            { translate: `${shouldCommit ? 0 : width * sign}px 0` },
-          ],
-        },
         ...underElements.map((element) => ({
           element,
           keyframes: [
@@ -927,7 +1049,15 @@ export const createThreadForwardSwipeScene = ({
           ],
         },
       ];
-      return animateSwipeElements(animations, durationMs);
+      return settleSwipeWithPreview(
+        matchedThread,
+        over,
+        `${(width - currentOffsetPx) * sign}px 0`,
+        `${shouldCommit ? 0 : width * sign}px 0`,
+        animations,
+        durationMs,
+        () => cleanedUp
+      );
     },
     commit() {
       if (!isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext)) {
@@ -938,27 +1068,33 @@ export const createThreadForwardSwipeScene = ({
       dim.remove();
       over.removeAttribute('data-swiping');
       overShadowTarget.removeAttribute('data-swipe-shadow');
+      clearInlineTransition(over);
       over.style.translate = '0px 0';
       over.setAttribute(SWIPE_PREVIEW, 'hold');
-      if (threadPreview?.snapshot.copy === over) {
-        threadPreview = undefined;
-        syncPreviewResizeListener();
+      if (matchedThread && threadPreview?.snapshot === matchedThread) {
+        setPreviewSlot('thread', undefined);
       }
-      claimInteractivePhoneSlide({ fromLocationKey, holdElement: over, shield });
+      claimInteractivePhoneSlide({
+        fromLocationKey,
+        holdElement: over,
+        holdSnapshot: matchedThread,
+        shield,
+      });
       clearUnderStyles();
       onCommit();
     },
     cleanup() {
+      if (cleanedUp) return;
+      cleanedUp = true;
       dim.remove();
       clearUnderStyles();
       if (!handedOff) {
         shield?.remove();
         rollbackCapturedPreview();
-        over.remove();
-        over.removeAttribute(SWIPE_PREVIEW);
+        detachPreviewElement(over);
         over.removeAttribute('data-swiping');
         overShadowTarget.removeAttribute('data-swipe-shadow');
-        clearInlineTranslate(over);
+        releaseOwnedSnapshot(matchedThread);
       }
     },
   };
@@ -1016,6 +1152,7 @@ export const slidePhonePage = (change: Change): void => {
   let frame = 0;
   let timer = 0;
   let copy: HTMLElement | undefined;
+  let snapshot: StageSnapshot | undefined;
   let watch: MutationObserver | undefined;
   let ended = false;
   let trace: { direction: string; startedAt: number } | undefined;
@@ -1023,6 +1160,9 @@ export const slidePhonePage = (change: Change): void => {
   const finished = new Promise<void>((resolve) => {
     finish = resolve;
   });
+  const onAnimationEnd = (event: AnimationEvent) => {
+    if (event.animationName.startsWith(KEYFRAMES)) end();
+  };
   const end = () => {
     if (ended) return;
     ended = true;
@@ -1030,7 +1170,11 @@ export const slidePhonePage = (change: Change): void => {
     window.clearTimeout(timer);
     watch?.disconnect();
     page.removeEventListener('visibilitychange', end);
+    copy?.removeEventListener('animationend', onAnimationEnd);
     copy?.remove();
+    const owned = snapshot;
+    snapshot = undefined;
+    releaseOwnedSnapshot(owned);
     playing = false;
     active = undefined;
     delete root.dataset.pageSlide;
@@ -1056,10 +1200,10 @@ export const slidePhonePage = (change: Change): void => {
     const slides = sliding && from !== 0 && page.visibilityState !== 'hidden';
     const shown = slides ? page.querySelector(`[${PHONE_STAGE}]`) : null;
     const departingContext = activeSwipeContext;
-    let snapshot: StageSnapshot | undefined;
     try {
       if (shown) {
         snapshot = captureStageSnapshot(shown);
+        ownedSnapshots.add(snapshot);
       }
     } catch {
       // No copy: the page still changes, with nothing sliding.
@@ -1100,8 +1244,7 @@ export const slidePhonePage = (change: Change): void => {
           snapshot
         );
       } else if (roomPreview) {
-        roomPreview = undefined;
-        syncPreviewResizeListener();
+        setPreviewSlot('room', undefined);
       }
     } else if (from === 2 && to === 1 && departingContext?.threadId) {
       storePhoneSwipePreview('thread', departingContext, snapshot);
@@ -1138,9 +1281,7 @@ export const slidePhonePage = (change: Change): void => {
       frame = window.requestAnimationFrame(() => delete root.dataset.pageSlideHeld);
     });
     // The copy's own slide ends with the layout's; a tab that is hidden plays neither.
-    copy.addEventListener('animationend', (event) => {
-      if (event.animationName.startsWith(KEYFRAMES)) end();
-    });
+    copy.addEventListener('animationend', onAnimationEnd);
     timer = window.setTimeout(end, PLAY_MS);
   };
   active = {

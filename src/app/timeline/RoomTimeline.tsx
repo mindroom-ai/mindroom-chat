@@ -117,6 +117,7 @@ import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
 import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
 import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
+import { ForkDraftPrefixRow } from './RoomTimeline.css';
 import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
@@ -293,6 +294,8 @@ export type RoomTimelineProps = {
   forkAt?: string;
   /** In a cross-room fork draft, the destination room that "Fork from here" and the divider target. */
   forkTargetRoom?: Room;
+  /** Whether the user can send messages in the destination room; suppresses draft compose prompts when false. */
+  canCompose?: boolean;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -303,6 +306,36 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
   undefined;
+
+/** Net scroll growth to expose outside `contentRef` while `heldList` freezes its height. */
+const computeHeldEndSpacer = (
+  lastEnd: number | undefined,
+  listHeight: number,
+  inner: HTMLElement | null,
+  content: HTMLElement | null,
+  startAligned: boolean
+): number => {
+  const growth =
+    lastEnd !== undefined && Number.isFinite(lastEnd) && Number.isFinite(listHeight)
+      ? Math.max(0, lastEnd - listHeight)
+      : 0;
+  if (
+    growth <= 0 ||
+    !inner ||
+    !content ||
+    typeof inner.getBoundingClientRect !== 'function' ||
+    typeof content.getBoundingClientRect !== 'function'
+  ) {
+    return growth;
+  }
+  const contentRect = content.getBoundingClientRect();
+  const innerRect = inner.getBoundingClientRect();
+  const style = getComputedStyle(content);
+  const rawSlack = startAligned
+    ? contentRect.bottom - innerRect.bottom - (Number.parseFloat(style.paddingBottom) || 0)
+    : innerRect.top - contentRect.top - (Number.parseFloat(style.paddingTop) || 0);
+  return Number.isFinite(rawSlack) ? Math.max(0, growth - Math.max(0, rawSlack)) : growth;
+};
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
 const useTimelineDisplaySettings = () => ({
@@ -360,6 +393,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadHeaderGapAbove = false,
     forkAt,
     forkTargetRoom,
+    canCompose: canComposeDraft = true,
   } = props;
   const crossRoomForkTarget =
     forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
@@ -1892,9 +1926,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     mountedRowKeysRef.current = new Set(virtualItems.map((item) => item.key));
   });
   const deferredRowReportRender = !!heldList || virtualItems.length !== windowItems.length;
+  // No dep array: consecutive ResizeObserver commits can both render deferred.
   useEffect(() => {
     if (deferredRowReportRender) forceRender();
-  }, [deferredRowReportRender, forceRender]);
+  });
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
@@ -2130,7 +2165,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       : undefined;
   // A fork draft's line under its fork point, the last row it shows.
   const forkingDivider =
-    threadId && shownForkPoint && forkPointIndex !== undefined
+    canComposeDraft && threadId && shownForkPoint && forkPointIndex !== undefined
       ? {
           index: forkPointIndex,
           node: (
@@ -2212,6 +2247,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
+    forkDraftPrefixClassName: forkAt ? ForkDraftPrefixRow : undefined,
     turnFolds,
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,
@@ -2222,6 +2258,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
   // (-_holdOffset while virtual-core holds a prepend), so held rows above the reader count as loaded.
   const holdOffset = readVirtualizerHoldOffset(virtualizer);
+  const heldEndSpacer =
+    !latestAtTop && heldList && holdOffset === 0 && itemCount > 0
+      ? computeHeldEndSpacer(
+          virtualizer.measurementsCache[itemCount - 1]?.end,
+          listHeight,
+          virtualInnerRef.current,
+          contentRef.current,
+          !!threadId || compactCards
+        )
+      : 0;
   const backHeadroomPx =
     !latestAtTop && readerScrolledRef.current.value
       ? (virtualizer.measurementsCache[
@@ -2321,6 +2367,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
             frontSentinel
           )}
         </Box>
+        {heldEndSpacer > 0 && (
+          <div
+            aria-hidden
+            data-held-end-spacer=""
+            style={{ height: heldEndSpacer, flexShrink: 0 }}
+          />
+        )}
         {/* After the content's padding, so "at the bottom" means the end of the scroll range,
             not the last row, which sits a composer's height higher, behind the footer. */}
         {!latestAtTop && latestEndAnchor}

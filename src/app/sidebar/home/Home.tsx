@@ -2,15 +2,27 @@ import {
   type ComponentProps,
   type MouseEventHandler,
   type ReactNode,
+  type RefObject,
   useCallback,
+  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import classNames from 'classnames';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import {
+  RelationType,
+  RoomEvent,
+  RoomStateEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomEventHandlerMap,
+  type RoomState,
+} from 'matrix-js-sdk';
 import { PageNav, PageNavContent } from '../../ui/page/Page';
 import { NavCategory, NavEmptyLayout } from '../../ui/nav/NavItem';
 import { VirtualTile } from '../../ui/VirtualTile';
@@ -29,7 +41,14 @@ import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
 import { useDirectRooms } from '../direct/useDirectRooms';
 import { useRoomListShortcuts } from '../useRoomListShortcuts';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import {
+  useStateEventCallback,
+  type StateEventCallback,
+} from '../../matrix/hooks/useStateEventCallback';
+import { isAgentTrustStateEvent } from '../../matrix/protocol/agentRoomState';
+import { StateEvent } from '../../matrix/types/room';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useHomeCreateSelected } from '../../routes/useHomeSelected';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
@@ -104,10 +123,17 @@ function HomeUnspacedRoomsSection({
 }: HomeUnspacedRoomsSectionProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const sectionDrop = useRoomSectionDrop(HOME_ROOM_LIST);
+  const { className: sectionDropClassName, ...sectionDropProps } =
+    useRoomSectionDrop(HOME_ROOM_LIST);
 
   return (
-    <NavCategory data-testid="room-nav-category" {...sectionDrop}>
+    <NavCategory
+      data-testid="room-nav-category"
+      {...sectionDropProps}
+      className={classNames(sectionDropClassName, spaceSectionCss.SpaceSectionNode)}
+      data-depth="0"
+      data-expanded={!roomsClosed || listedRoomIds.length > 0 ? 'true' : undefined}
+    >
       <HomeSectionHeader
         label={t('nav.rooms')}
         categoryId={roomsCategoryId}
@@ -159,6 +185,71 @@ function HomeUnspacedRoomsSection({
   );
 }
 
+/** Tracks mutable DM membership, summary, timeline ordering, and router-roster updates for Direct vs Agents. */
+const useDirectSectionMetaVersion = (
+  directRooms: readonly Room[],
+  topAgentDmRoomIdRef: RefObject<string | undefined>
+): number => {
+  const mx = useMatrixClient();
+  const [version, bump] = useForceUpdate();
+  const directIds = useMemo(() => new Set(directRooms.map((room) => room.roomId)), [directRooms]);
+  const directIdsRef = useRef<ReadonlySet<string>>(directIds);
+  useLayoutEffect(() => {
+    directIdsRef.current = directIds;
+  }, [directIds]);
+
+  const onStateEvent = useCallback<StateEventCallback>(
+    (event, roomState) => {
+      const roomId = roomState?.roomId ?? event.getRoomId();
+      if (!roomId || !directIdsRef.current.has(roomId)) return;
+      const type = event.getType();
+      if (type === (StateEvent.RoomMember as string) || isAgentTrustStateEvent(type)) bump();
+    },
+    [bump]
+  );
+  useStateEventCallback(mx, onStateEvent);
+
+  useEffect(() => {
+    const onMembers = (_event?: MatrixEvent, roomState?: RoomState) => {
+      if (!roomState?.roomId || directIdsRef.current.has(roomState.roomId)) bump();
+    };
+    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      event,
+      room,
+      toStartOfTimeline,
+      _removed,
+      data
+    ) => {
+      if (!room || toStartOfTimeline || !data.liveEvent || !directIdsRef.current.has(room.roomId))
+        return;
+      if (event.isState() || event.getRelation()?.rel_type === RelationType.Replace) return;
+      if (room.roomId === topAgentDmRoomIdRef.current) return;
+      bump();
+    };
+    const hasClientEvents = typeof mx.on === 'function' && typeof mx.removeListener === 'function';
+    if (hasClientEvents) {
+      mx.on(RoomStateEvent.Members, onMembers);
+      mx.on(RoomEvent.Timeline, onTimeline);
+    }
+    const summaryRooms: Room[] = [];
+    directRooms.forEach((room) => {
+      if (typeof room.on === 'function' && typeof room.removeListener === 'function') {
+        room.on(RoomEvent.Summary, bump);
+        summaryRooms.push(room);
+      }
+    });
+    return () => {
+      if (hasClientEvents) {
+        mx.removeListener(RoomStateEvent.Members, onMembers);
+        mx.removeListener(RoomEvent.Timeline, onTimeline);
+      }
+      summaryRooms.forEach((room) => room.removeListener(RoomEvent.Summary, bump));
+    };
+  }, [mx, directRooms, topAgentDmRoomIdRef, bump]);
+
+  return version;
+};
+
 /** The Home navigation: rooms, space sections, direct messages, agents, threads, and recently opened. */
 export function Home() {
   const client = useMatrixClient();
@@ -174,6 +265,7 @@ export function Home() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
   const [showAllDms, setShowAllDms] = useState(false);
+  const [showAllAgents, setShowAllAgents] = useState(false);
 
   const {
     allVisibleHomeRooms,
@@ -195,10 +287,16 @@ export function Home() {
   const mDirect = useMDirectContent();
   const { direct: directTabShown } = useRailButtons();
 
-  const { humanDms, agents, agentDmRoomIds } = useMemo(
-    () => splitHomeDirectSections(directRooms, homeAgents, mDirect),
-    [directRooms, homeAgents, mDirect]
-  );
+  const topAgentDmRoomIdRef = useRef<string | undefined>(undefined);
+  const dmMetaVersion = useDirectSectionMetaVersion(directRooms, topAgentDmRoomIdRef);
+  const { humanDms, agents, agentDmRoomIds } = useMemo(() => {
+    void dmMetaVersion;
+    return splitHomeDirectSections(directRooms, homeAgents, mDirect);
+  }, [directRooms, homeAgents, mDirect, dmMetaVersion]);
+  const topAgentDmRoomId = agents[0]?.dmRoom?.roomId;
+  useLayoutEffect(() => {
+    topAgentDmRoomIdRef.current = topAgentDmRoomId;
+  }, [topAgentDmRoomId]);
   const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
   const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
   const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
@@ -214,8 +312,8 @@ export function Home() {
     [humanDms, selectedRoomId, directClosed, showAllDms]
   );
   const visibleAgents = useMemo(
-    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed),
-    [agents, selectedRoomId, agentsClosed]
+    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed, showAllAgents),
+    [agents, selectedRoomId, agentsClosed, showAllAgents]
   );
 
   const allShortcutRoomIds = useMemo(
@@ -329,49 +427,47 @@ export function Home() {
             options={emptyRoomActions}
           />
         ) : (
-          <Box direction="Column" gap="300">
+          <Box direction="Column" gap="200">
             {!phone && (
               <CommandPaletteSearchField className={homeSectionsCss.PopulatedSearchField} />
             )}
             {(unspaced.length > 0 || sectionTree.length > 0) && (
               <SortableRoomGroup>
-                {unspaced.length > 0 && (
-                  <HomeUnspacedRoomsSection
-                    roomsCategoryId={roomsCategoryId}
-                    roomsClosed={roomsClosed}
-                    listedRoomIds={listedRoomIds}
-                    shownRoomIds={unspacedShownRoomIds}
-                    selectedRoomId={selectedRoomId}
-                    tree={tree}
-                    roomOrder={roomOrder}
-                    virtualizer={virtualizer}
-                    addRoomsMenu={addRoomsMenu}
-                    onCategoryClick={onCategoryClick}
-                    rowProps={rowProps}
-                    renderSubRoom={renderSubRoom}
-                  />
-                )}
-                {sectionTree.length > 0 && (
-                  <div className={spaceSectionCss.SpaceSectionStack}>
-                    {sectionTree.map((node) => (
-                      <SpaceRoomSection
-                        key={node.section.categoryId}
-                        section={node.section}
-                        childNodes={node.children}
-                        subtreeShownRoomIds={node.subtreeShownRoomIds}
-                        spaceId={node.section.spaceId}
-                        spaceIdOrAlias={node.section.spaceId}
-                        selectedRoomId={selectedRoomId}
-                        onCategoryClick={onCategoryClick}
-                        onReorder={onReorder}
-                        roomPath={getHomeRoomPath}
-                        showOverview
-                        quietUnread
-                        pinMode={homePinMode}
-                      />
-                    ))}
-                  </div>
-                )}
+                <div className={spaceSectionCss.SpaceSectionStack}>
+                  {unspaced.length > 0 && (
+                    <HomeUnspacedRoomsSection
+                      roomsCategoryId={roomsCategoryId}
+                      roomsClosed={roomsClosed}
+                      listedRoomIds={listedRoomIds}
+                      shownRoomIds={unspacedShownRoomIds}
+                      selectedRoomId={selectedRoomId}
+                      tree={tree}
+                      roomOrder={roomOrder}
+                      virtualizer={virtualizer}
+                      addRoomsMenu={addRoomsMenu}
+                      onCategoryClick={onCategoryClick}
+                      rowProps={rowProps}
+                      renderSubRoom={renderSubRoom}
+                    />
+                  )}
+                  {sectionTree.map((node) => (
+                    <SpaceRoomSection
+                      key={node.section.categoryId}
+                      section={node.section}
+                      childNodes={node.children}
+                      subtreeShownRoomIds={node.subtreeShownRoomIds}
+                      spaceId={node.section.spaceId}
+                      spaceIdOrAlias={node.section.spaceId}
+                      selectedRoomId={selectedRoomId}
+                      onCategoryClick={onCategoryClick}
+                      onReorder={onReorder}
+                      roomPath={getHomeRoomPath}
+                      showOverview
+                      quietUnread
+                      pinMode={homePinMode}
+                    />
+                  ))}
+                </div>
               </SortableRoomGroup>
             )}
             {unspaced.length === 0 && (
@@ -379,31 +475,41 @@ export function Home() {
                 <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />
               </NavCategory>
             )}
-            {showDirectSection && (
-              <HomeDirectSection
-                visibleRooms={visibleDirectRooms}
-                allRoomIds={humanDmRoomIds}
-                closed={directClosed}
-                selectedRoomId={selectedRoomId}
-                showAll={showAllDms}
-                onToggleShowAll={() => setShowAllDms((prev) => !prev)}
-                onCategoryClick={onCategoryClick}
-                homeRoomPath={homeRoomPath}
-                notificationPreferences={notificationPreferences}
-              />
-            )}
-            {agents.length > 0 && (
-              <HomeAgentsSection
-                visibleAgents={visibleAgents}
-                agentDmRoomIds={agentDmRoomIds}
-                closed={agentsClosed}
-                selectedRoomId={selectedRoomId}
-                onCategoryClick={onCategoryClick}
-                homeRoomPath={homeRoomPath}
-                notificationPreferences={notificationPreferences}
-              />
-            )}
-            <ThreadNavCategory />
+            <div
+              className={classNames(
+                spaceSectionCss.SpaceSectionStack,
+                homeSectionsCss.SecondarySectionGroup
+              )}
+            >
+              {showDirectSection && (
+                <HomeDirectSection
+                  visibleRooms={visibleDirectRooms}
+                  allRoomIds={humanDmRoomIds}
+                  closed={directClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllDms}
+                  onToggleShowAll={() => setShowAllDms((prev) => !prev)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              {agents.length > 0 && (
+                <HomeAgentsSection
+                  visibleAgents={visibleAgents}
+                  totalCount={agents.length}
+                  agentDmRoomIds={agentDmRoomIds}
+                  closed={agentsClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllAgents}
+                  onToggleShowAll={() => setShowAllAgents((prev) => !prev)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              <ThreadNavCategory />
+            </div>
           </Box>
         )}
       </PageNavContent>

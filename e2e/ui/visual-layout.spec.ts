@@ -332,15 +332,26 @@ const checkMembers = async (run: Run) => {
   await expect.poll(() => membersBeside(page)).toBe(true);
   // The resize separator shows keyboard focus (L8-F027).
   const handle = page.locator('[data-testid="resizable-members-panel"] [role="separator"]');
-  const line = () =>
-    handle.evaluate((element) => getComputedStyle(element, '::after').backgroundColor);
+  const pill = handle.locator('[data-panel-handle-pill]');
+  const pillStyle = () =>
+    pill.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { opacity: style.opacity, color: style.backgroundColor };
+    });
   await page.mouse.move(1, 450);
-  const rest = await line();
+  await expect
+    .poll(async () => (await pillStyle()).opacity, `separator rests hidden (${run.engine})`)
+    .toBe('0');
   await page.keyboard.press('Shift');
   await handle.evaluate((element) => (element as HTMLElement).focus());
   await expect(handle).toBeFocused();
   expect(await handle.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
-  expect(await line(), `separator focus ring (${run.engine})`).not.toBe(rest);
+  await expect
+    .poll(async () => (await pillStyle()).opacity, `separator focus ring (${run.engine})`)
+    .toBe('1');
+  expect((await pillStyle()).color, `separator focus ring color (${run.engine})`).not.toBe(
+    'rgba(0, 0, 0, 0)'
+  );
 };
 
 // ---------------------------------------------------------------------------------------------

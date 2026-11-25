@@ -34,7 +34,9 @@ import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
 import { IconButton } from '../ui/glass/GlassPrimitives';
+import classNames from 'classnames';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
+import { ComposerForkDraft } from './RoomInput.css';
 import {
   getAudioMsgContent,
   getFileMsgContent,
@@ -300,8 +302,12 @@ export function RoomInput({
   const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
   const direct = useAtomValue(mDirectAtom).has(roomId);
   let placeholder = t('composer.placeholder');
-  if (forkFrom) placeholder = t('threadFork.continueInNewThread');
-  else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
+  if (forkFrom) {
+    placeholder =
+      forkFrom.roomId && forkFrom.roomId !== roomId
+        ? t('threadFork.continueInNewThreadInRoom', { room: roomName })
+        : t('threadFork.continueInNewThread');
+  } else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
     placeholder = t('composer.replyInThread');
   else if (newThread)
     placeholder = direct
@@ -1257,6 +1263,7 @@ export function RoomInput({
       // Home's column sets the field's width itself.
       style={ask ? undefined : COMPOSER_STYLE}
       data-composer-expanded={expanded}
+      data-fork-draft-composer={forkFrom ? 'true' : undefined}
       // Only a press on the expanded composer holds it open (`isComposerExpanded`).
       onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
     >
@@ -1307,7 +1314,7 @@ export function RoomInput({
         linkSchemes={linkSchemes}
         markdownCommands
         // The composer floats over the timeline and the cards, which scroll beneath it.
-        className={glassDenseOverBackdrop}
+        className={classNames(glassDenseOverBackdrop, forkFrom && ComposerForkDraft)}
         // A phone keeps the formatting toolbar in a row of its own however wide its composer.
         inlineBottom={!phone}
         placeholder={ask?.placeholder ?? placeholder}
