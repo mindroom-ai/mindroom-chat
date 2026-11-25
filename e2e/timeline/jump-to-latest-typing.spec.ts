@@ -201,15 +201,12 @@ const verifyJumpToLatestStableWithTyping = async (
     })
     .toBeGreaterThan(400);
 
-  const scrollBox = await scroller.boundingBox();
-  if (!scrollBox) throw new Error('Thread scroll container has no bounding box');
-  await page.mouse.move(scrollBox.x + scrollBox.width / 2, scrollBox.y + scrollBox.height / 2);
   await expect
     .poll(
       async () => {
-        await page.mouse.wheel(0, -10_000);
         await scroller.evaluate((element) => {
           element.scrollTop = 0;
+          element.dispatchEvent(new Event('scroll', { bubbles: true }));
         });
         return jumpToLatest.isVisible();
       },
@@ -265,6 +262,49 @@ const verifyJumpToLatestStableWithTyping = async (
   expect(Math.abs(typingJumpBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
   expect(stripBox.right).toBeLessThanOrEqual(typingJumpBox.left - 8);
   expect(Math.abs(stripBox.top - typingJumpBox.top)).toBeLessThanOrEqual(2);
+
+  if (label === 'phone') {
+    await expect
+      .poll(() => page.evaluate(() => matchMedia('(pointer: coarse)').matches), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+    const touchHits = await jumpToLatest.evaluate((button) => {
+      const probe = () => {
+        const rect = button.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const leftHit = document.elementFromPoint(centerX - 21, centerY);
+        const rightHit = document.elementFromPoint(centerX + 21, centerY);
+        const topHit = document.elementFromPoint(centerX, centerY - 21);
+        const bottomHit = document.elementFromPoint(centerX, centerY + 21);
+        return {
+          width: rect.width,
+          leftInside: !!leftHit && button.contains(leftHit),
+          rightInside: !!rightHit && button.contains(rightHit),
+          topInside: !!topHit && button.contains(topHit),
+          bottomInside: !!bottomHit && button.contains(bottomHit),
+        };
+      };
+      const defaultZoom = probe();
+      const previousFontSize = document.documentElement.style.fontSize;
+      let zoom75: ReturnType<typeof probe>;
+      try {
+        document.documentElement.style.fontSize = '75%';
+        zoom75 = probe();
+      } finally {
+        document.documentElement.style.fontSize = previousFontSize;
+      }
+      return { defaultZoom, zoom75 };
+    });
+    expect(touchHits.defaultZoom.leftInside).toBe(true);
+    expect(touchHits.defaultZoom.rightInside).toBe(true);
+    expect(touchHits.defaultZoom.topInside).toBe(true);
+    expect(touchHits.defaultZoom.bottomInside).toBe(true);
+    expect(touchHits.zoom75.width).toBeLessThanOrEqual(25);
+    expect(touchHits.zoom75.leftInside).toBe(true);
+    expect(touchHits.zoom75.rightInside).toBe(true);
+  }
 
   await setTyping(false);
   await publishActiveRuns(HOMESERVER, agent, roomId, []);

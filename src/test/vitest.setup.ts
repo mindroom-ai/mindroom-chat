@@ -142,7 +142,6 @@ vi.mock('../app/ui/styles/RoomOverlay.css', () => ({
   Scroll: 'room-scroll',
   Scrollbar: 'room-scrollbar',
   headerInset: 'var(--room-header-height, 0px)',
-  composerInset: 'var(--room-composer-height, 0px)',
   footerInset: 'var(--room-footer-height, 0px)',
   jumpLane: 'var(--room-jump-lane)',
   topInset: '0px',

@@ -52,12 +52,12 @@ describe('the dock styles', () => {
       const { config } = await import('folds');
       const { RoomArea } = await import('./RoomView.css');
       const { Following } = await import('../timeline/RoomViewFollowing.css');
-      const { DockBars, DockRow, composerInset, footerInset, jumpLane } =
+      const { DockBars, DockRow, footerInset, jumpLane } =
         await import('../ui/styles/RoomOverlay.css');
-      const { narrowRoomArea } = await import('../ui/styles/roomArea.css');
+      const { compactJumpArea, roomArea } = await import('../ui/styles/roomArea.css');
       const ruleFor = (selector: string) => rules.find((css) => css.selector === selector)?.rule;
 
-      expect(composerInset).toBe('var(--room-composer-height, 0px)');
+      expect(compactJumpArea).toBe(`${roomArea} ((width < 37.5rem) or (height <= 240px))`);
 
       const sharedDock = `${RoomArea}:has([data-jump-to-latest]):not(:has([data-jobs-bar], [data-approvals-bar]))`;
       expect(ruleFor(`${sharedDock} ${DockRow}`)).toEqual({
@@ -66,7 +66,7 @@ describe('the dock styles', () => {
         gridTemplateColumns: `minmax(0, 1fr) ${jumpLane} minmax(0, 1fr)`,
         alignItems: 'end',
         columnGap: config.space.S300,
-        '@container': { [narrowRoomArea]: { vars: { [jumpLane]: '2.75rem' } } },
+        '@container': { [compactJumpArea]: { vars: { [jumpLane]: '44px' } } },
       });
       expect(ruleFor(`${sharedDock} ${DockBars}`)).toEqual({
         gridColumn: '1',

@@ -4,7 +4,7 @@ import { Bar, Listed } from '../background-jobs/BackgroundJobsBar.css';
 import { Following } from '../timeline/RoomViewFollowing.css';
 import { TypingStrip } from '../timeline/typing/RoomViewTyping.css';
 import { DockBars, DockRow, footerInset, jumpLane } from '../ui/styles/RoomOverlay.css';
-import { narrowRoomArea, roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
+import { compactJumpArea, roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
 
 export const RoomArea = style({ containerName: roomArea, containerType: 'size' });
 
@@ -25,7 +25,9 @@ globalStyle(`${sharedDock} ${DockRow}`, {
   gridTemplateColumns: `minmax(0, 1fr) ${jumpLane} minmax(0, 1fr)`,
   alignItems: 'end',
   columnGap: config.space.S300,
-  '@container': { [narrowRoomArea]: { vars: { [jumpLane]: '2.75rem' } } },
+  // CSS pixels (matching MIN_TARGET in touchTarget.ts) so the center lane holds the full 44 px
+  // touch target independently of zoom level.
+  '@container': { [compactJumpArea]: { vars: { [jumpLane]: '44px' } } },
 });
 globalStyle(`${sharedDock} ${DockBars}`, {
   gridColumn: '1',

@@ -108,7 +108,8 @@ const seed = async (name: string, { inSpace = false }: SeedOptions = {}) => {
 type World = Awaited<ReturnType<typeof seed>>;
 
 const textBox = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
-const jumpToLatest = (page: Page) => page.getByRole('button', { name: 'Jump to Latest' });
+const jumpToLatest = (page: Page, name = 'Jump to Latest') =>
+  page.getByRole('button', { name, exact: true });
 const newestRow = (page: Page) => page.getByText(message(40), { exact: true });
 
 const openRoom = async (page: Page, world: World) => {
@@ -367,31 +368,57 @@ const newestRowShown = async (page: Page) => {
   return { box, header, row, rowShown };
 };
 
-/**
- * Sideways, the keyboard leaves a short band: the whole composer is in it, uncovered, and the
- * conversation shows above it, ending in the newest message. Scrolling back keeps Jump to Latest
- * inside that visible band, and tapping it returns to the newest message.
- */
-const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) => {
-  await openRoom(page, world);
-  await page.setViewportSize(LANDSCAPE_SIZE);
+/** The room area's bounding dimensions (width and height in CSS pixels). */
+const roomAreaBounds = (page: Page) =>
+  page.evaluate(() => {
+    const area = document.querySelector('[data-room-footer]')?.parentElement?.parentElement;
+    const rect = area?.getBoundingClientRect();
+    return { width: rect?.width ?? NaN, height: rect?.height ?? NaN };
+  });
+
+const checkLandscapeBand = async (
+  page: Page,
+  engine: string,
+  {
+    tag,
+    jumpLabel,
+    expectWideArea = false,
+  }: { tag: string; jumpLabel: string; expectWideArea?: boolean }
+) => {
   await expect(textBox(page)).toBeVisible();
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
   await setVisualViewport(page, LANDSCAPE_KEYBOARD_VISIBLE, 0);
   await expect.poll(() => appHeight(page)).toBe(`${LANDSCAPE_KEYBOARD_VISIBLE}px`);
   await page.waitForTimeout(1_000);
+  const area = await roomAreaBounds(page);
   const { box, header, row, rowShown } = await newestRowShown(page);
-  console.log(`${engine} landscape keyboard: ${JSON.stringify({ box, header, row, rowShown })}`);
-  expect(box.top, `${engine}: the composer starts in the band`).toBeGreaterThanOrEqual(-1);
-  expect(box.bottom, `${engine}: the composer ends above the keyboard`).toBeLessThanOrEqual(
-    LANDSCAPE_KEYBOARD_VISIBLE + 1
+  console.log(
+    `${engine} landscape keyboard (${tag}): ${JSON.stringify({ area, box, header, row, rowShown })}`
   );
-  expect(await composerUncovered(page), `${engine}: nothing covers the composer`).toEqual([]);
+  if (expectWideArea) {
+    expect(
+      area.width,
+      `${engine} (${tag}): collapsed sidebar leaves a >= 600 px room area`
+    ).toBeGreaterThanOrEqual(600);
+    expect(
+      area.height,
+      `${engine} (${tag}): keyboard band keeps the room area <= ${LANDSCAPE_KEYBOARD_VISIBLE} px`
+    ).toBeLessThanOrEqual(LANDSCAPE_KEYBOARD_VISIBLE + 1);
+  }
+  expect(box.top, `${engine} (${tag}): the composer starts in the band`).toBeGreaterThanOrEqual(-1);
+  expect(
+    box.bottom,
+    `${engine} (${tag}): the composer ends above the keyboard`
+  ).toBeLessThanOrEqual(LANDSCAPE_KEYBOARD_VISIBLE + 1);
+  expect(await composerUncovered(page), `${engine} (${tag}): nothing covers the composer`).toEqual(
+    []
+  );
   // A line of the newest message at least.
-  expect(rowShown, `${engine}: the newest message shows above the composer`).toBeGreaterThanOrEqual(
-    16
-  );
+  expect(
+    rowShown,
+    `${engine} (${tag}): the newest message shows above the composer`
+  ).toBeGreaterThanOrEqual(16);
 
   // Scrolling back inside the 98 px keyboard band keeps Jump to Latest inside the visible band
   // instead of clipping it above the top edge.
@@ -401,43 +428,87 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
     { type: 'scroll', by: -600 },
     { type: 'end' },
   ]);
+  const jumpButton = jumpToLatest(page, jumpLabel);
   await expect(
-    jumpToLatest(page),
-    `${engine}: Jump to Latest appears while scrolled back`
+    jumpButton,
+    `${engine} (${tag}): Jump to Latest appears while scrolled back`
   ).toBeVisible({ timeout: 15_000 });
-  await expect(textBox(page), `${engine}: scrolling keeps the composer focused`).toBeFocused();
+  await expect(
+    textBox(page),
+    `${engine} (${tag}): scrolling keeps the composer focused`
+  ).toBeFocused();
   expect(
     await appHeight(page),
-    `${engine}: the keyboard band stays at ${LANDSCAPE_KEYBOARD_VISIBLE}px`
+    `${engine} (${tag}): the keyboard band stays at ${LANDSCAPE_KEYBOARD_VISIBLE}px`
   ).toBe(`${LANDSCAPE_KEYBOARD_VISIBLE}px`);
-  const jumpBox = await jumpToLatest(page).boundingBox();
+  const jumpBox = await jumpButton.boundingBox();
   console.log(
-    `${engine} landscape Jump to Latest: ${JSON.stringify({ jumpBox, composerTop: box.top })}`
+    `${engine} landscape Jump to Latest (${tag}): ${JSON.stringify({ jumpBox, composerTop: box.top })}`
   );
-  if (!jumpBox) throw new Error(`${engine}: Jump to Latest has no bounding box`);
+  if (!jumpBox) throw new Error(`${engine} (${tag}): Jump to Latest has no bounding box`);
   expect(
     jumpBox.y,
-    `${engine}: Jump to Latest starts inside the visible band`
+    `${engine} (${tag}): Jump to Latest starts inside the visible band`
   ).toBeGreaterThanOrEqual(0);
   expect(
     jumpBox.y + jumpBox.height,
-    `${engine}: Jump to Latest ends above the composer`
+    `${engine} (${tag}): Jump to Latest ends above the composer`
   ).toBeLessThanOrEqual(box.top + 1);
+  expect(
+    jumpBox.width,
+    `${engine} (${tag}): Jump to Latest uses the compact circular button`
+  ).toBeLessThanOrEqual(34);
+  expect(
+    jumpBox.height,
+    `${engine} (${tag}): Jump to Latest stays compact in height`
+  ).toBeLessThanOrEqual(34);
+  expect(Math.abs(jumpBox.width - jumpBox.height)).toBeLessThanOrEqual(1);
 
-  await jumpToLatest(page).tap();
-  await expect(jumpToLatest(page), `${engine}: Jump to Latest hides after tapping`).toBeHidden({
+  await jumpButton.tap();
+  await expect(jumpButton, `${engine} (${tag}): Jump to Latest hides after tapping`).toBeHidden({
     timeout: 15_000,
   });
   await expect(
     newestRow(page),
-    `${engine}: tapping Jump to Latest returns to the newest message`
+    `${engine} (${tag}): tapping Jump to Latest returns to the newest message`
   ).toBeVisible({ timeout: 15_000 });
   await expect
     .poll(async () => (await newestRowShown(page)).rowShown, {
       timeout: 15_000,
-      message: `${engine}: the newest message shows above the composer after Jump to Latest`,
+      message: `${engine} (${tag}): the newest message shows above the composer after Jump to Latest`,
     })
     .toBeGreaterThanOrEqual(16);
+};
+
+/**
+ * Sideways, the keyboard leaves a short band: the whole composer is in it, uncovered, and the
+ * conversation shows above it, ending in the newest message. Scrolling back keeps Jump to Latest
+ * inside that visible band (including in German with the sidebar collapsed so the room area is
+ * >= 600 px wide and 98 px tall), and tapping it returns to the newest message.
+ */
+const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) => {
+  await openRoom(page, world);
+  await page.setViewportSize(LANDSCAPE_SIZE);
+  await checkLandscapeBand(page, engine, { tag: 'en', jumpLabel: 'Jump to Latest' });
+
+  // With the sidebar collapsed (room area >= 600 px wide, 98 px tall) and a long German label,
+  // compactJumpArea still switches Jump to Latest to the circular arrow so it never wraps or
+  // clips above the 98 px band.
+  await page.evaluate((userId) => {
+    localStorage.setItem('i18nextLng', 'de');
+    localStorage.setItem(`mindroom.pageNav.desktopCollapsed:${userId}`, 'true');
+  }, world.reader.userId);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de', { timeout: 30_000 });
+  await expect(newestRow(page)).toBeVisible({ timeout: 60_000 });
+  await expect(jumpToLatest(page, 'Zur neuesten Nachricht springen')).toBeHidden({
+    timeout: 15_000,
+  });
+  await checkLandscapeBand(page, engine, {
+    tag: 'de wide',
+    jumpLabel: 'Zur neuesten Nachricht springen',
+    expectWideArea: true,
+  });
 };
 
 /**

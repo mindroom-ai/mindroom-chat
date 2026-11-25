@@ -7,7 +7,6 @@ import { shortViewport } from './shortViewport';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
 export const headerInset = 'var(--room-header-height, 0px)';
-export const composerInset = 'var(--room-composer-height, 0px)';
 export const footerInset = 'var(--room-footer-height, 0px)';
 // Width of the centered Jump to Latest column in `DockRow` when sharing the dock row.
 export const jumpLane = createVar();

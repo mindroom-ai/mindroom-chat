@@ -2,7 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
 import { footerInset } from '../ui/styles/RoomOverlay.css';
-import { narrowRoomArea } from '../ui/styles/roomArea.css';
+import { compactJumpArea } from '../ui/styles/roomArea.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
 /** A control that hovers over the timeline, centered at its top or bottom edge. */
@@ -52,13 +52,14 @@ export const FloatingAction = style([
 
 /**
  * Keeps Jump to Latest low above the composer so typing and read receipts can share the dock row
- * beside it without shifting it; narrows to +S200 to sit vertically flush with the 32 px dock row.
+ * beside it without shifting it; uses +S200 in compact areas to sit vertically flush with the
+ * 32 px dock row.
  */
 export const JumpToLatestFloat = style({
   bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S400})`,
   maxWidth: `min(calc(100% - ${config.space.S400} * 2), 11rem)`,
   '@container': {
-    [narrowRoomArea]: {
+    [compactJumpArea]: {
       bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S200})`,
       maxWidth: 'none',
     },
@@ -66,16 +67,19 @@ export const JumpToLatestFloat = style({
 });
 
 /**
- * Collapses Jump to Latest to a 32 × 32 px circular arrow button in narrow panes (< 600 px) while
- * giving coarse pointers a 44 × 44 px hit area inside the 44 px center lane. Triple-class
- * specificity (`&&&`) beats folds' Chip `[data-ui-before=true]` inline padding and
+ * Collapses Jump to Latest to a 32 × 32 px circular arrow button in compact (narrow or short)
+ * panes while giving coarse pointers a 44 × 44 px hit area inside the 44 px center lane.
+ * Triple-class specificity (`&&&`) beats folds' Chip `[data-ui-before=true]` inline padding and
  * `FloatingAction`'s `&&` height/padding rules regardless of stylesheet order.
  */
 export const JumpToLatestButton = style([
-  touchTarget('6px'),
+  // Placed after FloatingAction so its 12px inline reach overrides FloatingAction's 4px and
+  // guarantees a full 44 × 44 px hit area on the outlined 32 × 32 px button from 75% (22 px
+  // padding box, -11 px) through 100%+ (30 px padding box, -7 px) zoom.
+  touchTarget('12px'),
   {
     '@container': {
-      [narrowRoomArea]: {
+      [compactJumpArea]: {
         selectors: {
           '&&&': {
             inlineSize: toRem(32),
@@ -91,11 +95,11 @@ export const JumpToLatestButton = style([
   },
 ]);
 
-/** Visually hidden in narrow panes while keeping the button's accessible name intact. */
+/** Visually hidden in compact panes while keeping the button's accessible name intact. */
 export const JumpToLatestLabel = style({
   textWrap: 'balance',
   '@container': {
-    [narrowRoomArea]: {
+    [compactJumpArea]: {
       position: 'absolute',
       width: '1px',
       height: '1px',
