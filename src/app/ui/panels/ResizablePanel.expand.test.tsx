@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
+import { usePanelSlot } from './panelPresence';
 import { ResizablePanel, SIDE_PANEL_MAX_WIDTH } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';
 
@@ -35,6 +36,8 @@ const renderPanel = ({
   paddingInlineEnd,
   onExpand,
   expandLabel,
+  collapsible = true,
+  collapseLabel = 'Close',
 }: {
   framed?: boolean;
   maxPanelWidth?: number;
@@ -42,6 +45,8 @@ const renderPanel = ({
   paddingInlineEnd?: string;
   onExpand?: () => void;
   expandLabel?: string;
+  collapsible?: boolean;
+  collapseLabel?: string | null;
 } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
@@ -55,12 +60,12 @@ const renderPanel = ({
       <ResizablePanel
         storageKey="test.width"
         resizeLabel="Resize"
-        collapseLabel="Close"
+        collapseLabel={collapseLabel ?? undefined}
         testId="panel"
         side="end"
         minContentWidth={360}
         maxPanelWidth={maxPanelWidth}
-        onCollapse={onCollapse}
+        onCollapse={collapsible ? onCollapse : undefined}
         onExpand={onExpand}
         expandLabel={expandLabel}
       >
@@ -387,5 +392,153 @@ describe('dragging a side panel past its widest', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('charges collapse progressively below minWidth, caps inward pull at 3 px, and arms the fold chip', () => {
+    renderPanel();
+    const panel = screen.getByTestId('panel');
+
+    dragTo(190);
+    expect(panel.style.width).toBe('200px');
+    expect(panel.dataset.dragging).toBe('true');
+    expect(panel.dataset.collapseCharging).toBe('true');
+    expect(panel.dataset.collapsePreview).toBeUndefined();
+    expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('0.25');
+    expect(panel.style.getPropertyValue('--mr-collapse-pull')).toBe(
+      `${Math.round(3 * Math.tanh(10 / 28))}px`
+    );
+    expect(panel.style.getPropertyValue('--mr-expand-progress')).toBe('');
+    expect(panel.querySelector('[data-panel-collapse-overlay]')).toBeNull();
+
+    fireEvent.pointerMove(separator(), { clientX: 500 - (160 - 400) });
+    expect(panel.style.width).toBe('200px');
+    expect(panel.dataset.collapseCharging).toBe('true');
+    expect(panel.dataset.collapsePreview).toBe('true');
+    expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('1');
+    expect(panel.style.getPropertyValue('--mr-collapse-pull')).toBe('3px');
+    const overlay = panel.querySelector('[data-panel-collapse-overlay]');
+    expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+    expect(overlay?.querySelector('[data-panel-collapse-badge]')?.textContent).toBe('Close');
+
+    fireEvent.pointerMove(separator(), { clientX: 500 - (0 - 400) });
+    expect(Number.parseFloat(panel.style.getPropertyValue('--mr-collapse-pull'))).toBe(3);
+  });
+
+  it('clears fold chip, charging state, and CSS vars on drag-back and guards pre-render release', () => {
+    const { onCollapse } = renderPanel();
+    const panel = screen.getByTestId('panel');
+
+    dragTo(150);
+    expect(panel.dataset.collapsePreview).toBe('true');
+    expect(panel.querySelector('[data-panel-collapse-overlay]')).not.toBeNull();
+
+    fireEvent.pointerMove(separator(), { clientX: 500 - (180 - 400) });
+    expect(panel.dataset.collapsePreview).toBeUndefined();
+    expect(panel.querySelector('[data-panel-collapse-overlay]')).toBeNull();
+    expect(panel.dataset.collapseCharging).toBe('true');
+    expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('0.5');
+
+    fireEvent.pointerMove(separator(), { clientX: 500 - (260 - 400) });
+    expect(panel.dataset.dragging).toBe('true');
+    expect(panel.dataset.collapseCharging).toBeUndefined();
+    expect(panel.dataset.collapsePreview).toBeUndefined();
+    expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('');
+    expect(panel.style.getPropertyValue('--mr-collapse-pull')).toBe('');
+
+    // Armed, then pulled back and released before React re-renders: must not collapse.
+    fireEvent.pointerMove(separator(), { clientX: 500 - (150 - 400) });
+    act(() => {
+      separator().dispatchEvent(
+        new TestPointerEvent('pointermove', { bubbles: true, clientX: 500 - (240 - 400) })
+      );
+      separator().dispatchEvent(new TestPointerEvent('pointerup', { bubbles: true }));
+    });
+    expect(onCollapse).not.toHaveBeenCalled();
+    expect(stored()).toBe(240);
+  });
+
+  it('clears collapse overlay and charging on exit phase while gliding out from minWidth', () => {
+    const animateCalls: Keyframe[][] = [];
+    const animateMock = vi.fn((keyframes: Keyframe[]) => {
+      animateCalls.push(keyframes);
+      return {
+        playState: 'running',
+        cancel: vi.fn(),
+        finished: new Promise(() => undefined),
+      } as unknown as Animation;
+    });
+    function SlotHarness() {
+      const [open, setOpen] = useState(true);
+      return usePanelSlot(
+        open ? (
+          <ResizablePanel
+            key="notes"
+            storageKey="test.width"
+            resizeLabel="Resize"
+            collapseLabel="Close"
+            testId="panel"
+            side="end"
+            minContentWidth={360}
+            onCollapse={() => setOpen(false)}
+          >
+            <p>content</p>
+          </ResizablePanel>
+        ) : undefined
+      );
+    }
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: animateMock,
+    });
+    try {
+      const row = document.body.appendChild(document.createElement('div'));
+      Object.defineProperty(row, 'clientWidth', { value: 1000 });
+      render(<SlotHarness />, { container: row });
+      const panel = screen.getByTestId('panel');
+
+      dragTo(150);
+      expect(panel.dataset.collapseCharging).toBe('true');
+      expect(panel.dataset.collapsePreview).toBe('true');
+      expect(panel.querySelector('[data-panel-collapse-overlay]')).not.toBeNull();
+
+      release();
+      expect(panel.style.width).toBe('200px');
+      expect(panel.dataset.collapseCharging).toBeUndefined();
+      expect(panel.dataset.collapsePreview).toBeUndefined();
+      expect(panel.dataset.dragging).toBeUndefined();
+      expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('');
+      expect(panel.style.getPropertyValue('--mr-collapse-pull')).toBe('');
+      expect(panel.querySelector('[data-panel-collapse-overlay]')).toBeNull();
+      expect(animateCalls.at(-1)).toEqual([
+        { width: '200px', marginInlineStart: '0px' },
+        { width: '0px', marginInlineStart: '0px' },
+      ]);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
+  });
+
+  it('leaves non-collapsible panels unaffected and omits the fold badge without collapseLabel', () => {
+    renderPanel({ collapsible: false });
+    const panel = screen.getByTestId('panel');
+    dragTo(120);
+    expect(panel.style.width).toBe('200px');
+    expect(panel.dataset.collapseCharging).toBeUndefined();
+    expect(panel.dataset.collapsePreview).toBeUndefined();
+    expect(panel.style.getPropertyValue('--mr-collapse-progress')).toBe('');
+    expect(panel.querySelector('[data-panel-collapse-overlay]')).toBeNull();
+    expect(separator().getAttribute('aria-valuetext')).toBeNull();
+    release();
+    expect(stored()).toBe(200);
+
+    cleanup();
+    localStorage.setItem('test.width', JSON.stringify(400));
+    renderPanel({ collapseLabel: null });
+    const unlabeled = screen.getByTestId('panel');
+    dragTo(150);
+    expect(unlabeled.dataset.collapsePreview).toBe('true');
+    const overlay = unlabeled.querySelector('[data-panel-collapse-overlay]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelector('[data-panel-collapse-badge]')).toBeNull();
   });
 });

@@ -76,12 +76,13 @@ const renderPanel = (screenSize = ScreenSize.Desktop, onCollapse?: () => void, m
       }
     );
   });
-  const handle = () => renderer!.root.findByProps({ role: 'separator' });
-  const width = () =>
+  const panel = () =>
     renderer!.root.findByProps({
       'data-testid': members ? 'resizable-members-panel' : 'resizable-page-nav',
-    }).props.style.width;
-  return { renderer: renderer!, handle, width };
+    });
+  const handle = () => renderer!.root.findByProps({ role: 'separator' });
+  const width = () => panel().props.style.width;
+  return { renderer: renderer!, panel, handle, width };
 };
 
 beforeEach(() => {
@@ -172,10 +173,16 @@ describe('ResizablePanel at the member edge', () => {
     async (pointerType) => {
       storage.set(membersStorageKey, '366');
       const onCollapse = vi.fn();
-      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse, true);
+      const { renderer, panel, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse, true);
       await act(() => handle().props.onPointerDown(pointer(700, pointerType)));
       await act(() => handle().props.onPointerMove(pointer(906, pointerType)));
-      expect(width()).toBe(160);
+      expect(width()).toBe(200);
+      expect(panel().props['data-collapse-charging']).toBe(true);
+      expect(panel().props['data-collapse-preview']).toBe(true);
+      expect(panel().props.style['--mr-collapse-progress']).toBe('1');
+      expect(renderer.root.findByProps({ 'data-panel-collapse-badge': '' }).children).toEqual([
+        'Hide Members',
+      ]);
       expect(handle().props['aria-valuetext']).toBe('Hide Members');
       expect(onCollapse).not.toHaveBeenCalled();
       await act(() => handle().props.onPointerUp(pointer(906, pointerType)));
@@ -227,15 +234,26 @@ describe('ResizablePageNav', () => {
     async (pointerType) => {
       storage.set(storageKey, '356');
       const onCollapse = vi.fn();
-      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
+      const { renderer, panel, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
       await act(() => handle().props.onPointerDown(pointer(356, pointerType)));
       await act(() => handle().props.onPointerMove(pointer(190, pointerType)));
-      expect(width()).toBe(190);
+      expect(width()).toBe(200);
+      expect(panel().props['data-collapse-charging']).toBe(true);
+      expect(panel().props['data-collapse-preview']).toBeUndefined();
+      expect(panel().props.style['--mr-collapse-progress']).toBe('0.25');
+      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
       expect(handle().props['aria-valuetext']).toBeUndefined();
       await act(() => handle().props.onPointerMove(pointer(160, pointerType)));
-      expect(width()).toBe(160);
-      expect(handle().props['aria-valuenow']).toBe(160);
-      expect(handle().props['aria-valuemin']).toBe(0);
+      expect(width()).toBe(200);
+      expect(panel().props['data-collapse-charging']).toBe(true);
+      expect(panel().props['data-collapse-preview']).toBe(true);
+      expect(panel().props.style['--mr-collapse-progress']).toBe('1');
+      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(1);
+      expect(renderer.root.findByProps({ 'data-panel-collapse-badge': '' }).children).toEqual([
+        'Collapse navigation panel',
+      ]);
+      expect(handle().props['aria-valuenow']).toBe(200);
+      expect(handle().props['aria-valuemin']).toBe(200);
       expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.get(storageKey)).toBe('356');
@@ -250,23 +268,30 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('follows the pointer below the smallest width and settles on it above the threshold', async () => {
+  it('holds at the smallest width while charging collapse and settles on it above the threshold', async () => {
     const onCollapse = vi.fn();
-    const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+    const { renderer, panel, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     await act(() => handle().props.onPointerDown(pointer(256)));
     await act(() => handle().props.onPointerMove(pointer(40)));
-    expect(width()).toBe(40);
+    expect(width()).toBe(200);
+    expect(panel().props['data-collapse-preview']).toBe(true);
     await act(() => handle().props.onPointerMove(pointer(-30)));
-    expect(width()).toBe(0);
+    expect(width()).toBe(200);
+    expect(panel().props['data-collapse-preview']).toBe(true);
     await act(() => handle().props.onPointerMove(pointer(160)));
-    expect(width()).toBe(160);
+    expect(width()).toBe(200);
     expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
     await act(() => handle().props.onPointerMove(pointer(180)));
-    expect(width()).toBe(180);
+    expect(width()).toBe(200);
+    expect(panel().props['data-collapse-charging']).toBe(true);
+    expect(panel().props['data-collapse-preview']).toBeUndefined();
+    expect(panel().props.style['--mr-collapse-progress']).toBe('0.5');
+    expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
     expect(handle().props['aria-valuetext']).toBeUndefined();
     await act(() => handle().props.onPointerUp(pointer(180)));
     expect(onCollapse).not.toHaveBeenCalled();
     expect(width()).toBe(200);
+    expect(panel().props['data-collapse-charging']).toBeUndefined();
     expect(storage.get(storageKey)).toBe('200');
     act(() => renderer.unmount());
   });
@@ -275,12 +300,16 @@ describe('ResizablePageNav', () => {
     'cancels a collapse preview on %s without saving a tiny width',
     async (event) => {
       const onCollapse = vi.fn();
-      const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+      const { renderer, panel, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
       await act(() => handle().props.onPointerDown(pointer(256)));
       await act(() => handle().props.onPointerMove(pointer(150)));
-      expect(width()).toBe(150);
+      expect(width()).toBe(200);
+      expect(panel().props['data-collapse-preview']).toBe(true);
       await act(() => handle().props[event](pointer(150)));
       expect(width()).toBe(256);
+      expect(panel().props['data-collapse-charging']).toBeUndefined();
+      expect(panel().props['data-collapse-preview']).toBeUndefined();
+      expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(0);
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.has(storageKey)).toBe(false);
       act(() => renderer.unmount());
@@ -290,10 +319,13 @@ describe('ResizablePageNav', () => {
   it('previews collapse when dragging inward in RTL', async () => {
     direction = 'rtl';
     const onCollapse = vi.fn();
-    const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+    const { renderer, panel, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     await act(() => handle().props.onPointerDown(pointer(800)));
     await act(() => handle().props.onPointerMove(pointer(906)));
-    expect(width()).toBe(150);
+    expect(width()).toBe(200);
+    expect(panel().props['data-collapse-charging']).toBe(true);
+    expect(panel().props['data-collapse-preview']).toBe(true);
+    expect(renderer.root.findAllByProps({ 'data-panel-collapse-overlay': '' })).toHaveLength(1);
     await act(() => handle().props.onPointerUp(pointer(906)));
     expect(onCollapse).toHaveBeenCalledTimes(1);
     expect(storage.has(storageKey)).toBe(false);
@@ -399,17 +431,18 @@ describe('ResizablePageNav', () => {
   );
 
   it.each([
-    { pointerX: 400, preview: 400 },
-    { pointerX: 150, preview: 150 },
+    { pointerX: 400, expectedWidth: 400, collapsePreview: undefined },
+    { pointerX: 150, expectedWidth: 200, collapsePreview: true },
   ])(
-    'discards the $preview px preview on mobile and restores the saved width',
-    async ({ pointerX, preview }) => {
+    'discards the $pointerX px drag preview on mobile and restores the saved width',
+    async ({ pointerX, expectedWidth, collapsePreview }) => {
       storage.set(storageKey, '300');
       const onCollapse = vi.fn();
-      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
+      const { renderer, panel, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
       await act(() => handle().props.onPointerDown(pointer(300)));
       await act(() => handle().props.onPointerMove(pointer(pointerX)));
-      expect(width()).toBe(preview);
+      expect(width()).toBe(expectedWidth);
+      expect(panel().props['data-collapse-preview']).toBe(collapsePreview);
       const changeScreen = (screenSize: ScreenSize) =>
         act(() => {
           renderer.update(

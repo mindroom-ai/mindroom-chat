@@ -34,18 +34,29 @@ globalStyle(`${Panel} > :first-child`, {
   minWidth: 0,
   minHeight: 0,
   overflowX: 'clip',
-  transition: 'transform 160ms cubic-bezier(0.2, 0, 0, 1)',
+  transition: 'transform 160ms cubic-bezier(0.2, 0, 0, 1), opacity 140ms ease',
   '@media': {
     '(prefers-reduced-motion: reduce)': { transition: 'none' },
   },
 });
-// Zero transition lag while actively dragging, and no reverse recoil when snapping to filled width.
+// Zero transform lag while actively dragging or snapping to filled width; opacity still eases.
 globalStyle(`${Panel}:is([data-dragging], [data-filled]) > :first-child`, {
-  transition: 'none',
+  transition: 'opacity 120ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
 });
 // Damped elastic give in the resize direction while dragging past maxWidth; never alters layout width.
 globalStyle(`${Panel}[data-expand-charging] > :first-child`, {
   transform: 'translateX(calc(var(--mr-expand-pull, 0px) * var(--mr-expand-dir, 1)))',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transform: 'none' },
+  },
+});
+// Symmetric inward elastic pull and progressive dimming while dragging below minWidth.
+globalStyle(`${Panel}[data-collapse-charging] > :first-child`, {
+  transform: 'translateX(calc(-1 * var(--mr-collapse-pull, 0px) * var(--mr-expand-dir, 1)))',
+  opacity: 'calc(1 - 0.56 * var(--mr-collapse-progress, 0))',
   '@media': {
     '(prefers-reduced-motion: reduce)': { transform: 'none' },
   },
@@ -102,15 +113,13 @@ globalStyle(
   { backgroundColor: color.Primary.Main }
 );
 
-// Dragging past maxWidth stretches the solid accent pill monotonically with `--mr-expand-progress`
-// (`0` -> `1`) with no size transition lag or background flip that could flicker at the max edge.
-// Floating cards set `--mr-pill-base-height` / `--mr-pill-target-height` to grow the centered pill;
-// flat panels stay full-height and thicken monotonically so the room/thread divider never shrinks.
-globalStyle(`${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill]`, {
-  inlineSize:
-    'calc(var(--mr-pill-base-width, 2px) + (4.5px - var(--mr-pill-base-width, 2px)) * var(--mr-expand-progress, 0))',
-  blockSize:
-    'calc(var(--mr-pill-base-height, 100%) + (var(--mr-pill-target-height, 100%) - var(--mr-pill-base-height, 100%)) * var(--mr-expand-progress, 0))',
+// Dragging past maxWidth or below minWidth stretches the solid accent pill monotonically with
+// progress (`0` -> `1`) with no size transition lag or background flip that could flicker at the
+// edge. Floating cards set `--mr-pill-base-height` / `--mr-pill-target-height` to grow the centered
+// pill; flat panels stay full-height and thicken monotonically so the divider never shrinks.
+const chargingPillStyle = (progressVar: string) => ({
+  inlineSize: `calc(var(--mr-pill-base-width, 2px) + (4.5px - var(--mr-pill-base-width, 2px)) * var(${progressVar}, 0))`,
+  blockSize: `calc(var(--mr-pill-base-height, 100%) + (var(--mr-pill-target-height, 100%) - var(--mr-pill-base-height, 100%)) * var(${progressVar}, 0))`,
   borderRadius: 'var(--mr-pill-radius, 0px)',
   backgroundColor: color.Primary.Main,
   boxShadow: `0 0 10px color-mix(in srgb, ${color.Primary.Main} 45%, transparent)`,
@@ -121,9 +130,57 @@ globalStyle(`${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill]
   },
 });
 
+globalStyle(
+  `${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill]`,
+  chargingPillStyle('--mr-expand-progress')
+);
+globalStyle(
+  `${Panel}[data-collapse-charging] > ${Handle} [data-panel-handle-pill]`,
+  chargingPillStyle('--mr-collapse-progress')
+);
+
 // Once armed past EXPAND_PAST, hide the handle pill so no vertical line competes with the snap preview.
 globalStyle(`${Panel}[data-expand-preview] > ${Handle} [data-panel-handle-pill]`, {
   opacity: 0,
+});
+
+// Soft accent tint and centered fold chip shown while releasing the drag will collapse the panel;
+// borderless so the tall glowing handle pill stays the single vertical accent line.
+globalStyle(`${Panel} > [data-panel-collapse-overlay]`, {
+  position: 'absolute',
+  inset: 0,
+  borderRadius: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingInline: config.space.S200,
+  boxSizing: 'border-box',
+  backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 9%, transparent)`,
+  pointerEvents: 'none',
+  zIndex: 10,
+  animation: `${expandGhostEnter} 160ms cubic-bezier(0.2, 0, 0, 1)`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { animation: 'none' },
+  },
+});
+
+globalStyle(`${Panel} > [data-panel-collapse-overlay] > [data-panel-collapse-badge]`, {
+  display: 'inline-flex',
+  alignItems: 'center',
+  maxInlineSize: '100%',
+  paddingBlock: config.space.S100,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Surface.Container,
+  color: color.Primary.Main,
+  border: `1.5px solid color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+  boxShadow: config.shadow.E200,
+  fontSize: config.fontSize.T200,
+  fontWeight: config.fontWeight.W600,
+  lineHeight: config.lineHeight.T200,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 });
 
 // Full-room snap target silhouette shown while releasing the drag will fill the room.

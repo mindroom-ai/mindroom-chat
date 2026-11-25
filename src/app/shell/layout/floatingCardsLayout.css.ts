@@ -86,7 +86,7 @@ globalStyle(
   }
 );
 globalStyle(
-  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle} [data-panel-handle-pill]`,
+  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview], [data-collapse-charging]) > ${Handle} [data-panel-handle-pill]`,
   {
     inlineSize: 'var(--mr-pill-base-width)',
     blockSize: 'var(--mr-pill-base-height)',
@@ -96,13 +96,26 @@ globalStyle(
   }
 );
 globalStyle(
-  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle}:is(:hover, :focus-visible, :active) [data-panel-handle-pill], ${FloatingShell} ${Panel}[data-dragging]:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle} [data-panel-handle-pill]`,
+  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview], [data-collapse-charging]) > ${Handle}:is(:hover, :focus-visible, :active) [data-panel-handle-pill], ${FloatingShell} ${Panel}[data-dragging]:not(${PageSurface} *, [data-expand-charging], [data-expand-preview], [data-collapse-charging]) > ${Handle} [data-panel-handle-pill]`,
   { opacity: 1 }
 );
 globalStyle(`${FloatingShell} ${SIDE_PANEL} > [data-panel-expand-ghost]`, {
   insetBlock: CARD_GAP,
   borderRadius: cardRadius,
 });
+globalStyle(`${FloatingShell} ${SIDE_PANEL} > [data-panel-collapse-overlay]`, {
+  insetBlock: CARD_GAP,
+  borderRadius: cardRadius,
+});
+globalStyle(
+  `${FloatingShell} ${Panel}[data-side='start']:not(${PageSurface} *) > [data-panel-collapse-overlay]`,
+  {
+    insetBlock: CARD_GAP,
+    insetInlineStart: CARD_GAP,
+    insetInlineEnd: config.space.S300,
+    borderRadius: cardRadius,
+  }
+);
 globalStyle(
   `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *) > [data-conversation-behind-panel]`,
   {
