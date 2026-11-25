@@ -16,6 +16,7 @@ import { useRoomsUnread } from '../../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { joinPathComponent } from '../../routes/pathUtils';
 import { SidebarContextMenu, useSidebarContextMenu } from './SidebarContextMenu';
+import type { RailButtonContextMenuProps } from './railVisibilityMenuContext';
 
 type SectionTabProps = {
   /** The section's key among the last opened paths. */
@@ -41,6 +42,8 @@ type SectionTabProps = {
    * open panel may collapse; true when it did.
    */
   onSelect?: (selected: boolean, allowCollapse?: boolean) => boolean;
+  /** Context menu props hosted by the rail; when passed, skips the local SidebarContextMenu. */
+  contextMenuProps?: RailButtonContextMenuProps;
 };
 
 /**
@@ -59,6 +62,7 @@ export function SectionTab({
   menu,
   personal,
   onSelect,
+  contextMenuProps,
 }: SectionTabProps) {
   const { anchor: menuAnchor, close: closeMenu, buttonProps } = useSidebarContextMenu();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -88,7 +92,7 @@ export function SectionTab({
             outlined
             aria-label={label}
             onClick={open}
-            {...buttonProps}
+            {...(contextMenuProps ?? buttonProps)}
           >
             <Icon filled={selected} src={icon} />
           </SidebarAvatar>
@@ -103,9 +107,11 @@ export function SectionTab({
           />
         </SidebarItemBadge>
       )}
-      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-        <MenuGroup>{menu(closeMenu)}</MenuGroup>
-      </SidebarContextMenu>
+      {!contextMenuProps && (
+        <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
+          <MenuGroup>{menu(closeMenu)}</MenuGroup>
+        </SidebarContextMenu>
+      )}
     </SidebarItem>
   );
 }

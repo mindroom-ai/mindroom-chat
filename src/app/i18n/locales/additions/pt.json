@@ -1907,6 +1907,12 @@
       "show": "Mostrar",
       "hide": "Ocultar",
       "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Mostrar na barra lateral",
+        "sidebarSettings": "Definições da barra lateral…"
+      }
     }
   },
   "composer": {

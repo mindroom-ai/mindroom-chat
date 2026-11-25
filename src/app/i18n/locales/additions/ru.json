@@ -1972,6 +1972,12 @@
       "show": "Показать",
       "hide": "Скрыть",
       "zeroTokens": "0 токенов"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Показывать на боковой панели",
+        "sidebarSettings": "Настройки боковой панели…"
+      }
     }
   },
   "composer": {

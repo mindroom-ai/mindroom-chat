@@ -1842,6 +1842,12 @@
       "show": "Tonen",
       "hide": "Verbergen",
       "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "In de zijbalk tonen",
+        "sidebarSettings": "Zijbalkinstellingen…"
+      }
     }
   },
   "composer": {

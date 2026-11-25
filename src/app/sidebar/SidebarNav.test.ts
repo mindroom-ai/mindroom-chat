@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   homeserverUrl: 'https://mindroom.chat',
 }));
 
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
     React.createElement('div', { ref }, children),
 }));

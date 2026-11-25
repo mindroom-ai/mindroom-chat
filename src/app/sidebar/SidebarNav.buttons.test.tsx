@@ -16,7 +16,8 @@ function tab(name: string) {
   return () => React.createElement('div', { 'data-tab': name });
 }
 
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
     React.createElement('div', { ref }, children),
 }));

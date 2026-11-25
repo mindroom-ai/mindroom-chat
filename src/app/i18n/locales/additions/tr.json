@@ -1842,6 +1842,12 @@
       "show": "Göster",
       "hide": "Gizle",
       "zeroTokens": "0 belirteç"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Kenar çubuğunda göster",
+        "sidebarSettings": "Kenar çubuğu ayarları…"
+      }
     }
   },
   "composer": {

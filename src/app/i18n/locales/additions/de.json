@@ -1842,6 +1842,12 @@
       "show": "Anzeigen",
       "hide": "Ausblenden",
       "zeroTokens": "0 Token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "In der Seitenleiste anzeigen",
+        "sidebarSettings": "Seitenleisten-Einstellungen…"
+      }
     }
   },
   "composer": {

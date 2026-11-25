@@ -1842,6 +1842,12 @@
       "show": "দেখান",
       "hide": "লুকান",
       "zeroTokens": "০ টোকেন"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "সাইডবারে দেখান",
+        "sidebarSettings": "সাইডবার সেটিংস…"
+      }
     }
   },
   "composer": {
