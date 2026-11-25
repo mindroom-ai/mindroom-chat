@@ -376,7 +376,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       (getVirtualizer() as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()
     ).toBe(false);
 
-    render([keys[30], ...keys.filter((_, i) => i !== 30)]);
+    render([keys[30]!, ...keys.filter((_, i) => i !== 30)]);
     // Must stay at 1300 during the iOS fling while holding +100px so row $ev-13 stays still.
     expect(scrollElement.scrollTop).toBe(1300);
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(100);
