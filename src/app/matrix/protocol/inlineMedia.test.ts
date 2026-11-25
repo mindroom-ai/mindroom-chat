@@ -44,8 +44,8 @@ describe('readInlineMedia', () => {
     for (let i = 0; i < MAX_INLINE_MEDIA_ENTRIES + 5; i += 1) {
       many[`mxc://ex/${i}`] = validFile(`mxc://ex/${i}`);
     }
-    expect(readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: many })?.size).toBe(
-      MAX_INLINE_MEDIA_ENTRIES
-    );
+    const capped = readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: many })!;
+    expect([...capped.values()].filter(Boolean)).toHaveLength(MAX_INLINE_MEDIA_ENTRIES);
+    expect(capped.get(`mxc://ex/${MAX_INLINE_MEDIA_ENTRIES}`)).toBeNull();
   });
 });

@@ -1,5 +1,11 @@
 import parse from 'html-react-parser';
-import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  MatrixEvent,
+  SyncState,
+  type IContent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -7,6 +13,7 @@ import { ClientConfigProvider } from '../../config/useClientConfig';
 import {
   INLINE_MEDIA_CONTENT_KEY,
   InlineMediaContext,
+  MAX_INLINE_MEDIA_ENTRIES,
   readInlineMedia,
 } from '../../matrix/protocol/inlineMedia';
 import { getLatestMessageContent } from '../../matrix/room';
@@ -155,25 +162,43 @@ describe('encrypted inline message images', () => {
     expect(revokeSpy).toHaveBeenCalledWith('blob:decrypted-1');
   });
 
-  it('shows alt text with no plaintext fetch for mismatched url, bad entry, or failed hash', async () => {
+  it('shows alt text with no plaintext fetch for mismatched, bad, over-cap, emoticon, or failed-hash entries, and retries on sync recovery', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    mocks.loadImageOriginal.mockRejectedValueOnce(new Error('Hash mismatch'));
-    const entries = readInlineMedia({
-      [INLINE_MEDIA_CONTENT_KEY]: {
-        'mxc://ex/mismatch': enc('mxc://ex/other'),
-        'mxc://ex/bad': { v: 'v1', url: 'mxc://ex/bad' },
-        'mxc://ex/badhash': enc('mxc://ex/badhash'),
+    const listeners: Array<(state: SyncState, prev: SyncState | null) => void> = [];
+    const syncMx = {
+      ...mx,
+      on: (event: ClientEvent, fn: (state: SyncState, prev: SyncState | null) => void) => {
+        if (event === ClientEvent.Sync) listeners.push(fn);
       },
-    })!;
-    const options = getReactCustomHtmlParser(mx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
+    } as unknown as MatrixClient;
+    mocks.loadImageOriginal
+      .mockRejectedValueOnce(new Error('Temporary network error'))
+      .mockResolvedValueOnce({ src: 'blob:recovered' });
+
+    const raw: Record<string, unknown> = {
+      'mxc://ex/mismatch': enc('mxc://ex/other'),
+      'mxc://ex/bad': { v: 'v1', url: 'mxc://ex/bad' },
+      'mxc://ex/emo': { v: 'v1', url: 'mxc://ex/emo' },
+      'mxc://ex/retry': enc('mxc://ex/retry'),
+    };
+    for (let i = 0; i < MAX_INLINE_MEDIA_ENTRIES; i += 1) {
+      raw[`mxc://ex/pad-${i}`] = enc(`mxc://ex/pad-${i}`);
+    }
+    raw['mxc://ex/overcap'] = enc('mxc://ex/overcap');
+    const entries = readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: raw })!;
+    const options = getReactCustomHtmlParser(syncMx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
 
     act(() => {
       renderer = create(
         <InlineMediaContext value={{ entries }}>
           <div>
             {parse(
-              '<img src="mxc://ex/mismatch" alt="Mismatch"><img src="mxc://ex/bad" alt="Bad"><img src="mxc://ex/badhash" alt="BadHash">',
+              '<img src="mxc://ex/mismatch" alt="Mismatch">' +
+                '<img src="mxc://ex/bad" alt="Bad">' +
+                '<img src="mxc://ex/emo" data-mx-emoticon alt=":bad-emo:">' +
+                '<img src="mxc://ex/overcap" alt="OverCap">' +
+                '<img src="mxc://ex/retry" alt="Retry">',
               options
             )}
           </div>
@@ -186,9 +211,21 @@ describe('encrypted inline message images', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(renderer!.root.findAllByType('img')).toHaveLength(0);
     const json = JSON.stringify(renderer!.toJSON());
-    expect(json).toContain('Mismatch');
-    expect(json).toContain('Bad');
-    expect(json).toContain('BadHash');
+    for (const alt of ['Mismatch', 'Bad', ':bad-emo:', 'OverCap', 'Retry']) {
+      expect(json).toContain(alt);
+    }
+
+    act(() => {
+      listeners.forEach((fn) => fn(SyncState.Syncing, SyncState.Reconnecting));
+    });
+    await flush();
+
+    expect(mocks.loadImageOriginal).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(renderer!.root.findByType('img').props).toMatchObject({
+      src: 'blob:recovered',
+      alt: 'Retry',
+    });
   });
 
   it('keeps plain images unchanged without a map, respects mxcImages=false, and preserves linked images', async () => {

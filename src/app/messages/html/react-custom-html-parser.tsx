@@ -60,7 +60,7 @@ import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
 import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
 import type { AvatarMediaClient } from '../../avatars/avatarMedia';
-import { useAvatarImage } from '../../avatars/useAvatarImage';
+import { useAvatarImage, useSyncReconnectCount } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
@@ -77,12 +77,50 @@ import {
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
 
+type InlineImageKind = 'standalone' | 'linked' | 'emoticon';
+
+function InlineImageButton(props: {
+  alt: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  viewerSrc: string | undefined;
+  downloadBlob?: Blob;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const label = props.alt || t('sharedUi.imageContent.view');
+  return (
+    <>
+      <button
+        type="button"
+        className={css.InlineImageButton}
+        aria-label={revealDirectionControls(label)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          props.onToggle(true);
+        }}
+      >
+        {props.children}
+      </button>
+      {props.open && (
+        <ImageOverlay
+          src={props.viewerSrc}
+          downloadBlob={props.downloadBlob}
+          alt={label}
+          requestClose={() => props.onToggle(false)}
+        />
+      )}
+    </>
+  );
+}
+
 function EncryptedInlineImage({
   alt = '',
   client,
   entry,
   owner,
-  linked,
+  kind,
   onError,
   src: _plainSrc,
   ...props
@@ -90,15 +128,29 @@ function EncryptedInlineImage({
   client: MatrixClient;
   entry: InlineMediaEntry;
   owner?: EventAttachmentOwner;
-  linked: boolean;
+  kind: InlineImageKind;
 }) {
-  const { t } = useTranslation();
   const [viewerSrc, setViewerSrc] = useState<string>();
-  const [result, setResult] = useState<{ key: string; loaded?: LoadedImageOriginal }>();
-  const latestRef = useRef({ entry, owner });
-  latestRef.current = { entry, owner };
+  const [retryCount, setRetryCount] = useState(0);
+  const [result, setResult] = useState<{
+    key: string;
+    loaded?: LoadedImageOriginal;
+    failedAt?: number;
+  }>();
+  const reconnectCount = useSyncReconnectCount(client);
+  const latestRef = useRef({ entry, owner, reconnectCount });
+  latestRef.current = { entry, owner, reconnectCount };
   const { file, mimeType } = entry;
   const entryKey = `${file.url}|${file.iv}|${file.hashes.sha256}|${file.key.k}|${mimeType ?? ''}`;
+
+  if (
+    result?.key === entryKey &&
+    result.failedAt !== undefined &&
+    result.failedAt < reconnectCount
+  ) {
+    setResult(undefined);
+    setRetryCount((n) => n + 1);
+  }
 
   useEffect(() => {
     const { entry: cur, owner: curOwner } = latestRef.current;
@@ -118,24 +170,26 @@ function EncryptedInlineImage({
           setResult({ key: entryKey, loaded });
         }
       },
-      () => !controller.signal.aborted && setResult({ key: entryKey })
+      () =>
+        !controller.signal.aborted &&
+        setResult({ key: entryKey, failedAt: latestRef.current.reconnectCount })
     );
     return () => {
       controller.abort();
       if (createdUrl) revokeBlobUrl(createdUrl);
     };
-  }, [client, entryKey]);
+  }, [client, entryKey, retryCount]);
 
   const current = result?.key === entryKey ? result : undefined;
   const loaded = current?.loaded;
-  const shownAlt = revealDirectionControls(alt);
-  if (!loaded) return current || linked ? <>{shownAlt}</> : null;
+  const shownAlt = kind === 'emoticon' ? alt : revealDirectionControls(alt);
+  if (!loaded) return current || kind === 'linked' ? <>{shownAlt}</> : null;
   const img = (
     <img
       {...props}
       src={loaded.src}
       alt={shownAlt}
-      className={css.InlineImage}
+      className={kind === 'emoticon' ? css.Emoticon() : css.InlineImage}
       loading="lazy"
       onError={(event) => {
         setResult({ key: entryKey });
@@ -143,31 +197,17 @@ function EncryptedInlineImage({
       }}
     />
   );
-  if (linked) return img;
-  const label = alt || t('sharedUi.imageContent.view');
+  if (kind !== 'standalone') return img;
   return (
-    <>
-      <button
-        type="button"
-        className={css.InlineImageButton}
-        aria-label={revealDirectionControls(label)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setViewerSrc(loaded.src);
-        }}
-      >
-        {img}
-      </button>
-      {viewerSrc === loaded.src && (
-        <ImageOverlay
-          src={loaded.src}
-          downloadBlob={loaded.downloadBlob}
-          alt={label}
-          requestClose={() => setViewerSrc(undefined)}
-        />
-      )}
-    </>
+    <InlineImageButton
+      alt={alt}
+      open={viewerSrc === loaded.src}
+      onToggle={(open) => setViewerSrc(open ? loaded.src : undefined)}
+      viewerSrc={loaded.src}
+      downloadBlob={loaded.downloadBlob}
+    >
+      {img}
+    </InlineImageButton>
   );
 }
 
@@ -177,38 +217,26 @@ function PlainInlineImage({
   src,
   ...props
 }: ComponentPropsWithoutRef<'img'> & { client?: AvatarMediaClient }) {
-  const { t } = useTranslation();
   const [viewerOpen, setViewerOpen] = useState(false);
   // Resolve a live URL on open so an inline image whose cached blob was evicted still opens.
   const viewer = useAvatarImage(viewerOpen ? src : undefined, client);
-  const label = alt || t('sharedUi.imageContent.view');
-  const openViewer = (event: SyntheticEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setViewerOpen(true);
-  };
   return (
-    <>
-      <button
-        type="button"
-        className={css.InlineImageButton}
-        aria-label={revealDirectionControls(label)}
-        onClick={openViewer}
-      >
-        <AuthenticatedImage
-          {...props}
-          client={client}
-          src={src}
-          alt={revealDirectionControls(alt)}
-          fallback={alt ? revealDirectionControls(alt) : null}
-          className={css.InlineImage}
-          loading="lazy"
-        />
-      </button>
-      {viewerOpen && (
-        <ImageOverlay src={viewer.imageSrc} alt={label} requestClose={() => setViewerOpen(false)} />
-      )}
-    </>
+    <InlineImageButton
+      alt={alt}
+      open={viewerOpen}
+      onToggle={setViewerOpen}
+      viewerSrc={viewer.imageSrc}
+    >
+      <AuthenticatedImage
+        {...props}
+        client={client}
+        src={src}
+        alt={revealDirectionControls(alt)}
+        fallback={alt ? revealDirectionControls(alt) : null}
+        className={css.InlineImage}
+        loading="lazy"
+      />
+    </InlineImageButton>
   );
 }
 
@@ -217,15 +245,15 @@ function InlineImage({
   mxcUri,
   client,
   alt = '',
-  linked = false,
+  kind = 'standalone',
   ...props
 }: ComponentPropsWithoutRef<'img'> & {
   client: MatrixClient;
   mxcUri: string;
-  linked?: boolean;
+  kind?: InlineImageKind;
 }) {
   const inlineMedia = useContext(InlineMediaContext);
-  const shownAlt = revealDirectionControls(alt);
+  const shownAlt = kind === 'emoticon' ? alt : revealDirectionControls(alt);
   const entry = inlineMedia?.entries.get(mxcUri);
   if (entry === null) return <>{shownAlt}</>;
   if (entry) {
@@ -236,19 +264,19 @@ function InlineImage({
         entry={entry}
         owner={inlineMedia?.owner}
         alt={alt}
-        linked={linked}
+        kind={kind}
       />
     );
   }
-  if (linked) {
+  if (kind !== 'standalone') {
     return (
       <AuthenticatedImage
         {...props}
         client={client}
         alt={shownAlt}
         fallback={shownAlt}
-        showFallbackWhileLoading
-        className={css.InlineImage}
+        showFallbackWhileLoading={kind === 'linked'}
+        className={kind === 'emoticon' ? css.Emoticon() : css.InlineImage}
         loading="lazy"
       />
     );
@@ -1152,17 +1180,15 @@ export const getReactCustomHtmlParser = (
           if (params.mxcImages === false) return <>{alt ?? ''}</>;
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
-            const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
-                <AuthenticatedImage
+                <InlineImage
                   client={mx}
-                  className={css.Emoticon()}
+                  mxcUri={src}
                   src={url}
-                  alt={emoticonAlt}
-                  fallback={emoticonAlt}
+                  alt={alt ?? title ?? ''}
                   title={title ?? alt}
-                  loading="lazy"
+                  kind="emoticon"
                 />
               </span>
             );
@@ -1174,7 +1200,7 @@ export const getReactCustomHtmlParser = (
               mxcUri={src}
               src={url}
               alt={alt ?? ''}
-              linked={hasAncestor(domNode, ['a'])}
+              kind={hasAncestor(domNode, ['a']) ? 'linked' : 'standalone'}
             />
           );
         }

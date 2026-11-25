@@ -21,9 +21,14 @@ export const readInlineMedia = (content: unknown): InlineMediaMap | undefined =>
   const raw = content[INLINE_MEDIA_CONTENT_KEY];
   if (!isRecord(raw)) return undefined;
   const map = new Map<string, InlineMediaEntry | null>();
+  let checked = 0;
   for (const [key, value] of Object.entries(raw)) {
     if (!key.startsWith('mxc://')) continue;
-    if (map.size >= MAX_INLINE_MEDIA_ENTRIES) break;
+    if (checked >= MAX_INLINE_MEDIA_ENTRIES) {
+      map.set(key, null);
+      continue;
+    }
+    checked += 1;
     const file = readEncryptedFile(value);
     if (!file || file.url !== key) {
       map.set(key, null);
