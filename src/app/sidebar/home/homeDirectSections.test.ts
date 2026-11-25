@@ -464,4 +464,51 @@ describe('homeDirectSections', () => {
     // Expanded shows every room.
     expect(selectRenderedDirectRooms(eight, '!dm-8:example.org', false, true)).toHaveLength(8);
   });
+
+  it('caps Agents at 5 + selected when > 6, expands all when requested, and shows only selected when closed', () => {
+    const makeAgent = (index: number, withDm = true) => ({
+      userId: `@mindroom_a${index}:example.org`,
+      name: `Agent ${index}`,
+      dmRoom: withDm
+        ? makeRoom({
+            roomId: `!dm-agent-${index}:example.org`,
+            joined: 2,
+            partnerId: `@mindroom_a${index}:example.org`,
+          })
+        : undefined,
+      lastActivityTs: 100 - index,
+    });
+
+    const six = Array.from({ length: 6 }, (_, i) => makeAgent(i + 1));
+    expect(selectRenderedAgents(six, undefined, false, false)).toEqual(six);
+
+    const eight = [...six, makeAgent(7, false), makeAgent(8, true)];
+    expect(selectRenderedAgents(eight, undefined, false, false).map((a) => a.userId)).toEqual([
+      '@mindroom_a1:example.org',
+      '@mindroom_a2:example.org',
+      '@mindroom_a3:example.org',
+      '@mindroom_a4:example.org',
+      '@mindroom_a5:example.org',
+    ]);
+
+    // Selected agent past the cap stays visible; selected within first 5 is not duplicated.
+    expect(
+      selectRenderedAgents(eight, '!dm-agent-8:example.org', false, false).map((a) => a.userId)
+    ).toEqual([
+      '@mindroom_a1:example.org',
+      '@mindroom_a2:example.org',
+      '@mindroom_a3:example.org',
+      '@mindroom_a4:example.org',
+      '@mindroom_a5:example.org',
+      '@mindroom_a8:example.org',
+    ]);
+    expect(selectRenderedAgents(eight, '!dm-agent-3:example.org', false, false)).toHaveLength(5);
+
+    // Expanded shows every agent; closed overrides expanded and shows only the selected agent.
+    expect(selectRenderedAgents(eight, '!dm-agent-8:example.org', false, true)).toHaveLength(8);
+    expect(
+      selectRenderedAgents(eight, '!dm-agent-8:example.org', true, true).map((a) => a.userId)
+    ).toEqual(['@mindroom_a8:example.org']);
+    expect(selectRenderedAgents(eight, undefined, true, true)).toEqual([]);
+  });
 });

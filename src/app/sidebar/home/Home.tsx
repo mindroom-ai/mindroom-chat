@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import classNames from 'classnames';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -104,10 +105,17 @@ function HomeUnspacedRoomsSection({
 }: HomeUnspacedRoomsSectionProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const sectionDrop = useRoomSectionDrop(HOME_ROOM_LIST);
+  const { className: sectionDropClassName, ...sectionDropProps } =
+    useRoomSectionDrop(HOME_ROOM_LIST);
 
   return (
-    <NavCategory data-testid="room-nav-category" {...sectionDrop}>
+    <NavCategory
+      data-testid="room-nav-category"
+      {...sectionDropProps}
+      className={classNames(sectionDropClassName, spaceSectionCss.SpaceSectionNode)}
+      data-depth="0"
+      data-expanded={!roomsClosed || listedRoomIds.length > 0 ? 'true' : undefined}
+    >
       <HomeSectionHeader
         label={t('nav.rooms')}
         categoryId={roomsCategoryId}
@@ -174,6 +182,7 @@ export function Home() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
   const [showAllDms, setShowAllDms] = useState(false);
+  const [showAllAgents, setShowAllAgents] = useState(false);
 
   const {
     allVisibleHomeRooms,
@@ -214,8 +223,8 @@ export function Home() {
     [humanDms, selectedRoomId, directClosed, showAllDms]
   );
   const visibleAgents = useMemo(
-    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed),
-    [agents, selectedRoomId, agentsClosed]
+    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed, showAllAgents),
+    [agents, selectedRoomId, agentsClosed, showAllAgents]
   );
 
   const allShortcutRoomIds = useMemo(
@@ -329,49 +338,47 @@ export function Home() {
             options={emptyRoomActions}
           />
         ) : (
-          <Box direction="Column" gap="300">
+          <Box direction="Column" gap="200">
             {!phone && (
               <CommandPaletteSearchField className={homeSectionsCss.PopulatedSearchField} />
             )}
             {(unspaced.length > 0 || sectionTree.length > 0) && (
               <SortableRoomGroup>
-                {unspaced.length > 0 && (
-                  <HomeUnspacedRoomsSection
-                    roomsCategoryId={roomsCategoryId}
-                    roomsClosed={roomsClosed}
-                    listedRoomIds={listedRoomIds}
-                    shownRoomIds={unspacedShownRoomIds}
-                    selectedRoomId={selectedRoomId}
-                    tree={tree}
-                    roomOrder={roomOrder}
-                    virtualizer={virtualizer}
-                    addRoomsMenu={addRoomsMenu}
-                    onCategoryClick={onCategoryClick}
-                    rowProps={rowProps}
-                    renderSubRoom={renderSubRoom}
-                  />
-                )}
-                {sectionTree.length > 0 && (
-                  <div className={spaceSectionCss.SpaceSectionStack}>
-                    {sectionTree.map((node) => (
-                      <SpaceRoomSection
-                        key={node.section.categoryId}
-                        section={node.section}
-                        childNodes={node.children}
-                        subtreeShownRoomIds={node.subtreeShownRoomIds}
-                        spaceId={node.section.spaceId}
-                        spaceIdOrAlias={node.section.spaceId}
-                        selectedRoomId={selectedRoomId}
-                        onCategoryClick={onCategoryClick}
-                        onReorder={onReorder}
-                        roomPath={getHomeRoomPath}
-                        showOverview
-                        quietUnread
-                        pinMode={homePinMode}
-                      />
-                    ))}
-                  </div>
-                )}
+                <div className={spaceSectionCss.SpaceSectionStack}>
+                  {unspaced.length > 0 && (
+                    <HomeUnspacedRoomsSection
+                      roomsCategoryId={roomsCategoryId}
+                      roomsClosed={roomsClosed}
+                      listedRoomIds={listedRoomIds}
+                      shownRoomIds={unspacedShownRoomIds}
+                      selectedRoomId={selectedRoomId}
+                      tree={tree}
+                      roomOrder={roomOrder}
+                      virtualizer={virtualizer}
+                      addRoomsMenu={addRoomsMenu}
+                      onCategoryClick={onCategoryClick}
+                      rowProps={rowProps}
+                      renderSubRoom={renderSubRoom}
+                    />
+                  )}
+                  {sectionTree.map((node) => (
+                    <SpaceRoomSection
+                      key={node.section.categoryId}
+                      section={node.section}
+                      childNodes={node.children}
+                      subtreeShownRoomIds={node.subtreeShownRoomIds}
+                      spaceId={node.section.spaceId}
+                      spaceIdOrAlias={node.section.spaceId}
+                      selectedRoomId={selectedRoomId}
+                      onCategoryClick={onCategoryClick}
+                      onReorder={onReorder}
+                      roomPath={getHomeRoomPath}
+                      showOverview
+                      quietUnread
+                      pinMode={homePinMode}
+                    />
+                  ))}
+                </div>
               </SortableRoomGroup>
             )}
             {unspaced.length === 0 && (
@@ -379,31 +386,41 @@ export function Home() {
                 <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />
               </NavCategory>
             )}
-            {showDirectSection && (
-              <HomeDirectSection
-                visibleRooms={visibleDirectRooms}
-                allRoomIds={humanDmRoomIds}
-                closed={directClosed}
-                selectedRoomId={selectedRoomId}
-                showAll={showAllDms}
-                onToggleShowAll={() => setShowAllDms((prev) => !prev)}
-                onCategoryClick={onCategoryClick}
-                homeRoomPath={homeRoomPath}
-                notificationPreferences={notificationPreferences}
-              />
-            )}
-            {agents.length > 0 && (
-              <HomeAgentsSection
-                visibleAgents={visibleAgents}
-                agentDmRoomIds={agentDmRoomIds}
-                closed={agentsClosed}
-                selectedRoomId={selectedRoomId}
-                onCategoryClick={onCategoryClick}
-                homeRoomPath={homeRoomPath}
-                notificationPreferences={notificationPreferences}
-              />
-            )}
-            <ThreadNavCategory />
+            <div
+              className={classNames(
+                spaceSectionCss.SpaceSectionStack,
+                homeSectionsCss.SecondarySectionGroup
+              )}
+            >
+              {showDirectSection && (
+                <HomeDirectSection
+                  visibleRooms={visibleDirectRooms}
+                  allRoomIds={humanDmRoomIds}
+                  closed={directClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllDms}
+                  onToggleShowAll={() => setShowAllDms((prev) => !prev)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              {agents.length > 0 && (
+                <HomeAgentsSection
+                  visibleAgents={visibleAgents}
+                  totalCount={agents.length}
+                  agentDmRoomIds={agentDmRoomIds}
+                  closed={agentsClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllAgents}
+                  onToggleShowAll={() => setShowAllAgents((prev) => !prev)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              <ThreadNavCategory />
+            </div>
           </Box>
         )}
       </PageNavContent>

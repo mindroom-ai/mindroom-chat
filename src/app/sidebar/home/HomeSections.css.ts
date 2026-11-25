@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-/** Subtle section icon leading the chevron in Home's Direct messages and Agents headers. */
+/** Subtle muted icon inside Home's compact section cap toggle row (`Show all` / `Show less`). */
 export const SectionIcon = style({
   opacity: config.opacity.P500,
   flexShrink: 0,
@@ -37,4 +37,10 @@ export const AgentStartError = style({
 /** Full-width search field at the top of populated Home, spaced by the parent column gap. */
 export const PopulatedSearchField = style({
   inlineSize: '100%',
+});
+
+/** Top divider separating Home's secondary sections (Direct messages, Agents, Threads) from rooms/spaces. */
+export const SecondarySectionGroup = style({
+  borderBlockStart: '1px solid color-mix(in srgb, currentColor 10%, transparent)',
+  paddingBlockStart: config.space.S200,
 });

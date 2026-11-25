@@ -13,7 +13,7 @@ import { agentNameIn, type HomeAgent } from './homeAgents';
 export const HOME_DIRECT_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-direct');
 export const HOME_AGENTS_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-agents');
 
-/** Direct messages list stays compact above this count, showing the first 5 plus any selected room. */
+/** Direct messages and Agents lists stay compact above this count, showing the first 5 plus any selected room. */
 export const HOME_DIRECT_COMPACT_LIMIT = 6;
 export const HOME_DIRECT_COMPACT_PREVIEW = 5;
 
@@ -161,6 +161,25 @@ export const splitHomeDirectSections = (
   return { humanDms, agents, agentDmRoomIds };
 };
 
+const selectCompactItems = <T>(
+  items: readonly T[],
+  getRoomId: (item: T) => string | undefined,
+  selectedRoomId: string | undefined,
+  closed: boolean,
+  expanded: boolean,
+  limit: number,
+  previewCount: number
+): T[] => {
+  const selected = selectedRoomId
+    ? items.find((item) => getRoomId(item) === selectedRoomId)
+    : undefined;
+  if (closed) return selected ? [selected] : [];
+  if (expanded || items.length <= limit) return [...items];
+  const visible = items.slice(0, previewCount);
+  if (selected && !visible.includes(selected)) visible.push(selected);
+  return visible;
+};
+
 /**
  * Single source of truth for rendered Direct messages rows (used by both the section and keyboard
  * shortcuts): when collapsed, shows only `selectedRoomId` if present; when expanded, shows all
@@ -174,31 +193,35 @@ export const selectRenderedDirectRooms = (
   expanded: boolean,
   limit = HOME_DIRECT_COMPACT_LIMIT,
   previewCount = HOME_DIRECT_COMPACT_PREVIEW
-): Room[] => {
-  if (closed) {
-    const selected = selectedRoomId
-      ? rooms.find((room) => room.roomId === selectedRoomId)
-      : undefined;
-    return selected ? [selected] : [];
-  }
-  if (expanded || rooms.length <= limit) return [...rooms];
-  const visible = rooms.slice(0, previewCount);
-  if (selectedRoomId && !visible.some((room) => room.roomId === selectedRoomId)) {
-    const selected = rooms.find((room) => room.roomId === selectedRoomId);
-    if (selected) visible.push(selected);
-  }
-  return visible;
-};
+): Room[] =>
+  selectCompactItems(
+    rooms,
+    (room) => room.roomId,
+    selectedRoomId,
+    closed,
+    expanded,
+    limit,
+    previewCount
+  );
 
-/** Single source of truth for rendered Agents rows (collapsed shows only the selected agent DM). */
+/**
+ * Single source of truth for rendered Agents rows (used by both the section and keyboard
+ * shortcuts): uses the same collapse and compact-cap rules as `selectRenderedDirectRooms`.
+ */
 export const selectRenderedAgents = (
   agents: readonly HomeSidebarAgent[],
   selectedRoomId: string | undefined,
-  closed: boolean
-): HomeSidebarAgent[] => {
-  if (!closed) return [...agents];
-  const selected = selectedRoomId
-    ? agents.find((agent) => agent.dmRoom?.roomId === selectedRoomId)
-    : undefined;
-  return selected ? [selected] : [];
-};
+  closed: boolean,
+  expanded = false,
+  limit = HOME_DIRECT_COMPACT_LIMIT,
+  previewCount = HOME_DIRECT_COMPACT_PREVIEW
+): HomeSidebarAgent[] =>
+  selectCompactItems(
+    agents,
+    (agent) => agent.dmRoom?.roomId,
+    selectedRoomId,
+    closed,
+    expanded,
+    limit,
+    previewCount
+  );

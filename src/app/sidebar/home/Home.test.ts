@@ -10,6 +10,8 @@ import {
   type ClosedNavCategoriesAtom,
   makeClosedNavCategoriesAtom,
 } from '../../ui/nav/closedNavCategories';
+import * as spaceSectionCss from '../space/SpaceRoomSection.css';
+import * as homeSectionsCss from './HomeSections.css';
 import { Home } from './Home';
 
 const {
@@ -297,18 +299,15 @@ vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: 'div' }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: ({
     children,
-    before,
     after,
     closed,
     ...props
   }: {
     children?: React.ReactNode;
-    before?: React.ReactNode;
     after?: React.ReactNode;
     closed?: boolean;
     [key: string]: unknown;
-  }) =>
-    React.createElement('button', { 'aria-expanded': !closed, ...props }, before, children, after),
+  }) => React.createElement('button', { 'aria-expanded': !closed, ...props }, children, after),
 }));
 vi.mock('../room-nav/RoomNavItem', () => ({
   RoomNavItem: ({
@@ -363,7 +362,7 @@ vi.mock('../room-nav/SortableRoomList', () => ({
   },
   useRoomSectionDrop: (spaceId: string) => {
     sectionDropIds.push(spaceId);
-    return { 'data-section-drop': spaceId };
+    return { className: 'section-drop-class', 'data-section-drop': spaceId };
   },
   SortableRoomList: ({
     children,
@@ -1204,5 +1203,91 @@ describe('Home', () => {
     );
     expect(agentOnlyNewDm.props.href).toBe('/direct/create');
     act(() => agentDmOnly.unmount());
+  });
+
+  it('unifies primary/secondary section stacks, merges Rooms drop classes, and caps Agents with Show all / Show less synced to shortcuts', () => {
+    homeState.directRooms = Array.from({ length: 7 }, (_, i) =>
+      makeDm(`!dm-a${i + 1}:example.org`, `@mindroom_a${i + 1}:example.org`, 2, 7000 - i * 100)
+    );
+    homeState.homeAgents = Array.from({ length: 7 }, (_, i) => ({
+      userId: `@mindroom_a${i + 1}:example.org`,
+      name: `Agent ${i + 1}`,
+      roomIds: ['!room:example.org'],
+      direct: { roomId: `!dm-a${i + 1}:example.org`, waiting: false },
+      lastUsedTs: 7000 - i * 100,
+    }));
+
+    const { renderer } = renderHome(
+      ['!room:example.org', '!work:example.org', '!planning:example.org'],
+      { '!planning:example.org': ['!work:example.org'] }
+    );
+
+    // Primary block wraps both unspaced Rooms and space sections in one SpaceSectionStack inside SortableRoomGroup.
+    const group = renderer.root.findByProps({ 'data-sortable-group': 'true' });
+    const primaryStacks = group.findAll(
+      (n) => n.type === 'div' && n.props.className === spaceSectionCss.SpaceSectionStack
+    );
+    expect(primaryStacks).toHaveLength(1);
+    const roomsCategory = primaryStacks[0]!.findByProps({ 'data-testid': 'room-nav-category' });
+    expect(roomsCategory.props.className).toContain('section-drop-class');
+    expect(roomsCategory.props.className).toContain(spaceSectionCss.SpaceSectionNode);
+    expect(roomsCategory.props['data-depth']).toBe('0');
+    expect(roomsCategory.props['data-expanded']).toBe('true');
+    expect(
+      primaryStacks[0]!.findAll(
+        (n) => typeof n.type === 'string' && n.props['data-space-section'] === '!work:example.org'
+      )
+    ).toHaveLength(1);
+
+    // Secondary block groups Direct messages, Agents, and Threads in one SecondarySectionGroup stack.
+    const secondaryStacks = renderer.root.findAll(
+      (n) =>
+        n.type === 'div' &&
+        typeof n.props.className === 'string' &&
+        n.props.className.includes(spaceSectionCss.SpaceSectionStack) &&
+        n.props.className.includes(homeSectionsCss.SecondarySectionGroup)
+    );
+    expect(secondaryStacks).toHaveLength(1);
+    expect(secondaryStacks[0]!.findByProps({ 'data-testid': 'home-direct-section' })).toBeDefined();
+    expect(secondaryStacks[0]!.findByProps({ 'data-testid': 'home-agents-section' })).toBeDefined();
+    expect(secondaryStacks[0]!.findByProps({ 'data-thread-nav': true })).toBeDefined();
+
+    // Agents starts capped at 5 rows with Show all (7); shortcuts track only visible agent DMs.
+    const agentsSection = renderer.root.findByProps({ 'data-testid': 'home-agents-section' });
+    const agentRows = () =>
+      agentsSection.findAll((n) => typeof n.type === 'string' && 'data-room-nav-item' in n.props);
+    const toggle = () =>
+      agentsSection.find(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      );
+
+    expect(agentRows()).toHaveLength(5);
+    expect(textOf(toggle())).toContain('Show all (7)');
+    expect(shortcutCalls.at(-1)).toEqual([
+      '!room:example.org',
+      '!dm-a1:example.org',
+      '!dm-a2:example.org',
+      '!dm-a3:example.org',
+      '!dm-a4:example.org',
+      '!dm-a5:example.org',
+    ]);
+
+    act(() => {
+      toggle().props.onClick();
+    });
+    expect(agentRows()).toHaveLength(7);
+    expect(textOf(toggle())).toContain('Show less');
+    expect(shortcutCalls.at(-1)).toEqual([
+      '!room:example.org',
+      '!dm-a1:example.org',
+      '!dm-a2:example.org',
+      '!dm-a3:example.org',
+      '!dm-a4:example.org',
+      '!dm-a5:example.org',
+      '!dm-a6:example.org',
+      '!dm-a7:example.org',
+    ]);
+
+    act(() => renderer.unmount());
   });
 });

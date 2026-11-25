@@ -1,7 +1,6 @@
 import {
   type MouseEvent,
   type MouseEventHandler,
-  type ReactNode,
   type Ref,
   useCallback,
   useMemo,
@@ -47,7 +46,6 @@ export type SectionHeaderButtonProps = {
   buttonRef?: Ref<HTMLButtonElement>;
   label: string;
   ownDirection?: boolean;
-  before?: ReactNode;
   categoryId: string;
   closed: boolean;
   shownRoomIds: readonly string[];
@@ -64,7 +62,6 @@ export function SectionHeaderButton({
   buttonRef,
   label,
   ownDirection,
-  before,
   categoryId,
   closed,
   shownRoomIds,
@@ -95,7 +92,6 @@ export function SectionHeaderButton({
       className={css.HeaderButton}
       closed={closed}
       ownDirection={ownDirection}
-      before={before}
       data-category-id={categoryId}
       aria-label={unread ? t('featureUi.spaceNav.subspaceUnread', { name: label }) : undefined}
       after={

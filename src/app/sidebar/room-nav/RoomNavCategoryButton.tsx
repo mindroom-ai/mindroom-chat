@@ -9,8 +9,6 @@ type RoomNavCategoryButtonProps = {
   closed?: boolean;
   /** User-authored label: reads in its own direction while lining up with the interface. */
   ownDirection?: boolean;
-  /** Optional leading content between the chevron and label, such as a subtle section icon. */
-  before?: ReactNode;
   /** Trailing content inside the button, such as a collapsed section's unread dot. */
   after?: ReactNode;
 };
@@ -18,17 +16,7 @@ type RoomNavCategoryButtonProps = {
 /** The collapsible heading of a sidebar section such as Rooms, Direct messages, or Threads. */
 export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
   (
-    {
-      as: AsButton = 'button',
-      closed,
-      ownDirection,
-      before,
-      after,
-      children,
-      style,
-      className,
-      ...props
-    },
+    { as: AsButton = 'button', closed, ownDirection, after, children, style, className, ...props },
     ref
   ) => (
     <AsButton
@@ -44,7 +32,6 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
         src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
         data-directional={closed || undefined}
       />
-      {before}
       <Box as="span" grow="Yes">
         <Text
           as="span"
