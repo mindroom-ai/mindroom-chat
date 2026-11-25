@@ -112,12 +112,14 @@ globalStyle(
 
 // Dragging past maxWidth stretches the solid accent pill monotonically with `--mr-expand-progress`
 // (`0` -> `1`) with no size transition lag or background flip that could flicker at the max edge.
+// Floating cards set `--mr-pill-base-height` / `--mr-pill-target-height` to grow the centered pill;
+// flat panels stay full-height and thicken monotonically so the room/thread divider never shrinks.
 globalStyle(`${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill]`, {
   inlineSize:
     'calc(var(--mr-pill-base-width, 2px) + (4.5px - var(--mr-pill-base-width, 2px)) * var(--mr-expand-progress, 0))',
   blockSize:
-    'calc(var(--mr-pill-base-height, 100%) + (100% - 28px - var(--mr-pill-base-height, 100%)) * var(--mr-expand-progress, 0))',
-  borderRadius: config.radii.Pill,
+    'calc(var(--mr-pill-base-height, 100%) + (var(--mr-pill-target-height, 100%) - var(--mr-pill-base-height, 100%)) * var(--mr-expand-progress, 0))',
+  borderRadius: 'var(--mr-pill-radius, 0px)',
   backgroundColor: color.Primary.Main,
   boxShadow: `0 0 10px color-mix(in srgb, ${color.Primary.Main} 45%, transparent)`,
   opacity: 1,

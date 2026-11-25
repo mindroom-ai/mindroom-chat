@@ -80,6 +80,8 @@ globalStyle(
     vars: {
       '--mr-pill-base-width': '3.5px',
       '--mr-pill-base-height': 'min(82px, calc(100% - 40px))',
+      '--mr-pill-target-height': 'calc(100% - 28px)',
+      '--mr-pill-radius': config.radii.Pill,
     },
   }
 );
