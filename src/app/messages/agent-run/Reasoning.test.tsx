@@ -106,7 +106,6 @@ vi.mock('./Reasoning.css', () => ({
 }));
 vi.mock('../../ui/PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
 vi.mock('./TranscribingPlaceholder.css', () => ({}));
-vi.mock('../MessageExtras.css.ts', () => ({}));
 
 const htmlReactParserOptions: HTMLReactParserOptions = {};
 

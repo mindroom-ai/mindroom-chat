@@ -5,10 +5,6 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../matrix/types/common';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { trimReplyFromBody } from '../../matrix/room';
-import {
-  MINDROOM_MESSAGE_EXTRAS_KEY,
-  parseMessageExtras,
-} from '../../matrix/protocol/messageExtrasData';
 import { clearLongTextHydrationCache, LongTextSource } from '../../matrix/protocol/longText';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
@@ -67,12 +63,10 @@ vi.mock('./MsgTypeRenderers', () => ({
   MNotice: () => null,
   MText: ({
     content,
-    renderAfterBody,
     renderBody,
     renderUrlsPreview,
   }: {
     content: Record<string, unknown>;
-    renderAfterBody?: React.ReactNode;
     renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
     renderUrlsPreview?: (urls: string[]) => React.ReactNode;
   }) =>
@@ -83,7 +77,6 @@ vi.mock('./MsgTypeRenderers', () => ({
         body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
         customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
       }),
-      renderAfterBody,
       // As the real text message does, its link previews come from the body it shows.
       renderUrlsPreview?.(
         (typeof content.body === 'string' ? content.body : '').match(/https?:\/\/\S+/g) ?? []
@@ -181,9 +174,6 @@ vi.mock('../../timeline/CollapsibleMessage.css', () => ({
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
 }));
-vi.mock('../MessageExtras', () => ({
-  MessageExtras: () => null,
-}));
 vi.mock('./PasteAttachmentContent', () => ({
   PasteAttachmentContent: () => null,
 }));
@@ -254,11 +244,6 @@ const createPreviewContent = () => ({
   msgtype: 'm.text',
   url: 'mxc://server/content',
   'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-});
-
-const createMessageExtras = (content: string) => ({
-  version: 1,
-  sections: [{ title: 'Evidence', content_type: 'text/plain', content }],
 });
 
 const createDeferred = <T>() => {
@@ -1448,130 +1433,6 @@ describe('LongTextText hydration identity', () => {
     });
 
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      renderer.unmount();
-    });
-  });
-
-  it('keeps preview extras available when hydrated content omits them', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
-    const previewContent = {
-      ...createPreviewContent(),
-      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('preview extra'),
-    };
-    const deferred = createDeferred<Record<string, unknown>>();
-    let renderer!: ReactTestRenderer;
-
-    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(LongTextText, {
-          kind: LongTextKind.Text,
-          content: previewContent,
-          longTextSource: createLongTextSource({ previewContent }),
-          renderBody: (_content, props) => props.body,
-          renderAfterBody: (extrasContent, fallbackContent) =>
-            React.createElement(
-              'span',
-              { 'data-testid': 'extras-probe' },
-              extrasContent[MINDROOM_MESSAGE_EXTRAS_KEY] ||
-                fallbackContent[MINDROOM_MESSAGE_EXTRAS_KEY]
-                ? 'extras-present'
-                : 'extras-missing'
-            ),
-        })
-      );
-    });
-
-    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
-      'extras-present',
-    ]);
-
-    await act(async () => {
-      deferred.resolve({ body: 'Hydrated response', msgtype: 'm.text' });
-      await deferred.promise;
-    });
-
-    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
-      'Hydrated response'
-    );
-    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
-      'extras-present',
-    ]);
-
-    await act(async () => {
-      renderer.unmount();
-    });
-  });
-
-  it('prefers live extras over stale hydrated extras when only extras change', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
-    const previewContent = {
-      ...createPreviewContent(),
-      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('hydrated extra E1'),
-    };
-    const liveEditedContent = {
-      ...previewContent,
-      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('live extra E2'),
-    };
-    const hydratedContent = {
-      body: 'Hydrated response',
-      msgtype: 'm.text',
-      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('hydrated extra E1'),
-    };
-    const deferred = createDeferred<Record<string, unknown>>();
-    let renderer!: ReactTestRenderer;
-
-    const render = (nextContent: Record<string, unknown>) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
-        content: nextContent,
-        longTextSource: createLongTextSource({ previewContent: nextContent }),
-        renderBody: (_content, props) => props.body,
-        renderAfterBody: (extrasContent, fallbackContent) =>
-          React.createElement(
-            'span',
-            { 'data-testid': 'extras-probe' },
-            parseMessageExtras(extrasContent)?.sections[0]?.content ??
-              (!(MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent)
-                ? parseMessageExtras(fallbackContent)?.sections[0]?.content
-                : undefined) ??
-              'extras-missing'
-          ),
-      });
-
-    longTextMocks.hydrateMindroomLongTextSource.mockClear();
-    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
-
-    await act(async () => {
-      renderer = create(render(previewContent));
-    });
-
-    await act(async () => {
-      deferred.resolve(hydratedContent);
-      await deferred.promise;
-    });
-
-    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
-      'Hydrated response'
-    );
-    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
-      'hydrated extra E1',
-    ]);
-
-    await act(async () => {
-      renderer.update(render(liveEditedContent));
-    });
-
-    expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
-      'Hydrated response'
-    );
-    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
-      'live extra E2',
-    ]);
 
     await act(async () => {
       renderer.unmount();

@@ -11,7 +11,6 @@ import {
   type InlineSecretRequestPlan,
 } from '../inlineSecretRequests';
 import { settingsAtom } from '../../preferences/settings';
-import { MessageExtras } from '../MessageExtras';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { ToolCallMessageContext, ToolCallsCogContext } from '../agent-run/toolCallStatus';
 
@@ -110,37 +109,16 @@ const secrets = (
 /** The cards whose rows hide. */
 const hiddenRows = (plan: InlineSecretRequestPlan) => [...plan.drawn.getIds()];
 
-/** A section of the reply's extras with the marker of its body's third call, as a list item. */
-const extras = {
-  version: 1 as const,
-  sections: [
-    {
-      title: 'Trace',
-      contentType: 'text/markdown' as const,
-      content: '- 🔧 `request_secret` [3]',
-      collapsed: false,
-    },
-  ],
-};
-
 const textOf = (node: ReactTestInstance | string): string =>
   typeof node === 'string' ? node : node.children.map(textOf).join('');
 
 /** The reply's row: what it shows (`shown`), parsed as the row parses it. */
-function Reply({ shown = content, withExtras = false }) {
+function Reply({ shown = content }) {
   return (
     <ToolCallMessageContext value={{ eventId: '$reply', roomId: '!room:x', threadId: '$root' }}>
       <ToolCallsFold>
         <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
         {parse(shown.formatted_body, markerParserOptions({}, shown))}
-        {withExtras && (
-          <MessageExtras
-            extras={extras}
-            htmlReactParserOptions={{}}
-            markerContent={shown}
-            toolRows
-          />
-        )}
       </ToolCallsFold>
     </ToolCallMessageContext>
   );
@@ -193,19 +171,6 @@ describe('a secret request in its reply', () => {
   it('takes the place of the call that asked, splitting its run', () => {
     render(secrets('saved'));
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
-  });
-
-  it("takes its call's place in the body only: the extras keep their tool line", () => {
-    render(secrets('declined'), <Reply withExtras />);
-    expect(lines()).toEqual([
-      'Ran 2 tool calls',
-      'secret:declined',
-      'Ran 1 tool call',
-      'Ran 1 tool call',
-    ]);
-    expect(
-      renderer!.root.findAll((node) => node.props['data-secret-line'] !== undefined)
-    ).toHaveLength(1);
   });
 
   it('starts or ends a run without an empty run beside it', () => {

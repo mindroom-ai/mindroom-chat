@@ -2575,9 +2575,6 @@
         "downloadOriginal": "Download Original",
         "replyDetails": "Reply details"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "Message extras"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "Pasted text",
         "open": "Open",

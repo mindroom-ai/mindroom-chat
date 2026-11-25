@@ -142,15 +142,6 @@ vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   Wave: 'TranscribingWave',
   WaveBar: 'TranscribingWaveBar',
 }));
-vi.mock('../MessageExtras.css.ts', () => ({
-  Extras: 'Extras',
-  Section: 'Section',
-  Summary: 'Summary',
-  Content: 'Content',
-  PlainText: 'PlainText',
-  Markdown: 'Markdown',
-  Html: 'Html',
-}));
 
 const htmlReactParserOptions: HTMLReactParserOptions = {};
 const linkifyOpts = {};

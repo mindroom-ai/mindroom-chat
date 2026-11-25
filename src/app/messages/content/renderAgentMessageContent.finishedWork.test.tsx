@@ -24,7 +24,7 @@ import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinki
 beforeEach(showToolCalls);
 
 // The real RenderBody and its memo, under an MText that passes the formatted body and renders
-// the extras after it, as MText does.
+// what comes after it, as MText does.
 vi.mock('./MsgTypeRenderers', async () => {
   return {
     MEmote: () => null,
@@ -109,16 +109,6 @@ vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   Text: 'TranscribingText',
   Wave: 'TranscribingWave',
   WaveBar: 'TranscribingWaveBar',
-}));
-
-vi.mock('../MessageExtras.css.ts', () => ({
-  Extras: 'Extras',
-  Section: 'Section',
-  Summary: 'Summary',
-  Content: 'Content',
-  PlainText: 'PlainText',
-  Markdown: 'Markdown',
-  Html: 'Html',
 }));
 
 const htmlReactParserOptions: HTMLReactParserOptions = {};

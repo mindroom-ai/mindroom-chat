@@ -4,7 +4,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
@@ -21,7 +20,7 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
 }));
 
 // The real RenderBody and its memo, under an MText that passes the formatted body and renders
-// the extras after it, as MText does.
+// what comes after it, as MText does.
 vi.mock('./MsgTypeRenderers', async () => {
   return {
     MEmote: () => null,
@@ -100,16 +99,6 @@ vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   WaveBar: 'TranscribingWaveBar',
 }));
 
-vi.mock('../MessageExtras.css.ts', () => ({
-  Extras: 'Extras',
-  Section: 'Section',
-  Summary: 'Summary',
-  Content: 'Content',
-  PlainText: 'PlainText',
-  Markdown: 'Markdown',
-  Html: 'Html',
-}));
-
 const htmlReactParserOptions: HTMLReactParserOptions = {};
 const linkifyOpts = {};
 
@@ -141,7 +130,6 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
             highlightRegex,
             htmlReactParserOptions,
             linkifyOpts,
-            showMessageExtras: true,
           })}
         </React.Fragment>
       ))}
@@ -151,8 +139,6 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
 
 const parsesOf = (content: Reply) =>
   sanitizeCustomHtmlSpy.mock.calls.filter(([html]) => html === content.formatted_body).length;
-const extrasParses = (toolName: string) =>
-  sanitizeCustomHtmlSpy.mock.calls.filter(([html]) => html.includes(`>${toolName}</code>`)).length;
 
 let renderer: ReactTestRenderer | undefined;
 const render = (replies: Reply[], highlightRegex?: RegExp) =>
@@ -215,28 +201,6 @@ describe('renderAgentMessageContent parsing', () => {
 
     expect(parsesOf(reply)).toBe(2);
     expect(toolCalls()).toEqual(['web_search']);
-  });
-
-  it('parses the extras of a reply that did not change only once while another reply streams', () => {
-    const done = {
-      ...agentReply('Finished.', toolTrace('web_search')),
-      [MINDROOM_MESSAGE_EXTRAS_KEY]: {
-        version: 1,
-        sections: [{ title: 'Trace', content_type: 'text/markdown', content: '🔧 `lookup` [1]' }],
-      },
-    };
-    let streaming = agentReply('Working on it.', toolTrace('browser_control'));
-    render([done, streaming]);
-    expect(extrasParses('lookup')).toBe(1);
-
-    for (let edit = 1; edit <= 3; edit += 1) {
-      streaming = agentReply(`Working on it, step ${edit}.`, toolTrace('browser_control'));
-      render([{ ...done }, streaming]);
-    }
-
-    expect(extrasParses('lookup')).toBe(1);
-    expect(text()).toContain('lookup');
-    expect(text()).toContain('Working on it, step 3.');
   });
 
   it('parses a long reply again when its tool metadata status changes', () => {

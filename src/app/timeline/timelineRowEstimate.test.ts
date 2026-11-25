@@ -1,6 +1,6 @@
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../matrix/protocol/messageExtrasData';
+import { THREAD_SUMMARY_METADATA_KEY } from '../matrix/protocol/threadSummary';
 import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
 import {
   estimateFormattedBodyPx,
@@ -113,27 +113,25 @@ describe('estimateMessageRowHeight reuse', () => {
     expect(estimateMessageRowHeight(reply, { compact: true })).toBe(6 + 2 * 20);
 
     // An edit gives the row other content.
+    const twelveLines = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join('\n');
     const edit = makeEvent({
       id: '$edit',
       content: {
         msgtype: 'm.text',
-        body: '* one',
-        'm.new_content': { msgtype: 'm.text', body: 'one' },
+        body: `* ${twelveLines}`,
+        'm.new_content': { msgtype: 'm.text', body: twelveLines },
         'm.relates_to': { rel_type: 'm.replace', event_id: '$event' },
       },
     });
     reply.makeReplaced(edit);
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 20);
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 9 * 20);
 
     // Metadata an older edit lends is written into the shown content in place.
-    reply.getContent()[MINDROOM_MESSAGE_EXTRAS_KEY] = {
-      version: 1,
-      sections: [{ title: 'Sources', content_type: 'text/plain', content: 'a' }],
-    };
+    reply.getContent()[THREAD_SUMMARY_METADATA_KEY] = true;
     expect(estimateMessageRowHeight(reply, { compact: false })).toBe(
       estimateThreadEventRowHeight(reply, { compact: false })
     );
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBeGreaterThan(10 + 20);
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 12 * 20);
   });
 
   it('prices a redacted row again', () => {

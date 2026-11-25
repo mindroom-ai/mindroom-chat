@@ -40,10 +40,6 @@ type LongTextTextProps = {
     props: RenderBodyProps,
     toolMetadataStatus: ToolMetadataStatus
   ) => ReactNode;
-  renderAfterBody?: (
-    content: Record<string, unknown>,
-    fallbackContent: Record<string, unknown>
-  ) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   /** Renders a self-contained replacement (e.g. wake marker) without MessageTextBody chrome. */
   renderOverride?: (content: Record<string, unknown>) => ReactNode;
@@ -172,7 +168,6 @@ export function LongTextText({
   longTextSource,
   transformContent,
   renderBody,
-  renderAfterBody,
   renderUrlsPreview,
   renderOverride,
   hydrate = true,
@@ -314,7 +309,6 @@ export function LongTextText({
       ? 'loading'
       : 'unavailable';
 
-  const afterBody = renderAfterBody?.(content, displayContent);
   // Until the whole message is in, the preview shows on its own: link previews come from the
   // full body, and the loading line only stands in for a preview with no plain text of its own.
   // Either would appear and go while the sidecar loads, moving the rows around it.
@@ -333,7 +327,6 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
-        renderAfterBody={afterBody}
         renderUrlsPreview={urlsPreview}
       />
     );
@@ -344,7 +337,6 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
-        renderAfterBody={afterBody}
         renderUrlsPreview={urlsPreview}
       />
     );
@@ -355,7 +347,6 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
-        renderAfterBody={afterBody}
         renderUrlsPreview={urlsPreview}
       />
     );

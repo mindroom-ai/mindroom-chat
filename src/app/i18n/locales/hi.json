@@ -1307,9 +1307,6 @@
         "retryDownloadOriginal": "मूल फ़ाइल फिर से डाउनलोड करें",
         "replyDetails": "जवाब का विवरण"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "संदेश की अतिरिक्त जानकारी"
-      },
       "mindroomModelBadge": {
         "model": "मॉडल: {{model}}"
       },
