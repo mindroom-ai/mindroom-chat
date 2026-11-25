@@ -199,10 +199,12 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
       '2026-11-22',
       '2026-11-23',
     ]);
-    // Missing days are filled with 0 tokens and null (unknown) cost.
-    expect(calendar[6]?.unattributed_tokens).toBe(0);
-    expect(calendar[6]?.cost_by_account).toBeUndefined();
-    expect(calendar[6]?.unattributed_cost_usd).toBeNull();
+    // Missing gap days (Nov 19 = slot 2, Nov 21 = slot 4) are filled with 0 tokens and null (unknown) cost.
+    for (const gapIndex of [2, 4]) {
+      expect(calendar[gapIndex]?.unattributed_tokens).toBe(0);
+      expect(calendar[gapIndex]?.cost_by_account).toBeUndefined();
+      expect(calendar[gapIndex]?.unattributed_cost_usd).toBeNull();
+    }
 
     // 6 priced days (slots 1..6 = Nov 18..23): prior 3 = 30, last 3 = 39 -> +30% (warn).
     snapshot.daily_7d = [10, 10, 10, 12, 13, 14].map((cost, idx) => ({
@@ -302,9 +304,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
 
   it('renders 7 calendar bars, exact localized integer tokens in Day Detail, preserves unknown cost as —, and supports Spend/Tokens & Hide dominant', () => {
     const snapshot = cloneFixture();
-    snapshot.daily_7d[0]!.cost_by_account!['anthropic:default'] = 0.4;
-    snapshot.daily_7d[1]!.cost_by_account!['anthropic:default'] = 0.35;
-    // Add an active unpriced day (Nov 19: Claude Code tokens only, no cost_by_account).
+    // Add an active unpriced day on the Nov 19 gap (Claude Code tokens only, no cost_by_account); Nov 21 stays empty.
     snapshot.daily_7d.push({
       day: '2026-11-19',
       by_account: { 'claude_code:default': 1_250_000 },
@@ -316,30 +316,31 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(chartCard.querySelectorAll('button[data-day]')).toHaveLength(7);
     expect(chartCard.textContent).toContain('Daily estimated spend');
 
-    const day17Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-17"]')!;
     const day18Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-18"]')!;
     const day19Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-19"]')!;
+    const day20Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-20"]')!;
+    const day21Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-21"]')!;
     const day23Btn = chartCard.querySelector<HTMLButtonElement>('button[data-day="2026-11-23"]')!;
 
-    // Defaults to latest day with visible spend (2026-11-18).
-    expect(day18Btn.getAttribute('aria-pressed')).toBe('true');
+    // Defaults to latest day with visible spend (2026-11-23).
+    expect(day23Btn.getAttribute('aria-pressed')).toBe('true');
 
-    // Unpriced active day (Nov 19) and empty day (Nov 23) show "—" top labels and NO "$0.00" aria-label.
+    // Unpriced active day (Nov 19) and empty gap day (Nov 21) show "—" top labels and NO "$0.00" aria-label.
     expect(day19Btn.querySelector('span:first-child')?.textContent).toBe('—');
     expect(day19Btn.getAttribute('aria-label')).not.toContain('$0');
-    expect(day23Btn.querySelector('span:first-child')?.textContent).toBe('—');
-    expect(day23Btn.getAttribute('aria-label')).not.toContain('$0');
+    expect(day21Btn.querySelector('span:first-child')?.textContent).toBe('—');
+    expect(day21Btn.getAttribute('aria-label')).not.toContain('$0');
 
     // Day Detail Drawer shows exact localized integer tokens AND 7-day calendar average comparison.
     const drawer = () => container.querySelector('[data-testid="day-detail-drawer"]')!;
-    expect(drawer().textContent).toContain('$2.80');
-    expect(drawer().textContent).toContain('$2.45');
-    expect(drawer().textContent).toContain('4,450,000 tok');
-    expect(drawer().textContent).toContain('2,100,000');
-    expect(drawer().textContent).toContain('850,000');
-    // 7d spend avg = ($3.00 + $2.80) / 7 = $0.8286; $2.80 vs $0.8286 -> +238% vs 7d avg.
+    expect(drawer().textContent).toContain('$5.25');
+    expect(drawer().textContent).toContain('$4.30');
+    expect(drawer().textContent).toContain('7,350,000 tok');
+    expect(drawer().textContent).toContain('3,200,000');
+    expect(drawer().textContent).toContain('1,500,000');
+    // 7d spend avg = $21.65 / 7 = $3.0929; $5.25 vs $3.0929 -> +70% vs 7d avg.
     expect(drawer().querySelector('[data-testid="day-vs-avg-badge"]')?.textContent).toBe(
-      '+238% vs 7d avg'
+      '+70% vs 7d avg'
     );
 
     // Clicking unpriced active day (Nov 19) shows "—" cost (NOT $0.00), omits spend vs-avg badge, and shows exact tokens.
@@ -351,12 +352,12 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(drawer().querySelector('[data-testid="day-vs-avg-badge"]')).toBeNull();
     expect(drawer().textContent).toContain('1,250,000 tok');
 
-    // Clicking earlier priced day (Nov 17) updates selection and exact day totals.
-    act(() => day17Btn.click());
-    expect(day17Btn.getAttribute('aria-pressed')).toBe('true');
-    expect(drawer().textContent).toContain('$3.00');
-    expect(drawer().textContent).toContain('$2.60');
-    expect(drawer().textContent).toContain('4,000,000 tok');
+    // Clicking earlier priced day (Nov 20) updates selection and exact day totals.
+    act(() => day20Btn.click());
+    expect(day20Btn.getAttribute('aria-pressed')).toBe('true');
+    expect(drawer().textContent).toContain('$5.53');
+    expect(drawer().textContent).toContain('$4.45');
+    expect(drawer().textContent).toContain('7,650,000 tok');
 
     // Hide dominant button has descriptive aria-label naming dominant account and hides it on click.
     const hideBtn = container.querySelector<HTMLButtonElement>(
@@ -371,7 +372,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     expect(hideBtn.textContent).toBe('Reset filter');
     expect(hideBtn.getAttribute('aria-label')).toContain('OpenRouter');
     expect(drawer().querySelector('[data-day-account="openrouter:1"]')).toBeNull();
-    expect(drawer().textContent).toContain('$0.40');
+    expect(drawer().textContent).toContain('$1.08');
 
     act(() => hideBtn.click());
     expect(hideBtn.getAttribute('aria-pressed')).toBe('false');
@@ -392,7 +393,7 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     const snapshot = cloneFixture();
     snapshot.partial = true;
     snapshot.unattributed_tokens_7d = 500_000;
-    snapshot.daily_7d[1]!.unattributed_tokens = 500_000;
+    snapshot.daily_7d[snapshot.daily_7d.length - 1]!.unattributed_tokens = 500_000;
     snapshot.accounts.push({
       id: 'ollama:local',
       provider: 'ollama',
@@ -785,11 +786,11 @@ describe('UsagePage (M1 · A+ Unified) & QuotaBar', () => {
     );
     expect(container.querySelector('[data-testid="day-detail-drawer"]')).toBeNull();
 
-    // Clicking an empty calendar day (2026-11-23) shows quiet empty-day message in drawer.
+    // Clicking an empty calendar gap day (2026-11-21) shows quiet empty-day message in drawer.
     const sparse = cloneFixture();
     renderPage(makeUsageState({ snapshot: sparse }));
     const emptyDayBtn = container.querySelector<HTMLButtonElement>(
-      'button[data-day="2026-11-23"]'
+      'button[data-day="2026-11-21"]'
     )!;
     act(() => emptyDayBtn.click());
     expect(container.querySelector('[data-testid="day-detail-drawer"]')?.textContent).toContain(

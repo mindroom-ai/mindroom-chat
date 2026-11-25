@@ -36,7 +36,7 @@ describe('providerUsageProtocol', () => {
     expect(parsed).toEqual(contractFixture);
     expect(parsed?.accounts).toHaveLength(4);
     expect(parsed?.accounts[3]?.windows).toEqual([]);
-    expect(parsed?.token_mix_7d?.cache_read_tokens).toBe(22550000);
+    expect(parsed?.token_mix_7d?.cache_read_tokens).toBe(31600000);
     expect(parsed?.cache_savings_usd_7d).toBe(6.85);
     expect(parsed?.top_models_7d).toHaveLength(4);
     expect(parsed?.top_agents_7d).toHaveLength(3);
