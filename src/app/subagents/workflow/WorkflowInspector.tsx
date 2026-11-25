@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import { type Ref, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
@@ -68,6 +68,7 @@ export function WorkflowNodeInspector({
   onStopNode,
 }: WorkflowNodeInspectorProps) {
   const { t } = useTranslation();
+  const headingId = useId();
   const language = useAppLanguageCode();
   const jotaiStore = useStore();
   const agentProfile = useAgentProfile(room, node.agent ?? '');
@@ -98,13 +99,14 @@ export function WorkflowNodeInspector({
     <aside
       ref={inspectorRef}
       tabIndex={-1}
+      aria-labelledby={headingId}
       className={css.InspectorPane}
       data-workflow-node-details={node.id}
     >
       <div className={css.Stack}>
         <div className={css.ChipTop}>
           <span className={css.NodeDot[node.status]} aria-hidden />
-          <Text as="h3" size="T300" className={css.StrongText} {...ownDirectionLine}>
+          <Text as="h3" id={headingId} size="T300" className={css.StrongText} {...ownDirectionLine}>
             {node.label}
           </Text>
           {sessionName && (

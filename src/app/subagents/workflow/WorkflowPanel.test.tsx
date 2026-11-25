@@ -1929,41 +1929,48 @@ describe('WorkflowPanel', () => {
     expect(within(n1Details).getByText('Messages to second: 2')).toBeTruthy();
   });
 
-  it('computes Messages tab + suffix accurately for retained windows and edge-only fallbacks, and focuses Inspector only on message jump', () => {
+  it('computes Messages tab + suffix accurately for broadcasts, omitted messages, and edge-only fallbacks, keeps partial route counts, and focuses labeled Inspector on jump', () => {
     const { mx, room } = makeClient();
     const store = createStore();
     const wfStore = getWorkflowRunStore(mx);
-    const fiftyMessages = Array.from({ length: 50 }, (_, i) => ({
-      seq: i + 2,
-      from: 'n1',
-      fromName: 'backend',
-      to: 'n2',
-      toName: 'frontend',
-      text: `msg-${i + 2}`,
-      sentAt: 1795389740 + i,
-    }));
+    const nodes = [
+      makeNode('n1', {
+        label: 'Backend',
+        name: 'backend',
+        status: 'completed',
+        endedAt: 1795389760,
+      }),
+      makeNode('n2', {
+        label: 'Frontend',
+        name: 'frontend',
+        status: 'completed',
+        endedAt: 1795389765,
+      }),
+      makeNode('n3', { label: 'QA', name: 'qa', status: 'completed', endedAt: 1795389766 }),
+    ];
 
+    // 1 broadcast message to 2 recipients (2 edges) with omitted.messages === 0 shows 'Messages 1' (no '+').
     wfStore.ingest(
       ROOM_ID,
       AGENT,
       makeSnapshotFrame({
         phases: ['Audit'],
-        nodes: [
-          makeNode('n1', {
-            label: 'Backend',
-            name: 'backend',
-            status: 'completed',
-            endedAt: 1795389760,
-          }),
-          makeNode('n2', {
-            label: 'Frontend',
-            name: 'frontend',
-            status: 'completed',
-            endedAt: 1795389765,
-          }),
+        nodes,
+        edges: [
+          { from: 'n1', to: 'n2', count: 1 },
+          { from: 'n1', to: 'n3', count: 1 },
         ],
-        edges: [{ from: 'n1', to: 'n2', count: 51 }],
-        messages: fiftyMessages,
+        messages: [
+          {
+            seq: 1,
+            from: 'n1',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema.',
+            sentAt: 1795389750,
+          },
+        ],
         omitted: emptyOmitted,
       }),
       Date.now()
@@ -1977,8 +1984,49 @@ describe('WorkflowPanel', () => {
       </JotaiProvider>
     );
 
-    // 50 retained messages with edgeTotal 51 shows 50+.
-    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 50+');
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 1');
+
+    // Broadcast + direct message to n2 (edge count 2, 1 matching preview) keeps aggregate route count 2 in n2 Inspector.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [
+              { from: 'n1', to: 'n2', count: 2 },
+              { from: 'n1', to: 'n3', count: 1 },
+            ],
+            messages: [
+              {
+                seq: 1,
+                from: 'n1',
+                fromName: 'backend',
+                to: null,
+                toName: 'all',
+                text: 'Broadcast schema.',
+                sentAt: 1795389750,
+              },
+              {
+                seq: 2,
+                from: 'n1',
+                fromName: 'backend',
+                to: 'n2',
+                toName: 'frontend',
+                text: 'Direct follow-up.',
+                sentAt: 1795389755,
+              },
+            ],
+            omitted: emptyOmitted,
+          },
+          {},
+          2
+        ),
+        Date.now() + 5
+      );
+    });
 
     // Ordinary Flow chip click keeps focus on the clicked chip (does not steal focus to Inspector).
     const backendChip = screen.getByRole('button', { name: /Backend/ });
@@ -1986,12 +2034,46 @@ describe('WorkflowPanel', () => {
     fireEvent.click(backendChip);
     expect(document.activeElement).toBe(backendChip);
 
-    // Explicit jump from Messages tab moves focus to the Inspector container.
+    // Explicit jump from Messages tab moves focus to the labeled Inspector container.
     fireEvent.click(screen.getAllByRole('tab')[2]!);
-    fireEvent.click(screen.getAllByRole('button', { name: 'frontend' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'frontend' }));
     const n2Inspector = document.querySelector('[data-workflow-node-details="n2"]') as HTMLElement;
     expect(n2Inspector.getAttribute('tabindex')).toBe('-1');
+    expect(n2Inspector.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Frontend' })).toBe(n2Inspector);
     expect(document.activeElement).toBe(n2Inspector);
+    expect(within(n2Inspector).getByText('Direct follow-up.')).toBeTruthy();
+    expect(within(n2Inspector).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // 50 retained messages with omitted.messages === 1 renders 'Messages 50+'.
+    const fiftyMessages = Array.from({ length: 50 }, (_, i) => ({
+      seq: i + 2,
+      from: 'n1',
+      fromName: 'backend',
+      to: 'n2',
+      toName: 'frontend',
+      text: `msg-${i + 2}`,
+      sentAt: 1795389740 + i,
+    }));
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [{ from: 'n1', to: 'n2', count: 51 }],
+            messages: fiftyMessages,
+            omitted: { ...emptyOmitted, messages: 1 },
+          },
+          {},
+          3
+        ),
+        Date.now() + 10
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 50+');
 
     // Edge-only fallback with omitted.edges === 0 and omitted.messages === 2 does not append '+'.
     act(() => {
@@ -2001,28 +2083,15 @@ describe('WorkflowPanel', () => {
         makeSnapshotFrame(
           {
             phases: ['Audit'],
-            nodes: [
-              makeNode('n1', {
-                label: 'Backend',
-                name: 'backend',
-                status: 'completed',
-                endedAt: 1795389760,
-              }),
-              makeNode('n2', {
-                label: 'Frontend',
-                name: 'frontend',
-                status: 'completed',
-                endedAt: 1795389765,
-              }),
-            ],
+            nodes,
             edges: [{ from: 'n1', to: 'n2', count: 3 }],
             messages: [],
             omitted: { ...emptyOmitted, edges: 0, messages: 2 },
           },
           {},
-          2
+          4
         ),
-        Date.now() + 10
+        Date.now() + 20
       );
     });
     expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 3');

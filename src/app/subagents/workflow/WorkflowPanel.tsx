@@ -193,7 +193,7 @@ export function WorkflowPanel({
   const omittedEdges = omitted?.edges ?? 0;
   const omittedMessageTab =
     messages.length > 0
-      ? omittedMessages + Math.max(0, edgeTotal - messages.length)
+      ? omittedMessages
       : edgeTotal > 0
         ? omittedEdges
         : omittedMessages + omittedEdges;

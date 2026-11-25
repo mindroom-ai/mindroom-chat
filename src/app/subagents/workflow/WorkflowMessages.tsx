@@ -26,15 +26,24 @@ export const collectNodeMessagesAndEdges = (
       (m.from === ownerId || m.to === ownerId) &&
       (!excludePeerId || (m.from !== excludePeerId && m.to !== excludePeerId))
   );
-  const covered = new Set<string>();
+  const covered = new Map<string, number>();
   for (const m of nodeMessages) {
-    if (m.from && m.to) covered.add(`${m.from}\0${m.to}`);
+    if (m.from && m.to) {
+      const key = `${m.from}\0${m.to}`;
+      covered.set(key, (covered.get(key) ?? 0) + 1);
+    }
   }
   const outEdges = edges.filter(
-    (e) => e.from === ownerId && e.to !== excludePeerId && !covered.has(`${e.from}\0${e.to}`)
+    (e) =>
+      e.from === ownerId &&
+      e.to !== excludePeerId &&
+      (covered.get(`${e.from}\0${e.to}`) ?? 0) < e.count
   );
   const inEdges = edges.filter(
-    (e) => e.to === ownerId && e.from !== excludePeerId && !covered.has(`${e.from}\0${e.to}`)
+    (e) =>
+      e.to === ownerId &&
+      e.from !== excludePeerId &&
+      (covered.get(`${e.from}\0${e.to}`) ?? 0) < e.count
   );
   return { nodeMessages, outEdges, inEdges };
 };
