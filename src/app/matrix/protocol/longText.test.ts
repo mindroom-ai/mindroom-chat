@@ -11,7 +11,6 @@ import {
   subscribeLongTextHydration,
   withToolTraceFallback,
 } from './longText';
-import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { sanitizeContent } from './untrustedContent';
 
 beforeEach(() => {
@@ -524,28 +523,18 @@ describe('hydrateLongTextSource', () => {
     }
   );
 
-  it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
+  it('preserves wrapper com.mindroom.* metadata when hydrated m.new_content omits it', async () => {
     const source = expectDefined(
       getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
-        url: 'mxc://server/edit-wrapper-extras',
+        url: 'mxc://server/edit-wrapper-metadata',
         'io.mindroom.long_text': {
           version: 2,
           encoding: 'matrix_event_content_json',
         },
       })
     );
-    const extras = {
-      version: 1,
-      sections: [
-        {
-          title: 'Hydrated evidence',
-          content_type: 'text/plain',
-          content: 'wrapper sidecar extra',
-        },
-      ],
-    };
 
     const resolved = await hydrateLongTextSource(
       source,
@@ -553,7 +542,7 @@ describe('hydrateLongTextSource', () => {
         JSON.stringify({
           msgtype: 'm.text',
           body: '* fallback edit body',
-          [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
+          'com.mindroom.skip_mentions': true,
           'm.new_content': {
             msgtype: 'm.text',
             body: 'final edited body',
@@ -565,7 +554,7 @@ describe('hydrateLongTextSource', () => {
 
     expect(resolved.body).toBe('final edited body');
     expect(resolved.formatted_body).toBe('<p>final edited body</p>');
-    expect(resolved[MINDROOM_MESSAGE_EXTRAS_KEY]).toEqual(extras);
+    expect(resolved['com.mindroom.skip_mentions']).toBe(true);
   });
 
   it('falls back to wrapper body when m.new_content body is missing', async () => {

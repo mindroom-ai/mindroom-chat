@@ -2569,9 +2569,6 @@
         "downloadOriginal": "下載原版",
         "replyDetails": "回覆詳情"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "訊息附加資訊"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "貼上的文字",
         "open": "開啟",

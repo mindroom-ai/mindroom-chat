@@ -2615,9 +2615,6 @@
         "downloadOriginal": "Télécharger l’original",
         "replyDetails": "Détails de la réponse"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "Éléments supplémentaires du message"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "Texte collé",
         "open": "Ouvrir",

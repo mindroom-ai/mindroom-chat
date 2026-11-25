@@ -137,28 +137,6 @@ describe('timeline approval cards', () => {
   });
 });
 
-describe('timeline message extras', () => {
-  // The renderer draws `com.mindroom.message_extras` only when asked (its own tests cover the
-  // drawing); timeline rows always ask.
-  it('are drawn under every timeline message', async () => {
-    const event = makeEvent('$extras', {
-      sender: '@mindroom_agent:example.org',
-      content: {
-        msgtype: 'm.text',
-        body: 'Moved the thread.',
-        'com.mindroom.message_extras': {
-          version: 1,
-          sections: [{ title: 'Tool output', content_type: 'text/plain', content: 'moved 3' }],
-        },
-      },
-    }) as unknown as MatrixEvent;
-
-    const { content } = await renderRow(event);
-
-    expect(content().showMessageExtras).toBe(true);
-  });
-});
-
 describe('timeline reactions', () => {
   it('tell the user under the message when changing their reaction failed', async () => {
     vi.useFakeTimers();

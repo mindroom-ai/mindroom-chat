@@ -2569,9 +2569,6 @@
         "downloadOriginal": "オリジナルをダウンロード",
         "replyDetails": "返信の詳細"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "メッセージの詳細"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "貼り付けられたテキスト",
         "open": "開く",

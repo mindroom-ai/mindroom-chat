@@ -1511,30 +1511,6 @@ describe('RoomTimeline collapsible wiring', () => {
     );
   });
 
-  it('uses always-expanded mode for messages with MindRoom extras', async () => {
-    const { getCollapsibleMessageMode } = await import('../threadCollapsibleMessages');
-    const eventWithExtras = makeEvent('$extras', {
-      content: {
-        body: 'Message with extras',
-        msgtype: 'm.text',
-        'com.mindroom.message_extras': {
-          version: 1,
-          sections: [
-            {
-              title: 'Evidence',
-              content_type: 'text/plain',
-              content: 'extra payload',
-            },
-          ],
-        },
-      },
-    });
-
-    expect(
-      getCollapsibleMessageMode(eventWithExtras.getId(), eventWithExtras.getContent(), new Set())
-    ).toBe('always-expanded');
-  });
-
   it('keeps long-text sidecar messages folded — hydration must not auto-expand them', async () => {
     // Device report 2026-07-06: long-text-replaced messages unfolded by
     // themselves the moment their attachment hydrated, while every other

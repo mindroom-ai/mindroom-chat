@@ -1307,9 +1307,6 @@
         "retryDownloadOriginal": "মূল ফাইল আবার ডাউনলোড করুন",
         "replyDetails": "উত্তরের বিবরণ"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "বার্তার অতিরিক্ত তথ্য"
-      },
       "mindroomModelBadge": {
         "model": "মডেল: {{model}}"
       },

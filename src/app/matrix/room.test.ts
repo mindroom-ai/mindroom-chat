@@ -354,22 +354,12 @@ describe('room edit helpers', () => {
     });
   });
 
-  it('preserves MindRoom message extras when replacement new_content omits them', () => {
-    const extras = {
-      version: 1,
-      sections: [
-        {
-          title: 'Evidence',
-          content_type: 'text/plain',
-          content: 'extra payload',
-        },
-      ],
-    };
+  it('preserves com.mindroom.* metadata when replacement new_content omits it', () => {
     const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'Thinking...  ⋯');
     const replacementEvent = new MatrixEvent({
       content: {
         body: '* Final answer',
-        'com.mindroom.message_extras': extras,
+        'com.mindroom.skip_mentions': true,
         'm.new_content': {
           body: 'Final answer',
           msgtype: 'm.text',
@@ -389,7 +379,7 @@ describe('room edit helpers', () => {
 
     const resolvedContent = getLatestMessageContent(targetEvent, replacementEvent);
 
-    expect(resolvedContent['com.mindroom.message_extras']).toEqual(extras);
+    expect(resolvedContent['com.mindroom.skip_mentions']).toBe(true);
   });
 
   it('uses newer replacement events as MindRoom metadata fallbacks for streaming edits', () => {
@@ -472,10 +462,7 @@ describe('room edit helpers', () => {
       '@mindroom_research:example.org'
     );
     const foreignEdit = makeEditEvent('$foreign-edit', 3000, '$target', '@mallory:example.org');
-    foreignEdit.getContent()['m.new_content']['com.mindroom.message_extras'] = {
-      version: 1,
-      sections: [{ title: 'Sign in', content_type: 'text/plain', content: 'https://evil' }],
-    };
+    foreignEdit.getContent()['m.new_content']['com.mindroom.skip_mentions'] = true;
     const timelineSet = {
       relations: {
         getChildEventsForEvent: vi.fn().mockReturnValue({
@@ -489,8 +476,8 @@ describe('room edit helpers', () => {
 
     expect(editedEvent).toBe(agentEdit);
     expect(resolvedContent.body).toBe('$agent-edit');
-    expect(resolvedContent['com.mindroom.message_extras']).toBeUndefined();
-    expect(agentEdit.getContent()['m.new_content']['com.mindroom.message_extras']).toBeUndefined();
+    expect(resolvedContent['com.mindroom.skip_mentions']).toBeUndefined();
+    expect(agentEdit.getContent()['m.new_content']['com.mindroom.skip_mentions']).toBeUndefined();
   });
 });
 

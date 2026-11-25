@@ -27,7 +27,6 @@ vi.mock('../agent-run/Reasoning.css', () => ({}));
 vi.mock('../agent-run/FinishedWorkFold.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({}));
 vi.mock('../../ui/PendingSendIndicator.css', () => ({}));
-vi.mock('../MessageExtras.css.ts', () => ({}));
 
 const mEvent = new MatrixEvent({
   event_id: '$reply',

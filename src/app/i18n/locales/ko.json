@@ -2569,9 +2569,6 @@
         "downloadOriginal": "원본 다운로드",
         "replyDetails": "답장 세부 정보"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "메시지 부가 정보"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "붙여넣은 텍스트",
         "open": "열기",

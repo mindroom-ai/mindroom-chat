@@ -15,7 +15,6 @@ import {
   UploadCardProgress,
 } from '../../src/app/composer/upload/UploadCard';
 import { PasteAttachmentContent } from '../../src/app/messages/content/PasteAttachmentContent';
-import { MessageExtras } from '../../src/app/messages/MessageExtras';
 import { MsgType } from 'matrix-js-sdk';
 
 export function ChatControlsGlass() {
@@ -102,11 +101,8 @@ export function ChatControlsGlass() {
           </div>
           <output aria-live="polite">{action}</output>
         </section>
-        <section
-          data-testid="card-shells"
-          style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}
-        >
-          <Text size="H4">Attachments and message extras</Text>
+        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+          <Text size="H4">Attachments</Text>
           <div data-testid="attachment">
             <MFile
               outlined
@@ -159,22 +155,6 @@ export function ChatControlsGlass() {
               <Text size="T300">draft.txt</Text>
             </UploadCard>
           </div>
-          <MessageExtras
-            extras={{
-              version: 1,
-              sections: [
-                {
-                  title: 'Additional notes',
-                  contentType: 'text/plain',
-                  content: 'Keep the content sharp.\nOnly the enclosing surface uses glass.',
-                  collapsed: false,
-                },
-              ],
-            }}
-            htmlReactParserOptions={{}}
-            markerContent={{}}
-            toolRows
-          />
         </section>
       </div>
     </main>
