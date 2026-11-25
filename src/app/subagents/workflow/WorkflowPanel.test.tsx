@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import i18next from 'i18next';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import type {
@@ -366,6 +367,11 @@ describe('WorkflowPanel', () => {
     expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(0);
     expect(screen.getByText(/and 1,?000 more queued/)).toBeTruthy();
     expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
+    const tabs = screen.getAllByRole('tab');
+    fireEvent.click(tabs[2]!);
+    expect(screen.getByText('No messages between steps yet.')).toBeTruthy();
+    fireEvent.click(tabs[3]!);
+    expect(screen.getByText('No log entries yet.')).toBeTruthy();
   });
 
   it('shows message counts as text, opens Sub-agents panel on node.run, and stops one agent by node.job', async () => {
@@ -876,100 +882,470 @@ describe('WorkflowPanel', () => {
     );
   });
 
-  it('remeasures SVG edges when folded group membership changes even with unchanged edges and size', () => {
+  it('keeps spawned session turns inside Parallel groups, shows @session badges, and highlights siblings', () => {
     const { mx, room } = makeClient();
     const store = createStore();
-    const wfStore = getWorkflowRunStore(mx);
-    const rectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        const id = this.dataset?.workflowChipId;
-        const n = id ? Number(id.slice(1)) : 0;
-        return {
-          x: n * 10,
-          y: n * 40,
-          top: n * 40,
-          left: n * 10,
-          right: n * 10 + 100,
-          bottom: n * 40 + 30,
-          width: 100,
-          height: 30,
-          toJSON: () => ({}),
-        };
-      });
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        groups: [
+          { id: 'g1', kind: 'parallel', phase: 0, parent: null, total: 2, done: 1, failed: 0 },
+        ],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            status: 'completed',
+            turns: 2,
+            endedAt: 1795389740,
+          }),
+          makeNode('n4', {
+            kind: 'turn',
+            label: 'Inspect auth',
+            name: 'backend',
+            group: 'g1',
+            session: 's1',
+            status: 'running',
+            model: 'gemini_flash@minimal',
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'Inspect tokens',
+            name: 'frontend',
+            group: 'g1',
+            session: 's1',
+            status: 'failed',
+            error: 'Timed out after 120s waiting for agent',
+            endedAt: 1795389780,
+          }),
+        ],
+        edges: [
+          { from: 'n4', to: 'n5', count: 2 },
+          { from: 'n5', to: 'n4', count: 1 },
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Empty root session card is omitted while its turns remain inside Parallel group g1.
+    expect(document.querySelector('[data-workflow-chip-id="s1"]')).toBeNull();
+    const groupEl = document.querySelector('[data-workflow-group-id="g1"]') as HTMLElement;
+    expect(within(groupEl).getByRole('button', { name: /Inspect auth/ })).toBeTruthy();
+    expect(within(groupEl).getByRole('button', { name: /Inspect tokens/ })).toBeTruthy();
+    expect(within(groupEl).getAllByText('@reviewer')).toHaveLength(2);
+    expect(within(groupEl).getByText('gemini_flash · minimal')).toBeTruthy();
+    expect(within(groupEl).getByText('Timeout')).toBeTruthy();
+    expect(groupEl.querySelector('[dir="ltr"]')?.textContent).toContain('backend ↔ frontend · 3');
+    expect(groupEl.textContent).toContain('backend and frontend: 3');
+    expect(groupEl.querySelector('[role="progressbar"]')).toBeNull();
+    expect(groupEl.querySelectorAll('svg path').length).toBeGreaterThan(0);
+
+    // Inspector details stay absent until a node is selected.
+    expect(document.querySelector('[data-workflow-node-details]')).toBeNull();
+
+    const turn4 = document.querySelector('[data-workflow-chip-id="n4"]') as HTMLElement;
+    const turn5 = document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement;
+    fireEvent.click(turn4);
+
+    expect(turn5.dataset.sessionHighlighted).toBe('true');
+    const details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(details).getByText('@reviewer')).toBeTruthy();
+    expect(within(details).getByText('Messages to frontend: 2')).toBeTruthy();
+    expect(within(details).getByText('Messages from frontend: 1')).toBeTruthy();
+  });
+
+  it('collapses consecutive completed plumbing in Flow, shows flat rows in Steps, and switches Messages/Log tabs', async () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getSubagentRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: 'delegation-json',
+        sid: '1795389735000-c1d2e3f4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          subagent: 'delegation-json',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          threadId: null,
+          source: 'workflow',
+          status: 'completed',
+          startedAt: 1795389740,
+          endedAt: 1795389755,
+          result: '```json\n{"id":9223372036854775807,"checked":4}\n```',
+        },
+        snapshot: {
+          md: '',
+          reasoning: '',
+          tools: [],
+          status: 'done',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Prepare'],
+        nodes: [
+          makeNode('n1', {
+            kind: 'value',
+            label: 'Load config',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n2', {
+            kind: 'state',
+            label: 'Seed state',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n3', {
+            kind: 'agent',
+            label: 'Run audit',
+            name: 'auditor',
+            status: 'completed',
+            run: 'delegation-json',
+            endedAt: 1795389755,
+            usage: { inputTokens: 1500, outputTokens: 500, toolCalls: 2, costUsd: 0.12 },
+          }),
+          makeNode('n4', {
+            kind: 'send',
+            label: 'Notify peer',
+            name: null,
+            status: 'failed',
+            error: 'Peer inbox closed',
+            endedAt: 1795389756,
+          }),
+        ],
+        edges: [{ from: 'n3', to: 'n4', count: 2 }],
+        log: ['Round 1 finished'],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Flow tab collapses n1 + n2 into one setup-steps pill while keeping failed plumbing visible.
+    const setupToggle = screen.getByRole('button', { name: '2 setup steps' });
+    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeNull();
+    expect(document.querySelector('[data-workflow-chip-id="n4"]')).toBeTruthy();
+
+    fireEvent.click(setupToggle);
+    const setupChild1 = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    expect(setupChild1).toBeTruthy();
+    expect(document.querySelector('[data-workflow-chip-id="n2"]')).toBeTruthy();
+    // Clicking the setup-steps toggle collapses the group cleanly even while a child is selected.
+    fireEvent.click(setupChild1);
+    expect(document.querySelector('[data-workflow-node-details="n1"]')).toBeTruthy();
+    fireEvent.click(setupToggle);
+    expect(setupToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeNull();
+
+    // Selecting n3 displays KPI metrics and un-fenced pretty JSON inside <pre>.
+    fireEvent.click(screen.getByRole('button', { name: /Run audit/ }));
+    const details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
+    expect(within(details).getByText('Duration')).toBeTruthy();
+    expect(within(details).getByText('2K')).toBeTruthy();
+    expect(within(details).getByText('$0.12')).toBeTruthy();
+    const pre = details.querySelector('pre');
+    expect(pre?.textContent).toBe('{"id":9223372036854775807,"checked":4}');
+
+    // Tabs have space-separated accessible names and wire aria-controls to a focusable tabpanel.
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(4);
+    expect(tabs[1]!.textContent).toBe('Steps 4');
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeTruthy();
+    expect(tabs[1]!.getAttribute('aria-controls')).toBeNull();
+    fireEvent.click(tabs[1]!);
+    const stepsPanel = screen.getByRole('tabpanel');
+    expect(stepsPanel.id).toBe(tabs[1]!.getAttribute('aria-controls'));
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeNull();
+    expect(stepsPanel.getAttribute('tabindex')).toBe('0');
+    expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(4);
+    expect(document.querySelector('[data-workflow-chip-id="n4"]')?.textContent).toContain(
+      '(Failed)'
+    );
+
+    // Messages tab wraps arrows in dir="ltr" and exposes accessible direction; ArrowRight switches to Log.
+    fireEvent.click(tabs[2]!);
+    const routeItem = screen.getByRole('listitem');
+    expect(routeItem.querySelector('[dir="ltr"]')?.textContent).toBe('auditor → Notify peer');
+    expect(routeItem.textContent).toContain('auditor to Notify peer: 2');
+    fireEvent.keyDown(tabs[2]!, { key: 'ArrowRight' });
+    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[3]!.id);
+    expect(screen.getByText('Round 1 finished')).toBeTruthy();
+
+    // Bengali locale formats tab counts with localDigits and RTL reverses arrow-key tab order.
+    const previousLanguage = i18next.language;
+    const previousDir = document.documentElement.dir;
     try {
-      const nodes = Array.from({ length: 25 }, (_, i) =>
-        makeNode(`n${String(i + 1).padStart(2, '0')}`, {
-          group: 'g1',
-          status: 'running',
-          startedAt: 1795389740 + i,
-        })
+      i18next.addResourceBundle(
+        'bn',
+        'translation',
+        { mindroomUi: { workflowRun: { panel: { flow: 'প্রবাহ' } } } },
+        true,
+        true
       );
-      const edges = [{ from: 'n01', to: 'n02', count: 2 }];
-      wfStore.ingest(
-        ROOM_ID,
-        AGENT,
-        makeSnapshotFrame({
-          phases: ['Audit'],
-          groups: [
-            { id: 'g1', kind: 'foreach', phase: 0, parent: null, total: 25, done: 0, failed: 0 },
-          ],
-          nodes,
-          edges,
-        }),
-        Date.now()
-      );
-
-      render(
-        <JotaiProvider store={store}>
-          <MatrixClientProvider value={mx}>
-            <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
-          </MatrixClientProvider>
-        </JotaiProvider>
-      );
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
-      const edgePaths = () =>
-        document.querySelectorAll('[data-testid="workflow-panel"] > div svg path');
-      expect(edgePaths()).toHaveLength(1);
-
-      // Completing n01 pushes it out of the 24 running visible chips while edges remain identical.
-      act(() => {
-        wfStore.ingest(
-          ROOM_ID,
-          AGENT,
-          {
-            run: RUN,
-            sid: '1795389735000-a1b2c3d4',
-            seq: 2,
-            meta: makeMeta(),
-            delta: {
-              nodes: [{ ...nodes[0]!, status: 'completed', endedAt: 1795389800 }],
-              groups: [
-                {
-                  id: 'g1',
-                  kind: 'foreach',
-                  phase: 0,
-                  parent: null,
-                  total: 25,
-                  done: 1,
-                  failed: 0,
-                },
-              ],
-            },
-          },
-          Date.now()
-        );
+      await act(async () => {
+        await i18next.changeLanguage('bn');
       });
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeNull();
-      expect(edgePaths()).toHaveLength(0);
+      const tablistText = screen.getByRole('tablist').textContent ?? '';
+      expect(tablistText).toContain('৪');
+      expect(tablistText).toContain('২');
+      expect(tablistText).toContain('১');
+      expect(tablistText).not.toMatch(/[0-9]/);
 
-      // Expanding the group brings n01 back and restores the measured SVG edge.
-      fireEvent.click(screen.getByRole('button', { name: 'Show 1 more' }));
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
-      expect(edgePaths()).toHaveLength(1);
+      document.documentElement.dir = 'rtl';
+      fireEvent.keyDown(tabs[3]!, { key: 'ArrowRight' });
+      expect(tabs[2]!.getAttribute('aria-selected')).toBe('true');
     } finally {
-      rectSpy.mockRestore();
+      document.documentElement.dir = previousDir;
+      await act(async () => {
+        i18next.removeResourceBundle('bn', 'translation');
+        await i18next.changeLanguage(previousLanguage);
+      });
     }
+  });
+
+  it('shows omitted notices instead of empty states and hides 0 tab badges when edges or logs were omitted', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [makeNode('n1', { label: 'Check auth', status: 'completed', endedAt: 1795389760 })],
+        edges: [],
+        log: [],
+        omitted: { ...emptyOmitted, edges: 5, log: 3 },
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[2]!.textContent).toBe('Messages');
+    expect(tabs[3]!.textContent).toBe('Log');
+
+    fireEvent.click(tabs[2]!);
+    expect(screen.queryByText('No messages between steps yet.')).toBeNull();
+    expect(screen.getByText('5 message routes omitted.')).toBeTruthy();
+    expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
+
+    fireEvent.click(tabs[3]!);
+    expect(screen.queryByText('No log entries yet.')).toBeNull();
+    expect(screen.getByText('3 log entries omitted.')).toBeTruthy();
+  });
+
+  it('resolves session-addressed peer edges in Parallel groups and preserves execution order in folded sequential run groups', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const seqNodes = Array.from({ length: 25 }, (_, i) =>
+      makeNode(`n${i + 10}`, {
+        label: `Seq ${i + 1}`,
+        group: 'g-seq',
+        phase: 1,
+        status: 'completed',
+        endedAt: 1795389800 + i,
+      })
+    );
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit', 'Pipeline'],
+        groups: [
+          { id: 'g1', kind: 'parallel', phase: 0, parent: null, total: 2, done: 2, failed: 0 },
+          { id: 'g-seq', kind: 'run', phase: 1, parent: null, total: 25, done: 25, failed: 0 },
+        ],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            phase: 0,
+            status: 'completed',
+            turns: 1,
+            endedAt: 1795389750,
+          }),
+          makeNode('n4', {
+            label: 'Backend scan',
+            name: 'backend',
+            group: 'g1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'Review pass',
+            name: 'pass-1',
+            group: 'g1',
+            session: 's1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+          ...seqNodes,
+        ],
+        edges: [{ from: 'n4', to: 's1', count: 2 }],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Turn-to-session edge renders as a peer bridge inside g1 and appears in n5's inspector.
+    const parallelGroup = document.querySelector('[data-workflow-group-id="g1"]') as HTMLElement;
+    expect(parallelGroup.querySelector('[dir="ltr"]')?.textContent).toContain(
+      'backend → reviewer · 2'
+    );
+    fireEvent.click(document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement);
+    const details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    const sessionSection = details.querySelector(
+      '[data-workflow-session-messages="s1"]'
+    ) as HTMLElement;
+    expect(sessionSection).toBeTruthy();
+    expect(within(sessionSection).getByText('@reviewer')).toBeTruthy();
+    expect(within(sessionSection).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // Folded 25-item sequential `run` group keeps its 24 kept items in ascending execution order (n11..n34).
+    const seqGroup = document.querySelector('[data-workflow-group-id="g-seq"]') as HTMLElement;
+    const seqChipIds = Array.from(
+      seqGroup.querySelectorAll<HTMLElement>('[data-workflow-chip-id]'),
+      (el) => el.dataset.workflowChipId
+    );
+    expect(seqChipIds).toHaveLength(24);
+    expect(seqChipIds[0]).toBe('n11');
+    expect(seqChipIds[23]).toBe('n34');
+  });
+
+  it('omits backwards arrows for post-phase unphased steps and shows visible non-color status cues in Steps', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Build'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Compile',
+            phase: 0,
+            status: 'waiting',
+            waitingOn: 'peer',
+          }),
+          makeNode('n2', {
+            label: 'Publish',
+            phase: null,
+            status: 'completed',
+            cached: true,
+            endedAt: 1795389760,
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Unphased Publish (n2) appears above Build (n1) without a backwards downward arrow SVG.
+    const flowPanel = screen.getByRole('tabpanel');
+    expect(flowPanel.querySelectorAll('svg')).toHaveLength(0);
+
+    // Steps tab renders visible non-color status cues AND includes Reused in screen-reader status text.
+    fireEvent.click(screen.getAllByRole('tab')[1]!);
+    const compileRow = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    const publishRow = document.querySelector('[data-workflow-chip-id="n2"]') as HTMLElement;
+    expect(within(compileRow).getByText('Waiting for a message')).toBeTruthy();
+    expect(within(publishRow).getByText('Reused from the last run')).toBeTruthy();
+    expect(publishRow.textContent).toContain('(Done, Reused from the last run)');
+  });
+
+  it('waits without rendering empty 0-count tabs when entry summary exists before graph arrives', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const summaryOnlyCard: WorkflowRunCard = {
+      run: RUN,
+      jobId: 'job-wf-live',
+      requester: VIEWER,
+      title: 'Pending graph run',
+      status: 'running',
+      counts: {
+        queued: 1,
+        running: 1,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+      usage: { inputTokens: 0, outputTokens: 0, toolCalls: 0, costUnknown: false },
+      phases: ['Audit'],
+      attempt: 1,
+      startedAt: 1795389735,
+      endedAt: null,
+      error: null,
+      large: false,
+    };
+    getWorkflowRunStore(mx).showCard(ROOM_ID, AGENT, summaryOnlyCard, Date.now());
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Pending graph run' })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText("Waiting for the run's next update…")).toBeTruthy();
   });
 
   it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {
