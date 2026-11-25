@@ -441,22 +441,6 @@ describe('CanvasPanel', () => {
     expect(buttonNamed('Load update')).toBeUndefined();
   });
 
-  it('loads the next step in place after auto-send even if focus remained pinned on the iframe', async () => {
-    render();
-    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
-    await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
-    });
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    await accept();
-
-    render({ canvas: { ...canvas, revisionEventId: '$step-2', html: '<p>Next</p>' } });
-    expect(page()).toContain('<p>Next</p>');
-    expect(buttonNamed('Load update')).toBeUndefined();
-    delete (document as { activeElement?: unknown }).activeElement;
-  });
-
   it('cancels an auto-send countdown on Undo or Escape and enforces post-Undo cooldown', async () => {
     render();
     await postGesture('Pro plan', { plan: 'pro' });
@@ -569,6 +553,31 @@ describe('CanvasPanel', () => {
     expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
       label: 'Pro plan',
       data: { plan: 'pro' },
+    });
+  });
+
+  it('pauses the countdown if a second submission is throttled within 100 ms', async () => {
+    render();
+    await postGesture('Raw form', { raw: '1' });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    await post(submit('Processed form', { processed: '1' }, true), frame().contentWindow);
+    expect(container.textContent).toContain('Send to Planner: Raw form');
+    expect(container.textContent).toContain('To change your answer, discard this one first.');
+    expect(button('[data-canvas-discard]').textContent).toBe('Undo');
+    expect(button('[data-canvas-send]').textContent).toBe('Send now');
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
+      label: 'Raw form',
+      data: { raw: '1' },
     });
   });
 
@@ -896,6 +905,34 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]')).toBeNull();
     await act(async () => buttonNamed('Load update')?.click());
     expect(page()).toContain('<p>Step 2</p>');
+  });
+
+  it('holds an incoming revision behind Load update if focus returned to the frame while a sidecar upload finished', async () => {
+    const uploads = slowUpload();
+    render();
+    await postGesture('First', { text: 'A long paragraph. '.repeat(4000) });
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
+    });
+    expect(uploads).toHaveLength(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    // User clicks back into the canvas to edit while the sidecar upload is still in flight.
+    await act(async () => {
+      focusFrame();
+      window.dispatchEvent(new Event('blur'));
+    });
+    expect(document.activeElement).toBe(frame());
+
+    await act(async () => uploads[0]!.finish());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    await accept();
+    expect(document.activeElement).toBe(frame());
+
+    update();
+    expect(page()).toContain('<button>Pro</button>');
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(buttonNamed('Load update')).not.toBeUndefined();
   });
 
   it('keeps a large answer for another try when its upload fails after an update arrived', async () => {

@@ -169,8 +169,6 @@ export function useCanvasHost({
   const busyNow = useRef(false);
   // Blocks follow-up auto-sends within the same transient browser activation window.
   const gestureCooldownUntil = useRef(0);
-  // Focus left on the iframe after a completed send does not count as unsent work until new input.
-  const staleFocusAfterSend = useRef(false);
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
@@ -204,7 +202,6 @@ export function useCanvasHost({
     used.current = false;
     lastStageAt.current = 0;
     gestureCooldownUntil.current = 0;
-    staleFocusAfterSend.current = false;
     updateStaged(sending);
     setSendError(false);
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
@@ -238,8 +235,7 @@ export function useCanvasHost({
     // A page that finished downloading belongs to the revision already shown.
     const sameRevisionLoaded =
       latest.current.canvas.revisionEventId === displayedRevisionId && displayedPending;
-    const frameActive = document.activeElement === frameRef.current && !staleFocusAfterSend.current;
-    if (sameRevisionLoaded || (!touched.current && !frameActive)) {
+    if (sameRevisionLoaded || (!touched.current && document.activeElement !== frameRef.current)) {
       setDisplayed({
         ...latest.current.canvas,
         colorScheme: latest.current.colorScheme,
@@ -260,19 +256,26 @@ export function useCanvasHost({
       if (document.activeElement !== frameRef.current) return;
       touched.current = true;
       used.current = true;
-      staleFocusAfterSend.current = false;
     };
     const stageSubmission = (event: MessageEvent, source: Window, trustedGesture: boolean) => {
       // Size reports and other messages leave the snapshot budget alone.
       if (event.data?.type !== CANVAS_SUBMIT_MESSAGE) return;
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
-      if (now - lastStageAt.current < STAGE_INTERVAL_MS) return;
+      if (now - lastStageAt.current < STAGE_INTERVAL_MS) {
+        if (stagedNow.current?.phase === 'countdown') {
+          updateStaged((current) =>
+            current?.phase === 'countdown'
+              ? { ...current, phase: 'paused', resubmitted: true }
+              : current
+          );
+        }
+        return;
+      }
       lastStageAt.current = now;
       const submission = readCanvasSubmission(event, source, { trustedGesture });
       if (!submission) return;
       touched.current = true;
-      staleFocusAfterSend.current = false;
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
       updateStaged((current) => {
@@ -313,7 +316,6 @@ export function useCanvasHost({
       if (saved !== undefined) {
         // The page's own focus() cannot fake user activation; focus is the fallback where it is unknown.
         const byUser = saved.user ?? (used.current || document.activeElement === frameRef.current);
-        if (byUser) staleFocusAfterSend.current = false;
         latest.current.onSaveState?.(saved.change, byUser);
         return;
       }
@@ -397,7 +399,6 @@ export function useCanvasHost({
         updateStaged(undefined);
         // Work in the frame after this answer marks it again.
         touched.current = false;
-        staleFocusAfterSend.current = document.activeElement === frameRef.current;
       }
       setLastAnswer(echo ? { echo, label } : undefined);
       return true;

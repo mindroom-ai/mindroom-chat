@@ -34,8 +34,11 @@ export const Staged = style({
   padding: `${config.space.S200} ${config.space.S300}`,
   position: 'relative',
   width: '100%',
-  selectors: { '&[data-auto-send]': { borderColor: color.Primary.ContainerLine } },
-  ':focus': { outline: 'none' },
+  selectors: {
+    '&[data-auto-send]': { borderColor: color.Primary.ContainerLine },
+    '&:focus:not(:focus-visible)': { outline: 'none' },
+  },
+  ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: '2px' },
 });
 
 export const CountdownTrack = style({
