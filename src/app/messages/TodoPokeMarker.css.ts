@@ -26,22 +26,29 @@ const quietInteractive = {
 } as const;
 
 // Variant C (Quiet Scannable List): subtle left accent rule matching ModelChangeMarker.Panel.
+// Hug content up to 48rem so priority pills, IDs, and Hide stay anchored near the text on wide
+// timelines, while keeping full column width on narrow/phone screens.
 export const Marker = style({
   display: 'flex',
   flexDirection: 'column',
   gap: config.space.S100,
+  inlineSize: 'fit-content',
   minInlineSize: 0,
+  maxInlineSize: `min(100%, ${toRem(768)})`,
+  alignSelf: 'flex-start',
   paddingBlock: toRem(2),
   paddingInlineStart: config.space.S300,
   borderInlineStart: `${config.borderWidth.B600} solid color-mix(in srgb, ${color.Primary.Main} 42%, ${color.SurfaceVariant.ContainerLine})`,
+  '@media': { [SMALL_SCREEN]: { inlineSize: '100%' } },
 });
 
 export const Eyebrow = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: config.space.S200,
+  gap: config.space.S400,
   minInlineSize: 0,
+  '@media': { [SMALL_SCREEN]: { gap: config.space.S200 } },
 });
 
 export const EyebrowMain = style({
@@ -128,9 +135,10 @@ export const ItemMeta = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
+  marginInlineStart: config.space.S200,
   flexShrink: 0,
   whiteSpace: 'nowrap',
-  '@media': { [SMALL_SCREEN]: { gridColumn: 2, justifySelf: 'start' } },
+  '@media': { [SMALL_SCREEN]: { gridColumn: 2, justifySelf: 'start', marginInlineStart: 0 } },
 });
 
 const pillBase = style({
