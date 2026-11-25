@@ -117,6 +117,8 @@ const post = (data: unknown, source = canvasFrameWindow(frame()), origin = 'null
   act(() => {
     window.dispatchEvent(new MessageEvent('message', { data, source, origin }));
   });
+const buttonNamed = (name: string) =>
+  [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name);
 beforeEach(() => {
   saved.ready = true;
   saved.value = {};
@@ -230,9 +232,7 @@ describe('InlineCanvasFrame', () => {
     expect(container.querySelector('iframe')).toBeNull();
     download.mockResolvedValueOnce({ text: () => Promise.resolve('<p>Downloaded</p>') });
     await act(async () => {
-      [...container.querySelectorAll('button')]
-        .find((candidate) => candidate.textContent === 'Retry')
-        ?.click();
+      buttonNamed('Retry')?.click();
     });
     expect(frame().srcdoc).toContain('Downloaded');
     expect(download).toHaveBeenCalledTimes(2);
@@ -395,11 +395,7 @@ describe('InlineCanvasFrame', () => {
     escape();
     expect(container.querySelector('iframe')).toBeNull();
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    act(() =>
-      [...container.querySelectorAll('button')]
-        .find((candidate) => candidate.textContent === 'Reload panel')!
-        .click()
-    );
+    act(() => buttonNamed('Reload panel')!.click());
     expect(container.querySelector('iframe')).not.toBeNull();
   });
   it('keeps the iframe mounted and counts no escape on web when srcDoc updates and loads again', () => {
@@ -531,9 +527,7 @@ describe('InlineCanvasFrame', () => {
     const titleSpan = titleWrap.querySelector('[data-own-direction]')!;
     expect(titleSpan.getAttribute('dir')).toBe('auto');
 
-    const open = [...container.querySelectorAll('button')].find(
-      (candidate) => candidate.textContent === 'Open canvas'
-    )!;
+    const open = buttonNamed('Open canvas')!;
     expect(open).toBeDefined();
     expect(open.closest('[data-canvas-actions]')).not.toBeNull();
     // Both title and Open canvas sit in the header above the iframe.
@@ -550,9 +544,7 @@ describe('InlineCanvasFrame', () => {
       activate,
       unavailable: () => 'End the call to open interactive panels.',
     });
-    const disabledOpen = [...container.querySelectorAll('button')].find(
-      (candidate) => candidate.textContent === 'Open canvas'
-    )!;
+    const disabledOpen = buttonNamed('Open canvas')!;
     expect(disabledOpen.disabled).toBe(true);
     const note = container.querySelector('[role="note"]')!;
     expect(note.textContent).toBe('End the call to open interactive panels.');
@@ -644,9 +636,8 @@ describe('InlineCanvasFrame as a host', () => {
       vi.advanceTimersByTime(ms);
     });
   const sendButton = () => container.querySelector<HTMLButtonElement>('[data-canvas-send]');
+  const discardButton = () => container.querySelector<HTMLButtonElement>('[data-canvas-discard]');
   const status = () => container.querySelector('[data-canvas-status]')?.textContent ?? '';
-  const buttonNamed = (name: string) =>
-    [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name);
   const edit = (request: MatrixEvent, html: string) =>
     new MatrixEvent({
       event_id: '$edit',
@@ -707,38 +698,36 @@ describe('InlineCanvasFrame as a host', () => {
     expect(status()).toMatch(/^Sent to .+: Pro plan$/);
   });
 
-  it('auto-sends a focused wrapper-attested inline submission after 2.5 s, pauses on inspect, and cancels on Undo or Escape', async () => {
+  it('auto-sends a focused wrapper-attested inline submission after 2.5 s, pauses on inspect, and cancels on Undo', async () => {
     render();
     const wrapper = frame().contentWindow!;
     const live = container.querySelector('[data-canvas-staged-live]')!;
+    const gesture = (label: string, data: unknown) => {
+      frame().focus();
+      post(submit(true, label, data, true), wrapper);
+    };
     expect(live.textContent).toBe('');
 
     // Unfocused wrapper gesture submission falls back to explicit confirm.
     post(submit(true, 'Unfocused', { plan: 'x' }, true), wrapper);
     expect(sendButton()!.textContent).toBe('Send');
     expect(sendButton()!.disabled).toBe(true);
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[data-canvas-discard]')!.click()
-    );
+    await act(async () => discardButton()!.click());
     await later(100);
 
     // 1. Focused gesture submission announces Undo and cancels on Undo click.
-    frame().focus();
-    post(submit(true, 'Pro plan', { plan: 'pro' }, true), wrapper);
+    gesture('Pro plan', { plan: 'pro' });
     expect(live.textContent).toContain('Use Undo to cancel.');
-    expect(container.querySelector('[data-canvas-discard]')?.textContent).toBe('Undo');
+    expect(discardButton()?.textContent).toBe('Undo');
     expect(sendButton()!.textContent).toBe('Send now');
     expect(sendButton()!.disabled).toBe(false);
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[data-canvas-discard]')!.click()
-    );
+    await act(async () => discardButton()!.click());
     await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).not.toHaveBeenCalled();
 
     // 2. After cooldown expires, opening Data pauses the countdown until Send now is clicked.
     await later(CANVAS_GESTURE_COOLDOWN_MS);
-    frame().focus();
-    post(submit(true, 'Basic plan', { plan: 'basic' }, true), wrapper);
+    gesture('Basic plan', { plan: 'basic' });
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-canvas-inspect]')!.click()
     );
@@ -752,8 +741,7 @@ describe('InlineCanvasFrame as a host', () => {
 
     // 3. After cooldown expires, leaving a focused gesture submission alone auto-sends at 2.5 s.
     await later(CANVAS_GESTURE_COOLDOWN_MS);
-    frame().focus();
-    post(submit(true, 'Auto plan', { plan: 'auto' }, true), wrapper);
+    gesture('Auto plan', { plan: 'auto' });
     await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[1]![1]).toMatchObject({
@@ -890,7 +878,7 @@ describe('InlineCanvasFrame as a host', () => {
       );
     });
     expect(frame()).not.toBe(first);
-    expect(container.querySelector('[data-canvas-discard]')).not.toBeNull();
+    expect(discardButton()).not.toBeNull();
     expect(container.textContent).toContain('Draft');
     // The upload fails: the answer is still there to send again.
     await act(async () => failUpload());

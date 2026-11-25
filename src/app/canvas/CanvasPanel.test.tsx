@@ -214,10 +214,11 @@ const submit = (label = 'Pro plan', data: unknown = { plan: 'pro' }, userGesture
   ...(userGesture === undefined ? {} : { userGesture }),
 });
 
-const arm = () =>
+const later = (ms: number) =>
   act(async () => {
-    vi.advanceTimersByTime(CANVAS_SEND_ARM_DELAY_MS);
+    vi.advanceTimersByTime(ms);
   });
+const arm = () => later(CANVAS_SEND_ARM_DELAY_MS);
 
 const clickSend = () =>
   act(async () => {
@@ -236,13 +237,18 @@ const refuse = () =>
     requests.shift()?.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403));
   });
 
-const focusFrame = () => {
-  frame().focus();
-};
+const postFromWrapper = (data: unknown) => post(data, frame().contentWindow);
 
 const postGesture = async (label = 'Pro plan', data: unknown = { plan: 'pro' }) => {
-  focusFrame();
-  await post(submit(label, data, true), frame().contentWindow);
+  frame().focus();
+  await postFromWrapper(submit(label, data, true));
+};
+
+const expectExplicitConfirm = (label: string) => {
+  expect(container.textContent).toContain(`Send to Planner: ${label}`);
+  expect(button('[data-canvas-discard]').textContent).toBe('Discard');
+  expect(button('[data-canvas-send]').textContent).toBe('Send');
+  expect(button('[data-canvas-send]').disabled).toBe(true);
 };
 
 const touchFrame = () =>
@@ -386,18 +392,13 @@ describe('CanvasPanel', () => {
 
   it('ignores forged userGesture: true sent directly from the inner canvas frame', async () => {
     render();
-    focusFrame();
+    frame().focus();
     await post(submit('Spoofed', { plan: 'spoof' }, true));
-    expect(container.textContent).toContain('Send to Planner: Spoofed');
-    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
-    expect(button('[data-canvas-send]').textContent).toBe('Send');
-    expect(button('[data-canvas-send]').disabled).toBe(true);
+    expectExplicitConfirm('Spoofed');
 
     await arm();
     expect(button('[data-canvas-send]').disabled).toBe(false);
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -405,16 +406,11 @@ describe('CanvasPanel', () => {
     render();
     // Focus is outside the iframe (e.g. on the room composer).
     expect(document.activeElement).not.toBe(frame());
-    await post(submit('Unfocused', { plan: 'unfocused' }, true), frame().contentWindow);
-    expect(container.textContent).toContain('Send to Planner: Unfocused');
-    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
-    expect(button('[data-canvas-send]').textContent).toBe('Send');
-    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await postFromWrapper(submit('Unfocused', { plan: 'unfocused' }, true));
+    expectExplicitConfirm('Unfocused');
 
     await arm();
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -434,14 +430,10 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]').textContent).toBe('Send now');
     expect(button('[data-canvas-send]').disabled).toBe(false);
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS - 1);
-    });
+    await later(CANVAS_UNDO_DELAY_MS - 1);
     expect(sendMessage).not.toHaveBeenCalled();
 
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
+    await later(1);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
       label: 'Pro plan',
@@ -456,12 +448,10 @@ describe('CanvasPanel', () => {
     expect(buttonNamed('Load update')).toBeUndefined();
   });
 
-  it('cancels an auto-send countdown on Undo or Escape and enforces post-Undo cooldown', async () => {
+  it('cancels an auto-send countdown on Escape and enforces post-Undo cooldown', async () => {
     render();
     await postGesture('Pro plan', { plan: 'pro' });
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
+    await later(1000);
     await act(async () => {
       container
         .querySelector('[data-auto-send]')!
@@ -469,44 +459,28 @@ describe('CanvasPanel', () => {
     });
     expect(button('[data-canvas-send]')).toBeNull();
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
-    });
+    await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).not.toHaveBeenCalled();
 
     // A follow-up submission within the post-Undo cooldown falls back to explicit confirm.
     await postGesture('Follow-up', { plan: 'sneaky' });
-    expect(container.textContent).toContain('Send to Planner: Follow-up');
-    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
-    expect(button('[data-canvas-send]').textContent).toBe('Send');
-    expect(button('[data-canvas-send]').disabled).toBe(true);
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    expectExplicitConfirm('Follow-up');
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('enforces cooldown after an auto-send so a follow-up script cannot trigger a second auto-send', async () => {
     render();
     await postGesture('First', { step: 1 });
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
-    });
+    await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     await accept();
 
-    await act(async () => {
-      vi.advanceTimersByTime(200);
-    });
+    await later(200);
     await postGesture('Sneaky second', { step: 2 });
-    expect(container.textContent).toContain('Send to Planner: Sneaky second');
-    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
-    expect(button('[data-canvas-send]').textContent).toBe('Send');
-    expect(button('[data-canvas-send]').disabled).toBe(true);
+    expectExplicitConfirm('Sneaky second');
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
@@ -519,9 +493,7 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-discard]').textContent).toBe('Undo');
     expect(button('[data-canvas-send]').textContent).toBe('Send now');
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).not.toHaveBeenCalled();
 
     await clickSend();
@@ -538,61 +510,49 @@ describe('CanvasPanel', () => {
     });
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('pauses the countdown and refuses to swap when a different submission arrives during countdown', async () => {
+  it.each([
+    {
+      name: 'pauses the countdown and refuses to swap when a different submission arrives during countdown',
+      firstLabel: 'Pro plan',
+      firstData: { plan: 'pro' },
+      waitMs: 1000,
+      secondLabel: 'Everything',
+      secondData: { plan: 'everything' },
+      secondGesture: false,
+    },
+    {
+      name: 'pauses the countdown if a second submission is throttled within 100 ms',
+      firstLabel: 'Raw form',
+      firstData: { raw: '1' },
+      waitMs: 10,
+      secondLabel: 'Processed form',
+      secondData: { processed: '1' },
+      secondGesture: true,
+    },
+  ])('$name', async ({ firstLabel, firstData, waitMs, secondLabel, secondData, secondGesture }) => {
     render();
-    await postGesture('Pro plan', { plan: 'pro' });
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
-    await post(submit('Everything', { plan: 'everything' }, false), frame().contentWindow);
-    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    await postGesture(firstLabel, firstData);
+    await later(waitMs);
+    await postFromWrapper(submit(secondLabel, secondData, secondGesture));
+    expect(container.textContent).toContain(`Send to Planner: ${firstLabel}`);
     expect(container.textContent).toContain('To change your answer, discard this one first.');
     expect(button('[data-canvas-discard]').textContent).toBe('Undo');
     expect(button('[data-canvas-send]').textContent).toBe('Send now');
 
-    // Stale Plan A must NOT auto-send after a different submission arrived.
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    // The original snapshot must NOT auto-send after a follow-up submission arrived.
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).not.toHaveBeenCalled();
 
     // User can still explicitly send the preserved original snapshot.
     await clickSend();
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
-      label: 'Pro plan',
-      data: { plan: 'pro' },
-    });
-  });
-
-  it('pauses the countdown if a second submission is throttled within 100 ms', async () => {
-    render();
-    await postGesture('Raw form', { raw: '1' });
-    await act(async () => {
-      vi.advanceTimersByTime(10);
-    });
-    await post(submit('Processed form', { processed: '1' }, true), frame().contentWindow);
-    expect(container.textContent).toContain('Send to Planner: Raw form');
-    expect(container.textContent).toContain('To change your answer, discard this one first.');
-    expect(button('[data-canvas-discard]').textContent).toBe('Undo');
-    expect(button('[data-canvas-send]').textContent).toBe('Send now');
-
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
-    expect(sendMessage).not.toHaveBeenCalled();
-
-    await clickSend();
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
-      label: 'Raw form',
-      data: { raw: '1' },
+      label: firstLabel,
+      data: firstData,
     });
   });
 
@@ -603,18 +563,14 @@ describe('CanvasPanel', () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
     // Wait out the post-send cooldown while the first send is still in flight (busy).
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_GESTURE_COOLDOWN_MS);
-    });
+    await later(CANVAS_GESTURE_COOLDOWN_MS);
     await postGesture('Second', { step: 2 });
     expect(container.textContent).toContain('Send to Planner: Second');
     expect(button('[data-canvas-send]').disabled).toBe(true);
 
     await accept();
     expect(button('[data-canvas-send]').disabled).toBe(false);
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
     await clickSend();
@@ -627,16 +583,12 @@ describe('CanvasPanel', () => {
       throw new Error('offline');
     });
     await postGesture('Pro plan', { plan: 'pro' });
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
-    });
+    await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(status()).toBe('Could not send your response. Try again.');
     expect(container.textContent).toContain('Send to Planner: Pro plan');
 
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
-    });
+    await later(CANVAS_UNDO_DELAY_MS * 2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
     await clickSend();
@@ -657,17 +609,13 @@ describe('CanvasPanel', () => {
     // The same answer again (a double click) changes nothing the user needs to hear about.
     await post(submit('Basic', { plan: 'basic' }));
     expect(container.textContent).not.toContain('discard this one first');
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('Everything', { plan: 'everything' }));
     expect(container.textContent).toContain('Send to Planner: Basic');
     expect(container.textContent).toContain('To change your answer, discard this one first.');
     expect(button('[data-canvas-send]').disabled).toBe(false);
     await act(async () => button('[data-canvas-discard]').click());
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('Pro plan'));
     expect(container.textContent).not.toContain('discard this one first');
     expect(button('[data-canvas-send]').disabled).toBe(true);
@@ -685,9 +633,7 @@ describe('CanvasPanel', () => {
     await act(async () => button('[data-canvas-discard]').click());
     await post(submit('two'));
     expect(button('[data-canvas-send]')).toBeNull();
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('three'));
     expect(container.textContent).toContain('Send to Planner: three');
   });
@@ -782,9 +728,7 @@ describe('CanvasPanel', () => {
   it('holds one unresolved answer at a time', async () => {
     render();
     await answer('one');
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('two'));
     await arm();
     // The first answer is still sending, so the second cannot be sent yet.
@@ -798,9 +742,7 @@ describe('CanvasPanel', () => {
     await accept();
     expect(status()).toContain('Sent to Planner: two');
     // A sent answer leaves the panel free for the next one on the same page.
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('three'));
     await arm();
     expect(button('[data-canvas-send]').disabled).toBe(false);
@@ -827,9 +769,7 @@ describe('CanvasPanel', () => {
     await answer();
     await refuse();
     await touchFrame();
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(submit('Basic'));
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(container.textContent).toContain('Planner updated this panel.');
@@ -893,9 +833,7 @@ describe('CanvasPanel', () => {
     await arm();
     await clickSend();
     await act(async () => button('[data-canvas-discard]').click());
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await post(largeAnswer('Second'));
     await act(async () => uploads[0]!.finish());
     expect(sendMessage).not.toHaveBeenCalled();
@@ -926,15 +864,13 @@ describe('CanvasPanel', () => {
     const uploads = slowUpload();
     render();
     await postGesture('First', { text: 'A long paragraph. '.repeat(4000) });
-    await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
-    });
+    await later(CANVAS_UNDO_DELAY_MS);
     expect(uploads).toHaveLength(1);
     expect(sendMessage).not.toHaveBeenCalled();
 
     // User clicks back into the canvas to edit while the sidecar upload is still in flight.
     await act(async () => {
-      focusFrame();
+      frame().focus();
       window.dispatchEvent(new Event('blur'));
     });
     expect(document.activeElement).toBe(frame());
@@ -1001,9 +937,7 @@ describe('CanvasPanel', () => {
     sendMessage.mockImplementationOnce(() => {
       throw new Error('Room is not known');
     });
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
+    await later(100);
     await answer('two');
     expect(status()).toContain('Could not send your response');
     expect(status()).not.toContain('Sent to Planner: one');
@@ -1286,7 +1220,7 @@ describe('CanvasPanel', () => {
     render();
     await post({ type: 'mindroom.canvas.escaped' });
     expect(frame()).not.toBeNull();
-    await post({ type: 'mindroom.canvas.escaped' }, frame().contentWindow);
+    await postFromWrapper({ type: 'mindroom.canvas.escaped' });
     expect(frame()).toBeNull();
     expect(container.textContent).toContain('tried to leave');
   });

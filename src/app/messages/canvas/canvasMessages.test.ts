@@ -31,30 +31,23 @@ describe('readCanvasSubmission', () => {
     });
   });
 
-  it('sets userGesture only when trustedGesture is true and message.userGesture is boolean true', () => {
-    // Untrusted/direct sources cannot assert userGesture even if they pass userGesture: true.
-    expect(readCanvasSubmission(message(submit({ userGesture: true })), frame)).toEqual({
-      data: { plan: 'pro' },
-    });
-    expect(
-      readCanvasSubmission(message(submit({ userGesture: true })), frame, {
-        trustedGesture: false,
-      })
-    ).toEqual({ data: { plan: 'pro' } });
-
-    expect(
-      readCanvasSubmission(message(submit({ userGesture: true })), frame, { trustedGesture: true })
-    ).toEqual({
-      data: { plan: 'pro' },
-      userGesture: true,
-    });
-    for (const value of [false, undefined, 'true', 1]) {
-      const parsed = readCanvasSubmission(message(submit({ userGesture: value })), frame, {
-        trustedGesture: true,
-      });
-      expect(parsed).toEqual({ data: { plan: 'pro' } });
-      expect(parsed).not.toHaveProperty('userGesture');
-    }
+  it.each([
+    ['omitted options', true, undefined, { data: { plan: 'pro' } }],
+    ['trustedGesture: false', true, { trustedGesture: false }, { data: { plan: 'pro' } }],
+    [
+      'trusted boolean true',
+      true,
+      { trustedGesture: true },
+      { data: { plan: 'pro' }, userGesture: true },
+    ],
+    ['trusted false', false, { trustedGesture: true }, { data: { plan: 'pro' } }],
+    ['trusted undefined', undefined, { trustedGesture: true }, { data: { plan: 'pro' } }],
+    ['trusted "true"', 'true', { trustedGesture: true }, { data: { plan: 'pro' } }],
+    ['trusted 1', 1, { trustedGesture: true }, { data: { plan: 'pro' } }],
+  ])('handles userGesture (%s)', (_name, userGesture, options, expected) => {
+    expect(readCanvasSubmission(message(submit({ userGesture })), frame, options)).toStrictEqual(
+      expected
+    );
   });
 
   it.each([
