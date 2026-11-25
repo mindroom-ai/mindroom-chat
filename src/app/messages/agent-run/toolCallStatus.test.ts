@@ -118,16 +118,6 @@ describe('resolveToolCallStates with call IDs', () => {
       )
     ).toEqual(['done', 'denied', 'expired']);
   });
-
-  it('gives cards only to the calls they name without byName', () => {
-    expect(
-      resolveToolCallStates(
-        [named('shell', 'a'), named('shell')],
-        [denied(null), denied('a')],
-        false
-      )
-    ).toEqual(['denied', 'done']);
-  });
 });
 
 describe('resolveToolCallStates with background jobs', () => {

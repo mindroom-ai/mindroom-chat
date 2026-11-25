@@ -1,7 +1,6 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { getAiRunInfo, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
-import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
 import { hasThreadSummary } from '../matrix/protocol/threadSummary';
 import { inSameDay } from '../lib/time';
 import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
@@ -114,11 +113,9 @@ const estimateMediaPx = (content: Record<string, unknown>, type: string): number
   return Math.round(height * scale);
 };
 
-/** Whether the message always shows in full: agent replies, summaries and tool traces. */
+/** Whether the message always shows in full: agent replies and summaries. */
 const showsInFull = (event: MatrixEvent, content: Record<string, unknown>): boolean =>
-  isMindroomAgentUserId(event.getSender() ?? undefined) ||
-  hasThreadSummary(content) ||
-  hasMessageExtras(content);
+  isMindroomAgentUserId(event.getSender() ?? undefined) || hasThreadSummary(content);
 
 const priceMessageRow = (
   event: MatrixEvent,

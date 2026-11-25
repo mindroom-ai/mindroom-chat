@@ -51,10 +51,10 @@ const sendMixedThreadReplies = async (
   count: number
 ) => {
   for (let i = 1; i <= count; i += 1) {
-    const isExtras = i % 5 === 0;
+    const isMedium = i % 5 === 0;
     const body =
       // eslint-disable-next-line no-nested-ternary
-      isExtras
+      isMedium
         ? `agent answer ${i}\n${Array.from(
             { length: 12 },
             (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
@@ -69,20 +69,6 @@ const sendMixedThreadReplies = async (
     await sendRoomMessage(homeserver, accessToken, roomId, {
       msgtype: 'm.text',
       body,
-      ...(isExtras
-        ? {
-            'com.mindroom.message_extras': {
-              version: 2,
-              sections: [
-                {
-                  title: `Tool call ${i}.1`,
-                  content_type: 'text/markdown',
-                  content: `tool output for reply ${i}, section 1`,
-                },
-              ],
-            },
-          }
-        : {}),
       'm.relates_to': {
         rel_type: 'm.thread',
         event_id: rootId,

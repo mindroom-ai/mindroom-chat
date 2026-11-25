@@ -23,7 +23,10 @@ test('a canvas from the agent opens in the panel and sends a confirmed answer ba
   const rootId = await startThread(stack, `${uniqueWord('canvas')} #canvas`);
   await showThread(page, stack, rootId);
 
-  const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
+  const open = page
+    .getByRole('button', { name: 'Stub canvas Canvas' })
+    .or(page.getByRole('button', { name: 'Open canvas', exact: true }))
+    .first();
   await expect(open).toBeVisible({ timeout: 120_000 });
   const panel = page.getByRole('complementary', { name: 'Canvas panel' });
   if (!(await panel.isVisible())) await open.click();

@@ -1,5 +1,4 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
 import { getLongTextMxcUri } from '../matrix/protocol/longText';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
 import { hasThreadSummary } from '../matrix/protocol/threadSummary';
@@ -141,7 +140,7 @@ export const getCollapsibleMessageMode = (
   // affordance. Exempting it on hydration unfolded giant rows unprompted
   // (device report 2026-07-06) and flipped their measurement keys mid-life;
   // the agent exemption keys on the sender, which never changes.
-  if (isAgentMessage || hasThreadSummary(resolvedContent) || hasMessageExtras(resolvedContent)) {
+  if (isAgentMessage || hasThreadSummary(resolvedContent)) {
     return 'always-expanded';
   }
 

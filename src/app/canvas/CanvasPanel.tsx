@@ -18,6 +18,8 @@ import { CanvasPageErrors } from '../messages/canvas/CanvasPageErrors';
 import { CanvasUpdateNotice } from '../messages/canvas/CanvasUpdateNotice';
 import * as css from './CanvasPanel.css';
 import { IconTooltip } from '../ui/IconTooltip';
+import { PanelHeaderControls } from '../ui/panels/PanelFrame';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { ownDirectionLine } from '../ui/directional';
 import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../preferences/settings';
@@ -75,6 +77,7 @@ export function CanvasPanel({
   shared = false,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
+  const frame = usePanelFrame();
   const [pageZoom] = useSetting(settingsAtom, 'pageZoom');
   const zoom = pageZoom / PAGE_ZOOM_DEFAULT;
   const [reloads, setReloads] = useState(0);
@@ -123,9 +126,9 @@ export function CanvasPanel({
             </Text>
           </div>
         </Box>
-        <Box className={css.Controls} alignItems="Center" gap="100">
-          {versions && onSelectVersion && (
-            <Box alignItems="Center" gap="100">
+        {versions && onSelectVersion && (
+          <div className={css.VersionRow}>
+            <div className={css.VersionPill}>
               <IconTooltip label={t('mindroomUi.canvas.previousVersion')}>
                 {(triggerRef) => (
                   <IconButton
@@ -134,8 +137,11 @@ export function CanvasPanel({
                     aria-label={t('mindroomUi.canvas.previousVersion')}
                     disabled={host.locked || versions.current <= 1}
                     size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    fill="None"
                   >
-                    <Icon size="300" src={Icons.ChevronLeft} />
+                    <Icon size="200" src={Icons.ChevronLeft} data-directional />
                   </IconButton>
                 )}
               </IconTooltip>
@@ -153,14 +159,19 @@ export function CanvasPanel({
                     aria-label={t('mindroomUi.canvas.nextVersion')}
                     disabled={host.locked || versions.current >= versions.total}
                     size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    fill="None"
                   >
-                    <Icon size="300" src={Icons.ChevronRight} />
+                    <Icon size="200" src={Icons.ChevronRight} data-directional />
                   </IconButton>
                 )}
               </IconTooltip>
-            </Box>
-          )}
-          {onToggleExpanded && (
+            </div>
+          </div>
+        )}
+        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
+          {onToggleExpanded && !frame && (
             <IconTooltip label={t('mindroomUi.canvas.expand')}>
               {(triggerRef) => (
                 <IconButton
@@ -169,16 +180,16 @@ export function CanvasPanel({
                   aria-label={t('mindroomUi.canvas.expand')}
                   aria-pressed={expanded}
                   size="300"
+                  radii="300"
+                  variant="SurfaceVariant"
+                  fill="None"
                 >
-                  <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+                  <Icon size="200" src={expanded ? ShrinkIcon : ExpandIcon} />
                 </IconButton>
               )}
             </IconTooltip>
           )}
-          <IconButton onClick={onClose} aria-label={t('mindroomUi.canvas.close')} size="300">
-            <Icon size="300" src={Icons.Cross} />
-          </IconButton>
-        </Box>
+        </PanelHeaderControls>
       </div>
 
       <CanvasUpdateNotice host={host} agentName={agentName} />

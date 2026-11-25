@@ -197,7 +197,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   });
   await page.mouse.up();
   await expect.poll(async () => (await panel.boundingBox())!.width).toBe(narrowFrom - 200);
-  const expand = panel.getByRole('button', { name: 'Expand computer', exact: true });
+  const expand = panel.getByRole('button', { name: 'Fill the room with Computer', exact: true });
   await expand.click();
   await expect(expand).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(narrowFrom);

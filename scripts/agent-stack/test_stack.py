@@ -474,25 +474,42 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("the sandbox runner exited while starting (exit 1)", self.stderr.getvalue())
         self.assertIn("Address already in use", self.stderr.getvalue())
 
-    def config_of_a_start(self, has_shell_setting: bool) -> str:
-        """The config a start writes for a commit with or without the setting that allows shells outside a worker."""
-        with self.starting(), mock.patch.object(stack, "commit_mentions", return_value=has_shell_setting) as mentions:
+    def config_of_a_start(self, has_settings: bool, *, has_transcripts: bool = False) -> str:
+        """The config a start writes for a commit with or without optional newer settings."""
+        with (
+            self.starting(),
+            mock.patch.object(stack, "commit_has", return_value=has_transcripts),
+            mock.patch.object(stack, "commit_mentions", return_value=has_settings) as mentions,
+        ):
             self.assertEqual(self.main("7", "up"), 0)
-        # The start also asks whether the commit's models take reasoning levels.
-        self.assertEqual(
-            sorted(call.args for call in mentions.call_args_list),
-            [
-                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
-                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
-            ],
-        )
+        expected = [
+            (Path("/mindroom"), "a" * 40, "src/mindroom/config/agent.py", "delegate_to"),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/tools/__init__.py", "temporary_secrets"),
+        ]
+        if has_transcripts:
+            expected.append((Path("/mindroom"), "a" * 40, "src/mindroom/config/voice.py", "dictation_enabled"))
+        self.assertEqual(sorted(call.args for call in mentions.call_args_list), sorted(expected))
         return (self.slot_dir / "config.yaml").read_text()
 
     def test_a_commit_with_the_shell_setting_lets_shells_run_outside_a_worker(self) -> None:
-        self.assertIn("  allow_shell_without_worker: true\n", self.config_of_a_start(True))
+        config = self.config_of_a_start(True)
+        self.assertIn("  allow_shell_without_worker: true\n", config)
+        self.assertIn("      - temporary_secrets\n", config)
+        self.assertIn("    delegate_to: [scout]\n", config)
 
     def test_a_commit_without_the_shell_setting_gets_a_config_it_accepts(self) -> None:
-        self.assertNotIn("allow_shell_without_worker", self.config_of_a_start(False))
+        config = self.config_of_a_start(False)
+        self.assertNotIn("allow_shell_without_worker", config)
+        self.assertNotIn("temporary_secrets", config)
+        self.assertNotIn("delegate_to", config)
+
+    def test_a_commit_with_dictation_enables_voice_dictation_when_transcription_is_on(self) -> None:
+        config = self.config_of_a_start(True, has_transcripts=True)
+        self.assertIn("voice:\n  dictation: true\n  stt:\n", config)
+        older = self.config_of_a_start(False, has_transcripts=True)
+        self.assertNotIn("dictation:", older)
 
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
@@ -1148,6 +1165,47 @@ class TranscriptionTests(unittest.TestCase):
         )
         self.assertNotIn("gpt-6-luna", config)
 
+    def test_dictation_flag_emits_voice_dictation_when_transcription_is_enabled(self) -> None:
+        stub_config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.STUB, dictation=True)
+        self.assertIn(
+            f"voice:\n  dictation: true\n  stt:\n    provider: openai_compatible\n    host: {STUB_URL}\n    model: stub-transcribe\n",
+            stub_config,
+        )
+        real_config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL, dictation=True)
+        self.assertIn(
+            "voice:\n  dictation: true\n  stt:\n    provider: openai\n    credentials_service: openai\n",
+            real_config,
+        )
+        self.assertNotIn("dictation:", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, dictation=True))
+
+    def test_stub_helper_gets_temporary_secrets_and_delegate_to_scout_when_enabled(self) -> None:
+        config = stack.config_yaml(
+            "stub",
+            TESTER,
+            STUB_URL,
+            0.0003,
+            temporary_secrets=True,
+            delegate_to_scout=True,
+        )
+        helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
+        self.assertIn("      - temporary_secrets\n", helper)
+        self.assertIn("    delegate_to: [scout]\n", helper)
+        self.assertNotIn("temporary_secrets", scout)
+        self.assertNotIn("delegate_to", scout)
+        with_terminals = stack.config_yaml(
+            "stub",
+            TESTER,
+            STUB_URL,
+            0.0003,
+            terminals=True,
+            temporary_secrets=True,
+            delegate_to_scout=True,
+        )
+        self.assertIn("      - temporary_secrets\n    delegate_to: [scout]\n    terminals: type\n  scout:\n", with_terminals)
+        real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, temporary_secrets=True, delegate_to_scout=True)
+        self.assertNotIn("temporary_secrets", real)
+        self.assertNotIn("delegate_to", real)
+
     def test_real_transcripts_go_to_openai_and_luna_writes_the_notes(self) -> None:
         self.assertEqual(self.setting("stub", "real"), self.REAL)
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL)
@@ -1503,6 +1561,141 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(kind, "text")
         self.assertIn("Finished **terminal** after 2 tool call(s)", text)
         self.assertIn("stub-terminal-42", text)
+
+    def test_secret_and_delegate_scenarios_call_their_tools_and_summarize(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+
+        def turn(prompt: str, tool_name: str, *results: str) -> dict:
+            return {
+                "model": "stub-fast",
+                "tools": [{"function": {"name": tool_name}}],
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    *[{"role": "tool", "content": result} for result in results],
+                ],
+            }
+
+        self.assertEqual(
+            stub_model.plan(turn("please #secret", "request_temporary_secret"), scenarios),
+            (
+                "tool",
+                "request_temporary_secret",
+                {
+                    "name": "STUB_TOKEN",
+                    "label": "Stub token",
+                    "reason": "Verify real secret request card round trip.",
+                },
+            ),
+        )
+        secret_result = json.dumps(
+            {
+                "status": "provided",
+                "name": "STUB_TOKEN",
+                "kept": "15m",
+                "minutes": 15,
+                "note": (
+                    "The user gave the secret. It is in the environment variable `$STUB_TOKEN` of your shell "
+                    "commands in this conversation for 15 minutes, and you never see its value. Use the variable "
+                    "inside the command that needs it, for example `printf '%s\\n' \"$STUB_TOKEN\" | sudo -S "
+                    "<command>`. Never print it, write it to a file that stays, or send it anywhere but the "
+                    "program it is for. Ask again when it has expired."
+                ),
+            },
+            sort_keys=True,
+        )
+        self.assertGreater(len(secret_result), 400)
+        kind, text = stub_model.plan(
+            turn("please #secret", "request_temporary_secret", secret_result),
+            scenarios,
+        )
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **secret** after 1 tool call(s)", text)
+        self.assertIn('"minutes": 15', text)
+        self.assertIn('"name": "STUB_TOKEN"', text)
+        # Keys sorted after the long "note" fall past stub_model's 400-character truncation.
+        self.assertNotIn('"status": "provided"', text)
+
+        self.assertEqual(
+            stub_model.plan(turn("please #delegate", "run_subagent"), scenarios),
+            (
+                "tool",
+                "run_subagent",
+                {
+                    "agent_name": "scout",
+                    "title": "Check stub delegation",
+                    "task": "Reply with delegated-ok.",
+                },
+            ),
+        )
+        scout_reply = stub_model.plan(
+            {"model": "stub-deep", "tools": [], "messages": [{"role": "user", "content": "Reply with delegated-ok."}]},
+            scenarios,
+        )
+        self.assertEqual(scout_reply, ("text", "Hello from **stub-deep**. You said: Reply with delegated-ok."))
+        kind, text = stub_model.plan(turn("please #delegate", "run_subagent", scout_reply[1]), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **delegate** after 1 tool call(s)", text)
+        self.assertIn("delegated-ok.", text)
+
+    def test_schedule_scenarios_adapt_to_structured_and_legacy_tool_schemas(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+
+        def request_body(prompt: str, properties: dict | None, *results: str) -> dict:
+            function: dict = {"name": "schedule"}
+            if properties is not None:
+                function["parameters"] = {"type": "object", "properties": properties}
+            return {
+                "model": "stub-fast",
+                "tools": [{"type": "function", "function": function}],
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    *[{"role": "tool", "content": result} for result in results],
+                ],
+            }
+
+        structured_props = {
+            "message": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+            "delay_seconds": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        }
+        legacy_props = {
+            "request": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+        }
+
+        for tag, delay_seconds in (("#schedulesoon", 20), ("#schedule", 150)):
+            structured_args = {
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
+            legacy_args = {
+                "request": f"in {delay_seconds} seconds remind me to stretch",
+                "new_thread": False,
+            }
+            cases = (
+                ("structured", structured_props, structured_args),
+                ("delay_seconds_only", {"delay_seconds": {"type": "integer"}}, structured_args),
+                ("message_only", {"message": {"type": "string"}}, structured_args),
+                ("legacy", legacy_props, legacy_args),
+                ("no_parameters", None, legacy_args),
+            )
+            for label, props, expected in cases:
+                with self.subTest(schema=label, tag=tag):
+                    self.assertEqual(
+                        stub_model.plan(request_body(f"please {tag}", props), scenarios),
+                        ("tool", "schedule", expected),
+                    )
+
+        kind, text = stub_model.plan(
+            request_body("please #schedulesoon", structured_props, "Scheduled task task-1"),
+            scenarios,
+        )
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **schedulesoon** after 1 tool call(s)", text)
+        self.assertIn("Scheduled task task-1", text)
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])

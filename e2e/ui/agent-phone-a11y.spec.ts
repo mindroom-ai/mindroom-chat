@@ -4,6 +4,7 @@ import type { BrowserContext, BrowserContextOptions, Page } from '@playwright/te
 import {
   expect,
   routeClientConfig,
+  saveTesterCryptoState,
   test,
   threadUrl,
   uniqueWord,
@@ -475,7 +476,11 @@ test('phone main screens: 44 px hit areas, no critical or serious axe findings (
   try {
     await run(context, stack, 'chromium');
   } finally {
-    await context.close();
+    try {
+      await saveTesterCryptoState(context, testerStorageState);
+    } finally {
+      await context.close();
+    }
   }
 });
 
@@ -486,14 +491,19 @@ test('phone main screens: 44 px hit areas, no critical or serious axe findings (
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(15 * 60_000);
   const browser = await launchWebKit();
+  let context: BrowserContext | undefined;
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       ...PHONE,
       baseURL: testInfo.project.use.baseURL,
       storageState: testerStorageState,
     });
     await run(context, stack, 'webkit');
   } finally {
-    await browser.close();
+    try {
+      if (context) await saveTesterCryptoState(context, testerStorageState);
+    } finally {
+      await browser.close();
+    }
   }
 });

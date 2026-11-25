@@ -80,23 +80,4 @@ describe('useToolTraceMarkerParserOptions identity', () => {
     });
     expect(opts).not.toBe(baseOpts);
   });
-
-  it('wraps options when a message extras section contains a marker', () => {
-    const opts = renderMarkerParserOptions(baseOpts, {
-      msgtype: 'm.text',
-      body: 'with extras',
-      'com.mindroom.message_extras': {
-        version: 1,
-        sections: [
-          {
-            title: 'Trace',
-            contentType: 'text/markdown',
-            content: '🔧 `lookup` [2]',
-            collapsed: true,
-          },
-        ],
-      },
-    });
-    expect(opts).not.toBe(baseOpts);
-  });
 });

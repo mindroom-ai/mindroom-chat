@@ -10,7 +10,6 @@ import {
   type InlineSecretRequestPlan,
 } from '../inlineSecretRequests';
 import { settingsAtom } from '../../preferences/settings';
-import { MessageExtras } from '../MessageExtras';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { ToolCallMessageContext, ToolCallsCogContext } from '../agent-run/toolCallStatus';
 
@@ -100,7 +99,7 @@ const textOf = (node: ReactTestInstance | string): string =>
 let renderer: ReactTestRenderer | undefined;
 const render = (
   content: ReturnType<typeof reply>,
-  { secrets = noSecrets, extras }: { secrets?: InlineSecretRequestPlan; extras?: string } = {}
+  { secrets = noSecrets }: { secrets?: InlineSecretRequestPlan } = {}
 ) =>
   act(() => {
     renderer = create(
@@ -109,24 +108,6 @@ const render = (
           <ToolCallsFold>
             <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
             {parse(content.formatted_body, markerParserOptions({}, content))}
-            {extras && (
-              <MessageExtras
-                extras={{
-                  version: 1,
-                  sections: [
-                    {
-                      title: 'Trace',
-                      contentType: 'text/markdown',
-                      content: extras,
-                      collapsed: false,
-                    },
-                  ],
-                }}
-                htmlReactParserOptions={{}}
-                markerContent={content}
-                toolRows
-              />
-            )}
           </ToolCallsFold>
         </ToolCallMessageContext>
       </InlineSecretRequestsContext>
@@ -247,17 +228,5 @@ describe("a reply's approval cards across its runs of calls", () => {
       (node) => node.type === 'button' && node.props['aria-expanded'] === false
     );
     expect(cog[0]?.props.title).toMatch(/^2 tool calls: /);
-  });
-
-  it("leaves the cards the body took by tool name to it, not to the extras' markers", () => {
-    deniedShell();
-    render(twoRuns(), { extras: '- 🔧 `shell` [1]' });
-    expect(lines()).toEqual(['Denied 1 tool call', 'Ran 1 tool call', 'Ran 1 tool call']);
-  });
-
-  it('gives the extras the card that names their call', () => {
-    deniedShell('call_1');
-    render(twoRuns(), { extras: '- 🔧 `shell` [1]' });
-    expect(lines()).toEqual(['Denied 1 tool call', 'Ran 1 tool call', 'Denied 1 tool call']);
   });
 });

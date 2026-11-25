@@ -90,7 +90,6 @@ type RenderMessageContentProps = BodyOptions & {
   mediaAutoLoad?: boolean;
   /** Draw a hairline around attachments that sit on a surface of their own color. */
   outlineAttachment?: boolean;
-  showMessageExtras?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
 };
@@ -136,7 +135,6 @@ function CoreMessageContent({
   highlightRegex,
   htmlReactParserOptions,
   linkifyOpts,
-  showMessageExtras,
   pendingSend,
   failedSend,
   hydrateLongText,
@@ -213,7 +211,6 @@ function CoreMessageContent({
     htmlReactParserOptions,
     linkifyOpts,
     renderUrlsPreview,
-    showMessageExtras,
     hydrateLongText,
     readOnly,
   });

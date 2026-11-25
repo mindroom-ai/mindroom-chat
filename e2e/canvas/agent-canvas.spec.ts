@@ -409,12 +409,12 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   expect(srcdoc).toContain('background:var(--mr-bg)');
   const conversation = page.getByText(fixture.replyBody, { exact: true });
   await expect(conversation).toBeVisible();
-  await panel.getByRole('button', { name: 'Expand canvas' }).click();
+  await panel.getByRole('button', { name: 'Fill the room with Canvas' }).click();
   await expect(conversation).toBeHidden();
   const panelBox = await panel.boundingBox();
   expect(panelBox?.width ?? 0).toBeGreaterThan(900);
   await page.screenshot({ path: testInfo.outputPath('canvas-expanded.png') });
-  const expand = panel.getByRole('button', { name: 'Expand canvas' });
+  const expand = panel.getByRole('button', { name: 'Fill the room with Canvas' });
   await expect(expand).toHaveAttribute('aria-pressed', 'true');
   await expand.click();
   await expect(conversation).toBeVisible();

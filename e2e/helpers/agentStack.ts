@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   test as base,
   expect,
   type Browser,
+  type BrowserContext,
   type BrowserContextOptions,
   type Locator,
   type Page,
@@ -24,7 +25,8 @@ import { COMPOSER_NAME } from './composerName';
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
  * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default the
- * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port.
+ * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port,
+ * unless E2E_REQUIRE_AGENT_STACK=1 is set (in which case missing prerequisites throw instead of skipping).
  * E2E_PLUGIN_DIRS adds plugin directories to the stack (stack.py's docstring), and a stack started with other ones
  * restarts.
  */
@@ -111,6 +113,7 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   if (result.status === 0) return JSON.parse(result.stdout) as AgentStack;
   const message = (result.stderr || String(result.error ?? '')).trim();
   if (
+    process.env.E2E_REQUIRE_AGENT_STACK !== '1' &&
     [EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS, EXIT_NO_TERMINALS].includes(
       result.status ?? -1
     )
@@ -243,6 +246,105 @@ export const openNewSession = async (
   return page;
 };
 
+const RUST_CRYPTO_DB_SUFFIX = '::matrix-sdk-crypto';
+const RUST_CRYPTO_META_SUFFIX = '::matrix-sdk-crypto-meta';
+
+type StoredIndexedDB = { name: string; [key: string]: unknown };
+type StoredOrigin = {
+  origin: string;
+  localStorage: Array<{ name: string; value: string }>;
+  indexedDB?: StoredIndexedDB[];
+};
+type StorageStateSnapshot = {
+  cookies: unknown[];
+  origins: StoredOrigin[];
+};
+
+/**
+ * Updates only the tester's Rust crypto IndexedDB stores in `file` from `latest`, keeping saved
+ * cookies, localStorage and non-crypto IndexedDB entries verbatim so per-test state does not leak
+ * while Olm ratchets keep advancing across tests sharing the same Matrix device.
+ */
+const persistTesterCryptoState = (file: string, latest: StorageStateSnapshot): void => {
+  const saved = JSON.parse(readFileSync(file, 'utf8')) as StorageStateSnapshot;
+  const latestByOrigin = new Map<string, StoredOrigin>();
+  for (const origin of latest.origins) {
+    latestByOrigin.set(origin.origin, origin);
+  }
+
+  let updated = false;
+  const origins = saved.origins.map((savedOrigin) => {
+    const savedDbs = savedOrigin.indexedDB;
+    if (!savedDbs) return savedOrigin;
+    const prefixes = savedDbs
+      .filter((db) => db.name.endsWith(RUST_CRYPTO_DB_SUFFIX))
+      .map((db) => db.name.slice(0, -RUST_CRYPTO_DB_SUFFIX.length));
+    if (prefixes.length === 0) return savedOrigin;
+
+    const latestDbs = latestByOrigin.get(savedOrigin.origin)?.indexedDB;
+    if (!latestDbs) return savedOrigin;
+    const latestByName = new Map<string, StoredIndexedDB>();
+    for (const db of latestDbs) {
+      latestByName.set(db.name, db);
+    }
+
+    const replacements = new Map<string, StoredIndexedDB>();
+    for (const prefix of prefixes) {
+      const cryptoName = `${prefix}${RUST_CRYPTO_DB_SUFFIX}`;
+      const latestCrypto = latestByName.get(cryptoName);
+      // Guard against tests that log out the tester and clear its crypto database.
+      if (!latestCrypto) continue;
+      replacements.set(cryptoName, latestCrypto);
+      const metaName = `${prefix}${RUST_CRYPTO_META_SUFFIX}`;
+      const latestMeta = latestByName.get(metaName);
+      if (latestMeta) replacements.set(metaName, latestMeta);
+    }
+    if (replacements.size === 0) return savedOrigin;
+
+    updated = true;
+    const seen = new Set<string>();
+    const indexedDB = savedDbs.map((db) => {
+      const replacement = replacements.get(db.name);
+      if (!replacement) return db;
+      seen.add(db.name);
+      return replacement;
+    });
+    for (const [name, db] of replacements) {
+      if (!seen.has(name)) indexedDB.push(db);
+    }
+    return { ...savedOrigin, indexedDB };
+  });
+
+  if (!updated) return;
+  const tempFile = `${file}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tempFile, JSON.stringify({ ...saved, origins }));
+  renameSync(tempFile, file);
+};
+
+/**
+ * Persists the tester's updated Rust crypto IndexedDB stores from `context` back into
+ * `storageStateFile`. Call this before closing manual `browser.newContext({ storageState })`
+ * contexts that bypass the `context` fixture.
+ */
+export const saveTesterCryptoState = async (
+  context: BrowserContext,
+  storageStateFile: string | undefined
+): Promise<void> => {
+  if (!storageStateFile || !existsSync(storageStateFile)) return;
+  let latest: StorageStateSnapshot;
+  try {
+    // Close live app pages first so matrix-js-sdk cannot encrypt/send another Olm to-device
+    // message after storageState() reads IndexedDB; Playwright reads the quiescent IndexedDB via
+    // an inert origin page in visitOrigins().
+    await Promise.all(context.pages().map((page) => page.close().catch(() => undefined)));
+    latest = await context.storageState({ indexedDB: true });
+  } catch {
+    // A test may have closed its context early; leave the saved snapshot untouched.
+    return;
+  }
+  persistTesterCryptoState(storageStateFile, latest);
+};
+
 type WorkerFixtures = {
   /** More options for `stack.py up`, such as `['--calls', <service URL>]`; another set restarts the stack. */
   agentStackArgs: string[];
@@ -292,6 +394,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const page = await context.newPage();
         await routeClientConfig(page, agentStackOrSkip);
         await signIn(page, agentStackOrSkip);
+        await page.close();
         await context.storageState({ path: file, indexedDB: true });
         await context.close();
       }
@@ -301,6 +404,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
   storageState: async ({ testerStorageState }, provide) => {
     await provide(testerStorageState);
+  },
+  context: async ({ context, testerStorageState }, provide) => {
+    await provide(context);
+    await saveTesterCryptoState(context, testerStorageState);
   },
   stack: async ({ agentStackOrSkip }, provide, testInfo) => {
     testInfo.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));
@@ -497,8 +604,10 @@ export const waitForAgentReply = (
 export const createAgentRoom = async (
   stack: AgentStack,
   name: string,
-  encrypted: boolean
+  encrypted: boolean,
+  options?: { helperPowerLevel?: number }
 ): Promise<string> => {
+  const helperPowerLevel = options?.helperPowerLevel;
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
     stack.homeserver,
     '/createRoom',
@@ -509,6 +618,11 @@ export const createAgentRoom = async (
         name,
         preset: 'private_chat',
         invite: [stack.agents.helper],
+        ...(helperPowerLevel !== undefined && {
+          power_level_content_override: {
+            users: { [stack.agents.helper]: helperPowerLevel },
+          },
+        }),
         initial_state: encrypted
           ? [
               {

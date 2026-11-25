@@ -2655,9 +2655,6 @@
         "downloadOriginal": "Скачать оригинал",
         "replyDetails": "Сведения об ответе"
       },
-      "mindroomMessageExtras": {
-        "messageExtras": "Дополнительные данные сообщения"
-      },
       "mindroomPasteAttachmentContent": {
         "pastedText": "Вставленный текст",
         "open": "Открыть",

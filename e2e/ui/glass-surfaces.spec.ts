@@ -23,7 +23,6 @@ for (const theme of ['light', 'dark']) {
         page.getByTestId(id).locator(':scope > *')
       ),
       page.getByTestId('link'),
-      page.getByTestId('card-shells').locator('details'),
       page.getByRole('button', { name: 'Show full message', exact: true }),
       page.getByRole('button', { name: 'Jump to Latest', exact: true }),
     ];
@@ -55,15 +54,8 @@ for (const theme of ['light', 'dark']) {
     await jump.focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('status')).toHaveText('Jump to Latest');
-    const extras = page.getByTestId('card-shells').locator('details');
-    await extras.locator('summary').click();
-    await expect(extras.locator('pre')).toBeHidden();
-    await extras.locator('summary').click();
-    await expect(extras.locator('pre')).toBeVisible();
-    await expect(extras.locator('pre')).toHaveCSS('filter', 'none');
-    await expect(extras.locator('pre')).toHaveCSS('backdrop-filter', 'none');
     await page.emulateMedia({ contrast: 'more' });
-    for (const surface of [page.getByTestId('link'), extras, jump, disclosure]) {
+    for (const surface of [page.getByTestId('link'), jump, disclosure]) {
       await expect(surface).toHaveCSS('backdrop-filter', 'none');
       expect(
         await surface.evaluate((element) => getComputedStyle(element, '::before').display)
@@ -74,7 +66,6 @@ for (const theme of ['light', 'dark']) {
         page.getByTestId(id).locator(':scope > *')
       ),
       page.getByTestId('link'),
-      extras,
       jump,
     ];
     for (const surface of outlined) {
