@@ -37,6 +37,7 @@ export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
       <Item
         ref={ref}
         {...rest}
+        data-sidebar-item=""
         data-active={active || undefined}
         className={classNames(css.SidebarItem({ active }), className)}
       />

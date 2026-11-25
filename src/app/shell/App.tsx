@@ -21,7 +21,7 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
-import { watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
+import { watchDesktopQueryFocus, watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
 import {
   createRouterAppPathNavigator,
   setNativeAppPathNavigator,
@@ -108,6 +108,7 @@ function App() {
   useReconcileNativeNotifications();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
   useEffect(() => watchDesktopWindowHidden(() => parkLiveCapture(appJotaiStore)), []);
+  useEffect(() => watchDesktopQueryFocus(), []);
   useEffect(() => {
     if (!isDesktopApp()) return undefined;
     let cancelled = false;

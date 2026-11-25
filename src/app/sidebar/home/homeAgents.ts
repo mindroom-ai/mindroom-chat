@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import { useAtomValue } from 'jotai';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { atom, useAtomValue, useStore } from 'jotai';
 import {
   MatrixEventEvent,
   RelationType,
@@ -8,12 +8,17 @@ import {
   type MatrixClient,
   type MatrixEvent,
   type Room,
+  type RoomMember,
+  type RoomState,
 } from 'matrix-js-sdk';
 import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
 
 import { createDirectRoom } from '../../matrix/createRoom';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
+import {
+  useStateEventCallback,
+  type StateEventCallback,
+} from '../../matrix/hooks/useStateEventCallback';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
 import { addRoomIdToMDirect, getMxIdLocalPart } from '../../matrix/matrix';
@@ -28,6 +33,7 @@ import {
 } from '../../matrix/room';
 import { navigationRoomsAtom } from '../../matrix/state/archivedRooms';
 import { mDirectAtom, readMDirectContent } from '../../matrix/state/mDirectList';
+import { StateEvent } from '../../matrix/types/room';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -232,31 +238,173 @@ export const startDirectChat = (mx: MatrixClient, agentId: string, version?: str
   return known.start;
 };
 
-/** Live list of Home agents, refreshed on state, membership, answer, and redaction updates. */
+const HOME_AGENT_STATE_EVENTS = new Set<string>([
+  MINDROOM_SERVER_EVENT,
+  StateEvent.RoomTombstone,
+  StateEvent.RoomPowerLevels,
+  StateEvent.RoomCreate,
+]);
+
+const isNonRouterAgent = (userId: string | undefined): userId is string =>
+  !!userId && isMindroomAgentUserId(userId) && !isMindroomOwnerUserId(userId);
+
+const agentThreadIndexSignatureAtom = atom((get) => {
+  const parts: string[] = [];
+  for (const { roomId, threadRootId, threadRecord } of get(
+    crossRoomThreadIndexAtom
+  ).entries.values()) {
+    const p = threadRecord.presentation;
+    if (
+      isNonRouterAgent(p.lastSenderId) &&
+      p.latestReplyPreviewLocalization?.kind !== 'encrypted'
+    ) {
+      parts.push(`${roomId}\0${threadRootId}\0${p.lastSenderId}\0${p.latestReplyTs ?? 0}`);
+    }
+  }
+  return parts.sort().join('\n');
+});
+
+const sameHomeAgents = (a: readonly HomeAgent[], b: readonly HomeAgent[]): boolean =>
+  a.length === b.length &&
+  a.every((x, i) => {
+    const y = b[i];
+    return (
+      !!y &&
+      x.userId === y.userId &&
+      x.name === y.name &&
+      x.avatarMxc === y.avatarMxc &&
+      x.defaultRoomId === y.defaultRoomId &&
+      x.lastUsedTs === y.lastUsedTs &&
+      x.direct?.roomId === y.direct?.roomId &&
+      x.direct?.waiting === y.direct?.waiting &&
+      x.roomIds.length === y.roomIds.length &&
+      x.roomIds.every((id, j) => id === y.roomIds[j])
+    );
+  });
+
+const isRelevantMember = (
+  userId: string | undefined,
+  roomId: string | undefined,
+  viewerId: string | null | undefined,
+  directs: ReadonlySet<string>
+): boolean =>
+  isMindroomAgentUserId(userId) ||
+  (!!viewerId && userId === viewerId) ||
+  (!!roomId && directs.has(roomId));
+
+const collectTrackedRoomIds = (agents: readonly HomeAgent[]): Set<string> => {
+  const ids = new Set<string>();
+  for (const agent of agents) {
+    agent.roomIds.forEach((id) => ids.add(id));
+    if (agent.direct?.roomId) ids.add(agent.direct.roomId);
+  }
+  return ids;
+};
+
+/** Live list of Home agents, refreshed on relevant state, membership, summary, answer, and redaction updates. */
 export const useHomeAgents = (): HomeAgent[] => {
+  const store = useStore();
   const mx = useMatrixClient();
   const roomIds = useAtomValue(navigationRoomsAtom);
   const directs = useAtomValue(mDirectAtom);
-  const { entries } = useAtomValue(crossRoomThreadIndexAtom);
-  const [stateVersion, stateChanged] = useForceUpdate();
-  useStateEventCallback(mx, stateChanged);
+  const threadSig = useAtomValue(agentThreadIndexSignatureAtom);
+  const [eventVersion, bumpEvent] = useForceUpdate();
+
+  const mxRef = useRef(mx);
+  const directsRef = useRef<ReadonlySet<string>>(directs);
+  const prevAgentsRef = useRef<HomeAgent[] | undefined>(undefined);
+  const trackedRoomIdsRef = useRef<ReadonlySet<string>>(new Set());
+
+  const agents = useMemo(() => {
+    void [directs, threadSig, eventVersion];
+    const next = readHomeAgents(mx, roomIds, store.get(crossRoomThreadIndexAtom).entries.values());
+    const prev = prevAgentsRef.current;
+    return prev && sameHomeAgents(prev, next) ? prev : next;
+  }, [store, mx, roomIds, directs, threadSig, eventVersion]);
+
+  useLayoutEffect(() => {
+    mxRef.current = mx;
+    directsRef.current = directs;
+    prevAgentsRef.current = agents;
+    trackedRoomIdsRef.current = collectTrackedRoomIds(agents);
+  }, [mx, directs, agents]);
+
+  const onStateEvent = useCallback<StateEventCallback>(
+    (event, roomState) => {
+      const type = event.getType();
+      if (HOME_AGENT_STATE_EVENTS.has(type)) {
+        bumpEvent();
+        return;
+      }
+      if (type !== (StateEvent.RoomMember as string)) return;
+      const roomId = roomState?.roomId ?? event.getRoomId?.();
+      if (
+        isRelevantMember(
+          event.getStateKey(),
+          roomId,
+          mxRef.current.getUserId?.(),
+          directsRef.current
+        )
+      ) {
+        bumpEvent();
+      }
+    },
+    [bumpEvent]
+  );
+  useStateEventCallback(mx, onStateEvent);
+
   useEffect(() => {
     const onMessage = (e: MatrixEvent) => {
-      if (!e.isState() && isAnswer(e) && isMindroomAgentUserId(e.getSender())) stateChanged();
+      if (!e.isState() && isAnswer(e) && isNonRouterAgent(e.getSender())) bumpEvent();
+    };
+    const onMembers = (_event?: MatrixEvent, roomState?: RoomState, member?: RoomMember) => {
+      if (
+        !member ||
+        isRelevantMember(
+          member.userId,
+          roomState?.roomId,
+          mxRef.current.getUserId?.(),
+          directsRef.current
+        )
+      ) {
+        bumpEvent();
+      }
+    };
+    const onRedaction = (_event?: MatrixEvent, room?: Room) => {
+      if (
+        !room ||
+        directsRef.current.has(room.roomId) ||
+        trackedRoomIdsRef.current.has(room.roomId) ||
+        agentRoomState(room, MINDROOM_SERVER_EVENT).length > 0
+      ) {
+        bumpEvent();
+      }
     };
     mx.on(RoomEvent.Timeline, onMessage);
     mx.on(MatrixEventEvent.Decrypted, onMessage);
-    mx.on(RoomStateEvent.Members, stateChanged);
-    mx.on(RoomEvent.Redaction, stateChanged);
+    mx.on(RoomStateEvent.Members, onMembers);
+    mx.on(RoomEvent.Redaction, onRedaction);
     return () => {
       mx.removeListener(RoomEvent.Timeline, onMessage);
       mx.removeListener(MatrixEventEvent.Decrypted, onMessage);
-      mx.removeListener(RoomStateEvent.Members, stateChanged);
-      mx.removeListener(RoomEvent.Redaction, stateChanged);
+      mx.removeListener(RoomStateEvent.Members, onMembers);
+      mx.removeListener(RoomEvent.Redaction, onRedaction);
     };
-  }, [mx, stateChanged]);
-  return useMemo(() => {
-    void [directs, stateVersion];
-    return readHomeAgents(mx, roomIds, entries.values());
-  }, [directs, entries, mx, roomIds, stateVersion]);
+  }, [mx, bumpEvent]);
+
+  useEffect(() => {
+    const rooms: Room[] = [];
+    directs.forEach((roomId) => {
+      const room = mx.getRoom(roomId);
+      if (room && typeof room.on === 'function' && typeof room.removeListener === 'function') {
+        room.on(RoomEvent.Summary, bumpEvent);
+        rooms.push(room);
+      }
+    });
+    return () => {
+      rooms.forEach((room) => room.removeListener(RoomEvent.Summary, bumpEvent));
+    };
+  }, [mx, directs, roomIds, bumpEvent]);
+
+  return agents;
 };

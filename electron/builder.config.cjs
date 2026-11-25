@@ -69,6 +69,8 @@ module.exports = {
       NSLocalNetworkUsageDescription: 'MindRoom needs to connect to your local Matrix homeserver.',
       NSAudioCaptureUsageDescription:
         'MindRoom needs audio capture access to share system audio during screen sharing.',
+      NSAppleEventsUsageDescription:
+        'MindRoom controls only the applications you explicitly allow.',
       ITSAppUsesNonExemptEncryption: false,
     },
     publish: {

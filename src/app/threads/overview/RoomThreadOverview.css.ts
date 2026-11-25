@@ -69,12 +69,14 @@ const TOGGLE_SIZE = toRem(32);
 
 // A finger's hit area: the bar's 32 px controls reach out halfway to their neighbours (4 px apart
 // in a group, 8 px between groups, rows 4 px apart; the area starts inside the 1 px border), and
-// to 44 px tall in the simple bar's one row.
+// to 44 px tall in the simple bar. In the simple bar the trailing Advanced filters toggle can wrap
+// onto its own row on a phone, so it reaches all the way to 44 px horizontally too (sharing 2 px
+// in the 8 px gap when on the same row as an adjacent toggle).
 const SIMPLE_BAR = '[role="toolbar"]:has([data-simple-unresolved-toggle]) ';
 
 export const ToggleButton = style([
   touchTarget('2px', '', { blockReach: '2px', layer: '::before' }),
-  touchTarget('5px', SIMPLE_BAR, { layer: '::before' }),
+  touchTarget('22px', SIMPLE_BAR, { layer: '::before' }),
   {
     position: 'relative',
     display: 'inline-grid',

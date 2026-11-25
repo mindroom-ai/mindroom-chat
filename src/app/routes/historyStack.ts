@@ -189,6 +189,16 @@ export const returnToRoomState = (page: HistoryPage, roomId: string, historyStat
   return { ...state, usr: { ...(isRecord(state.usr) ? state.usr : {}), ...RETURN_TO_ROOM_STATE } };
 };
 
+/**
+ * The event a room page asks to focus in the room (`/<section-or-space>/<room>/<event>?focusEvent=1`),
+ * or `undefined` when the page does not name a focused room event.
+ */
+export const roomFocusEventOf = (page: HistoryPage): string | undefined => {
+  if (new URLSearchParams(page.search).get('focusEvent') !== '1') return undefined;
+  const eventId = decodeRouteParam(page.pathname.split('/')[3] ?? '');
+  return eventId || undefined;
+};
+
 /** The page an app path (`<pathname><search>`) opens, such as a path recorded earlier. */
 export const historyPageOf = (path: string): HistoryPage => {
   const { pathname, search } = new URL(path, 'https://app.invalid');

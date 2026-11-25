@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Button, Text } from 'folds';
@@ -69,7 +69,11 @@ export function WorkflowRunControls({
   const canCancel = useCanCancelBackgroundJob(room, readOnly);
   const sentCancels = useSentCancels(room.roomId);
   const [resumingAt, setResumingAt] = useState<{ status: string; attempt: number } | null>(null);
+  const [confirmingRunAgain, setConfirmingRunAgain] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const runAgainRef = useRef<HTMLButtonElement | null>(null);
+  const cancelRunAgainRef = useRef<HTMLButtonElement | null>(null);
+  const focusTargetRef = useRef<'cancel' | 'trigger' | null>(null);
 
   const status = view?.status ?? 'starting';
   const attempt = view?.attempt ?? 1;
@@ -100,6 +104,30 @@ export function WorkflowRunControls({
       : status === 'failed' || status === 'cancelled' || status === 'interrupted'
         ? 'resume'
         : null;
+
+  useEffect(() => {
+    focusTargetRef.current = null;
+    setConfirmingRunAgain(false);
+  }, [run, status, attempt, resumeMode]);
+
+  useEffect(() => {
+    if (focusTargetRef.current === 'cancel' && confirmingRunAgain && !resuming) {
+      focusTargetRef.current = null;
+      cancelRunAgainRef.current?.focus();
+    } else if (
+      focusTargetRef.current === 'trigger' &&
+      !confirmingRunAgain &&
+      resumeMode === 'runAgain'
+    ) {
+      focusTargetRef.current = null;
+      runAgainRef.current?.focus();
+    }
+  }, [confirmingRunAgain, resumeMode, resuming]);
+
+  const dismissConfirm = () => {
+    focusTargetRef.current = 'trigger';
+    setConfirmingRunAgain(false);
+  };
 
   const stop = async () => {
     if (!jobId || stopping) return;
@@ -136,23 +164,69 @@ export function WorkflowRunControls({
           </Text>
         </Button>
       )}
-      {resumeMode && (
-        <Button
-          type="button"
-          size="300"
-          variant="Primary"
-          fill="Soft"
-          disabled={resuming}
-          onClick={() => void resume()}
+      {resumeMode === 'runAgain' && confirmingRunAgain && !resuming ? (
+        <div
+          className={css.Row}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            event.stopPropagation();
+            dismissConfirm();
+          }}
         >
-          <Text size="B300">
-            {resuming
-              ? t('mindroomUi.workflowRun.starting')
-              : resumeMode === 'runAgain'
-                ? t('mindroomUi.workflowRun.runAgain')
-                : t('mindroomUi.workflowRun.resume')}
-          </Text>
-        </Button>
+          <Button
+            key="confirm-run-again"
+            type="button"
+            size="300"
+            variant="Primary"
+            fill="Soft"
+            onClick={() => {
+              focusTargetRef.current = null;
+              setConfirmingRunAgain(false);
+              void resume();
+            }}
+          >
+            <Text size="B300">{t('mindroomUi.workflowRun.confirmRunAgain')}</Text>
+          </Button>
+          <Button
+            key="cancel-run-again"
+            ref={cancelRunAgainRef}
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            onClick={dismissConfirm}
+          >
+            <Text size="B300">{t('mindroomUi.workflowRun.cancel')}</Text>
+          </Button>
+        </div>
+      ) : (
+        resumeMode && (
+          <Button
+            key="resume"
+            ref={resumeMode === 'runAgain' ? runAgainRef : undefined}
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            disabled={resuming}
+            onClick={() => {
+              if (resumeMode === 'runAgain') {
+                focusTargetRef.current = 'cancel';
+                setConfirmingRunAgain(true);
+              } else {
+                void resume();
+              }
+            }}
+          >
+            <Text size="B300">
+              {resuming
+                ? t('mindroomUi.workflowRun.starting')
+                : resumeMode === 'runAgain'
+                  ? t('mindroomUi.workflowRun.runAgain')
+                  : t('mindroomUi.workflowRun.resume')}
+            </Text>
+          </Button>
+        )
       )}
     </>
   );

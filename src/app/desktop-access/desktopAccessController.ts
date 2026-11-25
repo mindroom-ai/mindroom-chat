@@ -107,6 +107,19 @@ export const useDesktopAccessSnapshot = ({ pollAccessibility = false, enabled = 
     return () => clearInterval(timer);
   }, [polling, refresh]);
 
+  const refreshOnFocus =
+    active &&
+    pollAccessibility &&
+    snapshot !== null &&
+    (snapshot.permissions.accessibility !== 'granted' ||
+      snapshot.permissions.screen_recording !== 'granted');
+  useEffect(() => {
+    if (!refreshOnFocus) return undefined;
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshOnFocus, refresh]);
+
   return { snapshot, loading, error, refresh };
 };
 

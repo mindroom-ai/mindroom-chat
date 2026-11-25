@@ -60,36 +60,23 @@ export const TabLabel = style({
   textOverflow: 'ellipsis',
 });
 
-// Shared surface and >= 32 px button hit targets for floating header pills (ControlPill and
-// CanvasPanel's VersionPill).
-export const HeaderPill = style({
+// Flat, borderless header controls at the end of a side panel's header: panel-specific actions,
+// then frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
+export const ControlPill = style({
   display: 'inline-flex',
   alignItems: 'center',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
   gap: toRem(2),
-  padding: toRem(2),
-  borderRadius: config.radii.R400,
-  backgroundColor: color.SurfaceVariant.Container,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  flexShrink: 0,
+  marginInlineStart: 'auto',
+  maxInlineSize: '100%',
 });
 
-// Keep compact icons visually crisp while preserving a >= 32 px hit target (including on phones).
-globalStyle(`${HeaderPill} button`, {
+globalStyle(`${ControlPill} button`, {
   minInlineSize: toRem(32),
   minBlockSize: toRem(32),
 });
-
-// Compact rounded control pill at the end of a side panel's header: panel-specific actions, then
-// frame controls (Fill, Fold) and Close. Wraps cleanly if a narrow panel has extra controls.
-export const ControlPill = style([
-  HeaderPill,
-  {
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    flexShrink: 0,
-    marginInlineStart: 'auto',
-    maxInlineSize: '100%',
-  },
-]);
 
 export const ControlExtras = style({
   display: 'inline-flex',
@@ -110,9 +97,9 @@ export const ControlCore = style({
 export const ControlSeparator = style({
   inlineSize: config.borderWidth.B300,
   blockSize: toRem(16),
-  marginInline: toRem(2),
+  marginInline: toRem(4),
   flexShrink: 0,
-  backgroundColor: color.SurfaceVariant.ContainerLine,
+  backgroundColor: color.Surface.ContainerLine,
   selectors: {
     [`${ControlExtras}:empty + &`]: { display: 'none' },
     '&:last-child': { display: 'none' },

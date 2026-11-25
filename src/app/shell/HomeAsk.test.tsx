@@ -6,6 +6,7 @@ import { Provider, createStore } from 'jotai';
 import {
   EventStatus,
   RoomEvent,
+  RoomStateEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -23,6 +24,7 @@ import {
 } from '../composer/roomInputDrafts';
 import { HOME_ASK_VIEW } from '../navigation/conversationView';
 import { ROOM_THREAD_MODE_EVENT } from '../matrix/protocol/roomThreadMode';
+import { StateEvent } from '../matrix/types/room';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { HomeAsk } from './HomeAsk';
 import { startDirectChat, type HomeAgent } from '../sidebar/home/homeAgents';
@@ -355,7 +357,7 @@ describe('HomeAsk', () => {
     eng.members[HELPER] = 'leave';
     const unfollowed = vi.spyOn(mx, 'removeListener');
     again.refresh([]);
-    expect(unfollowed).not.toHaveBeenCalled();
+    expect(unfollowed).not.toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.anything());
     expect(screen.queryByTestId('room-input')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
@@ -546,5 +548,100 @@ describe('HomeAsk', () => {
     expect(lastRoomInputProps.current?.fileDropContainerRef).toBe(outerRef);
     expect(store.get(homeUploads)).toEqual([item]);
     restored.unmount();
+  });
+
+  it('updates the selected non-DM room picker label and avatar on RoomEvent.Name and room state events', () => {
+    let avatarMxc: string | null = null;
+    const eng = Object.assign(new EventEmitter(), makeRoom('!eng', 'Engineering', [HELPER]), {
+      getMxcAvatarUrl: () => avatarMxc,
+    });
+    const dm = Object.assign(new EventEmitter(), makeRoom('!dm', 'Helper', [HELPER], 2));
+    const mx = Object.assign(makeClient([eng, dm]), {
+      getHomeserverUrl: () => 'https://media.example.org',
+      mxcUrlToHttp: (mxc: string) => `https://media.example.org/${mxc.slice('mxc://'.length)}`,
+    });
+    const agentWithDm: HomeAgent = { ...helperAgent, direct: { roomId: '!dm', waiting: false } };
+
+    const view = renderAsk(mx, [agentWithDm]);
+    const roomButton = () => screen.getByRole('button', { name: /^In / });
+    expect(roomButton().getAttribute('aria-label')).toBe('In Engineering');
+    expect(roomButton().querySelector('img')).toBeNull();
+
+    // Renaming via RoomEvent.Name refreshes the picker without agents changing.
+    eng.name = 'Platform';
+    act(() => {
+      eng.emit(RoomEvent.Name, eng);
+    });
+    expect(roomButton().getAttribute('aria-label')).toBe('In Platform');
+
+    // Renaming via m.room.name state event refreshes the picker.
+    eng.name = 'Core Platform';
+    act(() => {
+      eng.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomName,
+        getRoomId: () => '!eng',
+      } as unknown as MatrixEvent);
+    });
+    expect(roomButton().getAttribute('aria-label')).toBe('In Core Platform');
+
+    // Updating the avatar via m.room.avatar state event updates the rendered avatar image.
+    avatarMxc = 'mxc://example.org/core-avatar';
+    act(() => {
+      eng.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomAvatar,
+        getRoomId: () => '!eng',
+      } as unknown as MatrixEvent);
+    });
+    expect(roomButton().querySelector('img')?.getAttribute('src')).toBe(
+      'https://media.example.org/example.org/core-avatar'
+    );
+
+    // Switching to Direct chat detaches listeners from the non-DM room.
+    fireEvent.click(roomButton());
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
+    expect(eng.listenerCount(RoomEvent.Name)).toBe(0);
+    expect(eng.listenerCount(RoomStateEvent.Events)).toBe(0);
+
+    view.unmount();
+  });
+
+  it('updates RoomInput threadingEnabled when a live io.mindroom.thread_mode event arrives for a room or DM', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const dm = makeRoom('!dm', 'Helper', [HELPER], 2);
+    const mx = makeClient([eng, dm]);
+    const agentWithDm: HomeAgent = { ...helperAgent, direct: { roomId: '!dm', waiting: false } };
+
+    const view = renderAsk(mx, [agentWithDm]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(true);
+
+    // Live io.mindroom.thread_mode = 'room' on the selected non-DM room flips threadingEnabled to false.
+    eng.threadMode = 'room';
+    act(() => {
+      mx.emit(RoomStateEvent.Events, {
+        getRoomId: () => '!eng',
+        getType: () => ROOM_THREAD_MODE_EVENT,
+        getStateKey: () => '',
+      });
+    });
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
+
+    // Switch to the DM: starts threaded, then flips to false on a live io.mindroom.thread_mode event.
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(true);
+
+    dm.threadMode = 'room';
+    act(() => {
+      mx.emit(RoomStateEvent.Events, {
+        getRoomId: () => '!dm',
+        getType: () => ROOM_THREAD_MODE_EVENT,
+        getStateKey: () => '',
+      });
+    });
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
+
+    view.unmount();
   });
 });

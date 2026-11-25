@@ -9,6 +9,7 @@ import type { ProviderAccountUsage, ProviderUsageWindow } from './providerUsageP
 import * as css from './QuotaBar.css';
 
 type QuotaTone = 'healthy' | 'warning' | 'critical';
+type PaceTone = 'ahead' | 'behind' | 'on_pace';
 
 const PROVIDER_ACCENTS: Readonly<Record<string, string>> = {
   claude_code: '#d97757',
@@ -194,6 +195,23 @@ export const singleAccountForModels = (
   return matched;
 };
 
+const paceInfo = (
+  remaining: number,
+  pacePercent: number | undefined,
+  t: TFunction
+): { tone: PaceTone; text: string } | undefined => {
+  if (pacePercent === undefined) return undefined;
+  const delta = Math.round(remaining - pacePercent);
+  if (delta >= 5) return { tone: 'ahead', text: t('mindroomUi.usage.paceAhead', { delta }) };
+  if (delta <= -5) {
+    return {
+      tone: 'behind',
+      text: t('mindroomUi.usage.paceFastBurn', { delta: Math.abs(delta) }),
+    };
+  }
+  return { tone: 'on_pace', text: t('mindroomUi.usage.paceOnPace') };
+};
+
 export function QuotaBar({
   window,
   provider,
@@ -210,6 +228,9 @@ export function QuotaBar({
   const tone = quotaTone(remaining);
   const fillColor = quotaFillColor(tone, provider);
   const pacePercent = computePacePercent(window.resets_at, window.window_duration_mins, now);
+  const resetMs = window.resets_at ? Date.parse(window.resets_at) : Number.NaN;
+  const pace =
+    Number.isFinite(resetMs) && resetMs <= now ? undefined : paceInfo(remaining, pacePercent, t);
   const resetText = formatResetCountdown(window.resets_at, now, language, t);
   const ariaLabel = resetText
     ? t('mindroomUi.usage.quotaAriaWithReset', {
@@ -237,14 +258,29 @@ export function QuotaBar({
             className={css.PaceTick}
             data-pace-tick=""
             style={{ insetInlineStart: `${pacePercent}%` }}
+            title={t('mindroomUi.usage.paceLegend')}
             aria-hidden="true"
           />
         )}
       </div>
-      {(window.detail || resetText) && (
+      {(window.detail || resetText || pace) && (
         <div className={css.Meta}>
-          {window.detail && <span>{window.detail}</span>}
-          {resetText && <span>{resetText}</span>}
+          {(window.detail || resetText) && (
+            <span className={css.MetaInfo}>
+              {window.detail && <span>{window.detail}</span>}
+              {resetText && <span>{resetText}</span>}
+            </span>
+          )}
+          {pace && (
+            <span
+              className={css.PaceBadge}
+              data-pace-badge=""
+              data-pace-tone={pace.tone}
+              title={t('mindroomUi.usage.paceLegend')}
+            >
+              {pace.text}
+            </span>
+          )}
         </div>
       )}
     </div>

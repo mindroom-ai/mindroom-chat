@@ -92,6 +92,34 @@ export const nodeDisplayName = (
   id: string
 ): string => nodesById.get(id)?.name ?? nodesById.get(id)?.label ?? id;
 
+/** Resolves a route endpoint name, displaying `send` source nodes as the workflow script. */
+export const routeEndpointName = (
+  nodesById: ReadonlyMap<string, WorkflowRunNode>,
+  id: string,
+  role: 'from' | 'to' = 'from',
+  scriptLabel = 'script'
+): string => {
+  if (role === 'from' && nodesById.get(id)?.kind === 'send') return scriptLabel;
+  return nodeDisplayName(nodesById, id);
+};
+
+/** Resolves a message endpoint name, localizing script/`send` endpoints. */
+export const messageEndpointName = (
+  nodesById: ReadonlyMap<string, WorkflowRunNode>,
+  id: string | null,
+  name: string,
+  role: 'from' | 'to',
+  scriptLabel = 'script'
+): string => {
+  if (
+    (role === 'from' && id && nodesById.get(id)?.kind === 'send') ||
+    (id === null && name === 'script')
+  ) {
+    return scriptLabel;
+  }
+  return name;
+};
+
 /** Formats a workflow model label from joined sub-agent info or a raw `config@effort` string. */
 export const formatWorkflowModelLabel = (
   model: string | undefined,
@@ -155,7 +183,10 @@ const deepestCommonGroup = (
 };
 
 /** Builds phase bands, session metadata, and in-group peer message bridges in one indexed pass. */
-export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLayout => {
+export const layoutWorkflowRunGraph = (
+  graph: WorkflowRunGraph,
+  scriptLabel = 'script'
+): WorkflowGraphLayout => {
   type Entry = {
     id: string;
     phase: number | null;
@@ -182,11 +213,11 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
     }
   }
 
-  // Prefer `node.group` over `node.session` so spawned turns stay inside Parallel / For each groups.
+  // Parent nodes only under `node.group` so multi-turn `spawn()` turns stay in their own phase/group.
   const byId = new Map<string, Entry>([
     ...graph.nodes.map((node): [string, Entry] => [
       node.id,
-      { id: node.id, phase: node.phase, parents: [node.group, node.session], node },
+      { id: node.id, phase: node.phase, parents: [node.group], node },
     ]),
     ...graph.groups.map((group): [string, Entry] => [
       group.id,
@@ -201,11 +232,10 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
     else roots.push(e);
   }
 
-  // Omit completed empty 0s session wrappers (no error/job/run) whose emitted turns all live in groups.
+  // Omit completed 0s session declarations (no error/job/run) once their turns render directly.
   const isRedundantSession = (e: Entry): boolean =>
     e.node?.kind === 'session' &&
     e.node.status === 'completed' &&
-    e.node.turns > 0 &&
     !e.node.error &&
     !e.node.job &&
     !e.node.run &&
@@ -292,8 +322,8 @@ export const layoutWorkflowRunGraph = (graph: WorkflowRunGraph): WorkflowGraphLa
         key: pairKey,
         fromId: edge.from,
         toId: edge.to,
-        fromLabel: nodeDisplayName(nodesById, edge.from),
-        toLabel: nodeDisplayName(nodesById, edge.to),
+        fromLabel: routeEndpointName(nodesById, edge.from, 'from', scriptLabel),
+        toLabel: routeEndpointName(nodesById, edge.to, 'to', scriptLabel),
         bidirectional: false,
         count: edge.count,
       });

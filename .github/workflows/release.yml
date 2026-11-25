@@ -3,7 +3,7 @@
 # release, when package.json says "autoRelease": true. With false the job still runs, logs
 # that automatic releases are off and stops. scripts/calver.mjs does the work; docs/ios-release.md
 # describes the scheme and how Xcode Cloud builds the tags. A new release then gets its container
-# image (image.yml) and its desktop apps for macOS and Linux (desktop.yml).
+# image (image.yml), its desktop apps for macOS and Linux (desktop.yml), and, when enabled, its Google Play upload (android.yml).
 name: Release
 
 on:
@@ -70,4 +70,16 @@ jobs:
     with:
       tag: ${{ needs.release.outputs.tag }}
     # Signing, notarization and the Homebrew tap token.
+    secrets: inherit
+
+  android:
+    name: Publish the Android app
+    needs: release
+    if: needs.release.outputs.tag != '' && vars.ANDROID_PLAY_PUBLISH == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      track: internal
     secrets: inherit

@@ -1,4 +1,5 @@
 import { globalKeyframes, globalStyle } from '@vanilla-extract/css';
+import { color } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
 
 // A phone's page slide (phonePageSlide.ts): a still copy of the phone layout as it was, laid over
@@ -86,8 +87,31 @@ globalStyle(DIM, {
 globalStyle("[data-swipe-dim='back']", {
   zIndex: -1,
 });
-globalStyle("[data-swipe-dim='forward']", {
+globalStyle("[data-swipe-dim='forward'], [data-swipe-dim='live-back']", {
   zIndex: 1,
+});
+
+// Live in-place room peek behind a sliding thread column when no cached room preview matches.
+globalStyle('[data-swipe-thread-stage]', {
+  position: 'relative',
+  overflow: 'clip',
+  isolation: 'isolate',
+});
+globalStyle('[data-swipe-under-thread]', {
+  position: 'absolute !important' as 'absolute',
+  inset: '0 !important',
+  flex: 'none !important',
+  inlineSize: '100% !important',
+  blockSize: '100% !important',
+  contentVisibility: 'visible !important' as 'visible',
+  overflow: 'hidden !important',
+  pointerEvents: 'none !important' as 'none',
+  zIndex: '0 !important',
+});
+globalStyle('[data-swipe-over-thread]', {
+  position: 'relative',
+  zIndex: 2,
+  backgroundColor: color.Surface.Container,
 });
 
 // The end edge is the right one, or the left where lines run right to left.

@@ -401,6 +401,87 @@ describe('DesktopAccessModal', () => {
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
   });
 
+  it('refreshes Screen Recording permission on window focus: stays retryable if dismissed and flips to Relaunch when granted on disk', async () => {
+    const controllers = [
+      {
+        controller_key: 'ctrl:code',
+        user_id: '@mindroom_code:example.org',
+        device_id: 'DEV1',
+        ed25519: 'KEY1',
+        allowed_requester_ids: ['@alice:example.org'],
+        allowed_agent_names: ['code'],
+      },
+    ];
+    const consent = { 'ctrl:code': { mode: 'full' as const, grantedAt: 1000, agentName: 'code' } };
+    const dismissedSnapshot = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'missing',
+      relaunchRequired: false,
+      controllers,
+      consent,
+    });
+    const grantedOnDiskSnapshot = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'missing',
+      relaunchRequired: true,
+      controllers,
+      consent,
+    });
+    let current = dismissedSnapshot;
+    const access = makeDesktopAccessMock(dismissedSnapshot);
+    vi.mocked(access.status).mockImplementation(async () => ({ ok: true, value: current }));
+    mocks.mx = makeRoomClient([{ userId: '@mindroom_code:example.org', name: 'Code' }]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, { roomId: '!room:example.org' });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    expect(await screen.findByRole('button', { name: 'Allow Screen Recording' })).toBeTruthy();
+    expect(access.status).toHaveBeenCalledTimes(1);
+
+    // Dismissing System Settings without granting keeps Allow Screen Recording retryable.
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Allow Screen Recording' })).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Relaunch to activate screen control' })
+    ).toBeNull();
+
+    // Toggling Screen Recording ON on disk + clicking Later flips to Relaunch on focus even with helper status constant.
+    current = grantedOnDiskSnapshot;
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(3);
+    expect(
+      await screen.findByRole('button', { name: 'Relaunch to activate screen control' })
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Allow Screen Recording' })).toBeNull();
+
+    // Once both permissions are granted, focus stops polling status.
+    current = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'granted',
+      relaunchRequired: false,
+      controllers,
+      consent,
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(4);
+  });
+
   it('places the Mac-wide shell toggle in the shared section and keeps per-agent approval separate in Choose limits...', async () => {
     const initial = makeSnapshot({
       allowedAppIds: ['primary-screen'],
