@@ -24,9 +24,9 @@ const calloutTone = (tone: AccentTone) => {
 };
 
 // Blends the accent foreground toward Surface.OnContainer so titles keep >= 4.5:1 contrast
-// even inside 75%-opacity m.notice messages (such as Tip on the Silver palette).
+// even inside 75%-opacity m.notice messages (including Tip on Silver and Gruvbox Light).
 const headerTone = (tone: AccentTone) => ({
-  color: `color-mix(in srgb, ${tone.OnContainer} 60%, ${color.Surface.OnContainer})`,
+  color: `color-mix(in srgb, ${tone.OnContainer} 40%, ${color.Surface.OnContainer})`,
 });
 
 export const Callout = recipe({

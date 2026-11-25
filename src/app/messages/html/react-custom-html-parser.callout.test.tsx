@@ -3,6 +3,7 @@ import parse from 'html-react-parser';
 import MarkdownIt from 'markdown-it';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { cleanup, render } from '@testing-library/react';
+import i18next from 'i18next';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LINKIFY_OPTS, getReactCustomHtmlParser } from './react-custom-html-parser';
 import { toMatrixCustomHTML } from '../../editor/output';
@@ -160,6 +161,38 @@ describe('GitHub alert callouts in custom HTML parser', () => {
     const header = labelledBy ? container.querySelector(`[id="${labelledBy}"]`) : null;
     const highlightedTitle = header?.querySelector(`span.${customHtmlCss.highlightText}`);
     expect(highlightedTitle?.textContent).toBe('Warning');
+  });
+
+  it('highlights a translated callout title when highlightRegex matches the raw marker', async () => {
+    i18next.addResourceBundle(
+      'es',
+      'translation',
+      { sharedUi: { callout: { warning: 'Advertencia' } } },
+      true,
+      true
+    );
+    await i18next.changeLanguage('es');
+    try {
+      const { container } = renderMessageHtml(
+        md.render('> [!WARNING]\n> Disco lleno.'),
+        /warning/i
+      );
+      const callout = container.querySelector('aside[data-callout-type="warning"]');
+      const labelledBy = callout?.getAttribute('aria-labelledby');
+      const header = labelledBy ? container.querySelector(`[id="${labelledBy}"]`) : null;
+      const highlightedTitle = header?.querySelector(`span.${customHtmlCss.highlightText}`);
+      expect(highlightedTitle?.textContent).toBe('Advertencia');
+
+      const { container: unmatched } = renderMessageHtml(
+        md.render('> [!WARNING]\n> Disco lleno.'),
+        /unrelated/i
+      );
+      expect(unmatched.querySelector(`span.${customHtmlCss.highlightText}`)).toBeNull();
+    } finally {
+      cleanup();
+      await i18next.changeLanguage('en');
+      i18next.removeResourceBundle('es', 'translation');
+    }
   });
 
   it('preserves links, mentions, spoilers, math, inline code, tables, RTL controls, and highlights inside callouts', () => {

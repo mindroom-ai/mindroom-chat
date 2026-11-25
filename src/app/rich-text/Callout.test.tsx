@@ -2,6 +2,7 @@
 import parseDOM from 'html-dom-parser';
 import { isTag, isText, type Element } from 'domhandler';
 import { cleanup, render } from '@testing-library/react';
+import i18next from 'i18next';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Callout, extractCallout, type CalloutType } from './Callout';
 
@@ -134,20 +135,36 @@ describe('Callout', () => {
     }
   );
 
-  it('sets dir="auto" on the body for RTL text without forcing header direction', () => {
-    const { container } = render(
-      <div dir="ltr">
-        <Callout type="note">
-          <p>مرحبا بالعالم</p>
-        </Callout>
-      </div>
+  it('sets dir from i18n.dir() on aside and dir="auto" on body inside an LTR wrapper', async () => {
+    i18next.addResourceBundle(
+      'ar',
+      'translation',
+      { sharedUi: { callout: { note: 'ملاحظة' } } },
+      true,
+      true
     );
-    const aside = container.querySelector('aside');
-    const header = aside?.children[0];
-    const body = aside?.children[1];
-    expect(header?.getAttribute('dir')).toBeNull();
-    expect(body?.getAttribute('dir')).toBe('auto');
-    expect(body?.textContent).toBe('مرحبا بالعالم');
+    await i18next.changeLanguage('ar');
+    try {
+      const { container } = render(
+        <div dir="ltr">
+          <Callout type="note">
+            <p>مرحبا بالعالم</p>
+          </Callout>
+        </div>
+      );
+      const aside = container.querySelector('aside');
+      const header = aside?.children[0];
+      const body = aside?.children[1];
+      expect(aside?.getAttribute('dir')).toBe('rtl');
+      expect(header?.getAttribute('dir')).toBeNull();
+      expect(header?.textContent).toBe('ملاحظة');
+      expect(body?.getAttribute('dir')).toBe('auto');
+      expect(body?.textContent).toBe('مرحبا بالعالم');
+    } finally {
+      cleanup();
+      await i18next.changeLanguage('en');
+      i18next.removeResourceBundle('ar', 'translation');
+    }
   });
 
   it('omits the body container when rendered without children', () => {

@@ -115,6 +115,13 @@ type StyledText = Array<string | JSX.Element>;
 const toGlobal = (regex: RegExp): RegExp =>
   new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
 
+const hasNonEmptyMatch = (text: string, regex: RegExp): boolean => {
+  for (const match of text.matchAll(toGlobal(regex))) {
+    if (match[0] !== '') return true;
+  }
+  return false;
+};
+
 /** Emoji in `text`, outside URLs, scaled up to match the text around them. */
 const scaleEmoji = (
   text: string,
@@ -782,7 +789,20 @@ export const getReactCustomHtmlParser = (
                 type={callout.type}
                 className={classNames(css.MarginSpaced, calloutProps.className)}
                 renderTitle={
-                  highlightRegex ? (title) => renderStyledText(title, highlightRegex) : undefined
+                  highlightRegex
+                    ? (title) => {
+                        if (hasNonEmptyMatch(title, highlightRegex)) {
+                          return renderStyledText(title, highlightRegex);
+                        }
+                        if (
+                          hasNonEmptyMatch(`[!${callout.type}]`, highlightRegex) ||
+                          hasNonEmptyMatch(`[!${callout.type.toUpperCase()}]`, highlightRegex)
+                        ) {
+                          return <span className={css.highlightText}>{title}</span>;
+                        }
+                        return title;
+                      }
+                    : undefined
                 }
               >
                 {callout.bodyNodes.length > 0

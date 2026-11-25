@@ -192,7 +192,7 @@ type CalloutProps = ComponentPropsWithoutRef<'aside'> & {
 
 /** Renders a GitHub-style alert callout with a semantic tone, icon, localized title, and body. */
 export function Callout({ type, children, className, renderTitle, ...props }: CalloutProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const titleId = useId();
   const Icon = CALLOUT_ICONS[type];
   const title = t(CALLOUT_TITLE_KEYS[type]);
@@ -201,6 +201,7 @@ export function Callout({ type, children, className, renderTitle, ...props }: Ca
   return (
     <aside
       {...props}
+      dir={i18n.dir()}
       role="note"
       aria-labelledby={titleId}
       data-callout-type={type}
