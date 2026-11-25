@@ -537,6 +537,7 @@ describe('parseToolApprovalContent', () => {
     });
     expect(approval).toMatchObject({
       jobId: '48a15f11',
+      backgroundRunId: 'tool-job:48a15f11',
       replyToEventId: '$reply',
       responseEventId: null,
       status: 'denied',
@@ -551,8 +552,8 @@ describe('parseToolApprovalContent', () => {
         status: 'pending',
         requested_at: '2026-11-06T02:43:53Z',
         expires_at: '2026-11-13T02:43:53Z',
-      })?.jobId
-    ).toBeNull();
+      })
+    ).toMatchObject({ jobId: null, backgroundRunId: 'script-run:1' });
   });
 
   it('returns null for invalid event types and malformed content', () => {

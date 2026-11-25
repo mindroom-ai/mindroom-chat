@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Button, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { ApprovalReviewDialog, HISTORY_ERROR_KEYS } from '../approvals/ApprovalReviewDialog';
-import { ApprovalDialog } from '../approvals/ThreadApprovalControls';
+import {
+  ApprovalDialog,
+  ApprovalReviewDialog,
+  HISTORY_ERROR_KEYS,
+} from '../approvals/ApprovalReviewDialog';
 import { ThreadApprovalProvider, useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { ToolApprovalCard } from '../approvals/ToolApprovalCard';
 import * as approvalCss from '../approvals/ThreadApprovals.css';
@@ -31,25 +34,25 @@ type JobApprovalDialogProps = {
 };
 
 /**
- * Matches pending approvals for one job: exact `jobId`/`toolCallId` matches first, otherwise only
- * untagged cards (workflow `wf-...` runs or older backends without `background_run_id`) — never a
- * card tagged with a different job or tool call.
+ * Matches only pending approvals provably owned by this job: its own `jobId` (or any waiting
+ * workflow node's `node.job`), its `toolCallId`, or a direct workflow `backgroundRunId`.
  */
 export const matchJobApprovals = (
   pending: readonly ThreadApprovalRecord[],
-  job: Pick<BackgroundJobsBarItem, 'jobId' | 'toolCallId'>,
-  allowUntaggedFallback: boolean
+  job: Pick<BackgroundJobsBarItem, 'jobId' | 'toolCallId' | 'workflow' | 'workflowRun'>
 ): ThreadApprovalRecord[] => {
-  const exact = pending.filter(
-    (record) =>
-      record.approval.jobId === job.jobId ||
-      (job.toolCallId !== undefined && record.approval.toolCallId === job.toolCallId)
-  );
-  if (exact.length > 0 || !allowUntaggedFallback) return exact;
+  const jobIds = new Set<string>([job.jobId]);
+  job.workflowRun?.graph.nodes.forEach((node) => {
+    if (node.status === 'waiting' && node.waitingOn === 'approval' && node.job) {
+      jobIds.add(node.job);
+    }
+  });
+  const workflowRunId = job.workflow || undefined;
   return pending.filter(
-    (record) =>
-      record.approval.jobId === null &&
-      (job.toolCallId === undefined || record.approval.toolCallId === null)
+    ({ approval }) =>
+      (approval.jobId !== null && jobIds.has(approval.jobId)) ||
+      (job.toolCallId !== undefined && approval.toolCallId === job.toolCallId) ||
+      (workflowRunId !== undefined && approval.backgroundRunId === workflowRunId)
   );
 };
 
@@ -125,8 +128,7 @@ function ThreadJobApprovalDialog({
   const candidateEventIds = useMemo(() => {
     if (eventIds || !context) return undefined;
     const pending = context.records.filter((record) => context.pendingEventIds.has(record.eventId));
-    // Wait for history backfill before falling back to an untagged approval in the same thread.
-    const chosen = matchJobApprovals(pending, job, !context.loading);
+    const chosen = matchJobApprovals(pending, job);
     return chosen.length > 0 ? chosen.map((record) => record.eventId) : undefined;
   }, [eventIds, context, job]);
 
@@ -243,7 +245,7 @@ function RoomJobApprovalDialog({
   const candidateIds = useMemo(() => {
     if (selectedIds) return undefined;
     const pending = records.filter((record) => isPendingApproval(record));
-    const chosen = matchJobApprovals(pending, job, true);
+    const chosen = matchJobApprovals(pending, job);
     return chosen.length > 0 ? chosen.map((record) => record.eventId) : undefined;
   }, [selectedIds, records, job]);
 

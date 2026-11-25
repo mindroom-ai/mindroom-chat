@@ -78,6 +78,7 @@ export interface ToolApprovalData {
   // A call that runs as a background job asks for its approval as the job's first phase; its card
   // names the job instead of a reply, and replies to the event that was latest in the thread.
   jobId: string | null;
+  backgroundRunId?: string;
   replyToEventId: string | null;
   argumentsTruncated: boolean;
   fullArguments: Record<string, unknown> | null;
@@ -473,6 +474,7 @@ export const parseToolApprovalContent = (
   }
 
   const argumentsTruncated = pickCandidateValue(content, 'arguments_truncated') === true;
+  const backgroundRunId = asString(pickCandidateValue(content, 'background_run_id'));
   return {
     approvalId,
     toolName,
@@ -494,7 +496,8 @@ export const parseToolApprovalContent = (
     scope: asScope(pickCandidateValue(content, 'approval_scope')),
     provenance: asProvenance(pickCandidateValue(content, 'approval_provenance')),
     responseEventId: asString(pickCandidateValue(content, 'response_event_id')) ?? null,
-    jobId: asJobId(pickCandidateValue(content, 'background_run_id')),
+    jobId: asJobId(backgroundRunId),
+    ...(backgroundRunId ? { backgroundRunId } : {}),
     replyToEventId: asReplyToEventId(content),
     argumentsTruncated,
     fullArguments: asArguments(pickCandidateValue(content, 'full_arguments')) ?? null,
