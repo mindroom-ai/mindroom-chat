@@ -333,13 +333,44 @@ vi.mock('../room-nav/SortableRoomList', () => ({
   }: {
     room: { roomId: string };
     linkPath: string;
-    spaceId: string;
+    spaceId?: string;
     removeFromSpaceId?: string;
     subRoom?: boolean;
     activityTimestamp?: number;
   }) => (
     <div
       data-row-room={room.roomId}
+      data-sortable-row
+      data-link={linkPath}
+      data-space={spaceId}
+      data-remove-from-space={removeFromSpaceId}
+      data-sub-room={subRoom}
+      data-activity-ts={activityTimestamp}
+    />
+  ),
+}));
+vi.mock('../room-nav/RoomNavItem', () => ({
+  RoomNavItem: ({
+    room,
+    selected: isSelected,
+    linkPath,
+    spaceId,
+    removeFromSpaceId,
+    subRoom,
+    activityTimestamp,
+  }: {
+    room: { roomId: string };
+    selected?: boolean;
+    linkPath: string;
+    spaceId?: string;
+    removeFromSpaceId?: string;
+    subRoom?: boolean;
+    activityTimestamp?: number;
+  }) => (
+    <div
+      data-row-room={room.roomId}
+      data-static-row
+      data-selected={isSelected ? 'true' : undefined}
       data-link={linkPath}
       data-space={spaceId}
       data-remove-from-space={removeFromSpaceId}
@@ -909,6 +940,19 @@ describe('Space navigation', () => {
       organizerCategoryId,
       researchCategoryId,
     ]);
+    const headingLevelOf = (categoryId: string) =>
+      renderer!.root
+        .findAll(
+          (node) => typeof node.type === 'string' && 'data-nav-category-header' in node.props
+        )
+        .find(
+          (header) =>
+            header.findAll(
+              (child) => child.type === 'button' && child.props['data-category-id'] === categoryId
+            ).length > 0
+        )?.props['aria-level'];
+    expect(headingLevelOf(organizerCategoryId)).toBe(3);
+    expect(headingLevelOf(researchCategoryId)).toBe(4);
 
     // Unread updates while Research Group is expanded do not re-render its header button.
     const rendersBeforeExpandedUnread = categoryButtonStats.renders.get(researchCategoryId) ?? 0;
@@ -978,15 +1022,36 @@ describe('Space navigation', () => {
       designReview,
       readingList,
     ]);
+    const retainedRow = rows().find((node) => node.props['data-row-room'] === readingList)!;
+    expect(retainedRow.props['data-remove-from-space']).toBe(research);
+    expect(retainedRow.props['data-selected']).toBe('true');
+    // Retained descendant row renders as a plain non-draggable RoomNavItem (not inside a
+    // SortableRoomList), so dragging and releasing it cannot trigger onMoveRoom into organizer.
+    expect(retainedRow.props['data-static-row']).toBe(true);
+    expect(retainedRow.props['data-sortable-row']).toBeUndefined();
     expect(
-      rows().find((node) => node.props['data-row-room'] === readingList)?.props[
-        'data-remove-from-space'
-      ]
-    ).toBe(research);
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          'data-sortable-list' in node.props &&
+          node.findAll(
+            (child) =>
+              typeof child.type === 'string' && child.props['data-row-room'] === readingList
+          ).length > 0
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          (node.props['data-sortable-list'] === organizer ||
+            node.props['data-sortable-list'] === research)
+      )
+    ).toHaveLength(0);
     expect(shortcutCalls.at(-1)).toEqual([joined, designReview, readingList]);
     expect(unreadDots(organizerButton())).toHaveLength(0);
 
-    // Expanding the parent restores nested Research Group and its rooms cleanly.
+    // Expanding the parent restores nested Research Group and its sortable room row cleanly.
     act(() => {
       organizerButton().props.onClick({ currentTarget: { getAttribute: () => organizerCategoryId } });
     });
@@ -1001,6 +1066,9 @@ describe('Space navigation', () => {
       designReview,
       readingList,
     ]);
+    const expandedRow = rows().find((node) => node.props['data-row-room'] === readingList)!;
+    expect(expandedRow.props['data-sortable-row']).toBe(true);
+    expect(expandedRow.props['data-static-row']).toBeUndefined();
 
     // Collapsing again after selection moves elsewhere hides the descendant row completely.
     selected.roomId = undefined;

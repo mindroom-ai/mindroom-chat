@@ -48,6 +48,11 @@ export const QuietUnreadDot = style({
   height: toRem(5),
   borderRadius: config.radii.Pill,
   backgroundColor: 'color-mix(in srgb, currentColor 72%, transparent)',
+  '@media': {
+    '(forced-colors: active)': {
+      border: '2px solid CanvasText',
+    },
+  },
 });
 
 /** Clean accent dot for Home space sections with mentions or highlights (no outer ring). */
@@ -57,6 +62,11 @@ export const QuietHighlightDot = style({
   height: toRem(6),
   borderRadius: config.radii.Pill,
   backgroundColor: color.Primary.Main,
+  '@media': {
+    '(forced-colors: active)': {
+      border: '2px solid Highlight',
+    },
+  },
 });
 
 /**

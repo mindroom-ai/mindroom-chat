@@ -207,6 +207,8 @@ export type SpaceSectionHeaderProps = {
   showOverview?: boolean;
   /** Use calm quiet dots for collapsed unread state (Home sidebar). */
   quietUnread?: boolean;
+  /** Heading level (`aria-level`) for nested space trees (defaults to `3`). */
+  headingLevel?: number;
 };
 
 /**
@@ -227,6 +229,7 @@ export function SpaceSectionHeader({
   pinMode,
   showOverview = false,
   quietUnread = false,
+  headingLevel = 3,
 }: SpaceSectionHeaderProps) {
   const { t } = useTranslation();
   const spaceName = revealDirectionControls(useRoomName(space));
@@ -315,6 +318,7 @@ export function SpaceSectionHeader({
     <>
       <NavCategoryHeader
         ref={headerRef}
+        aria-level={headingLevel}
         className={css.Header}
         style={COMPACT_HEADER_STYLE}
         data-actions-count={hasActions ? actionCount : undefined}

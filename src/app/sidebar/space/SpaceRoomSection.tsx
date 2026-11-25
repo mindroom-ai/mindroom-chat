@@ -337,10 +337,10 @@ export function SpaceRoomSection({
     !section.listedRoomIds.includes(selectedRoomId)
       ? findSelectedDescendantSection(childNodes, selectedRoomId)
       : undefined;
-  const listedRoomIds =
+  const selectedDescendantRoom =
     selectedDescendantOwner && selectedRoomId !== undefined
-      ? [...section.listedRoomIds, selectedRoomId]
-      : section.listedRoomIds;
+      ? (client.getRoom(selectedRoomId) ?? undefined)
+      : undefined;
   const visibleChildren = section.closed ? EMPTY_CHILD_NODES : childNodes;
   const unreadShownRoomIds = subtreeShownRoomIds ?? section.shownRoomIds;
 
@@ -358,44 +358,43 @@ export function SpaceRoomSection({
   });
   const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
 
-  const listOwnerSpaceId =
-    selectedDescendantOwner && section.listedRoomIds.length === 0
-      ? selectedDescendantOwner.spaceId
-      : section.spaceId;
+  // A retained active room from a collapsed descendant renders as a plain non-draggable row so
+  // releasing a drag inside this collapsed parent cannot drop it onto the parent space.
+  const roomRows =
+    section.closed && selectedDescendantOwner && selectedDescendantRoom ? (
+      <RoomNavItem
+        {...rowProps(selectedDescendantRoom, selectedDescendantOwner.showTimes)}
+        removeFromSpaceId={selectedDescendantOwner.spaceId}
+      />
+    ) : (
+      <SortableRoomList
+        listId={section.spaceId}
+        roomIds={section.listedRoomIds}
+        onReorder={(order) => onReorder(section.spaceId, order)}
+        reorderDisabled={section.mode === 'recent'}
+      >
+        {section.listedRoomIds.map((roomId) => {
+          const room = client.getRoom(roomId);
+          if (!room) return null;
+          return (
+            <Fragment key={roomId}>
+              <SortableRoomRow {...rowProps(room)} removeFromSpaceId={section.spaceId} />
+              {!section.closed && (
+                <SubRoomRows
+                  parent={room}
+                  tree={section.tree}
+                  renderRoom={renderSubRoom}
+                  previewPath={previewPath}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </SortableRoomList>
+    );
 
-  const roomRows = (
-    <SortableRoomList
-      listId={listOwnerSpaceId}
-      roomIds={listedRoomIds}
-      onReorder={(order) => onReorder(section.spaceId, order)}
-      reorderDisabled={section.mode === 'recent' || Boolean(selectedDescendantOwner)}
-    >
-      {listedRoomIds.map((roomId) => {
-        const room = client.getRoom(roomId);
-        if (!room) return null;
-        const owner =
-          selectedDescendantOwner && roomId === selectedRoomId ? selectedDescendantOwner : section;
-        return (
-          <Fragment key={roomId}>
-            <SortableRoomRow
-              {...rowProps(room, owner.showTimes)}
-              removeFromSpaceId={owner.spaceId}
-            />
-            {!section.closed && (
-              <SubRoomRows
-                parent={room}
-                tree={section.tree}
-                renderRoom={renderSubRoom}
-                previewPath={previewPath}
-              />
-            )}
-          </Fragment>
-        );
-      })}
-    </SortableRoomList>
-  );
-
-  const hasNestedBody = listedRoomIds.length > 0 || visibleChildren.length > 0;
+  const hasRoomRows = section.listedRoomIds.length > 0 || selectedDescendantRoom !== undefined;
+  const hasNestedBody = hasRoomRows || visibleChildren.length > 0;
 
   return (
     <NavCategory
@@ -418,12 +417,13 @@ export function SpaceRoomSection({
         showOverview={showOverview}
         quietUnread={quietUnread}
         pinMode={resolvedPinMode}
+        headingLevel={3 + depth}
       />
       {section.isRoot
         ? roomRows
         : hasNestedBody && (
             <div className={css.NestedChildren}>
-              {listedRoomIds.length > 0 && roomRows}
+              {hasRoomRows && roomRows}
               {visibleChildren.map((child) => (
                 <SpaceRoomSection
                   key={child.section.categoryId}
