@@ -24,15 +24,16 @@ import { useVirtualPaginator } from './useVirtualPaginator';
 const ROW_HEIGHT = 100;
 const THREAD_LOAD_OLDER_PX = 40;
 const VIEWPORT_HEIGHT = 600;
+const rangeKeys = (prefix: string, count: number) =>
+  Array.from({ length: count }, (_, i) => `${prefix}${i}`);
 type ActGlobal = { IS_REACT_ACT_ENVIRONMENT?: boolean };
 const SAFARI_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
-
-const stubSafariMac = () =>
+const setNavigator = (userAgent: string, platform: string, maxTouchPoints: number) =>
   Object.defineProperties(navigator, {
-    userAgent: { value: SAFARI_MAC_UA, configurable: true },
-    platform: { value: 'MacIntel', configurable: true },
-    maxTouchPoints: { value: 0, configurable: true },
+    userAgent: { value: userAgent, configurable: true },
+    platform: { value: platform, configurable: true },
+    maxTouchPoints: { value: maxTouchPoints, configurable: true },
   });
 
 const makeRect = (top: number, height: number) =>
@@ -52,6 +53,9 @@ class NoopObserver {
   unobserve() {}
   disconnect() {}
 }
+const setHeight = (node: HTMLElement | null, value: number) => {
+  if (node) Object.defineProperty(node, 'offsetHeight', { value, configurable: true });
+};
 const renderTiles = (
   items: ReturnType<
     ReturnType<typeof useTimelineScrollLedgerController>['virtualizer']['getVirtualItems']
@@ -65,11 +69,7 @@ const renderTiles = (
       data-index={item.index}
       data-key={String(item.key)}
       ref={(node) => {
-        if (node)
-          Object.defineProperty(node, 'offsetHeight', {
-            value: heightFor(String(item.key)),
-            configurable: true,
-          });
+        setHeight(node, heightFor(String(item.key)));
         measureElement(node);
       }}
       style={{ position: 'absolute', top: item.start }}
@@ -111,11 +111,7 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     vi.useRealTimers();
     _resetIOSDetectionForTests();
     vi.unstubAllGlobals();
-    Object.defineProperties(navigator, {
-      userAgent: { value: origUA, configurable: true },
-      platform: { value: origPlatform, configurable: true },
-      maxTouchPoints: { value: origTouchPoints, configurable: true },
-    });
+    setNavigator(origUA, origPlatform, origTouchPoints);
     document.body.replaceChildren();
   });
 
@@ -133,23 +129,23 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
   const mountTimeline = async ({
     initialKeys,
     initialScrollTop = 0,
-    leadingKey = ROOM_INTRO_KEY,
-    leadingHeight = EXPAND_ALL_LINE_ESTIMATE_PX,
+    headerHeight = 0,
     rootHeight = ROW_HEIGHT,
     thread = false,
     latestAtTop = false,
   }: {
     initialKeys: string[];
     initialScrollTop?: number;
-    leadingKey?: string;
-    leadingHeight?: number;
+    headerHeight?: number;
     rootHeight?: number;
     thread?: boolean;
     latestAtTop?: boolean;
   }) => {
+    const leadingKey = thread ? THREAD_LOAD_OLDER_KEY : ROOM_INTRO_KEY;
+    const leadingHeight = thread ? THREAD_LOAD_OLDER_PX : EXPAND_ALL_LINE_ESTIMATE_PX;
     vi.stubGlobal('ResizeObserver', NoopObserver);
     let totalHeight = initialKeys.length * ROW_HEIGHT;
-    const scrollElement = createScrollElement(() => totalHeight, initialScrollTop);
+    const scrollElement = createScrollElement(() => headerHeight + totalHeight, initialScrollTop);
     const root = mountRoot(scrollElement);
 
     function Harness({ keys, tick }: { keys: string[]; tick: number }) {
@@ -179,13 +175,25 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
       const tileHeight = (key: string) =>
         key === leadingKey ? leadingHeight : key === '$thread-root' ? rootHeight : ROW_HEIGHT;
       return (
-        <div ref={controller.virtualInnerRef} style={{ position: 'relative', height: totalHeight }}>
-          {renderTiles(
-            controller.virtualizer.getVirtualItems(),
-            controller.measureElement,
-            tileHeight
+        <>
+          {headerHeight > 0 && (
+            <div
+              data-testid="thread-header"
+              ref={(node) => setHeight(node, headerHeight)}
+              style={{ height: headerHeight }}
+            />
           )}
-        </div>
+          <div
+            ref={controller.virtualInnerRef}
+            style={{ position: 'relative', height: totalHeight }}
+          >
+            {renderTiles(
+              controller.virtualizer.getVirtualItems(),
+              controller.measureElement,
+              tileHeight
+            )}
+          </div>
+        </>
       );
     }
 
@@ -204,92 +212,65 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     render();
     await Promise.resolve();
 
-    return {
-      scrollElement,
-      render,
-      getTileTop: (key: string) => {
-        const el = scrollElement.querySelector<HTMLElement>(`[data-key="${key}"]`);
-        return el ? Number.parseFloat(el.style.top) : undefined;
-      },
+    const getTileY = (key: string) => {
+      const el = scrollElement.querySelector<HTMLElement>(`[data-key="${key}"]`);
+      return headerHeight + Number.parseFloat(el!.style.top) - scrollElement.scrollTop;
     };
+    const flushKeys = async (nextKeys: string[]) => {
+      render(nextKeys);
+      await Promise.resolve();
+      render();
+    };
+    return { scrollElement, flushKeys, getTileY };
+  };
+
+  const expectItem0PrependHolds = async (initialScrollTop: number, thread: boolean) => {
+    const leadingKey = thread ? THREAD_LOAD_OLDER_KEY : ROOM_INTRO_KEY;
+    const leadingHeight = thread ? THREAD_LOAD_OLDER_PX : EXPAND_ALL_LINE_ESTIMATE_PX;
+    const prefix = thread ? '$reply-' : '$ev-';
+    const rows = rangeKeys(prefix, 40);
+    const { scrollElement, flushKeys, getTileY } = await mountTimeline({
+      initialKeys: [leadingKey, ...rows],
+      initialScrollTop,
+      thread,
+    });
+    const anchorKey = initialScrollTop < leadingHeight ? `${prefix}0` : `${prefix}2`;
+    const before = getTileY(anchorKey);
+    if (initialScrollTop === 0) expect(before).toBe(leadingHeight);
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(before).toBeLessThan(ROW_HEIGHT);
+
+    const older = rangeKeys(`$older-${prefix.slice(1)}`, 8);
+    await flushKeys([leadingKey, ...older, ...rows]);
+    expect(getTileY(anchorKey)).toBeCloseTo(before, 0);
+    expect(scrollElement.scrollTop).toBeCloseTo(initialScrollTop + older.length * ROW_HEIGHT, 0);
   };
 
   it.each([0, 12, 200])(
     'holds the oldest visible room message when a backward page lands after [+all] at scrollTop=%i',
-    async (initialScrollTop) => {
-      const rows = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
-      const { scrollElement, render, getTileTop } = await mountTimeline({
-        initialKeys: [ROOM_INTRO_KEY, ...rows],
-        initialScrollTop,
-        leadingKey: ROOM_INTRO_KEY,
-        leadingHeight: EXPAND_ALL_LINE_ESTIMATE_PX,
-      });
-      const anchorKey = initialScrollTop < EXPAND_ALL_LINE_ESTIMATE_PX ? '$ev-0' : '$ev-2';
-      const yOf = () => getTileTop(anchorKey)! - scrollElement.scrollTop;
-      const before = yOf();
-      if (initialScrollTop === 0) expect(before).toBe(EXPAND_ALL_LINE_ESTIMATE_PX);
-      expect(before).toBeGreaterThanOrEqual(0);
-      expect(before).toBeLessThan(ROW_HEIGHT);
-
-      const older = Array.from({ length: 8 }, (_, i) => `$older-${i}`);
-      render([ROOM_INTRO_KEY, ...older, ...rows]);
-      await Promise.resolve();
-      render();
-
-      expect(yOf()).toBeCloseTo(before, 0);
-      expect(scrollElement.scrollTop).toBeCloseTo(initialScrollTop + older.length * ROW_HEIGHT, 0);
-    }
+    (scrollTop) => expectItem0PrependHolds(scrollTop, false)
   );
 
   it.each([0, 20, 200])(
     'holds the oldest visible thread reply when Load Older prepends after item 0 at scrollTop=%i',
-    async (initialScrollTop) => {
-      const replies = Array.from({ length: 40 }, (_, i) => `$reply-${i}`);
-      const { scrollElement, render, getTileTop } = await mountTimeline({
-        initialKeys: [THREAD_LOAD_OLDER_KEY, ...replies],
-        initialScrollTop,
-        leadingKey: THREAD_LOAD_OLDER_KEY,
-        leadingHeight: THREAD_LOAD_OLDER_PX,
-        thread: true,
-      });
-      const anchorKey = initialScrollTop < THREAD_LOAD_OLDER_PX ? '$reply-0' : '$reply-2';
-      const yOf = () => getTileTop(anchorKey)! - scrollElement.scrollTop;
-      const before = yOf();
-      if (initialScrollTop === 0) expect(before).toBe(THREAD_LOAD_OLDER_PX);
-      expect(before).toBeGreaterThanOrEqual(0);
-      expect(before).toBeLessThan(ROW_HEIGHT);
-
-      const older = Array.from({ length: 8 }, (_, i) => `$older-reply-${i}`);
-      render([THREAD_LOAD_OLDER_KEY, ...older, ...replies]);
-      await Promise.resolve();
-      render();
-
-      expect(yOf()).toBeCloseTo(before, 0);
-      expect(scrollElement.scrollTop).toBeCloseTo(initialScrollTop + older.length * ROW_HEIGHT, 0);
-    }
+    (scrollTop) => expectItem0PrependHolds(scrollTop, true)
   );
 
   it.each([0, 20, 60])(
     'holds the oldest visible thread reply after [Load Older, thread root] when older replies prepend at scrollTop=%i',
     async (initialScrollTop) => {
-      const replies = Array.from({ length: 40 }, (_, i) => `$reply-${i}`);
-      const { scrollElement, render, getTileTop } = await mountTimeline({
+      const replies = rangeKeys('$reply-', 40);
+      const { scrollElement, flushKeys, getTileY } = await mountTimeline({
         initialKeys: [THREAD_LOAD_OLDER_KEY, '$thread-root', ...replies],
         initialScrollTop,
-        leadingKey: THREAD_LOAD_OLDER_KEY,
-        leadingHeight: THREAD_LOAD_OLDER_PX,
         thread: true,
       });
-      const yOf = () => getTileTop('$reply-0')! - scrollElement.scrollTop;
-      const before = yOf();
+      const before = getTileY('$reply-0');
       expect(before).toBe(THREAD_LOAD_OLDER_PX + ROW_HEIGHT - initialScrollTop);
 
-      const older = Array.from({ length: 8 }, (_, i) => `$older-reply-${i}`);
-      render([THREAD_LOAD_OLDER_KEY, '$thread-root', ...older, ...replies]);
-      await Promise.resolve();
-      render();
-
-      expect(yOf()).toBeCloseTo(before, 0);
+      const older = rangeKeys('$older-reply-', 8);
+      await flushKeys([THREAD_LOAD_OLDER_KEY, '$thread-root', ...older, ...replies]);
+      expect(getTileY('$reply-0')).toBeCloseTo(before, 0);
       expect(scrollElement.scrollTop).toBeCloseTo(initialScrollTop + older.length * ROW_HEIGHT, 0);
     }
   );
@@ -300,34 +281,57 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
   ])(
     'keeps the paragraph in view when older replies arrive below a tall expanded thread root at scrollTop=%i',
     async (initialScrollTop, expectedParagraphY) => {
-      const replies = Array.from({ length: 40 }, (_, i) => `$reply-${i}`);
-      const { scrollElement, render, getTileTop } = await mountTimeline({
+      const replies = rangeKeys('$reply-', 40);
+      const { scrollElement, flushKeys, getTileY } = await mountTimeline({
         initialKeys: [THREAD_LOAD_OLDER_KEY, '$thread-root', ...replies],
         thread: true,
-        leadingKey: THREAD_LOAD_OLDER_KEY,
-        leadingHeight: THREAD_LOAD_OLDER_PX,
         rootHeight: 1200,
         initialScrollTop,
       });
-      const paragraphY = () => getTileTop('$thread-root')! + 360 - scrollElement.scrollTop;
+      const paragraphY = () => getTileY('$thread-root') + 360;
       expect(paragraphY()).toBe(expectedParagraphY);
-      expect(getTileTop('$reply-0')! - scrollElement.scrollTop).toBeGreaterThan(VIEWPORT_HEIGHT);
+      expect(getTileY('$reply-0')).toBeGreaterThan(VIEWPORT_HEIGHT);
 
-      const older = Array.from({ length: 8 }, (_, i) => `$older-${i}`);
-      render([THREAD_LOAD_OLDER_KEY, '$thread-root', ...older, ...replies]);
-      await Promise.resolve();
-      render();
+      await flushKeys([
+        THREAD_LOAD_OLDER_KEY,
+        '$thread-root',
+        ...rangeKeys('$older-', 8),
+        ...replies,
+      ]);
       expect(scrollElement.scrollTop).toBe(initialScrollTop);
       expect(paragraphY()).toBe(expectedParagraphY);
     }
   );
 
+  it('keeps scrollTop at 500 when a 120 px thread header pushes the first reply off screen at y=660', async () => {
+    const replies = rangeKeys('$reply-', 40);
+    const { scrollElement, flushKeys, getTileY } = await mountTimeline({
+      initialKeys: [THREAD_LOAD_OLDER_KEY, '$thread-root', ...replies],
+      thread: true,
+      headerHeight: 120,
+      rootHeight: 1000,
+      initialScrollTop: 500,
+    });
+    const rootYBefore = getTileY('$thread-root');
+    expect(getTileY('$reply-0')).toBe(660);
+    expect(getTileY('$reply-0')).toBeGreaterThan(VIEWPORT_HEIGHT);
+
+    await flushKeys([
+      THREAD_LOAD_OLDER_KEY,
+      '$thread-root',
+      ...rangeKeys('$older-', 10),
+      ...replies,
+    ]);
+    expect(scrollElement.scrollTop).toBe(500);
+    expect(getTileY('$thread-root')).toBe(rootYBefore);
+  });
+
   it('keeps the first message at y=22 when useVirtualPaginator widens backward at scrollTop=0', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubSafariMac();
+    setNavigator(SAFARI_MAC_UA, 'MacIntel', 0);
     vi.stubGlobal('ResizeObserver', NoopObserver);
     vi.stubGlobal('IntersectionObserver', NoopObserver);
-    const allRows = Array.from({ length: 80 }, (_, i) => `$ev-${i}`);
+    const allRows = rangeKeys('$ev-', 80);
     let totalHeight = 41 * ROW_HEIGHT;
     const scrollElement = createScrollElement(() => totalHeight, 1000);
     const root = mountRoot(scrollElement);
@@ -432,7 +436,7 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     anchorTo?: 'start' | 'end';
     anchorSkipLeading?: number;
   }) => {
-    const baseRows = Array.from({ length: 12 }, (_, i) => `$ev-${i}`);
+    const baseRows = rangeKeys('$ev-', 12);
     let keys = [ROOM_INTRO_KEY, ...baseRows];
     let totalHeight = 1300;
     const scrollElement = createScrollElement(() => totalHeight, 0);
@@ -441,11 +445,9 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
       getScrollElement: () => scrollElement,
       estimateSize: (index: number) => (keys[index] === ROOM_INTRO_KEY ? 22 : ROW_HEIGHT),
       getItemKey: (index: number) => keys[index]!,
-      anchorTo: extra?.anchorTo ?? ('end' as const),
+      anchorTo: 'end' as const,
       scrollEndThreshold: -1,
-      ...(extra?.anchorSkipLeading !== undefined
-        ? { anchorSkipLeading: extra.anchorSkipLeading }
-        : {}),
+      ...extra,
       observeElementRect,
       observeElementOffset,
       scrollToFn: elementScroll,
@@ -483,15 +485,13 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
       runDirectVirtualizerPrepend({ anchorTo: 'start', anchorSkipLeading: 1 }).scrollElement
         .scrollTop
     ).toBe(0);
-    const rows = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
-    const { scrollElement, render } = await mountTimeline({
+    const rows = rangeKeys('$ev-', 40);
+    const { scrollElement, flushKeys } = await mountTimeline({
       initialKeys: [ROOM_INTRO_KEY, ...rows],
       initialScrollTop: 0,
       latestAtTop: true,
     });
-    render([ROOM_INTRO_KEY, ...Array.from({ length: 8 }, (_, i) => `$inserted-${i}`), ...rows]);
-    await Promise.resolve();
-    render();
+    await flushKeys([ROOM_INTRO_KEY, ...rangeKeys('$inserted-', 8), ...rows]);
     expect(scrollElement.scrollTop).toBe(0);
   });
 });

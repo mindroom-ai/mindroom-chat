@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..2654559 100644
+index 186f79e..50e1015 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -33,18 +33,17 @@ index 186f79e..2654559 100644
          isScrollingResetDelay: 150,
          enabled: true,
          isRtl: false,
-@@ -414,9 +423,17 @@ class Virtualizer {
+@@ -414,9 +423,16 @@ class Virtualizer {
          const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
 -          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          // PR 4: skip caller-declared leading items while unchanged and the next item is in view.
++          // PR 4: skip caller-declared leading items while unchanged and the next item starts in the top half of the viewport.
 +          const scrollOffset = this.getScrollOffset();
-+          const viewEnd = scrollOffset + this.getSize();
 +          let item = prevCount > 0 ? this.getVirtualItemForOffset(scrollOffset) ?? measurements[0] : null;
 +          while (item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
 +            const next = measurements[item.index + 1];
-+            if (!next || next.start >= viewEnd) break;
++            if (!next || next.start >= scrollOffset + this.getSize() / 2) break;
 +            item = next;
 +          }
            if (item) {
@@ -53,7 +52,7 @@ index 186f79e..2654559 100644
            }
            const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
            if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-@@ -508,6 +525,12 @@ class Virtualizer {
+@@ -508,6 +524,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -66,7 +65,7 @@ index 186f79e..2654559 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +648,46 @@ class Virtualizer {
+@@ -625,9 +647,46 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -114,7 +113,7 @@ index 186f79e..2654559 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,19 +765,31 @@ class Virtualizer {
+@@ -705,19 +764,31 @@ class Virtualizer {
        }
        return null;
      };
@@ -149,7 +148,7 @@ index 186f79e..2654559 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1492,15 +1564,17 @@ class Virtualizer {
+@@ -1492,15 +1563,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
@@ -197,7 +196,7 @@ index 159bbd6..cce95a0 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..480e929 100644
+index ef861e1..f038274 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -231,18 +230,17 @@ index ef861e1..480e929 100644
          isScrollingResetDelay: 150,
          enabled: true,
          isRtl: false,
-@@ -413,9 +422,17 @@ class Virtualizer {
+@@ -413,9 +422,16 @@ class Virtualizer {
          const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
 -          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-+          // PR 4: skip caller-declared leading items while unchanged and the next item is in view.
++          // PR 4: skip caller-declared leading items while unchanged and the next item starts in the top half of the viewport.
 +          const scrollOffset = this.getScrollOffset();
-+          const viewEnd = scrollOffset + this.getSize();
 +          let item = prevCount > 0 ? this.getVirtualItemForOffset(scrollOffset) ?? measurements[0] : null;
 +          while (item && item.index < merged.anchorSkipLeading && item.index + 1 < prevCount && item.index < nextCount && merged.getItemKey(item.index) === getPreviousKey(item.index)) {
 +            const next = measurements[item.index + 1];
-+            if (!next || next.start >= viewEnd) break;
++            if (!next || next.start >= scrollOffset + this.getSize() / 2) break;
 +            item = next;
 +          }
            if (item) {
@@ -251,7 +249,7 @@ index ef861e1..480e929 100644
            }
            const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
            if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-@@ -507,6 +524,12 @@ class Virtualizer {
+@@ -507,6 +523,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -264,7 +262,7 @@ index ef861e1..480e929 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +647,46 @@ class Virtualizer {
+@@ -624,9 +646,46 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -312,7 +310,7 @@ index ef861e1..480e929 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,19 +764,31 @@ class Virtualizer {
+@@ -704,19 +763,31 @@ class Virtualizer {
        }
        return null;
      };
@@ -347,7 +345,7 @@ index ef861e1..480e929 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1491,15 +1563,17 @@ class Virtualizer {
+@@ -1491,15 +1562,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
