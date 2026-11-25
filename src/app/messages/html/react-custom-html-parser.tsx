@@ -42,6 +42,7 @@ import {
 } from '../../rich-text/code/codeBlockLanguage';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { Callout, extractCallout } from '../../rich-text/Callout';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
@@ -113,6 +114,13 @@ type StyledText = Array<string | JSX.Element>;
 
 const toGlobal = (regex: RegExp): RegExp =>
   new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
+
+const hasNonEmptyMatch = (text: string, regex: RegExp): boolean => {
+  for (const match of text.matchAll(toGlobal(regex))) {
+    if (match[0] !== '') return true;
+  }
+  return false;
+};
 
 /** Emoji in `text`, outside URLs, scaled up to match the text around them. */
 const scaleEmoji = (
@@ -768,7 +776,41 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </p>
           );
-        case 'blockquote':
+        case 'blockquote': {
+          const callout = hasAncestor(domNode, ['blockquote', 'li'])
+            ? undefined
+            : extractCallout(children);
+          if (callout) {
+            const calloutProps = attributesToProps(withoutAttribute(attribs, 'cite'));
+            const { highlightRegex } = params;
+            return (
+              <Callout
+                {...calloutProps}
+                type={callout.type}
+                className={classNames(css.MarginSpaced, calloutProps.className)}
+                renderTitle={
+                  highlightRegex
+                    ? (title) => {
+                        if (hasNonEmptyMatch(title, highlightRegex)) {
+                          return renderStyledText(title, highlightRegex);
+                        }
+                        if (
+                          hasNonEmptyMatch(`[!${callout.type}]`, highlightRegex) ||
+                          hasNonEmptyMatch(`[!${callout.type.toUpperCase()}]`, highlightRegex)
+                        ) {
+                          return <span className={css.highlightText}>{title}</span>;
+                        }
+                        return title;
+                      }
+                    : undefined
+                }
+              >
+                {callout.bodyNodes.length > 0
+                  ? domToReact(callout.bodyNodes as DOMNode[], parserOptions)
+                  : undefined}
+              </Callout>
+            );
+          }
           return (
             <blockquote
               {...props}
@@ -777,6 +819,7 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </blockquote>
           );
+        }
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>

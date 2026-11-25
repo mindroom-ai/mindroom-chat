@@ -302,6 +302,13 @@
       "threadIn": "سلسلة محادثة في ⁨{{room}}⁩",
       "messageElsewhere": "رسالة في غرفة أخرى"
     },
+    "callout": {
+      "note": "ملاحظة",
+      "tip": "نصيحة",
+      "important": "مهم",
+      "warning": "تحذير",
+      "caution": "تنبيه"
+    },
     "deviceVerification": {
       "acceptStalled": "لم تستجب الجلسة الأخرى. أغلق هذه النافذة وابدأ التحقق مرة أخرى."
     },

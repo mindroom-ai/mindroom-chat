@@ -278,6 +278,13 @@
       "threadIn": "Fil dans {{room}}",
       "messageElsewhere": "Message dans une autre salle"
     },
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "Important",
+      "warning": "Avertissement",
+      "caution": "Attention"
+    },
     "deviceVerification": {
       "acceptStalled": "L'autre session n'a pas répondu. Fermez ceci et relancez la vérification."
     },

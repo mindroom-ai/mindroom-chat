@@ -270,6 +270,13 @@
       "threadIn": "{{room}}-এ থ্রেড",
       "messageElsewhere": "অন্য একটি রুমে বার্তা"
     },
+    "callout": {
+      "note": "নোট",
+      "tip": "টিপস",
+      "important": "গুরুত্বপূর্ণ",
+      "warning": "সতর্কবার্তা",
+      "caution": "সাবধানতা"
+    },
     "deviceVerification": {
       "acceptStalled": "অন্য সেশনটি সাড়া দেয়নি। এটি বন্ধ করে আবার যাচাইকরণ শুরু করুন।"
     },

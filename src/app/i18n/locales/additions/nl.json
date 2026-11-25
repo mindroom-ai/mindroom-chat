@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Bericht in een andere kamer"
     },
+    "callout": {
+      "note": "Opmerking",
+      "tip": "Tip",
+      "important": "Belangrijk",
+      "warning": "Waarschuwing",
+      "caution": "Voorzichtig"
+    },
     "deviceVerification": {
       "acceptStalled": "De andere sessie heeft niet geantwoord. Sluit dit en start de verificatie opnieuw."
     },
