@@ -72,7 +72,6 @@ type Router = ReturnType<typeof createBrowserRouter>;
 export type StageSnapshot = {
   copy: HTMLElement;
   scrolled: [Element, number, number][];
-  height: number;
 };
 
 export type PhoneSwipePreviewKey = {
@@ -91,7 +90,6 @@ type StoredPreviewKey = {
   roomId: string;
   threadId: string;
   width: number;
-  height: number;
 };
 
 type StoredPreview = {
@@ -133,13 +131,23 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
       !child.hasAttribute(SWIPE_HOLD_SHIELD)
   );
 
-const measureStageHeight = (
-  stage: Element,
-  bounds: DOMRect = stage.getBoundingClientRect()
-): number => (bounds.height > 0 ? Math.round(bounds.height) : window.innerHeight);
+/**
+ * Refreshes inline `--room-header-height` on cloned conversation areas after mounting `copy`.
+ * A preview captured in a short room area (`<= 240px`, where `HeaderInShortArea` hides the
+ * floating header) stores `--room-header-height: 0px`; once mounted at a taller height, the
+ * cloned header becomes visible again and its parent's inset must match before scroll restoration.
+ */
+const syncMountedOverlayInsets = (copy: HTMLElement): void => {
+  copy.querySelectorAll<HTMLElement>('[data-room-header="true"]').forEach((header) => {
+    const area = header.parentElement;
+    if (!area || !area.style.getPropertyValue('--room-header-height').trim()) return;
+    area.style.setProperty('--room-header-height', `${header.offsetHeight}px`);
+  });
+};
 
 const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
   over.append(snapshot.copy);
+  syncMountedOverlayInsets(snapshot.copy);
   snapshot.scrolled.forEach(([element, scrollTop, scrollLeft]) =>
     Object.assign(element, { scrollTop, scrollLeft })
   );
@@ -308,7 +316,6 @@ export const captureStageSnapshot = (
   return {
     copy,
     scrolled: scrolled.filter(([element]) => copy.contains(element)),
-    height: measureStageHeight(stage, bounds),
   };
 };
 
@@ -337,8 +344,8 @@ export const getCurrentPhoneLocationKey = (): string | undefined => currentPhone
 export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
 
 /**
- * Another width discards a preview. Another height alone (a soft keyboard) keeps it:
- * `getMatchingPreview` shows it again once the height it was taken at is back.
+ * Another width discards a preview. Height-only changes (soft keyboard, browser toolbar) keep and
+ * display the preview: `copy` fills the stage with `inset: 0` and retains buffered rows.
  */
 const handlePreviewResize = (): void => {
   if (typeof window === 'undefined') return;
@@ -378,7 +385,6 @@ const storePhoneSwipePreview = (
       roomId: key.roomId,
       threadId: key.threadId,
       width: window.innerWidth,
-      height: snapshot.height,
     },
   };
   if (kind === 'room') roomPreview = stored;
@@ -413,6 +419,26 @@ export const capturePhoneSwipePreview = (
   capturePhoneSwipePreviewEntry(kind, key, options);
 };
 
+/** Rekeys a retained `room` or `thread` preview when its local-echo thread ID confirms. */
+export const rekeyPhoneSwipePreviewThread = (
+  kind: 'room' | 'thread',
+  key: { sessionId: string; roomId: string; threadId: string },
+  nextThreadId: string
+): void => {
+  if (!key.sessionId || !key.roomId || !key.threadId || !nextThreadId) return;
+  if (key.threadId === nextThreadId) return;
+  const entry = kind === 'room' ? roomPreview : threadPreview;
+  if (
+    !entry ||
+    entry.key.sessionId !== key.sessionId ||
+    entry.key.roomId !== key.roomId ||
+    entry.key.threadId !== key.threadId
+  ) {
+    return;
+  }
+  entry.key.threadId = nextThreadId;
+};
+
 /** Discards both retained phone swipe previews (e.g. on account switch, sign-out, or resize). */
 export const clearPhoneSwipePreviews = (): void => {
   roomPreview = undefined;
@@ -420,10 +446,14 @@ export const clearPhoneSwipePreviews = (): void => {
   syncPreviewResizeListener();
 };
 
+/**
+ * Returns the retained preview when width, session, room, and thread match.
+ * Width changes discard previews; height-only changes (soft keyboard, browser toolbar) keep and
+ * display the preview.
+ */
 const getMatchingPreview = (
   kind: 'room' | 'thread',
-  key: PhoneSwipePreviewKey,
-  stage: Element
+  key: PhoneSwipePreviewKey
 ): StageSnapshot | undefined => {
   const entry = kind === 'room' ? roomPreview : threadPreview;
   if (!entry || typeof window === 'undefined') return undefined;
@@ -444,8 +474,6 @@ const getMatchingPreview = (
   if (!key.threadId || entry.key.threadId !== key.threadId) {
     return undefined;
   }
-  // Taken at another stage height (the keyboard is open): kept, not shown, as its rows would not fit.
-  if (entry.key.height !== measureStageHeight(stage)) return undefined;
   if (entry.snapshot.copy.isConnected) return undefined;
   return entry.snapshot;
 };
@@ -681,7 +709,7 @@ export const createThreadBackSwipeScene = ({
   const topPage = topElements.find((element) => element.hasAttribute(PHONE_PAGE));
 
   const topBarHeight = getTopBarHeight(stage);
-  const matchedRoom = getMatchingPreview('room', key, stage);
+  const matchedRoom = getMatchingPreview('room', key);
   const under = matchedRoom
     ? mountStageSnapshot(matchedRoom, stage)
     : (() => {
@@ -843,7 +871,7 @@ export const createThreadForwardSwipeScene = ({
   dim.style.opacity = '0';
   stage.append(dim);
 
-  const matchedThread = getMatchingPreview('thread', key, stage);
+  const matchedThread = getMatchingPreview('thread', key);
   const over = matchedThread
     ? mountStageSnapshot(matchedThread, stage)
     : (() => {

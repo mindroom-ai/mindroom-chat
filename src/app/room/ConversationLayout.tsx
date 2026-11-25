@@ -199,6 +199,7 @@ export function ConversationLayout({
         // The element draws the header's surface; the row inside shows it and paints none.
         <div
           ref={headerRef}
+          data-room-header="true"
           data-glass-flat="true"
           className={classNames(
             overlay.Header,

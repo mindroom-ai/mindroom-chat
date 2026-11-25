@@ -28,6 +28,7 @@ import {
   createThreadBackSwipeScene,
   createThreadForwardSwipeScene,
   getCurrentPhoneLocationKey,
+  rekeyPhoneSwipePreviewThread,
   setActivePhoneSwipeContext,
 } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
@@ -322,6 +323,9 @@ export const useRoomViewThreadState = ({
   const locationState: unknown = location?.state;
 
   useLayoutEffect(() => {
+    if (threadId && effectiveThreadId && threadId !== effectiveThreadId) {
+      rekeyPhoneSwipePreviewThread('room', { sessionId, roomId, threadId }, effectiveThreadId);
+    }
     const browserHistoryState: unknown =
       typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
     const exitTarget =
