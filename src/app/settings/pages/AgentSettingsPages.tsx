@@ -2,32 +2,53 @@ import { useState } from 'react';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Button, Text, color } from 'folds';
+import { isBundledApp } from '../../lib/nativeShell';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
+import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
+import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
+import { useSetting } from '../../preferences/useSetting';
+import { settingsAtom } from '../../preferences/settings';
+import { MID_TURN_CHOICES } from '../../composer/ComposerSendButton';
 import { useComputerApiUrls } from '../../computer/useComputerApiUrl';
 import { ComputerSettings } from '../../computer/ComputerSettings';
 import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
-import { ConnectionsSettings } from '../../connections/ConnectionsSettings';
+import { ConnectedAccountsTile } from '../../connections/ConnectionsSettings';
 
-/** Agents & connections › Connected accounts: the portal where agents get their accounts. */
-export function ConnectionsSettingsPage({ requestClose }: SettingsPageProps) {
+/** The mode a tap on Send or Enter sends with while an agent replies; a hold picks another. */
+function MidTurnSendTile() {
   const { t } = useTranslation();
+  const [mode, setMode] = useSetting(settingsAtom, 'midTurnSend');
+  const label = t('composer.midTurn.settingTitle');
 
   return (
-    <SettingsPageFrame title={t('settings.general.connections.title')} requestClose={requestClose}>
-      <ConnectionsSettings className={SequenceCardStyle} />
-    </SettingsPageFrame>
+    <SettingTile
+      focusId="midTurnSend"
+      title={label}
+      description={t('composer.midTurn.settingDescription')}
+      after={
+        <ChoiceButton
+          label={label}
+          value={mode}
+          choices={MID_TURN_CHOICES.map((choice) => ({
+            value: choice.mode,
+            label: t(choice.label),
+          }))}
+          onChoose={setMode}
+        />
+      }
+    />
   );
 }
 
 /**
- * Agents & connections › Computers: the MindRoom server this device uses for agents' computers,
- * with the address field for another one in the Advanced fold.
+ * MindRoom › Agents & servers: replying and message defaults for agents, connected accounts,
+ * and the MindRoom server this device uses for agents' computers.
  */
-export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
+export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
   const { urls, discovered } = useComputerApiUrls();
   const setPreference = useSetAtom(computerServicePreferenceAtom);
@@ -38,10 +59,28 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
 
   return (
     <SettingsPageFrame
-      title={t('settings.general.computers.sectionTitle')}
+      title={t('featureUi.settings.menu.pages.agentsServers')}
       requestClose={requestClose}
     >
-      <SettingsSection>
+      <SettingsSection title={t('featureUi.settings.sections.replying')}>
+        <MidTurnSendTile />
+      </SettingsSection>
+      <SettingsSection title={t('settings.general.messages.sectionTitle')}>
+        <SettingSwitchTile
+          focusId="showToolCalls"
+          setting="showToolCalls"
+          title={t('mindroomUi.messages.showToolCalls')}
+          description={t('mindroomUi.messages.showToolCallsDescription')}
+        />
+        <SettingSwitchTile
+          focusId="showUsageDetails"
+          setting="showUsageDetails"
+          title={t('mindroomUi.subagents.showUsageDetails')}
+          description={t('mindroomUi.subagents.showUsageDetailsDescription')}
+        />
+      </SettingsSection>
+      <SettingsSection title={t('featureUi.settings.sections.connectionsComputers')}>
+        {!isBundledApp() && <ConnectedAccountsTile />}
         <SettingTile
           focusId="computerServerInUse"
           title={t('featureUi.settings.computers.inUse')}

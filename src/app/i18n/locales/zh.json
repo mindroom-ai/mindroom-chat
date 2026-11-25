@@ -159,7 +159,7 @@
         "title": "已连接的账户",
         "description": "在您的 MindRoom 服务器上连接智能体使用的账户，例如 Google 或 GitHub。",
         "open": "打开连接",
-        "noBackend": "请在“计算机”中设置您的 MindRoom 服务器，以使用连接。",
+        "noBackend": "请在设置 → 智能体与服务器（高级）中设置您的 MindRoom 服务器，以使用连接。",
         "blocked": "浏览器拦截了连接窗口。请允许此网站的弹出窗口，然后重试。"
       }
     }
