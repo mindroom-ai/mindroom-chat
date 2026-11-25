@@ -42,6 +42,8 @@ import {
   clearCompactRoomSectionsStore,
   getCompactRoomSectionsAtom,
 } from '../../threads/overview/compactRoomSections';
+import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
+import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadsPage } from './SpaceThreadsPage';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 
@@ -132,12 +134,13 @@ type FakeMemberInput = {
   membership: string;
   name: string;
   rawDisplayName?: string;
+  avatarMxc?: string;
 };
 
 const toFakeMember = (member: FakeMemberInput) => ({
   ...member,
   rawDisplayName: member.rawDisplayName ?? member.name,
-  getMxcAvatarUrl: () => null,
+  getMxcAvatarUrl: () => member.avatarMxc ?? null,
 });
 
 type FakeRoom = Room & {
@@ -162,6 +165,10 @@ const makeRoom = (
     pinnedEventIds?: string[];
     membersLoaded?: boolean;
     loadMembersIfNeeded?: () => Promise<boolean>;
+    members?: FakeMemberInput[];
+    avatarMxc?: string;
+    joinRule?: string;
+    directPartner?: { userId: string; avatarMxc?: string };
   } = {}
 ): FakeRoom => {
   const emitter = createEmitter();
@@ -169,9 +176,10 @@ const makeRoom = (
   let name = initialName;
   let membersLoaded = opts.membersLoaded ?? true;
   let members = (
-    opts.hasAgent
+    opts.members ??
+    (opts.hasAgent
       ? [{ userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' }]
-      : [{ userId: ME, membership: 'join', name: 'Me' }]
+      : [{ userId: ME, membership: 'join', name: 'Me' }])
   ).map(toFakeMember);
   let pinnedEventIds = opts.pinnedEventIds ?? [];
   let timelineEvents = opts.timelineEvents ?? [];
@@ -202,6 +210,15 @@ const makeRoom = (
     getType: () => (opts.isSpace ? 'm.space' : undefined),
     getMyMembership: () => 'join',
     getCanonicalAlias: () => opts.canonicalAlias ?? null,
+    getMxcAvatarUrl: () => opts.avatarMxc ?? null,
+    getJoinRule: () => opts.joinRule ?? 'invite',
+    getAvatarFallbackMember: () =>
+      opts.directPartner
+        ? {
+            userId: opts.directPartner.userId,
+            getMxcAvatarUrl: () => opts.directPartner?.avatarMxc ?? null,
+          }
+        : null,
     membersLoaded: () => membersLoaded,
     loadMembersIfNeeded: () =>
       (opts.loadMembersIfNeeded?.() ?? Promise.resolve(true)).then((loaded) => {
@@ -314,6 +331,8 @@ const renderSpaceThreads = ({
   const client = {
     getSafeUserId: () => ME,
     getUserId: () => ME,
+    getHomeserverUrl: () => 'https://example.org',
+    getUser: () => null,
     getRoom: (id: string) => roomMap.get(id) ?? null,
     getRooms: () => [...roomMap.values()],
     getAccountData: (type: string) =>
@@ -321,7 +340,8 @@ const renderSpaceThreads = ({
     on: clientEmitter.on,
     off: clientEmitter.off,
     removeListener: clientEmitter.removeListener,
-    mxcUrlToHttp: () => null,
+    mxcUrlToHttp: (mxc: string) =>
+      mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
   } as unknown as MatrixClient;
 
   store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ...rooms.map((r) => r.roomId)] });
@@ -366,6 +386,7 @@ afterEach(() => {
   mocks.threadListCalls.length = 0;
   mocks.threadCardBadgesCalls.length = 0;
   clearCompactRoomSectionsStore(ME);
+  clearRoomThreadFiltersStore(ME);
   localStorage.clear();
 });
 
@@ -526,6 +547,7 @@ describe('SpaceThreadsPage', () => {
     expect(note?.textContent).toContain('Engineering');
 
     cleanup();
+    clearRoomThreadFiltersStore(ME);
     const uploadStore = createStore();
     uploadStore.set(composerUploadItemsAtom(ROOM_ENG, undefined), {
       type: 'PUT',
@@ -847,6 +869,7 @@ describe('SpaceThreadsPage', () => {
 
     // Unsettled thread lists keep loading visible instead of flashing "No threads in this space yet."
     cleanup();
+    clearRoomThreadFiltersStore(ME);
     const { container: cUnsettled } = renderSpaceThreads({
       rooms: [eng],
       entries: [],
@@ -1108,5 +1131,242 @@ describe('SpaceThreadsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('current-pathname').textContent).toBe(roomIdLobbyPath);
+  });
+
+  it('renders room avatar images, DM partner avatars/initials, and RoomIcon fallbacks in the Rooms dropdown', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { avatarMxc: 'mxc://example.org/eng-avatar' });
+    const des = makeRoom(ROOM_DES, 'Design', { joinRule: 'public' });
+    const { container } = renderSpaceThreads({ rooms: [eng, des], entries: [] });
+    openRoomsDropdown(container);
+
+    const engRow = container.querySelector<HTMLElement>(`[data-room-option="${ROOM_ENG}"]`)!;
+    expect(engRow.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/eng-avatar'
+    );
+    const desRow = container.querySelector<HTMLElement>(`[data-room-option="${ROOM_DES}"]`)!;
+    expect(desRow.querySelector('img')).toBeNull();
+    expect(desRow.querySelector(`[data-avatar-fallback-id="${ROOM_DES}"] svg`)).toBeTruthy();
+
+    cleanup();
+    const dmWithAvatarId = '!dm-avatar:example.org';
+    const dmInitialsId = '!dm-initials:example.org';
+    const dmRooms = [
+      {
+        room: makeRoom(dmWithAvatarId, 'Alice', {
+          directPartner: { userId: '@alice:example.org', avatarMxc: 'mxc://example.org/alice' },
+        }),
+        name: 'Alice',
+        accentColor: '#4f8ff7',
+      },
+      {
+        room: makeRoom(dmInitialsId, 'Bob Builder', {
+          directPartner: { userId: '@bob:example.org' },
+        }),
+        name: 'Bob Builder',
+        accentColor: '#2aa89b',
+      },
+    ];
+    const store = createStore();
+    store.set(mDirectAtom, {
+      type: 'INITIALIZE',
+      rooms: new Set([dmWithAvatarId, dmInitialsId]),
+    });
+    const dmClient = {
+      getHomeserverUrl: () => 'https://example.org',
+      mxcUrlToHttp: (mxc: string) =>
+        mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
+    } as unknown as MatrixClient;
+    const { container: dmContainer } = render(
+      <Provider store={store}>
+        <MatrixClientProvider value={dmClient}>
+          <SpaceRoomFilter
+            rooms={dmRooms}
+            roomCounts={new Map()}
+            selectedRoomIds={undefined}
+            onToggleRoom={vi.fn()}
+            onSelectAll={vi.fn()}
+          />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    openRoomsDropdown(dmContainer);
+
+    const dmAvatarRow = dmContainer.querySelector<HTMLElement>(
+      `[data-room-option="${dmWithAvatarId}"]`
+    )!;
+    expect(dmAvatarRow.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/alice'
+    );
+    const dmInitRow = dmContainer.querySelector<HTMLElement>(
+      `[data-room-option="${dmInitialsId}"]`
+    )!;
+    expect(dmInitRow.querySelector('img')).toBeNull();
+    expect(
+      dmInitRow.querySelector('[data-avatar-fallback-id="@bob:example.org"]')?.textContent
+    ).toBe('B');
+  });
+
+  it('shows the People dropdown in advanced mode, scopes counts to selected rooms, filters/clears, and hides in simple mode', () => {
+    const alice = '@alice:example.org';
+    const bob = '@bob:example.org';
+    const agent = { userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' };
+    const rooms = [
+      makeRoom(ROOM_ENG, 'Engineering', {
+        members: [
+          agent,
+          {
+            userId: alice,
+            membership: 'join',
+            name: 'Alice',
+            avatarMxc: 'mxc://example.org/alice',
+          },
+        ],
+      }),
+      makeRoom(ROOM_DES, 'Design', {
+        members: [agent, { userId: bob, membership: 'join', name: 'Bob' }],
+      }),
+    ];
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$t-a1', 'API migration', NOW, alice),
+      makeEntry(ROOM_ENG, 'Engineering', '$t-a2', 'Cache tuning', NOW - 1000, alice),
+      makeEntry(ROOM_DES, 'Design', '$t-b1', 'Color tokens', NOW - 2000, bob),
+    ];
+
+    const { container } = renderSpaceThreads({ rooms, entries });
+    expect(container.querySelector('[data-people-filter-button]')).toBeNull();
+
+    fireEvent.click(container.querySelector('[data-thread-filter-mode-switch="true"]')!);
+    fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+
+    const aliceRow = container.querySelector<HTMLElement>(`[data-person-option="${alice}"]`)!;
+    const bobRow = container.querySelector<HTMLElement>(`[data-person-option="${bob}"]`)!;
+    expect(aliceRow.textContent).toContain('Alice');
+    expect(aliceRow.textContent).toContain('2');
+    expect(aliceRow.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/alice'
+    );
+    expect(bobRow.textContent).toContain('Bob');
+    expect(bobRow.textContent).toContain('1');
+
+    fireEvent.click(within(bobRow).getByRole('checkbox'));
+    expect(screen.getByText('Color tokens')).toBeTruthy();
+    expect(screen.queryByText('API migration')).toBeNull();
+    expect(screen.queryByText('Cache tuning')).toBeNull();
+
+    fireEvent.click(container.querySelector('[data-people-filter-clear]')!);
+    expect(screen.getByText('API migration')).toBeTruthy();
+    expect(screen.getByText('Color tokens')).toBeTruthy();
+
+    // Scoping to Engineering limits People options to Engineering's participants.
+    fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+    toggleRoomOption(container, ROOM_ENG);
+    fireEvent.click(container.querySelector('[data-people-filter-button]')!);
+    expect(container.querySelector(`[data-person-option="${alice}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-person-option="${bob}"]`)).toBeNull();
+
+    // Returning to simple mode hides People again.
+    fireEvent.click(container.querySelector('[data-thread-filter-mode-switch="true"]')!);
+    expect(container.querySelector('[data-people-filter-button]')).toBeNull();
+  });
+
+  it('persists selected rooms and people across remounts, survives a transient empty room list, and clears on Reset', () => {
+    const alice = '@alice:example.org';
+    const bob = '@bob:example.org';
+    const agent = { userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' };
+    const makeFixtureRooms = () => [
+      makeRoom(ROOM_ENG, 'Engineering', {
+        members: [agent, { userId: alice, membership: 'join', name: 'Alice' }],
+      }),
+      makeRoom(ROOM_DES, 'Design', {
+        members: [agent, { userId: bob, membership: 'join', name: 'Bob' }],
+      }),
+      makeRoom(ROOM_OPS, 'Ops', {
+        members: [agent, { userId: alice, membership: 'join', name: 'Alice' }],
+      }),
+    ];
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'API migration', NOW, alice),
+      makeEntry(ROOM_DES, 'Design', '$t-des', 'Color tokens', NOW - 1000, bob),
+      makeEntry(ROOM_OPS, 'Ops', '$t-ops', 'Deploy script', NOW - 2000, alice),
+    ];
+    const advancedStore = () => {
+      const store = createStore();
+      store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false });
+      return store;
+    };
+
+    const first = renderSpaceThreads({
+      rooms: makeFixtureRooms(),
+      entries,
+      store: advancedStore(),
+    });
+    toggleRoomOption(first.container, ROOM_ENG);
+    toggleRoomOption(first.container, ROOM_DES);
+    fireEvent.click(first.container.querySelector('[data-people-filter-button]')!);
+    fireEvent.click(
+      within(
+        first.container.querySelector<HTMLElement>(`[data-person-option="${alice}"]`)!
+      ).getByRole('checkbox')
+    );
+    expect(screen.getByText('API migration')).toBeTruthy();
+    expect(screen.queryByText('Color tokens')).toBeNull();
+    expect(screen.queryByText('Deploy script')).toBeNull();
+
+    // Unmount and transiently remount with an empty room list before hydration.
+    cleanup();
+    const transient = renderSpaceThreads({ rooms: [], entries: [], store: advancedStore() });
+    expect(transient.container.querySelector('[data-space-threads-empty="no-rooms"]')).toBeTruthy();
+    cleanup();
+
+    // Remounting with rooms hydrated restores both the 2 selected rooms and selected person.
+    const restored = renderSpaceThreads({
+      rooms: makeFixtureRooms(),
+      entries,
+      store: advancedStore(),
+    });
+    expect(
+      restored.container
+        .querySelector('[data-room-filter-button]')
+        ?.getAttribute('data-room-filter-count')
+    ).toBe('2');
+    expect(
+      restored.container
+        .querySelector('[data-people-filter-button]')
+        ?.getAttribute('data-people-filter-count')
+    ).toBe('1');
+    expect(screen.getByText('API migration')).toBeTruthy();
+    expect(screen.queryByText('Color tokens')).toBeNull();
+    expect(screen.queryByText('Deploy script')).toBeNull();
+
+    // Uncheck Engineering (leaving Design + Alice -> 0 matching threads) and click Reset.
+    toggleRoomOption(restored.container, ROOM_ENG);
+    fireEvent.click(screen.getByRole('button', { name: 'Reset all thread filters' }));
+    expect(screen.getByText('API migration')).toBeTruthy();
+    expect(screen.getByText('Color tokens')).toBeTruthy();
+    expect(screen.getByText('Deploy script')).toBeTruthy();
+    expect(
+      restored.container
+        .querySelector('[data-room-filter-button]')
+        ?.getAttribute('data-room-filter-count')
+    ).toBe('0');
+    expect(
+      restored.container
+        .querySelector('[data-people-filter-button]')
+        ?.getAttribute('data-people-filter-count')
+    ).toBe('0');
+
+    // Confirm Reset persisted across another remount.
+    cleanup();
+    const afterReset = renderSpaceThreads({
+      rooms: makeFixtureRooms(),
+      entries,
+      store: advancedStore(),
+    });
+    expect(
+      afterReset.container
+        .querySelector('[data-room-filter-button]')
+        ?.getAttribute('data-room-filter-count')
+    ).toBe('0');
+    expect(screen.getByText('Deploy script')).toBeTruthy();
   });
 });

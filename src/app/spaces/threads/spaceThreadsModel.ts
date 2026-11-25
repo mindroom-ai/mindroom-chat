@@ -140,6 +140,7 @@ export type SpaceThreadsResult = {
   scopedTotalCount: number;
   roomCounts: Map<string, number>;
   entryByKey: ReadonlyMap<string, CrossRoomThreadIndexEntry>;
+  scopedRecords: ReadonlyMap<string, ThreadRecord>;
   orderedKeys: string[];
   sections: CompactThreadSection[];
   nextQuietWakeTs?: number;
@@ -186,7 +187,10 @@ export const filterAndSortSpaceThreads = ({
   const statusCounts = computeThreadRecordStatusCounts(scopedKeys, keyedRecordMap, snoozeNow);
   const tagCounts = computeThreadRecordTagCounts(scopedKeys, keyedRecordMap);
 
-  const effective = projectThreadFilterState(filterState, simpleMode, hasMindroomAgents);
+  const effective: ThreadFilterState = {
+    ...projectThreadFilterState(filterState, simpleMode, hasMindroomAgents),
+    rooms: selectedRoomIds ? [...selectedRoomIds].sort() : undefined,
+  };
   const searchTokens = normalizeThreadSearchText(effective.freeText).split(' ').filter(Boolean);
   const searchMatchedKeys =
     searchTokens.length > 0
@@ -240,6 +244,7 @@ export const filterAndSortSpaceThreads = ({
     scopedTotalCount: scoped.length,
     roomCounts,
     entryByKey,
+    scopedRecords: keyedRecordMap,
     orderedKeys,
     sections: grouped?.sections ?? [],
     nextQuietWakeTs: grouped?.nextQuietWakeTs,

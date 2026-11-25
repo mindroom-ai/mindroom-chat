@@ -106,6 +106,8 @@ describe('spaceThreadsModel', () => {
     const all = runFilter(entries);
     expect(rootIdsOf(all)).toEqual(['$a1', '$b1', '$a2']);
     expect(all.scopedTotalCount).toBe(3);
+    expect(all.scopedRecords.size).toBe(3);
+    expect(all.effectiveFilterState.rooms).toBeUndefined();
     expect(all.roomCounts.get(ROOM_A)).toBe(2);
     expect(all.roomCounts.get(ROOM_B)).toBe(1);
     expect(all.roomCounts.has(ROOM_OUTSIDE)).toBe(false);
@@ -113,6 +115,8 @@ describe('spaceThreadsModel', () => {
     const onlyB = runFilter(entries, { selectedRoomIds: new Set([ROOM_B]) });
     expect(rootIdsOf(onlyB)).toEqual(['$b1']);
     expect(onlyB.scopedTotalCount).toBe(1);
+    expect(onlyB.scopedRecords.size).toBe(1);
+    expect(onlyB.effectiveFilterState.rooms).toEqual([ROOM_B]);
     expect(onlyB.roomCounts.get(ROOM_A)).toBe(2);
   });
 

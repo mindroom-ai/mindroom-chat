@@ -5,6 +5,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
@@ -19,6 +20,9 @@ import {
   addRoomToSpace,
   createPrivateSpace,
   createThreadFixture,
+  joinRoom,
+  matrixFetch,
+  sendStateEvent,
   sendThreadInRoom,
 } from '../helpers/matrix';
 
@@ -38,14 +42,74 @@ const PHONE: BrowserContextOptions = {
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
+// A 48 px solid square PNG for synthetic room and user avatars.
+const AVATAR_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAQklEQVR4nO3OQQ0AIAwAsQlDBLKRhQuOR5MK6Jy9vjL5QEhISKgeCAkJCdUDISEhoXogJCQkVA+EhISE6oGQkNBjF21V9KbVaAsfAAAAAElFTkSuQmCC',
+  'base64'
+);
+
+const uploadAvatar = async (accessToken: string): Promise<string> => {
+  const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'image/png' },
+    body: AVATAR_PNG,
+  });
+  if (!response.ok) throw new Error(`Avatar upload failed (${response.status})`);
+  return ((await response.json()) as { content_uri: string }).content_uri;
+};
+
+const setUserProfile = async (
+  user: DisposableUser,
+  displayName: string,
+  avatarUrl: string
+): Promise<void> => {
+  const base = `/profile/${encodeURIComponent(user.userId)}`;
+  await matrixFetch(HOMESERVER, `${base}/displayname`, {
+    method: 'PUT',
+    accessToken: user.accessToken,
+    body: JSON.stringify({ displayname: displayName }),
+  });
+  await matrixFetch(HOMESERVER, `${base}/avatar_url`, {
+    method: 'PUT',
+    accessToken: user.accessToken,
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+  });
+};
+
+const expectAvatarImageLoaded = async (image: Locator) => {
+  await expect(image).toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(
+      () =>
+        image.evaluate((node) => {
+          const el = node as HTMLImageElement;
+          return el.complete && el.naturalWidth > 0;
+        }),
+      { timeout: 20_000 }
+    )
+    .toBe(true);
+};
+
 type SeededWorkspace = {
   user: DisposableUser;
+  peer: DisposableUser;
   spaceId: string;
   rooms: Record<'backend-api' | 'web-client' | 'infra-ops', string>;
 };
 
 const seedWorkspace = async (): Promise<SeededWorkspace> => {
   const user = await registerDisposableUser(`spthreads_${RUN}`, PASSWORD);
+  const peer = await registerDisposableUser(`spthreads_peer_${RUN}`, PASSWORD);
+  const [userAvatarUrl, peerAvatarUrl, roomAvatarUrl] = await Promise.all([
+    uploadAvatar(user.accessToken),
+    uploadAvatar(peer.accessToken),
+    uploadAvatar(user.accessToken),
+  ]);
+  await Promise.all([
+    setUserProfile(user, 'Lead Engineer', userAvatarUrl),
+    setUserProfile(peer, 'Peer Engineer', peerAvatarUrl),
+  ]);
+
   const spaceId = await createPrivateSpace(HOMESERVER, user.accessToken, {
     name: 'Dev Workspace',
     topic: 'Shared engineering rooms and active threads',
@@ -57,6 +121,9 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     rootBody: 'Migrate session cache to Redis cluster',
     replyBody: 'Benchmark shows 35% lower p99 latency on staging.',
     txnPrefix: 'space-threads',
+  });
+  await sendStateEvent(HOMESERVER, user.accessToken, backend.roomId, 'm.room.avatar', '', {
+    url: roomAvatarUrl,
   });
   await sendThreadInRoom(HOMESERVER, user.accessToken, backend.roomId, {
     rootBody: 'Rate limit middleware retry headers',
@@ -70,9 +137,11 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
     topic: 'Frontend UI and accessibility',
     rootBody: 'Keyboard navigation for command menu',
     replyBody: 'Arrow keys and Escape focus return are wired up.',
+    invite: [peer.userId],
     txnPrefix: 'space-threads',
   });
-  await sendThreadInRoom(HOMESERVER, user.accessToken, web.roomId, {
+  await joinRoom(HOMESERVER, peer.accessToken, web.roomId);
+  await sendThreadInRoom(HOMESERVER, peer.accessToken, web.roomId, {
     rootBody: 'Compact card spacing audit',
     replyBody: 'Aligned chip heights across dark and light themes.',
     txnPrefix: 'space-threads',
@@ -90,6 +159,7 @@ const seedWorkspace = async (): Promise<SeededWorkspace> => {
 
   return {
     user,
+    peer,
     spaceId,
     rooms: {
       'backend-api': backend.roomId,
@@ -178,20 +248,36 @@ test.describe.serial('Space Threads overview', () => {
       await expect(roomsTrigger).toHaveText('Rooms');
       await saveShot(page, 'after-space-threads-dark.png');
 
-      // Open the Rooms dropdown to verify checkboxes, colored dots, and counts.
+      // Open the Rooms dropdown to verify checkboxes, room avatar image, and icon fallbacks.
+      const backendRoomId = workspace.rooms['backend-api'];
+      const webRoomId = workspace.rooms['web-client'];
+      const infraRoomId = workspace.rooms['infra-ops'];
       await roomsTrigger.click();
       await expect(page.locator('[data-room-filter-panel]')).toBeVisible();
       await expect(page.locator('[data-room-option]')).toHaveCount(3);
+      await expectAvatarImageLoaded(page.locator(`[data-room-option="${backendRoomId}"] img`));
+      await expect(page.locator(`[data-room-option="${webRoomId}"] img`)).toHaveCount(0);
+      await expect(
+        page.locator(
+          `[data-room-option="${webRoomId}"] [data-avatar-fallback-id="${webRoomId}"] svg`
+        )
+      ).toBeVisible();
+      await expect(page.locator(`[data-room-option="${infraRoomId}"] img`)).toHaveCount(0);
+      await expect(
+        page.locator(
+          `[data-room-option="${infraRoomId}"] [data-avatar-fallback-id="${infraRoomId}"] svg`
+        )
+      ).toBeVisible();
       await saveShot(page, 'after-space-threads-dropdown.png');
 
       // Checking web-client downselects to 1 room, hides room badges, and retargets the composer.
-      const webRoomId = workspace.rooms['web-client'];
       await page.locator(`[data-room-option="${webRoomId}"]`).click();
       await roomsTrigger.click();
       await expect(page.locator('[data-room-filter-panel]')).toBeHidden();
       await expect(roomsTrigger).toHaveText('web-client');
       await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 3 rooms');
       await expect(page.getByText('Keyboard navigation for command menu')).toBeVisible();
+      await expect(page.getByText('Compact card spacing audit')).toBeVisible();
       await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeHidden();
       await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(0);
@@ -200,6 +286,16 @@ test.describe.serial('Space Threads overview', () => {
         webRoomId
       );
       await saveShot(page, 'after-space-threads-only.png');
+
+      // Navigating out of All threads and back preserves the selected room.
+      await page.getByRole('link', { name: 'Space overview' }).click();
+      await expect(page.locator('[data-space-threads-page]')).toBeHidden();
+      await page.getByRole('link', { name: 'All threads' }).click();
+      await expect(page.locator('[data-space-threads-page]')).toBeVisible({ timeout: 20_000 });
+      await expect(roomsTrigger).toHaveText('web-client');
+      await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('1 of 3 rooms');
+      await expect(page.getByText('Keyboard navigation for command menu')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
 
       // Opening the Rooms dropdown and clicking Clear restores all 3 rooms and room badges.
       await roomsTrigger.click();
@@ -211,8 +307,36 @@ test.describe.serial('Space Threads overview', () => {
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
       await expect(page.locator('[data-space-thread-room-badge]')).toHaveCount(5);
 
+      // Advanced filters reveal the People dropdown with avatars, filtering, and Clear.
+      const peopleTrigger = page.locator('[data-people-filter-button]');
+      await expect(peopleTrigger).toBeHidden();
+      await page.locator('[data-thread-filter-mode-switch="true"]').click();
+      await expect(peopleTrigger).toBeVisible();
+      await peopleTrigger.click();
+      await expect(page.locator('[data-people-filter-panel]')).toBeVisible();
+      await expect(page.locator('[data-person-option]')).toHaveCount(2);
+      const userOption = page.locator(`[data-person-option="${workspace.user.userId}"]`);
+      const peerOption = page.locator(`[data-person-option="${workspace.peer.userId}"]`);
+      await expect(userOption).toContainText('Lead Engineer');
+      await expect(peerOption).toContainText('Peer Engineer');
+      await expectAvatarImageLoaded(userOption.locator('img'));
+      await expectAvatarImageLoaded(peerOption.locator('img'));
+      await saveShot(page, 'after-space-threads-people-dropdown.png');
+
+      await peerOption.click();
+      await expect(page.getByText('Compact card spacing audit')).toBeVisible();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeHidden();
+      await expect(page.getByText('Keyboard navigation for command menu')).toBeHidden();
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeHidden();
+
+      await page.locator('[data-people-filter-clear]').click();
+      await peopleTrigger.click();
+      await expect(page.locator('[data-people-filter-panel]')).toBeHidden();
+      await expect(page.getByText('Migrate session cache to Redis cluster')).toBeVisible();
+      await expect(page.getByText('Compact card spacing audit')).toBeVisible();
+      await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
+
       // Pick infra-ops in the bottom composer and send a new message/thread.
-      const infraRoomId = workspace.rooms['infra-ops'];
       await page.locator(`[data-space-composer-target="${infraRoomId}"]`).click();
       await expect(page.locator('[data-space-composer="true"]')).toHaveAttribute(
         'data-space-composer-active-target',

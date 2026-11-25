@@ -10,7 +10,16 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+const USERS: Record<string, { displayName?: string; avatarUrl?: string }> = {
+  '@extern:example.org': { displayName: 'External User', avatarUrl: 'mxc://example.org/extern' },
+};
+const mockClient = {
+  getHomeserverUrl: () => 'https://example.org',
+  getUser: (userId: string) => USERS[userId] ?? null,
+  mxcUrlToHttp: (mxc: string) =>
+    mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
+};
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mockClient }));
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
@@ -182,5 +191,73 @@ describe('the People dropdown', () => {
 
     rerender(undefined, new Map(records));
     expect(peopleFilter.buildThreadPeopleActivity).toHaveBeenCalledTimes(2);
+  });
+
+  it('resolves display names and avatars across multiple rooms with user and localpart fallbacks', () => {
+    const makeLookupRoom = (
+      roomId: string,
+      members: Record<string, { rawDisplayName?: string; avatarMxc?: string }>
+    ) =>
+      ({
+        roomId,
+        getMember: (userId: string) => {
+          const member = members[userId];
+          return member
+            ? {
+                rawDisplayName: member.rawDisplayName,
+                getMxcAvatarUrl: () => member.avatarMxc,
+              }
+            : null;
+        },
+      }) as unknown as Room;
+
+    const roomA = makeLookupRoom('!a:example.org', {
+      '@alice:example.org': { rawDisplayName: 'Alice A' },
+    });
+    const roomB = makeLookupRoom('!b:example.org', {
+      '@alice:example.org': { rawDisplayName: 'Alice B', avatarMxc: 'mxc://example.org/alice' },
+      '@bob:example.org': { rawDisplayName: 'Bob B', avatarMxc: 'mxc://example.org/bob' },
+    });
+    const multiRecords = new Map([
+      ['$1', record('$1', ['@alice:example.org', '@bob:example.org'])],
+      ['$2', record('$2', ['@extern:example.org', '@ghost:example.org'])],
+    ]);
+
+    act(() => {
+      renderer = create(
+        <ThreadPeopleFilter
+          rooms={[roomA, roomB]}
+          records={multiRecords}
+          selected={undefined}
+          onToggle={vi.fn()}
+          onClear={vi.fn()}
+        />
+      );
+    });
+    open();
+
+    const optionOf = (userId: string) =>
+      byData('data-person-option').find((node) => node.props['data-person-option'] === userId)!;
+    const textOf = (userId: string) =>
+      optionOf(userId)
+        .findAllByType('span')
+        .map((node) => node.children.join(''))
+        .join(' ');
+    const imgSrcOf = (userId: string) => optionOf(userId).findAllByType('img')[0]?.props.src;
+
+    expect(textOf('@alice:example.org')).toContain('Alice A');
+    expect(imgSrcOf('@alice:example.org')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/alice'
+    );
+    expect(textOf('@bob:example.org')).toContain('Bob B');
+    expect(imgSrcOf('@bob:example.org')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/bob'
+    );
+    expect(textOf('@extern:example.org')).toContain('External User');
+    expect(imgSrcOf('@extern:example.org')).toBe(
+      'https://example.org/_matrix/media/v3/download/example.org/extern'
+    );
+    expect(textOf('@ghost:example.org')).toContain('ghost');
+    expect(imgSrcOf('@ghost:example.org')).toBeUndefined();
   });
 });

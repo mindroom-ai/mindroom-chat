@@ -17,6 +17,7 @@ import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from '../../event-store/threads/roomThreadOverviewModel';
+import { toggleThreadPerson } from '../../event-store/threads/threadPeopleFilter';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { usePinnedEventIdsByRoom } from '../../event-store/threads/useThreadPinning';
@@ -35,6 +36,7 @@ import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsRe
 import { getCompactRoomSectionsAtom } from '../../threads/overview/compactRoomSections';
 import { roomThreadFilterAtomFamily } from '../../threads/overview/roomThreadFilterState';
 import { RoomThreadOverview } from '../../threads/overview/RoomThreadOverview';
+import { ThreadPeopleFilter } from '../../threads/overview/ThreadPeopleFilter';
 import { useThreadSortFreezeController } from '../../threads/overview/threadSortFreezeController';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { Page } from '../../ui/page/Page';
@@ -78,7 +80,6 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     timelineTick,
   } = useSpaceThreadsRooms(space.roomId);
 
-  const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string> | undefined>(undefined);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
   );
@@ -116,10 +117,15 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     });
   }
 
-  const effectiveSelectedRoomIds = useMemo(
-    () => pruneSpaceRoomSelection(selectedRoomIds, orderedRoomIds),
-    [orderedRoomIds, selectedRoomIds]
+  const storedSelectedRoomIds = useMemo(
+    () => (filterState.rooms?.length ? new Set(filterState.rooms) : undefined),
+    [filterState.rooms]
   );
+  const effectiveSelectedRoomIds = useMemo(
+    () => pruneSpaceRoomSelection(storedSelectedRoomIds, orderedRoomIds),
+    [orderedRoomIds, storedSelectedRoomIds]
+  );
+  const memberLookupRooms = useMemo(() => rooms.map((item) => item.room), [rooms]);
   const activeRoomIds = useMemo(
     () =>
       effectiveSelectedRoomIds
@@ -265,12 +271,31 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                   rooms={rooms}
                   roomCounts={result.roomCounts}
                   selectedRoomIds={effectiveSelectedRoomIds}
-                  onSelectAll={() => setSelectedRoomIds(undefined)}
+                  onSelectAll={() => updateFilter((prev) => ({ ...prev, rooms: undefined }))}
                   onToggleRoom={(id) =>
-                    setSelectedRoomIds(
-                      toggleSpaceRoomSelection(effectiveSelectedRoomIds, id, orderedRoomIds)
-                    )
+                    updateFilter((prev) => {
+                      const current = pruneSpaceRoomSelection(
+                        prev.rooms?.length ? new Set(prev.rooms) : undefined,
+                        orderedRoomIds
+                      );
+                      const next = toggleSpaceRoomSelection(current, id, orderedRoomIds);
+                      return { ...prev, rooms: next ? [...next].sort() : undefined };
+                    })
                   }
+                />
+              }
+              peopleFilter={
+                <ThreadPeopleFilter
+                  rooms={memberLookupRooms}
+                  records={result.scopedRecords}
+                  selected={result.effectiveFilterState.people}
+                  onToggle={(userId) =>
+                    updateFilter((prev) => ({
+                      ...prev,
+                      people: toggleThreadPerson(prev.people, userId),
+                    }))
+                  }
+                  onClear={() => updateFilter((prev) => ({ ...prev, people: undefined }))}
                 />
               }
               roomId={space.roomId}
@@ -310,10 +335,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                 }))
               }
               onToggleForMe={() => updateFilter((prev) => ({ ...prev, forMe: !prev.forMe }))}
-              onReset={() => {
-                setFilterState(resetThreadFilterState());
-                setSelectedRoomIds(undefined);
-              }}
+              onReset={() => setFilterState(resetThreadFilterState())}
               onAddTag={(tag) => updateFilter((prev) => addTagFilter(prev, tag))}
               onRemoveTag={(tag) => updateFilter((prev) => removeTagFilter(prev, tag))}
               onClearTags={() => updateFilter((prev) => ({ ...prev, tags: new Map() }))}

@@ -16,8 +16,10 @@ import {
 } from '../../event-store/threads/threadPeopleFilter';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
-export type ThreadPeopleFilterProps = {
-  room: Room;
+export type ThreadPeopleFilterProps = (
+  | { room: Room; rooms?: never }
+  | { rooms: readonly Room[]; room?: never }
+) & {
   /** The room's thread records before filtering: whoever took part in any of them is listed. */
   records: ReadonlyMap<string, ThreadRecord>;
   selected: readonly string[] | undefined;
@@ -38,6 +40,7 @@ type PersonOption = {
 
 function PeoplePanel({
   room,
+  rooms,
   records,
   selected,
   onShown,
@@ -51,15 +54,35 @@ function PeoplePanel({
     onShown?.();
   }, [onShown]);
 
+  const lookupRooms = useMemo<readonly Room[]>(() => rooms ?? (room ? [room] : []), [room, rooms]);
+
   // One pass over the room's threads while the panel is open, again only when they change.
   const activity = useMemo(() => buildThreadPeopleActivity(records.values()), [records]);
   const toOption = (userId: string, threadCount: number): PersonOption => {
-    const avatarMxc = getMemberAvatarMxc(room, userId);
+    let displayName: string | undefined;
+    let avatarMxc: string | undefined;
+    for (const candidate of lookupRooms) {
+      if (!candidate.getMember?.(userId)) continue;
+      if (!displayName) displayName = getMemberDisplayName(candidate, userId) || undefined;
+      if (!avatarMxc) avatarMxc = getMemberAvatarMxc(candidate, userId) || undefined;
+      if (displayName && avatarMxc) break;
+    }
+    if (!displayName) {
+      for (const candidate of lookupRooms) {
+        const name = getMemberDisplayName(candidate, userId);
+        if (name) {
+          displayName = name;
+          break;
+        }
+      }
+    }
+    const user = mx.getUser?.(userId);
+    const resolvedAvatarMxc = avatarMxc ?? (user?.avatarUrl || undefined);
     return {
       userId,
-      displayName: getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId,
-      avatarUrl: avatarMxc
-        ? (mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
+      displayName: displayName || user?.displayName || getMxIdLocalPart(userId) || userId,
+      avatarUrl: resolvedAvatarMxc
+        ? (mxcUrlToHttp(mx, resolvedAvatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
         : undefined,
       agent: isMindroomAgentUserId(userId),
       threadCount,
@@ -69,7 +92,7 @@ function PeoplePanel({
     () => activity.map((person) => toOption(person.userId, person.threadCount)),
     // toOption reads only these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activity, room, mx, authenticatedMedia]
+    [activity, lookupRooms, mx, authenticatedMedia]
   );
   // A chosen person no thread shows any more stays listed, so the choice can be undone.
   const listedIds = new Set(listed.map((person) => person.userId));
