@@ -54,4 +54,28 @@ export const TaskCheckbox = style({
       WebkitMask: `${CHECKMARK_MASK} center / contain no-repeat`,
     },
   },
+  '@media': {
+    // Restore native control painting in Windows High Contrast so checked and unchecked boxes stay distinct.
+    '(forced-colors: active)': {
+      appearance: 'auto',
+      WebkitAppearance: 'checkbox',
+      display: 'inline-block',
+      selectors: {
+        '&:checked::after': { display: 'none' },
+      },
+    },
+  },
+});
+
+export const TaskCheckboxHighlighted = style({
+  outline: `${config.borderWidth.B400} solid ${color.Warning.Main}`,
+  outlineOffset: toRem(1),
+  boxShadow: `0 0 0 ${toRem(2)} ${color.Warning.Container}`,
+  '@media': {
+    '(forced-colors: active)': {
+      outline: '2px solid Highlight',
+      outlineOffset: toRem(1),
+      boxShadow: 'none',
+    },
+  },
 });

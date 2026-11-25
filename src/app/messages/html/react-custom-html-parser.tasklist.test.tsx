@@ -20,9 +20,12 @@ const mx = {
   mxcUrlToHttp: (url: string) => url,
 } as unknown as MatrixClient;
 
-const renderMessageHtml = (html: string) => {
+const renderMessageHtml = (html: string, highlightRegex?: RegExp) => {
   const sanitized = sanitizeCustomHtml(html);
-  const opts = getReactCustomHtmlParser(mx, undefined, { linkifyOpts: LINKIFY_OPTS });
+  const opts = getReactCustomHtmlParser(mx, undefined, {
+    linkifyOpts: LINKIFY_OPTS,
+    highlightRegex,
+  });
   return render(<div>{parse(sanitized, opts)}</div>);
 };
 
@@ -36,6 +39,7 @@ describe('GFM task lists in custom HTML parser', () => {
     const { container } = renderMessageHtml(md.render(markdown));
 
     const ul = container.querySelector('ul');
+    expect(ul?.getAttribute('role')).toBe('list');
     expect(ul?.className.split(/\s+/)).toEqual(
       expect.arrayContaining([
         ...customHtmlCss.List.split(/\s+/),
@@ -69,6 +73,7 @@ describe('GFM task lists in custom HTML parser', () => {
     expect(container.querySelectorAll('ul')).toHaveLength(2);
     for (const ul of container.querySelectorAll('ul')) {
       expect(ul.classList.contains(taskListCss.TaskList)).toBe(true);
+      expect(ul.getAttribute('role')).toBe('list');
     }
   });
 
@@ -76,6 +81,7 @@ describe('GFM task lists in custom HTML parser', () => {
     const { container } = renderMessageHtml(md.render('- Plain bullet\n- [x] Checked task'));
     const ul = container.querySelector('ul');
     expect(ul?.classList.contains(taskListCss.TaskList)).toBe(false);
+    expect(ul?.getAttribute('role')).toBeNull();
     const items = container.querySelectorAll('li');
     expect(items).toHaveLength(2);
     expect(items[0]?.classList.contains(taskListCss.TaskListItem)).toBe(false);
@@ -91,7 +97,9 @@ describe('GFM task lists in custom HTML parser', () => {
 
     const lists = container.querySelectorAll('ul');
     expect(lists[0]?.classList.contains(taskListCss.TaskList)).toBe(false);
+    expect(lists[0]?.getAttribute('role')).toBeNull();
     expect(lists[1]?.classList.contains(taskListCss.TaskList)).toBe(true);
+    expect(lists[1]?.getAttribute('role')).toBe('list');
     expect(screen.getAllByRole('checkbox')).toHaveLength(1);
     expect(container.querySelector('ol li')?.textContent).toBe('[x] Ordered step');
   });
@@ -109,6 +117,73 @@ describe('GFM task lists in custom HTML parser', () => {
 
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(container.querySelector('ul')?.classList.contains(taskListCss.TaskList)).toBe(false);
+    expect(container.querySelector('ul')?.getAttribute('role')).toBeNull();
     expect(container.querySelector('li[tabindex="-1"]')?.textContent).toBe('[x] Footnote body');
+  });
+
+  it('highlights the checkbox on marker-only search matches without touching unmatched items', () => {
+    const markdown = ['- [x] Done item', '- [X] Upper item', '- [ ] Open item'].join('\n');
+    const { container } = renderMessageHtml(md.render(markdown), /\[x\]/);
+
+    const done = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Done item' });
+    const upper = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Upper item' });
+    const open = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Open item' });
+
+    expect(done.getAttribute('data-highlighted')).toBe('true');
+    expect(done.classList.contains(taskListCss.TaskCheckboxHighlighted)).toBe(true);
+    expect(upper.getAttribute('data-highlighted')).toBeNull();
+    expect(upper.classList.contains(taskListCss.TaskCheckboxHighlighted)).toBe(false);
+    expect(open.getAttribute('data-highlighted')).toBeNull();
+    expect(open.classList.contains(taskListCss.TaskCheckboxHighlighted)).toBe(false);
+    expect(container.querySelector(`span.${customHtmlCss.highlightText}`)).toBeNull();
+  });
+
+  it('highlights matching open/case-insensitive markers, loose items, and ignores empty or body-only matches', () => {
+    const html = [
+      '<ul>',
+      '<li><p>[ ] Prepare draft</p></li>',
+      '<li><p>[X] Finalize notes</p></li>',
+      '</ul>',
+    ].join('');
+
+    const { unmount } = renderMessageHtml(html, /\[ \]/);
+    expect(
+      screen
+        .getByRole<HTMLInputElement>('checkbox', { name: 'Prepare draft' })
+        .getAttribute('data-highlighted')
+    ).toBe('true');
+    expect(
+      screen
+        .getByRole<HTMLInputElement>('checkbox', { name: 'Finalize notes' })
+        .getAttribute('data-highlighted')
+    ).toBeNull();
+    unmount();
+
+    const { unmount: unmountCaseInsensitive } = renderMessageHtml(html, /\[x\]/i);
+    expect(
+      screen
+        .getByRole<HTMLInputElement>('checkbox', { name: 'Prepare draft' })
+        .getAttribute('data-highlighted')
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole<HTMLInputElement>('checkbox', { name: 'Finalize notes' })
+        .getAttribute('data-highlighted')
+    ).toBe('true');
+    unmountCaseInsensitive();
+
+    const { container: bodyMatch, unmount: unmountBody } = renderMessageHtml(html, /draft/i);
+    for (const box of screen.getAllByRole<HTMLInputElement>('checkbox')) {
+      expect(box.getAttribute('data-highlighted')).toBeNull();
+    }
+    expect(bodyMatch.querySelector(`span.${customHtmlCss.highlightText}`)?.textContent).toBe(
+      'draft'
+    );
+    unmountBody();
+
+    renderMessageHtml(html, /(?:)/);
+    for (const box of screen.getAllByRole<HTMLInputElement>('checkbox')) {
+      expect(box.getAttribute('data-highlighted')).toBeNull();
+    }
   });
 });

@@ -3,7 +3,8 @@ import parseDOM from 'html-dom-parser';
 import { isTag, isText, type Element } from 'domhandler';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TaskListItem, extractTaskListItem } from './TaskList';
+import { TaskListItem, extractTaskListItem, hasTaskListMarker } from './TaskList';
+import * as taskListCss from './TaskList.css';
 
 afterEach(cleanup);
 
@@ -16,14 +17,17 @@ const parseLi = (html: string): Element => {
 };
 
 describe('extractTaskListItem', () => {
-  it.each<[string, boolean, string]>([
-    ['<li>[x] Ship widget</li>', true, 'Ship widget'],
-    ['<li>[X] Update docs</li>', true, 'Update docs'],
-    ['<li>[ ] Review draft</li>', false, 'Review draft'],
-    ['<li>\n  [x] Pretty HTML</li>', true, 'Pretty HTML'],
-  ])('extracts tight task item %s', (html, checked, text) => {
-    const result = extractTaskListItem(parseLi(html).children);
+  it.each<[string, boolean, string, string]>([
+    ['<li>[x] Ship widget</li>', true, '[x]', 'Ship widget'],
+    ['<li>[X] Update docs</li>', true, '[X]', 'Update docs'],
+    ['<li>[ ] Review draft</li>', false, '[ ]', 'Review draft'],
+    ['<li>\n  [x] Pretty HTML</li>', true, '[x]', 'Pretty HTML'],
+  ])('extracts tight task item %s', (html, checked, marker, text) => {
+    const children = parseLi(html).children;
+    expect(hasTaskListMarker(children)).toBe(true);
+    const result = extractTaskListItem(children);
     expect(result?.checked).toBe(checked);
+    expect(result?.marker).toBe(marker);
     expect(result?.bodyNodes).toHaveLength(1);
     const first = result?.bodyNodes[0];
     expect(first && isText(first) && first.data).toBe(text);
@@ -32,6 +36,7 @@ describe('extractTaskListItem', () => {
   it('keeps sibling inline tags intact when marker text node ends right after space', () => {
     const codeItem = extractTaskListItem(parseLi('<li>[ ] <code>run-checks</code></li>').children);
     expect(codeItem?.checked).toBe(false);
+    expect(codeItem?.marker).toBe('[ ]');
     expect(codeItem?.bodyNodes).toHaveLength(1);
     expect(
       codeItem?.bodyNodes[0] && isTag(codeItem.bodyNodes[0]) && codeItem.bodyNodes[0].name
@@ -41,6 +46,7 @@ describe('extractTaskListItem', () => {
       parseLi('<li>[X] <a href="https://example.com/guide">Guide</a></li>').children
     );
     expect(linkItem?.checked).toBe(true);
+    expect(linkItem?.marker).toBe('[X]');
     expect(linkItem?.bodyNodes).toHaveLength(1);
     expect(
       linkItem?.bodyNodes[0] && isTag(linkItem.bodyNodes[0]) && linkItem.bodyNodes[0].name
@@ -48,20 +54,24 @@ describe('extractTaskListItem', () => {
   });
 
   it('extracts loose items with paragraphs and nested lists', () => {
-    const multiPara = extractTaskListItem(
-      parseLi('<li>\n<p>[x] First line</p>\n<p>Second line</p>\n</li>').children
-    );
+    const multiParaLi = parseLi('<li>\n<p>[x] First line</p>\n<p>Second line</p>\n</li>');
+    expect(hasTaskListMarker(multiParaLi.children)).toBe(true);
+    const multiPara = extractTaskListItem(multiParaLi.children);
     expect(multiPara?.checked).toBe(true);
+    expect(multiPara?.marker).toBe('[x]');
     const paraTags = (multiPara?.bodyNodes ?? []).filter(isTag);
     expect(paraTags.map((n) => n.name)).toEqual(['p', 'p']);
     expect(
       paraTags[0]?.children[0] && isText(paraTags[0].children[0]) && paraTags[0].children[0].data
     ).toBe('First line');
 
-    const withSublist = extractTaskListItem(
-      parseLi('<li><p>[ ] <code>run-checks</code></p><ul><li>Sub</li></ul></li>').children
+    const withSublistLi = parseLi(
+      '<li><p>[ ] <code>run-checks</code></p><ul><li>Sub</li></ul></li>'
     );
+    expect(hasTaskListMarker(withSublistLi.children)).toBe(true);
+    const withSublist = extractTaskListItem(withSublistLi.children);
     expect(withSublist?.checked).toBe(false);
+    expect(withSublist?.marker).toBe('[ ]');
     const tags = (withSublist?.bodyNodes ?? []).filter(isTag);
     expect(tags.map((n) => n.name)).toEqual(['p', 'ul']);
     expect(tags[0]?.children[0] && isTag(tags[0].children[0]) && tags[0].children[0].name).toBe(
@@ -79,7 +89,9 @@ describe('extractTaskListItem', () => {
     '<li>[ ] </li>',
     '<li>[y] unknown marker</li>',
   ])('returns undefined for non-task item %s', (html) => {
-    expect(extractTaskListItem(parseLi(html).children)).toBeUndefined();
+    const children = parseLi(html).children;
+    expect(hasTaskListMarker(children)).toBe(false);
+    expect(extractTaskListItem(children)).toBeUndefined();
   });
 
   it('does not mutate input DOM nodes and is idempotent for tight and loose items', () => {
@@ -112,5 +124,22 @@ describe('TaskListItem', () => {
     });
     expect(checkbox.checked).toBe(checked);
     expect(checkbox.disabled).toBe(true);
+    expect(checkbox.getAttribute('data-highlighted')).toBeNull();
+    expect(checkbox.classList.contains(taskListCss.TaskCheckboxHighlighted)).toBe(false);
+  });
+
+  it('marks the checkbox as highlighted when highlightMarker is true', () => {
+    render(
+      <ul>
+        <TaskListItem checked highlightMarker>
+          Verify release notes
+        </TaskListItem>
+      </ul>
+    );
+    const checkbox = screen.getByRole<HTMLInputElement>('checkbox', {
+      name: 'Verify release notes',
+    });
+    expect(checkbox.getAttribute('data-highlighted')).toBe('true');
+    expect(checkbox.classList.contains(taskListCss.TaskCheckboxHighlighted)).toBe(true);
   });
 });

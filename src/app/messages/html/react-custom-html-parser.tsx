@@ -48,7 +48,7 @@ import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { Callout, extractCallout } from '../../rich-text/Callout';
-import { TaskListItem, extractTaskListItem } from '../../rich-text/TaskList';
+import { TaskListItem, extractTaskListItem, hasTaskListMarker } from '../../rich-text/TaskList';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
@@ -733,10 +733,7 @@ const isTaskList = (children: ChildNode[]): boolean => {
   const items = children.filter((child): child is Element => isTag(child) && child.name === 'li');
   return (
     items.length > 0 &&
-    items.every(
-      (item) =>
-        !isFootnoteListItem(item.attribs) && extractTaskListItem(item.children) !== undefined
-    )
+    items.every((item) => !isFootnoteListItem(item.attribs) && hasTaskListMarker(item.children))
   );
 };
 
@@ -890,19 +887,18 @@ export const getReactCustomHtmlParser = (
             </blockquote>
           );
         }
-        case 'ul':
+        case 'ul': {
+          const taskList = isTaskList(children);
           return (
             <ul
               {...props}
-              className={classNames(
-                css.List,
-                isTaskList(children) && taskListCss.TaskList,
-                props.className
-              )}
+              {...(taskList ? { role: 'list' } : undefined)}
+              className={classNames(css.List, taskList && taskListCss.TaskList, props.className)}
             >
               {domToReact(children as DOMNode[], parserOptions)}
             </ul>
           );
+        }
         case 'ol':
           return (
             <ol {...props} className={classNames(css.List, props.className)}>
@@ -926,8 +922,11 @@ export const getReactCustomHtmlParser = (
           if (domNode.parent && isTag(domNode.parent) && domNode.parent.name === 'ul') {
             const task = extractTaskListItem(children);
             if (task) {
+              const highlightMarker =
+                params.highlightRegex !== undefined &&
+                hasNonEmptyMatch(task.marker, params.highlightRegex);
               return (
-                <TaskListItem {...props} checked={task.checked}>
+                <TaskListItem {...props} checked={task.checked} highlightMarker={highlightMarker}>
                   {domToReact(task.bodyNodes as DOMNode[], parserOptions)}
                 </TaskListItem>
               );
