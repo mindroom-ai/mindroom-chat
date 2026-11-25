@@ -126,6 +126,10 @@ export const StatusBanner = style({
   borderRadius: config.radii.R400,
 });
 
+globalStyle(`${StatusBanner} svg`, {
+  flexShrink: 0,
+});
+
 export const StatusBannerTone = styleVariants({
   active: {
     backgroundColor: color.Success.Container,
@@ -345,7 +349,6 @@ export const ChecklistRow = style({
     },
     '&[data-disabled="true"]': {
       cursor: 'default',
-      opacity: 0.6,
     },
     '&:has(input:focus-visible)': {
       outline: `2px solid ${color.Primary.Main}`,
@@ -360,6 +363,14 @@ export const ChecklistRowText = style({
   gap: toRem(2),
   flex: '1 1 auto',
   minWidth: 0,
+});
+
+globalStyle(`${ChecklistRow}[data-disabled="true"] ${ChecklistRowText}`, {
+  opacity: 0.6,
+});
+
+globalStyle(`${ChecklistRow} input:focus-visible`, {
+  outline: 'none',
 });
 
 export const FolderRow = style({

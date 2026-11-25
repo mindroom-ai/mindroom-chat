@@ -1022,7 +1022,9 @@ describe('DesktopAccessModal', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit limits...' }));
     const perAgentSection = await screen.findByTestId('limits-per-agent-section');
     const sharedSection = screen.getByTestId('limits-shared-section');
-    await within(sharedSection).findByRole('checkbox', { name: 'Safari' });
+    const safariCheckbox = await within(sharedSection).findByRole<HTMLInputElement>('checkbox', {
+      name: 'Safari',
+    });
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.classList.contains(css.ModalDialogLimits)).toBe(true);
@@ -1045,13 +1047,20 @@ describe('DesktopAccessModal', () => {
     const appRows = Array.from(sharedSection.querySelectorAll('label'));
     expect(appRows.length).toBeGreaterThanOrEqual(2);
     for (const row of appRows) {
-      expect(row.tagName).toBe('LABEL');
-      expect(row.className).toBe(css.ChecklistRow);
+      expect(row.classList.contains(css.ChecklistRow)).toBe(true);
     }
+
+    expect(safariCheckbox.checked).toBe(false);
+    fireEvent.click(within(sharedSection).getByText('Safari'));
+    expect(safariCheckbox.checked).toBe(true);
+    fireEvent.click(within(sharedSection).getByText('com.apple.Safari'));
+    expect(safariCheckbox.checked).toBe(false);
 
     fireEvent.click(within(footer).getByRole('button', { name: 'Save limits' }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Helper rejected limits');
+    expect(alert.classList.contains(css.StatusBanner)).toBe(true);
+    expect(alert.classList.contains(css.StatusBannerTone.critical)).toBe(true);
     const statusBars = Array.from(dialog.getElementsByClassName(css.ModalStatusBar));
     expect(statusBars).toHaveLength(1);
     expect(statusBars[0]?.contains(alert)).toBe(true);
@@ -1165,8 +1174,7 @@ describe('IncomingPairInviteModal', () => {
     const appRows = Array.from(sharedSection.querySelectorAll('label'));
     expect(appRows.length).toBeGreaterThanOrEqual(2);
     for (const row of appRows) {
-      expect(row.tagName).toBe('LABEL');
-      expect(row.className).toBe(css.ChecklistRow);
+      expect(row.classList.contains(css.ChecklistRow)).toBe(true);
     }
   });
 });

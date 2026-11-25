@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { Box, Button, Checkbox, Icon, Icons, Spinner, Switch, Text, color } from 'folds';
+import { Box, Button, Checkbox, Icon, Icons, Spinner, Switch, Text } from 'folds';
 import type {
   DesktopAccessMode,
   DesktopAccessSnapshot,
@@ -126,7 +126,7 @@ function ChoiceGroup<V extends string>({
 }) {
   return (
     <div className={css.LimitsSubsection}>
-      <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
+      <Text size="T200" className={css.LimitsSubsectionTitle}>
         {label}
       </Text>
       <div className={css.LimitsChoiceGrid} role="radiogroup" aria-label={label}>
@@ -151,7 +151,7 @@ function ChoiceGroup<V extends string>({
         })}
       </div>
       {hint && (
-        <Text size="T200" priority="300">
+        <Text size="T200" priority="400">
           {hint}
         </Text>
       )}
@@ -377,7 +377,7 @@ export function ChooseLimitsForm({
               )}
             </Text>
             {otherHasFullAccess && (
-              <Text size="T200" priority="300">
+              <Text size="T200" priority="400">
                 {dt(
                   'featureUi.desktopAccess.limits.sharedWithOthersHint',
                   'Shared with other paired agents on this Mac'
@@ -418,18 +418,18 @@ export function ChooseLimitsForm({
           </div>
 
           <div className={css.LimitsSubsection}>
-            <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
+            <Text size="T200" className={css.LimitsSubsectionTitle}>
               {dt('featureUi.desktopAccess.limits.installedApps', 'Allowed Mac apps')}
             </Text>
             {loadingApps ? (
               <Box alignItems="Center" gap="200">
                 <Spinner size="100" />
-                <Text size="T200" priority="300">
+                <Text size="T200" priority="400">
                   {dt('featureUi.desktopAccess.limits.loadingApps', 'Loading installed apps...')}
                 </Text>
               </Box>
             ) : appEntries.length === 0 ? (
-              <Text size="T200" priority="300">
+              <Text size="T200" priority="400">
                 {dt('featureUi.desktopAccess.limits.noAppsFound', 'No installed Mac apps found.')}
               </Text>
             ) : (
@@ -457,7 +457,7 @@ export function ChooseLimitsForm({
                         <Text as="span" size="T300" truncate>
                           {app.name}
                         </Text>
-                        <Text as="span" size="T200" priority="300" truncate>
+                        <Text as="span" size="T200" priority="400" truncate>
                           {app.bundleId}
                         </Text>
                       </span>
@@ -470,7 +470,7 @@ export function ChooseLimitsForm({
 
           <div className={css.LimitsSubsection}>
             <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-              <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
+              <Text size="T200" className={css.LimitsSubsectionTitle}>
                 {dt('featureUi.desktopAccess.limits.foldersLabel', 'Read-only folders')}
               </Text>
               <Button
@@ -488,7 +488,7 @@ export function ChooseLimitsForm({
               </Button>
             </Box>
             {fileRoots.length === 0 ? (
-              <Text size="T200" priority="300">
+              <Text size="T200" priority="400">
                 {dt('featureUi.desktopAccess.limits.noFolders', 'No read-only folders added.')}
               </Text>
             ) : (
@@ -522,17 +522,25 @@ export function ChooseLimitsForm({
       {hasStatusBanner && (
         <div className={css.ModalStatusBar}>
           {error && (
-            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-              {error}
-            </Text>
+            <div
+              role="alert"
+              className={classNames(css.StatusBanner, css.StatusBannerTone.critical)}
+            >
+              <Icon size="100" src={Icons.Warning} />
+              <Text size="T200">{error}</Text>
+            </div>
           )}
           {pickerError && (
-            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-              {pickerError}
-            </Text>
+            <div
+              role="alert"
+              className={classNames(css.StatusBanner, css.StatusBannerTone.critical)}
+            >
+              <Icon size="100" src={Icons.Warning} />
+              <Text size="T200">{pickerError}</Text>
+            </div>
           )}
           {!hasCapability && (
-            <Text size="T200" priority="300">
+            <Text size="T200" priority="400">
               {dt(
                 'featureUi.desktopAccess.limits.needCapability',
                 'Enable full screen, at least one app, a folder, or shell commands.'
