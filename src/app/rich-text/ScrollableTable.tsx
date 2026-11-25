@@ -2,6 +2,7 @@ import { ComponentPropsWithoutRef, ReactNode, useEffect, useId, useRef, useState
 import { useTranslation } from 'react-i18next';
 import { Chip, Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { FootnoteScopeProvider, FootnoteSuppressIds } from './Footnote';
 import type { TableRows } from './tableRows';
 import * as css from './ScrollableTable.css';
 
@@ -15,6 +16,8 @@ const WIDE_TABLE_RATIO = 1.25;
 
 /** Each row once as label: value pairs, its first pair in bold as the row's title. */
 function TableByRow({ caption, headers, rows }: TableRows<ReactNode>) {
+  // Each header cell repeats per row, so only the first row displaying a column keeps anchor IDs.
+  const headerOwnerRow = headers.map((_, index) => rows.findIndex((r) => index < r.length));
   // Rows have no identity of their own; a streaming table only grows at its end.
   /* eslint-disable react/no-array-index-key */
   return (
@@ -26,7 +29,13 @@ function TableByRow({ caption, headers, rows }: TableRows<ReactNode>) {
             <dl className={css.Pairs}>
               {cells.map((cell, index) => (
                 <div key={index} className={index === 0 ? css.RowTitle : css.Pair}>
-                  <dt className={css.Label}>{headers[index]}</dt>
+                  <dt className={css.Label}>
+                    {row !== headerOwnerRow[index] ? (
+                      <FootnoteSuppressIds>{headers[index]}</FootnoteSuppressIds>
+                    ) : (
+                      headers[index]
+                    )}
+                  </dt>
                   <dd className={css.Value}>{cell}</dd>
                 </div>
               ))}
@@ -120,7 +129,8 @@ export function ScrollableTable({ children, readRows, ...props }: ScrollableTabl
         tabIndex={overflowing ? 0 : undefined}
       >
         <table {...props} ref={tableRef} className={css.Table}>
-          {children}
+          {/* Isolate hidden table copy while reading by row so only visible cells own footnote IDs. */}
+          <FootnoteScopeProvider isolate={byRow}>{children}</FootnoteScopeProvider>
         </table>
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}

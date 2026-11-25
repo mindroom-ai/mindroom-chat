@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import type { RoomToParents, RoomToUnread } from '../matrix/types/room';
+import { makeNavCategoryId } from '../ui/nav/closedNavCategories';
 import {
-  collectShortcutRoomIds,
   getCollapsedSectionUnread,
   getDescendantSubspaces,
   getHomeSpaceSections,
   getSpaceRoomSections,
 } from './spaceRoomSections';
+import {
+  buildSpaceSectionTree,
+  collectShortcutRoomIds,
+  findSelectedDescendantSection,
+} from './spaceSectionTree';
 
 const SPACE_CREATE = { getContent: () => ({ type: 'm.space' }) };
 
@@ -436,6 +440,60 @@ describe('getCollapsedSectionUnread', () => {
   });
 });
 
+describe('buildSpaceSectionTree', () => {
+  const makeNode = (
+    spaceId: string,
+    opts: {
+      isRoot?: boolean;
+      ancestorSpaceIds?: string[];
+      closed?: boolean;
+      shownRoomIds?: string[];
+      listedRoomIds?: string[];
+    } = {}
+  ) => ({
+    spaceId,
+    isRoot: opts.isRoot ?? false,
+    ancestorSpaceIds: opts.ancestorSpaceIds ?? [],
+    closed: opts.closed ?? false,
+    shownRoomIds: opts.shownRoomIds ?? [],
+    listedRoomIds: opts.listedRoomIds ?? opts.shownRoomIds ?? [],
+  });
+
+  it('keeps root Rooms top-level, nests sub-spaces under nearest present non-root ancestor, and rolls up subtreeShownRoomIds', () => {
+    const forest = buildSpaceSectionTree([
+      makeNode('!root', { isRoot: true, shownRoomIds: ['!r0'] }),
+      makeNode('!team', { ancestorSpaceIds: ['!root'], shownRoomIds: ['!r1', '!shared'] }),
+      makeNode('!sub', {
+        ancestorSpaceIds: ['!missing', '!team', '!root'],
+        shownRoomIds: ['!shared', '!r2'],
+      }),
+      makeNode('!deep', { ancestorSpaceIds: ['!sub', '!team', '!root'], shownRoomIds: ['!r3'] }),
+    ]);
+
+    expect(forest.map((node) => node.section.spaceId)).toEqual(['!root', '!team']);
+    expect(forest[0]?.children).toEqual([]);
+    expect(forest[0]?.subtreeShownRoomIds).toEqual(['!r0']);
+    const team = forest[1]!;
+    expect(team.subtreeShownRoomIds).toEqual(['!r1', '!shared', '!r2', '!r3']);
+    expect(team.children.map((node) => node.section.spaceId)).toEqual(['!sub']);
+    expect(team.children[0]?.subtreeShownRoomIds).toEqual(['!shared', '!r2', '!r3']);
+    expect(team.children[0]?.children.map((node) => node.section.spaceId)).toEqual(['!deep']);
+    expect(findSelectedDescendantSection(team.children, '!r3')?.spaceId).toBe('!deep');
+    expect(findSelectedDescendantSection(team.children, '!r0')).toBeUndefined();
+  });
+
+  it('breaks mutual cycles safely without dropping nodes', () => {
+    const forest = buildSpaceSectionTree([
+      makeNode('!a', { ancestorSpaceIds: ['!b'], shownRoomIds: ['!ra'] }),
+      makeNode('!b', { ancestorSpaceIds: ['!a'], shownRoomIds: ['!rb'] }),
+    ]);
+
+    expect(forest.map((node) => node.section.spaceId)).toEqual(['!b']);
+    expect(forest[0]?.children.map((node) => node.section.spaceId)).toEqual(['!a']);
+    expect(forest[0]?.subtreeShownRoomIds).toEqual(['!rb', '!ra']);
+  });
+});
+
 describe('collectShortcutRoomIds', () => {
   it('collects visible rooms across sections in rendered order, deduplicated', () => {
     expect(
@@ -446,6 +504,38 @@ describe('collectShortcutRoomIds', () => {
         { closed: false, listedRoomIds: ['!a', '!b'], shownRoomIds: ['!a', '!b'] },
       ])
     ).toEqual(['!a', '!a-sub', '!selected', '!b']);
+  });
+
+  it('skips rooms inside expanded sub-spaces under a collapsed ancestor except the lone selected room', () => {
+    const tree = buildSpaceSectionTree([
+      {
+        spaceId: '!work',
+        isRoot: false,
+        ancestorSpaceIds: [],
+        closed: true,
+        listedRoomIds: [],
+        shownRoomIds: ['!planning'],
+      },
+      {
+        spaceId: '!design',
+        isRoot: false,
+        ancestorSpaceIds: ['!work'],
+        closed: false,
+        listedRoomIds: ['!sketches', '!icons'],
+        shownRoomIds: ['!sketches', '!icons'],
+      },
+      {
+        spaceId: '!garden',
+        isRoot: false,
+        ancestorSpaceIds: [],
+        closed: false,
+        listedRoomIds: ['!plants'],
+        shownRoomIds: ['!plants'],
+      },
+    ]);
+
+    expect(collectShortcutRoomIds(tree, undefined)).toEqual(['!plants']);
+    expect(collectShortcutRoomIds(tree, '!icons')).toEqual(['!icons', '!plants']);
   });
 });
 
@@ -576,6 +666,7 @@ describe('getHomeSpaceSections', () => {
     );
 
     expect(result.unspacedByName).toEqual([]);
+    // !alpha is kept as !leaf's displayed parent container, while !beta (empty and unused) is omitted.
     expect(
       result.sections.map((section) => ({
         spaceId: section.spaceId,
@@ -595,6 +686,12 @@ describe('getHomeSpaceSections', () => {
         parentSpaceId: undefined,
         ancestorSpaceIds: [],
         scopeRoomsByName: ['!root-only'],
+      },
+      {
+        spaceId: '!alpha',
+        parentSpaceId: '!root',
+        ancestorSpaceIds: ['!root'],
+        scopeRoomsByName: [],
       },
     ]);
     expectEveryRoomCovered(homeRooms, result);
@@ -655,7 +752,7 @@ describe('getHomeSpaceSections', () => {
     expectEveryRoomCovered(homeRooms, result);
   });
 
-  it('keeps editable empty spaces, hides read-only empty organizers while keeping populated descendants and orphaned sub-rooms', () => {
+  it('keeps editable empty spaces and read-only parent containers with kept descendants, omitting truly empty read-only spaces', () => {
     const mx = makeClient({
       '!org': { name: 'Empty Organizer', space: true },
       '!editable-empty': { name: 'Editable Empty', space: true },
@@ -704,6 +801,14 @@ describe('getHomeSpaceSections', () => {
         scopeRoomsByName: section.scopeRoomsByName,
       }))
     ).toEqual([
+      {
+        spaceId: '!org',
+        isEmpty: true,
+        parentSpaceId: undefined,
+        ancestorSpaceIds: [],
+        ownRoomsByName: [],
+        scopeRoomsByName: [],
+      },
       {
         spaceId: '!leaf',
         isEmpty: false,

@@ -50,6 +50,7 @@
   "files": [
     "./src/types/browser-encrypt-attachment.d.ts",
     "./src/types/cache-probe-window.d.ts",
+    "./src/types/markdown-it-footnote.d.ts",
     "./src/types/novnc-core.d.ts",
     "./src/types/novnc.d.ts",
     "./src/types/react-act-environment.d.ts",

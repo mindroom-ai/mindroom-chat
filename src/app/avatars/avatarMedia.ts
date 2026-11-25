@@ -1,6 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { authenticatedMediaRequestInit, supportsAuthenticatedMedia } from '../matrix/mediaUrl';
 import { getBlobSafeMimeType } from '../lib/mimeTypes';
+import { isCapacitorMediaShell, isDesktopApp } from '../lib/nativeShell';
 import { forgetAvatars, recallAvatar, rememberAvatar } from '../../sw/avatarCache';
 import { registerMemoryGauge } from '../diagnostics/memorySampler';
 
@@ -66,15 +67,20 @@ export const toAuthenticatedAvatarUrl = (
 const pageHasServiceWorkerControl = (): boolean =>
   typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
 
-// Only a page that could have a service worker but is not controlled by one is known to fail;
-// elsewhere the `<img>` tries first and the fetch only runs once it reports an error.
-const pageLacksServiceWorkerControl = (): boolean =>
-  typeof navigator !== 'undefined' && !!navigator.serviceWorker && !pageHasServiceWorkerControl();
+// A page without a controlling service worker or the Electron desktop webRequest interceptor
+// (Capacitor native shells, or a browser tab whose service worker has not taken control yet) is
+// known to fail direct `<img>` loads for authenticated media; elsewhere the `<img>` tries first
+// and the fetch only runs once it reports an error.
+const pageLacksServiceWorkerControl = (): boolean => {
+  if (isDesktopApp() || pageHasServiceWorkerControl()) return false;
+  if (isCapacitorMediaShell()) return true;
+  return typeof navigator !== 'undefined' && !!navigator.serviceWorker;
+};
 
 /**
  * Whether loading `src` in an `<img>` is bound to fail, so the avatar should fetch it at once:
- * an authenticated media URL without a token in it, or a legacy one on a server with authenticated
- * media, on a page that no service worker controls.
+ * an authenticated media URL, or a legacy one on a server with authenticated media, on a Capacitor
+ * shell or a page that no service worker controls.
  */
 export const avatarNeedsFetch = (
   mx: AvatarMediaClient,
@@ -84,7 +90,7 @@ export const avatarNeedsFetch = (
   if (!pageLacksServiceWorkerControl()) return false;
   const target = toAuthenticatedAvatarUrl(mx, src);
   const parsed = parse(src);
-  if (!target || !parsed || parsed.searchParams.has('access_token')) return false;
+  if (!target || !parsed) return false;
   return target === parsed.href || supportsAuthenticatedMedia(versions);
 };
 

@@ -1,6 +1,7 @@
 // HTML a plugin shows as the timeline shows an agent's reply, which `/ui` gives plugins as
 // `MarkdownContent`. Not a subpath: only the SDK's own modules import it.
 import { type RefAttributes, useMemo } from 'react';
+import { FootnoteScopeProvider } from '../../app/rich-text/Footnote';
 import { parseHtml } from '../../app/rich-text/parseHtml';
 import { useOptionalMatrixClient } from '../../app/matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../app/matrix/hooks/useMediaAuthentication';
@@ -57,7 +58,7 @@ export function MarkdownContent({
   }
   return (
     <div ref={ref} className={className}>
-      {content}
+      <FootnoteScopeProvider isolate>{content}</FootnoteScopeProvider>
     </div>
   );
 }

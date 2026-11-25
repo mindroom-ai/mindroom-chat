@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 // Doubled so it wins over the shared dropdown trigger style it is combined with.
@@ -81,6 +81,44 @@ export const Option = style({
 export const Name = style({
   flexGrow: 1,
   minWidth: 0,
+});
+
+export const Disambiguator = style({
+  flexShrink: 1,
+  minWidth: 0,
+  maxInlineSize: '45%',
+});
+
+export const OptionGroupHeader = style({
+  selectors: {
+    '&:not(:first-child)': {
+      marginBlockStart: config.space.S100,
+    },
+  },
+});
+
+globalStyle(`${OptionGroupHeader} ${Name}`, {
+  fontWeight: 600,
+});
+
+export const CheckboxIndeterminate = style({
+  selectors: {
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      width: toRem(8),
+      height: toRem(2),
+      borderRadius: toRem(1),
+      backgroundColor: color.Primary.OnMain,
+      pointerEvents: 'none',
+    },
+  },
+});
+
+globalStyle(`${CheckboxIndeterminate} > input[type="checkbox"]`, {
+  boxShadow: 'none',
+  backgroundColor: color.Primary.Main,
+  opacity: 1,
 });
 
 export const Marker = style({

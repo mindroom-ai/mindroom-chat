@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
-import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
+import { Button, Icon, Icons, Spinner, Text } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -19,7 +19,6 @@ import { getViewedPlace } from '../navigation/viewedPlace';
 import { settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 import { getActivityInvitesPath, getActivityRoomPath, withSearchParam } from '../routes/pathUtils';
-import { TooltipProvider } from '../ui/directional';
 import { useListMotion } from '../ui/listMotion';
 import {
   activityDay,
@@ -32,11 +31,11 @@ import {
 import { markActivityRowsRead } from './activityActions';
 import { activityShowAutomationsAtom, activityUnreadOnlyAtom } from './activityState';
 import { useActivityRows } from './useActivityRows';
+import { ACTIVITY_TABS, ActivityListHeader, ActivityListTabs } from './ActivityListChrome';
 import { ActivityRowItem } from './ActivityRowItem';
 import { ActivityInvitesRow, INVITES_GATHERED_FROM } from './ActivityInvitesRow';
 import * as css from './ActivityList.css';
 
-const TABS: ActivityTab[] = ['all', 'mentions', 'replies', 'needsYou'];
 const PAGE_SIZE = 40;
 const SENTINEL_MARGIN = '400px 0px';
 
@@ -99,7 +98,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const unreadByTab = useMemo(
     () =>
       Object.fromEntries(
-        TABS.map((id) => [id, unreadCount(filterActivityRows(rows, id, true))])
+        ACTIVITY_TABS.map((id) => [id, unreadCount(filterActivityRows(rows, id, true))])
       ) as Record<ActivityTab, number>,
     [rows]
   );
@@ -219,78 +218,16 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     void navigate(getActivityInvitesPath());
     onNavigate?.();
   };
-  const tooltip = (label: string) => (
-    <Tooltip>
-      <Text size="T200">{label}</Text>
-    </Tooltip>
-  );
-
   return (
     <div className={css.List} data-activity-list={variant}>
-      <div className={css.Header}>
-        {/* The sheet's own header names it already. */}
-        {variant === 'sheet' ? (
-          <span className={css.Grow} />
-        ) : (
-          <Text as="h2" size="H4" className={css.Grow}>
-            {t('activity.title')}
-          </Text>
-        )}
-        {/* The label names the switch and toggles it too; its title says what it does. */}
-        <label className={css.Toggle} title={t('activity.unreadOnlyHint')}>
-          <Text as="span" size="T200">
-            {t('activity.unreadOnly')}
-          </Text>
-          <Switch value={unreadOnly} onChange={setUnreadOnly} />
-        </label>
-        <TooltipProvider position="Bottom" offset={4} tooltip={tooltip(t('activity.markAllRead'))}>
-          {(triggerRef) => (
-            <IconButton
-              ref={triggerRef}
-              size="300"
-              radii="300"
-              aria-label={t('activity.markAllRead')}
-              onClick={() => void markActivityRowsRead(mx, rows, hideActivity)}
-            >
-              <Icon size="100" src={Icons.CheckTwice} />
-            </IconButton>
-          )}
-        </TooltipProvider>
-        {onExpand && (
-          <TooltipProvider position="Bottom" offset={4} tooltip={tooltip(t('activity.openAsPage'))}>
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                size="300"
-                radii="300"
-                aria-label={t('activity.openAsPage')}
-                onClick={onExpand}
-              >
-                <Icon size="100" src={Icons.External} />
-              </IconButton>
-            )}
-          </TooltipProvider>
-        )}
-      </div>
-      <div className={css.Tabs} role="tablist" aria-label={t('activity.tabsLabel')}>
-        {TABS.map((id) => (
-          <Chip
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            variant={tab === id ? 'Primary' : 'Background'}
-            radii="Pill"
-            onClick={() => setTab(id)}
-          >
-            <Text size="T200">{t(`activity.tabs.${id}`)}</Text>
-            {unreadByTab[id] > 0 && (
-              <Text as="span" size="L400" aria-hidden>
-                {unreadByTab[id]}
-              </Text>
-            )}
-          </Chip>
-        ))}
-      </div>
+      <ActivityListHeader
+        variant={variant}
+        unreadOnly={unreadOnly}
+        onUnreadOnlyChange={setUnreadOnly}
+        onMarkAllRead={() => void markActivityRowsRead(mx, rows, hideActivity)}
+        onExpand={onExpand}
+      />
+      <ActivityListTabs tab={tab} unreadByTab={unreadByTab} onSelectTab={setTab} />
       {shown.length === 0 ? (
         <div className={css.Empty}>
           {/* Before the index scanned the rooms, an empty list says nothing yet. */}

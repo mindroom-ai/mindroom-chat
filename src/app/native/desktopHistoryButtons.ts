@@ -1,5 +1,5 @@
 import { isDesktopApp } from '../lib/nativeShell';
-import { isQuickCapturePath } from '../routes/pathUtils';
+import { isAuxiliaryWindowPath } from '../routes/pathUtils';
 
 const MOUSE_BUTTON_BACK = 3;
 const MOUSE_BUTTON_FORWARD = 4;
@@ -12,7 +12,7 @@ const isHistoryButton = (button: number): boolean =>
  * main window. Press and auxclick are cancelled so Chromium does not perform a second navigation.
  */
 export const walkHistoryOnMouseButtons = (target: Window): (() => void) => {
-  if (!isDesktopApp() || isQuickCapturePath(target.location.pathname)) {
+  if (!isDesktopApp() || isAuxiliaryWindowPath(target.location.pathname)) {
     return () => undefined;
   }
 

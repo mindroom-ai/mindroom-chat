@@ -100,6 +100,8 @@ export type CallParticipant = {
   connected: boolean;
   speaking: boolean;
   microphone: boolean;
+  /** The live audio track this device publishes, when unmuted. */
+  audioTrack?: MediaStreamTrack;
   video?: CallVideoTrack;
   /** The screen (or window, or tab) this device shares. */
   screen?: CallVideoTrack;
@@ -203,6 +205,7 @@ const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
       item.connected === other.connected &&
       item.speaking === other.speaking &&
       item.microphone === other.microphone &&
+      item.audioTrack === other.audioTrack &&
       item.video === other.video &&
       item.screen === other.screen &&
       item.screenParentDeviceId === other.screenParentDeviceId
@@ -478,6 +481,26 @@ export class RoomCall {
     return publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
   }
 
+  /** The unmuted voice audio track of a remote participant, excluding screen-share audio. */
+  private readRemoteAudioTrack(participant?: Participant): MediaStreamTrack | undefined {
+    const microphone = participant?.getTrackPublication(Track.Source.Microphone);
+    if (microphone && !microphone.isMuted && microphone.track?.mediaStreamTrack) {
+      return microphone.track.mediaStreamTrack;
+    }
+    const publications = participant?.audioTrackPublications?.values();
+    if (!publications) return undefined;
+    for (const publication of publications) {
+      if (
+        !publication.isMuted &&
+        publication.source !== Track.Source.ScreenShareAudio &&
+        publication.track?.mediaStreamTrack
+      ) {
+        return publication.track.mediaStreamTrack;
+      }
+    }
+    return undefined;
+  }
+
   /** LiveKit opens a microphone again in the same track when it ended, with a new media track. */
   private onLocalTrackPublished = (publication: LocalTrackPublication) => {
     publication.track?.on(TrackEvent.Restarted, this.refresh);
@@ -515,6 +538,7 @@ export class RoomCall {
         connected: local ? this.media?.state === ConnectionState.Connected : !!participant,
         speaking: !!participant?.isSpeaking,
         microphone: local ? microphone : !!participant?.isMicrophoneEnabled,
+        audioTrack: local ? this.readMicrophoneTrack() : this.readRemoteAudioTrack(participant),
         video: local && this.stoppedInputs.has('camera') ? undefined : shown(Track.Source.Camera),
         screen: shown(Track.Source.ScreenShare),
       };

@@ -25,8 +25,10 @@ import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs'
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
+import * as footnoteCss from '../../rich-text/Footnote.css';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
+import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
   CheckIcon,
@@ -40,14 +42,20 @@ import {
   getCodeBlockLanguage,
   getCodeBlockLanguageIconToken,
 } from '../../rich-text/code/codeBlockLanguage';
+import { FootnoteItem, FootnoteLink } from '../../rich-text/Footnote';
+import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { Callout, extractCallout } from '../../rich-text/Callout';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
+import type { AvatarMediaClient } from '../../avatars/avatarMedia';
+import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
@@ -65,9 +73,16 @@ import {
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
 
 /** An inline homeserver image opens the same full-size viewer as link preview pictures. */
-function InlineImage({ alt = '', ...props }: ComponentPropsWithoutRef<'img'>) {
+function InlineImage({
+  alt = '',
+  client,
+  src,
+  ...props
+}: ComponentPropsWithoutRef<'img'> & { client?: AvatarMediaClient }) {
   const { t } = useTranslation();
   const [viewerOpen, setViewerOpen] = useState(false);
+  // Resolve a live URL on open so an inline image whose cached blob was evicted still opens.
+  const viewer = useAvatarImage(viewerOpen ? src : undefined, client);
   const label = alt || t('sharedUi.imageContent.view');
   const openViewer = (event: SyntheticEvent) => {
     event.preventDefault();
@@ -82,15 +97,18 @@ function InlineImage({ alt = '', ...props }: ComponentPropsWithoutRef<'img'>) {
         aria-label={revealDirectionControls(label)}
         onClick={openViewer}
       >
-        <img
+        <AuthenticatedImage
           {...props}
+          client={client}
+          src={src}
           alt={revealDirectionControls(alt)}
+          fallback={alt ? revealDirectionControls(alt) : null}
           className={css.InlineImage}
           loading="lazy"
         />
       </button>
       {viewerOpen && (
-        <ImageOverlay src={props.src} alt={label} requestClose={() => setViewerOpen(false)} />
+        <ImageOverlay src={viewer.imageSrc} alt={label} requestClose={() => setViewerOpen(false)} />
       )}
     </>
   );
@@ -113,6 +131,13 @@ type StyledText = Array<string | JSX.Element>;
 
 const toGlobal = (regex: RegExp): RegExp =>
   new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
+
+const hasNonEmptyMatch = (text: string, regex: RegExp): boolean => {
+  for (const match of text.matchAll(toGlobal(regex))) {
+    if (match[0] !== '') return true;
+  }
+  return false;
+};
 
 /** Emoji in `text`, outside URLs, scaled up to match the text around them. */
 const scaleEmoji = (
@@ -512,65 +537,67 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     );
   }
 
-  return (
-    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
-      <div className={css.CodeBlockHeader}>
-        <div className={css.CodeBlockLabel}>
-          {iconToken && (
-            <span
-              role="img"
-              aria-label={t('messageCodeBlock.language', {
-                language: language ?? labelExtension,
-              })}
-            >
-              <CodeBlockLanguageIcon token={iconToken} />
-            </span>
-          )}
-          {(label || !iconToken) && (
-            <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
-          )}
-        </div>
-        <div
-          className={css.CodeBlockActions}
-          role="group"
-          aria-label={t('messageCodeBlock.actions')}
-          data-code-block-actions=""
+  const headerLabel = (
+    <div className={css.CodeBlockLabel}>
+      {iconToken && (
+        <span
+          role="img"
+          aria-label={t('messageCodeBlock.language', {
+            language: language ?? labelExtension,
+          })}
         >
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={t('messageCodeBlock.wrap')}
-            title={t('messageCodeBlock.wrap')}
-            aria-pressed={wrap}
-            onClick={() => setWrap((value) => !value)}
-          >
-            <WrapTextIcon />
-          </button>
-          {long && (
-            <button
-              ref={expandButtonRef}
-              type="button"
-              className={css.CodeBlockAction}
-              aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
-              aria-expanded={expanded}
-              onClick={() => {
-                if (!expanded) armReveal();
-                setExpanded((value) => !value);
-              }}
-            >
-              {expanded ? <CollapseIcon /> : <ExpandIcon />}
-            </button>
-          )}
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
-            onClick={() => void copy()}
-          >
-            {copied ? <CheckIcon /> : <CopyIcon />}
-          </button>
-        </div>
-      </div>
+          <CodeBlockLanguageIcon token={iconToken} />
+        </span>
+      )}
+      {(label || !iconToken) && (
+        <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
+      )}
+    </div>
+  );
+
+  const sourceActions = (
+    <>
+      <button
+        type="button"
+        className={css.CodeBlockAction}
+        aria-label={t('messageCodeBlock.wrap')}
+        title={t('messageCodeBlock.wrap')}
+        aria-pressed={wrap}
+        onClick={() => setWrap((value) => !value)}
+      >
+        <WrapTextIcon />
+      </button>
+      {long && (
+        <button
+          ref={expandButtonRef}
+          type="button"
+          className={css.CodeBlockAction}
+          aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
+          aria-expanded={expanded}
+          onClick={() => {
+            if (!expanded) armReveal();
+            setExpanded((value) => !value);
+          }}
+        >
+          {expanded ? <CollapseIcon /> : <ExpandIcon />}
+        </button>
+      )}
+    </>
+  );
+
+  const copyAction = (
+    <button
+      type="button"
+      className={css.CodeBlockAction}
+      aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
+      onClick={() => void copy()}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
+  );
+
+  const sourceBody = (
+    <>
       {/* Native scroll areas need a tab stop for keyboard scrolling. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
       <div
@@ -587,6 +614,38 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
         {collapsed && !atEnd && <div className={css.CodeBlockBottomShadow} />}
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+    </>
+  );
+
+  if (!formatted && language?.toLowerCase() === 'mermaid') {
+    return (
+      <MermaidBlock
+        source={source}
+        searchMatch={searchMatch}
+        wrap={wrap}
+        headerLabel={headerLabel}
+        sourceActions={sourceActions}
+        copyAction={copyAction}
+        sourceBody={sourceBody}
+      />
+    );
+  }
+
+  return (
+    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
+      <div className={css.CodeBlockHeader}>
+        {headerLabel}
+        <div
+          className={css.CodeBlockActions}
+          role="group"
+          aria-label={t('messageCodeBlock.actions')}
+          data-code-block-actions=""
+        >
+          {sourceActions}
+          {copyAction}
+        </div>
+      </div>
+      {sourceBody}
     </pre>
   );
 }
@@ -661,6 +720,9 @@ const hasAncestor = (node: ChildNode, names: string[]): boolean => {
   }
   return false;
 };
+
+const hasClass = (classAttr: string | undefined, name: string): boolean =>
+  !!classAttr && classAttr.split(/\s+/).includes(name);
 
 const withoutAttribute = (attribs: Record<string, string>, name: string) => {
   const rest = { ...attribs };
@@ -768,7 +830,41 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </p>
           );
-        case 'blockquote':
+        case 'blockquote': {
+          const callout = hasAncestor(domNode, ['blockquote', 'li'])
+            ? undefined
+            : extractCallout(children);
+          if (callout) {
+            const calloutProps = attributesToProps(withoutAttribute(attribs, 'cite'));
+            const { highlightRegex } = params;
+            return (
+              <Callout
+                {...calloutProps}
+                type={callout.type}
+                className={classNames(css.MarginSpaced, calloutProps.className)}
+                renderTitle={
+                  highlightRegex
+                    ? (title) => {
+                        if (hasNonEmptyMatch(title, highlightRegex)) {
+                          return renderStyledText(title, highlightRegex);
+                        }
+                        if (
+                          hasNonEmptyMatch(`[!${callout.type}]`, highlightRegex) ||
+                          hasNonEmptyMatch(`[!${callout.type.toUpperCase()}]`, highlightRegex)
+                        ) {
+                          return <span className={css.highlightText}>{title}</span>;
+                        }
+                        return title;
+                      }
+                    : undefined
+                }
+              >
+                {callout.bodyNodes.length > 0
+                  ? domToReact(callout.bodyNodes as DOMNode[], parserOptions)
+                  : undefined}
+              </Callout>
+            );
+          }
           return (
             <blockquote
               {...props}
@@ -777,6 +873,7 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </blockquote>
           );
+        }
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
@@ -789,6 +886,47 @@ export const getReactCustomHtmlParser = (
               {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
+        case 'li': {
+          const footnoteId = isFootnoteId(attribs.id) ? attribs.id : undefined;
+          if (footnoteId || hasClass(attribs.class, 'footnote-item')) {
+            const { id: _rawId, ...restProps } = props;
+            return (
+              <FootnoteItem
+                {...restProps}
+                footnoteId={footnoteId}
+                className={classNames(footnoteCss.FootnoteItem, restProps.className)}
+              >
+                {domToReact(children as DOMNode[], parserOptions)}
+              </FootnoteItem>
+            );
+          }
+          return undefined;
+        }
+        case 'sup':
+          if (hasClass(attribs.class, 'footnote-ref')) {
+            return (
+              <sup {...props} className={classNames(footnoteCss.FootnoteRef, props.className)}>
+                {domToReact(children as DOMNode[], parserOptions)}
+              </sup>
+            );
+          }
+          return undefined;
+        case 'hr':
+          if (hasClass(attribs.class, 'footnotes-sep')) {
+            return (
+              <hr {...props} className={classNames(footnoteCss.FootnotesSep, props.className)} />
+            );
+          }
+          return undefined;
+        case 'section':
+          if (hasClass(attribs.class, 'footnotes')) {
+            return (
+              <section {...props} className={classNames(footnoteCss.Footnotes, props.className)}>
+                {domToReact(children as DOMNode[], parserOptions)}
+              </section>
+            );
+          }
+          return undefined;
         case 'pre':
           return (
             <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
@@ -807,6 +945,29 @@ export const getReactCustomHtmlParser = (
         case 'a': {
           const { href } = attribs;
           stripLinkTextBidi(children);
+          if (isFootnoteHref(href)) {
+            const isBackref = hasClass(attribs.class, 'footnote-backref');
+            const { id: _rawId, target: _target, rel: _rel, ...restProps } = props;
+            // Keep plain backref text (U+21A9 U+FE0E) intact so emoji scaling does not split U+FE0E.
+            const linkContent =
+              isBackref && children.every(isText)
+                ? textContent(children)
+                : domToReact(children as DOMNode[], parserOptions);
+            return (
+              <FootnoteLink
+                {...restProps}
+                href={href}
+                footnoteId={isFootnoteId(attribs.id) ? attribs.id : undefined}
+                backref={isBackref}
+                className={classNames(
+                  isBackref ? footnoteCss.FootnoteBackref : footnoteCss.FootnoteRefLink,
+                  restProps.className
+                )}
+              >
+                {linkContent}
+              </FootnoteLink>
+            );
+          }
           const content = domToReact(children as DOMNode[], parserOptions);
           const hasSpoiler = containsSpoiler(children);
           if (href && testMatrixTo(href)) {
@@ -830,8 +991,12 @@ export const getReactCustomHtmlParser = (
             );
             if (mention) return mention;
           }
+          const { id: _rawId, ...linkProps } = props;
           return (
-            <CheckedMessageLink {...props} showFavicon={!!params.showLinkFavicons && !hasSpoiler}>
+            <CheckedMessageLink
+              {...linkProps}
+              showFavicon={!!params.showLinkFavicons && !hasSpoiler}
+            >
               {content}
             </CheckedMessageLink>
           );
@@ -845,12 +1010,15 @@ export const getReactCustomHtmlParser = (
           if (params.mxcImages === false) return <>{alt ?? ''}</>;
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
+            const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
-                <img
+                <AuthenticatedImage
+                  client={mx}
                   className={css.Emoticon()}
                   src={url}
-                  alt={alt ?? title ?? ''}
+                  alt={emoticonAlt}
+                  fallback={emoticonAlt}
                   title={title ?? alt}
                   loading="lazy"
                 />
@@ -858,17 +1026,21 @@ export const getReactCustomHtmlParser = (
             );
           }
           if (hasAncestor(domNode, ['a'])) {
+            const linkedAlt = revealDirectionControls(alt ?? '');
             return (
-              <img
+              <AuthenticatedImage
                 {...props}
+                client={mx}
                 src={url}
-                alt={revealDirectionControls(alt ?? '')}
+                alt={linkedAlt}
+                fallback={linkedAlt}
+                showFallbackWhileLoading
                 className={css.InlineImage}
                 loading="lazy"
               />
             );
           }
-          return <InlineImage {...props} src={url} alt={alt ?? ''} />;
+          return <InlineImage {...props} client={mx} src={url} alt={alt ?? ''} />;
         }
         default:
           return undefined;

@@ -270,6 +270,13 @@
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
     },
+    "callout": {
+      "note": "Not",
+      "tip": "İpucu",
+      "important": "Önemli",
+      "warning": "Uyarı",
+      "caution": "Dikkat"
+    },
     "deviceVerification": {
       "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Alana genel bakış"
+    },
+    "footnote": {
+      "backToReference": "Başvuruya dön"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Kullanılan sunucu",
         "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
         "useServer": "{{host}} kullan",
-        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin.",
+        "foundNotSavedChoose": "Ajanlarınızdan bulundu, kaydedilmedi. Güvendiğiniz sunucuyu seçin; bu cihaz tüm odalar için onu kullanır."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
@@ -918,6 +929,164 @@
         "startEntireScreenShare": "Tüm ekranı paylaş",
         "stopEntireScreenShare": "Tüm ekranı paylaşmayı durdur"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Tam Erişime İzin Ver",
+        "cancel": "İptal",
+        "chooseLimits": "Sınırları seç...",
+        "close": "Kapat",
+        "disconnect": "Bağlantıyı kes",
+        "done": "Bitti",
+        "editLimits": "Sınırları düzenle...",
+        "switchToFull": "Tam Erişime Geç"
+      },
+      "banner": {
+        "restrictedActive": "Bu Mac'te kısıtlı erişim etkin.",
+        "shellReadyWaitingPermissions": "Kabuk hazır - macOS ekran ve giriş izinleri bekleniyor",
+        "waitingPermissions": "macOS ekran ve giriş izinleri bekleniyor"
+      },
+      "browser": {
+        "brewHint": "Veya Homebrew ile yükleyin:",
+        "confirmOnMac": "Erişimi onaylamak için bu kodu {{mac}} üzerinde doğrulayın.",
+        "copied": "Kopyalandı",
+        "copyCommand": "Komutu kopyala",
+        "copyFailed": "Kopyalama başarısız",
+        "downloadMacApp": "Mac için MindRoom Chat uygulamasını indir",
+        "noMacDescription": "{{agent}} ajanına Mac'inize erişim vermek için Mac için MindRoom Chat uygulamasında bu hesapla oturum açın.",
+        "paired": "{{agent}} artık {{mac}} ile eşleştirildi.",
+        "relayDescription": "{{mac}} cihazına bir eşleştirme isteği gönderin. Mac'inizde 6 haneli kodu onaylayıp Tam Erişim veya sınırları seçeceksiniz.",
+        "selectMac": "Bir Mac seçin",
+        "sendToMac": "{{mac}} cihazına gönder",
+        "waitingOnMac": "{{mac}} üzerinde onay bekleniyor..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} ekranınızı görebilir, her uygulamayı kontrol edebilir ve yeniden başlatma sonrasında bile sormadan macOS kullanıcınız olarak kabuk komutları çalıştırabilir. İstediğiniz zaman menü çubuğundan durdurabilirsiniz.",
+        "upgradeHeading": "Tam Erişime Geçiliyor"
+      },
+      "empty": {
+        "noAgents": "Bu odada MindRoom ajanı bulunamadı."
+      },
+      "incoming": {
+        "decline": "Reddet",
+        "failedTitle": "{{agent}} eşleştirilemedi",
+        "sasHint": "Onaylamadan önce bu 6 haneli kodun {{requester}} ile eşleştiğinden emin olun.",
+        "title": "{{requester}} üzerinden {{agent}} eşleştirilsin mi?"
+      },
+      "limits": {
+        "addFolder": "Klasör ekle...",
+        "allowShellOnMac": "Bu Mac'te kabuk komutlarına izin ver",
+        "foldersLabel": "Salt okunur klasörler",
+        "fullNote": "İptal edilene kadar Tam Erişim, iptal edilene dek tam ekran kontrolünü ve otomatik onaylı kabuğu etkinleştirir.",
+        "fullScreen": "Tam ekran (primary-screen)",
+        "gui15m": "15 dk kontrol izni ver",
+        "gui1h": "1 saat kontrol izni ver",
+        "guiFull": "İptal edilene kadar Tam Erişim",
+        "guiLabel": "Ekran ve giriş kontrolü",
+        "guiObserve": "Yalnızca izle",
+        "installedApps": "İzin verilen Mac uygulamaları",
+        "loadingApps": "Yüklü uygulamalar yükleniyor...",
+        "needCapability": "Tam ekranı, en az bir uygulamayı, bir klasörü veya kabuk komutlarını etkinleştirin.",
+        "noAppsFound": "Yüklü Mac uygulaması bulunamadı.",
+        "noFolders": "Salt okunur klasör eklenmedi.",
+        "perAgentHeading": "{{agent}} için kontrol ve kabuk onayı (ajan başına)",
+        "removeFolder": "Kaldır",
+        "save": "Sınırlarla izin ver",
+        "saveChanges": "Sınırları kaydet",
+        "sharedHeading": "Bu Mac'te paylaşılan uygulamalar, klasörler ve kabuk (tüm eşleştirilmiş ajanlar için geçerlidir)",
+        "sharedWithOthersHint": "Bu Mac'teki diğer eşleştirilmiş ajanlarla paylaşılır",
+        "shell15m": "15 dk otomatik onayla",
+        "shell1h": "1 saat otomatik onayla",
+        "shellApprovalLabel": "Kabuk onayı",
+        "shellAsk": "Her komuttan önce sor",
+        "shellDisabledHint": "Kabuk onayını yapılandırmak için aşağıda \"Bu Mac'te kabuk komutlarına izin ver\" seçeneğini açın.",
+        "shellUntilRevoked": "İptal edilene kadar otomatik onayla"
+      },
+      "permissions": {
+        "accessibility": "Erişilebilirlik",
+        "accessibilityGrantedHint": "Klavye ve fare kontrolüne izin verildi.",
+        "accessibilityMissingHint": "Klavye ve fare kontrolüne izin verir. Etkinleştirildiğinde otomatik güncellenir.",
+        "allowAccessibility": "Erişilebilirliğe İzin Ver",
+        "allowScreenRecording": "Ekran Kaydına İzin Ver",
+        "allowed": "İzin verildi",
+        "relaunchToActivate": "Ekran kontrolünü etkinleştirmek için yeniden başlat",
+        "screenRecording": "Ekran Kaydı",
+        "screenRecordingGrantedHint": "Ekran görüntülemeye izin verildi.",
+        "screenRecordingMissingHint": "Eşleştirilmiş ajanların ekranınızı görmesine izin verir.",
+        "screenRecordingRelaunchHint": "macOS'un Ekran Kaydını etkinleştirmesi için MindRoom Chat uygulamasını bir kez yeniden başlatın."
+      },
+      "picker": {
+        "subtitle": "Bu odadaki hangi ajanın bu Mac'e bağlanacağını seçin."
+      },
+      "roomHeader": {
+        "giveAccess": "Mac Erişimi Ver",
+        "manageAccess": "Mac Erişimi"
+      },
+      "sas": {
+        "label": "Doğrulama kodu"
+      },
+      "settings": {
+        "bridgeState": "Köprü durumu",
+        "helperVersion": "Yardımcı sürümü",
+        "keywords": "mac, bilgisayar erişimi, masaüstü kontrolü, kabuk, shell, erişilebilirlik, ekran kaydı, izinler",
+        "lastError": "Son hata",
+        "manage": "Yönet",
+        "noPairedAgentsDescription": "Bağlamak için bir ajanla oda açın ve Mac Erişimi Ver seçeneğini seçin.",
+        "noPairedAgentsTitle": "Henüz eşleştirilmiş ajan yok",
+        "notSignedIn": "Oturum açılmadı",
+        "pairedAgentsTitle": "Eşleştirilmiş ajanlar",
+        "permissionsTitle": "macOS İzinleri",
+        "revokeAll": "Tüm Erişimi İptal Et",
+        "revokeAllDescription": "Tüm eşleştirilmiş ajanların bağlantısını keser ve bu Mac'te bilgisayar erişimini hemen durdurur.",
+        "runningShellTitle": "Çalışan kabuk komutları",
+        "savedSession": "Kayıtlı Matrix oturumu",
+        "sectionTitle": "Bu Mac",
+        "statusActive": "Etkin",
+        "statusDescription": "Hangi MindRoom ajanlarının bu Mac'i görebileceğini ve kontrol edebileceğini yönetin.",
+        "statusStopped": "Durduruldu",
+        "statusTitle": "Mac Bilgisayar Erişimi",
+        "statusUnavailable": "Bu Mac'te kullanılamıyor",
+        "stopCommand": "Durdur",
+        "title": "Bu Mac",
+        "unavailableDescription": "Mac Bilgisayar Erişimi, Apple Silicon üzerinde Mac için MindRoom Chat gerektirir.",
+        "unknown": "Bilinmiyor"
+      },
+      "shellApproval": {
+        "approveOnce": "Bir kez onayla",
+        "approveOnceCountdown": "Bir kez onayla ({{seconds}})",
+        "autoApprove15m": "15 dk otomatik onayla",
+        "autoApprove15mCountdown": "15 dk otomatik onayla ({{seconds}})",
+        "cwdLabel": "Çalışma dizini",
+        "deny": "Reddet",
+        "empty": "Onay bekleyen kabuk komutu yok.",
+        "title": "Kabuk komutu onaylansın mı?"
+      },
+      "status": {
+        "fullAccess": "Tam Erişim",
+        "fullAccessActive": "Tam Erişim etkin",
+        "permissionsNeeded": "İzin gerekiyor",
+        "restricted": "Kısıtlı",
+        "shellReady": "Kabuk hazır"
+      },
+      "steps": {
+        "confirming": "Eşleştirme onaylanıyor...",
+        "finishing": "Erişim etkinleştiriliyor...",
+        "pairing": "{{agent}} ile eşleştiriliyor...",
+        "requestingOffer": "{{agent}} ile iletişim kuruluyor...",
+        "signingIn": "Bu Mac'te oturum açılıyor..."
+      },
+      "title": {
+        "allowFull": "{{agent}} ajanına bu Mac için tam erişim verilsin mi?",
+        "browserPair": "{{agent}} ajanına Mac'inize erişim verin",
+        "chooseLimits": "{{agent}} için sınırları seçin",
+        "default": "Mac Bilgisayar Erişimi",
+        "editLimits": "{{agent}} için sınırları düzenleyin",
+        "manageAgent": "Bu Mac'te {{agent}}",
+        "pickAgent": "Bir ajana bu Mac için erişim verin"
+      },
+      "unavailable": {
+        "description": "Mac Bilgisayar Erişimi bu cihazda kullanılamıyor."
+      }
     }
   },
   "mindroomUi": {
@@ -1062,7 +1231,8 @@
         "triggerLabel": "Tetikleyici {{id}}",
         "sourceLabel": "Kaynak {{source}}",
         "triageLabel": "Triyaj: {{reason}}",
-        "payloadLabel": "Olay yükü JSON"
+        "payloadLabel": "Olay yükü JSON",
+        "openTriggerLabel": "{{id}} tetikleyicisini görüntüle"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} görev hazır",
@@ -2059,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Sabitleyin ve etiketleyin",
-        "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
+        "text": "Bir konuyu en üstte tutmak için karttaki raptiyeye basın ya da “Konu seçenekleri” (⋯) menüsünden “Konuyu sabitle” öğesini seçin. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
       },
       "filters": {
         "title": "Filtreler çözülen konuları gizler",
@@ -2218,6 +2388,45 @@
     "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
     "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   },
+  "roomTriggers": {
+    "title": "Tetikleyiciler",
+    "openLabel": "Tetikleyiciler ({{total}})",
+    "loading": "Yükleniyor…",
+    "empty": "Bu odada tetikleyici yok.",
+    "emptyHint": "Bu oda için ayarlanan tetikleyiciler burada görünür.",
+    "loadError": "Tetikleyiciler yüklenemedi.",
+    "missingTrigger": "{{id}} tetikleyicisi artık bu odada değil.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Oda izleme",
+      "external_event": "Olay aboneliği",
+      "thread_tag": "Konu etiketi",
+      "unknown": "Tetikleyici"
+    },
+    "watchingRoom": "Bu odayı izliyor",
+    "stateOn": "Açık",
+    "stateOff": "Kapalı",
+    "disabledExpired": "Süresi doldu",
+    "disabledOnceConsumed": "Bir kez kullanıldı",
+    "lastFired": "Son tetikleme {{time}}",
+    "neverFired": "Kayıtlı tetikleme yok",
+    "destinationRoom": "Oda zaman akışı",
+    "destinationThread": "Konu",
+    "destinationNewThread": "Yeni konu",
+    "destinationOrigin": "Kaynak konu",
+    "openThread": "Konuyu aç",
+    "prompt": "İstem",
+    "enable": "Etkinleştir",
+    "disable": "Devre dışı bırak",
+    "updating": "Güncelleniyor...",
+    "toggleError": "Tetikleyici güncellenemedi. Tekrar deneyin.",
+    "delete": "Sil",
+    "deleteConfirm": "Bu tetikleyici silinsin mi?",
+    "keep": "Kalsın",
+    "deleteTrigger": "Tetikleyiciyi sil",
+    "deleting": "Siliniyor...",
+    "deleteError": "Tetikleyici silinemedi. Tekrar deneyin."
+  },
   "home": {
     "greeting": {
       "morning": "Günaydın, {{name}}",
@@ -2260,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} oda",
       "roomsCount_other": "{{count}} oda",
-      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi",
+      "switchSpace": "Alan değiştir"
     },
     "roomFilter": {
       "label": "Odalar",
@@ -2285,5 +2495,13 @@
     "error": {
       "title": "Alan iş parçacıkları yüklenemedi"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diyagram",
+    "source": "Kaynak",
+    "showDiagram": "Diyagramı göster",
+    "showSource": "Kaynağı göster",
+    "mermaidDiagram": "Mermaid diyagramı",
+    "diagramUnavailable": "Kaynak gösteriliyor"
   }
 }

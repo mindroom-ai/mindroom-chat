@@ -1,6 +1,6 @@
 import { fallbackVar, style } from '@vanilla-extract/css';
 import { DefaultReset, color, toRem } from 'folds';
-import { phoneChromeHeight, phoneTopBarHeight } from './PhoneTopBar.css';
+import { phoneChromeHeight, phoneTopBarHeight } from '../ui/sidebar/PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 
 // How long the drawer takes to slide in or out, and the scrim to fade with it; reduced motion

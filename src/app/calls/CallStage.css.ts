@@ -3,22 +3,22 @@ import {
   createVar,
   fallbackVar,
   globalStyle,
-  keyframes,
   style,
   styleVariants,
   type StyleRule,
 } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { BAR_REST_SCALE } from './audioSpectrum';
 import { STAGE_PADDING, TILE_GAP } from './stageLayout';
 
 // The stage answers its own height: a short window drops the voice stage's status line first,
 // then the names, then the bars, so the faces keep their room. Each height is what the voice
-// stage needs with that part (a 64 px face with a line under it, 24 px bars, 12 px gaps). Shorter
+// stage needs with that part (a 64 px face with a line under it, 28 px bars, 12 px gaps). Shorter
 // still, the faces shrink to the stage's height, down to FACE_MIN.
 const stage = createContainer();
-const HIDES_STATUS = `${stage} (max-height: 160px)`;
-const HIDES_NAMES = `${stage} (max-height: 128px)`;
-const HIDES_BARS = `${stage} (max-height: 100px)`;
+const HIDES_STATUS = `${stage} (max-height: 164px)`;
+const HIDES_NAMES = `${stage} (max-height: 132px)`;
+const HIDES_BARS = `${stage} (max-height: 104px)`;
 const hiddenWhen = (query: string): StyleRule => ({
   '@container': { [query]: { display: 'none' } },
 });
@@ -46,7 +46,7 @@ const NAME_ID_GAP = toRem(4);
 const FLOW_TILE = toRem(160);
 const BADGE_OFFSET = toRem(-2);
 const BAR_WIDTH = toRem(4);
-const BAR_REST = 'scaleY(0.35)';
+const BAR_REST = `scaleY(${BAR_REST_SCALE})`;
 const ONE_PIXEL = toRem(1);
 const MORE_COUNT_LONG = toRem(10);
 
@@ -224,39 +224,32 @@ const nameLine: StyleRule = {
 
 export const VoiceName = style([nameLine, hiddenWhen(HIDES_NAMES)]);
 
-const barRise = keyframes({
-  '0%, 100%': { transform: BAR_REST },
-  '50%': { transform: 'scaleY(1)' },
-});
-
 export const VoiceBars = style([
   centredFlow('row nowrap', toRem(4)),
-  { height: toRem(24) },
+  { height: toRem(28), direction: 'ltr' },
   hiddenWhen(HIDES_BARS),
 ]);
 
-const speakingBars = `${VoiceBars}[data-speaking="true"] &`;
-
-// Still and grey while nobody talks; green and moving while anyone does (still under reduced
-// motion, where green alone tells it).
+// Rests grey when silent; lights green for a remote speaker and accent for the local microphone.
 export const VoiceBar = style({
   width: BAR_WIDTH,
   height: '100%',
   borderRadius: toRem(2),
   transform: BAR_REST,
+  transformOrigin: 'center',
+  willChange: 'transform',
   background: color.SurfaceVariant.ContainerLine,
+  transition: 'background-color 140ms ease',
   selectors: {
-    [speakingBars]: {
+    [`${VoiceBars}[data-audio-active="true"][data-audio-source="remote"] &`]: {
       background: color.Success.Main,
-      animation: `${barRise} 900ms ease-in-out infinite`,
     },
-    '&:nth-child(2)': { animationDelay: '-300ms' },
-    '&:nth-child(3)': { animationDelay: '-600ms' },
+    [`${VoiceBars}[data-audio-active="true"][data-audio-source="local"] &`]: {
+      background: color.Primary.Main,
+    },
   },
   '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      selectors: { [speakingBars]: { animation: 'none', transform: 'none' } },
-    },
+    '(prefers-reduced-motion: reduce)': { transform: 'scaleY(0.5)' },
   },
 });
 

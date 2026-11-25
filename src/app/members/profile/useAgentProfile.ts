@@ -17,13 +17,16 @@ export const agentProfilePath = (roomId: string, agentUserId: string): string =>
 
 /**
  * An agent's profile (model and tools) as it was when its card opened, asked once per open of the
- * MindRoom server Chat trusts for the agent; the ask stops when the card closes or after
- * `TIMEOUT_MS`. `none` while either side is not joined, while Chat may ask no server, and when
- * the server refuses or does not answer: the card then shows what the room says about the agent.
+ * agent's own MindRoom server under the room-server trust rule; the ask stops when the card closes
+ * or after `TIMEOUT_MS`. `none` while either side is not joined, while Chat may ask no server, and
+ * when the server refuses or does not answer: the card then shows what the room says about the
+ * agent.
  */
 export const useAgentProfile = (room: Room, agentUserId: string): AgentProfileState => {
   const mx = useMatrixClient();
-  const { apiUrl, pending } = useAgentMindroomServer(mx, room.roomId, agentUserId);
+  const { apiUrl, pending } = useAgentMindroomServer(mx, room.roomId, agentUserId, {
+    trust: 'room',
+  });
   const joined =
     room.getMyMembership() === 'join' && room.getMember(agentUserId)?.membership === 'join';
   const path = agentProfilePath(room.roomId, agentUserId);

@@ -278,6 +278,13 @@
       "threadIn": "Fil dans {{room}}",
       "messageElsewhere": "Message dans une autre salle"
     },
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "Important",
+      "warning": "Avertissement",
+      "caution": "Attention"
+    },
     "deviceVerification": {
       "acceptStalled": "L'autre session n'a pas répondu. Fermez ceci et relancez la vérification."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Vue d'ensemble de l'espace"
+    },
+    "footnote": {
+      "backToReference": "Retour à la référence"
     }
   },
   "featureUi": {
@@ -495,7 +505,8 @@
         "inUse": "Serveur utilisé",
         "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
         "useServer": "Utiliser {{host}}",
-        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici."
+        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici.",
+        "foundNotSavedChoose": "Trouvés via vos agents, non enregistrés. Choisissez le serveur auquel vous faites confiance ; cet appareil l'utilise pour toutes les salles."
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
@@ -935,6 +946,164 @@
         "startEntireScreenShare": "Partager tout l’écran",
         "stopEntireScreenShare": "Arrêter de partager tout l’écran"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Autoriser l'accès complet",
+        "cancel": "Annuler",
+        "chooseLimits": "Choisir des limites...",
+        "close": "Fermer",
+        "disconnect": "Déconnecter",
+        "done": "Terminé",
+        "editLimits": "Modifier les limites...",
+        "switchToFull": "Passer en accès complet"
+      },
+      "banner": {
+        "restrictedActive": "Accès restreint actif sur ce Mac.",
+        "shellReadyWaitingPermissions": "Shell prêt - En attente des autorisations d'écran et de saisie macOS",
+        "waitingPermissions": "En attente des autorisations d'écran et de saisie macOS"
+      },
+      "browser": {
+        "brewHint": "Ou installer avec Homebrew :",
+        "confirmOnMac": "Confirmez ce code sur {{mac}} pour approuver l'accès.",
+        "copied": "Copié",
+        "copyCommand": "Copier la commande",
+        "copyFailed": "Échec de la copie",
+        "downloadMacApp": "Télécharger MindRoom Chat pour Mac",
+        "noMacDescription": "Pour donner à {{agent}} l'accès à votre Mac, connectez-vous avec ce compte dans MindRoom Chat pour Mac.",
+        "paired": "{{agent}} est maintenant associé à {{mac}}.",
+        "relayDescription": "Envoyez une demande d'association à {{mac}}. Vous confirmerez le code à 6 chiffres et choisirez l'accès complet ou des limites sur votre Mac.",
+        "selectMac": "Choisir un Mac",
+        "sendToMac": "Envoyer vers {{mac}}",
+        "waitingOnMac": "En attente de confirmation sur {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} peut voir votre écran, contrôler chaque application et exécuter des commandes shell en tant que votre utilisateur macOS sans demander, y compris après redémarrage. Arrêtez à tout moment depuis la barre des menus.",
+        "upgradeHeading": "Passage en accès complet"
+      },
+      "empty": {
+        "noAgents": "Aucun agent MindRoom trouvé dans ce salon."
+      },
+      "incoming": {
+        "decline": "Refuser",
+        "failedTitle": "Impossible d'associer {{agent}}",
+        "sasHint": "Vérifiez que ce code à 6 chiffres correspond à {{requester}} avant d'approuver.",
+        "title": "Associer {{agent}} depuis {{requester}} ?"
+      },
+      "limits": {
+        "addFolder": "Ajouter un dossier...",
+        "allowShellOnMac": "Autoriser les commandes shell sur ce Mac",
+        "foldersLabel": "Dossiers en lecture seule",
+        "fullNote": "L'accès complet jusqu'à révocation active le contrôle plein écran et le shell auto-approuvé jusqu'à révocation.",
+        "fullScreen": "Plein écran (primary-screen)",
+        "gui15m": "Autoriser le contrôle pendant 15 min",
+        "gui1h": "Autoriser le contrôle pendant 1 heure",
+        "guiFull": "Accès complet jusqu'à révocation",
+        "guiLabel": "Contrôle de l'écran et des entrées",
+        "guiObserve": "Observer uniquement",
+        "installedApps": "Applications Mac autorisées",
+        "loadingApps": "Chargement des applications installées...",
+        "needCapability": "Activez le plein écran, au moins une application, un dossier ou les commandes shell.",
+        "noAppsFound": "Aucune application Mac installée trouvée.",
+        "noFolders": "Aucun dossier en lecture seule ajouté.",
+        "perAgentHeading": "Contrôle et approbation du shell pour {{agent}} (par agent)",
+        "removeFolder": "Retirer",
+        "save": "Autoriser avec limites",
+        "saveChanges": "Enregistrer les limites",
+        "sharedHeading": "Applications, dossiers et shell partagés sur ce Mac (s'applique à tous les agents associés)",
+        "sharedWithOthersHint": "Partagé avec d'autres agents associés sur ce Mac",
+        "shell15m": "Auto-approuver pendant 15 min",
+        "shell1h": "Auto-approuver pendant 1 heure",
+        "shellApprovalLabel": "Approbation du shell",
+        "shellAsk": "Demander avant chaque commande",
+        "shellDisabledHint": "Activez « Autoriser les commandes shell sur ce Mac » ci-dessous pour configurer l'approbation du shell.",
+        "shellUntilRevoked": "Auto-approuver jusqu'à révocation"
+      },
+      "permissions": {
+        "accessibility": "Accessibilité",
+        "accessibilityGrantedHint": "Contrôle du clavier et de la souris autorisé.",
+        "accessibilityMissingHint": "Autorise le contrôle du clavier et de la souris. Se met à jour automatiquement une fois activé.",
+        "allowAccessibility": "Autoriser l'Accessibilité",
+        "allowScreenRecording": "Autoriser l'Enregistrement d'écran",
+        "allowed": "Autorisé",
+        "relaunchToActivate": "Relancer pour activer le contrôle d'écran",
+        "screenRecording": "Enregistrement d'écran",
+        "screenRecordingGrantedHint": "Affichage de l'écran autorisé.",
+        "screenRecordingMissingHint": "Autorise les agents associés à voir votre écran.",
+        "screenRecordingRelaunchHint": "Relancez MindRoom Chat une fois afin que macOS active l'Enregistrement d'écran."
+      },
+      "picker": {
+        "subtitle": "Choisissez quel agent de ce salon doit se connecter à ce Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Donner accès au Mac",
+        "manageAccess": "Accès au Mac"
+      },
+      "sas": {
+        "label": "Code de vérification"
+      },
+      "settings": {
+        "bridgeState": "État du pont",
+        "helperVersion": "Version de l'assistant",
+        "keywords": "mac, accès ordinateur, contrôle bureau, shell, accessibilité, enregistrement écran, autorisations",
+        "lastError": "Dernière erreur",
+        "manage": "Gérer",
+        "noPairedAgentsDescription": "Ouvrez un salon avec un agent et choisissez Donner accès au Mac pour le connecter.",
+        "noPairedAgentsTitle": "Aucun agent associé pour l'instant",
+        "notSignedIn": "Non connecté",
+        "pairedAgentsTitle": "Agents associés",
+        "permissionsTitle": "Autorisations macOS",
+        "revokeAll": "Révoquer tous les accès",
+        "revokeAllDescription": "Déconnecte tous les agents associés et arrête immédiatement l'accès à cet ordinateur sur ce Mac.",
+        "runningShellTitle": "Commandes shell en cours",
+        "savedSession": "Session Matrix enregistrée",
+        "sectionTitle": "Ce Mac",
+        "statusActive": "Actif",
+        "statusDescription": "Contrôlez quels agents MindRoom peuvent voir et contrôler ce Mac.",
+        "statusStopped": "Arrêté",
+        "statusTitle": "Accès à l'ordinateur Mac",
+        "statusUnavailable": "Non disponible sur ce Mac",
+        "stopCommand": "Arrêter",
+        "title": "Ce Mac",
+        "unavailableDescription": "L'accès à l'ordinateur Mac nécessite MindRoom Chat pour Mac sur Apple Silicon.",
+        "unknown": "Inconnu"
+      },
+      "shellApproval": {
+        "approveOnce": "Approuver une fois",
+        "approveOnceCountdown": "Approuver une fois ({{seconds}})",
+        "autoApprove15m": "Auto-approuver 15 min",
+        "autoApprove15mCountdown": "Auto-approuver 15 min ({{seconds}})",
+        "cwdLabel": "Répertoire de travail",
+        "deny": "Refuser",
+        "empty": "Aucune commande shell n'attend d'approbation.",
+        "title": "Approuver la commande shell ?"
+      },
+      "status": {
+        "fullAccess": "Accès complet",
+        "fullAccessActive": "Accès complet actif",
+        "permissionsNeeded": "Autorisations requises",
+        "restricted": "Restreint",
+        "shellReady": "Shell prêt"
+      },
+      "steps": {
+        "confirming": "Confirmation de l'association...",
+        "finishing": "Activation de l'accès...",
+        "pairing": "Association avec {{agent}}...",
+        "requestingOffer": "Contact de {{agent}}...",
+        "signingIn": "Connexion sur ce Mac..."
+      },
+      "title": {
+        "allowFull": "Autoriser {{agent}} à accéder totalement à ce Mac ?",
+        "browserPair": "Donner à {{agent}} l'accès à votre Mac",
+        "chooseLimits": "Choisir des limites pour {{agent}}",
+        "default": "Accès à l'ordinateur Mac",
+        "editLimits": "Modifier les limites pour {{agent}}",
+        "manageAgent": "{{agent}} sur ce Mac",
+        "pickAgent": "Donner à un agent l'accès à ce Mac"
+      },
+      "unavailable": {
+        "description": "L'accès à l'ordinateur Mac n'est pas disponible sur cet appareil."
+      }
     }
   },
   "mindroomUi": {
@@ -1081,7 +1250,8 @@
         "triggerLabel": "Déclencheur {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage : {{reason}}",
-        "payloadLabel": "Charge utile de l’événement JSON"
+        "payloadLabel": "Charge utile de l’événement JSON",
+        "openTriggerLabel": "Afficher le déclencheur {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tâche prête",
@@ -2128,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Épingler et étiqueter",
-        "text": "Épingler le fil garde un fil en haut de la liste. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
+        "text": "Appuyez sur l’épingle d’une carte, ou sur Épingler le fil dans Options du fil (⋯), pour garder un fil en haut. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
       },
       "filters": {
         "title": "Les filtres masquent les fils résolus",
@@ -2296,6 +2466,45 @@
     "editDraftBusy": "Effacez votre brouillon actuel avant de modifier cette tâche planifiée.",
     "copyFailed": "Impossible de copier. Sélectionnez l'ID de la tâche dans Détails."
   },
+  "roomTriggers": {
+    "title": "Déclencheurs",
+    "openLabel": "Déclencheurs ({{total}})",
+    "loading": "Chargement…",
+    "empty": "Aucun déclencheur dans ce salon.",
+    "emptyHint": "Les déclencheurs configurés pour ce salon apparaissent ici.",
+    "loadError": "Impossible de charger les déclencheurs.",
+    "missingTrigger": "Le déclencheur {{id}} ne se trouve plus dans ce salon.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Veille du salon",
+      "external_event": "Abonnement d’événement",
+      "thread_tag": "Étiquette de fil",
+      "unknown": "Déclencheur"
+    },
+    "watchingRoom": "Surveille ce salon",
+    "stateOn": "Activé",
+    "stateOff": "Désactivé",
+    "disabledExpired": "Expiré",
+    "disabledOnceConsumed": "Utilisé une fois",
+    "lastFired": "Dernier déclenchement {{time}}",
+    "neverFired": "Aucun déclenchement enregistré",
+    "destinationRoom": "Fil du salon",
+    "destinationThread": "Fil",
+    "destinationNewThread": "Nouveau fil",
+    "destinationOrigin": "Fil d’origine",
+    "openThread": "Ouvrir le fil",
+    "prompt": "Prompt",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "updating": "Mise à jour...",
+    "toggleError": "Impossible de mettre à jour le déclencheur. Réessayez.",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer ce déclencheur ?",
+    "keep": "Conserver",
+    "deleteTrigger": "Supprimer le déclencheur",
+    "deleting": "Suppression...",
+    "deleteError": "Impossible de supprimer le déclencheur. Réessayez."
+  },
   "home": {
     "greeting": {
       "morning": "Bonjour, {{name}}",
@@ -2339,7 +2548,8 @@
       "roomsCount_one": "{{count}} salon",
       "roomsCount_many": "{{count}} salons",
       "roomsCount_other": "{{count}} salons",
-      "roomsFiltered": "{{active}} sur {{total}} salons"
+      "roomsFiltered": "{{active}} sur {{total}} salons",
+      "switchSpace": "Changer d'espace"
     },
     "roomFilter": {
       "label": "Salons",
@@ -2364,5 +2574,13 @@
     "error": {
       "title": "Impossible de charger les fils de l’espace"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramme",
+    "source": "Source",
+    "showDiagram": "Afficher le diagramme",
+    "showSource": "Afficher la source",
+    "mermaidDiagram": "Diagramme Mermaid",
+    "diagramUnavailable": "Affichage de la source"
   }
 }

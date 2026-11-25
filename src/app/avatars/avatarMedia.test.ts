@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   authenticatedAvatarRequest,
@@ -63,7 +64,7 @@ describe('authenticatedAvatarRequest', () => {
   it('asks the authenticated endpoint with the token in a header', () => {
     expect(authenticatedAvatarRequest(client(), LEGACY)).toEqual({
       url: AUTHED,
-      init: { headers: { Authorization: 'Bearer secret-token' } },
+      init: { headers: { Authorization: 'Bearer secret-token' }, cache: 'no-store' },
     });
   });
 
@@ -74,7 +75,10 @@ describe('authenticatedAvatarRequest', () => {
 });
 
 describe('avatarNeedsFetch', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   const withWorker = (controller: object | null) =>
     vi.stubGlobal('navigator', { serviceWorker: { controller } });
@@ -82,7 +86,7 @@ describe('avatarNeedsFetch', () => {
   it('fetches authenticated media at once on a page no service worker controls', () => {
     withWorker(null);
     expect(avatarNeedsFetch(client(), AUTHED, { versions: [] })).toBe(true);
-    expect(avatarNeedsFetch(client(), `${AUTHED}&access_token=t`, { versions: [] })).toBe(false);
+    expect(avatarNeedsFetch(client(), `${AUTHED}&access_token=t`, { versions: [] })).toBe(true);
   });
 
   it('fetches legacy media at once only when the server has authenticated media', () => {
@@ -96,8 +100,30 @@ describe('avatarNeedsFetch', () => {
     expect(avatarNeedsFetch(client(), AUTHED, { versions: ['v1.11'] })).toBe(false);
   });
 
-  it('lets the image try first where there is no service worker API', () => {
+  it('fetches immediately in Capacitor shells (capacitor: protocol or native platform) without a service worker', () => {
     vi.stubGlobal('navigator', {});
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    expect(avatarNeedsFetch(client(), AUTHED, { versions: ['v1.11'] })).toBe(true);
+    expect(avatarNeedsFetch(client(), LEGACY, { versions: ['v1.11'] })).toBe(true);
+    expect(avatarNeedsFetch(client(), LEGACY, { versions: ['v1.10'] })).toBe(false);
+
+    vi.stubGlobal('window', { location: { protocol: 'https:' } });
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    expect(avatarNeedsFetch(client(), AUTHED, { versions: ['v1.11'] })).toBe(true);
+  });
+
+  it('keeps direct image loading in the Electron desktop app even on capacitor://localhost', () => {
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('window', {
+      location: { protocol: 'capacitor:' },
+      mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
+    });
+    expect(avatarNeedsFetch(client(), AUTHED, { versions: ['v1.11'] })).toBe(false);
+  });
+
+  it('lets the image try first where there is no service worker API outside Capacitor', () => {
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('window', { location: { protocol: 'http:' } });
     expect(avatarNeedsFetch(client(), AUTHED, { versions: ['v1.11'] })).toBe(false);
     expect(canFetchAvatar(client(), AUTHED)).toBe(true);
     expect(canFetchAvatar(client(), 'https://evil.test/_matrix/client/v1/media/download/x/y')).toBe(
@@ -147,6 +173,7 @@ describe('fetchAvatar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(AUTHED, {
       headers: { Authorization: 'Bearer secret-token' },
+      cache: 'no-store',
     });
     expect(peekFetchedAvatar(client(), AUTHED)).toBe('blob:avatar-1');
   });
@@ -189,6 +216,7 @@ describe('fetchAvatar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenLastCalledWith(AUTHED, {
       headers: { Authorization: 'Bearer bob-token' },
+      cache: 'no-store',
     });
   });
 

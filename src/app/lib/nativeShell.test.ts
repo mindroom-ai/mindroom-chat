@@ -8,6 +8,8 @@ import {
   isAppWindowFocused,
   isBundledApp,
   isCapacitorApp,
+  isCapacitorMediaShell,
+  isDesktopAccessAvailable,
   isDesktopApp,
   markDesktopShell,
 } from './nativeShell';
@@ -106,6 +108,23 @@ describe('nativeShell', () => {
     expect(isCapacitorApp()).toBe(false);
   });
 
+  it('detects Capacitor media shells while excluding Electron desktop and standard web', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    expect(isCapacitorMediaShell()).toBe(false);
+
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    expect(isCapacitorMediaShell()).toBe(true);
+
+    setDesktopBridge(makeBridge().bridge);
+    expect(isCapacitorMediaShell()).toBe(false);
+    setDesktopBridge(undefined);
+
+    vi.mocked(Capacitor.isNativePlatform).mockImplementation(() => {
+      throw new Error('capacitor failed');
+    });
+    expect(isCapacitorMediaShell()).toBe(false);
+  });
+
   it('marks the document shell, tracks fullscreen events, and stays idempotent', () => {
     markDesktopShell();
     expect(document.documentElement.dataset.shell).toBeUndefined();
@@ -181,5 +200,18 @@ describe('nativeShell', () => {
         Reflect.deleteProperty(document, 'visibilityState');
       }
     }
+  });
+  it('reports isDesktopAccessAvailable only when desktopAccess is exposed on the bridge', () => {
+    expect(isDesktopAccessAvailable()).toBe(false);
+
+    const { bridge } = makeBridge();
+    setDesktopBridge(bridge);
+    expect(isDesktopAccessAvailable()).toBe(false);
+
+    setDesktopBridge({
+      ...bridge,
+      desktopAccess: {} as NonNullable<DesktopBridge['desktopAccess']>,
+    });
+    expect(isDesktopAccessAvailable()).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { Fragment, type MouseEventHandler, useCallback, useMemo, useReducer, useRef } from 'react';
+import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { NavCategory } from '../../ui/nav/NavItem';
@@ -32,11 +33,13 @@ import { getSpaceSearchRooms } from '../../matrix/state/useSpaceSearchRooms';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import type { SpaceMenuGroupsProps } from '../../spaces/SpaceActions';
 import { moveSpaceRoom } from '../../spaces/lobby/spaceChildren';
+import { getDescendantSubspaces, getSpaceRoomSections } from '../../spaces/spaceRoomSections';
 import {
+  type SpaceSectionTreeNode,
+  buildSpaceSectionTree,
   collectShortcutRoomIds,
-  getDescendantSubspaces,
-  getSpaceRoomSections,
-} from './spaceRoomSections';
+  findSelectedDescendantSection,
+} from '../../spaces/spaceSectionTree';
 import {
   type RenderedSpaceRoomSection,
   buildRenderedSpaceSections,
@@ -45,8 +48,11 @@ import {
   useSpaceEditPermissions,
 } from './spaceSectionHelpers';
 import { SpaceSectionHeader } from './SpaceSectionHeader';
+import * as css from './SpaceRoomSection.css';
 
 export type { RenderedSpaceRoomSection };
+
+const EMPTY_CHILD_NODES: readonly SpaceSectionTreeNode<RenderedSpaceRoomSection>[] = [];
 
 const walkChain = (
   start: string | undefined,
@@ -178,13 +184,18 @@ export function useSpaceRoomSections(
     selectedRoomId,
   ]);
 
+  const sectionTree = useMemo(() => buildSpaceSectionTree(sections), [sections]);
+
   const trackedSections = useMemo<ActivityTrackedSection[]>(
     () => sections.map(toActivityTrackedSection),
     [sections]
   );
   useRoomActivityListener(trackedSections, bumpActivity);
 
-  const shortcutRoomIds = useMemo(() => collectShortcutRoomIds(sections), [sections]);
+  const shortcutRoomIds = useMemo(
+    () => collectShortcutRoomIds(sectionTree, selectedRoomId),
+    [sectionTree, selectedRoomId]
+  );
 
   const movingRoomIdsRef = useRef(new Set<string>());
   const roomOrdersRef = useRef(roomOrders);
@@ -258,6 +269,7 @@ export function useSpaceRoomSections(
   return {
     spaceRooms,
     sections,
+    sectionTree,
     shortcutRoomIds,
     sort,
     onCategoryClick,
@@ -269,6 +281,12 @@ export function useSpaceRoomSections(
 
 export type SpaceRoomSectionProps = {
   section: RenderedSpaceRoomSection;
+  /** Nested descendant sub-space tree nodes under this section. */
+  childNodes?: readonly SpaceSectionTreeNode<RenderedSpaceRoomSection>[];
+  /** Deduplicated visible rooms across this section and all descendants (for collapsed unread roll-up). */
+  subtreeShownRoomIds?: readonly string[];
+  /** Nesting depth (0 for top-level Home spaces and direct Space sub-spaces). */
+  depth?: number;
   spaceId: string;
   spaceIdOrAlias: string;
   selectedRoomId: string | undefined;
@@ -278,13 +296,20 @@ export type SpaceRoomSectionProps = {
   roomPath?: (roomIdOrAlias: string) => string;
   /** Include `Space overview` in the section's space options menu. */
   showOverview?: boolean;
-  /** Optional sidebar pin entry for the section's space options menu. */
-  pinMode?: SpaceMenuGroupsProps['pinMode'];
+  /** Use calm quiet dots for collapsed unread state (Home sidebar). */
+  quietUnread?: boolean;
+  /** Optional sidebar pin entry for the section's space options menu (or resolver per section). */
+  pinMode?:
+    | SpaceMenuGroupsProps['pinMode']
+    | ((section: RenderedSpaceRoomSection) => SpaceMenuGroupsProps['pinMode']);
 };
 
-/** One collapsible room section in a Space or Home sidebar. */
+/** One collapsible room section (and its nested sub-spaces) in a Space or Home sidebar. */
 export function SpaceRoomSection({
   section,
+  childNodes = EMPTY_CHILD_NODES,
+  subtreeShownRoomIds,
+  depth = 0,
   spaceId,
   spaceIdOrAlias,
   selectedRoomId,
@@ -292,6 +317,7 @@ export function SpaceRoomSection({
   onReorder,
   roomPath,
   showOverview,
+  quietUnread = false,
   pinMode,
 }: SpaceRoomSectionProps) {
   const client = useMatrixClient();
@@ -303,36 +329,44 @@ export function SpaceRoomSection({
     ? (client.getRoom(section.parentSpaceId) ?? undefined)
     : undefined;
 
+  const { className: sectionDropClassName, ...sectionDropProps } = sectionDrop;
+  const resolvedPinMode = typeof pinMode === 'function' ? pinMode(section) : pinMode;
+  const selectedDescendantOwner =
+    section.closed &&
+    selectedRoomId !== undefined &&
+    !section.listedRoomIds.includes(selectedRoomId)
+      ? findSelectedDescendantSection(childNodes, selectedRoomId)
+      : undefined;
+  const selectedDescendantRoom =
+    selectedDescendantOwner && selectedRoomId !== undefined
+      ? (client.getRoom(selectedRoomId) ?? undefined)
+      : undefined;
+  const visibleChildren = section.closed ? EMPTY_CHILD_NODES : childNodes;
+  const unreadShownRoomIds = subtreeShownRoomIds ?? section.shownRoomIds;
+
   const previewPath = roomPath ?? ((roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId));
 
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
-  const rowProps = (room: Room) => ({
+  const rowProps = (room: Room, showTimes = section.showTimes) => ({
     room,
     selected: room.roomId === selectedRoomId,
     linkPath: previewPath(getCanonicalAliasOrRoomId(client, room.roomId)),
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
     spaceId: roomPath ? undefined : spaceId,
-    activityTimestamp: section.showTimes ? getRoomActivityTimestamp(room) || undefined : undefined,
+    activityTimestamp: showTimes ? getRoomActivityTimestamp(room) || undefined : undefined,
   });
   const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
 
-  return (
-    <NavCategory {...sectionDrop}>
-      <SpaceSectionHeader
-        space={sectionSpace}
-        parentSpace={parentSpace}
-        isRoot={section.isRoot}
-        isEmpty={section.isEmpty}
-        categoryId={section.categoryId}
-        closed={section.closed}
-        shownRoomIds={section.shownRoomIds}
-        selectedRoomId={selectedRoomId}
-        onCategoryClick={onCategoryClick}
-        sort={section.sort}
-        showOverview={showOverview}
-        pinMode={pinMode}
+  // A retained active room from a collapsed descendant renders as a plain non-draggable row so
+  // releasing a drag inside this collapsed parent cannot drop it onto the parent space.
+  const roomRows =
+    section.closed && selectedDescendantOwner && selectedDescendantRoom ? (
+      <RoomNavItem
+        {...rowProps(selectedDescendantRoom, selectedDescendantOwner.showTimes)}
+        removeFromSpaceId={selectedDescendantOwner.spaceId}
       />
+    ) : (
       <SortableRoomList
         listId={section.spaceId}
         roomIds={section.listedRoomIds}
@@ -341,7 +375,8 @@ export function SpaceRoomSection({
       >
         {section.listedRoomIds.map((roomId) => {
           const room = client.getRoom(roomId);
-          return room ? (
+          if (!room) return null;
+          return (
             <Fragment key={roomId}>
               <SortableRoomRow {...rowProps(room)} removeFromSpaceId={section.spaceId} />
               {!section.closed && (
@@ -353,9 +388,62 @@ export function SpaceRoomSection({
                 />
               )}
             </Fragment>
-          ) : null;
+          );
         })}
       </SortableRoomList>
+    );
+
+  const hasRoomRows = section.listedRoomIds.length > 0 || selectedDescendantRoom !== undefined;
+  const hasNestedBody = hasRoomRows || visibleChildren.length > 0;
+
+  return (
+    <NavCategory
+      {...sectionDropProps}
+      className={classNames(sectionDropClassName, !section.isRoot && css.SpaceSectionNode)}
+      data-depth={section.isRoot ? undefined : depth}
+      data-expanded={!section.isRoot && !section.closed ? 'true' : undefined}
+    >
+      <SpaceSectionHeader
+        space={sectionSpace}
+        parentSpace={parentSpace}
+        isRoot={section.isRoot}
+        isEmpty={section.isEmpty && childNodes.length === 0}
+        categoryId={section.categoryId}
+        closed={section.closed}
+        shownRoomIds={unreadShownRoomIds}
+        selectedRoomId={selectedRoomId}
+        onCategoryClick={onCategoryClick}
+        sort={section.sort}
+        showOverview={showOverview}
+        quietUnread={quietUnread}
+        pinMode={resolvedPinMode}
+        headingLevel={3 + depth}
+      />
+      {section.isRoot
+        ? roomRows
+        : hasNestedBody && (
+            <div className={css.NestedChildren}>
+              {hasRoomRows && roomRows}
+              {visibleChildren.map((child) => (
+                <SpaceRoomSection
+                  key={child.section.categoryId}
+                  section={child.section}
+                  childNodes={child.children}
+                  subtreeShownRoomIds={child.subtreeShownRoomIds}
+                  depth={depth + 1}
+                  spaceId={roomPath ? child.section.spaceId : spaceId}
+                  spaceIdOrAlias={roomPath ? child.section.spaceId : spaceIdOrAlias}
+                  selectedRoomId={selectedRoomId}
+                  onCategoryClick={onCategoryClick}
+                  onReorder={onReorder}
+                  roomPath={roomPath}
+                  showOverview={showOverview}
+                  quietUnread={quietUnread}
+                  pinMode={pinMode}
+                />
+              ))}
+            </div>
+          )}
     </NavCategory>
   );
 }

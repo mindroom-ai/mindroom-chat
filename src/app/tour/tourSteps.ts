@@ -31,9 +31,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Unresolved on again and the list without the card.
   { id: 'filters', chapter: 'tidy', phases: [1200, 900, 1300, 1500, 0] },
   // The card's buttons, then its menu.
-  { id: 'snooze', chapter: 'tidy', phases: [700, 0] },
-  // The tagged cards, then one of them pinned.
-  { id: 'pinAndTag', chapter: 'tidy', phases: [1000, 0] },
+  { id: 'snooze', chapter: 'tidy', phases: [1000, 0] },
+  // How to pin, the Pinned section, Edit tags in Thread options, then pinned and tagged.
+  { id: 'pinAndTag', chapter: 'tidy', phases: [1200, 1100, 1200, 0] },
   // The switch, then the other view.
   { id: 'views', chapter: 'finding', phases: [1200, 0] },
   // The bell, then its list.

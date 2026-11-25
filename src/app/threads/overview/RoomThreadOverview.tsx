@@ -299,6 +299,8 @@ export type RoomThreadOverviewProps = {
   onToggleThreadSections?: () => void;
   /** Suppress the toolbar's inline empty-filter row when the room canvas renders its own empty state. */
   hideEmptyState?: boolean;
+  /** Overrides the stored `simpleThreadFilters` preference when defined (used by the tour). */
+  simpleModeOverride?: boolean;
 };
 
 /** A filter-bar toggle that shows only its icon on a narrow bar. */
@@ -425,10 +427,12 @@ export function RoomThreadOverview({
   threadSections = false,
   onToggleThreadSections,
   hideEmptyState = false,
+  simpleModeOverride,
 }: RoomThreadOverviewProps) {
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t, i18n } = useTranslation();
-  const [simpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  const [storedSimpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  const simpleMode = simpleModeOverride ?? storedSimpleMode;
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
   const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);

@@ -9,7 +9,7 @@ import { canSendState } from '../../spaces/lobby/spaceChildren';
 import { type ActivityTrackedSection, orderRoomsForMode } from '../room-nav/roomActivity';
 import type { RoomOrders, RoomSortMode } from '../room-nav/roomOrder';
 import { type SubRoomTree, buildSubRoomList } from '../room-nav/SubRoomRows';
-import type { SpaceRoomSection as SpaceRoomSectionData } from './spaceRoomSections';
+import type { SpaceRoomSection as SpaceRoomSectionData } from '../../spaces/spaceRoomSections';
 import type { SubspaceSortOptions } from './SpaceSectionHeader';
 
 export type RenderedSpaceRoomSection = SpaceRoomSectionData & {

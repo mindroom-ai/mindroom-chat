@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import type { InteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
 import { splitQuestionBlock } from './questionBlockSplit';
 
@@ -39,10 +40,10 @@ export function QuestionReply({
   }, [html, questionKey]);
   if (marked === undefined) {
     return (
-      <>
+      <FootnoteScopeProvider>
         {renderBody(renderHtml, html)}
         {renderCard(false)}
-      </>
+      </FootnoteScopeProvider>
     );
   }
   const renderPart: RenderHtml = (part) => {
@@ -58,5 +59,5 @@ export function QuestionReply({
       </>
     );
   };
-  return <>{renderBody(renderPart, marked)}</>;
+  return <FootnoteScopeProvider>{renderBody(renderPart, marked)}</FootnoteScopeProvider>;
 }

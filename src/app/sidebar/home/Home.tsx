@@ -49,18 +49,21 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
-import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import * as searchFieldCss from '../../ui/SearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
-import { SpaceRoomSection } from '../space/SpaceRoomSection';
+import { type RenderedSpaceRoomSection, SpaceRoomSection } from '../space/SpaceRoomSection';
+import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { HiddenRailPages } from './HiddenRailPages';
 import { MacAppMenuEntry } from './MacAppMenuEntry';
 import { useHomeRoomSections } from './useHomeRoomSections';
 
 const ROOM_ROW_HEIGHT = 36;
+const homePinMode = (section: RenderedSpaceRoomSection): 'toggle' | undefined =>
+  section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined;
 
 type HomeHeaderProps = {
   roomIds: string[];
@@ -247,7 +250,7 @@ export function Home() {
     tree,
     listedRoomIds,
     roomOrder,
-    sections,
+    sectionTree,
     shortcutRoomIds,
     onCategoryClick,
     onReorder,
@@ -321,7 +324,7 @@ export function Home() {
           />
         }
       >
-        {unspaced.length === 0 && sections.length === 0 ? (
+        {unspaced.length === 0 && sectionTree.length === 0 ? (
           <NavEmptyLayout
             icon={<Icon size="600" src={Icons.Hash} />}
             title={
@@ -353,20 +356,27 @@ export function Home() {
                   renderSubRoom={renderSubRoom}
                 />
               )}
-              {sections.map((section) => (
-                <SpaceRoomSection
-                  key={section.categoryId}
-                  section={section}
-                  spaceId={section.spaceId}
-                  spaceIdOrAlias={section.spaceId}
-                  selectedRoomId={selectedRoomId}
-                  onCategoryClick={onCategoryClick}
-                  onReorder={onReorder}
-                  roomPath={getHomeRoomPath}
-                  showOverview
-                  pinMode={section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined}
-                />
-              ))}
+              {sectionTree.length > 0 && (
+                <div className={spaceSectionCss.SpaceSectionStack}>
+                  {sectionTree.map((node) => (
+                    <SpaceRoomSection
+                      key={node.section.categoryId}
+                      section={node.section}
+                      childNodes={node.children}
+                      subtreeShownRoomIds={node.subtreeShownRoomIds}
+                      spaceId={node.section.spaceId}
+                      spaceIdOrAlias={node.section.spaceId}
+                      selectedRoomId={selectedRoomId}
+                      onCategoryClick={onCategoryClick}
+                      onReorder={onReorder}
+                      roomPath={getHomeRoomPath}
+                      showOverview
+                      quietUnread
+                      pinMode={homePinMode}
+                    />
+                  ))}
+                </div>
+              )}
             </SortableRoomGroup>
             <ThreadNavCategory />
           </Box>

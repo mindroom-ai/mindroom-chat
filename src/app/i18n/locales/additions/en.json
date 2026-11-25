@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
     },
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
     "deviceVerification": {
       "acceptStalled": "The other session did not answer. Close this and start the verification again."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space overview"
+    },
+    "footnote": {
+      "backToReference": "Back to reference"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Server in use",
         "inUseNone": "None set, so computers are off on this device.",
         "useServer": "Use {{host}}",
-        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here.",
+        "foundNotSavedChoose": "Found from your agents, not saved. Choose the server you trust; this device uses it for all rooms."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -918,6 +929,164 @@
         "startEntireScreenShare": "Share entire screen",
         "stopEntireScreenShare": "Stop sharing entire screen"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Allow Full Access",
+        "cancel": "Cancel",
+        "chooseLimits": "Choose limits...",
+        "close": "Close",
+        "disconnect": "Disconnect",
+        "done": "Done",
+        "editLimits": "Edit limits...",
+        "switchToFull": "Switch to Full Access"
+      },
+      "banner": {
+        "restrictedActive": "Restricted access active on this Mac.",
+        "shellReadyWaitingPermissions": "Shell ready - Waiting for macOS screen & input permissions",
+        "waitingPermissions": "Waiting for macOS screen & input permissions"
+      },
+      "browser": {
+        "brewHint": "Or install with Homebrew:",
+        "confirmOnMac": "Confirm this code on {{mac}} to approve access.",
+        "copied": "Copied",
+        "copyCommand": "Copy command",
+        "copyFailed": "Copy failed",
+        "downloadMacApp": "Download MindRoom Chat for Mac",
+        "noMacDescription": "To give {{agent}} access to your Mac, sign in with this account in MindRoom Chat for Mac.",
+        "paired": "{{agent}} is now paired with {{mac}}.",
+        "relayDescription": "Send a pairing request to {{mac}}. You will confirm the 6-digit code and choose Full Access or limits on your Mac.",
+        "selectMac": "Choose a Mac",
+        "sendToMac": "Send to {{mac}}",
+        "waitingOnMac": "Waiting for confirmation on {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.",
+        "upgradeHeading": "Switching to Full Access"
+      },
+      "empty": {
+        "noAgents": "No MindRoom agents found in this room."
+      },
+      "incoming": {
+        "decline": "Decline",
+        "failedTitle": "Could not pair {{agent}}",
+        "sasHint": "Make sure this 6-digit code matches {{requester}} before approving.",
+        "title": "Pair {{agent}} from {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Add folder...",
+        "allowShellOnMac": "Allow shell commands on this Mac",
+        "foldersLabel": "Read-only folders",
+        "fullNote": "Full Access until revoked enables full-screen control and auto-approved shell until revoked.",
+        "fullScreen": "Full screen (primary-screen)",
+        "gui15m": "Allow control for 15 min",
+        "gui1h": "Allow control for 1 hour",
+        "guiFull": "Full Access until revoked",
+        "guiLabel": "Screen & input control",
+        "guiObserve": "Observe only",
+        "installedApps": "Allowed Mac apps",
+        "loadingApps": "Loading installed apps...",
+        "needCapability": "Enable full screen, at least one app, a folder, or shell commands.",
+        "noAppsFound": "No installed Mac apps found.",
+        "noFolders": "No read-only folders added.",
+        "perAgentHeading": "Control & shell approval for {{agent}} (per-agent)",
+        "removeFolder": "Remove",
+        "save": "Allow with limits",
+        "saveChanges": "Save limits",
+        "sharedHeading": "Shared apps, folders & shell on this Mac (applies to all paired agents)",
+        "sharedWithOthersHint": "Shared with other paired agents on this Mac",
+        "shell15m": "Auto-approve for 15 min",
+        "shell1h": "Auto-approve for 1 hour",
+        "shellApprovalLabel": "Shell approval",
+        "shellAsk": "Ask before each command",
+        "shellDisabledHint": "Turn on \"Allow shell commands on this Mac\" below to configure shell approval.",
+        "shellUntilRevoked": "Auto-approve until revoked"
+      },
+      "permissions": {
+        "accessibility": "Accessibility",
+        "accessibilityGrantedHint": "Keyboard and mouse control allowed.",
+        "accessibilityMissingHint": "Allows keyboard and mouse control. Updates automatically once enabled.",
+        "allowAccessibility": "Allow Accessibility",
+        "allowScreenRecording": "Allow Screen Recording",
+        "allowed": "Allowed",
+        "relaunchToActivate": "Relaunch to activate screen control",
+        "screenRecording": "Screen Recording",
+        "screenRecordingGrantedHint": "Screen viewing allowed.",
+        "screenRecordingMissingHint": "Allows paired agents to see your screen.",
+        "screenRecordingRelaunchHint": "Relaunch MindRoom Chat once so macOS activates Screen Recording."
+      },
+      "picker": {
+        "subtitle": "Choose which agent in this room should connect to this Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Give Mac Access",
+        "manageAccess": "Mac Access"
+      },
+      "sas": {
+        "label": "Verification code"
+      },
+      "settings": {
+        "bridgeState": "Bridge state",
+        "helperVersion": "Helper version",
+        "keywords": "mac, computer access, desktop control, shell, accessibility, screen recording, permissions",
+        "lastError": "Last error",
+        "manage": "Manage",
+        "noPairedAgentsDescription": "Open a room with an agent and choose Give Mac Access to connect it.",
+        "noPairedAgentsTitle": "No agents paired yet",
+        "notSignedIn": "Not signed in",
+        "pairedAgentsTitle": "Paired agents",
+        "permissionsTitle": "macOS Permissions",
+        "revokeAll": "Revoke All Access",
+        "revokeAllDescription": "Disconnect all paired agents and immediately stop computer access on this Mac.",
+        "runningShellTitle": "Running shell commands",
+        "savedSession": "Saved Matrix session",
+        "sectionTitle": "This Mac",
+        "statusActive": "Active",
+        "statusDescription": "Control which MindRoom agents can see and control this Mac.",
+        "statusStopped": "Stopped",
+        "statusTitle": "Mac Computer Access",
+        "statusUnavailable": "Not available on this Mac",
+        "stopCommand": "Stop",
+        "title": "This Mac",
+        "unavailableDescription": "Mac Computer Access requires MindRoom Chat for Mac on Apple Silicon.",
+        "unknown": "Unknown"
+      },
+      "shellApproval": {
+        "approveOnce": "Approve once",
+        "approveOnceCountdown": "Approve once ({{seconds}})",
+        "autoApprove15m": "Auto-approve 15 min",
+        "autoApprove15mCountdown": "Auto-approve 15 min ({{seconds}})",
+        "cwdLabel": "Working directory",
+        "deny": "Deny",
+        "empty": "No shell command is waiting for approval.",
+        "title": "Approve shell command?"
+      },
+      "status": {
+        "fullAccess": "Full Access",
+        "fullAccessActive": "Full Access active",
+        "permissionsNeeded": "Permissions needed",
+        "restricted": "Restricted",
+        "shellReady": "Shell ready"
+      },
+      "steps": {
+        "confirming": "Confirming pairing...",
+        "finishing": "Activating access...",
+        "pairing": "Pairing with {{agent}}...",
+        "requestingOffer": "Contacting {{agent}}...",
+        "signingIn": "Signing in on this Mac..."
+      },
+      "title": {
+        "allowFull": "Allow {{agent}} full access to this Mac?",
+        "browserPair": "Give {{agent}} access to your Mac",
+        "chooseLimits": "Choose limits for {{agent}}",
+        "default": "Mac Computer Access",
+        "editLimits": "Edit limits for {{agent}}",
+        "manageAgent": "{{agent}} on this Mac",
+        "pickAgent": "Give an agent access to this Mac"
+      },
+      "unavailable": {
+        "description": "Mac Computer Access is not available on this device."
+      }
     }
   },
   "mindroomUi": {
@@ -1062,7 +1231,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Event payload JSON"
+        "payloadLabel": "Event payload JSON",
+        "openTriggerLabel": "View trigger {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} todo ready",
@@ -2059,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "text": "Press the pin on a card, or Pin thread in Thread options (⋯), to keep a thread at the top. Edit tags in Thread options labels a thread, and you can filter by tag."
       },
       "filters": {
         "title": "Filters hide resolved threads",
@@ -2218,6 +2388,45 @@
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
   },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Loading…",
+    "empty": "No triggers in this room.",
+    "emptyHint": "Triggers configured for this room appear here.",
+    "loadError": "Couldn't load triggers.",
+    "missingTrigger": "Trigger {{id}} is no longer in this room.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Room watch",
+      "external_event": "Event subscription",
+      "thread_tag": "Thread tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Watching this room",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "disabledExpired": "Expired",
+    "disabledOnceConsumed": "Used",
+    "lastFired": "Last fired {{time}}",
+    "neverFired": "No recorded firing",
+    "destinationRoom": "Room timeline",
+    "destinationThread": "Thread",
+    "destinationNewThread": "New thread",
+    "destinationOrigin": "Origin thread",
+    "openThread": "Open thread",
+    "prompt": "Prompt",
+    "enable": "Enable",
+    "disable": "Disable",
+    "updating": "Updating...",
+    "toggleError": "Could not update trigger. Try again.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this trigger?",
+    "keep": "Keep",
+    "deleteTrigger": "Delete trigger",
+    "deleting": "Deleting...",
+    "deleteError": "Could not delete trigger. Try again."
+  },
   "home": {
     "greeting": {
       "morning": "Good morning, {{name}}",
@@ -2260,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} room",
       "roomsCount_other": "{{count}} rooms",
-      "roomsFiltered": "{{active}} of {{total}} rooms"
+      "roomsFiltered": "{{active}} of {{total}} rooms",
+      "switchSpace": "Switch space"
     },
     "roomFilter": {
       "label": "Rooms",
@@ -2285,5 +2495,13 @@
     "error": {
       "title": "Could not load space threads"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }

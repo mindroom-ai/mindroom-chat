@@ -1,6 +1,8 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
+import { footerInset } from '../ui/styles/RoomOverlay.css';
+import { compactJumpArea } from '../ui/styles/roomArea.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
 /** A control that hovers over the timeline, centered at its top or bottom edge. */
@@ -47,6 +49,74 @@ export const FloatingAction = style([
     },
   },
 ]);
+
+/**
+ * Keeps Jump to Latest low above the composer so typing and read receipts can share the dock row
+ * beside it without shifting it; uses +S200 in compact areas to sit vertically flush with the
+ * 32 px dock row.
+ */
+export const JumpToLatestFloat = style({
+  bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S400})`,
+  maxWidth: `min(calc(100% - ${config.space.S400} * 2), 11rem)`,
+  '@container': {
+    [compactJumpArea]: {
+      bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S200})`,
+      maxWidth: 'none',
+      '@media': {
+        '(pointer: coarse)': {
+          bottom: `calc(var(--room-composer-height, ${footerInset}) + max(${config.space.S200}, calc(22px - 1rem)))`,
+        },
+      },
+    },
+  },
+});
+
+/**
+ * Collapses Jump to Latest to a 32 × 32 px circular arrow button in compact (narrow or short)
+ * panes while giving coarse pointers a 44 × 44 px hit area inside the 44 px center lane.
+ * Triple-class specificity (`&&&`) beats folds' Chip `[data-ui-before=true]` inline padding and
+ * `FloatingAction`'s `&&` height/padding rules regardless of stylesheet order.
+ */
+export const JumpToLatestButton = style([
+  // Placed after FloatingAction so its 16px inline reach overrides FloatingAction's 4px and
+  // guarantees a full 44 × 44 px hit area on the outlined 32 × 32 px button across Page Zoom
+  // levels down to 50% (14 px padding box, -15 px) without exceeding 44 px.
+  touchTarget('16px'),
+  {
+    '@container': {
+      [compactJumpArea]: {
+        selectors: {
+          '&&&': {
+            inlineSize: toRem(32),
+            blockSize: toRem(32),
+            minHeight: toRem(32),
+            padding: 0,
+            gap: 0,
+            justifyContent: 'center',
+          },
+        },
+      },
+    },
+  },
+]);
+
+/** Visually hidden in compact panes while keeping the button's accessible name intact. */
+export const JumpToLatestLabel = style({
+  textWrap: 'balance',
+  '@container': {
+    [compactJumpArea]: {
+      position: 'absolute',
+      width: '1px',
+      height: '1px',
+      padding: 0,
+      margin: '-1px',
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'nowrap',
+      border: 0,
+    },
+  },
+});
 
 /** "[+all]": 16 px of text in a 1 px rim, 18 px tall, as thread-light.png shows it. */
 const expandAllPillHeight = `calc(${toRem(16)} + 2px)`;

@@ -151,14 +151,58 @@ describe('tourScenes', () => {
     });
   });
 
-  it('pins a card above the tagged rest for `pinAndTag`', () => {
-    expect(sceneOf('pinAndTag', 0, false, TYPED).pinned).toEqual([]);
+  it('shows how to pin, moves the thread to Pinned, opens Edit tags, then settles tagged for `pinAndTag`', () => {
+    // Phase 0: how to pin (hover Pin button on desktop, Pin in Thread options on phone).
+    const desktopStart = sceneOf('pinAndTag', 0, false, TYPED);
+    expect(desktopStart).toMatchObject({
+      pinned: [],
+      actionsOn: 'budget',
+      spotlight: 'pinButton',
+    });
+    expect(desktopStart.menuOn).toBeUndefined();
+    expect(stateOf(desktopStart, 'budget')?.tags).toBeFalsy();
+    expect(stateOf(desktopStart, 'launch')?.tags).toBe(true);
+    expect(stateOf(desktopStart, 'website')?.tags).toBe(true);
+
+    const phoneStart = sceneOf('pinAndTag', 0, true, TYPED);
+    expect(phoneStart).toMatchObject({
+      pinned: [],
+      menuOn: 'budget',
+      spotlight: 'menuPin',
+    });
+    expect(phoneStart.actionsOn).toBeUndefined();
+    expect(stateOf(phoneStart, 'budget')?.tags).toBeFalsy();
+
     [false, true].forEach((phone) => {
+      // Phase 1: budget glides to the Pinned section.
+      const pinnedPhase = sceneOf('pinAndTag', 1, phone, TYPED);
+      expect(pinnedPhase).toMatchObject({
+        pinned: ['budget'],
+        spotlight: 'pinnedSection',
+      });
+      expect(pinnedPhase.menuOn).toBeUndefined();
+      expect(ids(pinnedPhase)[0]).toBe('budget');
+      expect(stateOf(pinnedPhase, 'budget')?.tags).toBeFalsy();
+
+      // Phase 2: Thread options opens on the pinned card to spotlight Edit tags.
+      const tagPhase = sceneOf('pinAndTag', 2, phone, TYPED);
+      expect(tagPhase).toMatchObject({
+        pinned: ['budget'],
+        menuOn: 'budget',
+        spotlight: 'menuTags',
+      });
+      expect(tagPhase.actionsOn).toBe(phone ? undefined : 'budget');
+      expect(stateOf(tagPhase, 'budget')?.tags).toBeFalsy();
+
+      // Phase 3: settled (pinned and tagged).
       const scene = lastScene('pinAndTag', phone);
-      expect(scene.pinned).toHaveLength(1);
-      const [pinned] = scene.pinned;
-      expect(ids(scene)[0]).toBe(pinned);
-      expect(scene.spotlight).toBe(`card:${pinned}`);
+      expect(scene).toMatchObject({
+        pinned: ['budget'],
+        spotlight: 'card:budget',
+      });
+      expect(scene.actionsOn).toBeUndefined();
+      expect(scene.menuOn).toBeUndefined();
+      expect(ids(scene)[0]).toBe('budget');
       expect(scene.cards.every((card) => card.state.tags)).toBe(true);
     });
   });
@@ -265,7 +309,8 @@ describe('tourScenes', () => {
           const scene = sceneOf(step.id, phase, phone, TYPED);
           expect(scene.bell, step.id).toBe(step.id === 'activity');
           if (step.id !== 'filters') expect(scene.filterBar, step.id).toBe(false);
-          if (step.id !== 'snooze') expect(scene.menuOn, step.id).toBeUndefined();
+          if (step.id !== 'snooze' && step.id !== 'pinAndTag')
+            expect(scene.menuOn, step.id).toBeUndefined();
           if (step.id !== 'start') expect(scene.typed, step.id).toBe(0);
           if (step.id !== 'states' || !phone)
             expect(scene.header && scene.composer, step.id).toBe(true);
@@ -307,5 +352,21 @@ describe('tourScenes', () => {
         });
       });
     });
+  });
+
+  it('uses desktop room chrome with touch card actions on touch tablets', () => {
+    // Desktop room chrome: no phone room menu on filters or views, header stays on states.
+    expect(sceneOf('filters', 0, false, TYPED, true).roomMenu).toBe(false);
+    expect(sceneOf('views', 0, false, TYPED, true).roomMenu).toBe(false);
+    expect(sceneOf('states', 0, false, TYPED, true).header).toBe(true);
+
+    // Touch card actions: swipe on resolve, permanent options on snooze, menuPin on pinAndTag.
+    expect(sceneOf('resolve', 0, false, TYPED, true).spotlight).toBe('card:vendor');
+    expect(sceneOf('snooze', 0, false, TYPED, true).actionsOn).toBeUndefined();
+    expect(sceneOf('pinAndTag', 0, false, TYPED, true)).toMatchObject({
+      menuOn: 'budget',
+      spotlight: 'menuPin',
+    });
+    expect(sceneOf('pinAndTag', 2, false, TYPED, true).actionsOn).toBeUndefined();
   });
 });

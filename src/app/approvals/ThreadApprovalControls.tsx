@@ -507,6 +507,7 @@ export function ThreadApprovalQueue() {
           className={css.Bar}
           role="region"
           aria-label={t('mindroomUi.messages.threadApprovalControls.threadApprovals')}
+          data-approvals-bar=""
         >
           <small className={css.BarStatus} role="status">
             {waiting?.agents.length === 1 ? (

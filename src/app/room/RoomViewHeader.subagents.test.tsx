@@ -94,6 +94,7 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => currentRoom.topic,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
+vi.mock('../triggers/useRoomTriggers', () => import('../triggers/useRoomTriggers.test.shared'));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => schedules.events }));
 vi.mock('../messages/useMentionClickHandler', () => ({ useMentionClickHandler: () => vi.fn() }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({

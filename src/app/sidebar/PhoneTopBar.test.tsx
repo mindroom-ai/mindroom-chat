@@ -53,10 +53,10 @@ vi.mock('../activity/useActivityRows', () => ({ useActivityBadge: () => activity
 vi.mock('../activity/ActivitySheet', () => ({
   ActivitySheet: () => React.createElement('section', { 'data-activity-sheet': true }),
 }));
-vi.mock('./rail/ActivityTab', () => ({
+vi.mock('../activity/ActivityBadge', () => ({
   ActivityBadge: ({ count }: { count: number }) => React.createElement('b', null, String(count)),
 }));
-vi.mock('./PhoneTopBar.css', () => ({
+vi.mock('../ui/sidebar/PhoneTopBar.css', () => ({
   PhoneTopBar: 'bar',
   PhoneChrome: 'chrome',
   ReturnToCallRow: 'call-row',
@@ -68,7 +68,7 @@ vi.mock('./PhoneTopBar.css', () => ({
   BellFrame: 'bell',
   BellBadge: 'bell-badge',
 }));
-vi.mock('../command-palette/CommandPaletteSearchField.css', () => ({
+vi.mock('../ui/SearchField.css', () => ({
   SearchField: 'field',
   SearchPlaceholder: 'placeholder',
   ShortcutHint: 'shortcut-hint',

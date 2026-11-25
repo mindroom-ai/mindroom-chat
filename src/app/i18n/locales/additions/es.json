@@ -278,6 +278,13 @@
       "threadIn": "Hilo en {{room}}",
       "messageElsewhere": "Mensaje en otra sala"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Consejo",
+      "important": "Importante",
+      "warning": "Advertencia",
+      "caution": "Precaución"
+    },
     "deviceVerification": {
       "acceptStalled": "La otra sesión no respondió. Cierra esto y vuelve a iniciar la verificación."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Resumen del espacio"
+    },
+    "footnote": {
+      "backToReference": "Volver a la referencia"
     }
   },
   "featureUi": {
@@ -495,7 +505,8 @@
         "inUse": "Servidor en uso",
         "inUseNone": "No hay ninguno, así que los ordenadores están desactivados en este dispositivo.",
         "useServer": "Usar {{host}}",
-        "foundNotSaved": "Encontrado a través de tus agentes, sin guardar; guárdalo para introducir claves aquí."
+        "foundNotSaved": "Encontrado a través de tus agentes, sin guardar; guárdalo para introducir claves aquí.",
+        "foundNotSavedChoose": "Encontrados a través de tus agentes, sin guardar. Elige el servidor en el que confías; este dispositivo lo usa para todas las salas."
       },
       "keywords": {
         "theme": "modo oscuro, modo claro, modo noche, colores",
@@ -935,6 +946,164 @@
         "startEntireScreenShare": "Compartir toda la pantalla",
         "stopEntireScreenShare": "Dejar de compartir toda la pantalla"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Permitir acceso completo",
+        "cancel": "Cancelar",
+        "chooseLimits": "Elegir límites...",
+        "close": "Cerrar",
+        "disconnect": "Desconectar",
+        "done": "Listo",
+        "editLimits": "Editar límites...",
+        "switchToFull": "Cambiar a acceso completo"
+      },
+      "banner": {
+        "restrictedActive": "Acceso restringido activo en este Mac.",
+        "shellReadyWaitingPermissions": "Shell lista - Esperando permisos de pantalla y entrada de macOS",
+        "waitingPermissions": "Esperando permisos de pantalla y entrada de macOS"
+      },
+      "browser": {
+        "brewHint": "O instala con Homebrew:",
+        "confirmOnMac": "Confirma este código en {{mac}} para aprobar el acceso.",
+        "copied": "Copiado",
+        "copyCommand": "Copiar comando",
+        "copyFailed": "Error al copiar",
+        "downloadMacApp": "Descargar MindRoom Chat para Mac",
+        "noMacDescription": "Para dar a {{agent}} acceso a tu Mac, inicia sesión con esta cuenta en MindRoom Chat para Mac.",
+        "paired": "{{agent}} ya está emparejado con {{mac}}.",
+        "relayDescription": "Envía una solicitud de emparejamiento a {{mac}}. Confirmarás el código de 6 dígitos y elegirás acceso completo o límites en tu Mac.",
+        "selectMac": "Elegir un Mac",
+        "sendToMac": "Enviar a {{mac}}",
+        "waitingOnMac": "Esperando confirmación en {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} podrá ver tu pantalla, controlar cualquier app y ejecutar comandos de shell como tu usuario de macOS sin preguntar, incluso tras reiniciar. Puedes detenerlo en cualquier momento desde la barra de menús.",
+        "upgradeHeading": "Cambiando a acceso completo"
+      },
+      "empty": {
+        "noAgents": "No se encontraron agentes de MindRoom en esta sala."
+      },
+      "incoming": {
+        "decline": "Rechazar",
+        "failedTitle": "No se pudo emparejar a {{agent}}",
+        "sasHint": "Asegúrate de que este código de 6 dígitos coincida con {{requester}} antes de aprobar.",
+        "title": "¿Emparejar a {{agent}} desde {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Añadir carpeta...",
+        "allowShellOnMac": "Permitir comandos de shell en este Mac",
+        "foldersLabel": "Carpetas de solo lectura",
+        "fullNote": "El acceso completo hasta revocación habilita el control de pantalla completa y la shell autoaprobada hasta que lo revoques.",
+        "fullScreen": "Pantalla completa (primary-screen)",
+        "gui15m": "Permitir control durante 15 min",
+        "gui1h": "Permitir control durante 1 hora",
+        "guiFull": "Acceso completo hasta revocación",
+        "guiLabel": "Control de pantalla y entrada",
+        "guiObserve": "Solo observar",
+        "installedApps": "Apps de Mac permitidas",
+        "loadingApps": "Cargando apps instaladas...",
+        "needCapability": "Activa pantalla completa, al menos una app, una carpeta o comandos de shell.",
+        "noAppsFound": "No se encontraron apps de Mac instaladas.",
+        "noFolders": "No se han añadido carpetas de solo lectura.",
+        "perAgentHeading": "Control y aprobación de shell para {{agent}} (por agente)",
+        "removeFolder": "Quitar",
+        "save": "Permitir con límites",
+        "saveChanges": "Guardar límites",
+        "sharedHeading": "Apps, carpetas y shell compartidos en este Mac (aplica a todos los agentes emparejados)",
+        "sharedWithOthersHint": "Compartido con otros agentes emparejados en este Mac",
+        "shell15m": "Autoaprobar durante 15 min",
+        "shell1h": "Autoaprobar durante 1 hora",
+        "shellApprovalLabel": "Aprobación de shell",
+        "shellAsk": "Preguntar antes de cada comando",
+        "shellDisabledHint": "Activa abajo \"Permitir comandos de shell en este Mac\" para configurar la aprobación de shell.",
+        "shellUntilRevoked": "Autoaprobar hasta revocación"
+      },
+      "permissions": {
+        "accessibility": "Accesibilidad",
+        "accessibilityGrantedHint": "Control de teclado y ratón permitido.",
+        "accessibilityMissingHint": "Permite el control de teclado y ratón. Se actualiza automáticamente al activarlo.",
+        "allowAccessibility": "Permitir Accesibilidad",
+        "allowScreenRecording": "Permitir Grabación de pantalla",
+        "allowed": "Permitido",
+        "relaunchToActivate": "Reiniciar para activar el control de pantalla",
+        "screenRecording": "Grabación de pantalla",
+        "screenRecordingGrantedHint": "Visualización de pantalla permitida.",
+        "screenRecordingMissingHint": "Permite a los agentes emparejados ver tu pantalla.",
+        "screenRecordingRelaunchHint": "Reinicia MindRoom Chat una vez para que macOS active la Grabación de pantalla."
+      },
+      "picker": {
+        "subtitle": "Elige qué agente de esta sala debe conectarse a este Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Dar acceso al Mac",
+        "manageAccess": "Acceso al Mac"
+      },
+      "sas": {
+        "label": "Código de verificación"
+      },
+      "settings": {
+        "bridgeState": "Estado del puente",
+        "helperVersion": "Versión del asistente",
+        "keywords": "mac, acceso al equipo, control de escritorio, shell, accesibilidad, grabación de pantalla, permisos",
+        "lastError": "Último error",
+        "manage": "Gestionar",
+        "noPairedAgentsDescription": "Abre una sala con un agente y elige Dar acceso al Mac para conectarlo.",
+        "noPairedAgentsTitle": "Aún no hay agentes emparejados",
+        "notSignedIn": "Sin sesión iniciada",
+        "pairedAgentsTitle": "Agentes emparejados",
+        "permissionsTitle": "Permisos de macOS",
+        "revokeAll": "Revocar todo el acceso",
+        "revokeAllDescription": "Desconecta todos los agentes emparejados y detiene de inmediato el acceso al equipo en este Mac.",
+        "runningShellTitle": "Comandos de shell en ejecución",
+        "savedSession": "Sesión de Matrix guardada",
+        "sectionTitle": "Este Mac",
+        "statusActive": "Activo",
+        "statusDescription": "Controla qué agentes de MindRoom pueden ver y controlar este Mac.",
+        "statusStopped": "Detenido",
+        "statusTitle": "Acceso al Mac",
+        "statusUnavailable": "No disponible en este Mac",
+        "stopCommand": "Detener",
+        "title": "Este Mac",
+        "unavailableDescription": "El acceso al Mac requiere MindRoom Chat para Mac en Apple Silicon.",
+        "unknown": "Desconocido"
+      },
+      "shellApproval": {
+        "approveOnce": "Aprobar una vez",
+        "approveOnceCountdown": "Aprobar una vez ({{seconds}})",
+        "autoApprove15m": "Autoaprobar 15 min",
+        "autoApprove15mCountdown": "Autoaprobar 15 min ({{seconds}})",
+        "cwdLabel": "Directorio de trabajo",
+        "deny": "Denegar",
+        "empty": "No hay ningún comando de shell esperando aprobación.",
+        "title": "¿Aprobar comando de shell?"
+      },
+      "status": {
+        "fullAccess": "Acceso completo",
+        "fullAccessActive": "Acceso completo activo",
+        "permissionsNeeded": "Permisos necesarios",
+        "restricted": "Restringido",
+        "shellReady": "Shell lista"
+      },
+      "steps": {
+        "confirming": "Confirmando emparejamiento...",
+        "finishing": "Activando acceso...",
+        "pairing": "Emparejando con {{agent}}...",
+        "requestingOffer": "Contactando con {{agent}}...",
+        "signingIn": "Iniciando sesión en este Mac..."
+      },
+      "title": {
+        "allowFull": "¿Permitir a {{agent}} acceso completo a este Mac?",
+        "browserPair": "Dar a {{agent}} acceso a tu Mac",
+        "chooseLimits": "Elegir límites para {{agent}}",
+        "default": "Acceso al Mac",
+        "editLimits": "Editar límites para {{agent}}",
+        "manageAgent": "{{agent}} en este Mac",
+        "pickAgent": "Dar acceso a un agente a este Mac"
+      },
+      "unavailable": {
+        "description": "El acceso al Mac no está disponible en este dispositivo."
+      }
     }
   },
   "mindroomUi": {
@@ -1081,7 +1250,8 @@
         "triggerLabel": "Activador {{id}}",
         "sourceLabel": "Origen {{source}}",
         "triageLabel": "Triaje: {{reason}}",
-        "payloadLabel": "Carga del evento JSON"
+        "payloadLabel": "Carga del evento JSON",
+        "openTriggerLabel": "Ver activador {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tarea lista",
@@ -2128,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Fijar y etiquetar",
-        "text": "«Fijar hilo» mantiene un hilo al principio de la lista. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
+        "text": "Pulsa la chincheta en una tarjeta, o «Fijar hilo» en «Opciones del hilo» (⋯), para mantener un hilo arriba. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
       },
       "filters": {
         "title": "Los filtros ocultan los hilos resueltos",
@@ -2296,6 +2466,45 @@
     "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
     "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
   },
+  "roomTriggers": {
+    "title": "Activadores",
+    "openLabel": "Activadores ({{total}})",
+    "loading": "Cargando…",
+    "empty": "No hay activadores en esta sala.",
+    "emptyHint": "Los activadores configurados para esta sala aparecen aquí.",
+    "loadError": "No se pudieron cargar los activadores.",
+    "missingTrigger": "El activador {{id}} ya no está en esta sala.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Vigilancia de sala",
+      "external_event": "Suscripción de eventos",
+      "thread_tag": "Etiqueta de hilo",
+      "unknown": "Activador"
+    },
+    "watchingRoom": "Vigilando esta sala",
+    "stateOn": "Activo",
+    "stateOff": "Inactivo",
+    "disabledExpired": "Caducado",
+    "disabledOnceConsumed": "Usado una vez",
+    "lastFired": "Última ejecución {{time}}",
+    "neverFired": "Sin activaciones registradas",
+    "destinationRoom": "Cronología de la sala",
+    "destinationThread": "Hilo",
+    "destinationNewThread": "Nuevo hilo",
+    "destinationOrigin": "Hilo de origen",
+    "openThread": "Abrir hilo",
+    "prompt": "Instrucción",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "updating": "Actualizando...",
+    "toggleError": "No se pudo actualizar el activador. Inténtalo de nuevo.",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar este activador?",
+    "keep": "Conservar",
+    "deleteTrigger": "Eliminar activador",
+    "deleting": "Eliminando...",
+    "deleteError": "No se pudo eliminar el activador. Inténtalo de nuevo."
+  },
   "home": {
     "greeting": {
       "morning": "Buenos días, {{name}}",
@@ -2339,7 +2548,8 @@
       "roomsCount_one": "{{count}} sala",
       "roomsCount_many": "{{count}} salas",
       "roomsCount_other": "{{count}} salas",
-      "roomsFiltered": "{{active}} de {{total}} salas"
+      "roomsFiltered": "{{active}} de {{total}} salas",
+      "switchSpace": "Cambiar de espacio"
     },
     "roomFilter": {
       "label": "Salas",
@@ -2364,5 +2574,13 @@
     "error": {
       "title": "No se pudieron cargar los hilos del espacio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama de Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

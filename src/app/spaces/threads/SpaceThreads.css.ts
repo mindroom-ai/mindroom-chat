@@ -43,6 +43,51 @@ export const HeaderBadge = style([
   },
 ]);
 
+export const SpaceSwitcherButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  columnGap: config.space.S200,
+  paddingBlock: config.space.S100,
+  paddingInline: config.space.S100,
+  marginInlineStart: `calc(-1 * ${config.space.S100})`,
+  border: 'none',
+  borderRadius: config.radii.R300,
+  background: 'none',
+  color: 'inherit',
+  cursor: 'pointer',
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+    '&[aria-expanded="true"]': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+  },
+});
+
+export const SpaceSwitcherMenu = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minInlineSize: toRem(220),
+  maxInlineSize: toRem(300),
+  maxBlockSize: toRem(320),
+});
+
+export const SpaceSwitcherScroll = style({
+  minBlockSize: 0,
+  overflowY: 'auto',
+  padding: config.space.S100,
+  display: 'flex',
+  flexDirection: 'column',
+  rowGap: toRem(2),
+});
+
 export const RoomBadgeName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
