@@ -18,6 +18,7 @@ import { isRoomInSelfMDirect, useMDirectContent } from '../../matrix/state/mDire
 import { IconTooltip } from '../../ui/IconTooltip';
 import * as css from './RoomNavItem.css';
 
+const EMPTY_DRAFT: readonly unknown[] = [];
 const EMPTY_DRAFT_VALUE_ATOM = atom<readonly unknown[] | undefined>(() => undefined);
 
 /** Subtle trailing row mark icon wrapped in an `IconTooltip`. */
@@ -106,7 +107,7 @@ export function RoomDraftMark({
     [draftKey]
   );
   const inMemoryDraft = useAtomValue(writtenAtom);
-  const [, bumpStorage] = useReducer((count: number) => count + 1, 0);
+  const [storageVersion, bumpStorage] = useReducer((count: number) => count + 1, 0);
 
   useEffect(() => {
     if (!draftKey || typeof window === 'undefined') return undefined;
@@ -118,8 +119,13 @@ export function RoomDraftMark({
     return () => window.removeEventListener('storage', onStorage);
   }, [draftKey]);
 
-  const draft = inMemoryDraft ?? (draftKey ? readStoredMsgDraft(draftKey) : []);
-  const hasDraft = hasMeaningfulDraftContent(draft);
+  const needsStoredDraft = inMemoryDraft === undefined;
+  const storedDraft = useMemo(() => {
+    void storageVersion;
+    return needsStoredDraft && draftKey ? readStoredMsgDraft(draftKey) : undefined;
+  }, [needsStoredDraft, draftKey, storageVersion]);
+  const draft = inMemoryDraft ?? storedDraft ?? EMPTY_DRAFT;
+  const hasDraft = useMemo(() => hasMeaningfulDraftContent(draft), [draft]);
   const label = t('featureUi.roomNav.roomNavItem.draft');
   return (
     <>
