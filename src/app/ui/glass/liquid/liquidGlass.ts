@@ -43,6 +43,7 @@ const watchPreferences = (view: Window, listener: () => void) => {
   };
 };
 
+// Approximates elliptical (rx ry) and % corners as circular arcs using the leading radius token.
 const parseCornerRadii = (
   style: CSSStyleDeclaration,
   width: number,
@@ -360,7 +361,13 @@ export const attachLiquidGlass = (
         }
       })
     : undefined;
-  resizeObserver?.observe(element);
+  if (resizeObserver) {
+    try {
+      resizeObserver.observe(element, { box: 'border-box' });
+    } catch {
+      resizeObserver.observe(element);
+    }
+  }
   intersectionObserver?.observe(element);
   element.addEventListener('pointermove', onPointerMove, { passive: true });
   element.addEventListener('pointerleave', clearLight);

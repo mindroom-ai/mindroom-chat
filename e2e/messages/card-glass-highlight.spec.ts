@@ -73,6 +73,9 @@ for (const theme of ['light', 'dark']) {
         await page.emulateMedia({ reducedMotion: 'no-preference', contrast: 'more' });
         await surface.hover({ position: { x: 12, y: 12 } });
         await expect(surface).toHaveCSS('background-image', 'none');
+        expect(
+          await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+        ).toBe('none');
         await page.emulateMedia({ contrast: 'no-preference' });
       }
       if (fixture === 'messages') {

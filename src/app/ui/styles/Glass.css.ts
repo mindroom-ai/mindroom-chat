@@ -126,7 +126,8 @@ const material = (
           pointerEvents: 'none',
           backgroundImage: [
             `radial-gradient(circle 120px at var(--liquid-glass-light-x, -999px) var(--liquid-glass-light-y, -999px), ${rimGlint}, transparent 72%)`,
-            `linear-gradient(135deg, ${rimCornerTop} 0%, transparent 26%, transparent 74%, ${rimCornerBottom} 100%)`,
+            `radial-gradient(circle 18px at 0% 0%, ${rimCornerTop} 0%, transparent 78%)`,
+            `radial-gradient(circle 18px at 100% 100%, ${rimCornerBottom} 0%, transparent 78%)`,
             `linear-gradient(180deg, ${rimTop} 0%, ${rimSide} 36%, ${rimSide} 68%, ${rimBottom} 100%)`,
           ].join(', '),
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
@@ -336,7 +337,7 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
-        // Vertical lighting and 45° corner gleams catch the edge while the sides recede. Menus,
+        // Vertical lighting and corner gleams catch the edge while the sides recede. Menus,
         // popovers and dialogs hold text over the page, so their glass is tinted nearly opaque.
         material(
           88,

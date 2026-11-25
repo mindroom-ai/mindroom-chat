@@ -241,42 +241,67 @@ describe('liquid glass rendering lifecycle', () => {
     expect(document.querySelectorAll('feBlend')).toHaveLength(0);
   });
 
-  it('tracks all four corner radii including elliptical pairs and percentages', () => {
+  it('tracks all four corner radii and parses elliptical pairs and percentages independently', () => {
     const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
+    const mountSurface = (radii: [string, string, string, string]) => {
+      const node = document.createElement('div');
+      [
+        node.style.borderTopLeftRadius,
+        node.style.borderTopRightRadius,
+        node.style.borderBottomRightRadius,
+        node.style.borderBottomLeftRadius,
+      ] = radii;
+      Object.defineProperties(node, {
+        offsetWidth: { value: 180 },
+        offsetHeight: { value: 80 },
+      });
+      document.body.append(node);
+      const detach = attachLiquidGlass(node);
+      notifyVisibility(
+        [{ target: node, isIntersecting: true } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+      vi.runAllTimers();
+      return () => {
+        detach();
+        node.remove();
+      };
+    };
+
     toDataURL.mockClear();
-    element.style.borderTopLeftRadius = '20px 10px';
-    element.style.borderTopRightRadius = '20px';
-    element.style.borderBottomRightRadius = '0px';
-    element.style.borderBottomLeftRadius = '0px';
-    cleanup = attachLiquidGlass(element);
-    show(true);
+    const detachBase = mountSurface(['20px', '20px', '0px', '0px']);
     expect(toDataURL).toHaveBeenCalledTimes(1);
 
-    // Changing only a bottom corner radius produces a distinct cache key and displacement map.
-    const second = document.createElement('div');
-    second.style.borderTopLeftRadius = '20px';
-    second.style.borderTopRightRadius = '20px';
-    second.style.borderBottomRightRadius = '0px';
-    second.style.borderBottomLeftRadius = '50%';
-    Object.defineProperties(second, {
-      offsetWidth: { value: 180 },
-      offsetHeight: { value: 80 },
-    });
-    document.body.append(second);
-    const cleanupSecond = attachLiquidGlass(second);
-    notifyVisibility(
-      [{ target: second, isIntersecting: true } as unknown as IntersectionObserverEntry],
-      {} as IntersectionObserver
-    );
-    vi.runAllTimers();
+    // Elliptical "20px 10px" uses the leading 20px radius and hits the same map cache entry.
+    const detachElliptical = mountSurface(['20px 10px', '20px', '0px', '0px']);
+    expect(toDataURL).toHaveBeenCalledTimes(1);
+
+    // Changing only a bottom corner via "%" produces a distinct cache key and displacement map.
+    const detachPercent = mountSurface(['20px', '20px', '0px', '50%']);
     expect(toDataURL).toHaveBeenCalledTimes(2);
-    cleanupSecond();
-    second.remove();
+
+    detachPercent();
+    detachElliptical();
+    detachBase();
   });
 
   it('uses fractional ResizeObserver borderBoxSize rounded up to avoid right/bottom clipping', () => {
+    const observe = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = callback;
+        }
+
+        observe = observe;
+
+        disconnect() {}
+      }
+    );
     const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
     cleanup = attachLiquidGlass(element);
+    expect(observe).toHaveBeenCalledWith(element, { box: 'border-box' });
     const entry = {
       target: element,
       borderBoxSize: [{ inlineSize: 240.3, blockSize: 80.2 }],
