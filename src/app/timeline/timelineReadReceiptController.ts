@@ -86,7 +86,7 @@ type ReadReceiptControllerOptions = {
   ) => void | Promise<void>;
   hideActivity: boolean;
   mx: MatrixClient;
-  readUptoEventIdRef: MutableRefObject<string | undefined>;
+  readUptoEventIdRef?: MutableRefObject<string | undefined>;
   /**
    * Whether reaching the bottom, or coming back to the window there, reads the room's main
    * timeline. Compact never does, also while a room without a thread shows its timeline. Default
@@ -100,20 +100,23 @@ type ReadReceiptControllerOptions = {
    * room reads the threads of those replies too.
    */
   classicRows?: () => MatrixEvent[];
-  threadEventsLength: number;
+  threadEventsLength?: number;
   threadId?: string;
-  threadInitialRenderMode: ThreadInitialRenderMode;
+  threadInitialRenderMode?: ThreadInitialRenderMode;
   /**
    * The events the open thread renders: reading it at its bottom reaches its newest reply there.
    * The thread model may know newer replies that are not rendered yet.
    */
-  threadEvents: readonly MatrixEvent[];
-  threadTailLoaded: boolean;
+  threadEvents?: readonly MatrixEvent[];
+  threadTailLoaded?: boolean;
   timelineAtLiveEnd: boolean;
   unreadInfo?: { inLiveTimeline: boolean; readUptoEventId: string };
 };
 
 /** The values a read decision takes from the newest render. */
+const EMPTY_EVENTS: readonly MatrixEvent[] = [];
+const EMPTY_READ_UPTO_REF: MutableRefObject<string | undefined> = { current: undefined };
+
 type ReadContext = Pick<
   ReadReceiptControllerOptions,
   | 'getScrollElement'
@@ -123,13 +126,14 @@ type ReadContext = Pick<
   | 'readsMainTimeline'
   | 'room'
   | 'classicRows'
-  | 'threadEventsLength'
   | 'threadId'
-  | 'threadInitialRenderMode'
-  | 'threadEvents'
-  | 'threadTailLoaded'
   | 'unreadInfo'
->;
+> & {
+  threadEventsLength: number;
+  threadInitialRenderMode: ThreadInitialRenderMode;
+  threadEvents: readonly MatrixEvent[];
+  threadTailLoaded: boolean;
+};
 
 /**
  * Whether the reader has seen the newest rows of the room: they have no read marker yet, or the
@@ -223,16 +227,16 @@ export const useTimelineReadReceiptController = ({
   handleOpenEvent,
   hideActivity,
   mx,
-  readUptoEventIdRef,
+  readUptoEventIdRef = EMPTY_READ_UPTO_REF,
   readsMainTimeline = true,
   room,
   setAtBottom,
   classicRows,
-  threadEventsLength,
+  threadEventsLength = 0,
   threadId,
-  threadEvents,
-  threadInitialRenderMode,
-  threadTailLoaded,
+  threadEvents = EMPTY_EVENTS,
+  threadInitialRenderMode = 'live',
+  threadTailLoaded = false,
   timelineAtLiveEnd,
   unreadInfo,
 }: ReadReceiptControllerOptions): { handleMarkAsRead: () => void } => {

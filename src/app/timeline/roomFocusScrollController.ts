@@ -106,7 +106,47 @@ export type RoomFocusScrollControllerOptions = {
   unreadScrollAnchorIndex?: number;
 };
 
+type OptionalBranchKeys =
+  | 'threadTargets'
+  | 'pendingThreadOpenTick'
+  | 'retryPagination'
+  | 'scrollToItem'
+  | 'suppressFocusPaginationRef'
+  | 'isThreadOpenBottomPinSuppressed'
+  | 'requestThreadOpenBottomPin'
+  | 'cancelThreadOpenBottomPin'
+  | 'threadEventIndexMapRef'
+  | 'threadEventsLength'
+  | 'threadFilteredEvents'
+  | 'threadFilteredEventsRef'
+  | 'threadInitialRenderMode'
+  | 'threadLatestOpenPending'
+  | 'threadOpenedAtLatest'
+  | 'threadUserScrolled'
+  | 'threadTimelineTick';
+
+export type RoomFocusScrollControllerInput = Omit<
+  RoomFocusScrollControllerOptions,
+  OptionalBranchKeys
+> &
+  Partial<Pick<RoomFocusScrollControllerOptions, OptionalBranchKeys>>;
+
 type Options = RoomFocusScrollControllerOptions;
+
+const NOOP = () => undefined;
+const ALWAYS_FALSE = () => false;
+const EMPTY_EVENTS: MatrixEvent[] = [];
+const EMPTY_EVENTS_REF: MutableRefObject<MatrixEvent[]> = { current: EMPTY_EVENTS };
+const EMPTY_EVENT_INDEX_REF: MutableRefObject<Map<string, number>> = { current: new Map() };
+const NOOP_SUPPRESS_REF: MutableRefObject<boolean> = { current: false };
+const NOOP_THREAD_TARGETS: ThreadTargetCommands = {
+  getPending: () => undefined,
+  queue: NOOP,
+  complete: NOOP,
+  discard: NOOP,
+  advanceAttempt: NOOP,
+  wakeRetry: NOOP,
+};
 
 /**
  * What hands the scroll position to the reader. A plain `scroll` is not one: the virtual list
@@ -681,7 +721,27 @@ const useLiveEndAtBottom = ({
  * matters: before paint, the thread's opening pin runs ahead of its jump target, which cancels it,
  * and the bottom-pin requests run ahead of the latest-row pin the timeline calls after this hook.
  */
-export const useRoomFocusScrollController = (options: RoomFocusScrollControllerOptions): void => {
+export const useRoomFocusScrollController = (rawOptions: RoomFocusScrollControllerInput): void => {
+  const options: RoomFocusScrollControllerOptions = {
+    ...rawOptions,
+    threadTargets: rawOptions.threadTargets ?? NOOP_THREAD_TARGETS,
+    pendingThreadOpenTick: rawOptions.pendingThreadOpenTick ?? 0,
+    retryPagination: rawOptions.retryPagination ?? NOOP,
+    scrollToItem: rawOptions.scrollToItem ?? ALWAYS_FALSE,
+    suppressFocusPaginationRef: rawOptions.suppressFocusPaginationRef ?? NOOP_SUPPRESS_REF,
+    isThreadOpenBottomPinSuppressed: rawOptions.isThreadOpenBottomPinSuppressed ?? ALWAYS_FALSE,
+    requestThreadOpenBottomPin: rawOptions.requestThreadOpenBottomPin ?? ALWAYS_FALSE,
+    cancelThreadOpenBottomPin: rawOptions.cancelThreadOpenBottomPin ?? NOOP,
+    threadEventIndexMapRef: rawOptions.threadEventIndexMapRef ?? EMPTY_EVENT_INDEX_REF,
+    threadEventsLength: rawOptions.threadEventsLength ?? 0,
+    threadFilteredEvents: rawOptions.threadFilteredEvents ?? EMPTY_EVENTS,
+    threadFilteredEventsRef: rawOptions.threadFilteredEventsRef ?? EMPTY_EVENTS_REF,
+    threadInitialRenderMode: rawOptions.threadInitialRenderMode ?? 'live',
+    threadLatestOpenPending: rawOptions.threadLatestOpenPending ?? false,
+    threadOpenedAtLatest: rawOptions.threadOpenedAtLatest ?? false,
+    threadUserScrolled: rawOptions.threadUserScrolled ?? false,
+    threadTimelineTick: rawOptions.threadTimelineTick ?? 0,
+  };
   // Before paint.
   const endMarkerOpening = useUnreadMarkerOpening(options);
   useRoomFocusJump(options);

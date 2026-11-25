@@ -56,6 +56,15 @@ import { MembershipBreak } from './MembershipBreak';
  */
 
 const EMPTY_ENTRIES: TimelineEventEntry[] = [];
+const EMPTY_EVENTS: MatrixEvent[] = [];
+const EMPTY_ROOM_ROWS_REF: MutableRefObject<MatrixEvent[]> = { current: EMPTY_EVENTS };
+const EMPTY_ACTIVE_RANGE_REF: MutableRefObject<Timeline['range']> = {
+  current: { start: 0, end: 0 },
+};
+const EMPTY_THREAD_RECORD_MAP_REF: MutableRefObject<ReadonlyMap<string, ThreadRecord>> = {
+  current: new Map(),
+};
+const NEVER_HIDDEN = () => false;
 
 /**
  * The room's rows: the room timeline's own, plus in the classic view the thread replies, those its
@@ -196,34 +205,34 @@ const ROOM_LEADING_ESTIMATE_PX = EXPAND_ALL_LINE_ESTIMATE_PX + ROOM_ROW_UNMEASUR
 export const timelineRowSizing = ({
   threadId,
   compactLayout,
-  showThreadRepliesInRoom,
-  threadEvents,
+  showThreadRepliesInRoom = false,
+  threadEvents = EMPTY_EVENTS,
   hasThreadLoadOlder = false,
   hasRoomIntro = false,
-  roomWindowRows,
-  windowStart,
-  roomRowsRef,
-  activeRangeRef,
-  threadRecordMapRef,
+  roomWindowRows = EMPTY_EVENTS,
+  windowStart = 0,
+  roomRowsRef = EMPTY_ROOM_ROWS_REF,
+  activeRangeRef = EMPTY_ACTIVE_RANGE_REF,
+  threadRecordMapRef = EMPTY_THREAD_RECORD_MAP_REF,
   turnFolds,
   hiddenIds,
   membershipFoldsRef,
   renderedRoomRowsRef,
   columnWidth,
 }: {
-  threadId: string | undefined;
+  threadId?: string;
   compactLayout: boolean;
-  showThreadRepliesInRoom: boolean;
-  threadEvents: MatrixEvent[];
+  showThreadRepliesInRoom?: boolean;
+  threadEvents?: MatrixEvent[];
   /** Whether index 0 of the thread virtualizer is the Load Older chip. */
   hasThreadLoadOlder?: boolean;
   /** Whether index 0 of the room virtualizer is the room start intro. */
   hasRoomIntro?: boolean;
-  roomWindowRows: MatrixEvent[];
-  windowStart: number;
-  roomRowsRef: MutableRefObject<MatrixEvent[]>;
-  activeRangeRef: MutableRefObject<Timeline['range']>;
-  threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
+  roomWindowRows?: MatrixEvent[];
+  windowStart?: number;
+  roomRowsRef?: MutableRefObject<MatrixEvent[]>;
+  activeRangeRef?: MutableRefObject<Timeline['range']>;
+  threadRecordMapRef?: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
   /** The open thread's folded turns: a break adds its height to its row, which it alone fills. */
   turnFolds?: ThreadTurnFoldView;
   /** The open thread's rows that show nothing: priced as nothing, like the size they then get. */
@@ -362,7 +371,7 @@ export const isTimelineRowHidden = (
     messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
     ignoredUsersSet,
     showHiddenEvents,
-    isHiddenByPlugin,
+    isHiddenByPlugin = NEVER_HIDDEN,
   }: {
     messageData: Pick<
       TimelineMessageData,
@@ -370,7 +379,7 @@ export const isTimelineRowHidden = (
     >;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
-    isHiddenByPlugin: (event: MatrixEvent) => boolean;
+    isHiddenByPlugin?: (event: MatrixEvent) => boolean;
   }
 ): boolean => {
   const id = event.getId() ?? '';
@@ -401,18 +410,18 @@ export const isTimelineRowHidden = (
 export const renderTimelineTiles = ({
   virtualItems,
   threadId,
-  threadEvents,
-  roomWindowRows,
-  roomRowEntries,
-  windowStart,
+  threadEvents = EMPTY_EVENTS,
+  roomWindowRows = EMPTY_EVENTS,
+  roomRowEntries = EMPTY_ENTRIES,
+  windowStart = 0,
   readUptoAbsoluteIndex,
   ignoredUsersSet,
   showHiddenEvents,
   timelineSet,
   focusItem,
   messageData,
-  isHiddenByPlugin,
-  isHiddenByPluginId,
+  isHiddenByPlugin = NEVER_HIDDEN,
+  isHiddenByPluginId = NEVER_HIDDEN,
   renderEvent,
   isQuietMarkerRow,
   joinsQuietMarkerRun,
@@ -422,29 +431,29 @@ export const renderTimelineTiles = ({
   membershipFolds,
   threadLoadOlderNode,
   roomIntroNode,
-  unreadMarkerRef,
+  unreadMarkerRef = null,
   measureElement,
 }: {
   virtualItems: VirtualItem[];
-  threadId: string | undefined;
-  threadEvents: MatrixEvent[];
+  threadId?: string;
+  threadEvents?: MatrixEvent[];
   /** When set in a thread, index 0 renders this Load Older chip as a virtual tile. */
   threadLoadOlderNode?: ReactNode;
   /** When set in a room, index 0 renders the room start intro as a virtual tile. */
   roomIntroNode?: ReactNode;
-  roomWindowRows: MatrixEvent[];
-  roomRowEntries: TimelineEventEntry[];
-  windowStart: number;
-  readUptoAbsoluteIndex: number | undefined;
+  roomWindowRows?: MatrixEvent[];
+  roomRowEntries?: TimelineEventEntry[];
+  windowStart?: number;
+  readUptoAbsoluteIndex?: number;
   ignoredUsersSet: Set<string>;
   showHiddenEvents: boolean;
   timelineSet: EventTimelineSet;
   focusItem: RoomTimelineFocusItem | undefined;
   messageData: TimelineMessageData;
   /** Whether a plugin's message renderer leaves the event without a row (pluginHiddenRows). */
-  isHiddenByPlugin: (event: MatrixEvent) => boolean;
+  isHiddenByPlugin?: (event: MatrixEvent) => boolean;
   /** The same, of a loaded event by its ID: no row quotes such a message. */
-  isHiddenByPluginId: (eventId: string) => boolean;
+  isHiddenByPluginId?: (eventId: string) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Whether a row renders as a quiet marker line, which reply quotes look past. */
   isQuietMarkerRow: (
@@ -467,7 +476,7 @@ export const renderTimelineTiles = ({
   /** The room's folded membership runs (`membershipFolds.ts`) and what their breaks do on a click. */
   membershipFolds?: { view: MembershipFoldView; toggle: (fold: MembershipFold) => void };
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
-  unreadMarkerRef: Ref<HTMLDivElement>;
+  unreadMarkerRef?: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
 }): ReactNode[] => {
   const leadingNode = threadId ? threadLoadOlderNode : roomIntroNode;

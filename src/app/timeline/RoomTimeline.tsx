@@ -26,14 +26,13 @@ import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { MessageLayout } from '../preferences/settings';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import { RoomIntro } from './RoomIntro';
-import { scheduleReconcile, useSyncEngine } from '../event-store/engine';
+import { useSyncEngine } from '../event-store/engine';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
 import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
-import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -77,7 +76,6 @@ import {
   useTimelineScrollLedgerController,
 } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
-import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useCompactCoverageBackfillController } from '../threads/overview/compactCoverageBackfillController';
 import { useCompactHistoryAtEnd } from '../threads/overview/useCompactHistoryAtEnd';
@@ -92,37 +90,14 @@ import {
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
-import { useThreadTimelineState } from './useThreadTimelineState';
-import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
-import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
-import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
-import { useThreadSession } from '../threads/open/useThreadSession';
-import { useThreadPagination } from '../threads/open/useThreadPagination';
-import type {
-  ThreadOpenRuntime,
-  ThreadOpenViewportPort,
-  ThreadRenderPort,
-  ThreadRoute,
-} from '../threads/open/threadSessionTypes';
-import { useThreadBackPaginationController } from './threadBackPaginationController';
-import { useThreadPrependViewport } from './useThreadPrependViewport';
-import { useThreadOpenLifecycleController } from '../threads/open/threadOpenLifecycleController';
 import { useThreadSeedPrewarmController } from '../threads/open/threadSeedPrewarmController';
-import { useThreadGapRecovery } from '../threads/open/useThreadGapRecovery';
-import { useThreadEditBackfillController } from '../threads/open/threadEditBackfillController';
 import { useThreadSummaryPublishController } from '../threads/summary/threadSummaryPublishController';
-import { useThreadSummaryTimeline } from '../threads/summary/useThreadSummaryTimeline';
-import { useThreadConversationCostSummary } from '../event-store/threads/useThreadConversationCost';
-import {
-  useThreadApprovalRowMeasurements,
-  useThreadApprovalTimeline,
-} from '../approvals/useThreadApprovalTimeline';
-import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import type { ThreadSummaryTimelinePlan } from '../event-store/threads/threadSummaryTimeline';
+import { useThreadApprovalTimeline } from '../approvals/useThreadApprovalTimeline';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
-import { useReplyCardPlan } from './replyCards';
-import { useModelChangePlan } from '../messages/modelChanges';
+import { NO_REPLY_CARDS } from './replyCards';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
-import { useDrawnSecretRequestIds } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useHeldRowsLayout, useTimelineLiveEnd } from './timelineLiveEnd';
 import {
@@ -130,16 +105,13 @@ import {
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
-import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
-import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   isNearLatestEnd,
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
-  useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   useViewportAtBottomNow,
@@ -151,7 +123,6 @@ import {
   useRoomRowRemoval,
   useRoomThreadDeleted,
   useRoomWindowPaginator,
-  useThreadAutoPaginateBack,
   useWindowHoldsWholeFolds,
   useWindowKeepsNewestRow,
 } from './roomTimelinePaginationWindow';
@@ -162,9 +133,6 @@ import {
   useRoomUnreadInfo,
   useShownInScrollArea,
 } from './roomTimelineUnread';
-import { useMessageRowHidden } from '../plugins/messageRenderers';
-import { isPluginHiddenRow } from './pluginHiddenRows';
-import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
 import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './membershipFolds';
 import {
   NO_RENDERED_ROOM_ROWS,
@@ -186,11 +154,8 @@ import { countsRoomRows } from './roomTimelineClassicRows';
 import {
   ExpandAllLine,
   FilterBarSlot,
-  ThreadLoadOlderLine,
-  ThreadLoadingLines,
   listTopSentinelStyle,
   roomViewStyleUnder,
-  threadViewStyle,
 } from './RoomTimelineOverlays';
 import {
   TimelineViewport,
@@ -199,6 +164,7 @@ import {
   useTimelineScrollSetup,
   useTrustedRoomAccounts,
 } from './TimelineViewport';
+import { ThreadTimeline } from './ThreadTimeline';
 
 export type RoomTimelineProps = {
   room: Room;
@@ -260,10 +226,22 @@ export type RoomTimelineProps = {
 
 const EMPTY_EVENTS: MatrixEvent[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+const EMPTY_THREAD_SUMMARY_TIMELINE: ThreadSummaryTimelinePlan = {
+  hiddenEventIds: EMPTY_IDS,
+  markersByEventId: new Map(),
+};
+const EMPTY_SECRET_REQUEST_TIMELINE = { hiddenEventIds: EMPTY_IDS };
+const NOOP_THREAD_ID_REF: MutableRefObject<string | undefined> = { current: undefined };
+const NOOP_REFRESH_THREAD = async () => false;
 /** Stand-ins for filter bar handlers a caller leaves out. */
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
   undefined;
+const getRoomRowContent = (event: MatrixEvent) =>
+  getLatestMessageContent(event, getEditedEvent(event.getId() ?? '', event, undefined)) as Record<
+    string,
+    unknown
+  >;
 
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
@@ -271,16 +249,24 @@ const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | nu
  * thread root and the classic one with the replies inline; inside a thread, the root and its
  * replies. Rows are virtualized, and scroll anchoring keeps the reader's rows still when rows
  * land above them.
- *
- * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
- * in its first pass: the overview's listeners start in that commit, and the list then builds
- * its cards once, from the room as they hear it, before the paint
- * (`useThreadOverviewListenedFirst`). Any other list builds in its first render, as it did.
  */
 export function RoomTimeline(props: RoomTimelineProps) {
+  if (props.threadId) {
+    return <ThreadTimeline {...props} threadId={props.threadId} />;
+  }
+  return <RoomTimelineGate {...props} />;
+}
+
+/**
+ * A room list that mounts in Compact, as when a thread that filled the page closes, renders
+ * nothing in its first pass: the overview's listeners start in that commit, and the list then
+ * builds its cards once, from the room as they hear it, before the paint
+ * (`useThreadOverviewListenedFirst`). Any other list builds in its first render, as it did.
+ */
+function RoomTimelineGate(props: RoomTimelineProps) {
   const listened = useThreadOverviewListenedFirst(
     props.room,
-    props.threadId,
+    undefined,
     props.viewMode === 'compact'
   );
   if (listened === 'waiting') return null;
@@ -291,7 +277,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const {
     room,
     eventId,
-    threadId,
     focusEventInRoom,
     entryKey,
     entryPushed,
@@ -304,17 +289,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hasMindroomAgents = true,
     viewMode,
     editor,
-    onThreadLoadError,
-    threadHeader,
-    threadHeaderGapAbove = false,
-    forkAt,
     forkTargetRoom,
   } = props;
   const crossRoomForkTarget =
     forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
-  const forkTargetRoomName = crossRoomForkTarget
-    ? crossRoomForkTarget.name || crossRoomForkTarget.roomId
-    : undefined;
   const mx = useMatrixClient();
   const alive = useAlive();
   const engine = useSyncEngine();
@@ -334,7 +312,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     prefetchDepth,
   } = useTimelineDisplaySettings();
   const compactLayout = messageLayout === MessageLayout.Compact;
-  const compactViewRequested = !threadId && viewMode === 'compact';
+  const compactViewRequested = viewMode === 'compact';
   // Only the compact overview waits for the client's first catch-up, so only it follows sync.
   const clientCatchingUp = useInitialClientCatchup(compactViewRequested ? mx : undefined);
   const roomUnread = !!useRoomUnread(room.roomId, roomToUnreadAtom);
@@ -359,17 +337,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     eventId,
     focusEventInRoom,
     threadFilterState: plainConversation ? DIRECT_ROOM_TIMELINE_FILTER_STATE : listedFilterState,
-    threadId,
+    threadId: undefined,
     viewMode,
   });
   const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
   const showThreadRepliesInRoom = viewMode === 'classic';
-  const viewKey = `${room.roomId}|${threadId ?? ''}`;
+  const viewKey = `${room.roomId}|`;
 
   // Jump to Unread gives way while the "New messages" line it jumps to is in view.
   const [unreadMarker, setUnreadMarker] = useState<HTMLDivElement | null>(null);
   const roomIdRef = useLatestRef(room.roomId);
-  const threadIdRef = useLatestRef(threadId);
   const prefetchDepthRef = useLatestRef(prefetchDepth);
   // The room mounts its newest rows in a window of this size and widens it as the reader scrolls.
   const windowLimit = Math.min(prefetchDepth, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE);
@@ -378,31 +355,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const roomPaginatingBackRef = useRef(false);
   const [, forceRender] = useReducer((value: number) => value + 1, 0);
 
-  const { roomDebugTraceId, threadDebugTraceId } = useTimelineDebugTraceIds({
+  const { roomDebugTraceId } = useTimelineDebugTraceIds({
     eventId,
     room,
-    threadId,
+    threadId: undefined,
   });
-
-  // Thread session: its state comes first, so indexes and viewport consumers read it this render.
-  const route = useMemo<ThreadRoute>(
-    () => ({ roomId: room.roomId, threadId, eventId }),
-    [room.roomId, threadId, eventId]
-  );
-  const session = useThreadSession(route);
-  const { pagination: threadPagination, bindRuntime } = useThreadPagination(
-    session.commands,
-    route
-  );
-  const backController = useThreadBackPaginationController();
-  const cancelThreadScrollRef = useRef<(() => void) | undefined>(undefined);
-  const onPrependBegin = useCallback(() => cancelThreadScrollRef.current?.(), []);
 
   // The room's loaded timeline and the window of it that is mounted.
   const filterOpts = useMemo<RecalibrateFilterOpts>(
     () => ({
       room,
-      threadId,
+      threadId: undefined,
       ignoredUsersSet,
       showHiddenEvents,
       hideMembershipEvents,
@@ -411,7 +374,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     }),
     [
       room,
-      threadId,
       ignoredUsersSet,
       showHiddenEvents,
       hideMembershipEvents,
@@ -435,71 +397,23 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const atBottomRef = useLatestRef(atBottom);
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem>();
   const focusItemRef = useLatestRef(focusItem);
-  const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
+  const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
   const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
-    useThreadOverviewRefreshCounter(room, threadId, props.listenedOverview);
+    useThreadOverviewRefreshCounter(room, undefined, props.listenedOverview);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
     () => setTimeline((current) => ({ ...current })),
     [setTimeline]
   );
-  useRoomThreadDeleted(room, threadId, rederiveRoomRows);
-
-  // A fork shows its parent's conversation up to the fork point before its own rows.
-  const liveThreadRoot = threadId
-    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
-    : undefined;
-  const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
-  const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
-
-  // Thread rows.
-  const threadState = useThreadTimelineState({
-    room,
-    threadId,
-    threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
-    threadInitialSdkLoaded: session.snapshot.open.sdkReady,
-    threadFirstPaintHeld: session.snapshot.open.firstPaintHeld,
-    timelineRevision: session.snapshot.timelineRevision,
-    debugTraceId: threadDebugTraceId,
-    prefixEvents: forkPrefix.events,
-    forkAt,
-  });
-  const threadStateRef = useLatestRef(threadState);
-  const threadEvents = threadId ? threadState.threadEvents : EMPTY_EVENTS;
-  // Without a fork's prefix: the thread's own rows are what it loads, reads, counts and titles.
-  const ownThreadEvents = threadId ? threadState.ownThreadEvents : EMPTY_EVENTS;
-  const ownThreadEventsRef = useLatestRef(ownThreadEvents);
-  // A fork draft shows its thread up to the fork point, its last row.
-  const { forkPointIndex } = threadState;
-  const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
-  const shownForkPoint = forkPoint?.getId();
-  // A fork's parent messages, and in a fork draft every row, also before or without its fork
-  // point: what the fork will show of its parent, read-only as it will show it.
-  const forkPrefixEventIds = useMemo(
-    () =>
-      new Set((forkAt ? threadEvents : forkPrefix.events).flatMap((event) => event.getId() ?? [])),
-    [forkAt, forkPrefix.events, threadEvents]
-  );
-  // A draft's reader reads its thread up to the fork point; what follows is out of sight.
-  const readThreadEvents = useMemo(
-    () =>
-      forkPoint
-        ? ownThreadEvents.slice(0, ownThreadEvents.indexOf(forkPoint) + 1)
-        : ownThreadEvents,
-    [forkPoint, ownThreadEvents]
-  );
-  const { threadEventIndexMapRef, threadInitialRenderMode } = threadState;
-  const threadEventIndexMap = threadState.threadEventIndexMap ?? threadEventIndexMapRef.current;
-  const threadTailLoaded = session.snapshot.history.tailLoaded;
-  const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
+  useRoomThreadDeleted(room, undefined, rederiveRoomRows);
 
   // Room rows: the room timeline's own, plus in the classic view the threads' replies.
   const { renderableEventEntries, renderableEvents, windowTimeline } = useRoomRowEntries({
     room,
-    threadId,
+    threadId: undefined,
     timeline,
     setTimeline,
     ignoredUsersSet,
@@ -512,7 +426,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   const threadIndex = useThreadIndex({
     room,
-    threadId,
+    threadId: undefined,
     eventId,
     focusedRoomOverviewRequested,
     compactViewRequested,
@@ -532,7 +446,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     overviewChanges,
     sessionId,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary,
+    onStoreThreadSummary,
   });
 
   // Compact shows the room's threads as cards (a link to a message outside them shows the room's
@@ -545,7 +459,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // the top is its latest end, where it opens, where a new message lands and where it follows.
   const { sortBy, sortDirection } = threadIndex.effectiveThreadFilterState;
   const latestAtTop =
-    !threadId &&
     !compactViewRequested &&
     threadIndex.roomThreadFilterActive &&
     sortBy === 'lastReply' &&
@@ -562,24 +475,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     latestAtTopRef,
   } = scroll;
   const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
-  const prependViewport = useThreadPrependViewport({
-    controller: backController,
-    scrollRef,
-    onBegin: onPrependBegin,
-  });
   useThreadSortFreezeController({
     activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
     setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
-    threadId,
+    threadId: undefined,
     threadSortControlSignature: threadIndex.threadSortControlSignature,
     threadSortFreezeState,
   });
 
   const windowState = useRoomTimelineWindowController({
-    canPaginateThreadBack: threadState.canPaginateThreadBack,
     filteredRoomThreadActive: threadIndex.roomThreadFilterActive,
     filteredRoomOverviewOrderActive: threadIndex.roomOverviewOrderActive,
-    lastThreadBackwardPaginationToken: threadState.threadBackwardPaginationToken,
     overviewRefreshCounter,
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
     renderableEventEntries,
@@ -588,19 +494,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomSurfaceEventEntries: threadIndex.roomSurfaceEventEntries,
     roomThreadListThreads: threadIndex.roomThreadListThreads,
     prefetchDepth: windowLimit,
-    threadEventsLength: ownThreadEvents.length,
-    threadHasMoreCachedBack,
-    threadId,
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
-    threadTailLoaded,
     timeline: windowTimeline,
     unreadInfo,
   });
   // The room's loaded rows and the window the timeline's state counts in them. The rows the
   // timeline lists and windows (`roomRows`, further down) hold each closed fold of membership
   // events as one row; what decides those folds reads the loaded rows.
-  const loadedRoomRows = threadId ? EMPTY_EVENTS : windowState.threadFilteredEvents;
+  const loadedRoomRows = windowState.threadFilteredEvents;
   const loadedRoomRowEntries = windowState.threadFilteredEventEntries;
   const loadedRoomRowsRef = useLatestRef(loadedRoomRows);
   const stateRange = windowState.activeTimelineRange;
@@ -627,45 +529,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const canPaginateRoomFront =
     typeof lastRoomTimeline?.getPaginationToken(Direction.Forward) === 'string';
 
-  // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
-  const openAtLatest = useThreadOpenedAtLatest(viewKey, session.snapshot.open.latestPending);
-  const { startOpen: startOpenAtLatest, pinnedAtLatest } = openAtLatest;
-  const renderPort = useMemo<ThreadRenderPort>(
-    () => ({
-      reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
-      append: (targetThreadId, events) =>
-        threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
-      getEvents: (targetThreadId) => threadStateRef.current.getThreadRenderEvents(targetThreadId),
-      invalidateTimeline: () => setTimeline((current) => ({ ...current })),
-    }),
-    [setTimeline, threadStateRef]
-  );
-  const viewportPort = useMemo<ThreadOpenViewportPort>(
-    () => ({
-      resetForOpen: () => {
-        backController.reset();
-        startOpenAtLatest();
-      },
-      resetAfterLeave: () => backController.reset(),
-      // Queued: the next commit applies it, unless the reader scrolls first. From then on the
-      // opening pin holds the newest row while the rows measure.
-      requestLatestPin: () => {
-        if (backController.requestOpenBottomPin(scrollToBottomRef)) pinnedAtLatest();
-      },
-    }),
-    [backController, pinnedAtLatest, scrollToBottomRef, startOpenAtLatest]
-  );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
-  const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
+  useThreadSeedPrewarmController({
     room,
     mx,
     sessionId,
     prefetchDepthRef,
-    activeThreadId: threadId,
+    activeThreadId: undefined,
     priorityTargets,
     debugTraceId: roomDebugTraceId,
   });
-  const seedPort = useMemo(() => ({ waitForExistingOrQueued }), [waitForExistingOrQueued]);
   const beginThreadCacheWrite = useCallback(
     () => engine.persist.forRoom(room).persistThreadEventCache,
     [engine, room]
@@ -674,73 +547,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => engine.persist.forRoom(room).persistRoomEventCache,
     [engine, room]
   );
-  const threadDebugTraceIdRef = useLatestRef(threadDebugTraceId);
-  const reconcile = useCallback<ThreadOpenRuntime['reconcile']>(
-    (args) =>
-      scheduleReconcile({
-        ...args,
-        mx,
-        sessionId,
-        scheduler: engine.scheduler,
-        debugTraceId: threadDebugTraceIdRef.current,
-      }),
-    [engine, mx, sessionId, threadDebugTraceIdRef]
-  );
-  const onThreadLoadErrorRef = useLatestRef(onThreadLoadError);
-  const reportThreadLoadError = useCallback(
-    (failedThreadId: string) => onThreadLoadErrorRef.current?.(failedThreadId),
-    [onThreadLoadErrorRef]
-  );
-  const runtime = useMemo<ThreadOpenRuntime>(
-    () => ({
-      room,
-      mx,
-      sessionId,
-      beginCacheWrite: beginThreadCacheWrite,
-      reconcile,
-      seed: seedPort,
-      render: renderPort,
-      viewport: viewportPort,
-      debugTraceId: threadDebugTraceId,
-      onThreadLoadError: reportThreadLoadError,
-    }),
-    [
-      beginThreadCacheWrite,
-      mx,
-      reconcile,
-      renderPort,
-      reportThreadLoadError,
-      room,
-      seedPort,
-      sessionId,
-      threadDebugTraceId,
-      viewportPort,
-    ]
-  );
-  useThreadOpenLifecycleController({ route, commands: session.commands, runtime });
-  bindRuntime({
-    mx,
-    room,
-    sessionId,
-    beginThreadCacheWrite,
-    thread: threadState.thread,
-    threadEvents: ownThreadEvents,
-    threadHasMoreCachedBack,
-    viewport: prependViewport,
-  });
 
-  // A thread opened at its latest row stays pinned there until the reader scrolls. Whether the
-  // reader scrolled belongs to the open view; the render that switches views starts it over.
   const readerScrolledRef = useViewScopedFlag(viewKey);
-  const threadLatestOpenPending = !!threadId && openAtLatest.latestOpenPending;
-  const threadOpenedAtLatest = !!threadId && openAtLatest.openedAtLatest;
-  const threadUserScrolled = readerScrolledRef.current.value;
 
   const feature = useTimelineMessageFeature({
     room,
     forkTargetRoom: crossRoomForkTarget,
     editor,
-    threadId,
+    threadId: undefined,
     scrollRef,
     showThreadRepliesInRoom,
     messageLayout,
@@ -748,105 +562,34 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hideActivity,
   });
 
-  const getRowContent = useCallback(
-    (event: MatrixEvent) =>
-      getLatestMessageContent(
-        event,
-        getEditedEvent(event.getId() ?? '', event, threadStateRef.current.threadTimelineSet)
-      ) as Record<string, unknown>,
-    [threadStateRef]
-  );
-  // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
-  // rows show them; one the route or a jump opened stays visible after the route moves on. The
-  // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
-  const messageRowHidden = useMessageRowHidden(mx.getUserId() ?? undefined);
-  const threadRowHidden = threadId ? messageRowHidden : undefined;
-  const pluginRevealedRef = useRef(new Set<string>());
+  const revealedIdsRef = useRef(new Set<string>());
   const focusEventId = focusItem?.eventId;
-  const isHiddenByPlugin = useMemo(() => {
-    if (eventId) pluginRevealedRef.current.add(eventId);
-    if (focusEventId) pluginRevealedRef.current.add(focusEventId);
-    const revealed = pluginRevealedRef.current;
-    return (event: MatrixEvent) =>
-      isPluginHiddenRow(event, getRowContent, threadRowHidden, revealed);
-  }, [eventId, focusEventId, getRowContent, threadRowHidden]);
-  // Looked up among the thread's rows, the cache's too before the SDK has them: no row quotes a
-  // hidden one.
-  const threadEventMap = threadState.threadEventMap;
-  const isHiddenByPluginId = useCallback(
-    (id: string) => {
-      const event = threadRowHidden ? threadEventMap?.get(id) : undefined;
-      return !!event && isHiddenByPlugin(event);
-    },
-    [threadRowHidden, threadEventMap, isHiddenByPlugin]
-  );
-  // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
-  const pluginHiddenThreadIds = useMemo(
-    () =>
-      threadRowHidden
-        ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
-        : EMPTY_IDS,
-    [threadRowHidden, threadEvents, isHiddenByPlugin]
-  );
-  // Rows read edits from the open thread's set, or in the room view from the room's.
-  const rowTimelineSet =
-    (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
+  if (eventId) revealedIdsRef.current.add(eventId);
+  if (focusEventId) revealedIdsRef.current.add(focusEventId);
+
+  const rowTimelineSet = room.getUnfilteredTimelineSet();
   const getImageSlides = useTimelineImageSlides({
     mx,
     room,
-    events: threadId ? threadEvents : loadedRoomRows,
+    events: loadedRoomRows,
     rowTimelineSet,
-    forkPrefixEventIds,
-    isHiddenByPlugin,
     ignoredUsersSet,
   });
-  // What each agent reply of the open thread and the thread so far cost, for Reply details.
-  const threadConversationCost = useThreadConversationCostSummary(
-    threadId ? threadEvents : undefined,
-    {
-      history: {
-        sdkLoaded: session.snapshot.open.sdkReady,
-        canPaginateBack: threadState.canPaginateThreadBack,
-        hasMoreCachedBack: threadHasMoreCachedBack,
-      },
-      getContent: getRowContent,
-      ignoredUserIds: ignoredUsersSet,
-      viewerId: mx.getUserId() ?? undefined,
-    }
-  );
-  // The parent's approvals keep their cards in a fork's prefix: the fork's plan leaves them be.
   const approvalTimeline = useThreadApprovalTimeline(
-    threadId ? ownThreadEvents : loadedRoomRows,
+    loadedRoomRows,
     ignoredUsersSet,
-    threadId,
+    undefined,
     eventId,
-    focusItem?.eventId
-  );
-  // Secret request cards the open thread's replies may draw at their tool calls. A card's row
-  // hides while its line is mounted in a reply and at no other time, so the two never disagree.
-  const secretRequestPlan = useInlineSecretRequestPlan({
-    room,
-    events: ownThreadEvents,
-    getContent: getRowContent,
-    ignored: ignoredUsersSet,
-    viewerId: mx.getUserId() ?? undefined,
-    threadId,
-    routeId: eventId,
-    focusId: focusItem?.eventId,
-  });
-  const drawnSecretRequestIds = useDrawnSecretRequestIds(secretRequestPlan);
-  const secretRequestTimeline = useMemo(
-    () => ({ hiddenEventIds: drawnSecretRequestIds }),
-    [drawnSecretRequestIds]
+    focusEventId
   );
   const { trustedAccountIds, viewerId, canCompose } = useTrustedRoomAccounts(room, ignoredUsersSet);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
-    events: threadId ? threadEvents : loadedWindowRows,
-    getContent: getRowContent,
+    events: loadedWindowRows,
+    getContent: getRoomRowContent,
     trustedAccountIds,
     ignored: ignoredUsersSet,
-    revealed: pluginRevealedRef.current,
+    revealed: revealedIdsRef.current,
     viewerId,
     expectsAnswer: () =>
       room
@@ -862,119 +605,29 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       );
     },
   });
-  // The open thread's model changes these accounts applied: one line each at its reply, the
-  // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,
-  // as does a change with a row the route or a jump opened, a reply a plugin hides (its command
-  // shows without it; asked of the row as it reads now, as one that decrypts in place brings no
-  // new rows), or a row a fork was made at, which links to the fork.
-  const { forksByPoint } = feature;
-  const modelChanges = useModelChangePlan({
-    events: threadEvents,
-    getContent: getRowContent,
-    trustedAccountIds,
-    ignored: ignoredUsersSet,
-    keeps: (id) =>
-      pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),
-  });
-  // What the open thread's agent replies left behind (a canvas, a reminder), cards under them; not
-  // under a model change's line, which draws none.
-  const replyCards = useReplyCardPlan(room, {
-    threadId,
-    events: ownThreadEvents,
-    viewerId: mx.getUserId() ?? undefined,
-    isHidden: (event) => isHiddenByPlugin(event) || modelChanges.byAckId.has(event.getId() ?? ''),
-    revealed: pluginRevealedRef.current,
-  });
   const isHiddenBeforeFolding = useCallback(
     (event: MatrixEvent) =>
       isTimelineRowHidden(event, {
-        messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
+        messageData: {
+          approvalTimeline,
+          voiceTranscripts,
+          replyCards: NO_REPLY_CARDS,
+          modelChanges: NO_MODEL_CHANGES,
+        },
         ignoredUsersSet,
         showHiddenEvents,
-        isHiddenByPlugin,
       }),
-    [
-      approvalTimeline,
-      voiceTranscripts,
-      replyCards,
-      modelChanges,
-      ignoredUsersSet,
-      showHiddenEvents,
-      isHiddenByPlugin,
-    ]
+    [approvalTimeline, voiceTranscripts, ignoredUsersSet, showHiddenEvents]
   );
-  // Cards eligible to move into a reply do not split titles. Read the plan, not the mounted
-  // lines: which replies mount depends on the folds.
-  const isTitleRowHidden = useMemo(() => {
-    const inlineCardIds = new Set<string>();
-    secretRequestPlan.byReply.forEach((calls) =>
-      calls.forEach(({ eventId }) => inlineCardIds.add(eventId))
-    );
-    return (event: MatrixEvent) =>
-      isHiddenBeforeFolding(event) || inlineCardIds.has(event.getId() ?? '');
-  }, [isHiddenBeforeFolding, secretRequestPlan.byReply]);
-  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
-    getContent: getRowContent,
-    isHidden: isTitleRowHidden,
-    rowRepaintRevision: feature.rowRepaintRevision,
-    routeId: threadId ? eventId : undefined,
-    focusId: threadId ? focusItem?.eventId : undefined,
-  });
-  // A finished turn of the open thread folds its rows between the person's message and the answer
-  // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
-  // opened, and the rows a fork's lines sit on, keep their turn unfolded.
-  const { isQuietMarkerRow } = feature;
-  const isTurnQuietMarker = useCallback(
-    (event: MatrixEvent) =>
-      isQuietMarkerRow(
-        event,
-        { threadSummaryTimeline, modelChanges, forkPrefixEventIds },
-        rowTimelineSet
-      ),
-    [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
-  );
-  // Secret request cards still count as rows of their turns: folding a reply can unmount its
-  // inline line and give the card its own row again.
-  const isTurnRowSkipped = useCallback(
-    (event: MatrixEvent) =>
-      threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),
-    [isHiddenBeforeFolding, threadSummaryTimeline]
-  );
-  const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
-  const turnPinnedIds = useMemo(() => {
-    // The plugin rule's revealed rows, which its memo adds the route's and the jump's to.
-    void isHiddenByPlugin;
-    const ids = new Set(pluginRevealedRef.current);
-    if (forkStartId) ids.add(forkStartId);
-    if (shownForkPoint) ids.add(shownForkPoint);
-    return ids;
-  }, [forkStartId, isHiddenByPlugin, shownForkPoint]);
-  const turnFolds = useThreadTurnFolds({
-    room,
-    threadId,
-    events: threadEvents,
-    viewerId: mx.getUserId() ?? undefined,
-    getContent: getRowContent,
-    timelineSet: rowTimelineSet,
-    isSkipped: isTurnRowSkipped,
-    isQuietMarker: isTurnQuietMarker,
-    pinnedIds: turnPinnedIds,
-    backgroundState: threadId ? threadIndex.threadBackgroundStates.get(threadId) : undefined,
-  });
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
   // last row still while the rows above it measure, so a view whose newest row is its first
   // (which loads older history at its bottom sentinel) does without it.
-  const roomSurfaceShown = !threadId && !compactViewRequested;
+  const roomSurfaceShown = !compactViewRequested;
   const threadReturnPlace = useThreadReturnPlace({
     memoryRef: props.threadReturnPlaceRef ?? fallbackThreadReturnPlaceRef,
     roomId: room.roomId,
-    threadId,
+    threadId: undefined,
     eventId,
     roomRowsShown: roomSurfaceShown,
     latestAtTop,
@@ -986,18 +639,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const membershipRevealedRef = useRef(new Set<string>());
   const returnEventId = threadReturnPlace?.eventId;
   const membershipPinnedIds = useMemo(() => {
-    if (threadId) return EMPTY_IDS;
     [eventId, focusEventId, returnEventId].forEach((id) => {
       if (id) membershipRevealedRef.current.add(id);
     });
     return membershipRevealedRef.current.size === 0
       ? EMPTY_IDS
       : new Set(membershipRevealedRef.current);
-  }, [eventId, focusEventId, returnEventId, threadId]);
+  }, [eventId, focusEventId, returnEventId]);
   const membershipFolds = useMembershipFolds({
     mx,
     roomId: room.roomId,
-    enabled: !threadId,
+    enabled: true,
     events: loadedRoomRows,
     entries: loadedRoomRowEntries,
     isSkipped: isHiddenBeforeFolding,
@@ -1030,7 +682,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   );
   useWindowHoldsWholeFolds({
     timeline,
-    roomWindow: !threadId && !threadIndex.roomThreadFilterActive,
+    roomWindow: !threadIndex.roomThreadFilterActive,
     stateRange,
     loadedRange,
     setTimeline,
@@ -1039,15 +691,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeTimelineRange: loadedRange,
     eventId,
     roomRowCount: loadedRoomRows.length,
-    threadId,
+    threadId: undefined,
     setTimeline,
   });
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
-    threadId,
+    threadId: undefined,
     liveTimelineLinked,
     rangeAtEnd: activeTimelineRange.end >= roomRows.length,
-    canPaginateThreadFront: threadState.canPaginateThreadFront,
-    threadTailLoaded,
+    canPaginateThreadFront: false,
+    threadTailLoaded: false,
   });
   const atLiveEndRef = useLatestRef(timelineAtLiveEnd);
 
@@ -1081,15 +733,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     sessionId,
     setRoomHasMoreCachedBack,
     setTimeline,
-    threadId,
-    threadIdRef,
+    threadId: undefined,
+    threadIdRef: NOOP_THREAD_ID_REF,
     timeline,
   });
-  const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
-  const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
-  const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
   const showRoomIntro =
-    !threadId &&
     liveTimelineLinked &&
     activeTimelineRange.start === 0 &&
     !canPaginateRoomBack &&
@@ -1097,74 +745,28 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const hasRoomLeadingIntro = showRoomIntro && !latestAtTop;
   // Oldest-first rooms always keep one leading item 0 with one stable key (`[+all]` alone, or
   // `{roomIntro}{expandAllToggle}` once start loads) so mounting the intro grows item 0 in place.
-  const hasRoomLeadingTile =
-    !threadId && !latestAtTop && (hasRoomLeadingIntro || roomWindowRows.length > 0);
+  const hasRoomLeadingTile = !latestAtTop && (hasRoomLeadingIntro || roomWindowRows.length > 0);
   const roomLeadingOffset = hasRoomLeadingTile ? 1 : 0;
   const roomLeadingOffsetRef = useLatestRef(roomLeadingOffset);
   // The virtual list and its scroll anchoring.
-  const itemCount = threadId
-    ? threadEvents.length + threadLeadingOffset
-    : roomWindowRows.length + roomLeadingOffset;
+  const itemCount = roomWindowRows.length + roomLeadingOffset;
   const showRoomBackSentinel =
-    !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
-  const showRoomFrontSentinel =
-    !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
-  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break, also when it is a secret
-  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
-  const threadHiddenIds = useMemo(() => {
-    if (!threadId) return EMPTY_IDS;
-    if (
-      pluginHiddenThreadIds.size === 0 &&
-      secretRequestTimeline.hiddenEventIds.size === 0 &&
-      voiceTranscripts.hiddenEventIds.size === 0 &&
-      replyCards.hiddenEventIds.size === 0 &&
-      modelChanges.hiddenEventIds.size === 0 &&
-      turnFolds.view.hiddenIds.size === 0
-    ) {
-      return approvalTimeline.hiddenEventIds;
-    }
-    return new Set([
-      ...approvalTimeline.hiddenEventIds,
-      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
-      ...voiceTranscripts.hiddenEventIds,
-      ...replyCards.hiddenEventIds,
-      ...modelChanges.hiddenEventIds,
-      ...pluginHiddenThreadIds,
-      ...turnFolds.view.hiddenIds,
-    ]);
-  }, [
-    threadId,
-    approvalTimeline.hiddenEventIds,
-    secretRequestTimeline.hiddenEventIds,
-    voiceTranscripts.hiddenEventIds,
-    replyCards.hiddenEventIds,
-    modelChanges.hiddenEventIds,
-    pluginHiddenThreadIds,
-    turnFolds.view,
-  ]);
+    activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack;
+  const showRoomFrontSentinel = activeTimelineRange.end < roomRows.length || canPaginateRoomFront;
   const { estimateSize, getItemKey } = timelineRowSizing({
-    threadId,
     compactLayout,
     showThreadRepliesInRoom,
-    threadEvents,
-    hasThreadLoadOlder: showThreadLoadOlder,
     hasRoomIntro: hasRoomLeadingTile,
     roomWindowRows,
     windowStart: activeTimelineRange.start,
     roomRowsRef,
     activeRangeRef,
     threadRecordMapRef,
-    turnFolds: turnFolds.view,
-    hiddenIds: threadHiddenIds,
     membershipFoldsRef,
     renderedRoomRowsRef,
     // Fixed per form factor so splitter drags do not re-estimate unmeasured rows above the reader.
     columnWidth: phone ? undefined : 960,
   });
-  const threadLoadError = !!threadId && session.snapshot.open.loadError;
-  const threadLoading =
-    !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
   // The Threads view, newest first, keeps a reader who scrolled down where they are while rows land
   // above them: threads that arrive at its top, and in a message link's window (where leaving a
   // thread opened from a link comes back) pages of newer history. A reader at the top sees them
@@ -1183,19 +785,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     itemCount,
     latestAtTop,
     roomId: room.roomId,
-    threadId,
-    pinThreadLeadingItem: showThreadLoadOlder,
-    anchorSkipLeading: threadId
-      ? threadLeadingOffset + (threadEvents[0]?.getId() === threadId ? 1 : 0)
-      : roomLeadingOffset,
-    canLoadOlder: !latestAtTop && (threadId ? showThreadLoadOlder : showRoomBackSentinel),
+    threadId: undefined,
+    pinThreadLeadingItem: false,
+    anchorSkipLeading: roomLeadingOffset,
+    canLoadOlder: !latestAtTop && showRoomBackSentinel,
     automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
-  cancelThreadScrollRef.current = threadId
-    ? () => virtualizerRef.current.cancelScroll()
-    : undefined;
   const {
     virtualItems,
     listHeight,
@@ -1208,26 +805,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     itemCount,
     contentRef,
     latestAtTop,
-    startAligned: !!threadId || compactCards,
+    startAligned: compactCards,
     forceRender,
   });
-  useThreadApprovalRowMeasurements(
-    virtualizer,
-    threadEvents,
-    threadHiddenIds,
-    estimateSize,
-    threadLeadingOffset
-  );
-  useTurnBreakRowMeasurements(
-    virtualizer,
-    threadEvents,
-    turnFolds.view,
-    estimateSize,
-    threadLeadingOffset
-  );
   useMembershipFoldRowSizes(
     virtualizer,
-    threadId ? undefined : roomWindowRows,
+    roomWindowRows,
     membershipFolds.view,
     renderedRoomRowsRef,
     roomLeadingOffset
@@ -1265,47 +848,27 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     retryPagination,
   } = paginator;
   useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, retryPagination);
-  const { scrollToItem, scrollToElement, scrollThreadEventIntoView } = useTimelineRowJumps({
+  const { scrollToItem, scrollToElement } = useTimelineRowJumps({
     paginatorScrollToItem,
     paginatorScrollToElement,
     activeRangeRef,
     virtualizerRef,
-    threadEventIndexMapRef,
-    threadLeadingOffsetRef,
     roomLeadingOffsetRef,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
-  const cancelThreadBottomSettle = useCallback(
-    () => backController.suppressOpenBottomPin(),
-    [backController]
-  );
-  const requestThreadOpenBottomPin = useCallback(
-    () => backController.requestOpenBottomPin(scrollToBottomRef),
-    [backController, scrollToBottomRef]
-  );
   const gesturePins = useGestureBottomPins({
-    backController,
     scrollToBottomRef,
     readerScrolledRef,
     onFirstGesture: forceRender,
-    onThreadTakeover: onPrependBegin,
   });
   const clearHoldOffset = useCallback(
     () => clearVirtualizerHoldOffset(virtualizerRef.current),
     [virtualizerRef]
   );
-  const scrollThreadToEnd = useCallback(
-    (smooth = false) => {
-      clearHoldOffset();
-      virtualizerRef.current.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
-    },
-    [clearHoldOffset, virtualizerRef]
-  );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
-    cancelThreadBottomSettle,
     effectiveViewMode: viewMode,
     focusEventInRoom,
     hideMembershipEvents,
@@ -1314,7 +877,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     mx,
     navigateRoomThread,
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
-    threadTargets: session.targets,
     readUptoEventIdRef,
     recalibrateFilterOptsRef: filterOptsRef,
     room,
@@ -1324,20 +886,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     prefetchDepthRef: windowLimitRef,
     scheduledStatusMap: threadIndex.scheduledStatusMap,
     scrollRef,
-    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem,
     searchQuery: threadIndex.searchQuery,
     setFocusItem,
-    notifyThreadEventsChanged: session.commands.notifyEventsChanged,
     setTimeline,
     showHiddenEvents,
-    threadEventIndexMapRef,
     threadFilteredEvents: roomRows,
     foldedRows: roomProjection.foldedRows,
     threadFilterStateRef: effectiveThreadFilterStateRef,
-    threadId,
     threadParticipantMap: threadIndex.threadParticipantMap,
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
@@ -1353,47 +911,30 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     openRoomEventRoute,
     roomId: room.roomId,
     roomOverviewOrderActive: threadIndex.roomOverviewOrderActive,
-    threadId,
   });
 
   useRoomFocusScrollController({
     readMeasurementCorrectionPx: ledger.readMeasurementCorrectionPx,
-    cancelThreadBottomSettle,
     alive,
     atBottomAnchorRef,
     editId: feature.editingEventId,
     focusItem,
     focusScrollResetToken: room.roomId,
     latestAtTopRef,
-    threadTargets: session.targets,
-    pendingThreadOpenTick: session.snapshot.targetRevision,
     retryPagination,
     roomId: room.roomId,
     scrollRef,
     onBottomPin: clearHoldOffset,
-    scrollThreadToEnd: threadId ? scrollThreadToEnd : undefined,
-    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem,
     setAtBottom,
     setFocusItem,
     suppressFocusPaginationRef,
-    isThreadOpenBottomPinSuppressed: backController.isOpenBottomPinSuppressed,
-    requestThreadOpenBottomPin,
-    cancelThreadOpenBottomPin: gesturePins.onThreadGesture,
     shouldApplyThreadBottomPin: gesturePins.shouldApplyBottomPin,
-    threadEventIndexMapRef,
-    threadEventsLength: threadEvents.length,
     threadFilteredEvents: roomRows,
     threadFilteredEventsRef: roomRowsRef,
     foldedRows: roomProjection.foldedRows,
-    threadId,
-    threadInitialRenderMode,
-    threadLatestOpenPending,
-    threadOpenedAtLatest,
-    threadUserScrolled,
-    threadTimelineTick: session.snapshot.timelineRevision,
     timelineAtLiveEnd,
     unreadInfo,
     // The row of the read marker, or the closed fold that holds it.
@@ -1402,25 +943,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         ? undefined
         : rowIndexOfLoaded(roomProjection, windowState.unreadScrollAnchorIndex),
   });
-  // After the pins above: a thread opening at its newest reply shows its rows once they rest there
-  // (a local echo root, a thread still being created, has no open to wait for).
-  const hideOpeningThreadRows = useThreadOpeningReveal({
-    viewKey,
-    opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
-    rows: threadEvents,
-    indexOffset: threadLeadingOffset,
-    scrollRef,
-    readerTookOver: () =>
-      readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
-  });
 
   const {
     handleJumpToLatest: showLatestRows,
     handleJumpToUnread,
     handleOpenReply,
   } = useRoomTimelineNavigationController({
-    // A fork draft's address names its fork point, its last row: dropping it would end the draft.
-    eventId: forkAt ? undefined : eventId,
+    eventId,
     handleOpenEvent,
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -1434,7 +963,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     setTimeline,
     showHiddenEvents,
     showThreadRepliesInRoom,
-    threadId,
     readUptoEventId: unreadInfo?.readUptoEventId,
   });
   // Jump to Latest also ends the jump to a linked message: until its row rests, that jump scrolls
@@ -1477,16 +1005,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     room,
     setAtBottom,
     classicRows,
-    threadEventsLength: readThreadEvents.length,
-    threadId,
-    threadInitialRenderMode,
-    threadEvents: readThreadEvents,
-    threadTailLoaded,
     timelineAtLiveEnd,
     unreadInfo,
   });
 
-  const markRoomAsRead = useMarkRoomAsRead(handleMarkAsRead, setUnreadInfo, threadId);
+  const markRoomAsRead = useMarkRoomAsRead(handleMarkAsRead, setUnreadInfo, undefined);
 
   useRoomCacheHydrationController({
     alive,
@@ -1504,8 +1027,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     setFocusItem,
     setRoomInitialCacheHydratedKey,
     setTimeline,
-    threadId,
-    threadIdRef,
+    threadId: undefined,
+    threadIdRef: NOOP_THREAD_ID_REF,
   });
   useRoomCachedBackState({
     alive,
@@ -1517,8 +1040,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     sessionId,
     setRoomHasMoreCachedBack,
     setTimeline,
-    threadId,
-    threadIdRef,
+    threadId: undefined,
+    threadIdRef: NOOP_THREAD_ID_REF,
     timeline,
   });
   const isViewportAtBottomNow = useViewportAtBottomNow(scrollRef, atBottomRef);
@@ -1532,7 +1055,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
   useRoomTimelineResetRelink({
     room,
-    threadId,
+    threadId: undefined,
     eventId,
     timeline,
     rebuildTimeline: buildInitialTimeline,
@@ -1540,59 +1063,23 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     isViewportAtBottomNow: isViewportAtLatestNow,
     scrollToBottomRef,
   });
-  const { refreshLatest, notifyEventsChanged, readEditResetEpoch, observeLiveTail } =
-    session.commands;
-  const refreshLatestThreadSlice = useCallback(
-    (refreshThreadId: string) => refreshLatest(refreshThreadId, runtime),
-    [refreshLatest, runtime]
-  );
   const handleRoomRefresh = useCallback(
     () => setTimeline(buildInitialTimeline()),
     [buildInitialTimeline, setTimeline]
   );
   useThreadAwareTimelineRefresh({
     room,
-    threadId,
+    threadId: undefined,
     liveTimelineLinked,
-    refreshLatestThreadSlice,
+    refreshLatestThreadSlice: NOOP_REFRESH_THREAD,
     onRoomRefresh: handleRoomRefresh,
-  });
-  const getLoadedThreadEvents = useCallback(() => ownThreadEventsRef.current, [ownThreadEventsRef]);
-  useThreadGapRecovery({
-    engine,
-    room,
-    threadId,
-    append: renderPort.append,
-    getLoadedEvents: getLoadedThreadEvents,
-    debugTraceId: threadDebugTraceId,
-  });
-  const forceTimelineUpdate = useCallback(
-    () => setTimeline((current) => ({ ...current })),
-    [setTimeline]
-  );
-  useThreadEditBackfillController({
-    atLiveEndRef,
-    eventId,
-    forceTimelineUpdate,
-    mx,
-    beginThreadCacheWrite,
-    room,
-    scrollRef,
-    scrollToBottomRef,
-    notifyThreadEventsChanged: notifyEventsChanged,
-    editResetEpoch: session.snapshot.open.editResetEpoch,
-    readEditResetEpoch,
-    threadEvents: ownThreadEvents,
-    threadId,
-    threadIdRef,
-    threadTailLoaded,
   });
   useThreadSummaryPublishController({
     onStoreThreadSummary,
     room,
-    thread: threadState.thread,
-    threadEvents: ownThreadEvents,
-    threadId,
+    thread: null,
+    threadEvents: EMPTY_EVENTS,
+    threadId: undefined,
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
   // The compact overview: older history until zero-reply roots show up, root edits it lacks (the
@@ -1648,7 +1135,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     records: compactViewRequested
       ? threadIndex.compactThreadRecordMap
       : threadIndex.normalThreadRecordMap,
-    fetchMissing: peopleInUse && !threadId,
+    fetchMissing: peopleInUse,
     onApplyThreadRelations: applyThreadRelations,
     onStoreThreadSummary,
     beginThreadCacheWrite,
@@ -1662,7 +1149,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     filteredThreadRootIds: threadIndex.filteredThreadRootIds,
     limit: windowLimit,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary,
+    onStoreThreadSummary,
     onApplyThreadRelations: applyThreadRelations,
     beginThreadCacheWrite,
     refreshCompactThreadList: threadIndex.refreshRoomThreadList,
@@ -1671,8 +1158,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     setOverviewRefreshCounter,
     showCompactRoomView: threadIndex.showCompactRoomView,
     threadFilteredEventEntries: loadedRoomRowEntries,
-    threadId,
-    threadIdRef,
+    threadId: undefined,
+    threadIdRef: NOOP_THREAD_ID_REF,
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
   });
@@ -1684,7 +1171,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeRangeRef: loadedRangeRef,
     windowFollowsRowsRef,
     paginatingBackRef: roomPaginatingBackRef,
-    threadIdRef,
+    threadIdRef: NOOP_THREAD_ID_REF,
     setTimeline,
   });
 
@@ -1708,31 +1195,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomThreadFilterActive: threadIndex.roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,
-    setSupplementalThreadEvents: renderPort.append,
-    observeLiveTail,
-    notifyThreadEventsChanged: notifyEventsChanged,
     setTimeline,
     setUnreadInfo,
     showHiddenEvents,
     classicRows,
-    threadEventIndexMapRef,
-    threadId,
     threadResolutionMap,
     timelineAtLiveEnd,
     unreadInfo,
-  });
-
-  // Scrolling near the top of a thread's loaded rows asks for older ones.
-  const threadPaginatingBack = threadPagination.isPending('backward');
-  useThreadAutoPaginateBack({
-    scrollElement,
-    virtualizerRef,
-    threadId,
-    paginatingBack: threadPaginatingBack,
-    showLoadOlder: showThreadLoadOlder,
-    hasUserScrollIntent: threadUserScrolled,
-    leadingOffset: threadLeadingOffset,
-    paginateBack: threadPagination.paginateBack,
   });
 
   // Back from a thread shows the room's rows where the reader left them: once their row is among
@@ -1754,16 +1223,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     });
   }, [returnRowIndex, threadReturnPlace]);
 
-  const minimap = useRoomTimelineMinimap({
-    threadEvents,
-    scrollRef,
-    handleOpenEvent,
-  });
-
-  const { paginateBack: paginateThreadBack } = threadPagination;
-  const handleLoadOlderThread = useCallback(() => {
-    void paginateThreadBack();
-  }, [paginateThreadBack]);
   const { expandAll, toggleExpandAll } = feature;
   const handleToggleExpandAll = useCallback(
     (evt: MouseEvent<HTMLButtonElement>) => {
@@ -1784,10 +1243,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     paginateBack: paginateRoom,
   });
   // After every other timeline observer so its passive ResizeObserver runs last.
-  const threadRowsPinned = threadUserScrolled ? 'thread' : undefined;
-  const roomRowsPinned = roomSurfaceShown ? 'room' : undefined;
   useTimelineLiveEnd({
-    surface: threadId ? threadRowsPinned : roomRowsPinned,
+    surface: roomSurfaceShown ? 'room' : undefined,
     itemCount,
     virtualizer,
     listHeightHeld,
@@ -1931,73 +1388,21 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     );
   }
 
-  // The fork's divider sits over its first row of its own, after the parent's messages.
-  // For cross-room forks, show the divider even when the prefix is empty (e.g. unjoined parent
-  // room) so the reader still sees "Forked from another room" above the fork root.
-  const { parent: forkParent } = forkPrefix;
-  const ownStartIndex = threadEventIndexMap.get(ownThreadEvents[0]?.getId() ?? '');
-  const isCrossRoomFork = Boolean(forkParent?.roomId && forkParent.roomId !== room.roomId);
-  const forkStartIndex =
-    forkParent && ownStartIndex !== undefined && (ownStartIndex > 0 || isCrossRoomFork)
-      ? ownStartIndex
-      : undefined;
-  const forkParentRoomId = forkParent?.roomId ?? room.roomId;
-  const forkDivider =
-    forkParent && forkStartIndex !== undefined
-      ? {
-          index: forkStartIndex,
-          node: (
-            <ThreadForkDivider
-              room={room}
-              parent={forkParent}
-              root={forkPrefix.events.find(
-                (event) =>
-                  event.getId() === forkParent.threadId &&
-                  (event.getRoomId() ?? room.roomId) === forkParentRoomId
-              )}
-              summaryInfo={isCrossRoomFork ? undefined : summaryMap.get(forkParent.threadId)}
-            />
-          ),
-        }
-      : undefined;
-  // A fork draft's line under its fork point, the last row it shows.
-  const forkingDivider =
-    threadId && shownForkPoint && forkPointIndex !== undefined
-      ? {
-          index: forkPointIndex,
-          node: (
-            <ThreadForkDivider
-              room={room}
-              parent={{ threadId, eventId: shownForkPoint }}
-              summaryInfo={summaryMap.get(threadId)}
-              variant="forking"
-              targetRoomName={forkTargetRoomName}
-            />
-          ),
-        }
-      : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
     approvalTimeline,
-    threadSummaryTimeline,
-    secretRequestTimeline,
+    threadSummaryTimeline: EMPTY_THREAD_SUMMARY_TIMELINE,
+    secretRequestTimeline: EMPTY_SECRET_REQUEST_TIMELINE,
     voiceTranscripts,
-    replyCards,
-    modelChanges,
+    replyCards: NO_REPLY_CARDS,
+    modelChanges: NO_MODEL_CHANGES,
     handleOpenReply,
-    forkPrefixEventIds,
   };
-  const threadLoadOlderNode = showThreadLoadOlder ? (
-    <ThreadLoadOlderLine
-      paginatingBack={threadPaginatingBack}
-      onLoadOlder={handleLoadOlderThread}
-    />
-  ) : undefined;
   // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
   const showJumpToUnread =
     !latestAtTop &&
     offersJumpToUnread({
-      threadId,
+      threadId: undefined,
       unreadInfo,
       roomUnread,
       unreadMarkerShown,
@@ -2017,9 +1422,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
   const tiles = renderTimelineTiles({
     virtualItems,
-    threadId,
-    threadEvents,
-    threadLoadOlderNode,
     roomIntroNode: hasRoomLeadingTile ? (
       <>
         {hasRoomLeadingIntro && roomIntro}
@@ -2037,14 +1439,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     timelineSet: rowTimelineSet,
     focusItem,
     messageData,
-    isHiddenByPlugin,
-    isHiddenByPluginId,
     renderEvent: feature.renderEvent,
     isQuietMarkerRow: feature.isQuietMarkerRow,
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
-    forkDivider,
-    forkingDivider,
-    turnFolds,
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
@@ -2076,10 +1473,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       style={latestAtTop ? listTopSentinelStyle : { height: 1 }}
     />
   );
+
   return (
     <TimelineViewport
-      containerStyle={threadId ? threadViewStyle : roomStyle}
-      justifyContent={threadId || compactCards || latestAtTop ? 'Start' : 'End'}
+      containerStyle={roomStyle}
+      justifyContent={compactCards || latestAtTop ? 'Start' : 'End'}
       latestAtTop={latestAtTop}
       filterBar={filterBar}
       unreadActions={
@@ -2091,24 +1489,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           />
         )
       }
-      contentTop={
-        threadId ? (
-          <>
-            {threadHeader && (
-              <ThreadTimelineHeader
-                gapAbove={threadHeaderGapAbove}
-                onResize={ledger.holdThreadBannerResize}
-                scrollRef={scrollRef}
-              >
-                {threadHeader}
-              </ThreadTimelineHeader>
-            )}
-            <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
-          </>
-        ) : (
-          latestAtTop && expandAllToggle
-        )
-      }
+      contentTop={latestAtTop && expandAllToggle}
       contentBottom={
         latestAtTop ? (
           <>
@@ -2125,14 +1506,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       virtualInnerRef={ledger.virtualInnerRef}
       listHeight={listHeight}
       heldEndSpacer={heldEndSpacer}
-      hideRows={automaticFill.hideInitialRows || hideOpeningThreadRows}
-      threadCount={threadId ? threadEvents.length : undefined}
-      virtualInnerTestId={threadId ? undefined : 'room-virtual-inner'}
-      threadConversationCost={threadConversationCost}
+      hideRows={automaticFill.hideInitialRows}
+      virtualInnerTestId="room-virtual-inner"
       getImageSlides={getImageSlides}
       wrapExpansion={feature.wrapExpansion}
-      secretRequestPlan={secretRequestPlan}
-      minimap={minimap}
       atBottom={atBottom}
       onJumpToLatest={handleJumpToLatestTap}
       forkToRoomDialog={feature.forkToRoomDialog}

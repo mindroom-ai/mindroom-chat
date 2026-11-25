@@ -45,9 +45,15 @@ const readSource = (file: string): string => readFileSync(file, 'utf8');
 
 describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
   it('(c) render components do not import cacheStore directly', () => {
-    // RoomTimeline.tsx: the timeline render component.
-    const timelineSource = readSource(path.resolve(APP_ROOT, 'timeline/RoomTimeline.tsx'));
-    expect(timelineSource).not.toContain('/cache/db');
+    // Timeline surface render components.
+    for (const relativeFile of [
+      'timeline/RoomTimeline.tsx',
+      'timeline/ThreadTimeline.tsx',
+      'timeline/TimelineViewport.tsx',
+    ]) {
+      const timelineSource = readSource(path.resolve(APP_ROOT, relativeFile));
+      expect(timelineSource, `${relativeFile} imports /cache/db`).not.toContain('/cache/db');
+    }
 
     // Render sources under messages/**. Tests may wire the store
     // directly, and attachmentRepository is the non-React transport owner.

@@ -25,10 +25,10 @@ export type RoomTimelineNavigationControllerOptions = {
   /** Event the route focuses (a permalink), if any. */
   eventId?: string;
   handleOpenEvent: OpenEventHandler;
-  hideMembershipEvents: boolean;
-  hideNickAvatarEvents: boolean;
-  ignoredUsersSet: Set<string>;
-  navigateRoom: (roomId: string, eventId?: string, opts?: NavigateOptions) => void;
+  hideMembershipEvents?: boolean;
+  hideNickAvatarEvents?: boolean;
+  ignoredUsersSet?: Set<string>;
+  navigateRoom?: (roomId: string, eventId?: string, opts?: NavigateOptions) => void;
   navigateRoomThread: (
     roomId: string,
     threadId: string,
@@ -36,11 +36,11 @@ export type RoomTimelineNavigationControllerOptions = {
     opts?: NavigateOptions
   ) => void;
   room: Room;
-  prefetchDepth: number;
+  prefetchDepth?: number;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
-  setTimeline: Dispatch<SetStateAction<Timeline>>;
-  showHiddenEvents: boolean;
+  setTimeline?: Dispatch<SetStateAction<Timeline>>;
+  showHiddenEvents?: boolean;
   /** Classic (Full) rooms render thread replies inline. */
   showThreadRepliesInRoom?: boolean;
   threadId?: string;
@@ -49,20 +49,23 @@ export type RoomTimelineNavigationControllerOptions = {
 };
 
 /** Jump to Latest, Jump to Unread, and reply-quote navigation for the room or thread timeline. */
+const EMPTY_IGNORED = new Set<string>();
+const NOOP = () => undefined;
+
 export const useRoomTimelineNavigationController = ({
   eventId,
   handleOpenEvent,
-  hideMembershipEvents,
-  hideNickAvatarEvents,
-  ignoredUsersSet,
-  navigateRoom,
+  hideMembershipEvents = false,
+  hideNickAvatarEvents = false,
+  ignoredUsersSet = EMPTY_IGNORED,
+  navigateRoom = NOOP,
   navigateRoomThread,
   room,
-  prefetchDepth,
+  prefetchDepth = 0,
   scrollToBottomRef,
   setAtBottom,
-  setTimeline,
-  showHiddenEvents,
+  setTimeline = NOOP,
+  showHiddenEvents = false,
   showThreadRepliesInRoom,
   threadId,
   readUptoEventId,

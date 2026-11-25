@@ -18,6 +18,7 @@ import {
 import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { isZeroReplyStandaloneThreadRootEvent } from '../event-store/threads/compactThreadRootData';
 import type { ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { isThreadOnlyRoomActivity } from '../event-store/threads/threadRenderUtils';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { eventBelongsToThread } from '../event-store/threads/threadUtils';
@@ -56,7 +57,7 @@ type LiveRenderOptions = {
   atBottomRef: MutableRefObject<boolean>;
   /** The newest answer to whether the mounted window reaches the live end. */
   atLiveEndRef: MutableRefObject<boolean>;
-  effectiveThreadFilterState: ThreadFilterState;
+  effectiveThreadFilterState?: ThreadFilterState;
   /** The reader sends private read receipts. */
   readonly hideActivity: boolean;
   /**
@@ -77,33 +78,33 @@ type LiveRenderOptions = {
    */
   onOwnSend?: () => void;
   mx: MatrixClient;
-  normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  normalThreadRecordMap?: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: ThreadSummaryWriter;
   room: Room;
-  roomThreadFilterActive: boolean;
+  roomThreadFilterActive?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   /** The shared bottom-pin request, applied by the scroll controller at its next commit. */
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   /** Adds events to the open thread's rows. */
-  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
-  observeLiveTail: (threadId: string) => void;
-  notifyThreadEventsChanged: () => void;
+  setSupplementalThreadEvents?: (expectedThreadId: string, events: MatrixEvent[]) => void;
+  observeLiveTail?: (threadId: string) => void;
+  notifyThreadEventsChanged?: () => void;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
-  setUnreadInfo: Dispatch<SetStateAction<RoomUnreadInfo | undefined>>;
+  setUnreadInfo?: Dispatch<SetStateAction<RoomUnreadInfo | undefined>>;
   showHiddenEvents: boolean;
   /** The room's mounted rows, when they hold its threads' replies (the classic view). */
   classicRows?: () => MatrixEvent[];
   /** Event ID to row index, for the open thread's rows. */
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
   /** The open thread's root, or `undefined` in the room view. */
-  threadId: string | undefined;
-  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  threadId?: string;
+  threadResolutionMap?: Map<string, { isResolved: boolean }>;
   /**
    * This render's value of `atLiveEndRef`. The handlers below always run as of the newest render,
    * so the two never differ there; they read the ref.
    */
   timelineAtLiveEnd: boolean;
-  unreadInfo: RoomUnreadInfo | undefined;
+  unreadInfo?: RoomUnreadInfo;
 };
 
 /** An edit changes a row that is already there; it never becomes a row of its own. */
@@ -166,11 +167,16 @@ const touchesOpenThread = (
  * listener is the room's last one. The two shared listener hooks register once per room and
  * always call the handlers of the newest render.
  */
+const EMPTY_THREAD_RECORD_MAP: ReadonlyMap<string, ThreadRecord> = new Map();
+const EMPTY_THREAD_RESOLUTION_MAP = new Map<string, { isResolved: boolean }>();
+const EMPTY_THREAD_EVENT_INDEX_REF: MutableRefObject<Map<string, number>> = { current: new Map() };
+const NOOP = () => undefined;
+
 export const useRoomLiveRenderController = (options: LiveRenderOptions): void => {
   const {
     atBottomRef,
     atLiveEndRef,
-    effectiveThreadFilterState,
+    effectiveThreadFilterState = DIRECT_ROOM_TIMELINE_FILTER_STATE,
     hideActivity,
     readsMainTimeline = true,
     hideMembershipEvents,
@@ -180,22 +186,22 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     latestAtTopRef,
     onOwnSend,
     mx,
-    normalThreadRecordMap,
+    normalThreadRecordMap = EMPTY_THREAD_RECORD_MAP,
     onStoreThreadSummary,
     room,
-    roomThreadFilterActive,
+    roomThreadFilterActive = false,
     scrollRef,
     scrollToBottomRef,
-    setSupplementalThreadEvents,
-    observeLiveTail,
-    notifyThreadEventsChanged,
+    setSupplementalThreadEvents = NOOP,
+    observeLiveTail = NOOP,
+    notifyThreadEventsChanged = NOOP,
     setTimeline,
-    setUnreadInfo,
+    setUnreadInfo = NOOP,
     showHiddenEvents,
     classicRows,
-    threadEventIndexMapRef,
+    threadEventIndexMapRef = EMPTY_THREAD_EVENT_INDEX_REF,
     threadId,
-    threadResolutionMap,
+    threadResolutionMap = EMPTY_THREAD_RESOLUTION_MAP,
     unreadInfo,
   } = options;
   // Automatic read receipts wait until the reader sees the timeline (`useReaderSees`).

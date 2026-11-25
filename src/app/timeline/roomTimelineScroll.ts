@@ -19,6 +19,7 @@ import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
 import { stopIOSFlick } from '../lib/iosFlickStop';
 import { clearVirtualizerHoldOffset } from './timelineScrollLedgerController';
+import { readScrollPadding } from '../ui/styles/threadHeaderInset';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -225,7 +226,7 @@ export const useGestureBottomPins = ({
   onFirstGesture,
   onThreadTakeover,
 }: {
-  backController: ThreadBackPaginationController;
+  backController?: ThreadBackPaginationController;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   /** Whether the reader has scrolled the view shown now. */
   readerScrolledRef: MutableRefObject<ViewScopedFlag>;
@@ -240,7 +241,7 @@ export const useGestureBottomPins = ({
   const onThreadGesture = useCallback(() => {
     onThreadTakeoverRef.current?.();
     const { count } = scrollToBottomRef.current;
-    backController.cancelOpenBottomPin(count);
+    backController?.cancelOpenBottomPin(count);
     countAtGestureRef.current = count;
     if (readerScrolledRef.current.value) return;
     readerScrolledRef.current.value = true;
@@ -255,7 +256,7 @@ export const useGestureBottomPins = ({
   }, [onFirstGesture, readerScrolledRef, scrollToBottomRef]);
   const shouldApplyBottomPin = useCallback(
     (count: number) =>
-      count !== countAtGestureRef.current && backController.shouldApplyBottomPin(count),
+      count !== countAtGestureRef.current && (backController?.shouldApplyBottomPin(count) ?? true),
     [backController]
   );
   return { onThreadGesture, onRoomGesture, shouldApplyBottomPin };
@@ -344,7 +345,7 @@ export const useTimelineRowJumps = ({
   virtualizerRef: MutableRefObject<
     Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
   >;
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
   threadLeadingOffsetRef?: MutableRefObject<number>;
   roomLeadingOffsetRef?: MutableRefObject<number>;
   rows: RoomRowLookup;
@@ -502,7 +503,7 @@ export const useTimelineRowJumps = ({
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
-      const index = threadEventIndexMapRef.current.get(targetEventId);
+      const index = threadEventIndexMapRef?.current.get(targetEventId);
       if (index === undefined) return false;
       jumped();
       virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
@@ -513,6 +514,119 @@ export const useTimelineRowJumps = ({
     [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
+};
+
+const atScrollBoundary = (scrollElement: HTMLElement, error: number): boolean => {
+  const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+  if (typeof scrollTop !== 'number') return false;
+  if (error < 0) return scrollTop <= 0;
+  if (typeof scrollHeight !== 'number' || typeof clientHeight !== 'number') return false;
+  return scrollTop >= scrollHeight - clientHeight;
+};
+
+/** Scrolls a mounted DOM element into its aligned place inside the scroll container. */
+export const useElementScroll = (getScrollElement: () => HTMLElement | null): ScrollToElement => {
+  const getScrollElementRef = useLatestRef(getScrollElement);
+  const correctionFrameRef = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(correctionFrameRef.current);
+      }
+      correctionFrameRef.current = undefined;
+    },
+    []
+  );
+
+  return useCallback<ScrollToElement>(
+    (element, opts = {}) => {
+      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(correctionFrameRef.current);
+      }
+      correctionFrameRef.current = undefined;
+      const scrollElement = getScrollElementRef.current();
+      if (!scrollElement) return false;
+      const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
+      const view = scrollElement.getBoundingClientRect();
+      const padding = readScrollPadding(scrollElement);
+      const viewTop = view.top + padding.top;
+      const viewBottom = view.bottom - padding.bottom;
+
+      const targetTop = (height: number): number => {
+        const usableHeight = viewBottom - viewTop;
+        // An element taller than the usable view shows its start.
+        const effectiveAlign = height > usableHeight ? 'start' : align;
+        if (effectiveAlign === 'end') return viewBottom - height + offset;
+        if (effectiveAlign === 'center') return viewTop + (usableHeight - height) / 2 + offset;
+        return viewTop + offset;
+      };
+
+      const rect = element.getBoundingClientRect();
+      if (stopInView && rect.top >= viewTop && rect.bottom <= viewBottom) return false;
+
+      const delta = rect.top - targetTop(rect.height);
+      scrollElement.scrollBy({ top: delta, behavior });
+
+      if (behavior !== 'smooth' && typeof requestAnimationFrame === 'function') {
+        // Layout can still move the element during the scroll; correct once on the next frame.
+        let ran = false;
+        const frameId = requestAnimationFrame(() => {
+          ran = true;
+          correctionFrameRef.current = undefined;
+          const corrected = element.getBoundingClientRect();
+          const error = corrected.top - targetTop(corrected.height);
+          if (Math.abs(error) < 1 || atScrollBoundary(scrollElement, error)) return;
+          scrollElement.scrollBy({ top: error, behavior });
+        });
+        if (!ran) correctionFrameRef.current = frameId;
+      }
+      return true;
+    },
+    [getScrollElementRef]
+  );
+};
+
+/** Thread jumps: scroll to a mounted row element or ask the virtualizer to mount an event by ID. */
+export const useThreadRowJumps = ({
+  getScrollElement,
+  virtualizerRef,
+  threadEventIndexMapRef,
+  threadLeadingOffsetRef,
+}: {
+  getScrollElement: () => HTMLElement | null;
+  virtualizerRef: MutableRefObject<
+    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
+  >;
+  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadLeadingOffsetRef?: MutableRefObject<number>;
+}) => {
+  const baseScrollToElement = useElementScroll(getScrollElement);
+  const jumped = useCallback(() => {
+    const v = virtualizerRef.current;
+    v.cancelScroll();
+    clearVirtualizerHoldOffset(v);
+  }, [virtualizerRef]);
+  const scrollToElement = useCallback<ScrollToElement>(
+    (element, opts) => {
+      jumped();
+      return baseScrollToElement(element, opts);
+    },
+    [baseScrollToElement, jumped]
+  );
+  const scrollThreadEventIntoView = useCallback(
+    (targetEventId: string) => {
+      const index = threadEventIndexMapRef.current.get(targetEventId);
+      if (index === undefined) return false;
+      jumped();
+      virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
+        align: 'center',
+      });
+      return true;
+    },
+    [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
+  );
+  return { scrollToElement, scrollThreadEventIntoView };
 };
 
 /**

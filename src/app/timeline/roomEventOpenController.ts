@@ -50,6 +50,7 @@ import {
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import type { ThreadScheduledStatus } from '../event-store/threads/threadScheduledStatus';
 import type { ThreadResolutionState } from '../threads/tags/useRoomThreadTags';
+import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { countsRoomRows } from './roomTimelineClassicRows';
 
 type FocusItemState = {
@@ -83,6 +84,34 @@ export type OpenRoomEventRoute = (
 ) => Promise<void>;
 type OpenRoomEventArgs = [...Parameters<OpenRoomEventHandler>, returned?: boolean];
 
+const EMPTY_STRINGS: string[] = [];
+const EMPTY_THREADS: Thread[] = [];
+const EMPTY_EVENTS: MatrixEvent[] = [];
+const EMPTY_SCHEDULED_STATUS_MAP = new Map<string, ThreadScheduledStatus>();
+const EMPTY_PARTICIPANT_MAP = new Map<string, string[]>();
+const EMPTY_REPLY_COUNT_MAP = new Map<string, number>();
+const EMPTY_RESOLUTION_MAP = new Map<string, ThreadResolutionState>();
+const EMPTY_SUMMARY_INFO_MAP = new Map<string, ThreadSummaryInfo>();
+const EMPTY_READ_UPTO_REF: MutableRefObject<string | undefined> = { current: undefined };
+const EMPTY_RECALIBRATE_REF: MutableRefObject<RecalibrateFilterOpts | undefined> = {
+  current: undefined,
+};
+const EMPTY_PREFETCH_REF: MutableRefObject<number> = { current: 0 };
+const EMPTY_EVENT_INDEX_REF: MutableRefObject<Map<string, number>> = { current: new Map() };
+const EMPTY_FILTER_STATE_REF: MutableRefObject<ThreadFilterState> = {
+  current: DIRECT_ROOM_TIMELINE_FILTER_STATE,
+};
+const NOOP_THREAD_TARGETS: ThreadTargetCommands = {
+  getPending: () => undefined,
+  queue: () => undefined,
+  complete: () => undefined,
+  discard: () => undefined,
+  advanceAttempt: () => undefined,
+  wakeRetry: () => undefined,
+};
+const NOOP_SCROLL_TO_ITEM: ScrollToItem = () => false;
+const NOOP = () => undefined;
+
 export const useRoomEventOpenController = ({
   alive,
   cancelThreadBottomSettle,
@@ -93,37 +122,37 @@ export const useRoomEventOpenController = ({
   ignoredUsersSet,
   mx,
   navigateRoomThread,
-  overviewThreadRootIds,
-  threadTargets,
-  readUptoEventIdRef,
-  recalibrateFilterOptsRef,
+  overviewThreadRootIds = EMPTY_STRINGS,
+  threadTargets = NOOP_THREAD_TARGETS,
+  readUptoEventIdRef = EMPTY_READ_UPTO_REF,
+  recalibrateFilterOptsRef = EMPTY_RECALIBRATE_REF,
   room,
-  roomOverviewOrderActive,
-  roomThreadListThreads,
-  prefetchDepth,
-  prefetchDepthRef,
-  scheduledStatusMap,
+  roomOverviewOrderActive = false,
+  roomThreadListThreads = EMPTY_THREADS,
+  prefetchDepth = 0,
+  prefetchDepthRef = EMPTY_PREFETCH_REF,
+  scheduledStatusMap = EMPTY_SCHEDULED_STATUS_MAP,
   scrollRef,
   scrollThreadEventIntoView,
   scrollToBottomRef,
   scrollToElement,
-  scrollToItem,
-  searchQuery,
+  scrollToItem = NOOP_SCROLL_TO_ITEM,
+  searchQuery = '',
   setFocusItem,
-  notifyThreadEventsChanged,
+  notifyThreadEventsChanged = NOOP,
   setTimeline,
   showHiddenEvents,
-  threadEventIndexMapRef,
-  threadFilteredEvents,
+  threadEventIndexMapRef = EMPTY_EVENT_INDEX_REF,
+  threadFilteredEvents = EMPTY_EVENTS,
   foldedRows,
-  threadFilterStateRef,
+  threadFilterStateRef = EMPTY_FILTER_STATE_REF,
   threadId,
-  threadParticipantMap,
-  threadReplyCountMap,
-  threadResolutionMap,
-  threadSortControlSignature,
-  threadSortFreezeState,
-  threadSummaryInfoMap,
+  threadParticipantMap = EMPTY_PARTICIPANT_MAP,
+  threadReplyCountMap = EMPTY_REPLY_COUNT_MAP,
+  threadResolutionMap = EMPTY_RESOLUTION_MAP,
+  threadSortControlSignature = '',
+  threadSortFreezeState = null,
+  threadSummaryInfoMap = EMPTY_SUMMARY_INFO_MAP,
 }: {
   alive: () => boolean;
   cancelThreadBottomSettle?: () => void;
@@ -139,28 +168,28 @@ export const useRoomEventOpenController = ({
     eventId?: string,
     opts?: NavigateOptions
   ) => void;
-  overviewThreadRootIds: string[];
-  threadTargets: ThreadTargetCommands;
-  readUptoEventIdRef: MutableRefObject<string | undefined>;
-  recalibrateFilterOptsRef: MutableRefObject<RecalibrateFilterOpts | undefined>;
+  overviewThreadRootIds?: string[];
+  threadTargets?: ThreadTargetCommands;
+  readUptoEventIdRef?: MutableRefObject<string | undefined>;
+  recalibrateFilterOptsRef?: MutableRefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
-  roomOverviewOrderActive: boolean;
-  roomThreadListThreads: Thread[];
-  prefetchDepth: number;
-  prefetchDepthRef: MutableRefObject<number>;
-  scheduledStatusMap: Map<string, ThreadScheduledStatus>;
+  roomOverviewOrderActive?: boolean;
+  roomThreadListThreads?: Thread[];
+  prefetchDepth?: number;
+  prefetchDepthRef?: MutableRefObject<number>;
+  scheduledStatusMap?: Map<string, ThreadScheduledStatus>;
   scrollRef: RefObject<HTMLElement | null>;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
   scrollToElement: ScrollToElement;
-  scrollToItem: ScrollToItem;
-  searchQuery: string;
+  scrollToItem?: ScrollToItem;
+  searchQuery?: string;
   setFocusItem: Dispatch<SetStateAction<FocusItemState | undefined>>;
-  notifyThreadEventsChanged: () => void;
+  notifyThreadEventsChanged?: () => void;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   showHiddenEvents: boolean;
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
-  threadFilteredEvents: MatrixEvent[];
+  threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
+  threadFilteredEvents?: MatrixEvent[];
   /**
    * The row of each loaded event that a closed fold of the room's rows holds, by event ID
    * (`RoomRowProjection`). Such an event shows no row until its fold opens: the fold's first
@@ -168,14 +197,14 @@ export const useRoomEventOpenController = ({
    * which are no rows of it. A jump to any of them unfolds the run instead of scrolling to a row.
    */
   foldedRows?: ReadonlyMap<string, number>;
-  threadFilterStateRef: MutableRefObject<ThreadFilterState>;
+  threadFilterStateRef?: MutableRefObject<ThreadFilterState>;
   threadId?: string;
-  threadParticipantMap: Map<string, string[]>;
-  threadReplyCountMap: Map<string, number>;
-  threadResolutionMap: Map<string, ThreadResolutionState>;
-  threadSortControlSignature: string;
-  threadSortFreezeState: ThreadSortFreezeState | null;
-  threadSummaryInfoMap: Map<string, ThreadSummaryInfo>;
+  threadParticipantMap?: Map<string, string[]>;
+  threadReplyCountMap?: Map<string, number>;
+  threadResolutionMap?: Map<string, ThreadResolutionState>;
+  threadSortControlSignature?: string;
+  threadSortFreezeState?: ThreadSortFreezeState | null;
+  threadSummaryInfoMap?: Map<string, ThreadSummaryInfo>;
 }): {
   handleOpenEvent: OpenRoomEventHandler;
   openRoomEventRoute: OpenRoomEventRoute;

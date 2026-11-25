@@ -21,11 +21,54 @@ type RoomUnreadInfoLike = {
   readUptoEventId?: string;
 };
 
-export type RoomTimelineWindowControllerOptions = {
+export type ThreadLoadOlderOptions = {
   canPaginateThreadBack: boolean;
+  lastThreadBackwardPaginationToken: string | null;
+  threadEventsLength: number;
+  threadHasMoreCachedBack: boolean;
+  threadTailLoaded: boolean;
+};
+
+/** Whether an open thread should render its leading "Load older messages" chip. */
+export const useThreadLoadOlderMessages = ({
+  canPaginateThreadBack,
+  lastThreadBackwardPaginationToken,
+  threadEventsLength,
+  threadHasMoreCachedBack,
+  threadTailLoaded,
+}: ThreadLoadOlderOptions): boolean => {
+  const coverage = useMemo(
+    () =>
+      buildThreadCacheCoverage({
+        eventCount: threadEventsLength,
+        backwardToken: canPaginateThreadBack
+          ? lastThreadBackwardPaginationToken
+          : threadHasMoreCachedBack
+            ? undefined
+            : null,
+        hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
+        relationSnapshotComplete: false,
+        tailLoaded: threadTailLoaded,
+      }),
+    [
+      canPaginateThreadBack,
+      lastThreadBackwardPaginationToken,
+      threadEventsLength,
+      threadHasMoreCachedBack,
+      threadTailLoaded,
+    ]
+  );
+  return shouldShowThreadLoadOlderFromCoverage({
+    coverage,
+    sdkHasBackwardToken: canPaginateThreadBack,
+  });
+};
+
+export type RoomTimelineWindowControllerOptions = {
+  canPaginateThreadBack?: boolean;
   filteredRoomThreadActive: boolean;
   filteredRoomOverviewOrderActive: boolean;
-  lastThreadBackwardPaginationToken: string | null;
+  lastThreadBackwardPaginationToken?: string | null;
   overviewRefreshCounter: number;
   overviewThreadRootIds: string[];
   renderableEventEntries: TimelineEventEntry[];
@@ -34,12 +77,12 @@ export type RoomTimelineWindowControllerOptions = {
   roomSurfaceEventEntries: TimelineEventEntry[];
   roomThreadListThreads: Thread[];
   prefetchDepth: number;
-  threadEventsLength: number;
-  threadHasMoreCachedBack: boolean;
+  threadEventsLength?: number;
+  threadHasMoreCachedBack?: boolean;
   threadId?: string;
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
-  threadTailLoaded: boolean;
+  threadTailLoaded?: boolean;
   timeline: Timeline;
   unreadInfo?: RoomUnreadInfoLike;
 };
@@ -55,10 +98,10 @@ export type RoomTimelineWindowControllerResult = {
 };
 
 export const useRoomTimelineWindowController = ({
-  canPaginateThreadBack,
+  canPaginateThreadBack = false,
   filteredRoomThreadActive,
   filteredRoomOverviewOrderActive,
-  lastThreadBackwardPaginationToken,
+  lastThreadBackwardPaginationToken = null,
   overviewRefreshCounter,
   overviewThreadRootIds,
   renderableEventEntries,
@@ -67,12 +110,12 @@ export const useRoomTimelineWindowController = ({
   roomSurfaceEventEntries,
   roomThreadListThreads,
   prefetchDepth,
-  threadEventsLength,
-  threadHasMoreCachedBack,
+  threadEventsLength = 0,
+  threadHasMoreCachedBack = false,
   threadId,
   threadReplyCountMap,
   threadResolutionMap,
-  threadTailLoaded,
+  threadTailLoaded = false,
   timeline,
   unreadInfo,
 }: RoomTimelineWindowControllerOptions): RoomTimelineWindowControllerResult => {
@@ -180,30 +223,12 @@ export const useRoomTimelineWindowController = ({
     threadResolutionMap,
   ]);
 
-  const threadPaginationCoverage = useMemo(
-    () =>
-      buildThreadCacheCoverage({
-        eventCount: threadEventsLength,
-        backwardToken: canPaginateThreadBack
-          ? lastThreadBackwardPaginationToken
-          : threadHasMoreCachedBack
-            ? undefined
-            : null,
-        hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
-        relationSnapshotComplete: false,
-        tailLoaded: threadTailLoaded,
-      }),
-    [
-      canPaginateThreadBack,
-      lastThreadBackwardPaginationToken,
-      threadEventsLength,
-      threadHasMoreCachedBack,
-      threadTailLoaded,
-    ]
-  );
-  const showThreadLoadOlderMessages = shouldShowThreadLoadOlderFromCoverage({
-    coverage: threadPaginationCoverage,
-    sdkHasBackwardToken: canPaginateThreadBack,
+  const showThreadLoadOlderMessages = useThreadLoadOlderMessages({
+    canPaginateThreadBack,
+    lastThreadBackwardPaginationToken,
+    threadEventsLength,
+    threadHasMoreCachedBack,
+    threadTailLoaded,
   });
 
   return {

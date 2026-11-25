@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useIntersectionObserver } from '../lib/hooks/useIntersectionObserver';
 import { readScrollPadding } from '../ui/styles/threadHeaderInset';
+import { useElementScroll } from './roomTimelineScroll';
 
 export { readScrollPadding };
 
@@ -130,14 +131,6 @@ const contentTop = (scrollElement: HTMLElement, element: HTMLElement): number =>
   return element.getBoundingClientRect().top - contentOrigin;
 };
 
-const atScrollBoundary = (scrollElement: HTMLElement, error: number): boolean => {
-  const { scrollTop, scrollHeight, clientHeight } = scrollElement;
-  if (typeof scrollTop !== 'number') return false;
-  if (error < 0) return scrollTop <= 0;
-  if (typeof scrollHeight !== 'number' || typeof clientHeight !== 'number') return false;
-  return scrollTop >= scrollHeight - clientHeight;
-};
-
 /**
  * Pages a window of items for a virtualized timeline. Sentinels before and after the window
  * (`observeBackAnchor`, `observeFrontAnchor`) widen it by `limit` when they come into view,
@@ -153,61 +146,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>(undefined);
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
-  const correctionFrameRef = useRef<number | undefined>(undefined);
-
-  useEffect(
-    () => () => {
-      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
-        cancelAnimationFrame(correctionFrameRef.current);
-      }
-      correctionFrameRef.current = undefined;
-    },
-    []
-  );
-
-  const scrollToElement: ScrollToElement = useCallback((element, opts = {}) => {
-    if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(correctionFrameRef.current);
-    }
-    correctionFrameRef.current = undefined;
-    const scrollElement = optionsRef.current.getScrollElement();
-    if (!scrollElement) return false;
-    const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
-    const view = scrollElement.getBoundingClientRect();
-    const padding = readScrollPadding(scrollElement);
-    const viewTop = view.top + padding.top;
-    const viewBottom = view.bottom - padding.bottom;
-
-    const targetTop = (height: number): number => {
-      const usableHeight = viewBottom - viewTop;
-      // An element taller than the usable view shows its start.
-      const effectiveAlign = height > usableHeight ? 'start' : align;
-      if (effectiveAlign === 'end') return viewBottom - height + offset;
-      if (effectiveAlign === 'center') return viewTop + (usableHeight - height) / 2 + offset;
-      return viewTop + offset;
-    };
-
-    const rect = element.getBoundingClientRect();
-    if (stopInView && rect.top >= viewTop && rect.bottom <= viewBottom) return false;
-
-    const delta = rect.top - targetTop(rect.height);
-    scrollElement.scrollBy({ top: delta, behavior });
-
-    if (behavior !== 'smooth' && typeof requestAnimationFrame === 'function') {
-      // Layout can still move the element during the scroll; correct once on the next frame.
-      let ran = false;
-      const frameId = requestAnimationFrame(() => {
-        ran = true;
-        correctionFrameRef.current = undefined;
-        const corrected = element.getBoundingClientRect();
-        const error = corrected.top - targetTop(corrected.height);
-        if (Math.abs(error) < 1 || atScrollBoundary(scrollElement, error)) return;
-        scrollElement.scrollBy({ top: error, behavior });
-      });
-      if (!ran) correctionFrameRef.current = frameId;
-    }
-    return true;
-  }, []);
+  const getScrollElement = useCallback(() => optionsRef.current.getScrollElement(), []);
+  const scrollToElement = useElementScroll(getScrollElement);
 
   /** The first item at least partly inside the scroll view, by content offsets. */
   const findVisibleIndex = useCallback((itemRange: ItemRange): number | undefined => {
