@@ -240,15 +240,13 @@ export const useTimelineScrollLedgerController = ({
   // the virtual list; bottom-following is owned by the pin hooks. Newest-first Threads view keeps
   // `anchorTo: 'start'` and anchors reorders via `roomScrollLedger`.
   const anchorToEnd = !!threadId || !latestAtTop;
-  const holdScrollDuringWheel = anchorToEnd && isDesktopWebKit();
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
     getScrollElement,
     estimateSize,
     overscan: 10,
-    ...(anchorToEnd
-      ? { anchorTo: 'end' as const, scrollEndThreshold: -1, holdScrollDuringWheel }
-      : {}),
+    holdScrollDuringWheel: isDesktopWebKit(),
+    ...(anchorToEnd ? { anchorTo: 'end' as const, scrollEndThreshold: -1 } : {}),
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
     measureElement: measureRow,

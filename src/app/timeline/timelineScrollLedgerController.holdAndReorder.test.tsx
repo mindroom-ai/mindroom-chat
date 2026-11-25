@@ -454,4 +454,37 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
     expect(getTileTop('$ev-0')).toBeLessThan(VIEWPORT_HEIGHT);
   });
+
+  it('does not write into desktop WebKit wheel scrolling when a thread gets a reply in newest-first view', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
+    _resetIOSDetectionForTests();
+    const keys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
+    const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
+      latestAtTop: true,
+      initialKeys: keys,
+    });
+    const inner = scrollElement.firstElementChild!;
+    const rect = inner.getBoundingClientRect();
+    inner.getBoundingClientRect = () => ({ ...rect, top: -scrollElement.scrollTop });
+    render();
+
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    scrollElement.scrollTop = 1300;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    render([keys[30]!, ...keys.filter((_, i) => i !== 30)]);
+    // Must stay at 1300 during the live desktop wheel while holding +100px so row $ev-13 stays still.
+    expect(scrollElement.scrollTop).toBe(1300);
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(100);
+    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
+
+    // At rest (after the wheel timer expires), virtual-core flushes the hold and lands at 1400.
+    vi.advanceTimersByTime(500);
+    expect(
+      (getVirtualizer() as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()
+    ).toBe(true);
+    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
+    expect(scrollElement.scrollTop).toBe(1400);
+    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
+  });
 });
