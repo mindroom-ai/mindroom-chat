@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { EventTimeline, Room } from 'matrix-js-sdk';
+import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
   aggregateThreadTagEvents,
@@ -36,6 +36,82 @@ export type UseMutateThreadTagsResult = {
  * one tag and leaves the others, including ones another person sets at the same moment. The
  * write shows at once as a pending tag over the live tags until room state shows it.
  */
+export type ThreadTagWriteExtra = {
+  note?: string;
+  data?: Record<string, unknown>;
+};
+
+/**
+ * Sends a single per-tag state event for `threadRootId` in `room`, publishing an optimistic
+ * pending tag immediately and rolling it back if the write fails.
+ */
+export async function writeThreadTag(
+  mx: MatrixClient,
+  room: Room,
+  threadRootId: string,
+  tagName: string,
+  present: boolean,
+  extra: ThreadTagWriteExtra = {}
+): Promise<void> {
+  const userId = mx.getSafeUserId();
+  const validThreadRootId = getResolvableThreadRootEvent(room, threadRootId)?.getId();
+  if (!validThreadRootId) {
+    throw new Error('Thread tags are only available for known thread roots.');
+  }
+
+  const stateKey = buildPerTagStateKey(validThreadRootId, tagName);
+  const pinned = () => isThreadPinned(room, validThreadRootId);
+  if (stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) && pinned()) {
+    throw new Error('Pinned threads cannot be resolved.');
+  }
+  // A snooze set before the pin may still be lifted.
+  if (present && stateKey === buildPerTagStateKey(validThreadRootId, SNOOZED_TAG) && pinned()) {
+    throw new Error('Pinned threads cannot be snoozed.');
+  }
+  const content = present
+    ? buildPerTagEventContent(userId, extra.note, extra.data, new Date().toISOString())
+    : undefined;
+  const pending: [rootId: string, tag: string] = [validThreadRootId, normalizeTagName(tagName)];
+  // The pending tag is the content being sent: its author, time, note and data.
+  setPendingThreadTag(room.roomId, ...pending, content ?? null);
+  try {
+    await mx.sendStateEvent(
+      room.roomId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      MINDROOM_THREAD_TAGS_EVENT as any,
+      content ?? {},
+      stateKey
+    );
+  } catch (err) {
+    clearPendingThreadTag(room.roomId, ...pending);
+    throw err;
+  }
+}
+
+/**
+ * Resolves or reopens a thread in `room`, clearing any `snoozed` tag when resolving so reopening
+ * later does not restore an old snooze.
+ */
+export async function setThreadResolved(
+  mx: MatrixClient,
+  room: Room,
+  threadRootId: string,
+  resolved: boolean
+): Promise<void> {
+  await writeThreadTag(mx, room, threadRootId, RESOLVED_TAG, resolved);
+  if (!resolved) return;
+  // Resolving ends a snooze, as the backend's resolve does; left set, reopening would bring
+  // it back and the backend would still clear it at its time.
+  const rawEvents = room
+    .getLiveTimeline?.()
+    ?.getState?.(EventTimeline.FORWARDS)
+    ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
+  const events = Array.isArray(rawEvents) ? rawEvents : [];
+  if (aggregateThreadTagEvents(events).get(threadRootId)?.tags[SNOOZED_TAG]) {
+    await writeThreadTag(mx, room, threadRootId, SNOOZED_TAG, false);
+  }
+}
+
 export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const mx = useMatrixClient();
   const [updatingThreadRootIds, setUpdatingThreadRootIds] = useState<ReadonlySet<string>>(
@@ -44,54 +120,16 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const [error, setError] = useState<Error | null>(null);
   const pendingRef = useRef(new Set<string>());
 
-  const sendUpdate = useCallback(
-    async (
-      threadRootId: string,
-      tagName: string,
-      present: boolean,
-      extra: { note?: string; data?: Record<string, unknown> } = {}
-    ): Promise<boolean> => {
+  const runPending = useCallback(
+    async (threadRootId: string, task: () => Promise<void>): Promise<boolean> => {
       if (pendingRef.current.has(threadRootId)) return false;
       pendingRef.current.add(threadRootId);
       setUpdatingThreadRootIds(new Set(pendingRef.current));
       setError(null);
-      let pending: [rootId: string, tag: string] | undefined;
       try {
-        const userId = mx.getSafeUserId();
-        const validThreadRootId = getResolvableThreadRootEvent(room, threadRootId)?.getId();
-        if (!validThreadRootId) {
-          throw new Error('Thread tags are only available for known thread roots.');
-        }
-
-        const stateKey = buildPerTagStateKey(validThreadRootId, tagName);
-        const pinned = () => isThreadPinned(room, validThreadRootId);
-        if (stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) && pinned()) {
-          throw new Error('Pinned threads cannot be resolved.');
-        }
-        // A snooze set before the pin may still be lifted.
-        if (
-          present &&
-          stateKey === buildPerTagStateKey(validThreadRootId, SNOOZED_TAG) &&
-          pinned()
-        ) {
-          throw new Error('Pinned threads cannot be snoozed.');
-        }
-        const content = present
-          ? buildPerTagEventContent(userId, extra.note, extra.data, new Date().toISOString())
-          : undefined;
-        pending = [validThreadRootId, normalizeTagName(tagName)];
-        // The pending tag is the content being sent: its author, time, note and data.
-        setPendingThreadTag(room.roomId, ...pending, content ?? null);
-        await mx.sendStateEvent(
-          room.roomId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          MINDROOM_THREAD_TAGS_EVENT as any,
-          content ?? {},
-          stateKey
-        );
+        await task();
         return true;
       } catch (err) {
-        if (pending) clearPendingThreadTag(room.roomId, ...pending);
         setError(err instanceof Error ? err : new Error(String(err)));
         return false;
       } finally {
@@ -99,7 +137,20 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         setUpdatingThreadRootIds(new Set(pendingRef.current));
       }
     },
-    [mx, room]
+    []
+  );
+
+  const sendUpdate = useCallback(
+    (
+      threadRootId: string,
+      tagName: string,
+      present: boolean,
+      extra: ThreadTagWriteExtra = {}
+    ): Promise<boolean> =>
+      runPending(threadRootId, () =>
+        writeThreadTag(mx, room, threadRootId, tagName, present, extra)
+      ),
+    [mx, room, runPending]
   );
 
   const addTag = useCallback(
@@ -118,20 +169,9 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
 
   const setResolved = useCallback(
     async (threadRootId: string, resolved: boolean) => {
-      const written = await sendUpdate(threadRootId, RESOLVED_TAG, resolved);
-      if (!written || !resolved) return;
-      // Resolving ends a snooze, as the backend's resolve does; left set, reopening would bring
-      // it back and the backend would still clear it at its time.
-      const events =
-        room
-          .getLiveTimeline()
-          .getState(EventTimeline.FORWARDS)
-          ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
-      if (aggregateThreadTagEvents(events).get(threadRootId)?.tags[SNOOZED_TAG]) {
-        await sendUpdate(threadRootId, SNOOZED_TAG, false);
-      }
+      await runPending(threadRootId, () => setThreadResolved(mx, room, threadRootId, resolved));
     },
-    [room, sendUpdate]
+    [mx, room, runPending]
   );
 
   const snooze = useCallback(

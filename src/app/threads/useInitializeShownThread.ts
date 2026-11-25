@@ -14,10 +14,10 @@ const getLiveSync = (mx: MatrixClient): LiveSync => {
   let liveSync = liveSyncs.get(mx);
   if (!liveSync) {
     const created: LiveSync = {
-      count: mx.getSyncState() === SyncState.Syncing ? 1 : 0,
+      count: mx.getSyncState?.() === SyncState.Syncing ? 1 : 0,
       listeners: new Set(),
     };
-    mx.on(ClientEvent.Sync, (state, previous) => {
+    mx.on?.(ClientEvent.Sync, (state, previous) => {
       if (state !== SyncState.Syncing || previous === SyncState.Syncing) return;
       created.count += 1;
       created.listeners.forEach((listener) => listener());
@@ -151,8 +151,8 @@ export const useInitializeShownThread = (
     return element && list && listScrolled ? observeVisibility(element, setNear, list) : undefined;
   }, [element, listScrolled, scrollRoot]);
   const shown = visible || near;
-  const room = mx.getRoom(roomId);
-  const thread = threadRootId ? room?.getThread(threadRootId) : undefined;
+  const room = mx.getRoom?.(roomId);
+  const thread = threadRootId ? room?.getThread?.(threadRootId) : undefined;
   const [, rerender] = useReducer((count: number) => count + 1, 0);
   // A card can render before the SDK creates its thread.
   useEffect(() => {
@@ -160,10 +160,10 @@ export const useInitializeShownThread = (
     const onNewThread = (created: Thread) => {
       if (created.id === threadRootId) rerender();
     };
-    room.on(ThreadEvent.New, onNewThread);
-    if (room.getThread(threadRootId)) rerender();
+    room.on?.(ThreadEvent.New, onNewThread);
+    if (room.getThread?.(threadRootId)) rerender();
     return () => {
-      room.removeListener(ThreadEvent.New, onNewThread);
+      room.removeListener?.(ThreadEvent.New, onNewThread);
     };
   }, [room, thread, threadRootId]);
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { SyncState, type MatrixClient, type Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
 import '@fontsource-variable/inter';
 import '../../src/index.css';
@@ -44,6 +44,31 @@ const members = new Map(
     },
   ])
 );
+const powerLevelsEvent = {
+  getContent: () => ({ users_default: 50, state_default: 50, events_default: 0 }),
+};
+const createEvent = {
+  getContent: () => ({ room_version: '11' }),
+  getSender: () => '@alex:example.org',
+};
+const roomState = {
+  getStateEvents: (type: string, stateKey?: string) => {
+    if (type === 'm.room.power_levels') return powerLevelsEvent;
+    if (type === 'm.room.create') return createEvent;
+    return stateKey === undefined ? [] : null;
+  },
+};
+const roomsById = new Map<string, SpaceRoomItem>();
+const mx = {
+  getSafeUserId: () => '@morgan:example.org',
+  getUserId: () => '@morgan:example.org',
+  getHomeserverUrl: () => 'https://example.org',
+  getRoom: (id: string) => roomsById.get(id)?.room ?? null,
+  getSyncState: () => SyncState.Syncing,
+  on: () => undefined,
+  removeListener: () => undefined,
+  mxcUrlToHttp: (mxcUrl: string) => avatarUrls.get(mxcUrl) ?? null,
+} as unknown as MatrixClient;
 const ROOMS: readonly SpaceRoomItem[] = (
   [
     ['backend-api', '#4f8ff7'],
@@ -51,26 +76,28 @@ const ROOMS: readonly SpaceRoomItem[] = (
   ] as const
 ).map(([name, accentColor]) => {
   const roomId = `!${name}:example.org`;
-  return {
+  const item: SpaceRoomItem = {
     name,
     accentColor,
     room: {
       roomId,
       name,
+      client: mx,
       getMember: (userId: string) => members.get(userId) ?? null,
       getMembers: () => [...members.values()],
       getThread: () => undefined,
       findEventById: () => undefined,
       getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
+      getLiveTimeline: () => ({ getState: () => roomState }),
+      currentState: roomState,
+      on: () => undefined,
+      off: () => undefined,
+      removeListener: () => undefined,
     } as unknown as Room,
   };
+  roomsById.set(roomId, item);
+  return item;
 });
-const roomsById = new Map(ROOMS.map((item) => [item.room.roomId, item]));
-const mx = {
-  getSafeUserId: () => '@morgan:example.org',
-  getHomeserverUrl: () => 'https://example.org',
-  mxcUrlToHttp: (mxcUrl: string) => avatarUrls.get(mxcUrl) ?? null,
-} as unknown as MatrixClient;
 
 const buildEntry = (
   i: number,

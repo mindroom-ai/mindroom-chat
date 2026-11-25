@@ -147,6 +147,7 @@ type FakeRoom = Room & {
   setName: (next: string) => void;
   setMembers: (next: FakeMemberInput[]) => void;
   setPinnedEventIds: (next: string[]) => void;
+  setPowerLevels: (next: Record<string, unknown>) => void;
   setTimelineEvents: (next: unknown[]) => void;
   setReadReceipt: (next: { eventId: string; ts: number } | null) => void;
 };
@@ -181,8 +182,12 @@ const makeRoom = (
   let timelineEvents = opts.timelineEvents ?? [];
   let readReceipt: { eventId: string; data: { ts: number } } | null = null;
 
+  let powerLevelsContent: Record<string, unknown> = {
+    users_default: 0,
+    events_default: canSend ? 0 : 50,
+  };
   const powerEvent = {
-    getContent: () => ({ users_default: 0, events_default: canSend ? 0 : 50 }),
+    getContent: () => powerLevelsContent,
   };
   const threadModeEvent = opts.threadMode
     ? { getContent: () => ({ mode: opts.threadMode }) }
@@ -250,6 +255,9 @@ const makeRoom = (
     },
     setPinnedEventIds: (next: string[]) => {
       pinnedEventIds = next;
+    },
+    setPowerLevels: (next: Record<string, unknown>) => {
+      powerLevelsContent = next;
     },
     setTimelineEvents: (next: unknown[]) => {
       timelineEvents = next;
@@ -1316,5 +1324,44 @@ describe('SpaceThreadsPage', () => {
         ?.getAttribute('data-room-filter-count')
     ).toBe('0');
     expect(screen.getByText('Deploy script')).toBeTruthy();
+  });
+
+  it('tracks pinned state in flat mode and refreshes card permissions live on power-level updates', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', {
+      hasAgent: true,
+      pinnedEventIds: ['$pinned'],
+    });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$pinned', 'Pinned card', NOW - 10_000),
+      makeEntry(ROOM_ENG, 'Engineering', '$open', 'Open card', NOW - 20_000),
+    ];
+    const { container } = renderSpaceThreads({ rooms: [eng], entries });
+
+    const pinnedShell = () =>
+      container.querySelector<HTMLElement>('[data-scroll-anchor="$pinned"]')!;
+    const openShell = () => container.querySelector<HTMLElement>('[data-scroll-anchor="$open"]')!;
+
+    // Initially user has power level 0 (cannot toggle/pin).
+    expect(openShell().querySelector('[data-compact-thread-resolve]')).toBeNull();
+    expect(openShell().querySelector('[data-compact-thread-pin]')).toBeNull();
+
+    // Promote user to moderator via RoomPowerLevels state event -> live permission refresh.
+    act(() => {
+      eng.setPowerLevels({ users_default: 50, state_default: 50, events_default: 0 });
+      eng.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomPowerLevels,
+        getStateKey: () => '',
+      });
+    });
+
+    // Open card gets Resolve + Pin; pinned card omits Resolve and shows Unpin even in flat mode.
+    expect(openShell().querySelector('[data-compact-thread-resolve]')).toBeTruthy();
+    expect(openShell().querySelector('[data-compact-thread-pin]')).toBeTruthy();
+    expect(pinnedShell().querySelector('[data-compact-thread-resolve]')).toBeNull();
+    expect(
+      pinnedShell()
+        .querySelector<HTMLButtonElement>('[data-compact-thread-pin]')
+        ?.getAttribute('aria-label')
+    ).toBe('Unpin thread');
   });
 });
