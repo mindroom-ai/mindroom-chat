@@ -1,12 +1,12 @@
-import { isCapacitorApp, isDesktopApp } from '../lib/nativeShell';
 import type { MatrixClient } from 'matrix-js-sdk';
 
-// Authenticated media (Matrix 1.11, MSC3916) needs the access token on every download. On the web
-// the service worker adds it as a header; native shells without a service worker put it in the
-// URL instead, and only for the homeserver's own media endpoints.
+// Authenticated media (Matrix 1.11, MSC3916) needs the access token in an Authorization header on
+// every download (MSC4127 removed `?access_token=` query parameters). On the web a controlling
+// service worker adds it, in Electron desktop main's webRequest interceptor adds it, and in
+// Capacitor shells or pages without a service worker callers fetch with
+// `authenticatedMediaRequestInit`.
 
-type MediaClient = Pick<MatrixClient, 'getHomeserverUrl' | 'mxcUrlToHttp'> &
-  Partial<Pick<MatrixClient, 'getAccessToken'>>;
+type MediaClient = Pick<MatrixClient, 'getHomeserverUrl' | 'mxcUrlToHttp'>;
 
 type VersionsLike = { versions?: string[]; unstable_features?: Record<string, boolean> };
 
@@ -31,20 +31,6 @@ const isSpecVersionAtLeast = (version: string, major: number, minor: number): bo
 export const supportsAuthenticatedMedia = (versions: VersionsLike): boolean =>
   (versions.versions ?? []).some((version) => isSpecVersionAtLeast(version, 1, 11)) ||
   versions.unstable_features?.['org.matrix.msc3916.stable'] === true;
-
-const runsInNativeShell = (): boolean => {
-  if (isDesktopApp()) return false;
-  const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
-  if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
-  try {
-    return isCapacitorApp();
-  } catch {
-    return false;
-  }
-};
-
-const hasServiceWorkerControl = (): boolean =>
-  typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
 
 /**
  * Some SDK versions build media URLs from the homeserver origin only. A homeserver served under a
@@ -101,37 +87,26 @@ const buildMediaUrl = (
   if (!homeserver || !parsed) return httpUrl;
 
   const url = withHomeserverPath(parsed, homeserver);
-  if (!useAuthentication || hasServiceWorkerControl() || !runsInNativeShell()) {
-    return url === parsed ? httpUrl : url.href;
-  }
-
-  const token = mx.getAccessToken?.();
-  if (!token || !isHomeserverMediaUrl(url, homeserver)) return url === parsed ? httpUrl : url.href;
-  url.searchParams.set('access_token', token);
-  return url.href;
+  return url === parsed ? httpUrl : url.href;
 };
 
-// Every timeline row builds its avatar's URL at each render, and building one parses URLs three
-// times. A URL without a token depends only on the client's homeserver, which a client never
-// changes, and the arguments, so it is kept per client by its arguments; one that carries the
-// token is built each time, with the current token.
+// Every timeline row builds its avatar's URL at each render, and building one parses URLs twice.
+// Because media URLs never carry access tokens, each URL depends only on the client's homeserver
+// (which a client never changes) and the arguments, so it is cached per client on every platform.
 const MAX_CACHED_URLS = 1000;
-const tokenFreeUrls = new WeakMap<MediaClient, Map<string, string | null>>();
+const cachedMediaUrls = new WeakMap<MediaClient, Map<string, string | null>>();
 
-/** The HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
+/** The clean, token-free HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
 export const mxcUrlToHttp = (
   mx: MediaClient,
   mxcUrl: string,
   useAuthentication?: boolean,
   ...extras: MxcHttpExtras
 ): string | null => {
-  if (useAuthentication && !hasServiceWorkerControl() && runsInNativeShell()) {
-    return buildMediaUrl(mx, mxcUrl, useAuthentication, ...extras);
-  }
-  let urls = tokenFreeUrls.get(mx);
+  let urls = cachedMediaUrls.get(mx);
   if (!urls) {
     urls = new Map();
-    tokenFreeUrls.set(mx, urls);
+    cachedMediaUrls.set(mx, urls);
   }
   const key = JSON.stringify([mxcUrl, useAuthentication, ...extras]);
   const known = urls.get(key);
@@ -154,8 +129,7 @@ export const authenticatedMediaRequestInit = (
   const token = mx.getAccessToken();
   const homeserver = parseUrl(mx.getHomeserverUrl());
   const parsed = parseUrl(url);
-  if (!token || !homeserver || !parsed) return undefined;
-  if (!isHomeserverMediaUrl(parsed, homeserver) || parsed.searchParams.has('access_token')) {
+  if (!token || !homeserver || !parsed || !isHomeserverMediaUrl(parsed, homeserver)) {
     return undefined;
   }
   return { headers: { Authorization: `Bearer ${token}` } };

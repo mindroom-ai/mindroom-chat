@@ -70,6 +70,23 @@ describe('loadServerScaledPicture', () => {
     expect(loadOriginal).not.toHaveBeenCalled();
   });
 
+  it('sends Authorization Bearer and no access_token query param on Capacitor', async () => {
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    vi.stubGlobal('navigator', {});
+
+    await expect(loadServerScaledPicture(mx, 'mxc://example/photo', loadOriginal)).resolves.toBe(
+      'blob:scaled'
+    );
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `${HOMESERVER}/_matrix/client/v1/media/thumbnail/example/photo?width=800&height=600&method=scale`
+    );
+    expect(url).not.toContain('access_token');
+    expect(init.headers).toEqual({ Authorization: 'Bearer secret-token' });
+  });
+
   it('shows an original this device saved, without the network', async () => {
     mocks.savedMetadata.mockResolvedValue({ mxcUri: 'mxc://example/photo' });
 

@@ -3,6 +3,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text, as } from 'folds';
+import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { getMemberDisplayName } from '../../matrix/room';
 import { useEmojiData } from '../../emoji/emojiData';
@@ -25,9 +26,10 @@ type ReactionProps = {
  */
 export const Reaction = as<'button', ReactionProps>(
   ({ className, mx, reaction, count, label, useAuthentication, onClick, ...props }, ref) => {
-    const imageSrc = reaction.startsWith('mxc://')
+    const mediaSrc = reaction.startsWith('mxc://')
       ? (mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined)
       : undefined;
+    const { imageSrc, onImageError } = useAvatarImage(mediaSrc, mx);
     return (
       <button
         type="button"
@@ -42,7 +44,12 @@ export const Reaction = as<'button', ReactionProps>(
             {label}
           </Text>
         ) : imageSrc ? (
-          <img className={css.ReactionImg} src={imageSrc} alt={revealDirectionControls(reaction)} />
+          <img
+            className={css.ReactionImg}
+            src={imageSrc}
+            alt={revealDirectionControls(reaction)}
+            onError={onImageError}
+          />
         ) : (
           <Text as="span" size="Inherit" className={css.ReactionText}>
             {revealDirectionControls(reaction)}

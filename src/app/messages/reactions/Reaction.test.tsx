@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { clearFetchedAvatars } from '../../avatars/avatarMedia';
 import { Reaction, ReactionTooltipMsg } from './Reaction';
 
 vi.mock('./Reaction.css', () => ({
@@ -43,4 +44,44 @@ it('shows the direction controls of a reaction key as code points, on its chip a
     chip.unmount();
     tooltip.unmount();
   });
+});
+
+afterEach(() => {
+  void clearFetchedAvatars();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+it('fetches custom emoji reactions with Authorization Bearer on Capacitor using explicit mx prop', async () => {
+  vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+  vi.stubGlobal('navigator', {});
+  const fetchMock = vi.fn(
+    async (_url: string, _init?: RequestInit) => new Response(new Blob(['png']), { status: 200 })
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:reaction-1');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+  const mx = createClient({
+    baseUrl: 'https://example.org',
+    userId: '@reader:example.org',
+    accessToken: 'cap-token',
+  });
+  let chip!: ReactTestRenderer;
+  act(() => {
+    chip = create(
+      <Reaction mx={mx} reaction="mxc://example.org/parrot" count={2} useAuthentication />
+    );
+  });
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  expect(fetchMock).toHaveBeenCalledOnce();
+  const [url, init] = fetchMock.mock.calls[0]!;
+  expect(url).toBe(
+    'https://example.org/_matrix/client/v1/media/download/example.org/parrot?allow_redirect=true'
+  );
+  expect(url).not.toContain('access_token');
+  expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' } });
+  expect(chip.root.findByType('img').props.src).toBe('blob:reaction-1');
+  act(() => chip.unmount());
 });

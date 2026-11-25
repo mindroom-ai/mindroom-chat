@@ -8,6 +8,7 @@ import {
   isAppWindowFocused,
   isBundledApp,
   isCapacitorApp,
+  isCapacitorMediaShell,
   isDesktopApp,
   markDesktopShell,
 } from './nativeShell';
@@ -104,6 +105,23 @@ describe('nativeShell', () => {
     expect(isDesktopApp()).toBe(true);
     expect(isBundledApp()).toBe(true);
     expect(isCapacitorApp()).toBe(false);
+  });
+
+  it('detects Capacitor media shells while excluding Electron desktop and standard web', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    expect(isCapacitorMediaShell()).toBe(false);
+
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    expect(isCapacitorMediaShell()).toBe(true);
+
+    setDesktopBridge(makeBridge().bridge);
+    expect(isCapacitorMediaShell()).toBe(false);
+    setDesktopBridge(undefined);
+
+    vi.mocked(Capacitor.isNativePlatform).mockImplementation(() => {
+      throw new Error('capacitor failed');
+    });
+    expect(isCapacitorMediaShell()).toBe(false);
   });
 
   it('marks the document shell, tracks fullscreen events, and stays idempotent', () => {

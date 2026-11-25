@@ -7,6 +7,8 @@ import { MenuEntry } from '../../ui/MenuEntry';
 import { ModalLayer } from '../../ui/ModalLayer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../emoji/useImagePacks';
+import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
+import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { ImageUsage } from '../../emoji/custom/types';
 import { type RecentEmoji, useRecentEmoji } from '../../emoji/useRecentEmoji';
@@ -75,23 +77,15 @@ export function MessageQuickReactions({
     <Box alignItems="Center" justifyContent="Center" gap="200" style={{ padding: '0.25rem' }}>
       {recent.map((emoji) => {
         if (isCustomEmoji(emoji)) {
-          const src =
-            client.mxcUrlToHttp(
-              emoji.url,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              authenticatedMedia
-            ) ?? emoji.url;
+          const src = mxcUrlToHttp(client, emoji.url, authenticatedMedia) ?? emoji.url;
           return (
             <QuickReaction
               key={emoji.url}
               label={emoji.shortcode}
               onSelect={() => onReaction(emoji.url, emoji.shortcode)}
             >
-              <img
+              <AuthenticatedImage
+                client={client}
                 src={src}
                 alt={emoji.shortcode}
                 style={{ width: '1.25rem', height: '1.25rem', objectFit: 'contain' }}

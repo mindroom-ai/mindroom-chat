@@ -85,7 +85,7 @@ describe('mxcUrlToHttp', () => {
     );
   });
 
-  it('adds an access token for authenticated media on capacitor without service workers', () => {
+  it('keeps authenticated media URLs token-free on capacitor without service workers', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
@@ -106,9 +106,11 @@ describe('mxcUrlToHttp', () => {
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96',
     } as any;
 
-    expect(mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop')).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&access_token=client-token'
+    const url = mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop');
+    expect(url).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96'
     );
+    expect(url).not.toContain('access_token');
   });
 
   it('does not append a token for non-media urls', () => {
@@ -186,26 +188,28 @@ describe('mxcUrlToHttp', () => {
     );
   });
 
-  it('builds the URL that carries the token each time, so it has the current token', () => {
+  it('caches token-free media URLs per client on capacitor across token refreshes', () => {
     Object.defineProperty(globalThis, 'window', {
       value: { location: { protocol: 'capacitor:' } },
       configurable: true,
     });
     Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true });
     let token = 'first-token';
+    const build = vi.fn(() => 'https://mindroom.chat/_matrix/client/v1/media/download/server/id');
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
       getAccessToken: () => token,
-      mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/download/server/id',
+      mxcUrlToHttp: build,
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/download/server/id?access_token=first-token'
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/id'
     );
     token = 'second-token';
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/download/server/id?access_token=second-token'
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/id'
     );
+    expect(build).toHaveBeenCalledTimes(1);
   });
 
   it('never appends an access_token in the desktop app, even on capacitor://localhost', () => {
@@ -285,9 +289,21 @@ describe('authenticatedMediaRequestInit', () => {
     });
   });
 
-  it('adds no header to a URL that already carries the access token', () => {
+  it('sends the Bearer header even if an unrelated query parameter is present and skips legacy or foreign URLs', () => {
+    expect(authenticatedMediaRequestInit(mx, `${mediaUrl}?access_token=legacy`)).toEqual({
+      headers: { Authorization: 'Bearer test-token' },
+    });
     expect(
-      authenticatedMediaRequestInit(mx, `${mediaUrl}?access_token=test-token`)
+      authenticatedMediaRequestInit(
+        mx,
+        'https://matrix.example.org/_matrix/media/v3/download/example.org/media'
+      )
+    ).toBeUndefined();
+    expect(
+      authenticatedMediaRequestInit(
+        mx,
+        'https://other.example.org/_matrix/client/v1/media/download/example.org/media'
+      )
     ).toBeUndefined();
   });
 });

@@ -17,6 +17,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useAlive } from '../../lib/hooks/useAlive';
 import type { PackMeta } from '../custom/types';
+import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { selectFile } from '../../lib/dom';
 import type { PackMetaChanges } from './packDraft';
@@ -36,10 +37,11 @@ export function PackAvatar({
   const src = mxc
     ? (mxcUrlToHttp(client, mxc, authenticated, 96, 96, 'crop') ?? undefined)
     : undefined;
+  const { imageSrc, onImageError } = useAvatarImage(src, client);
   return (
     <Avatar size={size} radii="300">
-      {src ? (
-        <AvatarImage src={src} alt={name} />
+      {imageSrc ? (
+        <AvatarImage src={imageSrc} alt={name} onError={onImageError} />
       ) : (
         <AvatarFallback
           style={{ backgroundColor: color.Secondary.Container, color: color.Secondary.OnContainer }}

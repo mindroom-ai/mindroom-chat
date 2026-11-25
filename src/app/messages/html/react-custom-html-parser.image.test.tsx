@@ -2,6 +2,7 @@ import parse from 'html-react-parser';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { clearFetchedAvatars } from '../../avatars/avatarMedia';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { LINKIFY_OPTS, getReactCustomHtmlParser } from './react-custom-html-parser';
 
@@ -24,6 +25,8 @@ const url = 'https://matrix.example/_matrix/client/v1/media/download/example/cha
 const mx = {
   mxcUrlToHttp: () => url,
   getHomeserverUrl: () => 'https://matrix.example',
+  getAccessToken: () => 'cap-token',
+  getUserId: () => '@me:matrix.example',
 } as unknown as MatrixClient;
 const renderHtml = (html: string) => {
   const options = getReactCustomHtmlParser(mx, undefined, { linkifyOpts: LINKIFY_OPTS });
@@ -37,6 +40,9 @@ const event = () => ({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  void clearFetchedAvatars();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('inline message images', () => {
@@ -107,5 +113,45 @@ describe('inline message images', () => {
     expect(root.findAllByType('img')).toHaveLength(0);
     expect(root.findAllByType(ImageOverlay)).toHaveLength(0);
     expect(root.findByType('div').children).toEqual(['chart']);
+  });
+
+  it('fetches inline images with Bearer auth on Capacitor and re-fetches for ImageOverlay after cache eviction', async () => {
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    vi.stubGlobal('navigator', {});
+    let blobs = 0;
+    const fetchMock = vi.fn(async () => new Response(new Blob(['png']), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+      blobs += 1;
+      return `blob:inline-${blobs}`;
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const options = getReactCustomHtmlParser(mx, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+      useAuthentication: true,
+    });
+    act(() => {
+      renderer = create(<div>{parse('<img src="mxc://example/chart" alt="chart">', options)}</div>);
+    });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    expect(fetchMock).toHaveBeenCalledWith(url, {
+      headers: { Authorization: 'Bearer cap-token' },
+    });
+    expect(renderer!.root.findByType('img').props.src).toBe('blob:inline-1');
+
+    // Evict the cached blob URL before opening the overlay; clicking must fetch a fresh live URL.
+    await clearFetchedAvatars();
+    act(() => {
+      renderer!.root.findByType('button').props.onClick(event());
+    });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(renderer!.root.findByType(ImageOverlay).props).toMatchObject({
+      src: 'blob:inline-2',
+      alt: 'chart',
+    });
   });
 });

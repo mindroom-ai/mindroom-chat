@@ -1,27 +1,21 @@
 import { useSyncExternalStore } from 'react';
-import { isCapacitorApp, isDesktopApp } from '../../lib/nativeShell';
+import { isCapacitorMediaShell, isDesktopApp } from '../../lib/nativeShell';
 import { desktopMediaAuthReady, subscribeDesktopMediaAuth } from '../../native/desktopMediaAuth';
 import type { SpecVersions } from '../cs-api';
 import { supportsAuthenticatedMedia } from '../mediaUrl';
 import { isServiceWorkerEnabled } from '../../config/runtimeConfig';
 import { useSpecVersions } from './useSpecVersions';
 
-// Authenticated media (Matrix 1.11) needs the access token on every download. A controlling
-// service worker adds it as a header; native shells without one put it in the media URL.
+// Authenticated media (Matrix 1.11) needs the access token in an Authorization header on every
+// download. A controlling service worker adds it on the web, Electron's webRequest interceptor adds
+// it on desktop, and Capacitor native shells authenticate via Bearer `fetch` (`authenticatedMediaRequestInit`
+// and `useAvatarImage`) rather than `?access_token=` query parameters.
 
 const hasServiceWorkerController = (): boolean =>
   typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
 
-const hasNativeMediaTransport = (): boolean => {
-  if (isDesktopApp()) return desktopMediaAuthReady();
-  const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
-  if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
-  try {
-    return isCapacitorApp();
-  } catch {
-    return false;
-  }
-};
+const hasNativeMediaTransport = (): boolean =>
+  isDesktopApp() ? desktopMediaAuthReady() : isCapacitorMediaShell();
 
 /** Whether some transport can attach the access token to media requests. */
 export const hasMediaAuthTransportSupport = (
