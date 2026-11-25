@@ -69,6 +69,7 @@ export const ControlPill = style({
   justifyContent: 'flex-end',
   gap: toRem(2),
   flexShrink: 0,
+  marginInlineStart: 'auto',
   maxInlineSize: '100%',
   padding: toRem(2),
   borderRadius: config.radii.R400,

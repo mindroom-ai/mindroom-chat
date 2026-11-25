@@ -753,11 +753,13 @@ function RoomContent() {
         : {
             label: frameLabel,
             layout,
+            fillLabel: t('mindroomUi.sidePanel.fill', { label: frameLabel }),
+            foldLabel: t('mindroomUi.sidePanel.fold', { label: frameLabel }),
             setLayout: (next) => {
               if (now.current.roomId === roomId) setLayout(shownId, next);
             },
           },
-    [frameLabel, layout, now, roomId, setLayout, shownId]
+    [frameLabel, layout, now, roomId, setLayout, shownId, t]
   );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
   // does not run again when another panel shows or the panels' labels change with the language.

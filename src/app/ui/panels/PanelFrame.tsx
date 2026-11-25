@@ -42,7 +42,7 @@ export function PanelFrameStrip({
   const fold = t('mindroomUi.sidePanel.fold', { label });
   return (
     <div className={css.Strip}>
-      <IconTooltip label={fill} position="Left">
+      <IconTooltip label={fill} position="Right">
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}
@@ -58,7 +58,7 @@ export function PanelFrameStrip({
           </IconButton>
         )}
       </IconTooltip>
-      <IconTooltip label={fold} position="Left">
+      <IconTooltip label={fold} position="Right">
         {(triggerRef) => (
           <IconButton
             ref={triggerRef}

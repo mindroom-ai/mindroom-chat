@@ -262,7 +262,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 67 the declaration's `defaultEnabled`
 - version 68 thread details' `onClose`
 - version 69 side panels' `placement: 'none'`
-- version 70 side panels' `frameControls: 'own'`
+- version 70 side panels' `frameControls: 'own'` and `PanelFrame`'s localized `fillLabel`/`foldLabel`
 
 ## Page zoom
 
@@ -358,7 +358,7 @@ While the room's page shows, each room keeps the layout of each of its panels as
 Filling the room, or covering the conversation on a phone, a panel keeps the conversation under it as it was (its draft, a voice message being recorded, the reader's place), out of reach and out of sight as under a conversation cover (below): it takes no focus, sends no read receipt or typing notice, a message that arrives notifies as for a room not on screen, the composer's popovers (emoji board, autocomplete, model picker, menu) close, and neither an edge swipe nor the room's shortcuts for Members and resolving the thread act on it.
 Phones show no frame, as a panel there covers the conversation already, and the members have none: their header button shows and hides them.
 A panel with `frame: 'own'` draws its frame itself, such as a card with its own Fill and Hide: the room draws no title, Close, splitter or strip for it and gives it no box, so its `Component` takes its own width, and it opens and closes at once, without the frame's motion, unless its `Component` moves itself: it registers with `usePanelPresence()` (`ui`, above) and calls its registration's `done()` once it has moved out.
-`usePanelFrame()` gives a side panel's `Component` its frame, `{ label, layout, setLayout }`: `layout` is `beside`, `filled` or `folded`, and `setLayout` changes it as the frame's Fill, Fold and tab do, kept per room as above.
+`usePanelFrame()` gives a side panel's `Component` its frame, `{ label, layout, setLayout, fillLabel?, foldLabel? }`: `layout` is `beside`, `filled` or `folded`, `setLayout` changes it as the frame's Fill, Fold and tab do, kept per room as above, and `fillLabel`/`foldLabel` (since version 70) give the app's localized Fill and Fold button labels.
 The frame keeps its identity while the layout stays, and one the panel got in another room changes nothing in the room shown.
 A panel the room frames has it beside the conversation only, undefined on phones; one with `frame: 'own'` has it on phones too.
 Filling the room, such a panel takes the conversation's place as any does; folded, it covers nothing, on phones too, so the conversation lays out as with no panel beside what the `Component` still draws, such as its own tab at the room's edge.
