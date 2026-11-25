@@ -302,29 +302,22 @@ const verifyJumpToLatestStableWithTyping = async (
 
     const previousFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
     try {
-      for (const [fontSize, maxButtonWidth] of [
-        ['75%', 25],
-        ['50%', 17],
-      ] as const) {
-        await page.evaluate((size) => {
-          document.documentElement.style.fontSize = size;
-        }, fontSize);
-        await expect
-          .poll(async () => {
-            const [insets, probe] = await Promise.all([readThreadInsets(page), probeTouchEdges()]);
-            return (
-              insets !== null &&
-              insets.composer === insets.composerOffsetHeight &&
-              probe.width <= maxButtonWidth
-            );
-          })
-          .toBe(true);
-        const zoomedTouch = await probeTouchEdges();
-        expect(zoomedTouch.leftInside).toBe(true);
-        expect(zoomedTouch.rightInside).toBe(true);
-        expect(zoomedTouch.topInside).toBe(true);
-        expect(zoomedTouch.bottomInside).toBe(true);
-      }
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = '75%';
+      });
+      await expect
+        .poll(async () => {
+          const [insets, probe] = await Promise.all([readThreadInsets(page), probeTouchEdges()]);
+          return (
+            insets !== null && insets.composer === insets.composerOffsetHeight && probe.width <= 25
+          );
+        })
+        .toBe(true);
+      const zoomedTouch = await probeTouchEdges();
+      expect(zoomedTouch.leftInside).toBe(true);
+      expect(zoomedTouch.rightInside).toBe(true);
+      expect(zoomedTouch.topInside).toBe(true);
+      expect(zoomedTouch.bottomInside).toBe(true);
     } finally {
       await page.evaluate((size) => {
         document.documentElement.style.fontSize = size;

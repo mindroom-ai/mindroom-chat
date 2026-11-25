@@ -504,6 +504,9 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
   await expect(jumpToLatest(page, 'Zur neuesten Nachricht springen')).toBeHidden({
     timeout: 15_000,
   });
+  await expect
+    .poll(async () => (await newestRowShown(page)).rowShown, { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(16);
   await checkLandscapeBand(page, engine, {
     tag: 'de wide',
     jumpLabel: 'Zur neuesten Nachricht springen',
