@@ -26,6 +26,7 @@ import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
+import * as taskListCss from '../../rich-text/TaskList.css';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { MermaidBlock } from './MermaidBlock';
@@ -47,6 +48,7 @@ import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { Callout, extractCallout } from '../../rich-text/Callout';
+import { TaskListItem, extractTaskListItem } from '../../rich-text/TaskList';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
@@ -724,6 +726,20 @@ const hasAncestor = (node: ChildNode, names: string[]): boolean => {
 const hasClass = (classAttr: string | undefined, name: string): boolean =>
   !!classAttr && classAttr.split(/\s+/).includes(name);
 
+const isFootnoteListItem = (attribs: Record<string, string>): boolean =>
+  isFootnoteId(attribs.id) || hasClass(attribs.class, 'footnote-item');
+
+const isTaskList = (children: ChildNode[]): boolean => {
+  const items = children.filter((child): child is Element => isTag(child) && child.name === 'li');
+  return (
+    items.length > 0 &&
+    items.every(
+      (item) =>
+        !isFootnoteListItem(item.attribs) && extractTaskListItem(item.children) !== undefined
+    )
+  );
+};
+
 const withoutAttribute = (attribs: Record<string, string>, name: string) => {
   const rest = { ...attribs };
   delete rest[name];
@@ -876,13 +892,20 @@ export const getReactCustomHtmlParser = (
         }
         case 'ul':
           return (
-            <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
+            <ul
+              {...props}
+              className={classNames(
+                css.List,
+                isTaskList(children) && taskListCss.TaskList,
+                props.className
+              )}
+            >
               {domToReact(children as DOMNode[], parserOptions)}
             </ul>
           );
         case 'ol':
           return (
-            <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
+            <ol {...props} className={classNames(css.List, props.className)}>
               {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
@@ -899,6 +922,16 @@ export const getReactCustomHtmlParser = (
                 {domToReact(children as DOMNode[], parserOptions)}
               </FootnoteItem>
             );
+          }
+          if (domNode.parent && isTag(domNode.parent) && domNode.parent.name === 'ul') {
+            const task = extractTaskListItem(children);
+            if (task) {
+              return (
+                <TaskListItem {...props} checked={task.checked}>
+                  {domToReact(task.bodyNodes as DOMNode[], parserOptions)}
+                </TaskListItem>
+              );
+            }
           }
           return undefined;
         }
