@@ -1,9 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
-import type { SpaceOrderAction } from './sidebarOrder';
 
-// Sidebar entries are space room IDs or folders of space room IDs. The order
-// of plain top-level spaces is a per-device preference; folders are shared
+// Sidebar entries are space room IDs or folders of space room IDs, synced
 // across devices in the `io.mindroom.spaces` account data.
 
 export type SidebarFolder = {
@@ -28,20 +26,18 @@ type CommitSidebarReorderOptions = {
   mx: MatrixClient;
   /** Joined spaces with no parent space that the sidebar lists after its saved items. */
   orphanSpaces: string[];
-  /** The order the sidebar shows now, including device-local reorders. */
-  sidebarItems: SidebarItem[];
-  /** The order saved in account data, when it differs from what is shown. */
-  accountDataSidebarItems?: SidebarItem[];
+  /** The order saved in account data (or optimistic pending order). */
+  savedItems: SidebarItem[];
   item: SidebarDragItem;
   containerItem: SidebarDragItem;
   instructionType: SidebarInstructionType;
   onEmptyFolder?: (folderId: string) => void;
-  setSpaceOrder: (action: SpaceOrderAction) => void;
 };
 
 type CommitSidebarReorderResult = {
   items: SidebarItem[];
-  shouldPersistAccountData: boolean;
+  changed: boolean;
+  save?: Promise<unknown>;
 };
 
 const isFolder = (item: SidebarItem): item is SidebarFolder => typeof item !== 'string';
@@ -58,6 +54,19 @@ const dragKey = (item: SidebarDragItem): string => {
 
 const createFolderId = (): string =>
   `folder-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const sameSidebarItems = (a: SidebarItem[], b: SidebarItem[]): boolean =>
+  a.length === b.length &&
+  a.every((entry, index) => {
+    const other = b[index];
+    if (!other || typeof entry === 'string' || typeof other === 'string') return entry === other;
+    return (
+      entry.id === other.id &&
+      entry.name === other.name &&
+      entry.content.length === other.content.length &&
+      entry.content.every((id, contentIndex) => id === other.content[contentIndex])
+    );
+  });
 
 /** Adds orphan spaces the saved list does not mention yet, so indexes match what is shown. */
 const withOrphans = (items: SidebarItem[], orphanSpaces: string[]): SidebarItem[] => {
@@ -108,6 +117,28 @@ const applyReorder = (
   containerItem: SidebarDragItem,
   instructionType: SidebarInstructionType
 ): { items: SidebarItem[]; emptiedFolderId?: string } => {
+  // Dragging or moving a folder onto itself or one of its own child spaces is a no-op.
+  if (
+    isFolderDrag(item) &&
+    !item.spaceId &&
+    isFolderDrag(containerItem) &&
+    containerItem.folder.id === item.folder.id
+  ) {
+    return { items: base };
+  }
+
+  // Dropping a space inside a folder as make-child onto its own folder header is a no-op.
+  if (
+    isFolderDrag(item) &&
+    item.spaceId &&
+    isFolderDrag(containerItem) &&
+    !containerItem.spaceId &&
+    item.folder.id === containerItem.folder.id &&
+    instructionType === 'make-child'
+  ) {
+    return { items: base };
+  }
+
   const below = instructionType === 'reorder-below';
 
   // Reordering inside one folder.
@@ -187,58 +218,32 @@ const applyReorder = (
   return { items: insertRelative(withoutItem, removed, targetIndex, below), emptiedFolderId };
 };
 
-/** Folder changes and folder moves are shared; a plain space move stays on this device. */
-const touchesFolders = (
-  item: SidebarDragItem,
-  containerItem: SidebarDragItem,
-  instruction: SidebarInstructionType
-) => isFolderDrag(item) || isFolderDrag(containerItem) || instruction === 'make-child';
-
-const topLevelSpaceOrder = (items: SidebarItem[]): string[] =>
-  items.filter((entry): entry is string => typeof entry === 'string');
-
 export const commitSidebarReorder = ({
   mx,
   orphanSpaces,
-  sidebarItems,
-  accountDataSidebarItems,
+  savedItems,
   item,
   containerItem,
   instructionType,
   onEmptyFolder,
-  setSpaceOrder,
 }: CommitSidebarReorderOptions): CommitSidebarReorderResult => {
-  const shown = withOrphans(sidebarItems, orphanSpaces);
-  const { items, emptiedFolderId } = applyReorder(shown, item, containerItem, instructionType);
+  const base = withOrphans(savedItems, orphanSpaces);
+  const { items, emptiedFolderId } = applyReorder(base, item, containerItem, instructionType);
 
-  if (!touchesFolders(item, containerItem, instructionType)) {
-    setSpaceOrder({ type: 'REORDER', order: topLevelSpaceOrder(items) });
-    return { items, shouldPersistAccountData: false };
-  }
-
-  // Apply the same change to the saved order, so a device-local order of plain
-  // spaces does not leak into the shared account data.
-  const saved = accountDataSidebarItems
-    ? applyReorder(
-        withOrphans(accountDataSidebarItems, orphanSpaces),
-        item,
-        containerItem,
-        instructionType
-      ).items
-    : items;
+  if (sameSidebarItems(items, base)) return { items: base, changed: false };
 
   if (emptiedFolderId) onEmptyFolder?.(emptiedFolderId);
 
   const current = mx
     .getAccountData(AccountDataEvent.MindroomSpaces as never)
     ?.getContent<SidebarAccountData>();
-  void mx.setAccountData(
+  const save = mx.setAccountData(
     AccountDataEvent.MindroomSpaces as never,
     {
       ...(current ?? {}),
-      sidebar: saved,
+      sidebar: items,
     } as never
   );
 
-  return { items, shouldPersistAccountData: true };
+  return { items, changed: true, save };
 };

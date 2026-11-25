@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import {
   DndContext,
@@ -56,7 +56,7 @@ import {
   type SidebarItem as SidebarEntry,
   commitSidebarReorder,
 } from '../../spaces/sidebarReorder';
-import { useShownSidebarItems } from '../../spaces/sidebarSpaces';
+import { getShownSidebarItems, useShownSidebarItems } from '../../spaces/sidebarSpaces';
 import * as css from './SpaceTabs.css';
 import { revealDirectionControls } from '../../ui/directional';
 
@@ -353,19 +353,43 @@ type SpaceTabsProps = {
 };
 
 /**
- * The spaces in the icon rail, in the saved order with the device's own order on top, folders
- * included. Dragging a space reorders the rail; dropping it on another space or a folder groups
- * them in a folder.
+ * The spaces in the icon rail, in the order saved in `io.mindroom.spaces`, folders included.
+ * Dragging a space reorders the rail; dropping it on another space or a folder groups them in a
+ * folder.
  */
 export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   const selectedSpaceId = useSelectedSpace();
-  const { items, saved, topLevelSpaces, joinedSpaces, setLocalOrder } = useShownSidebarItems();
+  const {
+    items: serverItems,
+    saved,
+    savedEvent,
+    topLevelSpaces,
+    joinedSpaces,
+  } = useShownSidebarItems();
+  const [pending, setPending] = useState<{
+    event: MatrixEvent | undefined;
+    items: SidebarEntry[];
+  }>();
   const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
   const [hint, setHint] = useState<{ id: string; at: DropAt }>();
   const stackRef = useRef<HTMLDivElement>(null);
+
+  const pendingSaved = pending && pending.event === savedEvent ? pending.items : undefined;
+  const effectiveSaved = pendingSaved ?? saved;
+  const items = useMemo(
+    () =>
+      pendingSaved
+        ? getShownSidebarItems({
+            saved: pendingSaved,
+            topLevelSpaces,
+            isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
+          })
+        : serverItems,
+    [pendingSaved, topLevelSpaces, joinedSpaces, serverItems]
+  );
 
   // A mouse drags after a short move; a finger moves on after a long press (which opens a space's
   // menu), so a swipe still scrolls the rail.
@@ -406,17 +430,29 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     item: SidebarDragItem,
     containerItem: SidebarDragItem,
     instructionType: SidebarInstructionType
-  ) =>
-    commitSidebarReorder({
+  ) => {
+    const result = commitSidebarReorder({
       mx: client,
       orphanSpaces: topLevelSpaces,
-      sidebarItems: items,
-      accountDataSidebarItems: saved,
+      savedItems: effectiveSaved,
       item,
       containerItem,
       instructionType,
-      setSpaceOrder: setLocalOrder,
+      onEmptyFolder: (folderId) =>
+        setOpenFolders((cur) => {
+          if (!cur.has(folderId)) return cur;
+          const next = new Set(cur);
+          next.delete(folderId);
+          return next;
+        }),
     });
+    if (!result.changed) return;
+    const change = { event: savedEvent, items: result.items };
+    setPending(change);
+    void result.save?.catch(() => {
+      setPending((cur) => (cur === change ? undefined : cur));
+    });
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     preventClickDefaultsDuringPointerDrag(event.activatorEvent);
@@ -446,8 +482,16 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   });
   const moveBy = (drag: SidebarDragItem, direction: -1 | 1) => {
     const index = shownDrags.findIndex((entry) => dragId(entry) === dragId(drag));
-    const neighbour = shownDrags[index + direction];
-    if (index < 0 || !neighbour) return;
+    if (index < 0) return;
+    const movedFolderId = typeof drag !== 'string' && !drag.spaceId ? drag.folder.id : undefined;
+    let nextIndex = index + direction;
+    while (movedFolderId && nextIndex >= 0 && nextIndex < shownDrags.length) {
+      const entry = shownDrags[nextIndex];
+      if (!entry || typeof entry === 'string' || entry.folder.id !== movedFolderId) break;
+      nextIndex += direction;
+    }
+    const neighbour = shownDrags[nextIndex];
+    if (!neighbour) return;
     commit(drag, neighbour, direction < 0 ? 'reorder-above' : 'reorder-below');
   };
 

@@ -1,11 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import {
-  applyLocalOrder,
-  getShownSidebarItems,
-  parseSidebarItems,
-  sortSpacesByAge,
-} from './sidebarSpaces';
+import { getShownSidebarItems, parseSidebarItems, sortSpacesByAge } from './sidebarSpaces';
 
 const joined = (...ids: string[]) => {
   const set = new Set(ids);
@@ -30,22 +25,6 @@ describe('parseSidebarItems', () => {
   });
 });
 
-describe('applyLocalOrder', () => {
-  it('fills the plain spaces’ places in the device order and leaves folders in place', () => {
-    const folder = { id: 'f', content: ['!x'] };
-    expect(applyLocalOrder(['!a', folder, '!b', '!c'], ['!c', '!a'])).toEqual([
-      '!c',
-      folder,
-      '!a',
-      '!b',
-    ]);
-  });
-
-  it('ignores IDs the rail does not show', () => {
-    expect(applyLocalOrder(['!a', '!b'], ['!gone', '!b'])).toEqual(['!b', '!a']);
-  });
-});
-
 describe('getShownSidebarItems', () => {
   it('shows saved entries first, then top-level spaces the saved list leaves out', () => {
     expect(
@@ -53,7 +32,6 @@ describe('getShownSidebarItems', () => {
         saved: ['!c', '!a'],
         topLevelSpaces: ['!a', '!b', '!c'],
         isJoinedSpace: joined('!a', '!b', '!c'),
-        localOrder: [],
       })
     ).toEqual(['!c', '!a', '!b']);
   });
@@ -64,7 +42,6 @@ describe('getShownSidebarItems', () => {
         saved: ['!left', { id: 'f', content: ['!left-too'] }, '!pinned-sub', '!a'],
         topLevelSpaces: ['!a'],
         isJoinedSpace: joined('!a', '!pinned-sub'),
-        localOrder: [],
       })
     ).toEqual(['!pinned-sub', '!a']);
   });
@@ -75,7 +52,6 @@ describe('getShownSidebarItems', () => {
         saved: ['!a', { id: 'f', content: ['!a', '!b'] }],
         topLevelSpaces: ['!a', '!b'],
         isJoinedSpace: joined('!a', '!b'),
-        localOrder: [],
       })
     ).toEqual(['!a', { id: 'f', content: ['!b'] }]);
   });
