@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconChevronDown } from '@tabler/icons-react';
 import { FocusTrap } from 'focus-trap-react';
 import { Box, config, Icon, Icons, Text, type RectCords } from 'folds';
@@ -90,23 +90,6 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
     void navigate(getSpaceThreadsPath(getCanonicalAliasOrRoomId(mx, targetSpaceId)));
   };
 
-  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    const items = [
-      ...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
-    ];
-    if (items.length === 0) return;
-    event.preventDefault();
-    const current = items.findIndex((item) => item === document.activeElement);
-    const last = items.length - 1;
-    let next: number;
-    if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = last;
-    else if (event.key === 'ArrowDown') next = current < 0 || current === last ? 0 : current + 1;
-    else next = current <= 0 ? last : current - 1;
-    items[next]?.focus();
-  };
-
   return (
     <PopOut
       anchor={anchor}
@@ -135,7 +118,6 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
               role="menu"
               aria-label={label}
               className={css.SpaceSwitcherMenu}
-              onKeyDown={handleMenuKeyDown}
               data-space-switcher-menu="true"
             >
               <div className={css.SpaceSwitcherScroll}>
