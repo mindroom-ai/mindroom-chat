@@ -124,6 +124,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -391,12 +392,30 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
         shutil.rmtree(source, ignore_errors=True)
         source.mkdir(parents=True)
         log(f"copying MindRoom {sha[:12]} from {checkout}")
-        archive = subprocess.Popen(["git", "-C", str(checkout), "archive", sha], stdout=subprocess.PIPE)
-        assert archive.stdout is not None
-        with tarfile.open(fileobj=archive.stdout, mode="r|") as tar:
-            tar.extractall(source, filter="data")
-        if archive.wait() != 0:
-            raise StackError(f"git archive {sha} failed")
+        # Disable Git LFS smudge so `git archive` never downloads PNGs from GitHub LFS (CI checks out with
+        # `lfs: false`), and exclude `avatars/` so MindRoom does not upload unsmudged LFS pointers as PNGs.
+        archive_cmd = [
+            "git", "-C", str(checkout),
+            "-c", "filter.lfs.process=", "-c", "filter.lfs.smudge=", "-c", "filter.lfs.required=false",
+            "archive", sha, "--", ".", ":(exclude)avatars",
+        ]
+        tar_error: tarfile.TarError | None = None
+        with tempfile.TemporaryFile() as stderr:
+            with subprocess.Popen(archive_cmd, stdout=subprocess.PIPE, stderr=stderr) as archive:
+                assert archive.stdout is not None
+                with archive.stdout:
+                    try:
+                        with tarfile.open(fileobj=archive.stdout, mode="r|") as tar:
+                            tar.extractall(source, filter="data")
+                    except tarfile.TarError as error:
+                        tar_error = error
+                returncode = archive.wait()
+            if returncode != 0 or tar_error is not None:
+                stderr.seek(0)
+                detail = stderr.read().decode("utf-8", errors="replace").strip()[-3000:]
+                if tar_error is not None and (returncode == 0 or not detail):
+                    detail = f"{detail}\n{tar_error}".strip()
+                raise StackError(f"git archive {sha} failed:\n{detail}" if detail else f"git archive {sha} failed")
         log("installing its environment with uv sync (the first time takes a while)")
         env = {
             **os.environ,
