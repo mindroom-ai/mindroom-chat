@@ -193,7 +193,7 @@ describe('RoomTriggersDialog', () => {
     expect(document.querySelector('[data-trigger-missing]')?.textContent).toContain('tr_watch');
   });
 
-  it('focuses matched target row, shows loading state, loadError on failure, and missing notice only when never matched', () => {
+  it('focuses matched target row, shows loading state, loadError on failure, and missing notice when the settled list lacks the requested ID', () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
 
