@@ -1,6 +1,6 @@
 # Nightly full cross-repo sweep across all real-backend agentStack specs:
 # - Job 1: sharded across 4 runners for all standard stub-stack specs
-# - Job 2: --client-sessions contract specs + call transcription (with LiveKit + RTC auth)
+# - Job 2: --client-sessions contract specs + call transcription + canvas-during-call (with LiveKit + RTC auth)
 # - Job 3: --terminals persistent terminal spec
 name: Nightly Agent E2E
 
@@ -113,6 +113,7 @@ jobs:
               "e2e/calls/",
               "e2e/perf/",
           )
+          # Plugin-build specs (mindroom-server, agent-plugin-origin, agent-thread-board, agent-thread-view, agent-thread-column, agent-plugin-directory, room-computers) require separate MINDROOM_CLIENT_PLUGINS / --computers builds and are intentionally excluded from the default-build sweep.
           excluded_exact = {
               "e2e/canvas/agent-canvas-during-call.spec.ts",
               "e2e/messages/agent-plugin-directory.spec.ts",
@@ -230,7 +231,7 @@ jobs:
       - name: Build
         run: npx vite build
 
-      - name: Run client-sessions contract & call transcription specs
+      - name: Run client-sessions, call transcription & canvas-during-call specs
         env:
           E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
           E2E_REUSE_EXISTING_SERVER: '0'
@@ -244,6 +245,7 @@ jobs:
           npx playwright test
           e2e/contract/
           e2e/calls/call-transcription.spec.ts
+          e2e/canvas/agent-canvas-during-call.spec.ts
 
       # Upload before `stack.py 0 down`, which removes the slot directory including backend.log.
       # Never upload state.json or .env.

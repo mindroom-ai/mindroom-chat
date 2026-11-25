@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
-  clientSessionToken,
+  composer,
   expect,
   messageRow,
   openLobby,
@@ -13,12 +13,74 @@ import {
 } from '../helpers/agentStack';
 
 // Real-backend contract specs under production discovery (`computers: { apiUrl: "" }`, default
-// `clientApiUrl: false`, zero HTTP mocks): agent profile card discovery, real dictation probing
-// and transcription, and encrypted provider usage limits RPC.
-test.use({ agentStackArgs: ['--client-sessions', '--transcription', 'stub'] });
+// `clientApiUrl: false`, zero HTTP mocks): agent profile card discovery, real browser dictation
+// into the composer, and encrypted provider usage limits RPC.
+test.use({
+  agentStackArgs: ['--model', 'stub', '--client-sessions', '--transcription', 'stub'],
+  permissions: ['microphone'],
+  launchOptions: {
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: [
+      '--autoplay-policy=no-user-gesture-required',
+      '--disable-features=IsolateSandboxedIframes',
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+    ],
+  },
+});
 test.describe.configure({ timeout: 300_000 });
 
 const COMPUTER_SERVICE_STORAGE_KEY = 'mindroomComputerService.v1';
+const SPEECH_BASE64 = readFileSync(
+  new URL('../fixtures/agent-call-question.wav', import.meta.url)
+).toString('base64');
+
+/**
+ * Replaces getUserMedia audio with a stream playing the real spoken WAV clip followed by silence,
+ * so Silero VAD detects natural speech start and pause end deterministically in headless Chromium.
+ */
+const installSpokenMicrophone = (speechBase64: string) => {
+  const devices = navigator.mediaDevices as MediaDevices | undefined;
+  if (!devices) return;
+  const original = devices.getUserMedia.bind(devices);
+  devices.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+    if (!constraints?.audio || constraints.video) return original(constraints);
+    const context = new AudioContext();
+    await context.resume().catch(() => undefined);
+    const bytes = Uint8Array.from(atob(speechBase64), (ch) => ch.charCodeAt(0));
+    const decoded = await context.decodeAudioData(bytes.buffer.slice(0));
+    const destination = context.createMediaStreamDestination();
+    // Keep the MediaStream active with a silent oscillator after the spoken clip ends.
+    const silentOsc = context.createOscillator();
+    const zeroGain = context.createGain();
+    zeroGain.gain.value = 0;
+    silentOsc.connect(zeroGain);
+    zeroGain.connect(destination);
+    silentOsc.start();
+
+    const source = context.createBufferSource();
+    source.buffer = decoded;
+    source.connect(destination);
+    source.start(context.currentTime + 0.25);
+
+    const stream = destination.stream;
+    const [track] = stream.getAudioTracks();
+    const origStop = track?.stop.bind(track);
+    if (track && origStop) {
+      track.stop = () => {
+        try {
+          source.stop();
+          silentOsc.stop();
+        } catch {
+          // Ignore already stopped sources.
+        }
+        origStop();
+        void context.close().catch(() => undefined);
+      };
+    }
+    return stream;
+  };
+};
 
 test('discovers Helper profile card automatically with empty computers.apiUrl', async ({
   page,
@@ -62,10 +124,11 @@ test('discovers Helper profile card automatically with empty computers.apiUrl', 
   await expect(card).toBeHidden();
 });
 
-test('probes real dictation status via automatic discovery and transcribes a WAV segment', async ({
+test('probes real dictation status via automatic discovery and dictates into the composer', async ({
   page,
   stack,
 }) => {
+  await page.addInitScript(installSpokenMicrophone, SPEECH_BASE64);
   const statusResponsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === 'GET' &&
@@ -81,23 +144,32 @@ test('probes real dictation status via automatic discovery and transcribes a WAV
   expect(statusResponse.status()).toBe(200);
   const status = (await statusResponse.json()) as { enabled?: boolean };
   expect(status.enabled).toBe(true);
-  await expect(page.getByRole('button', { name: 'Dictate' })).toBeVisible({ timeout: 30_000 });
 
-  const token = await clientSessionToken(stack);
-  const wav = readFileSync(new URL('../fixtures/agent-call-question.wav', import.meta.url));
-  const form = new FormData();
-  form.append('audio', new Blob([new Uint8Array(wav)], { type: 'audio/wav' }), 'speech.wav');
-  const transcribeResponse = await fetch(
-    `${stack.apiUrl}/api/dictation/v1/transcribe?room_id=${encodeURIComponent(stack.rooms.lobby)}`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    }
+  const dictateButton = page.getByRole('button', { name: 'Dictate' });
+  await expect(dictateButton).toBeVisible({ timeout: 30_000 });
+
+  const transcribeResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().startsWith(`${stack.apiUrl}/api/dictation/v1/transcribe`),
+    { timeout: 60_000 }
   );
-  expect(transcribeResponse.status).toBe(200);
+  await dictateButton.click();
+
+  const finishButton = page.getByRole('button', { name: 'Finish into composer' });
+  await expect(finishButton).toBeVisible({ timeout: 30_000 });
+
+  const transcribeResponse = await transcribeResponsePromise;
+  expect(transcribeResponse.status()).toBe(200);
   const transcribed = (await transcribeResponse.json()) as { text?: string };
   expect(transcribed.text).toMatch(/Stand-in transcript of/);
+
+  await expect(page.getByTestId('dictation-preview')).toContainText('Stand-in transcript of', {
+    timeout: 15_000,
+  });
+  await finishButton.click();
+  await expect(finishButton).toHaveCount(0, { timeout: 15_000 });
+  await expect(composer(page)).toContainText('Stand-in transcript of', { timeout: 15_000 });
 });
 
 test('loads provider usage limits over encrypted RPC without errors', async ({ page, stack }) => {

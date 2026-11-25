@@ -19,7 +19,7 @@ import { panelLocator } from '../helpers/sidePanels';
 // Real-backend contract specs under production discovery (`computers: { apiUrl: "" }`, default
 // `clientApiUrl: false`, zero HTTP mocks): Settings server saving + temporary secret request
 // card round trip, real subagent delegation, and real cross-room thread forking.
-test.use({ agentStackArgs: ['--client-sessions', '--transcription', 'stub'] });
+test.use({ agentStackArgs: ['--model', 'stub', '--client-sessions', '--transcription', 'stub'] });
 test.describe.configure({ timeout: 300_000 });
 
 const COMPUTER_SERVICE_STORAGE_KEY = 'mindroomComputerService.v1';
@@ -92,17 +92,24 @@ test('saves discovered server in Settings and completes a secret request round t
       { timeout: 90_000, description: 'a saved secret request event' }
     );
 
+    // stub_model truncates tool results at 400 chars, so sorted keys after the long "note"
+    // (including "status": "provided") are cut off; assert the earlier keys instead.
     const reply = await waitForAgentReply(
       stack,
       rootId,
-      (body) => body.includes('Finished **secret**') && body.includes('"status": "provided"'),
+      (body) =>
+        body.includes('Finished **secret**') &&
+        body.includes('"minutes":') &&
+        body.includes('"name": "STUB_TOKEN"'),
       { timeout: 90_000 }
     );
     expect(bodyOf(reply)).not.toContain('stub-secret-value-123');
 
     const replyRow = messageRow(page, reply.event_id);
     await expect(replyRow).toContainText('Finished secret', { timeout: 60_000 });
-    await expect(replyRow).toContainText('"status": "provided"');
+    await expect(replyRow).toContainText('"minutes":');
+    await expect(replyRow).toContainText('"name": "STUB_TOKEN"');
+    await expect(replyRow).not.toContainText('stub-secret-value-123');
     await expect(replyRow.locator('[data-secret-request-line="saved"]')).toBeVisible({
       timeout: 30_000,
     });

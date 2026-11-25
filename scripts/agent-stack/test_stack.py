@@ -1587,13 +1587,33 @@ class StubScenarioTests(unittest.TestCase):
                 },
             ),
         )
+        secret_result = json.dumps(
+            {
+                "status": "provided",
+                "name": "STUB_TOKEN",
+                "kept": "15m",
+                "minutes": 15,
+                "note": (
+                    "The user gave the secret. It is in the environment variable `$STUB_TOKEN` of your shell "
+                    "commands in this conversation for 15 minutes, and you never see its value. Use the variable "
+                    "inside the command that needs it, for example `printf '%s\\n' \"$STUB_TOKEN\" | sudo -S "
+                    "<command>`. Never print it, write it to a file that stays, or send it anywhere but the "
+                    "program it is for. Ask again when it has expired."
+                ),
+            },
+            sort_keys=True,
+        )
+        self.assertGreater(len(secret_result), 400)
         kind, text = stub_model.plan(
-            turn("please #secret", "request_temporary_secret", '{"status": "provided", "name": "STUB_TOKEN"}'),
+            turn("please #secret", "request_temporary_secret", secret_result),
             scenarios,
         )
         self.assertEqual(kind, "text")
         self.assertIn("Finished **secret** after 1 tool call(s)", text)
-        self.assertIn('"status": "provided"', text)
+        self.assertIn('"minutes": 15', text)
+        self.assertIn('"name": "STUB_TOKEN"', text)
+        # Keys sorted after the long "note" fall past stub_model's 400-character truncation.
+        self.assertNotIn('"status": "provided"', text)
 
         self.assertEqual(
             stub_model.plan(turn("please #delegate", "run_subagent"), scenarios),

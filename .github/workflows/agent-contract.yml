@@ -15,9 +15,9 @@ on:
   workflow_call:
     inputs:
       mindroom_ref:
-        description: 'Git ref of mindroom-ai/mindroom to test against'
+        description: 'Git ref of mindroom-ai/mindroom to test against (empty defaults to caller PR/commit in mindroom, else main)'
         type: string
-        default: 'main'
+        default: ''
       chat_ref:
         description: 'Git ref of mindroom-chat to check out (empty uses the workflow or caller ref)'
         type: string
@@ -35,37 +35,41 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: agent-contract-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   agent-contract:
     name: Real-backend contract specs
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       # When invoked via cross-repo workflow_call from mindroom-ai/mindroom, github.repository is
-      # the caller repo; check out mindroom-chat explicitly into `.` at chat_ref (or main).
+      # the caller repo (while github.event_name is the caller's event, e.g. pull_request/push);
+      # check out mindroom-chat explicitly into `.` at chat_ref (or main).
       - name: Checkout mindroom-chat
         uses: actions/checkout@v7
         with:
-          repository: ${{ github.event_name == 'workflow_call' && github.repository != 'mindroom-ai/mindroom-chat' && 'mindroom-ai/mindroom-chat' || github.repository }}
-          ref: ${{ inputs.chat_ref != '' && inputs.chat_ref || (github.event_name == 'workflow_call' && github.repository != 'mindroom-ai/mindroom-chat' && 'main' || '') }}
+          repository: ${{ github.repository != 'mindroom-ai/mindroom-chat' && 'mindroom-ai/mindroom-chat' || github.repository }}
+          ref: ${{ inputs.chat_ref || (github.repository != 'mindroom-ai/mindroom-chat' && 'main' || '') }}
 
       - name: Resolve MindRoom ref
         id: resolve
         env:
           INPUT_MINDROOM_REF: ${{ inputs.mindroom_ref }}
+          REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          CALLER_REF: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ref="$INPUT_MINDROOM_REF"
-          if [ -z "$ref" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+          if [ -z "$ref" ] && [ "$REPO" = "mindroom-ai/mindroom" ]; then
+            ref="$CALLER_REF"
+          elif [ -z "$ref" ] && [ "$REPO" = "mindroom-ai/mindroom-chat" ] && [ "$EVENT_NAME" = "pull_request" ]; then
             pr_num="$(python3 -c '
           import os, re
           m = re.search(r"(?m)^Depends-On:[ \t]*mindroom-ai/mindroom#([0-9]+)[ \t]*\r?$", os.environ.get("PR_BODY", ""))
