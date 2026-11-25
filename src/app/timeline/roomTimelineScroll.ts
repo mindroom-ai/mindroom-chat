@@ -8,7 +8,7 @@ import {
 } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPaginator';
-import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
+import type { ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag, type ViewScopedFlag } from './roomTimelineViewScope';
 import {
@@ -111,136 +111,6 @@ export const useViewportAtBottomNow = (
 
 /** Gestures and keys that hand the scroll position over to the reader. */
 export const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
-/** How much further from the newest row a scroll must leave the reader to count as theirs. */
-const LEFT_LATEST_ROW_PX = 32;
-/** How near the end a held list will have a reader counts as there (rows measure in whole px). */
-const AT_HELD_LIST_END_PX = 2;
-
-const distanceBelowView = (element: HTMLElement): number =>
-  element.scrollHeight - element.scrollTop - element.clientHeight;
-
-type LatestRowRequestOptions = {
-  /** Whether opening this room shows its newest row (not its unread marker or an event). */
-  opensAtLatest: boolean;
-  /** Whether the room's newest row is its first (`scrollToLatestEnd`). */
-  latestAtTop?: boolean;
-  roomId: string;
-  scrollElement: HTMLElement | null;
-  /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
-  scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-  committedView: string;
-  focusItem: RoomTimelineFocusItem | undefined;
-  /** Runs at each gesture or scroll that hands the position to the reader. */
-  onReaderGesture: () => void;
-  /**
-   * The room that rows which shrank still take in the list until React renders it
-   * (`listShrinkNotRendered`). The correction that keeps the end in place for them moves the
-   * position up by as much, and that scroll is not the reader's.
-   */
-  pendingListShrinkPx?: () => number;
-};
-
-/**
- * A request to show the newest row. Opening the room, Jump to Latest, a message the reader sends,
- * a live row they follow, and switching the view make one; it holds until the reader scrolls, so
- * rows measured or grown later still end at the bottom. A view switch that React renders but never
- * shows makes none.
- * The reader's gesture also ends the pins asked for before it that no commit has seen yet: a row
- * that arrived while they were at the bottom must not bring them back once they scroll away.
- */
-const useLatestRowRequest = ({
-  opensAtLatest,
-  latestAtTop,
-  roomId,
-  scrollElement,
-  scrollToBottomRef,
-  committedView,
-  focusItem,
-  onReaderGesture,
-  pendingListShrinkPx,
-}: LatestRowRequestOptions) => {
-  const requestRef = useRef(opensAtLatest);
-  const seenCountRef = useRef(scrollToBottomRef.current.count);
-  const viewRef = useRef(committedView);
-  const roomRef = useRef(roomId);
-  const onReaderGestureRef = useLatestRef(onReaderGesture);
-  const latestAtTopRef = useLatestRef(!!latestAtTop);
-  const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
-  useLayoutEffect(() => {
-    if (viewRef.current === committedView) return;
-    viewRef.current = committedView;
-    // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = roomRef.current === roomId || opensAtLatest;
-    roomRef.current = roomId;
-  }, [committedView, opensAtLatest, roomId]);
-  // Every commit compares the count as it is then: a render that React bails out of keeps the
-  // count it read without running its effects, so effect dependencies would miss that pin.
-  useLayoutEffect(() => {
-    const { count } = scrollToBottomRef.current;
-    if (count === seenCountRef.current) return;
-    seenCountRef.current = count;
-    requestRef.current = true;
-  });
-  useLayoutEffect(() => {
-    // A jump to an event owns the position from here.
-    if (focusItem) requestRef.current = false;
-  }, [focusItem]);
-  useEffect(() => {
-    if (!scrollElement) return undefined;
-    const release = () => {
-      requestRef.current = false;
-      seenCountRef.current = scrollToBottomRef.current.count;
-      onReaderGestureRef.current();
-    };
-    // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
-    // a script or assistive technology): the timeline's own pins scroll down, and a row above
-    // the view that changes size moves the position and the content by the same amount. It
-    // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
-    // synchronously and so would pin the newest row again before this saw the reader's position.
-    // With the newest row first, the pins scroll up, and a scroll down away from the top is the
-    // reader's.
-    // The room below the view that rows which shrank still take until React renders the
-    // list does not count: the correction that keeps the end in place for them scrolls up as much.
-    // The rows can still measure a shrink that React has already rendered: never less than none.
-    // A scroll up no larger than the scroll area grew is the browser keeping the position inside
-    // the taller area (a phone's keyboard band that widens while the rows measure again): the
-    // view's lower edge stays where it was, and that scroll is not the reader's either.
-    const roomBelow = () =>
-      Math.max(0, distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0));
-    let lastTop = scrollElement.scrollTop;
-    let lastBelow = roomBelow();
-    let lastHeight = scrollElement.clientHeight;
-    const followScroll = () => {
-      const top = scrollElement.scrollTop;
-      const below = roomBelow();
-      const height = scrollElement.clientHeight;
-      const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
-      const leftLatest = latestAtTopRef.current
-        ? top > lastTop + LEFT_LATEST_ROW_PX
-        : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
-      if (leftLatest) release();
-      lastTop = top;
-      lastBelow = below;
-      lastHeight = height;
-    };
-    READER_INTENT_EVENTS.forEach((name) =>
-      scrollElement.addEventListener(name, release, { passive: true })
-    );
-    scrollElement.addEventListener('scroll', followScroll, { capture: true, passive: true });
-    return () => {
-      READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
-      scrollElement.removeEventListener('scroll', followScroll, { capture: true });
-    };
-  }, [
-    latestAtTopRef,
-    onReaderGestureRef,
-    pendingListShrinkPxRef,
-    scrollElement,
-    scrollToBottomRef,
-  ]);
-  return requestRef;
-};
-
 /**
  * A place in the room's rows: the row of `eventId` starts `offset` px below the scroll area's top.
  */
@@ -319,75 +189,6 @@ export const useThreadReturnPlace = ({
 };
 
 /**
- * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
- * virtual list scrolls to its last row (to its top when its newest row is first), and an open
- * thread to the end of its scroll area. A pin
- * applied once can be cut short (a smooth scroll stops at the next scroll the timeline writes, as
- * when the composer grows) or land before the rows below it measure, and then every later row
- * would find the reader above the bottom and leave them there.
- */
-export const useLatestRowPin = ({
-  surface,
-  itemCount,
-  virtualizer,
-  listHeightHeld,
-  onReaderGesture,
-  ...request
-}: LatestRowRequestOptions & {
-  /**
-   * The rows it keeps: the room's own, an open thread's once the reader has scrolled it (until
-   * then the pin the thread opened with holds), or none (the Compact cards).
-   */
-  surface: 'room' | 'thread' | undefined;
-  itemCount: number;
-  virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>;
-  /** Whether this commit keeps the list's old height over rows that changed size. */
-  listHeightHeld?: boolean;
-}) => {
-  const surfaceRef = useLatestRef(surface);
-  const virtualizerRef = useLatestRef(virtualizer);
-  // The reader's gesture takes the position over: the virtual list stops scrolling to the row it
-  // was last sent to. A thread's gestures have their own rule for the pins (useGestureBottomPins'
-  // onThreadGesture).
-  const onGesture = useCallback(() => {
-    virtualizerRef.current.cancelScroll();
-    if (surfaceRef.current === 'room') onReaderGesture();
-  }, [onReaderGesture, surfaceRef, virtualizerRef]);
-  const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onGesture });
-  // A thread's request starts with the reader's own scrolling: what was asked before belongs to
-  // the pin the thread opened with.
-  const surfaceAtLastCommitRef = useRef(surface);
-  useLayoutEffect(() => {
-    if (surfaceAtLastCommitRef.current === surface) return;
-    surfaceAtLastCommitRef.current = surface;
-    if (surface === 'thread') latestRowRequestRef.current = false;
-  });
-  const { scrollElement, latestAtTop, pendingListShrinkPx } = request;
-  useLayoutEffect(() => {
-    if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
-    clearVirtualizerHoldOffset(virtualizer);
-    if (surface === 'room' && latestAtTop) {
-      scrollElement?.scrollTo({ top: 0 });
-      return;
-    }
-    // A commit that holds the list's height over rows that shrank ends the list below its newest
-    // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
-    // will end is at the newest row: the end the list has now would show a blank band above the
-    // composer for a frame. Any other reader is brought to the end the list has.
-    const heldPx = listHeightHeld ? (pendingListShrinkPx?.() ?? 0) : 0;
-    if (
-      heldPx >= 1 &&
-      scrollElement &&
-      Math.abs(distanceBelowView(scrollElement) - heldPx) < AT_HELD_LIST_END_PX
-    ) {
-      return;
-    }
-    if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
-    else if (scrollElement) scrollToBottom(scrollElement, 'instant');
-  });
-};
-
-/**
  * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
  * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
  * compositor still owns can be discarded. The area takes
@@ -445,7 +246,7 @@ export const useGestureBottomPins = ({
     readerScrolledRef.current.value = true;
     onFirstGesture();
   }, [backController, onFirstGesture, onThreadTakeoverRef, readerScrolledRef, scrollToBottomRef]);
-  /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
+  /** The room rows' gestures (`useTimelineLiveEnd`), which have no opening pin to end. */
   const onRoomGesture = useCallback(() => {
     countAtGestureRef.current = scrollToBottomRef.current.count;
     if (readerScrolledRef.current.value) return;

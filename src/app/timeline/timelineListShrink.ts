@@ -1,5 +1,3 @@
-import { type RefObject, useEffect } from 'react';
-
 /**
  * `listShrinkNotRendered` before it drops below 0, with the newest row, the mounted rows, and how
  * much more than its height on screen virtual-core counts for the newest row, which it measures
@@ -66,35 +64,6 @@ export const listShrinkAfterResize = (
   const px = reach.px - reach.roundingPx;
   return reach.mounted.has(index) ? px : px - deltaPx;
 };
-
-/**
- * Keeps the scroll position from ending past where the list will end. Rows that shrank are still
- * counted in the list's rendered height until React renders it (`pendingListShrinkPx`), so in a
- * frame where the composer's inset shrinks or the content grows, the browser's own clamp and a
- * follow to the end can stop below the newest row and paint a blank band above the composer.
- * This observer of the content and of the footer probe is created after the timeline's other
- * observers, so it runs after them in each pass of the browser's ResizeObserver loop, and clamps
- * the position to that end before the paint.
- */
-export function useListEndClamp(
-  scroll: HTMLElement | null,
-  contentRef: RefObject<HTMLElement | null>,
-  probeRef: RefObject<HTMLElement | null>,
-  pendingListShrinkPx: () => number
-): void {
-  useEffect(() => {
-    const content = contentRef.current;
-    const probe = probeRef.current;
-    if (!scroll || !content || !probe || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => {
-      const end = scroll.scrollHeight - scroll.clientHeight - pendingListShrinkPx();
-      if (scroll.scrollTop > end) scroll.scrollTop = Math.max(0, end);
-    });
-    observer.observe(content);
-    observer.observe(probe);
-    return () => observer.disconnect();
-  }, [contentRef, pendingListShrinkPx, probeRef, scroll]);
-}
 
 /**
  * Keeps a reader at the list's end pinned when an in-view row shrinks before React renders the

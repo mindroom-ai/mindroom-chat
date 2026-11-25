@@ -17,12 +17,10 @@ import {
 } from './useVirtualPaginator';
 import { scrollToBottom } from '../lib/dom';
 import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
+import { useThreadOpeningPin } from './timelineLiveEnd';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
-import {
-  shouldPinThreadToBottomOnOpen,
-  type ThreadInitialRenderMode,
-} from '../event-store/threads/threadRenderUtils';
+import type { ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
 import {
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
@@ -405,117 +403,6 @@ const useRoomFocusJump = ({
     threadFilteredEventsRef,
     threadId,
   ]);
-};
-
-/**
- * A thread opened at its newest row is held there while its rows arrive and measure, until the
- * reader's first gesture or a jump target suppresses the opening pin.
- */
-const useThreadOpeningPin = ({
-  readMeasurementCorrectionPx,
-  isThreadOpenBottomPinSuppressed,
-  requestThreadOpenBottomPin,
-  scrollRef,
-  scrollThreadToEnd,
-  setAtBottom,
-  threadEventsLength,
-  threadId,
-  threadInitialRenderMode,
-  threadLatestOpenPending,
-  threadOpenedAtLatest,
-  threadUserScrolled,
-}: Pick<
-  Options,
-  | 'readMeasurementCorrectionPx'
-  | 'isThreadOpenBottomPinSuppressed'
-  | 'requestThreadOpenBottomPin'
-  | 'scrollRef'
-  | 'scrollThreadToEnd'
-  | 'setAtBottom'
-  | 'threadEventsLength'
-  | 'threadId'
-  | 'threadInitialRenderMode'
-  | 'threadLatestOpenPending'
-  | 'threadOpenedAtLatest'
-  | 'threadUserScrolled'
->) => {
-  // Whether the effect below pinned in this commit; the one after it then has nothing to do.
-  const pinnedInCommitRef = useRef(false);
-  // Where the last pin, or the last commit that found the view at the bottom, left the scroll
-  // position: a view above it was moved up by something else than the rows growing.
-  const pinnedPositionRef = useRef<{ top: number; correction: number }>(undefined);
-  useLayoutEffect(() => {
-    if (!threadId) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    const scrollArea = scrollRef.current;
-    if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
-    setAtBottom(true);
-    pinnedInCommitRef.current = true;
-    pinnedPositionRef.current = {
-      top: scrollArea.scrollTop,
-      correction: readMeasurementCorrectionPx?.() ?? 0,
-    };
-  }, [
-    readMeasurementCorrectionPx,
-    isThreadOpenBottomPinSuppressed,
-    requestThreadOpenBottomPin,
-    scrollRef,
-    scrollThreadToEnd,
-    setAtBottom,
-    threadEventsLength,
-    threadId,
-    threadInitialRenderMode,
-    threadLatestOpenPending,
-    threadOpenedAtLatest,
-    threadUserScrolled,
-  ]);
-  // Rows measure after the commit that pinned them: one taller than its estimate (a tool call, a
-  // reasoning summary) pushes the newest reply below the view. The commit that renders the
-  // measurement pins it again, as long as the opening pin holds and nothing else moved the view
-  // up (a script or assistive technology scrolls without the gestures that end the pin).
-  useLayoutEffect(() => {
-    if (pinnedInCommitRef.current) {
-      pinnedInCommitRef.current = false;
-      return;
-    }
-    const scrollArea = scrollRef.current;
-    if (!threadId || !scrollArea) return;
-    const correction = readMeasurementCorrectionPx?.() ?? 0;
-    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
-      pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
-      return;
-    }
-    const pinnedPosition = pinnedPositionRef.current;
-    if (!pinnedPosition) return;
-    // A shrink correction moves the scroll up even while other rows grow in the same pass.
-    // Compare against the position after our own corrections, so only an additional upward
-    // scroll hands ownership away. The ledger keeps the sum across its pre-paint renders.
-    const correctedTop = pinnedPosition.top + correction - pinnedPosition.correction;
-    if (scrollArea.scrollTop < correctedTop - 1) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    if (!pinned || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
-    pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
-  });
 };
 
 /**

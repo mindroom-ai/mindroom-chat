@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveReplyStore } from '../messages/live/liveReplyStore';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import { isDisclosureRevealActive } from '../ui/disclosureReveal';
-import { useFollowContentGrowth } from './useFollowContentGrowth';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 
 vi.mock('../ui/disclosureReveal', () => ({
   isDisclosureRevealActive: vi.fn(() => false),
@@ -65,20 +65,19 @@ describe('useFollowContentGrowth', () => {
     seq = 0;
     pendingShrink = 0;
     atLiveEndRef.current = true;
-    const getScrollElement = () => scroller as unknown as HTMLElement;
     // The timeline's live reading of its viewport bottom.
     const isViewportAtBottomNow = () => isScrollNearBottom(scroller);
     const contentRef = { current: content };
     function Harness() {
-      useFollowContentGrowth(
-        getScrollElement,
+      useTimelineLiveEnd({
+        scrollElement: scroller as unknown as HTMLElement,
         contentRef,
         isViewportAtBottomNow,
         atLiveEndRef,
         liveReplies,
-        ROOM,
-        () => pendingShrink
-      );
+        roomId: ROOM,
+        pendingListShrinkPx: () => pendingShrink,
+      });
       return null;
     }
     act(() => {

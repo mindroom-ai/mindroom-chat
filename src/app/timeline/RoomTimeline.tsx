@@ -3,7 +3,6 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -23,7 +22,6 @@ import {
 } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
@@ -92,14 +90,11 @@ import { useRoomTimelineNavigationController } from './roomTimelineNavigationCon
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import {
   clearVirtualizerHoldOffset,
-  hasPendingVirtualizerAnchor,
-  readVirtualizerHoldOffset,
   useTimelineScrollLedgerController,
 } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
-import { useFollowContentGrowth } from './useFollowContentGrowth';
 import { useCompactCoverageBackfillController } from '../threads/overview/compactCoverageBackfillController';
 import { useCompactHistoryAtEnd } from '../threads/overview/useCompactHistoryAtEnd';
 import { useCompactRootEditBackfillController } from '../threads/overview/compactRootEditBackfillController';
@@ -164,7 +159,7 @@ import {
 } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
-import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
+import { useHeldRowsLayout, useTimelineLiveEnd } from './timelineLiveEnd';
 import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
@@ -179,7 +174,6 @@ import {
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
-  useLatestRowPin,
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
@@ -303,36 +297,6 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
   undefined;
-
-/** Net scroll growth to expose outside `contentRef` while `heldList` freezes its height. */
-const computeHeldEndSpacer = (
-  lastEnd: number | undefined,
-  listHeight: number,
-  inner: HTMLElement | null,
-  content: HTMLElement | null,
-  startAligned: boolean
-): number => {
-  const growth =
-    lastEnd !== undefined && Number.isFinite(lastEnd) && Number.isFinite(listHeight)
-      ? Math.max(0, lastEnd - listHeight)
-      : 0;
-  if (
-    growth <= 0 ||
-    !inner ||
-    !content ||
-    typeof inner.getBoundingClientRect !== 'function' ||
-    typeof content.getBoundingClientRect !== 'function'
-  ) {
-    return growth;
-  }
-  const contentRect = content.getBoundingClientRect();
-  const innerRect = inner.getBoundingClientRect();
-  const style = getComputedStyle(content);
-  const rawSlack = startAligned
-    ? contentRect.bottom - innerRect.bottom - (Number.parseFloat(style.paddingBottom) || 0)
-    : innerRect.top - contentRect.top - (Number.parseFloat(style.paddingTop) || 0);
-  return Number.isFinite(rawSlack) ? Math.max(0, growth - Math.max(0, rawSlack)) : growth;
-};
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
 const useTimelineDisplaySettings = () => ({
@@ -1350,42 +1314,21 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   cancelThreadScrollRef.current = threadId
     ? () => virtualizerRef.current.cancelScroll()
     : undefined;
-  // How far the list still reaches below its newest row (`listShrinkNotRendered`).
-  const { virtualInnerRef } = ledger;
-  const pendingListShrinkPx = useCallback(
-    () => listShrinkNotRendered(virtualInnerRef.current, virtualizerRef.current.measurementsCache),
-    [virtualInnerRef, virtualizerRef]
-  );
-  // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
-  // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
-  // list's bottom edge where it is and the next one takes the new height: moving it there would
-  // resize the scroll content, which the scrollbar, the minimap and the follow-growth observer
-  // watch, after the rows inside it were reported, and WebKit then reports "ResizeObserver loop
-  // completed with undelivered notifications".
-  // A row that changed size in place renders the rows after it the same way.
-  // That render keeps the rows it had, too, and the next one mounts the rows the window gained:
-  // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
-  // depth of the rows just reported, and the browser skips it and reports the loop (closing the
-  // message editor shrank its row, and the window gained a row above). Those rows are overscan.
-  // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
-  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`), and
-  // renders that change itemCount or carry an upstream `pendingScrollAnchor` (otherwise holding the
-  // old list height clamps `_willUpdate()`'s anchor scrollTop write against the shorter box).
-  const prevItemCountRef = useRef(itemCount);
-  const itemCountChanged = prevItemCountRef.current !== itemCount;
-  useLayoutEffect(() => {
-    prevItemCountRef.current = itemCount;
+  const {
+    virtualItems,
+    listHeight,
+    listHeightHeld,
+    heldEndSpacer,
+    holdOffset,
+    pendingListShrinkPx,
+  } = useHeldRowsLayout({
+    ledger,
+    itemCount,
+    contentRef,
+    latestAtTop,
+    startAligned: !!threadId || compactCards,
+    forceRender,
   });
-  const renderedList = ledger.virtualInnerRef.current?.style;
-  const beforePaint = ledger.unrenderedRowMove();
-  const deferRowReport =
-    !itemCountChanged &&
-    !hasPendingVirtualizerAnchor(virtualizer) &&
-    beforePaint &&
-    ledger.unrenderedInRowReport();
-  const heldList =
-    deferRowReport && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
-  const listHeight = heldList ? Number.parseFloat(heldList.height) : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
     threadEvents,
@@ -1770,19 +1713,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
-  // A reply that streams live frames grows the rows without a timeline event: follow it.
-  useFollowContentGrowth(
-    getScrollElement,
-    contentRef,
-    isViewportAtBottomNow,
-    atLiveEndRef,
-    getLiveReplyStore(mx),
-    room.roomId,
-    pendingListShrinkPx
-  );
-  // After the follow above and every other observer of the timeline (it is created last).
-  useListEndClamp(scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
-
   // The compact overview: older history until zero-reply roots show up, root edits it lacks (the
   // Threads view's too, which lists the same roots), and a refresh of its threads when the page
   // comes back.
@@ -1911,21 +1841,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
 
   // Scrolling near the top of a thread's loaded rows asks for older ones.
-  const windowItems = virtualizer.getVirtualItems();
-  const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>(undefined);
-  const mountedRowKeys = mountedRowKeysRef.current;
-  const virtualItems =
-    deferRowReport && mountedRowKeys
-      ? windowItems.filter((item) => mountedRowKeys.has(item.key))
-      : windowItems;
-  useLayoutEffect(() => {
-    mountedRowKeysRef.current = new Set(virtualItems.map((item) => item.key));
-  });
-  const deferredRowReportRender = !!heldList || virtualItems.length !== windowItems.length;
-  // No dep array: consecutive ResizeObserver commits can both render deferred.
-  useEffect(() => {
-    if (deferredRowReportRender) forceRender();
-  });
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
@@ -1957,30 +1872,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     });
   }, [returnRowIndex, threadReturnPlace]);
 
-  // The newest row of the room or the open thread, while a request for it holds.
-  const threadRowsPinned = threadUserScrolled ? 'thread' : undefined;
-  const roomRowsPinned = roomSurfaceShown ? 'room' : undefined;
-  useLatestRowPin({
-    surface: threadId ? threadRowsPinned : roomRowsPinned,
-    itemCount,
-    virtualizer,
-    listHeightHeld: !!heldList,
-    // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
-    // unless its newest row is first; the way back from a thread at the place the reader left.
-    opensAtLatest:
-      !eventId &&
-      !threadReturnPlace &&
-      (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
-    latestAtTop,
-    roomId: room.roomId,
-    scrollElement,
-    scrollToBottomRef,
-    committedView: `${viewKey}|${viewMode}`,
-    focusItem,
-    onReaderGesture: gesturePins.onRoomGesture,
-    pendingListShrinkPx,
-  });
-
   const minimap = useRoomTimelineMinimap({
     threadEvents,
     scrollRef,
@@ -2009,6 +1900,34 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     canPaginateBack: canPaginateRoomBack,
     hasMoreCachedBack: roomHasMoreCachedBack,
     paginateBack: paginateRoom,
+  });
+  // After every other timeline observer so its passive ResizeObserver runs last.
+  const threadRowsPinned = threadUserScrolled ? 'thread' : undefined;
+  const roomRowsPinned = roomSurfaceShown ? 'room' : undefined;
+  useTimelineLiveEnd({
+    surface: threadId ? threadRowsPinned : roomRowsPinned,
+    itemCount,
+    virtualizer,
+    listHeightHeld,
+    // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
+    // unless its newest row is first; the way back from a thread at the place the reader left.
+    opensAtLatest:
+      !eventId &&
+      !threadReturnPlace &&
+      (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
+    latestAtTop,
+    roomId: room.roomId,
+    scrollElement,
+    scrollToBottomRef,
+    committedView: `${viewKey}|${viewMode}`,
+    focusItem,
+    onReaderGesture: gesturePins.onRoomGesture,
+    pendingListShrinkPx,
+    contentRef,
+    footerProbeRef,
+    isViewportAtBottomNow,
+    atLiveEndRef,
+    liveReplies: getLiveReplyStore(mx),
   });
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
@@ -2252,17 +2171,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
   // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
   // (-_holdOffset while virtual-core holds a prepend), so held rows above the reader count as loaded.
-  const holdOffset = readVirtualizerHoldOffset(virtualizer);
-  const heldEndSpacer =
-    !latestAtTop && heldList && holdOffset === 0 && itemCount > 0
-      ? computeHeldEndSpacer(
-          virtualizer.measurementsCache[itemCount - 1]?.end,
-          listHeight,
-          virtualInnerRef.current,
-          contentRef.current,
-          !!threadId || compactCards
-        )
-      : 0;
   const backHeadroomPx =
     !latestAtTop && readerScrolledRef.current.value
       ? (virtualizer.measurementsCache[
