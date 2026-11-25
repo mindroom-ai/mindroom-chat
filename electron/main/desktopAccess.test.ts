@@ -2136,10 +2136,15 @@ describe('desktopAccess', () => {
     allowedAppIds?: string[];
     axTrusted?: boolean;
     screenRecording?: 'granted' | 'missing';
+    fullConsent?: boolean;
   }) => {
     let now = 1_000_000;
     let axTrusted = opts?.axTrusted ?? false;
     const openExternal = vi.fn(async () => undefined);
+    const userDataDir = makeTempDir();
+    if (opts?.fullConsent) {
+      setControllerFullAccess(userDataDir, 'ctrl-demo', { agentName: 'Demo' });
+    }
     electronMocks.Tray.mockImplementation(function () {
       return makeFakeTrayInstance();
     });
@@ -2174,7 +2179,7 @@ describe('desktopAccess', () => {
     const access = createDesktopAccess({
       platform: opts?.platform ?? 'darwin',
       arch: 'arm64',
-      userDataDir: makeTempDir(),
+      userDataDir,
       storagePath: makeTempDir(),
       preload: '/app/preload.cjs',
       isQuitting: () => false,
@@ -2226,8 +2231,9 @@ describe('desktopAccess', () => {
     expect(h.openExternal).toHaveBeenLastCalledWith(
       'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
     );
+    // Automatic Screen Recording leaves relaunchRequired false if dismissed; manual click sets it true.
     const snap = await h.access.getStatus();
-    expect(snap.ok && snap.value.relaunchRequired).toBe(true);
+    expect(snap.ok && snap.value.relaunchRequired).toBe(false);
     // Strictly one-shot across further polls and status pushes.
     h.fake.pushStatus({
       permissions: {
@@ -2239,14 +2245,17 @@ describe('desktopAccess', () => {
     await Promise.resolve();
     expect(h.permCalls()).toHaveLength(2);
 
-    // Accessibility already granted -> straight to Screen Recording; both granted -> no prompt.
+    // Accessibility already granted -> straight to Screen Recording without trapping on Relaunch; manual click still sets relaunchRequired.
     const h2 = makeAutoPermHarness({ axTrusted: true, screenRecording: 'missing' });
     h2.access.noteGesture();
     const res2 = await h2.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' });
-    expect(res2.ok && res2.value.relaunchRequired).toBe(true);
+    expect(res2.ok && res2.value.relaunchRequired).toBe(false);
     expect(h2.permCalls()).toEqual([
       { action: 'request_permission', parameters: { permission: 'screen_recording' } },
     ]);
+    h2.access.noteGesture();
+    const manualRes = await h2.access.requestPermission('screen_recording');
+    expect(manualRes.ok && manualRes.value.relaunchRequired).toBe(true);
 
     const h3 = makeAutoPermHarness({ axTrusted: true, screenRecording: 'granted' });
     h3.access.noteGesture();
@@ -2294,6 +2303,34 @@ describe('desktopAccess', () => {
     });
     await vi.waitFor(() => expect(h.permCalls()).toHaveLength(2));
     expect(h.permCalls()[1]?.parameters).toEqual({ permission: 'screen_recording' });
+
+    // Folder-only save on an already-full controller neither prompts nor arms auto-advance; upgrading restricted -> full does.
+    const fullH = makeAutoPermHarness({ fullConsent: true });
+    fullH.access.noteGesture();
+    expect(
+      (
+        await fullH.access.updateLimits({
+          controllerKey: 'ctrl-demo',
+          mode: 'full',
+          fileRoots: ['/Users/demo/Projects'],
+        })
+      ).ok
+    ).toBe(true);
+    expect(fullH.permCalls()).toEqual([]);
+    expect(fullH.openExternal).not.toHaveBeenCalled();
+    fullH.setAx(true);
+    await fullH.access.getStatus();
+    await Promise.resolve();
+    expect(fullH.permCalls()).toEqual([]);
+
+    const upgradeH = makeAutoPermHarness({ allowedAppIds: ['com.example.Browser'] });
+    upgradeH.access.noteGesture();
+    expect(
+      (await upgradeH.access.updateLimits({ controllerKey: 'ctrl-demo', mode: 'full' })).ok
+    ).toBe(true);
+    expect(upgradeH.permCalls().map((c) => c.parameters)).toEqual([
+      { permission: 'accessibility' },
+    ]);
 
     // Expiry (180 s), stop(), revokeAll(), removeController(), and clearing GUI apps all cancel auto-advance.
     for (const cancel of ['expire', 'stop', 'revokeAll', 'removeController', 'clearGui'] as const) {
