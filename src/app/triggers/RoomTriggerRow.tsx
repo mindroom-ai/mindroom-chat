@@ -15,7 +15,10 @@ const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT = { ...BTN, variant: 'Secondary', fill: 'Soft', className: s.CompactAction } as const;
 const CONFIRM = { ...BTN, className: s.CancelBarButton } as const;
 
-const KNOWN_KINDS = new Set(['webhook', 'room_message', 'external_event', 'thread_tag']);
+const KNOWN_KIND_LIST = ['webhook', 'room_message', 'external_event', 'thread_tag'] as const;
+const KNOWN_KINDS: ReadonlySet<string> = new Set(KNOWN_KIND_LIST);
+const isKnownKind = (kind: string): kind is (typeof KNOWN_KIND_LIST)[number] =>
+  KNOWN_KINDS.has(kind);
 
 const DEST_KEYS = {
   room: 'roomTriggers.destinationRoom',
@@ -49,9 +52,7 @@ export function RoomTriggerRow(props: Props) {
     if (confirmDelete) keepBtnRef.current?.focus();
   }, [confirmDelete]);
 
-  const kindLabel = t(
-    `roomTriggers.kind.${KNOWN_KINDS.has(trigger.kind) ? trigger.kind : 'unknown'}`
-  );
+  const kindLabel = t(`roomTriggers.kind.${isKnownKind(trigger.kind) ? trigger.kind : 'unknown'}`);
   const destLabel =
     trigger.threadMode && Object.hasOwn(DEST_KEYS, trigger.threadMode)
       ? t(DEST_KEYS[trigger.threadMode as keyof typeof DEST_KEYS])
