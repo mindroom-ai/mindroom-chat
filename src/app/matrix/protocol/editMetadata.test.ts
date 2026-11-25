@@ -69,4 +69,19 @@ describe('copyResolvedEditMetadata', () => {
 
     expect(latest).toEqual({ body: 'Edited by hand' });
   });
+
+  it('never copies io.mindroom.inline_media from an older edit or outer fallback', () => {
+    const latest: Record<string, unknown> = { body: 'Edited without images' };
+
+    copyResolvedEditMetadata(latest, [
+      {
+        'm.new_content': {
+          'io.mindroom.inline_media': { 'mxc://example.org/a': { url: 'mxc://example.org/a' } },
+        },
+        'io.mindroom.inline_media': { 'mxc://example.org/b': { url: 'mxc://example.org/b' } },
+      },
+    ]);
+
+    expect(latest).toEqual({ body: 'Edited without images' });
+  });
 });

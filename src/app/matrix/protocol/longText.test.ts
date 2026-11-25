@@ -953,4 +953,20 @@ describe('subscribeLongTextHydration', () => {
     expect(listener).not.toHaveBeenCalled();
     stop();
   });
+
+  it('does not inherit io.mindroom.inline_media from the outer fallback into m.new_content', async () => {
+    const hydrated = await hydrateLongTextSource(
+      makeSource('mxc://server/sidecar-edit'),
+      async () =>
+        JSON.stringify({
+          msgtype: 'm.text',
+          body: 'fallback',
+          'io.mindroom.inline_media': { 'mxc://server/a': { url: 'mxc://server/a' } },
+          'm.new_content': { msgtype: 'm.text', body: 'replacement without inline media' },
+        }),
+      {}
+    );
+
+    expect(hydrated).toEqual({ msgtype: 'm.text', body: 'replacement without inline media' });
+  });
 });

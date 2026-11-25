@@ -1,3 +1,4 @@
+import { INLINE_MEDIA_CONTENT_KEY } from './inlineMedia';
 import { isMessageMetadataKey } from './metadata';
 
 // Says that this event's own file holds the message, so it is never inherited from another edit.
@@ -25,7 +26,12 @@ export const copyResolvedEditMetadata = (
 
       Object.entries(metadataSource).forEach(([key, value]) => {
         if (resolvedContent[key] !== undefined) return;
-        if (!isMessageMetadataKey(key) || key === LONG_TEXT_KEY || key === STREAM_STATUS_TS_KEY) {
+        if (
+          !isMessageMetadataKey(key) ||
+          key === LONG_TEXT_KEY ||
+          key === STREAM_STATUS_TS_KEY ||
+          key === INLINE_MEDIA_CONTENT_KEY
+        ) {
           return;
         }
         resolvedContent[key] = value;

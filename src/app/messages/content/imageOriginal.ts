@@ -87,11 +87,11 @@ const canDecodeNatively = async (blob: Blob): Promise<boolean> => {
 
 const convertHeicForDisplay = async (
   blob: Blob,
-  key: string,
+  key: string | undefined,
   signal?: AbortSignal
 ): Promise<Blob> => {
-  const existing = convertedCache.get(key);
-  if (existing) {
+  const existing = key ? convertedCache.get(key) : undefined;
+  if (existing && key) {
     convertedCache.delete(key);
     convertedCache.set(key, existing);
     return existing;
@@ -101,11 +101,13 @@ const convertHeicForDisplay = async (
   if (nativeHeicSupported === undefined && (await isHeifContainer(blob))) {
     nativeHeicSupported = false;
   }
-  convertedCache.delete(key);
-  convertedCache.set(key, converted);
-  if (convertedCache.size > MAX_CONVERTED_CACHE) {
-    const oldest = convertedCache.keys().next().value;
-    if (oldest !== undefined) convertedCache.delete(oldest);
+  if (key) {
+    convertedCache.delete(key);
+    convertedCache.set(key, converted);
+    if (convertedCache.size > MAX_CONVERTED_CACHE) {
+      const oldest = convertedCache.keys().next().value;
+      if (oldest !== undefined) convertedCache.delete(oldest);
+    }
   }
   return converted;
 };
@@ -141,7 +143,7 @@ export const loadImageOriginal = async (
   }
   if (await canDecodeNatively(blob)) return { src: URL.createObjectURL(blob) };
   try {
-    const key = `${url}|${encInfo?.hashes?.sha256 ?? ''}`;
+    const key = encInfo ? undefined : url;
     return {
       src: URL.createObjectURL(await convertHeicForDisplay(blob, key, signal)),
       downloadBlob: blob,
