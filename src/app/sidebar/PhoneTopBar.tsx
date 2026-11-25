@@ -20,6 +20,8 @@ import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useRoomsUnread } from '../matrix/state/useUnread';
 import { useActivityBadge } from '../activity/useActivityRows';
 import { ActivitySheet } from '../activity/ActivitySheet';
+import { useRailButtons } from '../settings/railButtons';
+import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
 import { ActivityBadge } from './rail/ActivityTab';
 import * as css from './PhoneTopBar.css';
@@ -160,12 +162,14 @@ function PhoneReturnToCall() {
  * bell, the account and the way back to a call running out of view.
  */
 export function PhoneTopBar() {
+  const shown = useRailButtons();
   return (
     <div className={css.PhoneChrome} data-phone-top-bar>
       <div className={css.PhoneTopBar}>
         <MenuButton />
         <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
         <ActivityBell />
+        {shown.help && <HelpTab inTopBar className={css.BarControl} />}
         <SettingsTab inTopBar className={css.BarControl} />
       </div>
       <PhoneReturnToCall />

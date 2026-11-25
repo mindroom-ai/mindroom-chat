@@ -15,6 +15,7 @@ import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { useOpenCreateRoomModal } from '../navigation/useCreateRoomModal';
 import { useOpenCreateSpaceModal } from '../navigation/useCreateSpaceModal';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { useSetting } from '../preferences/useSetting';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -297,6 +298,7 @@ export const useCommandPaletteSource = ({
     const items = getCommandPaletteQuickActions(
       {
         currentRoomName: currentRoom?.name,
+        isCurrentRoomSpace: currentRoom?.isSpaceRoom(),
         currentThreadId,
         isCurrentThreadResolved: currentThreadId ? currentThreadResolved : undefined,
         isCurrentThreadPinned:
@@ -346,6 +348,9 @@ export const useCommandPaletteSource = ({
         void markRoomsRead([room.roomId]);
       }),
       'open-current-room-settings': inCurrentRoom((room) => openRoomSettings(room.roomId)),
+      'open-current-room-mindroom-settings': inCurrentRoom((room) => {
+        if (!room.isSpaceRoom()) openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage);
+      }),
       // The thread tag write path checks the root, shows the change at once and reports errors.
       'resolve-current-thread': markCurrentThread(true),
       'unresolve-current-thread': markCurrentThread(false),

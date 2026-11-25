@@ -1,7 +1,7 @@
 import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import { isKeyHotkey } from 'is-hotkey';
+import { matchesHotkey } from '../../shortcuts/shortcuts';
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
 import { type Descendant, Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
@@ -36,10 +36,6 @@ import { TEXT_MSGTYPES } from '../../event-store/timeline/timelineRowTypes';
 import { keepThreadForkRef } from '../../event-store/threads/threadFork';
 
 const CUSTOM_HTML = 'org.matrix.custom.html';
-
-const isPlainEnter = isKeyHotkey('enter');
-const isModEnter = isKeyHotkey('mod+enter');
-const isEscape = isKeyHotkey('escape');
 
 /**
  * The lines the editor starts with: the message's HTML, as Markdown source when Markdown is on,
@@ -209,7 +205,7 @@ function LoadedMessageEditor({
     (evt: KeyboardEvent<HTMLDivElement>) => {
       // slate-react 0.138.3+ forwards onKeyDown even in readOnly mode; ignore keys while saving.
       if (saving || composing(evt.nativeEvent)) return;
-      if (isEscape(evt.nativeEvent)) {
+      if (matchesHotkey('escape', evt.nativeEvent)) {
         // Escape leaves the edit only; the thread or dialog around it stays open.
         evt.preventDefault();
         evt.stopPropagation();
@@ -217,12 +213,12 @@ function LoadedMessageEditor({
         return;
       }
       // With suggestions open, Enter picks one (the menu listens for it) instead of saving.
-      if (emoticonMenuOpen && isPlainEnter(evt.nativeEvent)) {
+      if (emoticonMenuOpen && matchesHotkey('enter', evt.nativeEvent)) {
         evt.preventDefault();
         return;
       }
-      const saveKey = enterForNewline || mobileOrTablet() ? isModEnter : isPlainEnter;
-      if (saveKey(evt.nativeEvent)) {
+      const saveKey = enterForNewline || mobileOrTablet() ? 'mod+enter' : 'enter';
+      if (matchesHotkey(saveKey, evt.nativeEvent)) {
         evt.preventDefault();
         void save();
       }

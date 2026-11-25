@@ -3,10 +3,12 @@ import {
   getActivityInvitesPath,
   getActivityPath,
   getActivityRoomPath,
+  getSpaceThreadsPath,
   getThreadsRoomPath,
   getUsagePath,
   isAuxiliaryWindowPath,
   isQuickCapturePath,
+  isRoomIdOrAliasSegment,
   isShellApprovalPath,
 } from './pathUtils';
 
@@ -21,6 +23,7 @@ describe('Activity and Threads paths', () => {
     expect(getActivityRoomPath('!r:x')).toBe('/activity/!r%3Ax');
     expect(getActivityRoomPath('!r:x', '$e')).toBe('/activity/!r%3Ax/%24e');
     expect(getThreadsRoomPath('#a:x')).toBe('/threads/%23a%3Ax');
+    expect(getSpaceThreadsPath('!space:example.org')).toBe('/!space%3Aexample.org/threads');
   });
 });
 
@@ -56,5 +59,15 @@ describe('isShellApprovalPath and isAuxiliaryWindowPath', () => {
     expect(isAuxiliaryWindowPath('/shell-approval/', '/')).toBe(true);
     expect(isAuxiliaryWindowPath('/quick-capture/', '/')).toBe(true);
     expect(isAuxiliaryWindowPath('/home/', '/')).toBe(false);
+  });
+});
+
+describe('isRoomIdOrAliasSegment', () => {
+  it('recognizes Matrix room ID and alias prefixes and rejects reserved segments', () => {
+    expect(isRoomIdOrAliasSegment('!room:example.org')).toBe(true);
+    expect(isRoomIdOrAliasSegment('#alias:example.org')).toBe(true);
+    expect(isRoomIdOrAliasSegment('lobby')).toBe(false);
+    expect(isRoomIdOrAliasSegment('threads')).toBe(false);
+    expect(isRoomIdOrAliasSegment('')).toBe(false);
   });
 });

@@ -11,9 +11,15 @@ import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish'
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
-import { getAiRunInfo, readOwnStreamStatus, readStreamStatus } from '../../matrix/protocol/aiRun';
+import {
+  getAiRunInfo,
+  isAiRunStreaming,
+  readOwnStreamStatus,
+  readStreamStatus,
+} from '../../matrix/protocol/aiRun';
 import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import {
   readInteractiveQuestion,
@@ -66,6 +72,8 @@ export type ThreadSignals = {
   /** The senders of the new replies, newest first. */
   newSenderIds: string[];
   lastReply?: ThreadReply;
+  /** Newest counted reply from a sender other than the reader. */
+  lastOtherReply?: ThreadReply;
   outcome?: ThreadOutcome;
   /** An agent started it and no person has written in it: a scheduled run, a hook. */
   automation: boolean;
@@ -73,6 +81,8 @@ export type ThreadSignals = {
   waitsUntil?: number;
   /** When the newest of what it counts came: a message, by its newest edit, or the approval. */
   newsTs?: number;
+  /** The same for messages from others only (not the reader), or the approval. */
+  otherNewsTs?: number;
   /** The same for messages from other people only: not agents, not the reader. */
   personNewsTs?: number;
 };
@@ -104,6 +114,7 @@ type Shown = {
   content: Record<string, unknown>;
   editTs?: number;
   editId?: string;
+  streaming?: boolean;
 };
 
 const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown => {
@@ -117,6 +128,7 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
     content: isRecord(newContent) ? newContent : editContent,
     editTs: edit.getTs(),
     editId: edit.getId(),
+    streaming: isAiRunStreaming(editContent),
   };
 };
 
@@ -176,18 +188,19 @@ const previewOf = (content: Record<string, unknown>): ThreadPreview => {
     case 'm.video':
       return { kind: 'video' };
     case 'm.file':
-      return { kind: 'file' };
-    default: {
-      // As the rest of the app previews it: tool calls counted, Markdown and reply quotes dropped.
-      const text = getThreadMessagePreviewText(content) ?? '';
-      const localization = getThreadPreviewLocalization(content, text);
-      return {
-        kind: 'text',
-        text: text.slice(0, PREVIEW_LENGTH),
-        ...(localization ? { localization } : {}),
-      };
-    }
+      if (!hasLongTextMetadata(content)) return { kind: 'file' };
+      break;
+    default:
+      break;
   }
+  // As the rest of the app previews it: tool calls counted, Markdown and reply quotes dropped.
+  const text = getThreadMessagePreviewText(content) ?? '';
+  const localization = getThreadPreviewLocalization(content, text);
+  return {
+    kind: 'text',
+    text: text.slice(0, PREVIEW_LENGTH),
+    ...(localization ? { localization } : {}),
+  };
 };
 
 /**
@@ -304,6 +317,11 @@ export const readThreadSignals = (
       : event.getSender() !== userId;
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
+  const otherCounted = counted.filter(({ event }) => {
+    const sender = event.getSender();
+    return !!sender && sender !== userId;
+  });
+  const newestOther = otherCounted.at(-1);
   const answeredByResolve = (askedTs: number | undefined) =>
     resolvedTs !== undefined && (askedTs ?? 0) <= resolvedTs;
 
@@ -324,6 +342,7 @@ export const readThreadSignals = (
   )
     .filter(
       (record) =>
+        record.sender !== userId &&
         isAgent(record.sender) &&
         isPendingApproval(record, now) &&
         !answeredByResolve(all.find((event) => event.getId() === record.eventId)?.getTs()) &&
@@ -331,7 +350,7 @@ export const readThreadSignals = (
     )
     .at(-1);
 
-  const newestAgentReply = counted.findLast(({ event }) => isAgent(event.getSender()));
+  const newestAgentReply = otherCounted.findLast(({ event }) => isAgent(event.getSender()));
   let pendingQuestion =
     resolvedTs === undefined && newestAgentReply ? readQuestion(newestAgentReply) : undefined;
   // A streamed reply asks once its last edit adds the question.
@@ -381,12 +400,28 @@ export const readThreadSignals = (
     approvalTs ?? 0,
     ...counted.map(({ event, editTs }) => editTs ?? event.getTs())
   );
+  const otherNewsTs = Math.max(
+    approvalTs ?? 0,
+    ...otherCounted.map(({ event, editTs, streaming }) =>
+      editTs !== undefined && !streaming ? Math.max(event.getTs(), editTs) : event.getTs()
+    )
+  );
   const personNewsTs = Math.max(
     0,
-    ...counted
-      .filter(({ event }) => event.getSender() !== userId && !isAgent(event.getSender()))
+    ...otherCounted
+      .filter(({ event }) => !isAgent(event.getSender()))
       .map(({ event, editTs }) => editTs ?? event.getTs())
   );
+  const toReply = ({ event, content }: Shown): ThreadReply => ({
+    eventId: event.getId() ?? '',
+    senderId: event.getSender() ?? '',
+    ts: event.getTs(),
+    preview: previewOf(content),
+    ...(hasMessagePreviews() ? { event: threadMessagePluginEvent(room, event, thread) } : {}),
+  });
+  const lastReply = newest ? toReply(newest) : undefined;
+  const lastOtherReply =
+    newestOther === newest ? lastReply : newestOther ? toReply(newestOther) : undefined;
 
   const lapses = [
     pendingApproval && parseToolApprovalExpiryTimestamp(pendingApproval.approval.expiresAt),
@@ -395,6 +430,7 @@ export const readThreadSignals = (
   return {
     ...(lapses.length > 0 ? { waitsUntil: Math.min(...lapses) } : {}),
     ...(newsTs > 0 ? { newsTs } : {}),
+    ...(otherNewsTs > 0 ? { otherNewsTs } : {}),
     ...(personNewsTs > 0 ? { personNewsTs } : {}),
     ...(pendingApproval ? { pendingApproval } : {}),
     ...(pendingQuestion ? { pendingQuestion } : {}),
@@ -402,19 +438,8 @@ export const readThreadSignals = (
     ...(mentionedBy ? { mentionedBy } : {}),
     newCount: unread.length,
     newSenderIds: [...new Set(unread.map(({ event }) => event.getSender() ?? '').reverse())],
-    ...(newest
-      ? {
-          lastReply: {
-            eventId: newest.event.getId() ?? '',
-            senderId: newest.event.getSender() ?? '',
-            ts: newest.event.getTs(),
-            preview: previewOf(newest.content),
-            ...(hasMessagePreviews()
-              ? { event: threadMessagePluginEvent(room, newest.event, thread) }
-              : {}),
-          },
-        }
-      : {}),
+    ...(lastReply ? { lastReply } : {}),
+    ...(lastOtherReply ? { lastOtherReply } : {}),
     ...(newestAgentReply ? withOutcome(readOutcome(newestAgentReply)) : {}),
     automation,
   };

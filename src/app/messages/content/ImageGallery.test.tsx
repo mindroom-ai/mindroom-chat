@@ -74,7 +74,7 @@ function Conversation({ slides, origin }: { slides?: ImageSlide[]; origin: Image
   };
   const gallery = open && <ImageGallery slide={origin} requestClose={close} />;
   return slides ? (
-    <ImageSlidesContext.Provider value={getSlides}>{gallery}</ImageSlidesContext.Provider>
+    <ImageSlidesContext value={getSlides}>{gallery}</ImageSlidesContext>
   ) : (
     <>{gallery}</>
   );

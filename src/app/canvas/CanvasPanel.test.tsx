@@ -21,7 +21,9 @@ import {
   type CanvasSaved,
 } from '../messages/canvas/canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from '../messages/canvas/canvasTheme';
+import { getDefaultStore } from 'jotai';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../preferences/settings';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,12 +73,10 @@ vi.mock('folds', () => ({
   }) => <button {...props}>{children}</button>,
   color: { Critical: { Main: 'red' } },
   Icon: () => <span />,
-  IconButton: React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
-    ({ children, ...props }, ref) => (
-      <button {...props} ref={ref}>
-        {children}
-      </button>
-    )
+  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button {...props} ref={ref}>
+      {children}
+    </button>
   ),
   Icons: { Cross: 'Cross', Category: 'Category' },
   // Icon buttons name themselves in tooltips; render only the trigger.
@@ -109,6 +109,7 @@ vi.mock('./CanvasPanel.css.ts', () => ({
   TitleGroup: 'TitleGroup',
   Controls: 'Controls',
   Title: 'Title',
+  FrameWrap: 'FrameWrap',
   Frame: 'Frame',
   Footer: 'Footer',
   Error: 'Error',
@@ -250,9 +251,16 @@ beforeEach(() => {
   sendMessage = vi.spyOn(mx, 'sendMessage');
 });
 
+const store = getDefaultStore();
+const setZoom = (pageZoom: number) =>
+  act(() => {
+    store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom });
+  });
+
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  store.set(settingsAtom, { ...store.get(settingsAtom), pageZoom: PAGE_ZOOM_DEFAULT });
   mx.stopClient();
   vi.useRealTimers();
 });
@@ -1044,5 +1052,43 @@ describe('CanvasPanel', () => {
     render({ onClose });
     act(() => button('[aria-label="Close canvas"]').click());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('scales the panel iframe with pageZoom and resets cleanly at 100%', () => {
+    render();
+    const wrap = frame().parentElement as HTMLElement;
+    expect(wrap.className).toBe('FrameWrap');
+    expect(wrap.getAttribute('dir')).toBe('ltr');
+    expect(frame().style.transform).toBe('');
+    expect(frame().style.width).toBe('');
+    expect(frame().style.height).toBe('');
+
+    setZoom(50);
+    expect(frame().style.width).toBe('200%');
+    expect(frame().style.height).toBe('200%');
+    expect(frame().style.transform).toBe('scale(0.5)');
+    expect(frame().style.transformOrigin).toBe('left top');
+
+    setZoom(125);
+    expect(frame().style.width).toBe('80%');
+    expect(frame().style.height).toBe('80%');
+    expect(frame().style.transform).toBe('scale(1.25)');
+
+    // A raw canvas keeps its white surface and color scheme alongside zoom styles.
+    render({ canvas: { ...canvas, revisionEventId: '$raw', raw: true } });
+    expect(frame().style.background).toContain('rgb(255, 255, 255)');
+    expect(frame().style.colorScheme).toBe('light dark');
+    expect(frame().style.transform).toBe('scale(1.25)');
+
+    setZoom(100);
+    expect(frame().style.transform).toBe('');
+    expect(frame().style.width).toBe('');
+    expect(frame().style.height).toBe('');
+    expect(frame().style.transformOrigin).toBe('');
+    expect(frame().style.background).toContain('rgb(255, 255, 255)');
+
+    render({ canvas: { ...canvas, revisionEventId: '$themed' } });
+    expect(frame().style.background).toBe('');
+    expect(frame().style.transform).toBe('');
   });
 });

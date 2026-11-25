@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { createStore, Provider } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { ClientRoot } from './ClientRoot';
+import { SpecVersions } from './SpecVersions';
 import { useActiveSession, useStoredSessions } from '../matrix/session/useSessionStore';
 import type { StoredSession } from '../matrix/session/sessions';
 import {
@@ -193,5 +194,51 @@ describe('ClientRoot when an account cannot start', () => {
 
     expect(sentence?.trim()).toBe('Failed to start account @alice:example.org.');
     expect(detail).toBe('IndexedDB open failed');
+  });
+
+  it('keeps SpecVersions mounted when initClient fails while cancel is in flight', async () => {
+    let rejectInit: ((error: Error) => void) | undefined;
+    vi.mocked(initClient).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectInit = reject;
+      })
+    );
+
+    await act(async () => {
+      renderer = create(
+        <Provider store={createStore()}>
+          <MemoryRouter>
+            <ClientRoot>
+              <div>pages</div>
+            </ClientRoot>
+          </MemoryRouter>
+        </Provider>
+      );
+      await Promise.resolve();
+    });
+
+    if (!renderer) throw new Error('not rendered');
+    const mounted = renderer;
+    act(() => {
+      mounted.root.findByType(SpecVersions).props.onCancellingChange?.(true);
+    });
+
+    await act(async () => {
+      rejectInit?.(new DeviceIdentityVerificationError(SESSION.userId));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mounted.root.findAllByType(SpecVersions)).toHaveLength(1);
+    expect(mounted.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+    expect(mounted.root.findAllByType('button').map(textOf)).not.toContain('Retry');
+
+    act(() => {
+      mounted.root.findByType(SpecVersions).props.onCancellingChange?.(false);
+    });
+
+    expect(mounted.root.findAllByType(SpecVersions)).toHaveLength(0);
+    expect(mounted.root.findAllByProps({ role: 'alert' })).toHaveLength(1);
+    expect(mounted.root.findAllByType('button').map(textOf)).toContain('Retry');
   });
 });

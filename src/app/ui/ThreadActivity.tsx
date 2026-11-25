@@ -1,7 +1,8 @@
-import { ReactNode, useId, useState } from 'react';
+import { ReactNode, type Ref, useId, useRef, useState } from 'react';
 import { Icon, Icons, IconSrc, Spinner } from 'folds';
 import * as css from './ThreadActivity.css';
 import { IsolatedText, ownDirectionLine } from './directional';
+import { useRevealOnOpen } from './disclosureReveal';
 
 export type ActivityTone = keyof typeof css.Icon;
 
@@ -27,6 +28,7 @@ export function ActivityIcon({
  * The line toggles a panel with the details.
  */
 export function ThreadActivity({
+  rootRef,
   icon,
   title,
   detail,
@@ -34,6 +36,7 @@ export function ThreadActivity({
   preview,
   children,
 }: {
+  rootRef?: Ref<HTMLDivElement>;
   icon: ReactNode;
   title: string;
   detail?: string;
@@ -45,15 +48,22 @@ export function ThreadActivity({
 }) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(expanded, toggleRef, panelRef);
   return (
     // Keeps the interface's direction in a message that reads the other way (index.css).
-    <div className={css.Activity} data-message-disclosure="">
+    <div ref={rootRef} className={css.Activity} data-message-disclosure="">
       <button
+        ref={toggleRef}
         type="button"
         className={css.Line}
         aria-expanded={expanded}
         aria-controls={panelId}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={() => {
+          if (!expanded) armReveal();
+          setExpanded((value) => !value);
+        }}
       >
         {icon}
         <span className={css.Title}>
@@ -69,7 +79,7 @@ export function ThreadActivity({
       </button>
       {preview}
       {expanded && (
-        <div id={panelId} className={css.Panel}>
+        <div ref={panelRef} id={panelId} className={css.Panel}>
           {children}
         </div>
       )}
@@ -83,12 +93,18 @@ export function ThreadActivity({
  */
 export function ActivityResult({ text }: { text: string }) {
   const [full, setFull] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const armReveal = useRevealOnOpen(full, buttonRef, buttonRef);
   return (
     <button
+      ref={buttonRef}
       type="button"
       className={css.Result}
       aria-expanded={full}
-      onClick={() => setFull((value) => !value)}
+      onClick={() => {
+        if (!full) armReveal();
+        setFull((value) => !value);
+      }}
       {...ownDirectionLine}
     >
       {text}

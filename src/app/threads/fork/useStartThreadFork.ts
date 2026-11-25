@@ -7,26 +7,40 @@ import { currentHistoryLocation } from '../../routes/historyStack';
 import { withSearchParam } from '../../routes/pathUtils';
 
 /**
- * Opens the fork draft at `ref` in the room's thread column: its thread up to the fork point, and a
- * composer whose first message starts the fork (`?threadId=<thread>&forkAt=<event>`). The address
- * names the fork point as its event too, so the thread loads around it, also an older message than
- * its latest ones. As for any thread opened from a page, its back button returns to that page.
+ * Opens a fork draft at `ref` in `targetRoomId ?? room.roomId`:
+ * - Same-room (`sourceRoomId === destRoomId`): `?threadId=<thread>&forkAt=<event>` with the event
+ *   in the room path so the thread loads around it.
+ * - Cross-room (`sourceRoomId !== destRoomId`): `<destRoomPath>?forkRoom=<sourceRoomId>&forkThread=<thread>&forkAt=<event>`
+ *   leaving `threadId` unset.
+ * In both cases, its back button returns to where the fork was started.
  */
-export const useStartThreadFork = (room: Room): ((ref: ThreadForkRef) => void) => {
+export const useStartThreadFork = (
+  room: Room
+): ((ref: ThreadForkRef, targetRoomId?: string) => void) => {
   const { navigatePath, roomPath } = useRoomNavigate();
   return useCallback(
-    (ref: ThreadForkRef) =>
+    (ref: ThreadForkRef, targetRoomId?: string) => {
+      const sourceRoomId = ref.roomId ?? room.roomId;
+      const destRoomId = targetRoomId ?? room.roomId;
+      const isCrossRoom = sourceRoomId !== destRoomId;
       navigateToRoomThread({
-        roomId: room.roomId,
+        roomId: destRoomId,
         threadId: ref.threadId,
-        eventId: ref.eventId,
+        eventId: isCrossRoom ? undefined : ref.eventId,
         navigateRoomThreadDirect: (roomId, threadId, eventId, opts) =>
           navigatePath(
-            withSearchParam(roomPath(roomId, eventId), { threadId, forkAt: ref.eventId }),
+            isCrossRoom
+              ? withSearchParam(roomPath(roomId), {
+                  forkRoom: sourceRoomId,
+                  forkThread: threadId,
+                  forkAt: ref.eventId,
+                })
+              : withSearchParam(roomPath(roomId, eventId), { threadId, forkAt: ref.eventId }),
             opts
           ),
         location: currentHistoryLocation(),
-      }),
+      });
+    },
     [navigatePath, room.roomId, roomPath]
   );
 };

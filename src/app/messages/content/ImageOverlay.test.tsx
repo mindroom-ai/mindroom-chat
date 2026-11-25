@@ -40,12 +40,10 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
       {children}
     </button>
   ),
-  Modal: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-    ({ children, ...props }, ref) => (
-      <div ref={ref} {...props}>
-        {children}
-      </div>
-    )
+  Modal: ({ children, ref, ...props }: React.ComponentPropsWithRef<'div'>) => (
+    <div ref={ref} {...props}>
+      {children}
+    </div>
   ),
 }));
 const edgeSwipe = vi.hoisted(() => ({

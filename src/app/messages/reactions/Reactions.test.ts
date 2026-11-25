@@ -25,8 +25,11 @@ vi.mock('folds', async (importOriginal) => {
     Text: passthrough,
     Tooltip: passthrough,
     TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) => children(null),
-    as: <T extends React.ElementType, P>(component: React.ForwardRefRenderFunction<any, P>) =>
-      React.forwardRef(component as React.ForwardRefRenderFunction<any, any>) as unknown as T,
+    as: <T extends React.ElementType, P>(
+      component: (props: P, ref: React.Ref<any>) => React.ReactNode
+    ) =>
+      (({ ref, ...props }: P & { ref?: React.Ref<any> }) =>
+        component(props as P, ref ?? null)) as unknown as T,
     toRem: (value: number) => `${value / 16}rem`,
   };
 });

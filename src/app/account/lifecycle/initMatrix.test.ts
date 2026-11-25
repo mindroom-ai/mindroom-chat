@@ -541,9 +541,13 @@ describe('initClient', () => {
 
     await initClient(session);
 
-    expect(authedRequest).toHaveBeenCalledWith('POST', '/keys/query', undefined, {
-      device_keys: { '@user:example.com': ['DEVICE'] },
-    });
+    expect(authedRequest).toHaveBeenCalledWith(
+      'POST',
+      '/keys/query',
+      undefined,
+      { device_keys: { '@user:example.com': ['DEVICE'] } },
+      { localTimeoutMs: 10_000 }
+    );
     expect(initRustCrypto).toHaveBeenCalledTimes(1);
     expect(startup).toHaveBeenCalledTimes(1);
     expect(setMaxListeners).toHaveBeenCalledWith(50);
@@ -1065,7 +1069,13 @@ describe('startClient', () => {
           lazy_load_members: true,
         },
         ephemeral: {
-          types: ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'],
+          types: [
+            'm.typing',
+            'm.receipt',
+            'io.mindroom.live',
+            'io.mindroom.subagents',
+            'io.mindroom.workflow',
+          ],
         },
       },
     });

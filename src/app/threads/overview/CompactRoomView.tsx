@@ -11,13 +11,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import classNames from 'classnames';
+import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
+import { CompactSectionHeader } from './CompactSectionHeader';
 import { CompactThreadCard } from './CompactThreadCard';
+import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
 import { SwipeList } from './CompactCardSwipe.css';
 import * as css from './CompactRoomView.css';
@@ -44,7 +47,11 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
+import {
+  COMPACT_THREAD_SECTION_ORDER,
+  type CompactThreadSection,
+  type CompactThreadSectionId,
+} from './compactThreadSections';
 import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
@@ -83,7 +90,7 @@ export type CompactRoomViewProps = {
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
-   * Set while the cards show in sections (Needs you, Working, Later and Done, each folding on its
+   * Set while the cards show in sections (Needs you, Working, Later, Quiet and Done, each folding
    * own): the snooze clock the list was filtered at (`useThreadIndex`'s `snoozeNow`), which the
    * sections classify at too, so they show what the selected tab does.
    */
@@ -95,14 +102,16 @@ export type CompactRoomViewProps = {
    * changing its stored fold, so switching to Done still shows Done threads immediately.
    */
   singleBucketTab?: ThreadWorkflowBucket;
+  /** Filter context and actions for the rich empty state when filters hide every thread. */
+  emptyState?: CompactRoomEmptyStateConfig;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
-const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
-const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
+const sectionRowKey = (id: CompactThreadSectionId): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionOfRow = (key: string): CompactThreadSectionId | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
-    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
+    ? (key.slice(SECTION_ROW_PREFIX.length) as CompactThreadSectionId)
     : undefined;
 
 type GuardProps = {
@@ -371,6 +380,7 @@ export function CompactRoomView({
   filterBarShown = false,
   sectionsNow,
   singleBucketTab,
+  emptyState,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -425,7 +435,7 @@ export function CompactRoomView({
         : sectionsChoice.folded,
     [sectionsChoice.folded, singleBucketTab]
   );
-  const toggleFold = (id: ThreadWorkflowBucket) => {
+  const toggleFold = (id: CompactThreadSectionId) => {
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
@@ -596,6 +606,9 @@ export function CompactRoomView({
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
   }, []);
+  const restoreListFocus = useCallback(() => {
+    viewRef.current?.focus({ preventScroll: true });
+  }, []);
 
   // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
   // the focus moves on to the next card: under a filter, either may take the card off the list.
@@ -703,38 +716,18 @@ export function CompactRoomView({
     );
   };
 
-  const renderSectionHeader = (id: ThreadWorkflowBucket) => {
+  const renderSectionHeader = (id: CompactThreadSectionId) => {
     const key = sectionRowKey(id);
-    const fixedOpen = id === singleBucketTab;
-    const closed = folded.includes(id);
-    const count = sectionCounts.get(id) ?? 0;
-    const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
-      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {fixedOpen ? (
-          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
-            {label}
-          </Button>
-        ) : (
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-expanded={!closed}
-            onClick={() => toggleFold(id)}
-            before={
-              <Icon
-                size="100"
-                src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-                data-directional={closed || undefined}
-              />
-            }
-          >
-            {label}
-          </Button>
-        )}
-      </div>
+      <CompactSectionHeader
+        key={key}
+        id={id}
+        count={sectionCounts.get(id) ?? 0}
+        closed={folded.includes(id)}
+        fixedOpen={id === singleBucketTab}
+        onToggle={toggleFold}
+        motionRow={key}
+      />
     );
   };
   const renderRow = (row: CompactBlockRow) => {
@@ -763,6 +756,8 @@ export function CompactRoomView({
       />
     );
   };
+  const showRichEmptyState =
+    threadRootIds.length === 0 && emptyState !== undefined && threadRecordMap.size > 0;
   return (
     <Box
       ref={viewRef}
@@ -776,7 +771,7 @@ export function CompactRoomView({
     >
       <Box
         ref={contentRef}
-        className={`${SwipeList} ${css.Cards}`}
+        className={classNames(SwipeList, css.Cards, showRichEmptyState && css.CardsEmpty)}
         style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
@@ -820,11 +815,30 @@ export function CompactRoomView({
           </Box>
         )}
         {threadRootIds.length === 0 ? (
-          <Box className={css.EmptyState}>
-            <Text size="T300" priority="300">
-              {t('mindroomUi.threads.compactRoomView.noThreads')}
-            </Text>
-          </Box>
+          showRichEmptyState ? (
+            <CompactRoomEmptyState
+              room={room}
+              threadRecordMap={threadRecordMap}
+              filterState={emptyState.filterState}
+              now={emptyState.now}
+              canCompose={emptyState.canCompose}
+              indexPending={indexPending && !unreachable}
+              canToggle={canToggle}
+              updatingThreadRootIds={updatingThreadRootIds}
+              onThreadClick={onThreadClick}
+              onSetResolved={handleSetResolved}
+              onReset={emptyState.onReset}
+              onToggleForMe={emptyState.onToggleForMe}
+              onShowSnoozed={emptyState.onShowSnoozed}
+              onRestoreFocus={restoreListFocus}
+            />
+          ) : (
+            <Box className={css.EmptyState}>
+              <Text size="T300" priority="300">
+                {t('mindroomUi.threads.compactRoomView.noThreads')}
+              </Text>
+            </Box>
+          )
         ) : (
           blocks.rows.slice(1).flatMap((rows, i) => {
             const section = heldSections?.[i]?.id;

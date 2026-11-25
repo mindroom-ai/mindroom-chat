@@ -20,7 +20,7 @@ const CONTEXT: SettingsContext = {
   useSystemTheme: true,
   developerTools: false,
   errorReporting: true,
-  railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  railButtons: { threads: true, explore: true, createSpace: true, search: true, help: true },
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,

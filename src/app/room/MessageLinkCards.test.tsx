@@ -113,7 +113,7 @@ const renderCards = (
 ) => {
   const ui = (id: string) => (
     <ScreenSizeProvider value={screenSize}>
-      <PluginPanelControlsContext.Provider value={controls}>
+      <PluginPanelControlsContext value={controls}>
         <MessageLinkCards roomId={id} plugins={[plugin]}>
           <CheckedMessageLink href="https://github.com/o/r/pull/1">One</CheckedMessageLink>
           <CheckedMessageLink href="https://github.com/o/r/pull/2">Two</CheckedMessageLink>
@@ -123,7 +123,7 @@ const renderCards = (
           <CheckedMessageLink href="https://panel.example/7">Seven</CheckedMessageLink>
           <CheckedMessageLink href="https://panel.example/throw">Thrower</CheckedMessageLink>
         </MessageLinkCards>
-      </PluginPanelControlsContext.Provider>
+      </PluginPanelControlsContext>
     </ScreenSizeProvider>
   );
   const view = render(ui(roomId));
@@ -367,11 +367,11 @@ describe('MessageLinkCards hover cards', () => {
   let fine = true;
   const renderHover = (controls?: PluginPanelControls) => {
     const ui = (id: string, links: ReactNode, shownControls = controls) => (
-      <PluginPanelControlsContext.Provider value={shownControls}>
+      <PluginPanelControlsContext value={shownControls}>
         <MessageLinkCards roomId={id} plugins={HOVER_PLUGINS}>
           {links}
         </MessageLinkCards>
-      </PluginPanelControlsContext.Provider>
+      </PluginPanelControlsContext>
     );
     const view = render(ui('!a:x', LINKS));
     return {

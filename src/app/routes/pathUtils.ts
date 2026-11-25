@@ -26,6 +26,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  SPACE_THREADS_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
   USAGE_PATH,
@@ -38,6 +39,9 @@ type HashRouterOption = { enabled?: boolean; basename?: string } | boolean | und
 const optionalSegment = (value: string | undefined): string | null => value || null;
 
 const trimSlashes = (value: string): string => value.replace(/^\/+/, '').replace(/\/+$/, '');
+
+/** Room IDs start with `!` and aliases with `#`; reserved route segments like `lobby` or `threads` do not. */
+export const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /**
  * A route parameter built with `encodeURIComponent`, decoded. A value that is not valid
@@ -206,6 +210,8 @@ export const getSpacePath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_PATH, { spaceIdOrAlias });
 export const getSpaceLobbyPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_LOBBY_PATH, { spaceIdOrAlias });
+export const getSpaceThreadsPath = (spaceIdOrAlias: string): string =>
+  generatePath(SPACE_THREADS_PATH, { spaceIdOrAlias });
 export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias });
 

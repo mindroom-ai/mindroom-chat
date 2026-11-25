@@ -190,7 +190,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   };
 
   return (
-    <CallWindowFrameContext.Provider value={frame}>
+    <CallWindowFrameContext value={frame}>
       <section
         ref={frameRef}
         className={css.Frame}
@@ -213,12 +213,12 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
         onLostPointerCapture={(event) => endDrag(event, false)}
       >
         <div className={css.Box}>
-          <CallWindowSizeContext.Provider value={size}>{children}</CallWindowSizeContext.Provider>
+          <CallWindowSizeContext value={size}>{children}</CallWindowSizeContext>
         </div>
         {EDGES.map((edge) => (
           <span key={edge} className={css.Edge[edge]} data-call-window-edge={edge} aria-hidden />
         ))}
       </section>
-    </CallWindowFrameContext.Provider>
+    </CallWindowFrameContext>
   );
 }

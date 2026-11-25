@@ -11,9 +11,9 @@ const failAgain = () =>
 
 const renderView = (wouldLoseWork: () => boolean) =>
   render(
-    <ReloadWouldLoseWorkContext.Provider value={wouldLoseWork}>
+    <ReloadWouldLoseWorkContext value={wouldLoseWork}>
       <PartUnavailable retryLoad={failAgain} />
-    </ReloadWouldLoseWorkContext.Provider>
+    </ReloadWouldLoseWorkContext>
   );
 
 describe('PartUnavailable', () => {

@@ -168,6 +168,19 @@ describe('thread filter bar modes', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  it('suppresses the inline empty-filter row when hideEmptyState is true', () => {
+    for (const simple of [true, false]) {
+      renderBar(simple, {
+        threadCount: 0,
+        totalThreadCount: 3,
+        state: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+        hideEmptyState: true,
+      });
+      const empty = renderer?.root.findAll((node) => node.props.className === css.EmptyState) ?? [];
+      expect(empty).toHaveLength(0);
+    }
+  });
+
   it('speaks the summary when the filters change, not when a message moves the count', () => {
     const store = renderBar(true);
     const rerender = (overrides: Partial<RoomThreadOverviewProps>) =>
@@ -202,5 +215,20 @@ describe('thread filter bar modes', () => {
     expect(live()).toContain('2');
     rerender({ threadCount: 2, totalThreadCount: 4, state: { ...unresolved, forMe: true } });
     expect(live()).toBe('Showing 2 of 4 threads. For me filter on.');
+  });
+
+  it('renders roomsFilter in both Simple mode and Advanced mode toolbars', () => {
+    const roomsFilter = (
+      <button type="button" data-test-rooms-filter="true">
+        Rooms
+      </button>
+    );
+    renderBar(true, { roomsFilter });
+    expect(byData('data-test-rooms-filter')).toHaveLength(1);
+
+    act(() => {
+      modeSwitch().props.onClick();
+    });
+    expect(byData('data-test-rooms-filter')).toHaveLength(1);
   });
 });

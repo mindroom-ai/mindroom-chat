@@ -12,6 +12,7 @@ const ALL: RailButtons = {
   createSpace: true,
   search: true,
   localMindroom: true,
+  help: true,
 };
 
 const state = vi.hoisted(() => ({

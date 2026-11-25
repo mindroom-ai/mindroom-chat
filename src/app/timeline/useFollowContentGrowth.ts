@@ -1,6 +1,7 @@
 import { type MutableRefObject, type RefObject, useEffect } from 'react';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import type { LiveReplyStore } from '../messages/live/liveReplyStore';
+import { isDisclosureRevealActive } from '../ui/disclosureReveal';
 import { READER_INTENT_EVENTS } from './roomTimelineScroll';
 
 /**
@@ -12,9 +13,11 @@ import { READER_INTENT_EVENTS } from './roomTimelineScroll';
  * from that gesture, not from the observer's last pass: under load the list takes a reply's rows
  * a pass late, and the pass with its finishing edit's growth can follow one that took its last
  * frames' growth.
- * The reader counts as at the bottom by their last scroll, before the growth: a measurement
- * correction can move the scroll position along with the growth, so the position after it
- * cannot tell a pinned reader from one a little above the bottom.
+ * For live streaming frames, pinning is judged by the reader's last scroll before that frame's
+ * growth: a measurement correction can move the scroll position along with the growth, so the
+ * position after it cannot tell a pinned reader from one a little above the bottom. Non-frame
+ * growth or shrink refreshes bottom pinning from the live viewport distance, and an active
+ * disclosure reveal suppresses growth-follow writes so the reveal owns scrollTop.
  * Only a timeline at its live end follows: at the bottom of older history, the growth is newer
  * events loading, and following it would page the reader through history they have not read.
  */
@@ -59,12 +62,20 @@ export const useFollowContentGrowth = (
       const entry = entries.find(({ target }) => target === content);
       if (!entry) return;
       const grew = height !== undefined && entry.contentRect.height > height;
+      const shrank = height !== undefined && entry.contentRect.height < height;
       const framed = liveReplies.frameCount(roomId) !== framesAtGesture;
       height = entry.contentRect.height;
       seenScrollHeight = scrollElement.scrollHeight;
+      if (isDisclosureRevealActive(scrollElement)) {
+        framesAtGesture = liveReplies.frameCount(roomId);
+        pinned = isViewportAtBottomNow();
+        return;
+      }
       if (grew && framed && pinned && atLiveEndRef.current) {
         const end = scrollElement.scrollHeight - scrollElement.clientHeight - pendingListShrinkPx();
         scrollElement.scrollTo({ top: Math.max(0, end), behavior: 'instant' });
+      } else if (shrank || (grew && !framed)) {
+        pinned = isViewportAtBottomNow();
       }
     });
     scrollElement.addEventListener('scroll', onScroll, { passive: true });

@@ -99,12 +99,14 @@ const setupSupportedRecorder = () => {
 vi.mock('folds', () => {
   const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children);
-  const Button = React.forwardRef<
-    HTMLButtonElement,
-    { children?: React.ReactNode; onClick?: () => void }
-  >(({ children, onClick, ...props }, ref) =>
-    React.createElement('button', { ...props, onClick, ref }, children)
-  );
+  const Button = ({
+    children,
+    onClick,
+    ref,
+    ...props
+  }: { children?: React.ReactNode; onClick?: () => void } & {
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement('button', { ...props, onClick, ref }, children);
 
   return {
     Box: Wrapper,

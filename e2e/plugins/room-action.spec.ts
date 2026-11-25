@@ -16,7 +16,7 @@ import { touch } from '../helpers/touch';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. Every room's menu lists the
-// plugin's entry, "Example room info", in a group of its own after Jump to Time and before Archive
+// plugin's entry, "Example room info", in a group of its own after Notifications and before Archive
 // and Leave: the open room header's menu, and a sidebar row's (its More Options button, a
 // right-click, a phone's long press), also for a room that is not open. Choosing it closes the
 // menu and shows the plugin's dialog, which names the menu's room. Once the app's language is
@@ -60,10 +60,14 @@ const menuEntries = (page: Page) =>
   roomMenu(page).evaluate((menu) =>
     Array.from(menu.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"]'))
       .filter((row) => row.closest('[role="menu"]') === menu)
-      .map((row) => row.textContent?.trim() ?? '')
+      .map((row) => {
+        const copy = row.cloneNode(true) as Element;
+        copy.querySelectorAll('[aria-hidden="true"], svg').forEach((hidden) => hidden.remove());
+        return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+      })
   );
 
-/** Expects the entry in the menu, between the first group's end and Archive. */
+/** Expects the entry in the menu, between the Preferences group's end and Archive. */
 const expectEntry = async (page: Page, entry: string, before: string, after: string) => {
   await expect(roomMenu(page)).toBeVisible();
   const entries = await menuEntries(page);
@@ -157,7 +161,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
 
     // The open room's header menu.
     await roomMoreOptions(page).click();
-    await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
+    await expectEntry(page, 'Example room info', 'Notifications', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
     await shotBothSchemes(page, shot, 'header-menu');
     await chooseEntry(page, 'Example room info', 'Orchard');
@@ -169,7 +173,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
     const gardenLink = sidebarLink(page, garden);
     await gardenLink.hover();
     await rowOptions(gardenLink).click();
-    await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
+    await expectEntry(page, 'Example room info', 'Notifications', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
     await shotBothSchemes(page, shot, 'row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
@@ -179,7 +183,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
 
     // The same row by a right-click.
     await gardenLink.click({ button: 'right' });
-    await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
+    await expectEntry(page, 'Example room info', 'Notifications', 'Archive Room');
     await chooseEntry(page, 'Example room info', 'Garden');
     await closeDialog(page);
 
@@ -198,13 +202,13 @@ test("every room menu lists the example plugin's entries, which act on the menu'
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await roomHeader(page).getByRole('button', { name: 'Weitere Optionen', exact: true }).click();
-    await expectEntry(page, 'Beispiel-Rauminfo', 'Zu Zeitpunkt springen', 'Raum archivieren');
+    await expectEntry(page, 'Beispiel-Rauminfo', 'Benachrichtigungen', 'Raum archivieren');
     await expectCriticalEntry(page, 'Beispiel-Entfernung', 'Raum verlassen', 'Beispiel-Rauminfo');
     await shot('header-menu-german');
     await chooseEntry(page, 'Beispiel-Rauminfo', 'Orchard');
     await closeDialog(page);
     await gardenLink.click({ button: 'right' });
-    await expectEntry(page, 'Beispiel-Rauminfo', 'Zu Zeitpunkt springen', 'Raum archivieren');
+    await expectEntry(page, 'Beispiel-Rauminfo', 'Benachrichtigungen', 'Raum archivieren');
     await shot('row-menu-german');
     await chooseEntry(page, 'Beispiel-Rauminfo', 'Garden');
     await closeDialog(page);
@@ -236,7 +240,7 @@ test("a phone's long press on a room row lists the example plugin's entries for 
     await expect(gardenLink).toBeVisible({ timeout: 60_000 });
     // Longer than the 500 ms long press.
     await touch(gardenLink, [{ type: 'start' }, { type: 'wait', ms: 700 }, { type: 'end' }]);
-    await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
+    await expectEntry(page, 'Example room info', 'Notifications', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
     await shotBothSchemes(page, shot, 'phone-row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');

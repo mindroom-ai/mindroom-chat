@@ -433,7 +433,9 @@
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“.",
         "usage": "Nutzung in der Seitenleiste anzeigen",
-        "usageDescription": "Anbieter-Nutzungslimits und 7-Tage-Tokenverbrauch, sobald eine Laufzeit sie meldet. Wenn ausgeblendet, öffne Nutzung über das ⋮-Menü in Start oder die Modellauswahl."
+        "usageDescription": "Anbieter-Nutzungslimits und 7-Tage-Tokenverbrauch, sobald eine Laufzeit sie meldet. Wenn ausgeblendet, öffne Nutzung über das ⋮-Menü in Start oder die Modellauswahl.",
+        "help": "Hilfe & Anleitungen in der Seitenleiste anzeigen",
+        "helpDescription": "Kurzanleitungen, die Tour und Tastenkürzel. Ausgeblendet öffnest du die Tour in den Einstellungen unter „Über“ oder über die Befehlspalette ({{shortcut}}) und die Tastenkürzel mit {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",
@@ -707,11 +709,27 @@
       "manage": "Verwalten"
     },
     "roomOrder": {
-      "sortByName": "Räume von A bis Z sortieren"
+      "sortRooms": "Räume sortieren",
+      "sortHeading": "Räume sortieren",
+      "displayHeading": "Anzeige",
+      "recentActivity": "Letzte Aktivität",
+      "aToZ": "A bis Z",
+      "customOrder": "Eigene Reihenfolge",
+      "saved": "Gespeichert",
+      "showActivityTimes": "Aktivitätszeiten anzeigen",
+      "matchSpace": "Wie Space ({{mode}})",
+      "shortRecent": "Aktiv",
+      "shortName": "A bis Z",
+      "shortManual": "Eigene"
     },
     "roomActions": {
       "noInvitePermission": "Du hast keine Berechtigung zum Einladen",
-      "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar"
+      "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar",
+      "viewSection": "Ansicht",
+      "roomSection": "Raum",
+      "preferencesSection": "Voreinstellungen",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Erwähnungen"
     },
     "phoneNav": {
       "navigation": "Navigation"
@@ -1345,7 +1363,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Kompaktansicht",
-        "threadFiltersActive": "Thread-Filter (aktiv)"
+        "threadFiltersActive": "Thread-Filter (aktiv)",
+        "mindroomSettings": "MindRoom-Einstellungen"
       },
       "roomThreadOverview": {
         "advancedFilters": "Erweiterte Filter",
@@ -1378,6 +1397,25 @@
         "expandAllLong": "Alle langen Nachrichten aufklappen",
         "collapseAllLong": "Alle langen Nachrichten zuklappen",
         "showFullMessage": "Ganze Nachricht anzeigen"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Alles erledigt",
+        "resolvedCount_one": "{{count}} gelöst",
+        "resolvedCount_other": "{{count}} gelöst",
+        "snoozedCount_one": "{{count}} zurückgestellt",
+        "snoozedCount_other": "{{count}} zurückgestellt",
+        "showAll": "Alle anzeigen",
+        "startNewThreadBelow": "Unten einen neuen Thread starten",
+        "recentlyResolved": "Zuletzt gelöst",
+        "noMatchHeading": "Keine Threads entsprechen deinen Filtern",
+        "hiddenByForMe_one": "{{count}} offener Thread wird durch „Für mich“ ausgeblendet.",
+        "hiddenByForMe_other": "{{count}} offene Threads werden durch „Für mich“ ausgeblendet.",
+        "hiddenByFilters_one": "{{count}} offener Thread wird durch deine Filter ausgeblendet.",
+        "hiddenByFilters_other": "{{count}} offene Threads werden durch deine Filter ausgeblendet.",
+        "adjustOrResetFilters": "Passe deine Filter an oder setze sie zurück, um Threads in diesem Raum zu sehen.",
+        "turnOffForMe": "„Für mich“ ausschalten",
+        "resetAll": "Alle zurücksetzen",
+        "resetFilters": "Filter zurücksetzen"
       }
     },
     "computer": {
@@ -1406,7 +1444,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} Hintergrundaufgaben ({{shown}} angezeigt)",
       "finished": "Abgeschlossen: {{tool}}",
+      "awaitingAnswer": "Wartet auf deine Antwort: {{tool}}",
       "jobCountFinished": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-Agenten · {{number}}",
       "groupTools": "Werkzeuge · {{number}}",
       "tools_one": "{{count}} Werkzeug",
@@ -1451,6 +1491,95 @@
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
       "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Startet",
+        "running": "Läuft",
+        "waiting": "Wartet auf dich",
+        "completed": "Fertig",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen",
+        "interrupted": "Unterbrochen"
+      },
+      "counts": "{{done}} fertig, {{running}} aktiv, {{waiting}} wartend",
+      "reused": "Wiederverwendet: {{count}}",
+      "cost": "Bisher {{spent}}, insgesamt etwa {{projected}}",
+      "costAtLeast": "bisher mindestens {{spent}}",
+      "largeRun": "Großer Lauf",
+      "attempt": "Versuch {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Wird gestoppt…",
+      "resume": "Fortsetzen",
+      "runAgain": "Erneut ausführen",
+      "starting": "Wird gestartet…",
+      "failedCount_one": "{{count}} fehlgeschlagen",
+      "failedCount_other": "{{count}} fehlgeschlagen",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Bereits beantwortet.",
+          "noLongerOpen": "Diese Frage ist nicht mehr offen.",
+          "notAnOption": "Das ist keine der Optionen.",
+          "notForYou": "Nur die Person, die den Lauf gestartet hat, kann antworten."
+        },
+        "noReply": "Noch keine Antwort. Bitte erneut versuchen.",
+        "placeholder": "Antwort eingeben",
+        "send": "Senden",
+        "answered": "Beantwortet: {{answer}}",
+        "cancelled": "Abgebrochen",
+        "onlyRequester": "Nur {{name}} kann antworten."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Schließen",
+        "resize": "Workflow-Panel skalieren",
+        "hide": "Workflow ausblenden",
+        "waitingForUpdate": "Wartet auf das nächste Update des Laufs…",
+        "stale": "Wird nicht aktualisiert. Letztes Update {{time}}.",
+        "log": "Protokoll",
+        "showMore": "{{count}} weitere anzeigen",
+        "omitted": {
+          "queued_one": "und {{count}} weitere in der Warteschlange",
+          "queued_other": "und {{count}} weitere in der Warteschlange",
+          "running_one": "und {{count}} weitere aktiv",
+          "running_other": "und {{count}} weitere aktiv",
+          "waiting_one": "und {{count}} weitere wartend",
+          "waiting_other": "und {{count}} weitere wartend",
+          "failed_one": "und {{count}} weitere fehlgeschlagen",
+          "failed_other": "und {{count}} weitere fehlgeschlagen",
+          "done_one": "und {{count}} weitere fertig",
+          "done_other": "und {{count}} weitere fertig"
+        },
+        "askAgent": "Frag {{agent}} nach dem Rest."
+      },
+      "group": {
+        "foreach": "Für jedes",
+        "parallel": "Parallel",
+        "run": "Gespeicherter Workflow",
+        "workflow": "Verschachtelter Workflow",
+        "progress": "{{done}} von {{total}}",
+        "failed": "Fehlgeschlagen: {{count}}"
+      },
+      "node": {
+        "reused": "Aus dem letzten Lauf wiederverwendet",
+        "queued": "In Warteschlange",
+        "mayHaveRun": "Möglicherweise ausgeführt",
+        "waitingOn": {
+          "user": "Wartet auf deine Antwort",
+          "approval": "Wartet auf Genehmigung",
+          "peer": "Wartet auf eine Nachricht"
+        },
+        "sessionTurns_one": "{{count}} Runde",
+        "sessionTurns_other": "{{count}} Runden",
+        "result": "Ergebnis",
+        "error": "Fehler",
+        "messages": "Nachrichten",
+        "messagesTo": "Nachrichten an {{name}}: {{count}}",
+        "open": "Öffnen",
+        "detailsUnavailable": "Details sind nach dem Neuladen nicht mehr verfügbar.",
+        "stop": "Agent stoppen"
+      }
     },
     "subagents": {
       "title": "Sub-Agenten",
@@ -1694,7 +1823,9 @@
     },
     "actions": {
       "goActivity": "Zur Aktivität",
-      "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet"
+      "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet",
+      "openCurrentRoomMindroomSettings": "MindRoom-Raumeinstellungen öffnen",
+      "openCurrentRoomMindroomSettingsDescription": "MindRoom-Einstellungen für {{room}} öffnen"
     },
     "recentVisits": {
       "recentlyOpened": "Zuletzt geöffnet",
@@ -1768,6 +1899,7 @@
       "needsYou": "Du bist gefragt",
       "working": "In Arbeit",
       "later": "Später",
+      "quiet": "Ruhig",
       "done": "Erledigt",
       "all": "Alle",
       "description": {
@@ -1804,7 +1936,17 @@
     "forking": "Abzweigen von {{title}}",
     "continueInNewThread": "In einem neuen Thread fortsetzen",
     "forkCount_one": "{{count}} Abzweigung",
-    "forkCount_other": "{{count}} Abzweigungen"
+    "forkCount_other": "{{count}} Abzweigungen",
+    "forkedFromInRoom": "Abgezweigt von {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Aus einem anderen Raum abgezweigt",
+    "forkingIntoRoom": "Abzweigen von {{title}} nach {{room}}",
+    "forkToRoom": "In Raum abzweigen…",
+    "forkToRoomTitle": "In Raum abzweigen",
+    "forkToRoomSearchPlaceholder": "Räume durchsuchen…",
+    "forkToRoomEmpty": "Keine passenden Räume",
+    "forkToRoomAgentWarning": "Agenten in diesem Raum sind nicht in {{room}} und sehen den ursprünglichen Thread nicht",
+    "forkingFromRoom": "Abzweigen aus {{room}}",
+    "forkDraftAgentWarning": "Agenten hier sind nicht in {{room}} und sehen den ursprünglichen Thread nicht"
   },
   "activity": {
     "title": "Aktivität",
@@ -1838,8 +1980,7 @@
       "replyAndOthers_one": "{{name}} und {{count}} weitere Person haben geantwortet",
       "replyAndOthers_other": "{{name}} und {{count}} weitere haben geantwortet",
       "finished": "{{name}} ist fertig",
-      "stopped": "{{name}} wurde gestoppt",
-      "youReplied": "Du hast geantwortet"
+      "stopped": "{{name}} wurde gestoppt"
     },
     "newCount_one": "{{count}} neu",
     "newCount_other": "{{count}} neu",
@@ -2104,6 +2245,42 @@
       "settingsKeywords": "Tour, Rundgang, Tutorial, Anleitung, Hilfe, Einführung, Threads",
       "howThreadsWork": "So funktionieren Threads",
       "noThreadsHint": "Sende unten eine Nachricht, um einen zu starten."
+    },
+    "help": {
+      "button": "Hilfe & Anleitungen",
+      "buttonWithTip": "Hilfe & Anleitungen (1 Tipp)",
+      "title": "Hilfe & Anleitungen",
+      "subtitle": "Kurzanleitungen",
+      "oneTip": "1 Tipp",
+      "suggested": "Für dich vorgeschlagen",
+      "showHow": "So geht’s",
+      "dismissTip": "Tipp ausblenden",
+      "guidesHeading": "UI-Anleitungen",
+      "guides": {
+        "conversation": "So funktionieren Threads",
+        "resolve": "Erledigtes auflösen",
+        "filters": "Gelöste Threads finden",
+        "snooze": "Für später zurückstellen",
+        "pinAndTag": "Threads anheften & taggen",
+        "views": "Kompakt- vs. Thread-Ansicht",
+        "activity": "Aktivität & Freigaben"
+      },
+      "fullTour": "Vollständige Tour",
+      "shortcuts": "Tastenkürzel"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Erledigte Threads auflösen",
+        "cardTitle": "Erledigte Threads auflösen",
+        "roomSummary_one": "{{count}} offener Thread hier, noch keiner gelöst",
+        "roomSummary_other": "{{count}} offene Threads hier, noch keiner gelöst",
+        "allSummary_one": "{{count}} offener Thread, noch keiner gelöst",
+        "allSummary_other": "{{count}} offene Threads, noch keiner gelöst",
+        "cardTextRoom_one": "{{count}} offener Thread hier, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextRoom_other": "{{count}} offene Threads hier, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextAll_one": "{{count}} offener Thread, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen.",
+        "cardTextAll_other": "{{count}} offene Threads, noch keiner gelöst. Löse erledigte Threads auf, um die Liste aufzuräumen."
+      }
     }
   },
   "threadNav": {
@@ -2119,6 +2296,7 @@
       "working": "In Arbeit",
       "later": "Später",
       "idle": "Inaktiv",
+      "quiet": "Ruhig",
       "resolved": "Gelöst"
     },
     "live": {
@@ -2143,7 +2321,11 @@
     "done": "Erledigt"
   },
   "threadActions": {
-    "openBeside": "In zweiter Spalte öffnen"
+    "openBeside": "In zweiter Spalte öffnen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Abzweigen & Teilen",
+    "shareSection": "Teilen",
+    "viewSection": "Ansicht"
   },
   "roomSchedules": {
     "thisThread": "Dieser Thread",
@@ -2212,5 +2394,35 @@
   },
   "nav": {
     "usage": "Nutzung"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} Raum",
+      "roomsCount_other": "{{count}} Räume",
+      "roomsFiltered": "{{active}} von {{total}} Räumen"
+    },
+    "roomFilter": {
+      "label": "Räume",
+      "ariaLabel": "Threads nach Raum filtern",
+      "ariaLabelActive": "Threads nach Raum filtern ({{number}} ausgewählt)",
+      "ariaLabelOne": "Räume: {{room}}",
+      "search": "Räume suchen",
+      "noMatch": "Keine passenden Räume"
+    },
+    "composer": {
+      "postTo": "Senden an:",
+      "postToRoom": "An #{{room}} senden",
+      "chooseRoomAria": "Raum zum Senden auswählen",
+      "draftPinned": "Entwurf für #{{room}}",
+      "readOnly": "In keinem Raum dieses Space sind Nachrichten erlaubt."
+    },
+    "loading": "Threads werden geladen...",
+    "empty": {
+      "noRooms": "Tritt einem Raum in diesem Space bei, um hier Threads zu sehen.",
+      "noThreads": "Noch keine Threads in diesem Space."
+    },
+    "error": {
+      "title": "Space-Threads konnten nicht geladen werden"
+    }
   }
 }

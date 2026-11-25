@@ -446,7 +446,9 @@
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale.",
         "usage": "Mostra Utilizzo nella barra laterale",
-        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli."
+        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli.",
+        "help": "Mostra Aiuto e guide nella barra laterale",
+        "helpDescription": "Guide rapide, tour e scorciatoie da tastiera. Se nascosto, apri il tour nelle Impostazioni, in Informazioni, o dalla tavolozza dei comandi ({{shortcut}}), e le scorciatoie con {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugin",
@@ -724,11 +726,27 @@
       "manage": "Gestisci"
     },
     "roomOrder": {
-      "sortByName": "Ordina le stanze dalla A alla Z"
+      "sortRooms": "Ordina le stanze",
+      "sortHeading": "Ordina le stanze",
+      "displayHeading": "Visualizzazione",
+      "recentActivity": "Attività recente",
+      "aToZ": "Dalla A alla Z",
+      "customOrder": "Ordine personalizzato",
+      "saved": "Salvato",
+      "showActivityTimes": "Mostra orari di attività",
+      "matchSpace": "Come lo spazio ({{mode}})",
+      "shortRecent": "Recenti",
+      "shortName": "A–Z",
+      "shortManual": "Pers."
     },
     "roomActions": {
       "noInvitePermission": "Non hai il permesso di invitare",
-      "searchEncrypted": "Non disponibile nelle stanze cifrate"
+      "searchEncrypted": "Non disponibile nelle stanze cifrate",
+      "viewSection": "Vista",
+      "roomSection": "Stanza",
+      "preferencesSection": "Preferenze",
+      "notificationModeAll": "Tutti",
+      "notificationModeMentions": "Menzioni"
     },
     "phoneNav": {
       "navigation": "Navigazione"
@@ -1380,7 +1398,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compatta",
-        "threadFiltersActive": "Filtri dei thread (attivi)"
+        "threadFiltersActive": "Filtri dei thread (attivi)",
+        "mindroomSettings": "Impostazioni MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtri avanzati",
@@ -1413,6 +1432,29 @@
         "expandAllLong": "Espandi tutti i messaggi lunghi",
         "collapseAllLong": "Comprimi tutti i messaggi lunghi",
         "showFullMessage": "Mostra messaggio completo"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tutto in ordine",
+        "resolvedCount_one": "{{count}} risolto",
+        "resolvedCount_many": "{{count}} risolti",
+        "resolvedCount_other": "{{count}} risolti",
+        "snoozedCount_one": "{{count}} posticipato",
+        "snoozedCount_many": "{{count}} posticipati",
+        "snoozedCount_other": "{{count}} posticipati",
+        "showAll": "Mostra tutti",
+        "startNewThreadBelow": "Inizia un nuovo thread qui sotto",
+        "recentlyResolved": "Risolti di recente",
+        "noMatchHeading": "Nessun thread corrisponde ai tuoi filtri",
+        "hiddenByForMe_one": "{{count}} thread aperto è nascosto da Per me.",
+        "hiddenByForMe_many": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByForMe_other": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByFilters_one": "{{count}} thread aperto è nascosto dai tuoi filtri.",
+        "hiddenByFilters_many": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "hiddenByFilters_other": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "adjustOrResetFilters": "Modifica o ripristina i filtri per vedere i thread in questa stanza.",
+        "turnOffForMe": "Disattiva Per me",
+        "resetAll": "Ripristina tutto",
+        "resetFilters": "Ripristina filtri"
       }
     },
     "computer": {
@@ -1441,7 +1483,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
       "finished": "Completato: {{tool}}",
+      "awaitingAnswer": "In attesa della tua risposta: {{tool}}",
       "jobCountFinished": "{{count}} attività in background completate",
+      "groupWorkflows": "Flussi di lavoro · {{number}}",
       "groupSubagents": "Sottoagenti · {{number}}",
       "groupTools": "Strumenti · {{number}}",
       "tools_one": "{{count}} strumento",
@@ -1491,6 +1535,102 @@
       "jobTotalFinished_one": "{{count}} attività in background completata",
       "jobTotalFinished_many": "{{count}} attività in background completate",
       "jobTotalFinished_other": "{{count}} attività in background completate"
+    },
+    "workflowRun": {
+      "title": "Flusso di lavoro",
+      "status": {
+        "starting": "Avvio",
+        "running": "In esecuzione",
+        "waiting": "In attesa di te",
+        "completed": "Fatto",
+        "failed": "Non riuscito",
+        "cancelled": "Annullato",
+        "interrupted": "Interrotto"
+      },
+      "counts": "{{done}} completati, {{running}} in corso, {{waiting}} in attesa",
+      "reused": "Riutilizzati: {{count}}",
+      "cost": "{{spent}} finora, circa {{projected}} in totale",
+      "costAtLeast": "almeno {{spent}} finora",
+      "largeRun": "Esecuzione ampia",
+      "attempt": "Tentativo {{number}}",
+      "stop": "Ferma",
+      "stopping": "Arresto…",
+      "resume": "Riprendi",
+      "runAgain": "Esegui di nuovo",
+      "starting": "Avvio…",
+      "failedCount_one": "{{count}} non riusciti",
+      "failedCount_many": "{{count}} non riusciti",
+      "failedCount_other": "{{count}} non riusciti",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Già risposto.",
+          "noLongerOpen": "Questa domanda non è più aperta.",
+          "notAnOption": "Non è una delle opzioni.",
+          "notForYou": "Solo chi ha avviato l'esecuzione può rispondere."
+        },
+        "noReply": "Nessuna risposta ancora. Riprova.",
+        "placeholder": "Scrivi la tua risposta",
+        "send": "Invia",
+        "answered": "Risposto: {{answer}}",
+        "cancelled": "Annullato",
+        "onlyRequester": "Solo {{name}} può rispondere."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Chiudi",
+        "resize": "Ridimensiona il pannello flusso di lavoro",
+        "hide": "Nascondi flusso di lavoro",
+        "waitingForUpdate": "In attesa del prossimo aggiornamento dell'esecuzione…",
+        "stale": "Nessun aggiornamento. Ultimo aggiornamento {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostra altri {{count}}",
+        "omitted": {
+          "queued_one": "e altri {{count}} in coda",
+          "queued_many": "e altri {{count}} in coda",
+          "queued_other": "e altri {{count}} in coda",
+          "running_one": "e altri {{count}} in corso",
+          "running_many": "e altri {{count}} in corso",
+          "running_other": "e altri {{count}} in corso",
+          "waiting_one": "e altri {{count}} in attesa",
+          "waiting_many": "e altri {{count}} in attesa",
+          "waiting_other": "e altri {{count}} in attesa",
+          "failed_one": "e altri {{count}} non riusciti",
+          "failed_many": "e altri {{count}} non riusciti",
+          "failed_other": "e altri {{count}} non riusciti",
+          "done_one": "e altri {{count}} completati",
+          "done_many": "e altri {{count}} completati",
+          "done_other": "e altri {{count}} completati"
+        },
+        "askAgent": "Chiedi il resto a {{agent}}."
+      },
+      "group": {
+        "foreach": "Per ciascuno",
+        "parallel": "Parallelo",
+        "run": "Flusso salvato",
+        "workflow": "Flusso annidato",
+        "progress": "{{done}} di {{total}}",
+        "failed": "Non riusciti: {{count}}"
+      },
+      "node": {
+        "reused": "Riutilizzato dall'ultima esecuzione",
+        "queued": "In coda",
+        "mayHaveRun": "Potrebbe essere stato eseguito",
+        "waitingOn": {
+          "user": "In attesa della tua risposta",
+          "approval": "In attesa di approvazione",
+          "peer": "In attesa di un messaggio"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turni",
+        "sessionTurns_other": "{{count}} turni",
+        "result": "Risultato",
+        "error": "Errore",
+        "messages": "Messaggi",
+        "messagesTo": "Messaggi a {{name}}: {{count}}",
+        "open": "Apri",
+        "detailsUnavailable": "I dettagli non sono più disponibili dopo il ricaricamento.",
+        "stop": "Ferma agente"
+      }
     },
     "subagents": {
       "title": "Sottoagenti",
@@ -1741,7 +1881,9 @@
     },
     "actions": {
       "goActivity": "Vai ad Attività",
-      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
+      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta",
+      "openCurrentRoomMindroomSettings": "Apri le impostazioni MindRoom della stanza",
+      "openCurrentRoomMindroomSettingsDescription": "Apri le impostazioni MindRoom di {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Elementi aperti di recente",
@@ -1815,6 +1957,7 @@
       "needsYou": "Serve il tuo intervento",
       "working": "In corso",
       "later": "Più tardi",
+      "quiet": "Tranquilli",
       "done": "Completati",
       "all": "Tutti",
       "description": {
@@ -1852,7 +1995,17 @@
     "continueInNewThread": "Continua in un nuovo thread",
     "forkCount_one": "{{count}} diramazione",
     "forkCount_many": "{{count}} diramazioni",
-    "forkCount_other": "{{count}} diramazioni"
+    "forkCount_other": "{{count}} diramazioni",
+    "forkedFromInRoom": "Diramato da {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Diramato da un'altra stanza",
+    "forkingIntoRoom": "Diramazione di {{title}} in {{room}}",
+    "forkToRoom": "Dirama in una stanza…",
+    "forkToRoomTitle": "Dirama in una stanza",
+    "forkToRoomSearchPlaceholder": "Cerca stanze…",
+    "forkToRoomEmpty": "Nessuna stanza corrispondente",
+    "forkToRoomAgentWarning": "Gli agenti in questa stanza non sono in {{room}} e non vedranno il thread originale",
+    "forkingFromRoom": "Diramazione da {{room}}",
+    "forkDraftAgentWarning": "Gli agenti qui non sono in {{room}} e non vedranno il thread originale"
   },
   "activity": {
     "title": "Attività",
@@ -1887,8 +2040,7 @@
       "replyAndOthers_many": "{{name}} e altri {{count}} hanno risposto",
       "replyAndOthers_other": "{{name}} e altri {{count}} hanno risposto",
       "finished": "{{name}} ha finito",
-      "stopped": "{{name}} si è fermato",
-      "youReplied": "Hai risposto"
+      "stopped": "{{name}} si è fermato"
     },
     "newCount_one": "{{count}} nuovo",
     "newCount_many": "{{count}} nuovi",
@@ -2160,6 +2312,46 @@
       "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
+    },
+    "help": {
+      "button": "Aiuto e guide",
+      "buttonWithTip": "Aiuto e guide (1 suggerimento)",
+      "title": "Aiuto e guide",
+      "subtitle": "Guide rapide",
+      "oneTip": "1 suggerimento",
+      "suggested": "Suggerito per te",
+      "showHow": "Mostra come",
+      "dismissTip": "Ignora suggerimento",
+      "guidesHeading": "Guide dell’interfaccia",
+      "guides": {
+        "conversation": "Come funzionano i thread",
+        "resolve": "Risolvi ciò che è concluso",
+        "filters": "Trova i thread risolti",
+        "snooze": "Posticipa per dopo",
+        "pinAndTag": "Fissa e aggiungi tag",
+        "views": "Vista Compatto vs Thread",
+        "activity": "Attività e approvazioni"
+      },
+      "fullTour": "Tour completo",
+      "shortcuts": "Scorciatoie"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Risolvi i thread conclusi",
+        "cardTitle": "Risolvi i thread conclusi",
+        "roomSummary_one": "{{count}} thread aperto qui, nessuno risolto finora",
+        "roomSummary_many": "{{count}} thread aperti qui, nessuno risolto finora",
+        "roomSummary_other": "{{count}} thread aperti qui, nessuno risolto finora",
+        "allSummary_one": "{{count}} thread aperto, nessuno risolto finora",
+        "allSummary_many": "{{count}} thread aperti, nessuno risolto finora",
+        "allSummary_other": "{{count}} thread aperti, nessuno risolto finora",
+        "cardTextRoom_one": "{{count}} thread aperto qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_many": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_other": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_one": "{{count}} thread aperto, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_many": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_other": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco."
+      }
     }
   },
   "threadNav": {
@@ -2176,6 +2368,7 @@
       "working": "In corso",
       "later": "Più tardi",
       "idle": "Inattivi",
+      "quiet": "Tranquilli",
       "resolved": "Risolti"
     },
     "live": {
@@ -2204,7 +2397,11 @@
     "done": "Fatti"
   },
   "threadActions": {
-    "openBeside": "Apri nella seconda colonna"
+    "openBeside": "Apri nella seconda colonna",
+    "detailsSection": "Dettagli",
+    "forkAndShareSection": "Dirama e condividi",
+    "shareSection": "Condividi",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Questo thread",
@@ -2273,5 +2470,36 @@
   },
   "nav": {
     "usage": "Utilizzo"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} stanza",
+      "roomsCount_many": "{{count}} stanze",
+      "roomsCount_other": "{{count}} stanze",
+      "roomsFiltered": "{{active}} di {{total}} stanze"
+    },
+    "roomFilter": {
+      "label": "Stanze",
+      "ariaLabel": "Filtra i thread per stanza",
+      "ariaLabelActive": "Filtra i thread per stanza (selezionate: {{number}})",
+      "ariaLabelOne": "Stanze: {{room}}",
+      "search": "Cerca stanze",
+      "noMatch": "Nessuna stanza corrispondente"
+    },
+    "composer": {
+      "postTo": "Pubblica in:",
+      "postToRoom": "Pubblica in #{{room}}",
+      "chooseRoomAria": "Scegli la stanza in cui pubblicare",
+      "draftPinned": "Bozza per #{{room}}",
+      "readOnly": "Nessuna stanza di questo spazio consente la pubblicazione."
+    },
+    "loading": "Caricamento discussioni...",
+    "empty": {
+      "noRooms": "Unisciti a una stanza in questo spazio per vedere le discussioni qui.",
+      "noThreads": "Non ci sono ancora discussioni in questo spazio."
+    },
+    "error": {
+      "title": "Impossibile caricare le discussioni dello spazio"
+    }
   }
 }

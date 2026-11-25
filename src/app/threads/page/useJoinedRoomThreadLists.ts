@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -17,25 +17,31 @@ export const isListedRoom = (room: Room | null): room is Room =>
   !!room && matchesEnum(room.getMyMembership(), KnownMembership.Join) && !room.isSpaceRoom();
 
 /**
- * The newest page of each joined room's thread list, or with `allPages` (the Threads page) every
- * page, fetched while the caller is mounted.
+ * The newest page of each joined room's thread list, or with `allPages` (the Threads and Space
+ * Threads pages) every page, fetched while the caller is mounted. When `roomIds` is provided, only
+ * those rooms are fetched and checked; otherwise all joined rooms (`allRoomsAtom`) are covered.
  *
  * The client lists the threads it knows. A room that was not opened since the app started knows
  * only the threads its synced messages touched, and those count each synced reply on top of the
  * server's count. A room's thread list adds its other threads and resets their counts to the
  * server's, as opening the room does. Each room loads once per visit, a few at a time.
  *
- * Answers whether every joined room's list is complete, so a count over them can say it may grow.
+ * Answers whether every targeted room's list is complete, so a count over them can say it may grow.
  */
-export const useJoinedRoomThreadLists = (allPages = false): boolean => {
+export const useJoinedRoomThreadLists = (
+  allPages = false,
+  roomIds?: readonly string[]
+): boolean => {
   const mx = useMatrixClient();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const roomIdsKey = (roomIds ?? joinedRoomIds).join('\0');
+  const targetRoomIds = useMemo(() => (roomIdsKey ? roomIdsKey.split('\0') : []), [roomIdsKey]);
   const listedRef = useRef(new Set<string>());
   const [, setPagesLoaded] = useState(0);
 
   useEffect(() => {
     const listed = listedRef.current;
-    const waiting = joinedRoomIds
+    const waiting = targetRoomIds
       .filter((roomId) => !listed.has(roomId))
       .map((roomId) => mx.getRoom(roomId))
       .filter(isListedRoom);
@@ -66,9 +72,9 @@ export const useJoinedRoomThreadLists = (allPages = false): boolean => {
     // A room the room list changed under, or the page left, before its first page arrived is
     // listed by the next run; the shared load keeps a room from being requested twice meanwhile.
     return () => visit.abort();
-  }, [mx, joinedRoomIds, allPages]);
+  }, [mx, targetRoomIds, allPages]);
 
-  return joinedRoomIds
+  return targetRoomIds
     .map((roomId) => mx.getRoom(roomId))
     .filter(isListedRoom)
     .every(roomThreadListIsComplete);

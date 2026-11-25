@@ -4,16 +4,19 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { TUploadFamilyObserverAtom, UploadStatus } from '../../matrix/state/upload';
 import { toMatrixUploadError } from '../../matrix/matrix';
-import { UploadBoardHeader } from './UploadBoard';
+import { UploadBoard, UploadBoardHeader } from './UploadBoard';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
-  const forwardTag = (tag: string) =>
-    reactModule.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, ...props }, ref) =>
-        reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode)
-    );
+  const forwardTag =
+    (tag: string) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
+      reactModule.createElement(tag, { ...props, ref }, children);
 
   return {
     Badge: forwardTag('span'),
@@ -29,13 +32,17 @@ vi.mock('folds', async () => {
     },
     Spinner: forwardTag('span'),
     Text: forwardTag('span'),
-    as: (render: Parameters<typeof reactModule.forwardRef>[0]) => reactModule.forwardRef(render),
+    as:
+      (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+      ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+        render(props, ref ?? null),
     percent: (min: number, max: number, value: number) => ((value - min) / (max - min)) * 100,
   };
 });
 
 vi.mock('./UploadBoard.css', () => ({
   UploadBoard: 'UploadBoard',
+  UploadBoardInline: 'UploadBoardInline',
   UploadBoardBase: 'UploadBoardBase',
   UploadBoardContainer: 'UploadBoardContainer',
   UploadBoardContent: 'UploadBoardContent',
@@ -93,11 +100,19 @@ describe('UploadBoardHeader', () => {
     });
 
     expect(onCancel).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          file: successful,
-        }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ file: successful })])
     );
+  });
+
+  it('renders floating by default and in document flow when inline is true', () => {
+    const classes = (inline?: boolean) => {
+      let tree!: ReturnType<typeof create>;
+      act(() => {
+        tree = create(React.createElement(UploadBoard, { inline, header: 'H' }));
+      });
+      return tree.root.findAllByType('div').map((node) => node.props.className);
+    };
+    expect(classes()).toEqual(['UploadBoardBase', 'UploadBoardContainer', 'UploadBoard']);
+    expect(classes(true)).toEqual(['UploadBoard UploadBoardInline']);
   });
 });

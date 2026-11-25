@@ -341,7 +341,7 @@ const renderHarness = (
       act(() => {
         viewRenderer = create(
           React.createElement(
-            ConversationViewContext.Provider,
+            ConversationViewContext,
             { value: 'thread-view' },
             React.createElement(TestHarness, {
               ...props,
@@ -2190,6 +2190,33 @@ describe('useRoomInputSendSessionController in a fork draft', () => {
       expect.anything(),
       'fork:$parent:$point'
     );
+  });
+
+  it('writes room_id for a cross-room fork and omits room_id when ref.roomId matches the target room', async () => {
+    const crossRef = { roomId: '!alpha:example.org', threadId: '$parent', eventId: '$point' };
+    const cross = renderHarness({ forkFrom: crossRef, onRoomMessageSent: () => true });
+    await act(async () => {
+      await cross.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Cross room' } });
+    });
+    expect(cross.mx.sendMessage.mock.calls[0]![1]).toMatchObject({
+      'io.mindroom.fork': {
+        room_id: '!alpha:example.org',
+        thread_id: '$parent',
+        event_id: '$point',
+      },
+    });
+
+    const sameRef = { roomId: '!room:example.org', threadId: '$parent', eventId: '$point' };
+    const same = renderHarness({ forkFrom: sameRef, onRoomMessageSent: () => true });
+    await act(async () => {
+      await same.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Same room' } });
+    });
+    expect(
+      (same.mx.sendMessage.mock.calls[0]![1] as Record<string, unknown>)['io.mindroom.fork']
+    ).toEqual({
+      thread_id: '$parent',
+      event_id: '$point',
+    });
   });
 });
 

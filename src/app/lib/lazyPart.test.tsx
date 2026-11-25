@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { type RefAttributes, Suspense, createRef, forwardRef, useImperativeHandle } from 'react';
+import { type Ref, type RefAttributes, Suspense, createRef, useImperativeHandle } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type PartLoadRetry, lazyPart } from './lazyPart';
@@ -13,13 +13,10 @@ const loaded = { default: Greeting };
 type Greeter = { greet(): string };
 
 /** A part with a handle, as the computer screen has. */
-const GreetingWithHandle = forwardRef<Greeter, { name: string }>(function GreetingWithHandle(
-  { name },
-  ref
-) {
+function GreetingWithHandle({ name, ref }: { name: string; ref?: Ref<Greeter> }) {
   useImperativeHandle(ref, () => ({ greet: () => `Hello ${name}` }), [name]);
   return <p>{name} has a handle</p>;
-});
+}
 const offline = () => Promise.reject(new TypeError('Failed to fetch dynamically imported module'));
 
 const renderPart = (Part: ReturnType<typeof lazyPart<{ name: string }>>, name = 'Ada') =>

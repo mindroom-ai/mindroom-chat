@@ -485,7 +485,9 @@
         "localMindroom": "إظهار Local MindRoom في الشريط الجانبي",
         "localMindroomDescription": "يقرن MindRoom الذي يعمل على حاسوبك. عند إخفائه، يبقى هنا في الإعدادات ضمن Local MindRoom.",
         "usage": "إظهار الاستخدام في الشريط الجانبي",
-        "usageDescription": "حدود استخدام المزودين واستهلاك الرموز خلال 7 أيام بمجرد إبلاغ بيئة التشغيل عنها. عند إخفائه، افتح الاستخدام من قائمة ⋮ في الرئيسية أو منتقي النماذج."
+        "usageDescription": "حدود استخدام المزودين واستهلاك الرموز خلال 7 أيام بمجرد إبلاغ بيئة التشغيل عنها. عند إخفائه، افتح الاستخدام من قائمة ⋮ في الرئيسية أو منتقي النماذج.",
+        "help": "إظهار المساعدة والأدلة في الشريط الجانبي",
+        "helpDescription": "أدلة سريعة والجولة واختصارات لوحة المفاتيح. عند إخفائه، افتح الجولة من الإعدادات ضمن حول التطبيق أو من لوحة الأوامر (⁨{{shortcut}}⁩)، والاختصارات باستخدام ⁨{{helpShortcut}}⁩."
       },
       "plugins": {
         "title": "الإضافات",
@@ -775,11 +777,27 @@
       "manage": "إدارة"
     },
     "roomOrder": {
-      "sortByName": "ترتيب الغرف من أ إلى ي"
+      "sortRooms": "ترتيب الغرف",
+      "sortHeading": "ترتيب الغرف",
+      "displayHeading": "العرض",
+      "recentActivity": "النشاط الأخير",
+      "aToZ": "من أ إلى ي",
+      "customOrder": "ترتيب مخصص",
+      "saved": "محفوظ",
+      "showActivityTimes": "إظهار أوقات النشاط",
+      "matchSpace": "مطابقة المساحة (⁨{{mode}}⁩)",
+      "shortRecent": "الأخير",
+      "shortName": "أ إلى ي",
+      "shortManual": "مخصص"
     },
     "roomActions": {
       "noInvitePermission": "ليس لديك إذن بالدعوة",
-      "searchEncrypted": "غير متاح في الغرف المشفرة"
+      "searchEncrypted": "غير متاح في الغرف المشفرة",
+      "viewSection": "العرض",
+      "roomSection": "الغرفة",
+      "preferencesSection": "التفضيلات",
+      "notificationModeAll": "الكل",
+      "notificationModeMentions": "الإشارات"
     },
     "phoneNav": {
       "navigation": "التنقل"
@@ -1485,7 +1503,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "عرض مدمج",
-        "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
+        "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)",
+        "mindroomSettings": "إعدادات MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "عوامل تصفية متقدمة",
@@ -1518,6 +1537,41 @@
         "expandAllLong": "توسيع كل الرسائل الطويلة",
         "collapseAllLong": "طي كل الرسائل الطويلة",
         "showFullMessage": "عرض الرسالة كاملة"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "لا توجد مهام معلّقة",
+        "resolvedCount_zero": "⁨{{count}}⁩ محلولة",
+        "resolvedCount_one": "⁨{{count}}⁩ محلولة",
+        "resolvedCount_two": "محلولتان (⁨{{count}}⁩)",
+        "resolvedCount_few": "⁨{{count}}⁩ محلولة",
+        "resolvedCount_many": "⁨{{count}}⁩ محلولة",
+        "resolvedCount_other": "⁨{{count}}⁩ محلولة",
+        "snoozedCount_zero": "⁨{{count}}⁩ مؤجّلة",
+        "snoozedCount_one": "⁨{{count}}⁩ مؤجّلة",
+        "snoozedCount_two": "مؤجّلتان (⁨{{count}}⁩)",
+        "snoozedCount_few": "⁨{{count}}⁩ مؤجّلة",
+        "snoozedCount_many": "⁨{{count}}⁩ مؤجّلة",
+        "snoozedCount_other": "⁨{{count}}⁩ مؤجّلة",
+        "showAll": "عرض الكل",
+        "startNewThreadBelow": "ابدأ سلسلة محادثة جديدة أدناه",
+        "recentlyResolved": "المحلولة مؤخرًا",
+        "noMatchHeading": "لا توجد سلاسل محادثة تطابق عوامل التصفية",
+        "hiddenByForMe_zero": "لا توجد سلاسل محادثة مفتوحة مخفية بواسطة «لي» (⁨{{count}}⁩).",
+        "hiddenByForMe_one": "⁨{{count}}⁩ سلسلة محادثة مفتوحة مخفية بواسطة «لي».",
+        "hiddenByForMe_two": "سلسلتا محادثة مفتوحتان (⁨{{count}}⁩) مخفيتان بواسطة «لي».",
+        "hiddenByForMe_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة مخفية بواسطة «لي».",
+        "hiddenByForMe_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة مخفية بواسطة «لي».",
+        "hiddenByForMe_other": "⁨{{count}}⁩ من سلاسل المحادثة المفتوحة مخفية بواسطة «لي».",
+        "hiddenByFilters_zero": "لا توجد سلاسل محادثة مفتوحة مخفية بواسطة عوامل التصفية (⁨{{count}}⁩).",
+        "hiddenByFilters_one": "⁨{{count}}⁩ سلسلة محادثة مفتوحة مخفية بواسطة عوامل التصفية.",
+        "hiddenByFilters_two": "سلسلتا محادثة مفتوحتان (⁨{{count}}⁩) مخفيتان بواسطة عوامل التصفية.",
+        "hiddenByFilters_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة مخفية بواسطة عوامل التصفية.",
+        "hiddenByFilters_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة مخفية بواسطة عوامل التصفية.",
+        "hiddenByFilters_other": "⁨{{count}}⁩ من سلاسل المحادثة المفتوحة مخفية بواسطة عوامل التصفية.",
+        "adjustOrResetFilters": "عدّل عوامل التصفية أو أعد تعيينها لعرض سلاسل المحادثة في هذه الغرفة.",
+        "turnOffForMe": "إيقاف «لي»",
+        "resetAll": "إعادة تعيين الكل",
+        "resetFilters": "إعادة تعيين عوامل التصفية"
       }
     },
     "computer": {
@@ -1546,7 +1600,9 @@
     "backgroundJobs": {
       "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)",
       "finished": "انتهى: ⁨{{tool}}⁩",
+      "awaitingAnswer": "بانتظار إجابتك: ⁨{{tool}}⁩",
       "jobCountFinished": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "groupWorkflows": "سير العمل · ⁨{{number}}⁩",
       "groupSubagents": "الوكلاء الفرعيون · ⁨{{number}}⁩",
       "groupTools": "الأدوات · ⁨{{number}}⁩",
       "tools_zero": "الأدوات: ⁨{{count}}⁩",
@@ -1611,6 +1667,123 @@
       "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
+    },
+    "workflowRun": {
+      "title": "سير العمل",
+      "status": {
+        "starting": "جارٍ البدء",
+        "running": "قيد التشغيل",
+        "waiting": "بانتظارك",
+        "completed": "تم",
+        "failed": "فشل",
+        "cancelled": "ملغى",
+        "interrupted": "توقف مؤقتاً"
+      },
+      "counts": "⁨{{done}}⁩ مكتمل، ⁨{{running}}⁩ قيد التشغيل، ⁨{{waiting}}⁩ بانتظارك",
+      "reused": "معاد استخدامه: ⁨{{count}}⁩",
+      "cost": "⁨{{spent}}⁩ حتى الآن، حوالي ⁨{{projected}}⁩ بالإجمال",
+      "costAtLeast": "على الأقل ⁨{{spent}}⁩ حتى الآن",
+      "largeRun": "تشغيل كبير",
+      "attempt": "المحاولة ⁨{{number}}⁩",
+      "stop": "إيقاف",
+      "stopping": "جارٍ الإيقاف…",
+      "resume": "استئناف",
+      "runAgain": "تشغيل مجدداً",
+      "starting": "جارٍ البدء…",
+      "failedCount_zero": "⁨{{count}}⁩ فشل",
+      "failedCount_one": "⁨{{count}}⁩ فشل",
+      "failedCount_two": "⁨{{count}}⁩ فشل",
+      "failedCount_few": "⁨{{count}}⁩ فشل",
+      "failedCount_many": "⁨{{count}}⁩ فشل",
+      "failedCount_other": "⁨{{count}}⁩ فشل",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "تمت الإجابة بالفعل.",
+          "noLongerOpen": "هذا السؤال لم يعد مفتوحاً.",
+          "notAnOption": "هذا ليس من بين الخيارات.",
+          "notForYou": "يمكن فقط لمن بدأ التشغيل الإجابة."
+        },
+        "noReply": "لا يوجد رد بعد. حاول مجدداً.",
+        "placeholder": "اكتب إجابتك",
+        "send": "إرسال",
+        "answered": "تمت الإجابة: ⁨{{answer}}⁩",
+        "cancelled": "ملغى",
+        "onlyRequester": "يمكن فقط لـ ⁨{{name}}⁩ الإجابة."
+      },
+      "graph": "المخطط",
+      "panel": {
+        "close": "إغلاق",
+        "resize": "تغيير حجم لوحة سير العمل",
+        "hide": "إخفاء سير العمل",
+        "waitingForUpdate": "بانتظار التحديث التالي للتشغيل…",
+        "stale": "لا يتحدث. آخر تحديث ⁨{{time}}⁩.",
+        "log": "السجل",
+        "showMore": "إظهار ⁨{{count}}⁩ إضافية",
+        "omitted": {
+          "queued_zero": "و⁨{{count}}⁩ إضافية في الانتظار",
+          "queued_one": "و⁨{{count}}⁩ إضافي في الانتظار",
+          "queued_two": "و⁨{{count}}⁩ إضافية في الانتظار",
+          "queued_few": "و⁨{{count}}⁩ إضافية في الانتظار",
+          "queued_many": "و⁨{{count}}⁩ إضافية في الانتظار",
+          "queued_other": "و⁨{{count}}⁩ إضافية في الانتظار",
+          "running_zero": "و⁨{{count}}⁩ إضافية قيد التشغيل",
+          "running_one": "و⁨{{count}}⁩ إضافي قيد التشغيل",
+          "running_two": "و⁨{{count}}⁩ إضافية قيد التشغيل",
+          "running_few": "و⁨{{count}}⁩ إضافية قيد التشغيل",
+          "running_many": "و⁨{{count}}⁩ إضافية قيد التشغيل",
+          "running_other": "و⁨{{count}}⁩ إضافية قيد التشغيل",
+          "waiting_zero": "و⁨{{count}}⁩ إضافية منتظرة",
+          "waiting_one": "و⁨{{count}}⁩ إضافي منتظر",
+          "waiting_two": "و⁨{{count}}⁩ إضافية منتظرة",
+          "waiting_few": "و⁨{{count}}⁩ إضافية منتظرة",
+          "waiting_many": "و⁨{{count}}⁩ إضافية منتظرة",
+          "waiting_other": "و⁨{{count}}⁩ إضافية منتظرة",
+          "failed_zero": "و⁨{{count}}⁩ إضافية فشلت",
+          "failed_one": "و⁨{{count}}⁩ إضافي فشل",
+          "failed_two": "و⁨{{count}}⁩ إضافية فشلت",
+          "failed_few": "و⁨{{count}}⁩ إضافية فشلت",
+          "failed_many": "و⁨{{count}}⁩ إضافية فشلت",
+          "failed_other": "و⁨{{count}}⁩ إضافية فشلت",
+          "done_zero": "و⁨{{count}}⁩ إضافية مكتملة",
+          "done_one": "و⁨{{count}}⁩ إضافي مكتمل",
+          "done_two": "و⁨{{count}}⁩ إضافية مكتملة",
+          "done_few": "و⁨{{count}}⁩ إضافية مكتملة",
+          "done_many": "و⁨{{count}}⁩ إضافية مكتملة",
+          "done_other": "و⁨{{count}}⁩ إضافية مكتملة"
+        },
+        "askAgent": "اسأل ⁨{{agent}}⁩ عن البقية."
+      },
+      "group": {
+        "foreach": "لكل عنصر",
+        "parallel": "متوازٍ",
+        "run": "سير عمل محفوظ",
+        "workflow": "سير عمل متداخل",
+        "progress": "⁨{{done}}⁩ من ⁨{{total}}⁩",
+        "failed": "فشل: ⁨{{count}}⁩"
+      },
+      "node": {
+        "reused": "معاد استخدامه من التشغيل السابق",
+        "queued": "في الانتظار",
+        "mayHaveRun": "ربما تم تشغيله",
+        "waitingOn": {
+          "user": "بانتظار إجابتك",
+          "approval": "بانتظار الموافقة",
+          "peer": "بانتظار رسالة"
+        },
+        "sessionTurns_zero": "⁨{{count}}⁩ دورات",
+        "sessionTurns_one": "⁨{{count}}⁩ دورة",
+        "sessionTurns_two": "دورتان (⁨{{count}}⁩)",
+        "sessionTurns_few": "⁨{{count}}⁩ دورات",
+        "sessionTurns_many": "⁨{{count}}⁩ دورات",
+        "sessionTurns_other": "⁨{{count}}⁩ دورات",
+        "result": "النتيجة",
+        "error": "خطأ",
+        "messages": "الرسائل",
+        "messagesTo": "رسائل إلى ⁨{{name}}⁩: ⁨{{count}}⁩",
+        "open": "فتح",
+        "detailsUnavailable": "لم تعد التفاصيل متاحة بعد إعادة التحميل.",
+        "stop": "إيقاف الوكيل"
+      }
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",
@@ -1882,7 +2055,9 @@
     },
     "actions": {
       "goActivity": "الانتقال إلى النشاط",
-      "goActivityDescription": "الإشارات والردود وما ينتظرك"
+      "goActivityDescription": "الإشارات والردود وما ينتظرك",
+      "openCurrentRoomMindroomSettings": "فتح إعدادات MindRoom للغرفة",
+      "openCurrentRoomMindroomSettingsDescription": "فتح إعدادات MindRoom لـ ⁨{{room}}⁩"
     },
     "recentVisits": {
       "recentlyOpened": "المفتوحة مؤخرًا",
@@ -1956,6 +2131,7 @@
       "needsYou": "بحاجة إليك",
       "working": "قيد العمل",
       "later": "لاحقًا",
+      "quiet": "هادئة",
       "done": "مكتمل",
       "all": "الكل",
       "description": {
@@ -1996,7 +2172,17 @@
     "forkCount_two": "⁨{{count}}⁩ تفريعتان",
     "forkCount_few": "⁨{{count}}⁩ تفريعات",
     "forkCount_many": "⁨{{count}}⁩ تفريعةً",
-    "forkCount_other": "⁨{{count}}⁩ تفريعة"
+    "forkCount_other": "⁨{{count}}⁩ تفريعة",
+    "forkedFromInRoom": "متفرّع من ⁨{{title}}⁩ في ⁨{{room}}⁩",
+    "forkedFromAnotherRoom": "متفرّع من غرفة أخرى",
+    "forkingIntoRoom": "تفريع ⁨{{title}}⁩ إلى ⁨{{room}}⁩",
+    "forkToRoom": "التفريع إلى غرفة…",
+    "forkToRoomTitle": "التفريع إلى غرفة",
+    "forkToRoomSearchPlaceholder": "البحث في الغرف…",
+    "forkToRoomEmpty": "لا توجد غرف مطابقة",
+    "forkToRoomAgentWarning": "الوكلاء في هذه الغرفة غير موجودين في ⁨{{room}}⁩ ولن يروا سلسلة المحادثة الأصلية",
+    "forkingFromRoom": "التفريع من ⁨{{room}}⁩",
+    "forkDraftAgentWarning": "الوكلاء هنا غير موجودين في ⁨{{room}}⁩ ولن يروا سلسلة المحادثة الأصلية"
   },
   "activity": {
     "title": "النشاط",
@@ -2034,8 +2220,7 @@
       "replyAndOthers_many": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشاركًا آخر",
       "replyAndOthers_other": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
       "finished": "أنهى ⁨{{name}}⁩ عمله",
-      "stopped": "توقف ⁨{{name}}⁩",
-      "youReplied": "رددت"
+      "stopped": "توقف ⁨{{name}}⁩"
     },
     "newCount_zero": "جديدة: ⁨{{count}}⁩",
     "newCount_one": "جديدة: ⁨{{count}}⁩",
@@ -2328,6 +2513,58 @@
       "settingsKeywords": "جولة، شرح، دليل، مساعدة، مقدمة، تعريف، سلاسل المحادثات",
       "howThreadsWork": "كيف تعمل سلاسل المحادثات",
       "noThreadsHint": "أرسل رسالة في الأسفل لبدء واحدة."
+    },
+    "help": {
+      "button": "المساعدة والأدلة",
+      "buttonWithTip": "المساعدة والأدلة (نصيحة واحدة)",
+      "title": "المساعدة والأدلة",
+      "subtitle": "أدلة سريعة",
+      "oneTip": "نصيحة واحدة",
+      "suggested": "مقترح لك",
+      "showHow": "اعرف كيف",
+      "dismissTip": "إخفاء النصيحة",
+      "guidesHeading": "أدلة الواجهة",
+      "guides": {
+        "conversation": "كيف تعمل سلاسل المحادثات",
+        "resolve": "حُلّ ما انتهى",
+        "filters": "العثور على السلاسل المحلولة",
+        "snooze": "التأجيل لوقت لاحق",
+        "pinAndTag": "تثبيت السلاسل ووسمها",
+        "views": "العرض المدمج مقابل السلاسل",
+        "activity": "النشاط والموافقات"
+      },
+      "fullTour": "جولة كاملة",
+      "shortcuts": "الاختصارات"
+    },
+    "tips": {
+      "resolve": {
+        "title": "حُلّ سلاسل المحادثات المنتهية",
+        "cardTitle": "حُلّ سلاسل المحادثات المنتهية",
+        "roomSummary_zero": "⁨{{count}}⁩ سلسلة محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد",
+        "roomSummary_one": "سلسلة محادثة مفتوحة واحدة هنا (⁨{{count}}⁩)، لم تُحَلّ بعد",
+        "roomSummary_two": "سلسلتا محادثة مفتوحتان هنا (⁨{{count}}⁩)، لم يُحَلّ أي منهما بعد",
+        "roomSummary_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد",
+        "roomSummary_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد",
+        "roomSummary_other": "⁨{{count}}⁩ من سلاسل المحادثات المفتوحة هنا، لم يُحَلّ أي منها بعد",
+        "allSummary_zero": "⁨{{count}}⁩ سلسلة محادثة مفتوحة، لم يُحَلّ أي منها بعد",
+        "allSummary_one": "سلسلة محادثة مفتوحة واحدة (⁨{{count}}⁩)، لم تُحَلّ بعد",
+        "allSummary_two": "سلسلتا محادثة مفتوحتان (⁨{{count}}⁩)، لم يُحَلّ أي منهما بعد",
+        "allSummary_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة، لم يُحَلّ أي منها بعد",
+        "allSummary_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة، لم يُحَلّ أي منها بعد",
+        "allSummary_other": "⁨{{count}}⁩ من سلاسل المحادثات المفتوحة، لم يُحَلّ أي منها بعد",
+        "cardTextRoom_zero": "⁨{{count}}⁩ سلسلة محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextRoom_one": "سلسلة محادثة مفتوحة واحدة هنا (⁨{{count}}⁩)، لم تُحَلّ بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextRoom_two": "سلسلتا محادثة مفتوحتان هنا (⁨{{count}}⁩)، لم يُحَلّ أي منهما بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextRoom_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextRoom_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة هنا، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextRoom_other": "⁨{{count}}⁩ من سلاسل المحادثات المفتوحة هنا، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_zero": "⁨{{count}}⁩ سلسلة محادثة مفتوحة، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_one": "سلسلة محادثة مفتوحة واحدة (⁨{{count}}⁩)، لم تُحَلّ بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_two": "سلسلتا محادثة مفتوحتان (⁨{{count}}⁩)، لم يُحَلّ أي منهما بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_few": "⁨{{count}}⁩ سلاسل محادثة مفتوحة، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_many": "⁨{{count}}⁩ سلسلة محادثة مفتوحة، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة.",
+        "cardTextAll_other": "⁨{{count}}⁩ من سلاسل المحادثات المفتوحة، لم يُحَلّ أي منها بعد. حُلّ السلاسل المنتهية لتنظيم القائمة."
+      }
     }
   },
   "threadNav": {
@@ -2347,6 +2584,7 @@
       "working": "قيد العمل",
       "later": "لاحقًا",
       "idle": "خاملة",
+      "quiet": "هادئة",
       "resolved": "محلولة"
     },
     "live": {
@@ -2387,7 +2625,11 @@
     "done": "منتهية"
   },
   "threadActions": {
-    "openBeside": "فتح في العمود الثاني"
+    "openBeside": "فتح في العمود الثاني",
+    "detailsSection": "التفاصيل",
+    "forkAndShareSection": "التفريع والمشاركة",
+    "shareSection": "المشاركة",
+    "viewSection": "العرض"
   },
   "roomSchedules": {
     "thisThread": "سلسلة المحادثة هذه",
@@ -2456,5 +2698,39 @@
   },
   "nav": {
     "usage": "الاستخدام"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_zero": "⁨{{count}}⁩ غرفة",
+      "roomsCount_one": "غرفة واحدة (⁨{{count}}⁩)",
+      "roomsCount_two": "غرفتان (⁨{{count}}⁩)",
+      "roomsCount_few": "⁨{{count}}⁩ غرف",
+      "roomsCount_many": "⁨{{count}}⁩ غرفة",
+      "roomsCount_other": "⁨{{count}}⁩ غرفة",
+      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة"
+    },
+    "roomFilter": {
+      "label": "الغرف",
+      "ariaLabel": "تصفية سلاسل المحادثات حسب الغرفة",
+      "ariaLabelActive": "تصفية سلاسل المحادثات حسب الغرفة (المحدد: ⁨{{number}}⁩)",
+      "ariaLabelOne": "الغرف: ⁨{{room}}⁩",
+      "search": "البحث في الغرف",
+      "noMatch": "لا توجد غرف مطابقة"
+    },
+    "composer": {
+      "postTo": "النشر في:",
+      "postToRoom": "النشر في #⁨{{room}}⁩",
+      "chooseRoomAria": "اختر غرفة للنشر فيها",
+      "draftPinned": "مسودة لـ #⁨{{room}}⁩",
+      "readOnly": "لا توجد غرف في هذه المساحة تسمح بالنشر."
+    },
+    "loading": "جارٍ تحميل سلاسل الرسائل...",
+    "empty": {
+      "noRooms": "انضم إلى غرفة في هذه المساحة لعرض سلاسل الرسائل هنا.",
+      "noThreads": "لا توجد سلاسل رسائل في هذه المساحة بعد."
+    },
+    "error": {
+      "title": "تعذر تحميل سلاسل رسائل المساحة"
+    }
   }
 }

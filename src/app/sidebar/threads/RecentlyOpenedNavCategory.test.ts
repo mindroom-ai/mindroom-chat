@@ -34,18 +34,22 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('folds', () => ({
-  Scroll: React.forwardRef<
-    HTMLDivElement,
-    React.HTMLAttributes<HTMLDivElement> & {
-      direction?: string;
-      hideTrack?: boolean;
-      size?: string;
-      variant?: string;
-      visibility?: string;
-    }
-  >(({ children, direction, hideTrack, size, variant, visibility, ...props }, ref) =>
-    React.createElement('div', { ...props, ref }, children)
-  ),
+  Scroll: ({
+    children,
+    direction,
+    hideTrack,
+    size,
+    variant,
+    visibility,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'div'> & {
+    direction?: string;
+    hideTrack?: boolean;
+    size?: string;
+    variant?: string;
+    visibility?: string;
+  }) => React.createElement('div', { ...props, ref }, children),
   Text: ({
     as: asElement = 'span',
     children,

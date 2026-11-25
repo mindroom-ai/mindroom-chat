@@ -68,7 +68,7 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
       rootEvent.isDecryptionFailure(),
       edit?.getType(),
       edit?.isDecryptionFailure(),
-      serializeThreadCacheEvents(room, [], rootEvent),
+      serializeThreadCacheEvents(room, [], rootEvent, { clone: false }),
     ])
   );
 };

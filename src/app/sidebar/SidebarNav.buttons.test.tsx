@@ -17,9 +17,8 @@ function tab(name: string) {
 }
 
 vi.mock('folds', () => ({
-  Scroll: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
-    React.createElement('div', { ref }, children)
-  ),
+  Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+    React.createElement('div', { ref }, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem', () => ({
@@ -60,6 +59,9 @@ vi.mock('./rail/ActivityTab', () => ({
 }));
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: tab('search'),
+}));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: tab('help'),
 }));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: tab('settings'),
@@ -116,6 +118,7 @@ const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['createSpace', 'showCreateSpaceInSidebar'],
   ['search', 'showSearchInSidebar'],
   ['localMindroom', 'showLocalMindroomInSidebar'],
+  ['help', 'showHelpInSidebar'],
 ];
 
 /** Every switch turned on, as an account that chose to show them all has stored. */
@@ -123,18 +126,24 @@ const ALL_ON: Partial<AccountSettings> = Object.fromEntries(
   SWITCHES.map(([, setting]) => [setting, true])
 );
 
+/** Every switch turned off, including Help & guides which starts enabled by default. */
+const ALL_OFF: Partial<AccountSettings> = Object.fromEntries(
+  SWITCHES.map(([, setting]) => [setting, false])
+);
+
 describe('SidebarNav buttons a person can hide', () => {
   afterEach(() => {
     state.settings = {};
   });
 
-  it('shows none of the optional buttons for an account that never set them', () => {
+  it('shows Help & guides by default and none of the opt-in buttons for an account that never set them', () => {
     expect(renderedTabs().tabs).toEqual([
       'home',
       'direct',
       'activity',
       'spaces',
       'unverified',
+      'help',
       'settings',
     ]);
     // Only the rule between the scrolling and pinned parts.
@@ -156,6 +165,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'search',
       'unverified',
       'localMindroom',
+      'help',
       'settings',
     ]);
   });
@@ -164,11 +174,11 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_ON, [setting]: false };
     const { tabs } = renderedTabs();
     expect(tabs).not.toContain(button);
-    expect(tabs).toHaveLength(12);
+    expect(tabs).toHaveLength(13);
   });
 
   it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {
-    state.settings = { [setting]: true };
+    state.settings = { ...ALL_OFF, [setting]: true };
     const { tabs } = renderedTabs();
     expect(tabs).toContain(button);
     expect(tabs).toHaveLength(7);

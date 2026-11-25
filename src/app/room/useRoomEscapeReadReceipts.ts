@@ -1,5 +1,5 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback } from 'react';
-import { isKeyHotkey } from 'is-hotkey';
+import { matchesHotkey } from '../shortcuts/shortcuts';
 import { useStore } from 'jotai';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -14,6 +14,7 @@ const threadColumnKeys = new WeakSet<Event>();
 export const noteThreadColumnKey = (evt: ReactKeyboardEvent): void => {
   threadColumnKeys.add(evt.nativeEvent);
 };
+export const isThreadColumnKey = (evt: Event): boolean => threadColumnKeys.has(evt);
 
 // Keys pressed in a view of another thread on the page (the second thread beside the open one),
 // with that thread: Escape there marks it read.
@@ -53,13 +54,13 @@ export const useRoomEscapeReadReceipts = ({
             .some((place) => place.roomId === roomId && place.threadId === id);
         // Escape in a second thread's view (B) reads B where it shows, whatever covers the rest.
         const noted = threadViewKeys.get(evt);
-        if (noted && isKeyHotkey('escape', evt)) {
+        if (noted && matchesHotkey('escape', evt)) {
           if (shows(noted)) void markThreadAsRead(mx, roomId, noted, hideActivity);
           return;
         }
         const threadShows = shows(threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
-        if (!isKeyHotkey('escape', evt)) return;
+        if (!matchesHotkey('escape', evt)) return;
         // Beside the thread's column, Escape outside the column is the room's messages'. The column
         // noted the key as it passed, wherever the focus shortcut has moved the focus since.
         const messagesBeside = store

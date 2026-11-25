@@ -46,7 +46,7 @@ export type SsoStartCheck = (start: () => void) => void;
 const ssoStartCheckContext = createContext<SsoStartCheck | undefined>(undefined);
 ssoStartCheckContext.displayName = 'SsoStartCheck';
 
-export const SsoStartCheckProvider = ssoStartCheckContext.Provider;
+export const SsoStartCheckProvider = ssoStartCheckContext;
 
 /** The check the sign-in layout sets for the server on screen. */
 export const useSsoStartCheck = (): SsoStartCheck | undefined => useContext(ssoStartCheckContext);

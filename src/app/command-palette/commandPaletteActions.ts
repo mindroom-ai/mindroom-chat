@@ -6,6 +6,7 @@ import {
   getHomeSearchPath,
   getActivityPath,
 } from '../routes/pathUtils';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { COMMAND_PALETTE_PAGE_ICONS } from './commandPalettePages';
 import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
@@ -21,6 +22,7 @@ export type CommandPaletteQuickActionId =
   | 'mark-current-room-read'
   | 'copy-current-room-link'
   | 'open-current-room-settings'
+  | 'open-current-room-mindroom-settings'
   | 'resolve-current-thread'
   | 'unresolve-current-thread'
   | 'toggle-theme'
@@ -31,6 +33,7 @@ export type CommandPaletteQuickActionId =
 
 export type CommandPaletteQuickActionContext = {
   currentRoomName?: string;
+  isCurrentRoomSpace?: boolean;
   currentThreadId?: string;
   isCurrentThreadResolved?: boolean;
   isCurrentThreadPinned?: boolean;
@@ -71,6 +74,7 @@ const actionItem = (
 export const getCommandPaletteQuickActions = (
   {
     currentRoomName,
+    isCurrentRoomSpace,
     currentThreadId,
     isCurrentThreadResolved,
     isCurrentThreadPinned,
@@ -175,7 +179,35 @@ export const getCommandPaletteQuickActions = (
           keywords: ['room settings'],
           icon: Icons.Setting,
         }
-      )
+      ),
+      ...(isCurrentRoomSpace
+        ? []
+        : [
+            actionItem(
+              'open-current-room-mindroom-settings',
+              t('commandPalette.actions.openCurrentRoomMindroomSettings'),
+              48,
+              {
+                description: t(
+                  'commandPalette.actions.openCurrentRoomMindroomSettingsDescription',
+                  {
+                    room: roomLabel,
+                  }
+                ),
+                keywords: [
+                  'mindroom',
+                  'room settings',
+                  'agent',
+                  'model',
+                  'instructions',
+                  'reply mode',
+                  'thread mode',
+                  'thread titles',
+                ],
+                icon: MindroomIcon,
+              }
+            ),
+          ])
     );
   }
 

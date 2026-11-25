@@ -38,13 +38,14 @@ import {
   SIDE_PANEL_MAX_WIDTH,
 } from '../ui/panels/ResizablePanel';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
+import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
-import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
+import { isThreadColumnKey, noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { useThreadKeys } from './useThreadKeys';
 import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
@@ -70,6 +71,10 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   threadId?: string;
   /** The open thread is a fork draft from this message of it (`ThreadView`). */
   forkAt?: string;
+  /** Validated cross-room fork draft to show in the thread column (`ThreadView`). */
+  crossRoomFork?: { sourceRoom: Room; threadId: string; forkAt: string };
+  /** Back action for an open cross-room fork draft. */
+  onExitCrossRoomFork?: () => void;
   /** The route asks to show `eventId` in the room timeline rather than in its thread. */
   focusEventInRoom?: boolean;
   /** The router's key of the history entry whose address this is. */
@@ -96,22 +101,21 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
  * element marked `data-keeps-typing`: a region that reads keys without a text field (a game, a
  * drawing surface) carries it.
  */
-const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
+const useTypeToCompose = (focusComposer: (evt: KeyboardEvent) => boolean, enabled: boolean) => {
   const handleKey = useCallback(
     (evt: KeyboardEvent) => {
       if (!enabled || evt.defaultPrevented) return;
       if (!isTypingKey(evt) && !isPasteKey(evt)) return;
       // The agent's computer screen takes its own keystrokes.
       if (computerOwnsKeyboardEvent(evt) || editableActiveElement() || focusOwnsTyping()) return;
-      focusComposer();
+      focusComposer(evt);
     },
     [enabled, focusComposer]
   );
   useKeyDown(window, handleKey);
-  useShortcut('focusComposer', () => {
+  useShortcut('focusComposer', (evt) => {
     if (!enabled || focusOwnsTyping()) return false;
-    focusComposer();
-    return true;
+    return focusComposer(evt);
   });
 };
 
@@ -129,6 +133,8 @@ export function RoomView({
   eventId,
   threadId,
   forkAt,
+  crossRoomFork,
+  onExitCrossRoomFork,
   focusEventInRoom,
   entryKey,
   entryPushed,
@@ -158,6 +164,10 @@ export function RoomView({
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
+  const handleExitCrossRoomFork = useCallback(() => {
+    onExitCrossRoomFork?.();
+  }, [onExitCrossRoomFork]);
+  const columnOpen = !!openThreadId || !!crossRoomFork;
   const { handleThreadLoadError } = threadState;
   const threadLoadFailed = useCallback(
     (failedThreadId: string) => {
@@ -167,14 +177,11 @@ export function RoomView({
     [handleThreadLoadError, onThreadLoadError]
   );
   const threadLayout = useThreadLayout(pageRef);
-  // Every open thread shows in the column: beside the room's messages while the person chose that
-  // (or a second thread shows) and the page has room, else filling the page, over the room's
-  // conversation, which goes. A second thread changes no stored layout: closed, it holds again.
-  // A voice message being recorded holds nothing here: it belongs to no composer, and the
-  // thread's composer shows it once the messages' one is gone.
+  // Every open thread (or cross-room fork draft) shows in the column: beside the room's messages
+  // while the person chose that (or a second thread shows) and the page has room, else filling
+  // the page, over the room's conversation, which goes.
   const columnFills =
-    !!openThreadId &&
-    ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
+    columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
@@ -189,12 +196,26 @@ export function RoomView({
   const hidden = useAtomValue(conversationHiddenAtom);
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // Under the column that fills the page, typing goes to the column's composer instead.
+  // Under the column that fills the page, or with focus inside the beside thread column,
+  // typing and Escape go to the column's composer instead.
   const focusColumn = useRef<() => void>(undefined);
-  const focusComposer = useCallback(() => {
-    if (!columnFills) ReactEditor.focus(editor);
-    else focusColumn.current?.();
-  }, [columnFills, editor]);
+  const focusComposer = useCallback(
+    (evt: KeyboardEvent): boolean => {
+      const inColumn =
+        isThreadColumnKey(evt) ||
+        (!!columnRef.current &&
+          columnRef.current.contains(columnRef.current.ownerDocument.activeElement));
+      if (columnFills || inColumn) {
+        if (behindPanel || !focusColumn.current) return false;
+        focusColumn.current();
+        return true;
+      }
+      if (hidden) return false;
+      ReactEditor.focus(editor);
+      return true;
+    },
+    [behindPanel, columnFills, editor, hidden]
+  );
   const focusScheduleComposer = useCallback(
     (targetThreadId?: string) => {
       if (targetThreadId) focusColumn.current?.();
@@ -202,7 +223,7 @@ export function RoomView({
     },
     [editor]
   );
-  useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
+  useTypeToCompose(focusComposer, composerShown && !behindPanel);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
   const focusedThreadId = isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined;
@@ -221,17 +242,17 @@ export function RoomView({
   const unlessCardTakesFocus = useThreadKeys({
     roomId,
     areaRef,
-    openThreadId,
+    openThreadId: openThreadId ?? crossRoomFork?.threadId,
     viewMode,
     onOpenThread: threadState.handleOpenThread,
-    onExitThread: threadState.handleExitThread,
+    onExitThread: crossRoomFork ? handleExitCrossRoomFork : threadState.handleExitThread,
     onFocusComposer: focusConversation,
     onFocusThread: () => focusColumn.current?.(),
   });
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
   // notifications count the room as on screen, as they do while the page shows only the room.
-  useShownConversationView(!!openThreadId && !hidden, ROOM_MESSAGES_VIEW, roomId);
+  useShownConversationView(columnOpen && !hidden, ROOM_MESSAGES_VIEW, roomId);
   // A reply drafted under an unsent root that is deleted goes to the room's composer, as the page's
   // own composer takes it (useUnconfirmedRootSends); the column's composer has saved it as it went.
   const store = useStore();
@@ -275,27 +296,34 @@ export function RoomView({
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const hadColumn = useRef(false);
   useEffect(() => {
-    const closed = hadColumn.current && !openThreadId;
-    hadColumn.current = !!openThreadId;
+    const closed = hadColumn.current && !columnOpen;
+    hadColumn.current = columnOpen;
     if (!closed || phone) return;
     // Not before the card of a thread the keys left had its pass to show: the focus moves once.
     unlessCardTakesFocus(() => {
       const doc = areaRef.current?.ownerDocument;
       if (doc && (!doc.activeElement || doc.activeElement === doc.body)) focusConversation();
     });
-  }, [openThreadId, focusConversation, phone, unlessCardTakesFocus]);
+  }, [columnOpen, focusConversation, phone, unlessCardTakesFocus]);
 
-  // The open thread's banner, with the way to fill the page or to go beside the messages. While a
-  // second thread keeps it beside them, filling the page would not take, so it offers neither.
-  const threadBanner = openThreadId && (
-    <ThreadContextBanner
-      room={room}
-      threadId={openThreadId}
-      summaryInfo={threadState.threadSummaryInfo}
-      onExitThread={threadState.handleExitThread}
-      onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-      onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
+  // The open thread's banner (or read-only cross-room fork draft banner).
+  const threadBanner = crossRoomFork ? (
+    <CrossRoomForkDraftBanner
+      sourceRoom={crossRoomFork.sourceRoom}
+      targetRoom={room}
+      onBack={handleExitCrossRoomFork}
     />
+  ) : (
+    openThreadId && (
+      <ThreadContextBanner
+        room={room}
+        threadId={openThreadId}
+        summaryInfo={threadState.threadSummaryInfo}
+        onExitThread={threadState.handleExitThread}
+        onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
+        onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
+      />
+    )
   );
   const timelineProps: RoomTimelineProps = {
     room,
@@ -322,6 +350,7 @@ export function RoomView({
     onRemoveTag: threadState.handleRemoveTag,
     onClearTags: threadState.handleClearTags,
     onSelectTab: threadState.handleSelectTab,
+    onShowSnoozed: threadState.handleShowSnoozed,
     onSearchQueryChange: threadState.handleSearchQueryChange,
     threadSections: threadState.threadSections,
     onToggleThreadSections: threadState.handleToggleThreadSections,
@@ -333,7 +362,7 @@ export function RoomView({
   };
 
   return (
-    <Page ref={pageRef} style={openThreadId ? PAGE_ROW_STYLE : PAGE_STYLE}>
+    <Page ref={pageRef} style={columnOpen ? PAGE_ROW_STYLE : PAGE_STYLE}>
       <ConversationLayout
         room={room}
         areaRef={areaRef}
@@ -372,7 +401,7 @@ export function RoomView({
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
       </ConversationLayout>
-      {openThreadId && (
+      {columnOpen && (
         <ResizablePanel
           side="end"
           storageKey={THREAD_COLUMN_WIDTH_KEY}
@@ -388,7 +417,7 @@ export function RoomView({
           onKeyDown={noteThreadColumnKey}
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
-            {threadState.threadNotFound ? (
+            {!crossRoomFork && threadState.threadNotFound ? (
               // A thread that is not this room's, nor of any joined room the client knows. Filling
               // the page, the column has the room's header the room area hides.
               <>
@@ -421,13 +450,19 @@ export function RoomView({
             ) : (
               <ThreadView
                 room={room}
-                threadId={openThreadId}
-                eventId={focusEventInRoom ? undefined : eventId}
-                forkAt={forkAt}
+                sourceRoom={crossRoomFork?.sourceRoom}
+                threadId={crossRoomFork ? crossRoomFork.threadId : openThreadId!}
+                eventId={
+                  crossRoomFork ? crossRoomFork.forkAt : focusEventInRoom ? undefined : eventId
+                }
+                forkAt={crossRoomFork ? crossRoomFork.forkAt : forkAt}
+                onExitCrossRoomFork={crossRoomFork ? handleExitCrossRoomFork : undefined}
                 header={threadBanner}
                 // The banner's title follows the summaries the thread's own events bring.
-                summaryMap={timelineProps.summaryMap}
-                onStoreThreadSummary={timelineProps.onStoreThreadSummary}
+                summaryMap={crossRoomFork ? undefined : timelineProps.summaryMap}
+                onStoreThreadSummary={
+                  crossRoomFork ? undefined : timelineProps.onStoreThreadSummary
+                }
                 // Filling the page, the column has the room's header the room area hides.
                 roomHeader={
                   columnFills
@@ -439,7 +474,10 @@ export function RoomView({
                             threadFilterState={threadState.threadFilterState}
                             onFocusComposer={focusScheduleComposer}
                             canEditSchedule={
-                              composerShown && !isConfirmedMatrixEventId(forkAt) && !behindPanel
+                              composerShown &&
+                              !isConfirmedMatrixEventId(forkAt) &&
+                              !crossRoomFork &&
+                              !behindPanel
                             }
                             {...headerProps}
                           />
@@ -453,8 +491,8 @@ export function RoomView({
                 // thread opens, in the effects of the commit that opens it, before this view's reset.
                 autoFocus={!columnFills || focusOpenedThread.current}
                 hidden={behindPanel}
-                onThreadLoadError={threadLoadFailed}
-                onUnmount={onColumnGone}
+                onThreadLoadError={crossRoomFork ? undefined : threadLoadFailed}
+                onUnmount={crossRoomFork ? undefined : onColumnGone}
                 focusRef={focusColumn}
                 // Files dropped anywhere on the column, its header too, go to the thread's composer.
                 fileDropContainerRef={columnRef}

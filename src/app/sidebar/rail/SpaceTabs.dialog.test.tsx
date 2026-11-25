@@ -66,30 +66,37 @@ vi.mock('./SpaceTabs.css', () => ({
 }));
 
 vi.mock('../../ui/sidebar/SidebarItem', () => ({
-  SidebarStack: React.forwardRef<HTMLDivElement, { children?: ReactNode }>(
-    ({ children, ...props }, ref) => (
-      <div ref={ref} {...props}>
-        {children}
-      </div>
-    )
+  SidebarStack: ({
+    children,
+    ref,
+    ...props
+  }: {
+    children?: ReactNode;
+    ref?: React.Ref<HTMLDivElement>;
+  }) => (
+    <div ref={ref} {...props}>
+      {children}
+    </div>
   ),
   SidebarStackSeparator: () => <hr />,
   SidebarItem: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SidebarItemBadge: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SidebarItemTooltip: ({ children }: { children: (ref: () => void) => ReactNode }) =>
     children(() => undefined),
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    Omit<React.HTMLAttributes<HTMLElement>, 'children'> & {
-      as?: 'button' | 'div';
-      size?: string;
-      children?: ReactNode;
-      'data-id'?: string;
-      'data-folder-id'?: string;
-    }
-  >(({ as = 'div', size: _size, children, ...props }, ref) =>
-    React.createElement(as, { ...props, ref }, children)
-  ),
+  SidebarAvatar: ({
+    as = 'div',
+    size: _size,
+    children,
+    ref,
+    ...props
+  }: Omit<React.HTMLAttributes<HTMLElement>, 'children'> & {
+    as?: 'button' | 'div';
+    size?: string;
+    children?: ReactNode;
+    'data-id'?: string;
+    'data-folder-id'?: string;
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement(as, { ...props, ref }, children),
 }));
 
 vi.mock('../../avatars/RoomAvatar', () => ({

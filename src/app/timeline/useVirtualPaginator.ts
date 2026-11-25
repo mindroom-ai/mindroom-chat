@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useIntersectionObserver } from '../lib/hooks/useIntersectionObserver';
-import { readTopInset } from '../ui/styles/threadHeaderInset';
+import { readScrollPadding } from '../ui/styles/threadHeaderInset';
+
+export { readScrollPadding };
 
 /** A window of item indices: `start` inclusive, `end` exclusive. */
 export type ItemRange = {
@@ -93,16 +95,6 @@ const FRONT_ANCHOR = 'F';
 
 const anchorSelector = (direction: string) => `[${PAGINATOR_ANCHOR_ATTRIBUTE}="${direction}"]`;
 
-export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: number } => {
-  if (typeof getComputedStyle !== 'function') return { top: 0, bottom: 0 };
-  const style = getComputedStyle(scrollElement);
-  const toPixels = (value: string | undefined) => {
-    const pixels = Number.parseFloat(value ?? '');
-    return Number.isFinite(pixels) ? pixels : 0;
-  };
-  return { top: readTopInset(scrollElement), bottom: toPixels(style.scrollPaddingBottom) };
-};
-
 /**
  * Pagination that reads ahead keeps a screen of items loaded beyond the scroll area on either side:
  * a sentinel counts as in view up to the scroll area's height beyond its box, so the next page
@@ -161,8 +153,23 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>(undefined);
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
+  const correctionFrameRef = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(correctionFrameRef.current);
+      }
+      correctionFrameRef.current = undefined;
+    },
+    []
+  );
 
   const scrollToElement: ScrollToElement = useCallback((element, opts = {}) => {
+    if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(correctionFrameRef.current);
+    }
+    correctionFrameRef.current = undefined;
     const scrollElement = optionsRef.current.getScrollElement();
     if (!scrollElement) return false;
     const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
@@ -188,12 +195,16 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
     if (behavior !== 'smooth' && typeof requestAnimationFrame === 'function') {
       // Layout can still move the element during the scroll; correct once on the next frame.
-      requestAnimationFrame(() => {
+      let ran = false;
+      const frameId = requestAnimationFrame(() => {
+        ran = true;
+        correctionFrameRef.current = undefined;
         const corrected = element.getBoundingClientRect();
         const error = corrected.top - targetTop(corrected.height);
         if (Math.abs(error) < 1 || atScrollBoundary(scrollElement, error)) return;
         scrollElement.scrollBy({ top: error, behavior });
       });
+      if (!ran) correctionFrameRef.current = frameId;
     }
     return true;
   }, []);

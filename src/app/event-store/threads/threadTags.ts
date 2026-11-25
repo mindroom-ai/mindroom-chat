@@ -140,28 +140,44 @@ export const parseThreadTagsContent = (content: unknown): ThreadTagsContent => {
   return { tags: parsedTags };
 };
 
+type ParsedPerTagStateKey = Readonly<{ threadRootId: string; tagName: string }>;
+
+const PER_TAG_STATE_KEY_CACHE_LIMIT = 4096;
+const parsedPerTagStateKeyCache = new Map<string, ParsedPerTagStateKey | null>();
+
 /**
  * Parse a canonical per-tag state key: `["$threadRootId","tag"]`.
  */
-export const parsePerTagStateKey = (
-  stateKey: string
-): { threadRootId: string; tagName: string } | null => {
-  try {
-    const parsed = JSON.parse(stateKey);
-    if (!Array.isArray(parsed) || parsed.length !== 2) {
-      return null;
-    }
-
-    const threadRootId = normalizeNonEmptyString(parsed[0]);
-    const tagName = normalizePersistedTagName(parsed[1]);
-    if (!threadRootId || !threadRootId.startsWith('$') || !tagName) {
-      return null;
-    }
-
-    return { threadRootId, tagName };
-  } catch {
+export const parsePerTagStateKey = (stateKey: string): ParsedPerTagStateKey | null => {
+  // Legacy keys are plain `$eventId` strings; skip JSON.parse (and SyntaxError) for non-arrays.
+  if (stateKey.trimStart().charCodeAt(0) !== 91) {
     return null;
   }
+
+  const cached = parsedPerTagStateKeyCache.get(stateKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let result: ParsedPerTagStateKey | null = null;
+  try {
+    const parsed: unknown = JSON.parse(stateKey);
+    if (Array.isArray(parsed) && parsed.length === 2) {
+      const threadRootId = normalizeNonEmptyString(parsed[0]);
+      const tagName = normalizePersistedTagName(parsed[1]);
+      if (threadRootId && threadRootId.startsWith('$') && tagName) {
+        result = Object.freeze({ threadRootId, tagName });
+      }
+    }
+  } catch {
+    result = null;
+  }
+
+  if (parsedPerTagStateKeyCache.size >= PER_TAG_STATE_KEY_CACHE_LIMIT) {
+    parsedPerTagStateKeyCache.clear();
+  }
+  parsedPerTagStateKeyCache.set(stateKey, result);
+  return result;
 };
 
 /**

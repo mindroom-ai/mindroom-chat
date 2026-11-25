@@ -78,11 +78,11 @@ export function PanelRow({ children }: { children: ReactNode }) {
   return (
     <Box ref={rowRef} grow="Yes" style={ROW_STYLE} data-panel-row>
       {overlay !== undefined && (
-        <MembersOverlayContext.Provider value={overlay}>
-          <MembersStartClosedContext.Provider value={startClosed ?? false}>
-            <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>
-          </MembersStartClosedContext.Provider>
-        </MembersOverlayContext.Provider>
+        <MembersOverlayContext value={overlay}>
+          <MembersStartClosedContext value={startClosed ?? false}>
+            <RowWidthContext value={rowWidth}>{children}</RowWidthContext>
+          </MembersStartClosedContext>
+        </MembersOverlayContext>
       )}
     </Box>
   );

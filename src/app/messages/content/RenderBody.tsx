@@ -105,13 +105,13 @@ export const RenderBody = memo(function RenderBody({
 
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
   return (
-    <LinkFaviconContext.Provider value={linkFavicons}>
+    <LinkFaviconContext value={linkFavicons}>
       {customContent ??
         renderTextWithLatex(body, {
           linkify: true,
           linkifyOpts,
           highlightRegex,
         })}
-    </LinkFaviconContext.Provider>
+    </LinkFaviconContext>
   );
 });

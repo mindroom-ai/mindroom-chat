@@ -16,13 +16,11 @@ import {
 } from '../navigation/conversationCover';
 
 const {
-  keyHotkeyMock,
   markMainTimelineAsReadMock,
   markRoomAndThreadsAsReadMock,
   markThreadAsReadMock,
   state,
 } = vi.hoisted(() => ({
-  keyHotkeyMock: vi.fn(),
   markMainTimelineAsReadMock: vi.fn(),
   markRoomAndThreadsAsReadMock: vi.fn(),
   markThreadAsReadMock: vi.fn(),
@@ -30,10 +28,6 @@ const {
     handler: undefined as ((evt: KeyboardEvent) => void) | undefined,
     mx: { userId: '@user:server' },
   },
-}));
-
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: keyHotkeyMock,
 }));
 
 vi.mock('../lib/hooks/useKeyDown', () => ({
@@ -51,6 +45,8 @@ vi.mock('../notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: markRoomAndThreadsAsReadMock,
   markThreadAsRead: markThreadAsReadMock,
 }));
+
+const escapeKey = () => ({ key: 'Escape' }) as KeyboardEvent;
 
 const Harness = ({
   hideActivity = false,
@@ -70,7 +66,6 @@ const Harness = ({
 describe('useRoomEscapeReadReceipts', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {});
-    keyHotkeyMock.mockReset();
     markMainTimelineAsReadMock.mockReset();
     markRoomAndThreadsAsReadMock.mockReset();
     markThreadAsReadMock.mockReset();
@@ -86,7 +81,6 @@ describe('useRoomEscapeReadReceipts', () => {
     ["a plugin's cover hides", conversationCoveredAtom],
     ['a side panel takes the place of', conversationBehindPanelAtom],
   ])('marks nothing read while %s the conversation', (_what, atom) => {
-    keyHotkeyMock.mockReturnValue(true);
     // Its own store: other cases' harnesses stay mounted on the default one.
     const store = createStore();
     store.set(atom, true);
@@ -101,7 +95,7 @@ describe('useRoomEscapeReadReceipts', () => {
       );
     });
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.(escapeKey());
     });
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
     expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
@@ -117,7 +111,6 @@ describe('useRoomEscapeReadReceipts', () => {
     ],
     ["marks nothing read under a phone's navigation drawer", [phoneNavDrawerOpenAtom], false],
   ] as const)('while its column shows the thread, %s', (_what, hiding, marks) => {
-    keyHotkeyMock.mockReturnValue(true);
     const store = createStore();
     hiding.forEach((atom) => store.set(atom, true));
     store.set(shownConversationViewsAtom, [
@@ -134,7 +127,7 @@ describe('useRoomEscapeReadReceipts', () => {
       );
     });
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.(escapeKey());
     });
     expect(markThreadAsReadMock).toHaveBeenCalledTimes(marks ? 1 : 0);
     expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
@@ -142,7 +135,6 @@ describe('useRoomEscapeReadReceipts', () => {
   });
 
   it("marks nothing read under a plugin's cover while another thread's view shows", () => {
-    keyHotkeyMock.mockReturnValue(true);
     const store = createStore();
     store.set(conversationCoveredAtom, true);
     store.set(shownConversationViewsAtom, [
@@ -159,7 +151,7 @@ describe('useRoomEscapeReadReceipts', () => {
       );
     });
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.(escapeKey());
     });
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
     act(() => renderer.unmount());
@@ -169,14 +161,13 @@ describe('useRoomEscapeReadReceipts', () => {
     ['the room messages read with the focus outside the column', false],
     ['the thread read with the focus in its column', true],
   ])('beside the room messages, Escape marks %s', (_what, inColumn) => {
-    keyHotkeyMock.mockReturnValue(true);
     const store = createStore();
     store.set(shownConversationViewsAtom, [
       { view: 'room-messages', roomId: '!room:server' },
       { view: 'column', roomId: '!room:server', threadId: '$thread' },
     ]);
     // The key was pressed in the column, which noted it as it passed, or outside it.
-    const evt = {} as KeyboardEvent;
+    const evt = escapeKey();
     if (inColumn) noteThreadColumnKey({ nativeEvent: evt } as React.KeyboardEvent);
     let renderer!: ReturnType<typeof create>;
     act(() => {
@@ -197,7 +188,6 @@ describe('useRoomEscapeReadReceipts', () => {
   });
 
   it('Escape noted in a second thread view marks that thread read', () => {
-    keyHotkeyMock.mockReturnValue(true);
     const store = createStore();
     // The open thread fills the page; the second one shows in a side panel beside it.
     store.set(conversationUnderThreadAtom, true);
@@ -205,7 +195,7 @@ describe('useRoomEscapeReadReceipts', () => {
       { view: 'column', roomId: '!room:server', threadId: '$a' },
       { view: 'panel', roomId: '!room:server', threadId: '$b' },
     ]);
-    const evt = {} as KeyboardEvent;
+    const evt = escapeKey();
     noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
     let renderer!: ReturnType<typeof create>;
     act(() => {
@@ -228,13 +218,12 @@ describe('useRoomEscapeReadReceipts', () => {
   ] as const)(
     'Escape noted in a shown second thread with no open thread %s',
     (_what, hiding, marks) => {
-      keyHotkeyMock.mockReturnValue(true);
       const store = createStore();
       hiding.forEach((atom) => store.set(atom, true));
       store.set(shownConversationViewsAtom, [
         { view: 'panel', roomId: '!room:server', threadId: '$b' },
       ]);
-      const evt = {} as KeyboardEvent;
+      const evt = escapeKey();
       noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
       let renderer!: ReturnType<typeof create>;
       act(() => {
@@ -252,13 +241,12 @@ describe('useRoomEscapeReadReceipts', () => {
   );
 
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
-    keyHotkeyMock.mockReturnValue(true);
     act(() => {
       create(React.createElement(Harness));
     });
 
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.(escapeKey());
     });
 
     expect(markMainTimelineAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', false);
@@ -267,13 +255,12 @@ describe('useRoomEscapeReadReceipts', () => {
   });
 
   it('marks only the active thread read on Escape inside a thread', () => {
-    keyHotkeyMock.mockReturnValue(true);
     act(() => {
       create(React.createElement(Harness, { hideActivity: true, threadId: '$thread' }));
     });
 
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.(escapeKey());
     });
 
     expect(markThreadAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', '$thread', true);
@@ -281,13 +268,12 @@ describe('useRoomEscapeReadReceipts', () => {
   });
 
   it('ignores non-Escape key events', () => {
-    keyHotkeyMock.mockReturnValue(false);
     act(() => {
       create(React.createElement(Harness));
     });
 
     act(() => {
-      state.handler?.({} as KeyboardEvent);
+      state.handler?.({ key: 'a' } as KeyboardEvent);
     });
 
     expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();

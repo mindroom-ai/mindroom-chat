@@ -18,10 +18,20 @@ vi.mock('../ui/page/Page', () => {
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });
 vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
+const dropRef = vi.hoisted(() => ({
+  current: undefined as { current: HTMLElement | null } | undefined,
+}));
 vi.mock('./HomeAsk', () => ({
-  HomeAsk: ({ agents }: { agents: unknown[] }) => (
-    <div data-testid="ask-field" data-agents={agents.length} />
-  ),
+  HomeAsk: ({
+    agents,
+    fileDropContainerRef,
+  }: {
+    agents: unknown[];
+    fileDropContainerRef?: { current: HTMLElement | null };
+  }) => {
+    dropRef.current = fileDropContainerRef;
+    return <div data-testid="ask-field" data-agents={agents.length} />;
+  },
 }));
 vi.mock('./HomeRecentThreads', () => ({ HomeRecentThreads: () => null }));
 vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayName: 'Ada' }) }));
@@ -112,8 +122,12 @@ describe('WelcomePage greeting', () => {
     };
     vi.mocked(useHomeAgents).mockReturnValueOnce([agent]);
     showWelcome({});
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/Ada/);
-    expect(screen.getByTestId('ask-field').dataset.agents).toBe('1');
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading.textContent).toMatch(/Ada/);
+    const askField = screen.getByTestId('ask-field');
+    expect(askField.dataset.agents).toBe('1');
+    expect(dropRef.current?.current?.contains(heading)).toBe(true);
+    expect(dropRef.current?.current?.contains(askField)).toBe(true);
   });
 
   it("keeps the deployment's welcome heading for an account without agents", () => {

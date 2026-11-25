@@ -23,6 +23,10 @@ const longTextMocks = vi.hoisted(() => ({
   getMindroomLongTextSource: vi.fn<typeof getLongTextSource>(() => undefined),
   useMindroomLongTextResolvedContent: vi.fn<typeof useLongTextResolvedContent>(() => undefined),
 }));
+const settingsMocks = vi.hoisted(() => ({
+  developerTools: false,
+  useSetting: vi.fn(() => [settingsMocks.developerTools, vi.fn()]),
+}));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../styles.css', () => ({
@@ -163,8 +167,10 @@ vi.mock('folds', async () => {
     }: {
       children: (triggerRef: React.Ref<unknown>) => React.ReactNode;
     }) => createElement(reactModule.Fragment, null, children(null)),
-    as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
-      reactModule.forwardRef(render),
+    as:
+      (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+      ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+        render(props, ref ?? null),
     color: {
       Critical: { Main: '#f00' },
       Success: { Main: '#0a0' },
@@ -198,41 +204,38 @@ vi.mock('../layout/layout', () => ({
   }) => React.createElement('div', null, before, header, children),
   CompactLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
-  MessageBase: React.forwardRef(
-    (
-      {
-        children,
-        ...props
-      }: {
-        children?: React.ReactNode;
-        [key: string]: unknown;
-      },
-      ref: React.Ref<HostNodeMock>
-    ) => {
-      const nodeRef = React.useRef<HostNodeMock>({
-        focus: vi.fn(),
-        getBoundingClientRect: () => ({
-          x: 10,
-          y: 20,
-          width: 30,
-          height: 40,
-        }),
-        props: {},
-        type: 'div',
-      });
+  MessageBase: ({
+    children,
+    ref,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    ref?: React.Ref<HostNodeMock>;
+    [key: string]: unknown;
+  }) => {
+    const nodeRef = React.useRef<HostNodeMock>({
+      focus: vi.fn(),
+      getBoundingClientRect: () => ({
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 40,
+      }),
+      props: {},
+      type: 'div',
+    });
 
-      nodeRef.current.props = props;
-      lastMessageBaseNode = nodeRef.current;
+    nodeRef.current.props = props;
+    lastMessageBaseNode = nodeRef.current;
 
-      if (typeof ref === 'function') {
-        ref(nodeRef.current);
-      } else if (ref) {
-        ref.current = nodeRef.current;
-      }
-
-      return React.createElement('div', props, children);
+    if (typeof ref === 'function') {
+      ref(nodeRef.current);
+    } else if (ref) {
+      ref.current = nodeRef.current;
     }
-  ),
+
+    return React.createElement('div', props, children);
+  },
   ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
   Username: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
@@ -377,6 +380,10 @@ vi.mock('../../preferences/settings', () => ({
     Bubble: 'Bubble',
     Modern: 'Modern',
   },
+  settingsAtom: {},
+}));
+vi.mock('../../preferences/useSetting', () => ({
+  useSetting: settingsMocks.useSetting,
 }));
 
 const getMessageComponent = async () => (await import('../Message')).Message;
@@ -386,6 +393,7 @@ let messageSender = '@alice:example.org';
 beforeEach(() => {
   lastMessageBaseNode = undefined;
   messageSender = '@alice:example.org';
+  settingsMocks.developerTools = false;
   vi.clearAllMocks();
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
@@ -701,6 +709,7 @@ describe('Message Fork from here', () => {
   const renderForkable = async (eventId: string) => {
     const Message = await getMessageComponent();
     const onForkClick = vi.fn();
+    const onForkToRoomClick = vi.fn();
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
@@ -715,31 +724,40 @@ describe('Message Fork from here', () => {
             messageSpacing: '400',
             onReplyClick: vi.fn(),
             onForkClick,
+            onForkToRoomClick,
           },
           React.createElement('div', null, 'message body')
         )
       );
     });
     await openContextMenu(renderer);
-    return { renderer, onForkClick };
+    return { renderer, onForkClick, onForkToRoomClick };
   };
 
-  it('comes right after Reply in Thread and forks at this message', async () => {
-    const { renderer, onForkClick } = await renderForkable('$event');
+  it('comes right after Reply in Thread, followed by Fork to room…, and forks at this message', async () => {
+    const { renderer, onForkClick, onForkToRoomClick } = await renderForkable('$event');
 
     const texts = buttonTexts(renderer);
     expect(texts.indexOf('Reply in Thread')).toBeGreaterThan(-1);
     expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Reply in Thread') + 1);
+    expect(texts.indexOf('Fork to room…')).toBe(texts.indexOf('Fork from here') + 1);
     await act(async () => {
       getButtonByText(renderer, 'Fork from here')?.props.onClick();
     });
     expect(onForkClick).toHaveBeenCalledWith('$event');
+
+    await openContextMenu(renderer);
+    await act(async () => {
+      getButtonByText(renderer, 'Fork to room…')?.props.onClick();
+    });
+    expect(onForkToRoomClick).toHaveBeenCalledWith('$event');
   });
 
   it('is not offered for a message the server has not confirmed', async () => {
     const { renderer } = await renderForkable('~!room:example.org:txn-1');
 
     expect(getButtonByText(renderer, 'Fork from here')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Fork to room…')).toBeUndefined();
   });
 });
 
@@ -952,6 +970,41 @@ describe('Message copy text overflow integration', () => {
     });
 
     expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Resolved overflow body');
+  });
+
+  it('gates Download Original and View Source behind developerTools without hiding Copy Text', async () => {
+    const longTextContent = {
+      msgtype: 'm.file',
+      body: 'Long text overflow…',
+      url: 'mxc://mindroom/overflow',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    longTextMocks.getMindroomLongTextSource.mockReturnValue({
+      previewContent: longTextContent,
+      mxcUri: 'mxc://mindroom/overflow',
+      isV2ContentJson: true,
+    });
+    longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue({
+      msgtype: 'm.text',
+      body: 'Full long-text reply',
+    });
+
+    const { renderer: hidden } = await renderMessage(longTextContent);
+    expect(settingsMocks.useSetting).not.toHaveBeenCalled();
+    await openContextMenu(hidden);
+    expect(getButtonByText(hidden, 'Copy Text')).toBeDefined();
+    expect(getButtonByText(hidden, 'Download Original')).toBeUndefined();
+    expect(getButtonByText(hidden, 'View Source')).toBeUndefined();
+
+    settingsMocks.developerTools = true;
+    const { renderer: shown } = await renderMessage(longTextContent);
+    await openContextMenu(shown);
+    expect(getButtonByText(shown, 'Download Original')).toBeDefined();
+    expect(getButtonByText(shown, 'View Source')).toBeDefined();
+    const texts = buttonTexts(shown);
+    expect(texts.indexOf('Download Original')).toBe(texts.indexOf('Read Receipts') + 1);
+    expect(texts.indexOf('View Source')).toBe(texts.indexOf('Download Original') + 1);
+    expect(texts.indexOf('Report a bug')).toBe(texts.indexOf('View Source') + 1);
   });
 });
 

@@ -46,6 +46,8 @@ type RoomListDrag = {
   dragged?: string;
   /** The row a dragged room would land next to, and on which side. */
   hint?: { roomId: string; at: DropAt };
+  /** Whether same-list drag/keyboard reordering is disabled (e.g. Recent activity sort). */
+  reorderDisabled?: boolean;
   /** Moves a room one place up (-1) or down (1). */
   moveBy: (roomId: string, step: -1 | 1) => void;
 };
@@ -185,7 +187,11 @@ const isPointerWithinVisibleBounds = (
   );
 };
 
-type GroupListEntry = { roomIds: readonly string[]; onReorder: (order: string[]) => void };
+type GroupListEntry = {
+  roomIds: readonly string[];
+  onReorder: (order: string[]) => void;
+  reorderDisabled: boolean;
+};
 
 type RoomGroupDrag = {
   dragged?: { listId: string; roomId: string };
@@ -194,7 +200,8 @@ type RoomGroupDrag = {
   registerList: (
     listId: string,
     roomIds: readonly string[],
-    onReorder: (order: string[]) => void
+    onReorder: (order: string[]) => void,
+    reorderDisabled?: boolean
   ) => () => void;
 };
 
@@ -226,13 +233,16 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
     useSensor(RowTouchSensor)
   );
 
-  const registerList = useCallback<RoomGroupDrag['registerList']>((listId, roomIds, onReorder) => {
-    const entry: GroupListEntry = { roomIds, onReorder };
-    listsRef.current.set(listId, entry);
-    return () => {
-      if (listsRef.current.get(listId) === entry) listsRef.current.delete(listId);
-    };
-  }, []);
+  const registerList = useCallback<RoomGroupDrag['registerList']>(
+    (listId, roomIds, onReorder, reorderDisabled = false) => {
+      const entry: GroupListEntry = { roomIds, onReorder, reorderDisabled };
+      listsRef.current.set(listId, entry);
+      return () => {
+        if (listsRef.current.get(listId) === entry) listsRef.current.delete(listId);
+      };
+    },
+    []
+  );
 
   const canMoveTo = (sourceId: string, targetId: string, roomId: string) =>
     targetId !== sourceId && Boolean(canMoveRoom?.(sourceId, targetId, roomId));
@@ -240,13 +250,18 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
   const collisionDetection: CollisionDetection = (args) => {
     const activeRoom = parseRoomSortableId(`${args.active.id}`);
     if (!activeRoom) return [];
+    const reorderDisabled = Boolean(
+      listsRef.current.get(activeRoom.parentSpaceId)?.reorderDisabled
+    );
     const sourceRows = () =>
       args.droppableContainers.filter(
         (c) => parseRoomSortableId(`${c.id}`)?.parentSpaceId === activeRoom.parentSpaceId
       );
 
     const sections = args.droppableContainers.filter((c) => isSectionData(c.data.current));
-    if (sections.length === 0) return closestCenter({ ...args, droppableContainers: sourceRows() });
+    if (sections.length === 0) {
+      return reorderDisabled ? [] : closestCenter({ ...args, droppableContainers: sourceRows() });
+    }
     const pointer = args.pointerCoordinates;
     if (!pointer) return [];
 
@@ -259,7 +274,7 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
     const targetSpaceId = sectionSpaceIdOf(hitSection.id, hitContainer?.data.current);
     if (!targetSpaceId) return [];
     if (targetSpaceId === activeRoom.parentSpaceId) {
-      return closestCenter({ ...args, droppableContainers: sourceRows() });
+      return reorderDisabled ? [] : closestCenter({ ...args, droppableContainers: sourceRows() });
     }
     return canMoveTo(activeRoom.parentSpaceId, targetSpaceId, activeRoom.roomId)
       ? [hitSection]
@@ -295,7 +310,7 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
     const to = parseRoomSortableId(`${over.id}`);
     const list = listsRef.current.get(from.parentSpaceId);
     const at =
-      to && list && to.parentSpaceId === from.parentSpaceId
+      to && list && !list.reorderDisabled && to.parentSpaceId === from.parentSpaceId
         ? dropAt(list.roomIds, from.roomId, to.roomId)
         : undefined;
     setHint(to && at ? { listId: from.parentSpaceId, roomId: to.roomId, at } : undefined);
@@ -316,8 +331,8 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
       to?.parentSpaceId === from.parentSpaceId
         ? listsRef.current.get(from.parentSpaceId)
         : undefined;
-    const toIndex = to && list ? list.roomIds.indexOf(to.roomId) : -1;
-    if (list && toIndex >= 0 && list.roomIds[toIndex] !== from.roomId) {
+    const toIndex = to && list && !list.reorderDisabled ? list.roomIds.indexOf(to.roomId) : -1;
+    if (list && !list.reorderDisabled && toIndex >= 0 && list.roomIds[toIndex] !== from.roomId) {
       list.onReorder(moveRoom(list.roomIds, from.roomId, toIndex));
     }
   };
@@ -342,7 +357,7 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
       onDragCancel={endDrag}
       accessibility={{ announcements: silentAnnouncements }}
     >
-      <RoomGroupDragContext.Provider value={group}>{children}</RoomGroupDragContext.Provider>
+      <RoomGroupDragContext value={group}>{children}</RoomGroupDragContext>
     </DndContext>
   );
 }
@@ -373,23 +388,33 @@ type SortableRoomListProps = {
   roomIds: string[];
   /** Called with the list's new order after a drop or a keyboard move. */
   onReorder: (order: string[]) => void;
+  /** Suppresses same-list drop hints, drop reorder, and keyboard reorder while keeping cross-section drag. */
+  reorderDisabled?: boolean;
   children: ReactNode;
 };
 
-function SortableRoomListInner({ listId, roomIds, onReorder, children }: SortableRoomListProps) {
+function SortableRoomListInner({
+  listId,
+  roomIds,
+  onReorder,
+  reorderDisabled = false,
+  children,
+}: SortableRoomListProps) {
   const group = useContext(RoomGroupDragContext);
   if (!group) throw new Error('SortableRoomListInner must be inside a SortableRoomGroup');
   const { registerList } = group;
   useEffect(
-    () => registerList(listId, roomIds, onReorder),
-    [registerList, listId, roomIds, onReorder]
+    () => registerList(listId, roomIds, onReorder, reorderDisabled),
+    [registerList, listId, roomIds, onReorder, reorderDisabled]
   );
 
   const drag: RoomListDrag = {
     listId,
     dragged: group.dragged?.listId === listId ? group.dragged.roomId : undefined,
     hint: group.hint?.listId === listId ? group.hint : undefined,
+    reorderDisabled,
     moveBy: (roomId, step) => {
+      if (reorderDisabled) return;
       const toIndex = roomIds.indexOf(roomId) + step;
       if (toIndex < 0 || toIndex >= roomIds.length || roomIds[toIndex] === roomId) return;
       onReorder(moveRoom(roomIds, roomId, toIndex));
@@ -401,7 +426,7 @@ function SortableRoomListInner({ listId, roomIds, onReorder, children }: Sortabl
       items={roomIds.map((roomId) => makeRoomSortableId(listId, roomId))}
       strategy={keepInPlace}
     >
-      <RoomListDragContext.Provider value={drag}>{children}</RoomListDragContext.Provider>
+      <RoomListDragContext value={drag}>{children}</RoomListDragContext>
     </SortableContext>
   );
 }
@@ -432,6 +457,7 @@ export function SortableRoomRow(props: SortableRoomRowProps) {
   const at = drag.hint?.roomId === roomId ? drag.hint.at : undefined;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (drag.reorderDisabled) return;
     const step = moveStep(event.nativeEvent);
     // Keys typed in the row's menu or dialogs (portals that pass their events through) move nothing.
     if (!step || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) {

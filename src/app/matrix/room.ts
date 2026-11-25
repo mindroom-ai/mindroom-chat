@@ -16,7 +16,11 @@ import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { Membership, MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getMxIdLocalPart } from './matrix';
-import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
+import {
+  getSerializedReplacementEventId,
+  getShallowSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from './editEvent';
 import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
@@ -29,11 +33,25 @@ import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimeli
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
 import { isUnreadableYet } from './decryptionWaits';
 import { getSyncedEdit } from './client/syncedEdits';
+import { getPowersLevelFromMatrixEvent } from './hooks/usePowerLevels';
+import { getRoomCreators } from './hooks/useRoomCreators';
+import { getRoomPermissionsAPI } from './hooks/useRoomPermissions';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
-  const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-  return state?.getStateEvents(type, stateKey) ?? undefined;
+  const state = room.getLiveTimeline?.()?.getState?.(EventTimeline.FORWARDS);
+  return state?.getStateEvents?.(type, stateKey) ?? undefined;
+};
+
+/** Whether `userId` may send `m.room.message` events in a non-tombstoned `room`. */
+export const canSendMessageInRoom = (room: Room, userId: string): boolean => {
+  if (getStateEvent(room, StateEvent.RoomTombstone)) return false;
+  const create = getStateEvent(room, StateEvent.RoomCreate);
+  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
+  return getRoomPermissionsAPI(create ? getRoomCreators(create) : new Set(), levels).event(
+    'm.room.message',
+    userId
+  );
 };
 
 /** The account data event of `eventType`, if the client has it. */
@@ -454,27 +472,6 @@ const getRelationEdits = (
   );
 };
 
-/**
- * The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one and
- * the newest one the sync brought.
- */
-const getEditCandidates = (
-  eventId: string,
-  mEvent: MatrixEvent,
-  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
-  serializedReplacementCandidate?: MatrixEvent
-): MatrixEvent[] =>
-  [
-    getAppliedEdit(mEvent) ?? undefined,
-    ...getRelationEdits(eventId, mEvent, timelineSet),
-    serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
-    // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
-    getSyncedEdit(eventId),
-  ].filter(
-    (candidate): candidate is MatrixEvent =>
-      isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
-  );
-
 // Optional call: thread tests pass edit stand-ins without decryption state.
 const isUndecryptable = (edit: MatrixEvent): boolean => !!edit.isDecryptionFailure?.();
 
@@ -486,6 +483,54 @@ const isUnreadableEdit = (edit: MatrixEvent): boolean =>
 /** Whether `getEditedEvent` can show `edit` once it is not redacted: it decrypted and replaces. */
 const isReadableEdit = (edit: MatrixEvent): boolean =>
   !isUnreadableEdit(edit) && isUsableEdit(edit);
+
+/**
+ * The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one and
+ * the newest one the sync brought.
+ */
+const getEditCandidates = (
+  eventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
+  serializedReplacementCandidate?: MatrixEvent
+): MatrixEvent[] => {
+  const candidates: MatrixEvent[] = [];
+  const addCandidate = (candidate: MatrixEvent | undefined | null) => {
+    if (candidate && isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()) {
+      candidates.push(candidate);
+    }
+  };
+  addCandidate(getAppliedEdit(mEvent));
+  for (const edit of getRelationEdits(eventId, mEvent, timelineSet)) {
+    addCandidate(edit);
+  }
+  // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
+  addCandidate(getSyncedEdit(eventId));
+  if (serializedReplacementCandidate) {
+    addCandidate(serializedReplacementCandidate);
+  } else {
+    // Skip allocating a bundled MatrixEvent when existing candidates already hold a readable copy
+    // of the exact same event ID and no other readable edit ID could borrow metadata from it.
+    const bundledId = getSerializedReplacementEventId(mEvent);
+    if (bundledId !== undefined) {
+      let hasReadableSameId = false;
+      let hasReadableDifferentId = false;
+      for (const candidate of candidates) {
+        if (!isReadableEdit(candidate)) continue;
+        if (candidate.getId() === bundledId) {
+          hasReadableSameId = true;
+        } else {
+          hasReadableDifferentId = true;
+          break;
+        }
+      }
+      if (!hasReadableSameId || hasReadableDifferentId) {
+        addCandidate(getShallowSerializedReplacementEvent(mEvent));
+      }
+    }
+  }
+  return candidates;
+};
 
 /**
  * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's

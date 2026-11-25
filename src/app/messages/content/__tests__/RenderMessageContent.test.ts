@@ -19,8 +19,10 @@ vi.mock('folds', () => ({
   },
   Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement('span', props, children),
-  as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
-    React.forwardRef(render),
+  as:
+    (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+    ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+      render(props, ref ?? null),
   color: {
     Critical: { Main: '#f00' },
   },

@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode, createContext, useContext } from 'react';
+import { ComponentPropsWithRef, ReactNode, createContext, useContext } from 'react';
 import classNames from 'classnames';
 import { Link } from 'react-router-dom';
 import { Box, as } from 'folds';
@@ -41,7 +41,7 @@ export const NavItem = as<'div', NavItemProps>(
     const selected = ariaSelected === true || ariaSelected === 'true';
     const keepsAriaSelected = SELECTABLE_ROLES.has(props.role ?? '');
     return (
-      <NavItemSelectedContext.Provider value={selected}>
+      <NavItemSelectedContext value={selected}>
         <AsNavItem
           className={classNames(css.NavItem({ variant, radii, highlight }), className)}
           data-highlight={highlight ? 'true' : 'false'}
@@ -50,7 +50,7 @@ export const NavItem = as<'div', NavItemProps>(
           {...props}
           ref={ref}
         />
-      </NavItemSelectedContext.Provider>
+      </NavItemSelectedContext>
     );
   }
 );
@@ -68,13 +68,10 @@ export const NavButton = as<'button'>(({ as: AsButton = 'button', className, ...
   );
 });
 
-type NavLinkProps = ComponentProps<typeof Link>;
+type NavLinkProps = ComponentPropsWithRef<typeof Link>;
 
 /** The row's main action as a router link; the open row's link is the current page. */
-export const NavLink = React.forwardRef<HTMLAnchorElement, NavLinkProps>(function NavLink(
-  { className, ...linkProps },
-  ref
-) {
+export function NavLink({ className, ref, ...linkProps }: NavLinkProps) {
   const selected = useContext(NavItemSelectedContext);
   return (
     <Link
@@ -84,7 +81,7 @@ export const NavLink = React.forwardRef<HTMLAnchorElement, NavLinkProps>(functio
       className={classNames(css.NavAction, className)}
     />
   );
-});
+}
 
 /** Icon and label inside a row's action. */
 export const NavItemContent = as<'div'>(({ as: AsContent = 'div', className, ...props }, ref) => (

@@ -350,15 +350,15 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       {activePage !== undefined && (
         // `display: contents` keeps the page in the dialog's row; search looks for settings here.
         <div ref={pageRef} style={{ display: 'contents' }}>
-          <SettingsBreadcrumbRoot.Provider value={dialogTitle}>
-            <SettingsTargetContext.Provider value={target}>
+          <SettingsBreadcrumbRoot value={dialogTitle}>
+            <SettingsTargetContext value={target}>
               <SettingsPageContent
                 page={activePage}
                 requestClose={handlePageRequestClose}
                 closeDialog={requestClose}
               />
-            </SettingsTargetContext.Provider>
-          </SettingsBreadcrumbRoot.Provider>
+            </SettingsTargetContext>
+          </SettingsBreadcrumbRoot>
         </div>
       )}
     </PageRoot>

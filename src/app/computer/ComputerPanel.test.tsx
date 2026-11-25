@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { act, forwardRef, lazy, useEffect, useImperativeHandle } from 'react';
+import React, { act, lazy, useEffect, useImperativeHandle } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,12 +30,8 @@ vi.mock('folds', () => ({
     </button>
   ),
   Icon: () => <span />,
-  IconButton: React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
-    ({ children, ...props }, ref) => (
-      <button {...props} ref={ref}>
-        {children}
-      </button>
-    )
+  IconButton: ({ children, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button {...props}>{children}</button>
   ),
   Icons: { Cross: 'Cross', Monitor: 'Monitor' },
   Spinner: () => <span />,
@@ -137,7 +133,7 @@ const screenHandle = {
   openKeyboard: vi.fn(),
   closeKeyboard: vi.fn(),
 };
-const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screenProps, ref) => {
+function TestScreen({ ref, ...screenProps }: ComputerScreenProps) {
   const screenPropsRef = React.useRef(screenProps);
   screenPropsRef.current = screenProps;
   const { mode, url } = screenProps;
@@ -156,7 +152,7 @@ const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screen
     return () => screenDisposals();
   }, [url]);
   return <div data-testid="computer-screen" data-mode={mode} />;
-});
+}
 
 const makeMatrixClient = (userId = '@alice:example.org') =>
   ({
@@ -698,9 +694,7 @@ describe('ComputerPanel', () => {
     });
     // Loaded lazily, as the panel's default screen is, so the ref goes through React.lazy.
     const RealScreen = lazy(async () => ({
-      default: forwardRef<ComputerScreenHandle, ComputerScreenProps>((props, ref) => (
-        <ComputerScreen {...props} ref={ref} createRfb={createRfb} />
-      )),
+      default: (props: ComputerScreenProps) => <ComputerScreen {...props} createRfb={createRfb} />,
     }));
     const textarea = () =>
       container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Type on the computer"]');

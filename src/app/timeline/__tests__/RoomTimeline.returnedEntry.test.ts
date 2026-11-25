@@ -20,7 +20,12 @@ const opener = vi.hoisted(() => ({ open: undefined as OpenRoomEventHandler | und
 vi.mock('../useRoomTimelineMinimap', () => ({
   useRoomTimelineMinimap: ({ handleOpenEvent }: { handleOpenEvent: OpenRoomEventHandler }) => {
     opener.open = handleOpenEvent;
-    return { minimapStripMap: new Map(), minimapItems: [], handleMinimapSelect: () => undefined };
+    return {
+      minimapStripMap: new Map(),
+      minimapItems: [],
+      handleMinimapSelect: () => undefined,
+      handleMinimapScrub: () => undefined,
+    };
   },
 }));
 

@@ -433,7 +433,9 @@
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır.",
         "usage": "Kullanımı kenar çubuğunda göster",
-        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın."
+        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın.",
+        "help": "Yardım ve rehberleri kenar çubuğunda göster",
+        "helpDescription": "Hızlı rehberler, tur ve klavye kısayolları. Gizlendiğinde, turu Ayarlar'da Hakkında altından veya komut paletinden ({{shortcut}}), kısayolları ise {{helpShortcut}} ile açın."
       },
       "plugins": {
         "title": "Eklentiler",
@@ -707,11 +709,27 @@
       "manage": "Yönet"
     },
     "roomOrder": {
-      "sortByName": "Odaları A'dan Z'ye sırala"
+      "sortRooms": "Odaları sırala",
+      "sortHeading": "Odaları sırala",
+      "displayHeading": "Görünüm",
+      "recentActivity": "Son etkinlik",
+      "aToZ": "A’dan Z’ye",
+      "customOrder": "Özel sıra",
+      "saved": "Kayıtlı",
+      "showActivityTimes": "Etkinlik saatlerini göster",
+      "matchSpace": "Alanla eşleştir ({{mode}})",
+      "shortRecent": "Son",
+      "shortName": "A–Z",
+      "shortManual": "Özel"
     },
     "roomActions": {
       "noInvitePermission": "Davet etme izniniz yok",
-      "searchEncrypted": "Şifreli odalarda kullanılamaz"
+      "searchEncrypted": "Şifreli odalarda kullanılamaz",
+      "viewSection": "Görünüm",
+      "roomSection": "Oda",
+      "preferencesSection": "Tercihler",
+      "notificationModeAll": "Tümü",
+      "notificationModeMentions": "Bahsetmeler"
     },
     "phoneNav": {
       "navigation": "Gezinme"
@@ -1345,7 +1363,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Kompakt görünüm",
-        "threadFiltersActive": "Konu filtreleri (etkin)"
+        "threadFiltersActive": "Konu filtreleri (etkin)",
+        "mindroomSettings": "MindRoom ayarları"
       },
       "roomThreadOverview": {
         "advancedFilters": "Gelişmiş filtreler",
@@ -1378,6 +1397,25 @@
         "expandAllLong": "Tüm uzun mesajları genişlet",
         "collapseAllLong": "Tüm uzun mesajları daralt",
         "showFullMessage": "Mesajın tamamını göster"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Her şey tamam",
+        "resolvedCount_one": "{{count}} çözüldü",
+        "resolvedCount_other": "{{count}} çözüldü",
+        "snoozedCount_one": "{{count}} ertelendi",
+        "snoozedCount_other": "{{count}} ertelendi",
+        "showAll": "Tümünü göster",
+        "startNewThreadBelow": "Aşağıda yeni bir konu başlatın",
+        "recentlyResolved": "Yakın zamanda çözülenler",
+        "noMatchHeading": "Filtrelerinizle eşleşen konu yok",
+        "hiddenByForMe_one": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByForMe_other": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByFilters_one": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "hiddenByFilters_other": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "adjustOrResetFilters": "Bu odadaki konuları görmek için filtrelerinizi düzenleyin veya sıfırlayın.",
+        "turnOffForMe": "«Benim için» filtresini kapat",
+        "resetAll": "Tümünü sıfırla",
+        "resetFilters": "Filtreleri sıfırla"
       }
     },
     "computer": {
@@ -1406,7 +1444,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
+      "awaitingAnswer": "Yanıtınız bekleniyor: {{tool}}",
       "jobCountFinished": "{{count}} arka plan işi tamamlandı",
+      "groupWorkflows": "İş akışları · {{number}}",
       "groupSubagents": "Alt ajanlar · {{number}}",
       "groupTools": "Araçlar · {{number}}",
       "tools_one": "{{count}} araç",
@@ -1451,6 +1491,95 @@
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
       "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
+    },
+    "workflowRun": {
+      "title": "İş akışı",
+      "status": {
+        "starting": "Başlatılıyor",
+        "running": "Çalışıyor",
+        "waiting": "Sizi bekliyor",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız",
+        "cancelled": "İptal edildi",
+        "interrupted": "Kesintiye uğradı"
+      },
+      "counts": "{{done}} tamamlandı, {{running}} çalışıyor, {{waiting}} bekliyor",
+      "reused": "Yeniden kullanılan: {{count}}",
+      "cost": "Şimdiye kadar {{spent}}, toplamda yaklaşık {{projected}}",
+      "costAtLeast": "şimdiye kadar en az {{spent}}",
+      "largeRun": "Büyük çalıştırma",
+      "attempt": "Deneme {{number}}",
+      "stop": "Durdur",
+      "stopping": "Durduruluyor…",
+      "resume": "Devam et",
+      "runAgain": "Tekrar çalıştır",
+      "starting": "Başlatılıyor…",
+      "failedCount_one": "{{count}} başarısız",
+      "failedCount_other": "{{count}} başarısız",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Zaten yanıtlandı.",
+          "noLongerOpen": "Bu soru artık açık değil.",
+          "notAnOption": "Bu seçeneklerden biri değil.",
+          "notForYou": "Yalnızca çalıştırmayı başlatan kişi yanıtlayabilir."
+        },
+        "noReply": "Henüz yanıt yok. Tekrar deneyin.",
+        "placeholder": "Yanıtınızı yazın",
+        "send": "Gönder",
+        "answered": "Yanıtlandı: {{answer}}",
+        "cancelled": "İptal edildi",
+        "onlyRequester": "Yalnızca {{name}} yanıtlayabilir."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Kapat",
+        "resize": "İş akışı panelini yeniden boyutlandır",
+        "hide": "İş akışını gizle",
+        "waitingForUpdate": "Çalıştırmanın sonraki güncellemesi bekleniyor…",
+        "stale": "Güncellenmiyor. Son güncelleme {{time}}.",
+        "log": "Günlük",
+        "showMore": "{{count}} tane daha göster",
+        "omitted": {
+          "queued_one": "ve sırada {{count}} tane daha",
+          "queued_other": "ve sırada {{count}} tane daha",
+          "running_one": "ve çalışan {{count}} tane daha",
+          "running_other": "ve çalışan {{count}} tane daha",
+          "waiting_one": "ve bekleyen {{count}} tane daha",
+          "waiting_other": "ve bekleyen {{count}} tane daha",
+          "failed_one": "ve başarısız {{count}} tane daha",
+          "failed_other": "ve başarısız {{count}} tane daha",
+          "done_one": "ve tamamlanan {{count}} tane daha",
+          "done_other": "ve tamamlanan {{count}} tane daha"
+        },
+        "askAgent": "Kalanı için {{agent}} ajanına sorun."
+      },
+      "group": {
+        "foreach": "Her biri için",
+        "parallel": "Paralel",
+        "run": "Kayıtlı iş akışı",
+        "workflow": "İç içe iş akışı",
+        "progress": "{{done}} / {{total}}",
+        "failed": "Başarısız: {{count}}"
+      },
+      "node": {
+        "reused": "Son çalıştırmadan yeniden kullanıldı",
+        "queued": "Sırada",
+        "mayHaveRun": "Çalışmış olabilir",
+        "waitingOn": {
+          "user": "Yanıtınız bekleniyor",
+          "approval": "Onay bekleniyor",
+          "peer": "Mesaj bekleniyor"
+        },
+        "sessionTurns_one": "{{count}} tur",
+        "sessionTurns_other": "{{count}} tur",
+        "result": "Sonuç",
+        "error": "Hata",
+        "messages": "Mesajlar",
+        "messagesTo": "{{name}} için mesajlar: {{count}}",
+        "open": "Aç",
+        "detailsUnavailable": "Yeniden yüklemeden sonra ayrıntılar artık kullanılamıyor.",
+        "stop": "Ajanı durdur"
+      }
     },
     "subagents": {
       "title": "Alt ajanlar",
@@ -1694,7 +1823,9 @@
     },
     "actions": {
       "goActivity": "Etkinliğe git",
-      "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler"
+      "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler",
+      "openCurrentRoomMindroomSettings": "MindRoom oda ayarlarını aç",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} için MindRoom ayarlarını aç"
     },
     "recentVisits": {
       "recentlyOpened": "Son açılanlar",
@@ -1768,6 +1899,7 @@
       "needsYou": "Sizi bekliyor",
       "working": "Çalışıyor",
       "later": "Sonra",
+      "quiet": "Sakin",
       "done": "Tamamlandı",
       "all": "Tümü",
       "description": {
@@ -1804,7 +1936,17 @@
     "forking": "{{title}} konusundan ayrılıyor",
     "continueInNewThread": "Yeni bir konuda devam et",
     "forkCount_one": "{{count}} ayrım",
-    "forkCount_other": "{{count}} ayrım"
+    "forkCount_other": "{{count}} ayrım",
+    "forkedFromInRoom": "{{room}} odasındaki {{title}} konusundan ayrıldı",
+    "forkedFromAnotherRoom": "Başka bir odadan ayrıldı",
+    "forkingIntoRoom": "{{title}} konusu {{room}} odasına ayrılıyor",
+    "forkToRoom": "Odaya ayır…",
+    "forkToRoomTitle": "Odaya ayır",
+    "forkToRoomSearchPlaceholder": "Odaları ara…",
+    "forkToRoomEmpty": "Eşleşen oda yok",
+    "forkToRoomAgentWarning": "Bu odadaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
+    "forkingFromRoom": "{{room}} odasından ayrılıyor",
+    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez"
   },
   "activity": {
     "title": "Etkinlik",
@@ -1838,8 +1980,7 @@
       "replyAndOthers_one": "{{name}} ve {{count}} kişi daha yanıtladı",
       "replyAndOthers_other": "{{name}} ve {{count}} kişi daha yanıtladı",
       "finished": "{{name}} işini tamamladı",
-      "stopped": "{{name}} durdu",
-      "youReplied": "Yanıtladınız"
+      "stopped": "{{name}} durdu"
     },
     "newCount_one": "{{count}} yeni",
     "newCount_other": "{{count}} yeni",
@@ -2104,6 +2245,42 @@
       "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
+    },
+    "help": {
+      "button": "Yardım ve rehberler",
+      "buttonWithTip": "Yardım ve rehberler (1 ipucu)",
+      "title": "Yardım ve rehberler",
+      "subtitle": "Hızlı rehberler",
+      "oneTip": "1 ipucu",
+      "suggested": "Sizin için önerilen",
+      "showHow": "Nasıl yapıldığını gör",
+      "dismissTip": "İpucunu kapat",
+      "guidesHeading": "Arayüz rehberleri",
+      "guides": {
+        "conversation": "Konular nasıl çalışır",
+        "resolve": "Bitenleri çözüldü işaretle",
+        "filters": "Çözülen konuları bul",
+        "snooze": "Sonraya ertele",
+        "pinAndTag": "Konuları sabitle ve etiketle",
+        "views": "Kompakt ve Konular görünümü",
+        "activity": "Etkinlik ve onaylar"
+      },
+      "fullTour": "Tam tur",
+      "shortcuts": "Kısayollar"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Biten konuları çözüldü işaretleyin",
+        "cardTitle": "Biten konuları çözüldü işaretleyin",
+        "roomSummary_one": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "roomSummary_other": "Burada {{count}} açık konu var, henüz çözülen yok",
+        "allSummary_one": "{{count}} açık konu var, henüz çözülen yok",
+        "allSummary_other": "{{count}} açık konu var, henüz çözülen yok",
+        "cardTextRoom_one": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextRoom_other": "Burada {{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_one": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin.",
+        "cardTextAll_other": "{{count}} açık konu var, henüz çözülen yok. Listeyi düzenli tutmak için bitenleri çözüldü işaretleyin."
+      }
     }
   },
   "threadNav": {
@@ -2119,6 +2296,7 @@
       "working": "Çalışıyor",
       "later": "Sonra",
       "idle": "Boşta",
+      "quiet": "Sakin",
       "resolved": "Çözülenler"
     },
     "live": {
@@ -2143,7 +2321,11 @@
     "done": "Bitti"
   },
   "threadActions": {
-    "openBeside": "İkinci sütunda aç"
+    "openBeside": "İkinci sütunda aç",
+    "detailsSection": "Ayrıntılar",
+    "forkAndShareSection": "Ayır ve paylaş",
+    "shareSection": "Paylaş",
+    "viewSection": "Görünüm"
   },
   "roomSchedules": {
     "thisThread": "Bu konu",
@@ -2212,5 +2394,35 @@
   },
   "nav": {
     "usage": "Kullanım"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} oda",
+      "roomsCount_other": "{{count}} oda",
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+    },
+    "roomFilter": {
+      "label": "Odalar",
+      "ariaLabel": "Konuları odaya göre filtrele",
+      "ariaLabelActive": "Konuları odaya göre filtrele ({{number}} seçili)",
+      "ariaLabelOne": "Odalar: {{room}}",
+      "search": "Odaları ara",
+      "noMatch": "Eşleşen oda yok"
+    },
+    "composer": {
+      "postTo": "Gönder:",
+      "postToRoom": "#{{room}} odasına gönder",
+      "chooseRoomAria": "Gönderilecek odayı seç",
+      "draftPinned": "#{{room}} için taslak",
+      "readOnly": "Bu alandaki hiçbir oda mesaj göndermeye izin vermiyor."
+    },
+    "loading": "İş parçacıkları yükleniyor...",
+    "empty": {
+      "noRooms": "İş parçacıklarını burada görmek için bu alandaki bir odaya katılın.",
+      "noThreads": "Bu alanda henüz iş parçacığı yok."
+    },
+    "error": {
+      "title": "Alan iş parçacıkları yüklenemedi"
+    }
   }
 }

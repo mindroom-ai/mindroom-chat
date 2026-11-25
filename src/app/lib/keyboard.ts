@@ -1,13 +1,18 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { isHotkey } from 'is-hotkey';
 
 type KeyEventLike = Pick<
   KeyboardEvent | ReactKeyboardEvent,
   'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'
 > & { which?: number };
 
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+const hasNoModifiers = (
+  event: Pick<KeyEventLike, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>
+): boolean => !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+
 const isPlainKey = (event: KeyEventLike, key: string): boolean =>
-  event.key === key && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  event.key === key && hasNoModifiers(event);
 
 /**
  * Autocomplete menus accept the highlighted item with Tab or Enter. Calls `callback` and keeps the
@@ -40,7 +45,7 @@ export const stopPropagation = (event: EscapeEventLike): boolean => {
 
 /** Keeps arrow keys in a menu from scrolling the page behind it. */
 export const preventScrollWithArrowKey = (event: KeyboardEvent | ReactKeyboardEvent): void => {
-  if (isHotkey(['arrowup', 'arrowdown', 'arrowleft', 'arrowright'], event as KeyboardEvent)) {
+  if (ARROW_KEYS.has(event.key) && hasNoModifiers(event)) {
     event.preventDefault();
   }
 };

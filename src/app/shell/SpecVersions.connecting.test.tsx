@@ -10,8 +10,17 @@ vi.mock('folds', async (original) => ({
   Box: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Spinner: () => <div />,
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+  Button: ({
+    children,
+    before,
+    onClick,
+  }: {
+    children?: ReactNode;
+    before?: ReactNode;
+    onClick?: () => void;
+  }) => (
     <button type="button" onClick={onClick}>
+      {before}
       {children}
     </button>
   ),
@@ -29,7 +38,9 @@ vi.mock('../matrix/cachedSpecVersions', () => ({
 vi.mock('../matrix/cs-api', () => ({ specVersions: vi.fn() }));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   clearAllCacheAndReload: vi.fn(),
-  removeSessionAndReload: vi.fn(),
+}));
+vi.mock('../account/lifecycle/initMatrix', () => ({
+  cancelConnectingSession: vi.fn(),
 }));
 vi.mock('../matrix/session/useSessionStore', () => ({
   useActiveSession: () => ({

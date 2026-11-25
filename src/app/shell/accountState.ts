@@ -10,8 +10,9 @@ import {
 import { transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
-import { tourAtom } from '../navigation/tourState';
+import { helpMenuOpenAtom, tourAtom } from '../navigation/tourState';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
+import { workflowRunPanelAtom } from '../navigation/workflowPanel';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -121,6 +122,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(pauseRequestAtom),
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
+  toInitial(workflowRunPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(detachedGrantErrorAtom),
   toInitial(detachedDictationErrorAtom),
@@ -135,6 +137,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(userRoomProfileAtom),
   toInitial(commandPaletteOpenAtom),
   toInitial(shortcutHelpOpenAtom),
+  toInitial(helpMenuOpenAtom),
   toInitial(tourAtom),
   toInitial(imageViewerOpenAtom),
   toInitial(phoneNavDrawerOpenAtom),

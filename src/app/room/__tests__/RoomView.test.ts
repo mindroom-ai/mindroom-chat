@@ -203,10 +203,6 @@ vi.mock('slate-react', () => ({
   },
 }));
 
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: () => false,
-}));
-
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));
@@ -334,10 +330,10 @@ vi.mock('../../timeline/RoomViewFollowing', () => ({
 }));
 
 vi.mock('../../ui/page/Page', () => ({
-  Page: React.forwardRef<HTMLDivElement, MockPageProps>((props, ref) => {
+  Page: ({ ref, ...props }: MockPageProps & { ref?: React.Ref<HTMLDivElement> }) => {
     pageState.props = props;
     return React.createElement('div', { ...props, ref });
-  }),
+  },
 }));
 
 vi.mock('../RoomViewHeader', () => ({

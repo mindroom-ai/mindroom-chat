@@ -1,9 +1,13 @@
+/** Shell-level events pushed from the Electron main process to the page. */
 export type DesktopShellEvent =
   | { type: 'fullscreen'; value: boolean }
-  | { type: 'window-focus'; focused: boolean }
-  | { type: 'window-hidden' }
   | { type: 'zoom'; action: 'in' | 'out' | 'reset' }
+  | { type: 'window-hidden' }
+  | { type: 'window-focus'; focused: boolean }
   | { type: 'update-status' }
+  | { type: 'swipe-tracking'; enabled: boolean }
+  | { type: 'scroll-gesture'; phase: 'begin' | 'end' }
+  | { type: 'swipe'; direction: 'left' | 'right' }
   | { type: 'desktop-access-status' }
   | { type: 'open-desktop-access-settings' };
 export type DesktopResult<T> =

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
-import { tourAtom, type TourLevel } from '../navigation/tourState';
+import { tourAtom, type TourLevel, type TourRequest } from '../navigation/tourState';
 import { TourDialog } from './TourDialog';
 import { TourHandoff } from './TourHandoff';
 
 type Opening = {
   /** What an entry put into the atom to open the tour; another one is another opening. */
-  tour: { level: TourLevel };
+  tour: TourRequest;
   /** The level now: the one it opened at, or Full after Keep going. */
   level: TourLevel;
   /** Which opening of this page it is, so each one is a dialog of its own. */
@@ -17,7 +17,8 @@ type Opening = {
 /**
  * The interface tour's dialog while the tour is open, and after its Done the handoff to the open
  * room's composer. Closing the tour any other way just closes it. A tour opened while one is open
- * (from the command palette, which opens over it) starts over at its first step.
+ * (from the command palette or Help menu) starts over at its requested `initialStep` (or the
+ * first step when omitted).
  */
 export function TourRenderer() {
   const [tour, setTour] = useAtom(tourAtom);
@@ -45,6 +46,7 @@ export function TourRenderer() {
       <TourDialog
         key={run}
         level={open.level}
+        initialStep={open.tour.initialStep}
         onLevelChange={(level) => setOpening((now) => (now?.run === run ? { ...now, level } : now))}
         onClose={(how) => {
           setTour(undefined);

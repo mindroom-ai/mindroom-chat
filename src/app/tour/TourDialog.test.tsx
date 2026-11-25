@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import type { FocusTrap } from 'focus-trap-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import type { TourLevel } from '../navigation/tourState';
+import type { TourLevel, TourStepId } from '../navigation/tourState';
 import { mockMedia, restoreMedia } from './__tests__/media';
 import { TourDialog } from './TourDialog';
 import { SCENE_START_DELAY_MS, TOUR_STEPS } from './tourSteps';
@@ -26,13 +26,22 @@ vi.mock('focus-trap-react', async (original) => {
 const onClose = vi.fn<(how: 'done' | 'dismissed') => void>();
 const onLevelChange = vi.fn<(level: TourLevel) => void>();
 
-function Tour({ level: first = 'quick', phone = false }: { level?: TourLevel; phone?: boolean }) {
+function Tour({
+  level: first = 'quick',
+  initialStep,
+  phone = false,
+}: {
+  level?: TourLevel;
+  initialStep?: TourStepId;
+  phone?: boolean;
+}) {
   const [level, setLevel] = useState(first);
   return (
     <ScreenSizeProvider value={phone ? ScreenSize.Mobile : ScreenSize.Desktop}>
       <button type="button">Opener</button>
       <TourDialog
         level={level}
+        initialStep={initialStep}
         onLevelChange={(next) => {
           onLevelChange(next);
           setLevel(next);
@@ -387,6 +396,17 @@ describe('TourDialog', () => {
       vi.advanceTimersByTime(1200);
     });
     expect(typed()).toBe('Draft the spring launch email');
+  });
+
+  it('opens directly on initialStep and flows forward and backward from there', () => {
+    render(<Tour level="full" initialStep="resolve" />);
+    expect(stepId()).toBe('resolve');
+    expect(dialog().textContent).toContain('Step 7 of 12');
+    press('next');
+    expect(stepId()).toBe('filters');
+    press('back');
+    press('back');
+    expect(stepId()).toBe('states');
   });
 
   it("draws a phone's room on a phone", () => {

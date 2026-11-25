@@ -13,6 +13,8 @@ const testState = vi.hoisted(() => ({
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
   backgroundJobs: [] as { jobId: string }[],
+  unread: undefined as { total: number; highlight: number } | undefined,
+  useRelativeTime: vi.fn((ts: number, format?: string) => `${format}:${ts}`),
   activeCall: undefined as ActiveCall | undefined,
   setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
@@ -31,9 +33,8 @@ vi.mock('folds', async () => {
     Avatar: Container,
     Badge: Container,
     Box: Container,
-    Icon: reactModule.forwardRef<HTMLElement, Record<string, unknown>>((props, ref) =>
-      reactModule.createElement('i', { ...props, ref })
-    ),
+    Icon: ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<HTMLElement> }) =>
+      reactModule.createElement('i', { ...props, ref }),
     IconButton: ({ children, ...props }: { children?: React.ReactNode }) =>
       reactModule.createElement('button', props, children),
     Icons: {
@@ -170,7 +171,11 @@ vi.mock('../../matrix/hooks/useRoomMeta', () => ({
 }));
 
 vi.mock('../../matrix/state/useUnread', () => ({
-  useRoomUnread: () => undefined,
+  useRoomUnread: () => testState.unread,
+}));
+
+vi.mock('../../i18n/useRelativeTime', () => ({
+  useRelativeTime: (ts: number, format?: string) => testState.useRelativeTime(ts, format),
 }));
 
 vi.mock('../../timeline/typing/useRoomTypingMembers', () => ({
@@ -210,7 +215,13 @@ const room = {
 } as unknown as Room;
 
 const renderRoomNavItem = (
-  props: { direct?: boolean; showAvatar?: boolean; subRoom?: boolean } = {}
+  props: {
+    direct?: boolean;
+    showAvatar?: boolean;
+    subRoom?: boolean;
+    activityTimestamp?: number;
+    notificationMode?: RoomNotificationMode;
+  } = {}
 ) => {
   let renderer!: ReturnType<typeof create>;
   act(() => {
@@ -462,5 +473,48 @@ describe('RoomNavItem background jobs', () => {
     act(() => testState.setHover?.(true));
 
     expect(jobsIndicators(renderer)).toHaveLength(1);
+  });
+});
+
+describe('RoomNavItem activity timestamp', () => {
+  afterEach(() => {
+    testState.unread = undefined;
+    testState.useRelativeTime.mockClear();
+  });
+
+  const timeNodes = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll(
+      (node) => node.type === 'span' && 'data-room-activity-time' in node.props
+    );
+
+  it('shows compact relative time on quiet rows and skips the hook when omitted', () => {
+    const withoutTime = renderRoomNavItem();
+    expect(timeNodes(withoutTime)).toHaveLength(0);
+    expect(testState.useRelativeTime).not.toHaveBeenCalled();
+
+    const withTime = renderRoomNavItem({ activityTimestamp: 1700000000000 });
+    expect(testState.useRelativeTime).toHaveBeenCalledWith(1700000000000, 'compact');
+    expect(timeNodes(withTime)).toHaveLength(1);
+    expect(timeNodes(withTime)[0]!.children).toEqual(['compact:1700000000000']);
+  });
+
+  it('hides the activity timestamp when unread, muted, or hovered', () => {
+    testState.unread = { total: 2, highlight: 0 };
+    expect(timeNodes(renderRoomNavItem({ activityTimestamp: 1700000000000 }))).toHaveLength(0);
+
+    testState.unread = undefined;
+    expect(
+      timeNodes(
+        renderRoomNavItem({
+          activityTimestamp: 1700000000000,
+          notificationMode: RoomNotificationMode.Mute,
+        })
+      )
+    ).toHaveLength(0);
+
+    const quiet = renderRoomNavItem({ activityTimestamp: 1700000000000 });
+    expect(timeNodes(quiet)).toHaveLength(1);
+    act(() => testState.setHover?.(true));
+    expect(timeNodes(quiet)).toHaveLength(0);
   });
 });

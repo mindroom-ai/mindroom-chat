@@ -44,9 +44,9 @@ const renderComposer = (view?: string) => {
     return <div ref={area} data-testid="area" />;
   }
   const { getByTestId } = render(
-    <ConversationViewContext.Provider value={view}>
+    <ConversationViewContext value={view}>
       <Composer />
-    </ConversationViewContext.Provider>
+    </ConversationViewContext>
   );
   const file = new File(['content'], 'notes.txt', { type: 'text/plain' });
   const drag = (type: 'dragenter' | 'drop') => {

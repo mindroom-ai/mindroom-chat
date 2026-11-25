@@ -128,6 +128,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: ['!harbor'],
@@ -137,6 +138,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!leaf',
         isRoot: false,
         parentSpaceId: '!org',
+        ancestorSpaceIds: ['!org', '!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!leaf'),
         ownRoomsByName: ['!ops-chat'],
@@ -146,6 +148,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!research',
         isRoot: false,
         parentSpaceId: '!root',
+        ancestorSpaceIds: ['!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!research'),
         ownRoomsByName: ['!reading'],
@@ -206,12 +209,80 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: true,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
         scopeRoomsByName: [],
       },
     ]);
+  });
+
+  it('lists a room that is in both a space and its sub-spaces only in the deepest sub-space', () => {
+    const mx = makeClient({
+      '!root': { name: 'Root', space: true },
+      '!team': { name: 'Team', space: true },
+      '!crew': { name: 'Crew', space: true },
+      '!lounge': { name: 'Lounge' },
+      '!garden': { name: 'Garden' },
+      '!garden-notes': { name: 'Garden Notes' },
+      '!workshop': { name: 'Workshop' },
+    });
+    const joined = ['!root', '!team', '!crew', '!lounge', '!garden', '!garden-notes', '!workshop'];
+    const parents = makeParents({
+      '!team': ['!root'],
+      '!crew': ['!team'],
+      '!lounge': ['!root'],
+      '!garden': ['!root', '!team'],
+      '!garden-notes': ['!garden'],
+      '!workshop': ['!root', '!team', '!crew'],
+    });
+
+    const sections = getSpaceRoomSections(
+      mx,
+      '!root',
+      joined,
+      joined,
+      ['!garden', '!garden-notes', '!lounge', '!workshop'],
+      new Set(),
+      parents,
+      new Set(['!garden'])
+    );
+
+    expect(
+      sections.map(({ spaceId, ownRoomsByName, scopeRoomsByName }) => [
+        spaceId,
+        ownRoomsByName,
+        scopeRoomsByName,
+      ])
+    ).toEqual([
+      ['!root', ['!lounge'], ['!lounge']],
+      ['!team', ['!garden'], ['!garden', '!garden-notes']],
+      ['!crew', ['!workshop'], ['!workshop']],
+    ]);
+  });
+
+  it('hides the root Rooms section when every one of its rooms is also in a sub-space', () => {
+    const mx = makeClient({
+      '!root': { name: 'Root', space: true },
+      '!team': { name: 'Team', space: true },
+      '!garden': { name: 'Garden' },
+    });
+    const joined = ['!root', '!team', '!garden'];
+    const parents = makeParents({ '!team': ['!root'], '!garden': ['!root', '!team'] });
+
+    const sections = getSpaceRoomSections(
+      mx,
+      '!root',
+      joined,
+      joined,
+      ['!garden'],
+      new Set(),
+      parents,
+      new Set()
+    );
+
+    expect(sections.map((section) => section.spaceId)).toEqual(['!team']);
   });
 
   it('scopes chat-room sub-rooms and archived-parent orphans to their own section', () => {
@@ -249,6 +320,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!root',
         isRoot: true,
         parentSpaceId: undefined,
+        ancestorSpaceIds: [],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'room'),
         ownRoomsByName: [],
@@ -258,6 +330,7 @@ describe('getSpaceRoomSections', () => {
         spaceId: '!sub',
         isRoot: false,
         parentSpaceId: '!root',
+        ancestorSpaceIds: ['!root'],
         isEmpty: false,
         categoryId: makeNavCategoryId('!root', 'subspace', '!sub'),
         ownRoomsByName: ['!sub-room'],
@@ -301,12 +374,13 @@ describe('getSpaceRoomSections', () => {
         section.spaceId,
         section.isRoot,
         section.parentSpaceId,
+        section.ancestorSpaceIds,
         section.isEmpty,
       ])
     ).toEqual([
-      ['!root', true, undefined, true],
-      ['!editable-empty', false, '!root', true],
-      ['!leaf', false, '!readonly-org', false],
+      ['!root', true, undefined, [], true],
+      ['!editable-empty', false, '!root', ['!root'], true],
+      ['!leaf', false, '!readonly-org', ['!readonly-org', '!root'], false],
     ]);
 
     // When root is NOT editable, the empty root Rooms section is hidden again,

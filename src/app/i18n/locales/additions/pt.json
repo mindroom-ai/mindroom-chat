@@ -446,7 +446,9 @@
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local.",
         "usage": "Mostrar Uso na barra lateral",
-        "usageDescription": "Limites de uso de provedores e gasto de tokens em 7 dias, assim que um runtime os informar. Quando oculto, abra Uso no menu ⋮ em Início ou no seletor de modelos."
+        "usageDescription": "Limites de uso de provedores e gasto de tokens em 7 dias, assim que um runtime os informar. Quando oculto, abra Uso no menu ⋮ em Início ou no seletor de modelos.",
+        "help": "Mostrar Ajuda e guias na barra lateral",
+        "helpDescription": "Guias rápidos, visita guiada e atalhos de teclado. Se o ocultar, abra a visita guiada nas Definições, em Sobre, ou na paleta de comandos ({{shortcut}}), e os atalhos com {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",
@@ -724,11 +726,27 @@
       "manage": "Gerir"
     },
     "roomOrder": {
-      "sortByName": "Ordenar salas de A a Z"
+      "sortRooms": "Ordenar salas",
+      "sortHeading": "Ordenar salas",
+      "displayHeading": "Exibição",
+      "recentActivity": "Atividade recente",
+      "aToZ": "De A a Z",
+      "customOrder": "Ordem personalizada",
+      "saved": "Salvo",
+      "showActivityTimes": "Mostrar horários de atividade",
+      "matchSpace": "Igual ao espaço ({{mode}})",
+      "shortRecent": "Recente",
+      "shortName": "A a Z",
+      "shortManual": "Pers."
     },
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",
-      "searchEncrypted": "Indisponível em salas encriptadas"
+      "searchEncrypted": "Indisponível em salas encriptadas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferências",
+      "notificationModeAll": "Todas",
+      "notificationModeMentions": "Menções"
     },
     "phoneNav": {
       "navigation": "Navegação"
@@ -1380,7 +1398,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compacta",
-        "threadFiltersActive": "Filtros de tópicos (ativos)"
+        "threadFiltersActive": "Filtros de tópicos (ativos)",
+        "mindroomSettings": "Definições do MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtros avançados",
@@ -1413,6 +1432,29 @@
         "expandAllLong": "Expandir todas as mensagens longas",
         "collapseAllLong": "Recolher todas as mensagens longas",
         "showFullMessage": "Mostrar mensagem completa"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tudo em dia",
+        "resolvedCount_one": "{{count}} resolvido",
+        "resolvedCount_many": "{{count}} resolvidos",
+        "resolvedCount_other": "{{count}} resolvidos",
+        "snoozedCount_one": "{{count}} adiado",
+        "snoozedCount_many": "{{count}} adiados",
+        "snoozedCount_other": "{{count}} adiados",
+        "showAll": "Mostrar todos",
+        "startNewThreadBelow": "Inicie um novo tópico abaixo",
+        "recentlyResolved": "Resolvidos recentemente",
+        "noMatchHeading": "Nenhum tópico corresponde aos seus filtros",
+        "hiddenByForMe_one": "{{count}} tópico aberto está oculto por Para mim.",
+        "hiddenByForMe_many": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByForMe_other": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByFilters_one": "{{count}} tópico aberto está oculto pelos seus filtros.",
+        "hiddenByFilters_many": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "hiddenByFilters_other": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "adjustOrResetFilters": "Ajuste ou redefina seus filtros para ver os tópicos nesta sala.",
+        "turnOffForMe": "Desativar Para mim",
+        "resetAll": "Redefinir tudo",
+        "resetFilters": "Redefinir filtros"
       }
     },
     "computer": {
@@ -1441,7 +1483,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})",
       "finished": "Concluído: {{tool}}",
+      "awaitingAnswer": "Aguardando sua resposta: {{tool}}",
       "jobCountFinished": "{{count}} tarefas em segundo plano concluídas",
+      "groupWorkflows": "Fluxos de trabalho · {{number}}",
       "groupSubagents": "Subagentes · {{number}}",
       "groupTools": "Ferramentas · {{number}}",
       "tools_one": "{{count}} ferramenta",
@@ -1491,6 +1535,102 @@
       "jobTotalFinished_one": "{{count}} tarefa em segundo plano concluída",
       "jobTotalFinished_many": "{{count}} tarefas em segundo plano concluídas",
       "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas"
+    },
+    "workflowRun": {
+      "title": "Fluxo de trabalho",
+      "status": {
+        "starting": "Iniciando",
+        "running": "Em execução",
+        "waiting": "Aguardando você",
+        "completed": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrompido"
+      },
+      "counts": "{{done}} concluídos, {{running}} em execução, {{waiting}} aguardando",
+      "reused": "Reutilizados: {{count}}",
+      "cost": "{{spent}} até agora, cerca de {{projected}} no total",
+      "costAtLeast": "pelo menos {{spent}} até agora",
+      "largeRun": "Execução grande",
+      "attempt": "Tentativa {{number}}",
+      "stop": "Parar",
+      "stopping": "Parando…",
+      "resume": "Retomar",
+      "runAgain": "Executar novamente",
+      "starting": "Iniciando…",
+      "failedCount_one": "{{count}} falharam",
+      "failedCount_many": "{{count}} falharam",
+      "failedCount_other": "{{count}} falharam",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Já respondida.",
+          "noLongerOpen": "Esta pergunta não está mais aberta.",
+          "notAnOption": "Essa não é uma das opções.",
+          "notForYou": "Somente quem iniciou a execução pode responder."
+        },
+        "noReply": "Sem resposta ainda. Tente novamente.",
+        "placeholder": "Digite sua resposta",
+        "send": "Enviar",
+        "answered": "Respondido: {{answer}}",
+        "cancelled": "Cancelado",
+        "onlyRequester": "Somente {{name}} pode responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Fechar",
+        "resize": "Redimensionar painel do fluxo de trabalho",
+        "hide": "Ocultar fluxo de trabalho",
+        "waitingForUpdate": "Aguardando a próxima atualização da execução…",
+        "stale": "Sem atualizar. Última atualização {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar mais {{count}}",
+        "omitted": {
+          "queued_one": "e mais {{count}} na fila",
+          "queued_many": "e mais {{count}} na fila",
+          "queued_other": "e mais {{count}} na fila",
+          "running_one": "e mais {{count}} em execução",
+          "running_many": "e mais {{count}} em execução",
+          "running_other": "e mais {{count}} em execução",
+          "waiting_one": "e mais {{count}} aguardando",
+          "waiting_many": "e mais {{count}} aguardando",
+          "waiting_other": "e mais {{count}} aguardando",
+          "failed_one": "e mais {{count}} com falha",
+          "failed_many": "e mais {{count}} com falha",
+          "failed_other": "e mais {{count}} com falha",
+          "done_one": "e mais {{count}} concluídos",
+          "done_many": "e mais {{count}} concluídos",
+          "done_other": "e mais {{count}} concluídos"
+        },
+        "askAgent": "Peça o restante a {{agent}}."
+      },
+      "group": {
+        "foreach": "Para cada",
+        "parallel": "Paralelo",
+        "run": "Fluxo salvo",
+        "workflow": "Fluxo aninhado",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Falharam: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado da última execução",
+        "queued": "Na fila",
+        "mayHaveRun": "Pode ter sido executado",
+        "waitingOn": {
+          "user": "Aguardando sua resposta",
+          "approval": "Aguardando aprovação",
+          "peer": "Aguardando uma mensagem"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Erro",
+        "messages": "Mensagens",
+        "messagesTo": "Mensagens para {{name}}: {{count}}",
+        "open": "Abrir",
+        "detailsUnavailable": "Os detalhes não estão mais disponíveis após recarregar.",
+        "stop": "Parar agente"
+      }
     },
     "subagents": {
       "title": "Subagentes",
@@ -1741,7 +1881,9 @@
     },
     "actions": {
       "goActivity": "Ir para Atividade",
-      "goActivityDescription": "Menções, respostas e o que está à sua espera"
+      "goActivityDescription": "Menções, respostas e o que está à sua espera",
+      "openCurrentRoomMindroomSettings": "Abrir as definições do MindRoom da sala",
+      "openCurrentRoomMindroomSettingsDescription": "Abrir as definições do MindRoom de {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Itens abertos recentemente",
@@ -1815,6 +1957,7 @@
       "needsYou": "Precisa de você",
       "working": "Em andamento",
       "later": "Mais tarde",
+      "quiet": "Calmos",
       "done": "Concluído",
       "all": "Todos",
       "description": {
@@ -1852,7 +1995,17 @@
     "continueInNewThread": "Continuar em um novo tópico",
     "forkCount_one": "{{count}} bifurcação",
     "forkCount_many": "{{count}} bifurcações",
-    "forkCount_other": "{{count}} bifurcações"
+    "forkCount_other": "{{count}} bifurcações",
+    "forkedFromInRoom": "Bifurcado de {{title}} em {{room}}",
+    "forkedFromAnotherRoom": "Bifurcado de outra sala",
+    "forkingIntoRoom": "Bifurcando {{title}} para {{room}}",
+    "forkToRoom": "Bifurcar para sala…",
+    "forkToRoomTitle": "Bifurcar para sala",
+    "forkToRoomSearchPlaceholder": "Pesquisar salas…",
+    "forkToRoomEmpty": "Nenhuma sala encontrada",
+    "forkToRoomAgentWarning": "Os agentes nesta sala não estão em {{room}} e não verão o tópico original",
+    "forkingFromRoom": "Bifurcando de {{room}}",
+    "forkDraftAgentWarning": "Os agentes aqui não estão em {{room}} e não verão o tópico original"
   },
   "activity": {
     "title": "Atividade",
@@ -1887,8 +2040,7 @@
       "replyAndOthers_many": "{{name}} e mais {{count}} responderam",
       "replyAndOthers_other": "{{name}} e mais {{count}} responderam",
       "finished": "{{name}} terminou",
-      "stopped": "{{name}} parou",
-      "youReplied": "Você respondeu"
+      "stopped": "{{name}} parou"
     },
     "newCount_one": "{{count}} novo",
     "newCount_many": "{{count}} novos",
@@ -2160,6 +2312,46 @@
       "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
+    },
+    "help": {
+      "button": "Ajuda e guias",
+      "buttonWithTip": "Ajuda e guias (1 dica)",
+      "title": "Ajuda e guias",
+      "subtitle": "Guias rápidos",
+      "oneTip": "1 dica",
+      "suggested": "Sugerido para si",
+      "showHow": "Ver como",
+      "dismissTip": "Ignorar dica",
+      "guidesHeading": "Guias da interface",
+      "guides": {
+        "conversation": "Como funcionam os tópicos",
+        "resolve": "Resolver o que está concluído",
+        "filters": "Encontrar tópicos resolvidos",
+        "snooze": "Adiar para mais tarde",
+        "pinAndTag": "Fixar e etiquetar tópicos",
+        "views": "Vista Compacto vs. Tópicos",
+        "activity": "Atividade e aprovações"
+      },
+      "fullTour": "Visita completa",
+      "shortcuts": "Atalhos"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolva tópicos concluídos",
+        "cardTitle": "Resolva tópicos concluídos",
+        "roomSummary_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda",
+        "roomSummary_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "roomSummary_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "allSummary_one": "{{count}} tópico aberto, nenhum resolvido ainda",
+        "allSummary_many": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "allSummary_other": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "cardTextRoom_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_one": "{{count}} tópico aberto, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_many": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_other": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada."
+      }
     }
   },
   "threadNav": {
@@ -2176,6 +2368,7 @@
       "working": "Em curso",
       "later": "Mais tarde",
       "idle": "Inativos",
+      "quiet": "Calmos",
       "resolved": "Resolvidos"
     },
     "live": {
@@ -2204,7 +2397,11 @@
     "done": "Concluídos"
   },
   "threadActions": {
-    "openBeside": "Abrir na segunda coluna"
+    "openBeside": "Abrir na segunda coluna",
+    "detailsSection": "Detalhes",
+    "forkAndShareSection": "Bifurcar e partilhar",
+    "shareSection": "Partilhar",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este tópico",
@@ -2273,5 +2470,36 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar tópicos por sala",
+      "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada"
+    },
+    "composer": {
+      "postTo": "Enviar para:",
+      "postToRoom": "Enviar para #{{room}}",
+      "chooseRoomAria": "Escolher sala para enviar",
+      "draftPinned": "Rascunho para #{{room}}",
+      "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
+    },
+    "loading": "Carregando conversas...",
+    "empty": {
+      "noRooms": "Entre em uma sala neste espaço para ver as conversas aqui.",
+      "noThreads": "Ainda não há conversas neste espaço."
+    },
+    "error": {
+      "title": "Não foi possível carregar as conversas do espaço"
+    }
   }
 }

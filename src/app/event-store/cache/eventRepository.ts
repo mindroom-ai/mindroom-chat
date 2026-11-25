@@ -805,11 +805,13 @@ export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): Mat
 export const serializeThreadCacheEvents = (
   room: Room,
   events: MatrixEvent[],
-  rootEvent?: MatrixEvent
+  rootEvent?: MatrixEvent,
+  options?: { clone?: boolean }
 ): Partial<IEvent>[] =>
   serializeEventsForCache(
     room,
-    collectStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events)
+    collectStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events),
+    options
   );
 
 export const serializeRoomCacheEvents = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] =>
