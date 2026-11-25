@@ -162,7 +162,13 @@ vi.mock('livekit-client', async () => {
     RoomEvent: new Proxy({}, { get: (_target, key) => key }),
     Track: {
       Kind: { Audio: 'audio', Video: 'video' },
-      Source: { Camera: 'camera', Microphone: 'microphone', ScreenShare: 'screen_share' },
+      Source: {
+        Camera: 'camera',
+        Microphone: 'microphone',
+        ScreenShare: 'screen_share',
+        ScreenShareAudio: 'screen_share_audio',
+        Unknown: 'unknown',
+      },
     },
     TrackEvent: { Restarted: 'restarted' },
     Room: FakeMediaRoom,
@@ -1375,6 +1381,62 @@ describe('RoomCall microphone track', () => {
 
     expect(call.getState().microphoneTrack).toBeUndefined();
     expect(publication.track.listenerCount('restarted')).toBe(0);
+  });
+
+  it('exposes local and remote audioTrack on participants, with non-screen-share fallback', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const localPub = inputPublication('microphone', MIC_A);
+    media.localParticipant.trackPublications.set('microphone', localPub);
+    media.emit('LocalTrackPublished', localPub);
+    expect(call.getState().participants[0]?.audioTrack).toBe(MIC_A);
+
+    localPub.isMuted = true;
+    media.emit('TrackMuted', localPub);
+    expect(call.getState().participants[0]?.audioTrack).toBeUndefined();
+
+    // Remote microphone track, cleared while muted.
+    const remoteMicTrack = inputTrack('remote-mic');
+    const remoteMicPub = inputPublication('microphone', remoteMicTrack);
+    const peer = {
+      identity: OTHER_IDENTITY,
+      isSpeaking: true,
+      isMicrophoneEnabled: true,
+      audioTrackPublications: new Map([['mic', remoteMicPub]]),
+      getTrackPublication: (source: string) => (source === 'microphone' ? remoteMicPub : undefined),
+    };
+    media.remoteParticipants.set(OTHER_IDENTITY, peer);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    expect(call.getState().participants[1]?.audioTrack).toBe(remoteMicTrack);
+
+    remoteMicPub.isMuted = true;
+    media.emit('TrackMuted', remoteMicPub);
+    expect(call.getState().participants[1]?.audioTrack).toBeUndefined();
+
+    // Agent publishing Track.Source.Unknown falls back to audioTrackPublications, skipping ScreenShareAudio.
+    const screenAudioPub = inputPublication('screen_share_audio', inputTrack('screen-audio'));
+    const agentAudioTrack = inputTrack('agent-voice');
+    const agentAudioPub = inputPublication('unknown', agentAudioTrack);
+    peer.getTrackPublication = () => undefined;
+    peer.audioTrackPublications = new Map([
+      ['screen', screenAudioPub],
+      ['agent', agentAudioPub],
+    ]);
+    media.emit('TrackUnmuted', agentAudioPub);
+    expect(call.getState().participants[1]?.audioTrack).toBe(agentAudioTrack);
+
+    // ScreenShareAudio alone is excluded; missing audioTrackPublications is handled safely.
+    peer.audioTrackPublications = new Map([['screen', screenAudioPub]]);
+    media.emit('TrackMuted', agentAudioPub);
+    expect(call.getState().participants[1]?.audioTrack).toBeUndefined();
+
+    media.remoteParticipants.set(OTHER_IDENTITY, {
+      identity: OTHER_IDENTITY,
+      getTrackPublication: () => undefined,
+    });
+    media.emit('ActiveSpeakersChanged', []);
+    expect(call.getState().participants[1]?.audioTrack).toBeUndefined();
   });
 });
 
