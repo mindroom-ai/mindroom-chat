@@ -12,7 +12,12 @@ import {
 import type { TUploadItem } from '../state/upload';
 import { normalizeOptionalMatrixWaveform } from '../../lib/audioWaveform';
 import { encodeBlurHash } from './blurHash';
-import { getThumbnail, loadImageElement, loadVideoElement } from '../../lib/dom';
+import {
+  getThumbnail,
+  loadImageElement,
+  loadVideoElement,
+  supportsWebpEncode,
+} from '../../lib/dom';
 import { encryptFile, getImageInfo, getVideoInfo } from '../matrix';
 
 // Builds `m.room.message` content for an uploaded attachment. `mxc` is the
@@ -121,6 +126,12 @@ const mediaMsgContent = (
  * A picture larger than the timeline shows gets a thumbnail, so timelines load that instead of
  * the whole file. Animated GIFs keep only the original, which a thumbnail would freeze.
  */
+const getImageThumbnailMimeType = (mimetype: string | undefined): string => {
+  if (mimetype === 'image/jpeg') return 'image/jpeg';
+  if (mimetype === 'image/webp' && supportsWebpEncode()) return 'image/webp';
+  return 'image/png';
+};
+
 const needsImageThumbnail = (info: IImageInfo): boolean =>
   info.mimetype !== 'image/gif' && Math.max(info.w ?? 0, info.h ?? 0) > THUMBNAIL_MAX_SIZE;
 
@@ -139,8 +150,9 @@ export const getImageMsgContent: MediaContentBuilder = async (mx, item, mxc) => 
         Object.assign(
           info,
           await uploadThumbnail(mx, item, img, img.width, img.height, {
-            // JPEG has no transparency; other pictures keep it in a PNG thumbnail.
-            mimeType: info.mimetype === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+            // JPEG has no transparency; WebP uses a smaller WebP thumbnail when supported;
+            // other pictures keep transparency in a PNG thumbnail.
+            mimeType: getImageThumbnailMimeType(info.mimetype),
             smallerThan: originalFile.size,
           })
         );

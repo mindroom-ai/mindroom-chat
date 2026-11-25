@@ -175,6 +175,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
   const { t } = useTranslation();
   const [markdown] = useSetting(settingsAtom, 'isMarkdown');
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
+  const [mediaCompression] = useSetting(settingsAtom, 'mediaCompression');
   const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const navigation = useRoomNavigate();
   const userId = mx.getSafeUserId();
@@ -184,7 +185,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     store,
     roomAtom,
     t,
-    options: { markdown, linkSchemes },
+    options: { markdown, linkSchemes, mediaCompression },
     hideActivity,
     navigation,
   });
