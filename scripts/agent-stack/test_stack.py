@@ -1130,7 +1130,7 @@ class AliveTests(unittest.TestCase):
 class PrepareSourceTests(unittest.TestCase):
     LFS_POINTER = "version https://git-lfs.github.com/spec/v1\noid sha256:" + "0" * 64 + "\nsize 123\n"
     FAKE_UV = '#!/bin/sh\necho "$*" >> "$FAKE_UV_LOG"\n'
-    FAILING_GIT_LFS = '#!/bin/sh\necho "git-lfs should not be invoked" >&2\nexit 99\n'
+    FAILING_GIT_LFS = '#!/bin/sh\necho "$*" >> "$FAKE_GIT_LFS_LOG"\necho "git-lfs should not be invoked" >&2\nexit 99\n'
 
     def setUp(self) -> None:
         directory = tempfile.TemporaryDirectory()
@@ -1170,6 +1170,7 @@ class PrepareSourceTests(unittest.TestCase):
             "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}",
             "E2E_AGENT_STACK_ROOT": str(self.root / "stacks"),
             "FAKE_UV_LOG": str(self.root / "uv.log"),
+            "FAKE_GIT_LFS_LOG": str(self.root / "git-lfs.log"),
         }
         for patcher in (mock.patch.dict(os.environ, environment), mock.patch.object(stack, "log")):
             patcher.start()
@@ -1183,6 +1184,7 @@ class PrepareSourceTests(unittest.TestCase):
         self.assertFalse((source / "avatars").exists())
         self.assertTrue((source / ".complete").exists())
         self.assertEqual(len((self.root / "uv.log").read_text().splitlines()), 1)
+        self.assertFalse((self.root / "git-lfs.log").exists())
 
     def test_a_failed_or_truncated_archive_raises_stack_error_without_complete(self) -> None:
         bad_sha = "0" * 40

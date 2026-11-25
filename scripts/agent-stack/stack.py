@@ -407,6 +407,8 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
                     try:
                         with tarfile.open(fileobj=archive.stdout, mode="r|") as tar:
                             tar.extractall(source, filter="data")
+                        while archive.stdout.read(65536):
+                            pass
                     except tarfile.TarError as error:
                         tar_error = error
                 returncode = archive.wait()
@@ -423,6 +425,7 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
             "UV_PROJECT_ENVIRONMENT": str(source / ".venv"),
         }
         env.pop("VIRTUAL_ENV", None)
+        env.pop("MINDROOM_BUILD_FRONTEND", None)
         result = subprocess.run(
             ["uv", "sync", "--frozen", "--no-dev", *(f"--extra={extra}" for extra in extras), "--project", str(source)],
             env=env,
