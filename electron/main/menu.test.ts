@@ -38,58 +38,73 @@ const makeContextParams = (
   }) as Electron.ContextMenuParams;
 
 describe('buildMenuTemplate', () => {
-  it('omits forbidden roles and New Window in every state combination', () => {
+  it('omits forbidden roles and New Window in every state combination across platforms', () => {
     const forbiddenRoles = new Set(['reload', 'forcereload', 'zoomin', 'zoomout', 'resetzoom']);
-    for (const updateReady of [false, true]) {
-      for (const canCheck of [false, true]) {
-        for (const quickCapture of [false, true]) {
-          const template = buildMenuTemplate({ updateReady, canCheck, quickCapture });
-          expect(template.map((m) => m.label ?? m.role)).toEqual([
-            'MindRoom',
-            'Edit',
-            'View',
-            'Window',
-            'help',
-          ]);
-          const all = flattenItems(template);
-          for (const item of all) {
-            expect(forbiddenRoles.has(String(item.role ?? '').toLowerCase())).toBe(false);
-            expect(String(item.label ?? '').toLowerCase()).not.toBe('new window');
+    const macOnlyRoles = new Set(['services', 'hide', 'hideothers', 'unhide', 'zoom', 'front']);
+    for (const platform of ['darwin', 'linux'] as const) {
+      const expectedTop =
+        platform === 'darwin'
+          ? ['MindRoom', 'Edit', 'View', 'Window', 'help']
+          : ['File', 'Edit', 'View', 'Window', 'Help'];
+      for (const updateReady of [false, true]) {
+        for (const canCheck of [false, true]) {
+          for (const quickCapture of [false, true]) {
+            const template = buildMenuTemplate(
+              { updateReady, canCheck, quickCapture },
+              undefined,
+              platform
+            );
+            expect(template.map((m) => m.label ?? m.role)).toEqual(expectedTop);
+            for (const item of flattenItems(template)) {
+              const role = String(item.role ?? '').toLowerCase();
+              expect(forbiddenRoles.has(role)).toBe(false);
+              expect(String(item.label ?? '').toLowerCase()).not.toBe('new window');
+              if (platform !== 'darwin') {
+                expect(macOnlyRoles.has(role)).toBe(false);
+              }
+            }
           }
         }
       }
     }
   });
 
-  it('wires View zoom items and accelerators to the zoom handler', () => {
-    const onZoom = vi.fn();
-    const template = buildMenuTemplate(
-      { updateReady: false, canCheck: false, quickCapture: false },
-      { onZoom }
-    );
-    const viewSub = template.find((m) => m.label === 'View')
-      ?.submenu as Electron.MenuItemConstructorOptions[];
-    const zoomIn = viewSub.find((i) => i.label === 'Zoom In');
-    const zoomOut = viewSub.find((i) => i.label === 'Zoom Out');
-    const actualSize = viewSub.find((i) => i.label === 'Actual Size');
+  it('wires View zoom items and accelerators to the zoom handler on macOS and Linux', () => {
+    for (const platform of ['darwin', 'linux'] as const) {
+      const onZoom = vi.fn();
+      const template = buildMenuTemplate(
+        { updateReady: false, canCheck: false, quickCapture: false },
+        { onZoom },
+        platform
+      );
+      const viewSub = template.find((m) => m.label === 'View')
+        ?.submenu as Electron.MenuItemConstructorOptions[];
+      const zoomIn = viewSub.find((i) => i.label === 'Zoom In');
+      const zoomOut = viewSub.find((i) => i.label === 'Zoom Out');
+      const actualSize = viewSub.find((i) => i.label === 'Actual Size');
 
-    expect(zoomIn?.accelerator).toBe('CommandOrControl+Plus');
-    expect(zoomOut?.accelerator).toBe('CommandOrControl+-');
-    expect(actualSize?.accelerator).toBe('CommandOrControl+0');
-    expect(viewSub.some((i) => i.role === 'togglefullscreen')).toBe(true);
+      expect(zoomIn?.accelerator).toBe('CommandOrControl+Plus');
+      expect(zoomOut?.accelerator).toBe('CommandOrControl+-');
+      expect(actualSize?.accelerator).toBe('CommandOrControl+0');
+      expect(viewSub.some((i) => i.role === 'togglefullscreen')).toBe(true);
 
-    invokeClick(zoomIn);
-    invokeClick(zoomOut);
-    invokeClick(actualSize);
-    expect(onZoom.mock.calls).toEqual([['in'], ['out'], ['reset']]);
+      invokeClick(zoomIn);
+      invokeClick(zoomOut);
+      invokeClick(actualSize);
+      expect(onZoom.mock.calls).toEqual([['in'], ['out'], ['reset']]);
+    }
   });
 
-  it('toggles update items in the App menu and Quick Capture in the Window menu', () => {
+  it('toggles update items in the macOS App menu and Quick Capture in the Window menu', () => {
     const onCheckForUpdates = vi.fn();
     const onRestartToUpdate = vi.fn();
     const onQuickCapture = vi.fn();
 
-    const base = buildMenuTemplate({ updateReady: false, canCheck: false, quickCapture: false });
+    const base = buildMenuTemplate(
+      { updateReady: false, canCheck: false, quickCapture: false },
+      undefined,
+      'darwin'
+    );
     const baseAppSub = base[0]?.submenu as Electron.MenuItemConstructorOptions[];
     const baseWinSub = base[3]?.submenu as Electron.MenuItemConstructorOptions[];
     expect(baseAppSub.some((i) => i.label === 'Check for Updates...')).toBe(false);
@@ -98,7 +113,8 @@ describe('buildMenuTemplate', () => {
 
     const checkable = buildMenuTemplate(
       { updateReady: false, canCheck: true, quickCapture: true },
-      { onCheckForUpdates, onQuickCapture }
+      { onCheckForUpdates, onQuickCapture },
+      'darwin'
     );
     const checkAppSub = checkable[0]?.submenu as Electron.MenuItemConstructorOptions[];
     const checkWinSub = checkable[3]?.submenu as Electron.MenuItemConstructorOptions[];
@@ -113,7 +129,8 @@ describe('buildMenuTemplate', () => {
 
     const ready = buildMenuTemplate(
       { updateReady: true, canCheck: true, quickCapture: false },
-      { onRestartToUpdate }
+      { onRestartToUpdate },
+      'darwin'
     );
     const readyAppSub = ready[0]?.submenu as Electron.MenuItemConstructorOptions[];
     expect(readyAppSub.some((i) => i.label === 'Check for Updates...')).toBe(false);
@@ -123,19 +140,65 @@ describe('buildMenuTemplate', () => {
     expect(onRestartToUpdate).toHaveBeenCalledOnce();
   });
 
-  it('contains no leading, trailing, or consecutive separators in any submenu', () => {
-    for (const state of [
+  it('places update items in Help and omits macOS Window roles on Linux', () => {
+    const onCheckForUpdates = vi.fn();
+    const onRestartToUpdate = vi.fn();
+    const onQuickCapture = vi.fn();
+
+    const base = buildMenuTemplate(
       { updateReady: false, canCheck: false, quickCapture: false },
+      undefined,
+      'linux'
+    );
+    expect(base[0]?.submenu).toEqual([{ role: 'close' }, { type: 'separator' }, { role: 'quit' }]);
+    expect(base[3]?.submenu).toEqual([{ role: 'minimize' }, { role: 'close' }]);
+    expect(base[4]?.submenu).toEqual([{ role: 'about' }]);
+
+    const checkable = buildMenuTemplate(
       { updateReady: false, canCheck: true, quickCapture: true },
-      { updateReady: true, canCheck: true, quickCapture: true },
-    ]) {
-      for (const top of buildMenuTemplate(state)) {
-        const sub = (top.submenu as Electron.MenuItemConstructorOptions[]) ?? [];
-        if (sub.length === 0) continue;
-        expect(sub[0]?.type).not.toBe('separator');
-        expect(sub[sub.length - 1]?.type).not.toBe('separator');
-        for (let i = 1; i < sub.length; i += 1) {
-          expect(sub[i - 1]?.type === 'separator' && sub[i]?.type === 'separator').toBe(false);
+      { onCheckForUpdates, onQuickCapture },
+      'linux'
+    );
+    const checkWinSub = checkable[3]?.submenu as Electron.MenuItemConstructorOptions[];
+    const checkHelpSub = checkable[4]?.submenu as Electron.MenuItemConstructorOptions[];
+    const qcItem = checkWinSub.find((i) => i.label === 'Quick Capture');
+    const checkItem = checkHelpSub.find((i) => i.label === 'Check for Updates...');
+    expect(qcItem?.accelerator).toBe('Control+Alt+Space');
+    expect(checkItem).toBeDefined();
+    expect(checkHelpSub.some((i) => i.role === 'about')).toBe(true);
+    invokeClick(qcItem);
+    invokeClick(checkItem);
+    expect(onQuickCapture).toHaveBeenCalledOnce();
+    expect(onCheckForUpdates).toHaveBeenCalledOnce();
+
+    const ready = buildMenuTemplate(
+      { updateReady: true, canCheck: true, quickCapture: false },
+      { onRestartToUpdate },
+      'linux'
+    );
+    const readyHelpSub = ready[4]?.submenu as Electron.MenuItemConstructorOptions[];
+    expect(readyHelpSub.some((i) => i.label === 'Check for Updates...')).toBe(false);
+    const restartItem = readyHelpSub.find((i) => i.label === 'Restart to Update');
+    expect(restartItem).toBeDefined();
+    invokeClick(restartItem);
+    expect(onRestartToUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('contains no leading, trailing, or consecutive separators in any submenu', () => {
+    for (const platform of ['darwin', 'linux'] as const) {
+      for (const state of [
+        { updateReady: false, canCheck: false, quickCapture: false },
+        { updateReady: false, canCheck: true, quickCapture: true },
+        { updateReady: true, canCheck: true, quickCapture: true },
+      ]) {
+        for (const top of buildMenuTemplate(state, undefined, platform)) {
+          const sub = (top.submenu as Electron.MenuItemConstructorOptions[]) ?? [];
+          if (sub.length === 0) continue;
+          expect(sub[0]?.type).not.toBe('separator');
+          expect(sub[sub.length - 1]?.type).not.toBe('separator');
+          for (let i = 1; i < sub.length; i += 1) {
+            expect(sub[i - 1]?.type === 'separator' && sub[i]?.type === 'separator').toBe(false);
+          }
         }
       }
     }

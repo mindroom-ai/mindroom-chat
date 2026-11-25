@@ -4,6 +4,7 @@ import type { DesktopQuickCaptureBridge } from '../lib/desktopBridge';
 import {
   ScreenshotError,
   captureScreenshot,
+  hasQuickCaptureVibrancy,
   hideQuickCapture,
   isNativeQuickCaptureAvailable,
   isNativeScreenshotAvailable,
@@ -18,6 +19,7 @@ describe('native quick capture bridge', () => {
 
   it('resolves void functions and rejects UNSUPPORTED when unavailable', async () => {
     expect(isNativeQuickCaptureAvailable()).toBe(false);
+    expect(hasQuickCaptureVibrancy()).toBe(false);
     expect(isNativeScreenshotAvailable()).toBe(false);
     await expect(hideQuickCapture()).resolves.toBeUndefined();
     await expect(showMainWindow()).resolves.toBeUndefined();
@@ -48,6 +50,7 @@ describe('native quick capture bridge', () => {
     });
 
     expect(isNativeQuickCaptureAvailable()).toBe(true);
+    expect(hasQuickCaptureVibrancy()).toBe(false);
     expect(isNativeScreenshotAvailable()).toBe(false);
 
     await hideQuickCapture();
@@ -81,6 +84,7 @@ describe('native quick capture bridge', () => {
         quickCapture: {
           hide: vi.fn().mockResolvedValue(undefined),
           openScreenRecordingSettings: vi.fn().mockResolvedValue(undefined),
+          vibrancy: true,
           captureScreenshot: captureMock,
         },
         showMainWindow: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
@@ -88,6 +92,7 @@ describe('native quick capture bridge', () => {
     });
 
     expect(isNativeQuickCaptureAvailable()).toBe(true);
+    expect(hasQuickCaptureVibrancy()).toBe(true);
     expect(isNativeScreenshotAvailable()).toBe(true);
 
     const file = await captureScreenshot('window');

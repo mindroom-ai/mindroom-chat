@@ -77,6 +77,7 @@ const bridge = {
   },
   isWindowFocused: () => windowFocused,
   screenShare: process.argv.includes('--mindroom-screen-share=1'),
+  customTitlebar: process.argv.includes('--mindroom-custom-titlebar=1'),
   appUrl: {
     // A sign-in return never comes this way: main holds it until the listener below takes it.
     getLaunchUrl: () => Promise.resolve(undefined),
@@ -119,6 +120,7 @@ const bridge = {
         quickCapture: {
           hide: () => unwrapVoid('desktop:quick-capture-hide'),
           openScreenRecordingSettings: () => unwrapVoid('desktop:open-screen-recording-settings'),
+          vibrancy: process.argv.includes('--mindroom-quick-capture-vibrancy=1'),
           ...(process.argv.includes('--mindroom-screenshot-helper=1')
             ? {
                 captureScreenshot: (target: 'window' | 'screen') =>

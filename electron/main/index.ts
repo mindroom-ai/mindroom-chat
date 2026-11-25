@@ -31,7 +31,7 @@ import {
   supportsSystemScreenShare,
 } from './security';
 import { setTrackpadSwipeRecorder, type TrackpadSwipePhase } from './trackpadSwipe';
-import { startUpdater, type UpdaterHandle } from './updater';
+import { isUpdaterSupported, startUpdater, type UpdaterHandle } from './updater';
 
 const SCREEN_RECORDING_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
@@ -45,6 +45,15 @@ app.commandLine.appendSwitch(
 );
 
 registerBundleScheme();
+
+if (process.platform === 'linux') {
+  const linuxApp: Pick<Electron.App, 'isPackaged'> & {
+    setDesktopName?: (name: string) => void;
+  } = app;
+  if (typeof linuxApp.setDesktopName === 'function') {
+    linuxApp.setDesktopName('mindroom-chat.desktop');
+  }
+}
 
 const unpackaged = !app.isPackaged;
 const isTest = unpackaged && process.env.MINDROOM_DESKTOP_TEST === '1';
@@ -201,9 +210,16 @@ void app.whenReady().then(() => {
   });
   const activeDesktopAccess = desktopAccess;
 
+  const updaterSupported = isUpdaterSupported({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    appImageEnv: process.env.APPIMAGE,
+    resourcesPath: process.resourcesPath,
+  });
+
   configureMainWindow({
     screenShare,
-    updater: app.isPackaged,
+    updater: updaterSupported,
     desktopAccess: activeDesktopAccess.isAvailable(),
   });
 
@@ -301,12 +317,13 @@ void app.whenReady().then(() => {
         onCheckForUpdates,
         onRestartToUpdate: () => updater?.install(),
         onQuickCapture: () => activeQuickCapture.toggle(),
-      }
+      },
+      process.platform
     );
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   };
 
-  if (app.isPackaged) {
+  if (updaterSupported) {
     updater = startUpdater(
       autoUpdater,
       () => {

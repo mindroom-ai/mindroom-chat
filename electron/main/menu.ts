@@ -36,92 +36,107 @@ const cleanSeparators = (
 
 export const buildMenuTemplate = (
   state: MenuState,
-  handlers?: MenuHandlers
+  handlers?: MenuHandlers,
+  platform: NodeJS.Platform = process.platform
 ): Electron.MenuItemConstructorOptions[] => {
-  const appSubmenu: Electron.MenuItemConstructorOptions[] = [
-    { role: 'about' },
-    { type: 'separator' },
-  ];
-  if (state.updateReady) {
-    appSubmenu.push(
-      { label: 'Restart to Update', click: () => handlers?.onRestartToUpdate?.() },
-      { type: 'separator' }
-    );
-  } else if (state.canCheck) {
-    appSubmenu.push(
-      { label: 'Check for Updates...', click: () => handlers?.onCheckForUpdates?.() },
-      { type: 'separator' }
-    );
-  }
-  appSubmenu.push(
-    { role: 'services' },
-    { type: 'separator' },
-    { role: 'hide' },
-    { role: 'hideOthers' },
-    { role: 'unhide' },
-    { type: 'separator' },
-    { role: 'quit' }
-  );
+  const updateItems: Electron.MenuItemConstructorOptions[] = state.updateReady
+    ? [{ label: 'Restart to Update', click: () => handlers?.onRestartToUpdate?.() }]
+    : state.canCheck
+      ? [{ label: 'Check for Updates...', click: () => handlers?.onCheckForUpdates?.() }]
+      : [];
 
-  const windowSubmenu: Electron.MenuItemConstructorOptions[] = [];
-  if (state.quickCapture) {
-    windowSubmenu.push(
+  const quickCaptureItems: Electron.MenuItemConstructorOptions[] = state.quickCapture
+    ? [
+        {
+          label: 'Quick Capture',
+          accelerator: 'Control+Alt+Space',
+          click: () => handlers?.onQuickCapture?.(),
+        },
+        { type: 'separator' },
+      ]
+    : [];
+
+  const editMenu: Electron.MenuItemConstructorOptions = {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'pasteAndMatchStyle' },
+      { role: 'delete' },
+      { role: 'selectAll' },
+    ],
+  };
+
+  const viewMenu: Electron.MenuItemConstructorOptions = {
+    label: 'View',
+    submenu: [
       {
-        label: 'Quick Capture',
-        accelerator: 'Control+Alt+Space',
-        click: () => handlers?.onQuickCapture?.(),
+        label: 'Zoom In',
+        accelerator: 'CommandOrControl+Plus',
+        click: () => handlers?.onZoom?.('in'),
       },
-      { type: 'separator' }
-    );
+      {
+        label: 'Zoom Out',
+        accelerator: 'CommandOrControl+-',
+        click: () => handlers?.onZoom?.('out'),
+      },
+      {
+        label: 'Actual Size',
+        accelerator: 'CommandOrControl+0',
+        click: () => handlers?.onZoom?.('reset'),
+      },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ],
+  };
+
+  if (platform === 'darwin') {
+    const appSubmenu: Electron.MenuItemConstructorOptions[] = [
+      { role: 'about' },
+      { type: 'separator' },
+      ...updateItems,
+      { type: 'separator' },
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit' },
+    ];
+    const windowSubmenu: Electron.MenuItemConstructorOptions[] = [
+      ...quickCaptureItems,
+      { role: 'minimize' },
+      { role: 'zoom' },
+      { role: 'close' },
+      { type: 'separator' },
+      { role: 'front' },
+    ];
+    return [
+      { label: 'MindRoom', submenu: cleanSeparators(appSubmenu) },
+      editMenu,
+      viewMenu,
+      { label: 'Window', submenu: cleanSeparators(windowSubmenu) },
+      { role: 'help', submenu: [] },
+    ];
   }
-  windowSubmenu.push(
-    { role: 'minimize' },
-    { role: 'zoom' },
-    { role: 'close' },
-    { type: 'separator' },
-    { role: 'front' }
-  );
 
   return [
-    { label: 'MindRoom', submenu: cleanSeparators(appSubmenu) },
+    { label: 'File', submenu: [{ role: 'close' }, { type: 'separator' }, { role: 'quit' }] },
+    editMenu,
+    viewMenu,
     {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'pasteAndMatchStyle' },
-        { role: 'delete' },
-        { role: 'selectAll' },
-      ],
+      label: 'Window',
+      submenu: cleanSeparators([...quickCaptureItems, { role: 'minimize' }, { role: 'close' }]),
     },
     {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Zoom In',
-          accelerator: 'CommandOrControl+Plus',
-          click: () => handlers?.onZoom?.('in'),
-        },
-        {
-          label: 'Zoom Out',
-          accelerator: 'CommandOrControl+-',
-          click: () => handlers?.onZoom?.('out'),
-        },
-        {
-          label: 'Actual Size',
-          accelerator: 'CommandOrControl+0',
-          click: () => handlers?.onZoom?.('reset'),
-        },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
+      label: 'Help',
+      submenu: cleanSeparators([...updateItems, { type: 'separator' }, { role: 'about' }]),
     },
-    { label: 'Window', submenu: cleanSeparators(windowSubmenu) },
-    { role: 'help', submenu: [] },
   ];
 };
 

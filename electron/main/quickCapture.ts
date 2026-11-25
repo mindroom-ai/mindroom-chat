@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { app, BrowserWindow, screen } from 'electron';
 import type { FrontTargetLookup } from './helper';
 import { attachContextMenu } from './mainWindow';
@@ -94,6 +96,8 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
       loadQuickCapturePlace(options.userDataDir),
       screen.getAllDisplays().map((display) => display.workArea)
     );
+    const isDarwin = process.platform === 'darwin';
+    const iconPath = path.join(__dirname, 'icon.png');
     const panel = new BrowserWindow({
       ...(restored ? { x: restored.x, y: restored.y } : {}),
       width: WIDGET_WIDTH,
@@ -103,15 +107,21 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
       minimizable: false,
       fullscreenable: false,
       frame: false,
-      transparent: true,
       hasShadow: true,
       show: false,
       alwaysOnTop: true,
-      ...(process.platform === 'darwin' ? { type: 'panel', vibrancy: 'popover' as const } : {}),
+      ...(isDarwin
+        ? { transparent: true, type: 'panel', vibrancy: 'popover' as const }
+        : {
+            transparent: false,
+            backgroundColor: '#1A1A1A',
+            ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
+          }),
       webPreferences: {
         preload: options.preload,
         additionalArguments: [
           '--mindroom-quick-capture=1',
+          ...(isDarwin ? ['--mindroom-quick-capture-vibrancy=1'] : []),
           ...(options.screenshotHelper?.available ? ['--mindroom-screenshot-helper=1'] : []),
         ],
         contextIsolation: true,

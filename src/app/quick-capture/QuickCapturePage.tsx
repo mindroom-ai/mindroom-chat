@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { KeySymbol } from '../lib/key-symbol';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
+  hasQuickCaptureVibrancy,
   hideQuickCapture,
   isNativeQuickCaptureAvailable,
   showMainWindow,
@@ -283,9 +284,10 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   const { t } = useTranslation();
   const { client, snapshot } = useQuickCapture(channel);
   const signedIn = !!useActiveSession();
-  // In the Mac's window the page is a panel: the window's material shows through it, and a right
-  // click outside a field or a selection opens no web menu.
+  // In the desktop window the page is a frameless panel: a right click outside a field or a
+  // selection opens no web menu, and vibrancy lets macOS window material show through.
   const [native] = useState(isNativeQuickCaptureAvailable);
+  const [vibrancy] = useState(hasQuickCaptureVibrancy);
   // The entry, its images too, outlives a host that goes away and comes back.
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
@@ -324,7 +326,11 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   }, [native]);
 
   return (
-    <div className={css.Page} data-native={native || undefined}>
+    <div
+      className={css.Page}
+      data-native={native || undefined}
+      data-vibrancy={vibrancy || undefined}
+    >
       {client && snapshot.status === 'connected' && snapshot.state && (
         <CaptureWidget
           state={snapshot.state}
