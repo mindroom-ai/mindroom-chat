@@ -145,6 +145,18 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
   let helperError: string | null = null;
   let latestStatus: DesktopAccessHelperStatus | null = null;
   let screenRecordingRequested = false;
+  let autoScreenRecordingUntil = -Infinity;
+  let autoScreenRecordingGeneration = 0;
+
+  const clearAutoScreenRecording = (): void => {
+    autoScreenRecordingUntil = -Infinity;
+    autoScreenRecordingGeneration += 1;
+  };
+
+  const hasGuiControllers = (status: DesktopAccessHelperStatus | null): boolean =>
+    Boolean(
+      status && status.config.controllers.length > 0 && status.config.allowed_app_ids.length > 0
+    );
 
   const noteShellApprovalGesture = (): void => {
     shellGestureAt = now();
@@ -224,6 +236,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       latestStatus = next;
       helperError = null;
       syncUi();
+      maybeAutoAdvanceScreenRecording();
     },
     onExit: ({
       unexpected,
@@ -316,6 +329,82 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     return next;
   };
 
+  const requestPermissionInternal = async (
+    client: DesktopBridgeClient,
+    permission: 'accessibility' | 'screen_recording'
+  ): Promise<void> => {
+    if (permission === 'screen_recording') clearAutoScreenRecording();
+    await client.request('request_permission', { permission });
+    if (
+      permission === 'screen_recording' &&
+      readPermissions(latestStatus).permissions.screen_recording !== 'granted'
+    ) {
+      screenRecordingRequested = true;
+    }
+    if (platform === 'darwin' && !isTestHelper && client.isRunning()) {
+      const url =
+        permission === 'accessibility' ? ACCESSIBILITY_SETTINGS_URL : SCREEN_RECORDING_SETTINGS_URL;
+      await openExternal(url).catch(() => undefined);
+    }
+  };
+
+  const autoRequestNextPermission = async (
+    client: DesktopBridgeClient,
+    status: DesktopAccessHelperStatus | null
+  ): Promise<void> => {
+    if (platform !== 'darwin' || isTestHelper) return;
+    if (!status || status.config.allowed_app_ids.length === 0) {
+      clearAutoScreenRecording();
+      return;
+    }
+    const { permissions } = readPermissions(status);
+    try {
+      if (permissions.accessibility !== 'granted') {
+        const generation = autoScreenRecordingGeneration;
+        await requestPermissionInternal(client, 'accessibility');
+        const current = latestStatus ?? status;
+        if (
+          generation === autoScreenRecordingGeneration &&
+          client.isRunning() &&
+          current.config.allowed_app_ids.length > 0 &&
+          readPermissions(current).permissions.screen_recording !== 'granted'
+        ) {
+          autoScreenRecordingUntil = now() + SETUP_AUTH_TTL_MS;
+        }
+        return;
+      }
+      clearAutoScreenRecording();
+      if (permissions.screen_recording !== 'granted') {
+        await requestPermissionInternal(client, 'screen_recording');
+      }
+    } catch {
+      // Never fail pairing or setup if requesting macOS permissions fails.
+    }
+  };
+
+  const maybeAutoAdvanceScreenRecording = (): void => {
+    if (autoScreenRecordingUntil === -Infinity) return;
+    if (platform !== 'darwin' || isTestHelper || autoScreenRecordingUntil <= now()) {
+      clearAutoScreenRecording();
+      return;
+    }
+    const status = latestStatus;
+    if (!hasGuiControllers(status)) {
+      clearAutoScreenRecording();
+      return;
+    }
+    const { permissions } = readPermissions(status);
+    if (permissions.accessibility !== 'granted') return;
+    clearAutoScreenRecording();
+    if (bridge?.isRunning() && permissions.screen_recording !== 'granted') {
+      void requestPermissionInternal(bridge, 'screen_recording')
+        .then(() => {
+          if (bridge.isRunning()) syncUi();
+        })
+        .catch(() => undefined);
+    }
+  };
+
   const restoreLoginItemIfUnused = (wasManaged: boolean): void => {
     if (!enableLoginItem || platform !== 'darwin' || !wasManaged) return;
     if (Object.keys(loadConsent(options.userDataDir).controllers).length > 0) return;
@@ -381,6 +470,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
   const revokeAllInternal = async (): Promise<DesktopResult<DesktopAccessSnapshot>> => {
     setupAuth = undefined;
+    clearAutoScreenRecording();
     const hadNativeConfig = fs.existsSync(
       path.join(storagePath, 'desktop_bridge', 'native_config.json')
     );
@@ -484,6 +574,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
     async stop(): Promise<void> {
       setupAuth = undefined;
+      clearAutoScreenRecording();
       tray.destroy();
       shellWindow.destroy();
       await bridge?.stop().catch(() => undefined);
@@ -498,6 +589,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           helperError = error instanceof Error ? error.message : String(error);
         }
       }
+      maybeAutoAdvanceScreenRecording();
       return { ok: true, value: buildSnapshot() };
     },
 
@@ -631,6 +723,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           }
         );
         if (res.status) latestStatus = res.status;
+        if (!hasGuiControllers(latestStatus)) clearAutoScreenRecording();
         return { ok: true, value: syncUi() };
       } catch (error) {
         return toError(error);
@@ -641,20 +734,38 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       runBridge(
         () => authorizeFinishSetup(req.controllerKey),
         async (client) => {
+          clearAutoScreenRecording();
           await applyFinishSetup(policyContext(client), req);
           setupAuth = undefined;
+          await autoRequestNextPermission(client, latestStatus);
           return syncUi();
         }
       ),
 
     updateLimits: (req: DesktopAccessUpdateLimitsRequest) =>
       runBridge(consumeGesture, async (client) => {
+        const before = latestStatus ?? (await fetchStatus(client));
+        const hadNoGuiAppsBefore = before.config.allowed_app_ids.length === 0;
+        const shouldAutoRequest = req.mode === 'full' || hadNoGuiAppsBefore;
+        if (shouldAutoRequest) clearAutoScreenRecording();
         await applyUpdateLimits(policyContext(client), req);
+        const after = latestStatus ?? before;
+        if (after.config.allowed_app_ids.length === 0) {
+          clearAutoScreenRecording();
+        } else if (shouldAutoRequest) {
+          await autoRequestNextPermission(client, after);
+        }
         return syncUi();
       }),
 
     removeController: (controllerKey: string) =>
       runBridge(consumeGesture, async (client) => {
+        if (
+          !hasGuiControllers(latestStatus) ||
+          latestStatus?.config.controllers.every((c) => c.controller_key === controllerKey)
+        ) {
+          clearAutoScreenRecording();
+        }
         clearConsent(controllerKey);
         if (isBridgeRunning(latestStatus)) {
           await client
@@ -667,10 +778,15 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           }
         }
         const current = latestStatus ?? (await fetchStatus(client));
-        await client.request('remove_controller', {
-          expected_revision: current.config.revision,
-          controller_key: controllerKey,
-        });
+        const res = await client.request<{ status?: DesktopAccessHelperStatus }>(
+          'remove_controller',
+          {
+            expected_revision: current.config.revision,
+            controller_key: controllerKey,
+          }
+        );
+        if (res.status) latestStatus = res.status;
+        if (!hasGuiControllers(latestStatus)) clearAutoScreenRecording();
         return syncUi();
       }),
 
@@ -679,20 +795,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
     requestPermission: (permission: 'accessibility' | 'screen_recording') =>
       runBridge(consumeGesture, async (client) => {
-        if (
-          permission === 'screen_recording' &&
-          readPermissions(latestStatus).permissions.screen_recording !== 'granted'
-        ) {
-          screenRecordingRequested = true;
-        }
-        await client.request('request_permission', { permission });
-        if (platform === 'darwin' && !isTestHelper) {
-          const url =
-            permission === 'accessibility'
-              ? ACCESSIBILITY_SETTINGS_URL
-              : SCREEN_RECORDING_SETTINGS_URL;
-          await openExternal(url).catch(() => undefined);
-        }
+        await requestPermissionInternal(client, permission);
         return syncUi();
       }),
 

@@ -489,7 +489,13 @@ describe('desktopAccess', () => {
     expect(finishResult.ok).toBe(true);
 
     const actions = fake.calls.map((c) => c.action);
-    expect(actions).toEqual(['upsert_controller', 'pair', 'grant_control', 'grant_shell']);
+    expect(actions).toEqual([
+      'upsert_controller',
+      'pair',
+      'grant_control',
+      'grant_shell',
+      'request_permission',
+    ]);
     expect(actions).not.toContain('stop');
     expect(actions).not.toContain('start');
     expect(fake.calls[2]?.parameters).toEqual({
@@ -825,6 +831,7 @@ describe('desktopAccess', () => {
       'start',
       'grant_control',
       'grant_shell',
+      'request_permission',
     ]);
     expect(fake.calls[4]?.parameters).toEqual({
       until_revoked: true,
@@ -1236,6 +1243,7 @@ describe('desktopAccess', () => {
         action: 'grant_control',
         parameters: { duration_seconds: 180, controller_key: 'ctrl-full' },
       },
+      { action: 'request_permission', parameters: { permission: 'accessibility' } },
     ]);
 
     // If writing desktop-access-consent.json fails, Login Item must never be turned on unrecorded.
@@ -1736,6 +1744,7 @@ describe('desktopAccess', () => {
     expect(fake1.calls).toEqual([
       { action: 'revoke_control', parameters: { controller_key: 'ctrl-restricted' } },
       { action: 'revoke_shell', parameters: { controller_key: 'ctrl-restricted' } },
+      { action: 'request_permission', parameters: { permission: 'accessibility' } },
     ]);
 
     // (b) GUI-only bridge with shell.enabled = false: updateLimits and finishSetup must NOT send revoke_shell.
@@ -1791,7 +1800,10 @@ describe('desktopAccess', () => {
     });
     expect(updated.ok).toBe(true);
     expect(fake2.calls).toEqual([
-      { action: 'grant_control', parameters: { duration_seconds: 300, controller_key: 'ctrl-gui' } },
+      {
+        action: 'grant_control',
+        parameters: { duration_seconds: 300, controller_key: 'ctrl-gui' },
+      },
     ]);
 
     fake2.calls.length = 0;
@@ -1805,6 +1817,7 @@ describe('desktopAccess', () => {
     expect(finishGui.ok).toBe(true);
     expect(fake2.calls).toEqual([
       { action: 'revoke_control', parameters: { controller_key: 'ctrl-gui' } },
+      { action: 'request_permission', parameters: { permission: 'accessibility' } },
     ]);
   });
 
@@ -2115,5 +2128,226 @@ describe('desktopAccess', () => {
     });
     expect(preserved.ok).toBe(true);
     expect(fake.currentStatus().config.file_roots).toEqual(['/Users/demo/new']);
+  });
+
+  const makeAutoPermHarness = (opts?: {
+    platform?: NodeJS.Platform;
+    isTestHelper?: boolean;
+    allowedAppIds?: string[];
+    axTrusted?: boolean;
+    screenRecording?: 'granted' | 'missing';
+  }) => {
+    let now = 1_000_000;
+    let axTrusted = opts?.axTrusted ?? false;
+    const openExternal = vi.fn(async () => undefined);
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+    const fake = createFakeBridgeClient(
+      makeBaseStatus({
+        config: {
+          state: 'ready',
+          revision: 2,
+          enabled: true,
+          controllers: [
+            {
+              controller_key: 'ctrl-demo',
+              user_id: '@demo_agent:example.test',
+              device_id: 'DEMO1',
+              ed25519: 'demo-key',
+              allowed_requester_ids: ['@demo_user:example.test'],
+              allowed_agent_names: ['demo'],
+            },
+          ],
+          allowed_app_ids: opts?.allowedAppIds ?? ['primary-screen'],
+          file_roots: [],
+          shell_enabled: true,
+        },
+        bridge: { state: 'observe_only', active_action: null, last_error: null },
+        permissions: {
+          accessibility: axTrusted ? 'granted' : 'missing',
+          screen_recording: opts?.screenRecording ?? 'missing',
+          gui_permissions_ready: axTrusted && opts?.screenRecording === 'granted',
+        },
+      })
+    );
+    const access = createDesktopAccess({
+      platform: opts?.platform ?? 'darwin',
+      arch: 'arm64',
+      userDataDir: makeTempDir(),
+      storagePath: makeTempDir(),
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      isTestHelper: opts?.isTestHelper ?? false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      now: () => now,
+      isTrustedAccessibilityClient: () => axTrusted,
+      openExternal,
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+    return {
+      access,
+      fake,
+      openExternal,
+      setNow: (v: number) => (now = v),
+      setAx: (v: boolean) => (axTrusted = v),
+      permCalls: () => fake.calls.filter((c) => c.action === 'request_permission'),
+    };
+  };
+
+  it('stages Accessibility then auto-advances one-shot to Screen Recording on finishSetup, and skips granted permissions', async () => {
+    const h = makeAutoPermHarness({ axTrusted: false, screenRecording: 'missing' });
+    h.access.noteGesture();
+    expect((await h.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' })).ok).toBe(
+      true
+    );
+    expect(h.permCalls()).toEqual([
+      { action: 'request_permission', parameters: { permission: 'accessibility' } },
+    ]);
+    expect(h.openExternal).toHaveBeenCalledTimes(1);
+    expect(h.openExternal).toHaveBeenCalledWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    );
+
+    // Still missing -> does not advance; granted within 180 s -> advances once to Screen Recording.
+    await h.access.getStatus();
+    expect(h.permCalls()).toHaveLength(1);
+    h.setAx(true);
+    h.setNow(1_005_000);
+    await h.access.getStatus();
+    await vi.waitFor(() => expect(h.permCalls()).toHaveLength(2));
+    expect(h.permCalls()[1]?.parameters).toEqual({ permission: 'screen_recording' });
+    expect(h.openExternal).toHaveBeenLastCalledWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+    );
+    const snap = await h.access.getStatus();
+    expect(snap.ok && snap.value.relaunchRequired).toBe(true);
+    // Strictly one-shot across further polls and status pushes.
+    h.fake.pushStatus({
+      permissions: {
+        accessibility: 'granted',
+        screen_recording: 'missing',
+        gui_permissions_ready: false,
+      },
+    });
+    await Promise.resolve();
+    expect(h.permCalls()).toHaveLength(2);
+
+    // Accessibility already granted -> straight to Screen Recording; both granted -> no prompt.
+    const h2 = makeAutoPermHarness({ axTrusted: true, screenRecording: 'missing' });
+    h2.access.noteGesture();
+    const res2 = await h2.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' });
+    expect(res2.ok && res2.value.relaunchRequired).toBe(true);
+    expect(h2.permCalls()).toEqual([
+      { action: 'request_permission', parameters: { permission: 'screen_recording' } },
+    ]);
+
+    const h3 = makeAutoPermHarness({ axTrusted: true, screenRecording: 'granted' });
+    h3.access.noteGesture();
+    expect((await h3.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' })).ok).toBe(
+      true
+    );
+    expect(h3.permCalls()).toEqual([]);
+    expect(h3.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('handles updateLimits, helper-pushed auto-advance, TTL expiry, cancellations, errors, and platform/testHelper guards', async () => {
+    // Shell-only finishSetup skips permissions; enabling GUI apps in updateLimits stages + auto-advances on helper push.
+    const h = makeAutoPermHarness({ allowedAppIds: [] });
+    h.access.noteGesture();
+    expect(
+      (
+        await h.access.finishSetup({
+          controllerKey: 'ctrl-demo',
+          mode: 'restricted',
+          allowedAppIds: [],
+        })
+      ).ok
+    ).toBe(true);
+    expect(h.permCalls()).toEqual([]);
+
+    h.access.noteGesture();
+    expect(
+      (
+        await h.access.updateLimits({
+          controllerKey: 'ctrl-demo',
+          mode: 'restricted',
+          allowedAppIds: ['com.example.Browser'],
+        })
+      ).ok
+    ).toBe(true);
+    expect(h.permCalls().map((c) => c.parameters)).toEqual([{ permission: 'accessibility' }]);
+
+    h.setAx(true);
+    h.fake.pushStatus({
+      permissions: {
+        accessibility: 'granted',
+        screen_recording: 'missing',
+        gui_permissions_ready: false,
+      },
+    });
+    await vi.waitFor(() => expect(h.permCalls()).toHaveLength(2));
+    expect(h.permCalls()[1]?.parameters).toEqual({ permission: 'screen_recording' });
+
+    // Expiry (180 s), stop(), revokeAll(), removeController(), and clearing GUI apps all cancel auto-advance.
+    for (const cancel of ['expire', 'stop', 'revokeAll', 'removeController', 'clearGui'] as const) {
+      const c = makeAutoPermHarness();
+      c.access.noteGesture();
+      expect((await c.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' })).ok).toBe(
+        true
+      );
+      if (cancel === 'expire') c.setNow(1_180_000);
+      else if (cancel === 'stop') await c.access.stop();
+      else if (cancel === 'revokeAll') {
+        c.access.noteGesture();
+        await c.access.revokeAll();
+      } else if (cancel === 'removeController') {
+        c.access.noteGesture();
+        await c.access.removeController('ctrl-demo');
+      } else {
+        c.access.noteGesture();
+        await c.access.updateLimits({
+          controllerKey: 'ctrl-demo',
+          mode: 'restricted',
+          allowedAppIds: [],
+        });
+      }
+      c.setAx(true);
+      await c.access.getStatus();
+      await Promise.resolve();
+      expect(c.permCalls()).toHaveLength(1);
+    }
+
+    // Permission prompt failure never fails setup and does not open System Settings or arm auto-advance.
+    const errH = makeAutoPermHarness();
+    const baseImpl = vi.mocked(errH.fake.client.request).getMockImplementation()!;
+    vi.mocked(errH.fake.client.request).mockImplementation(async (action, params, timeoutMs) => {
+      if (action === 'request_permission') {
+        throw new DesktopHelperError('permission_failed', 'Prompt unavailable.');
+      }
+      return baseImpl(action, params, timeoutMs);
+    });
+    errH.access.noteGesture();
+    expect((await errH.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' })).ok).toBe(
+      true
+    );
+    expect(errH.openExternal).not.toHaveBeenCalled();
+
+    // Non-darwin and isTestHelper never auto-request permissions.
+    for (const guard of [{ platform: 'linux' as const }, { isTestHelper: true }]) {
+      const g = makeAutoPermHarness(guard);
+      g.access.noteGesture();
+      expect((await g.access.finishSetup({ controllerKey: 'ctrl-demo', mode: 'full' })).ok).toBe(
+        true
+      );
+      expect(g.permCalls()).toEqual([]);
+      expect(g.openExternal).not.toHaveBeenCalled();
+    }
   });
 });
