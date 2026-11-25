@@ -361,7 +361,10 @@ const newestRowShown = async (page: Page) => {
   const box = await composerBox(page);
   const header = await headerBottom(page);
   const row = await newestRow(page).boundingBox();
-  return row ? Math.min(row.y + row.height, box.top) - Math.max(row.y, Math.max(0, header)) : 0;
+  const rowShown = row
+    ? Math.min(row.y + row.height, box.top) - Math.max(row.y, Math.max(0, header))
+    : 0;
+  return { box, header, row, rowShown };
 };
 
 /**
@@ -378,12 +381,7 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
   await setVisualViewport(page, LANDSCAPE_KEYBOARD_VISIBLE, 0);
   await expect.poll(() => appHeight(page)).toBe(`${LANDSCAPE_KEYBOARD_VISIBLE}px`);
   await page.waitForTimeout(1_000);
-  const box = await composerBox(page);
-  const header = await headerBottom(page);
-  const row = await newestRow(page).boundingBox();
-  const rowShown = row
-    ? Math.min(row.y + row.height, box.top) - Math.max(row.y, Math.max(0, header))
-    : 0;
+  const { box, header, row, rowShown } = await newestRowShown(page);
   console.log(`${engine} landscape keyboard: ${JSON.stringify({ box, header, row, rowShown })}`);
   expect(box.top, `${engine}: the composer starts in the band`).toBeGreaterThanOrEqual(-1);
   expect(box.bottom, `${engine}: the composer ends above the keyboard`).toBeLessThanOrEqual(
@@ -435,7 +433,7 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
     `${engine}: tapping Jump to Latest returns to the newest message`
   ).toBeVisible({ timeout: 15_000 });
   await expect
-    .poll(() => newestRowShown(page), {
+    .poll(async () => (await newestRowShown(page)).rowShown, {
       timeout: 15_000,
       message: `${engine}: the newest message shows above the composer after Jump to Latest`,
     })

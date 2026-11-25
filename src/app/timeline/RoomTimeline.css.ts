@@ -1,6 +1,8 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
+import { footerInset } from '../ui/styles/RoomOverlay.css';
+import { narrowRoomArea } from '../ui/styles/roomArea.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
 /** A control that hovers over the timeline, centered at its top or bottom edge. */
@@ -47,6 +49,65 @@ export const FloatingAction = style([
     },
   },
 ]);
+
+/**
+ * Keeps Jump to Latest low above the composer so typing and read receipts can share the dock row
+ * beside it without shifting it; narrows to +S200 to sit vertically flush with the 32 px dock row.
+ */
+export const JumpToLatestFloat = style({
+  bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S400})`,
+  maxWidth: `min(calc(100% - ${config.space.S400} * 2), 11rem)`,
+  '@container': {
+    [narrowRoomArea]: {
+      bottom: `calc(var(--room-composer-height, ${footerInset}) + ${config.space.S200})`,
+      maxWidth: 'none',
+    },
+  },
+});
+
+/**
+ * Collapses Jump to Latest to a 32 × 32 px circular arrow button in narrow panes (< 600 px) while
+ * giving coarse pointers a 44 × 44 px hit area inside the 44 px center lane. Triple-class
+ * specificity (`&&&`) beats folds' Chip `[data-ui-before=true]` inline padding and
+ * `FloatingAction`'s `&&` height/padding rules regardless of stylesheet order.
+ */
+export const JumpToLatestButton = style([
+  touchTarget('6px'),
+  {
+    '@container': {
+      [narrowRoomArea]: {
+        selectors: {
+          '&&&': {
+            inlineSize: toRem(32),
+            blockSize: toRem(32),
+            minHeight: toRem(32),
+            padding: 0,
+            gap: 0,
+            justifyContent: 'center',
+          },
+        },
+      },
+    },
+  },
+]);
+
+/** Visually hidden in narrow panes while keeping the button's accessible name intact. */
+export const JumpToLatestLabel = style({
+  textWrap: 'balance',
+  '@container': {
+    [narrowRoomArea]: {
+      position: 'absolute',
+      width: '1px',
+      height: '1px',
+      padding: 0,
+      margin: '-1px',
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'nowrap',
+      border: 0,
+    },
+  },
+});
 
 /** "[+all]": 16 px of text in a 1 px rim, 18 px tall, as thread-light.png shows it. */
 const expandAllPillHeight = `calc(${toRem(16)} + 2px)`;

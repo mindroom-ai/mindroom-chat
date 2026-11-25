@@ -1,56 +1,78 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
-import { createRoom } from '../helpers/createRoom';
 import {
   CHROMIUM_WITH_SCROLLBARS,
-  DISPOSABLE_HOMESERVER as HOMESERVER,
-  disposableHomeserverIsUp,
-  registerDisposableUser,
-} from '../helpers/disposableAccounts';
-import {
+  HOMESERVER,
   allowActiveRunsState,
+  allowBackgroundJobsState,
+  createRoom,
+  disposableHomeserverIsUp,
   joinRoom,
+  loginWithPassword,
   matrixFetch,
   publishActiveRuns,
   registerAgentAccount,
+  registerDisposableUser,
   sendRoomMessage,
+  sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
 
-// When an agent starts typing in a thread, the typing strip appears in the dock above the composer.
-// Jump to Latest reserves a one-row dock floor above the composer so appearing or clearing a
-// single-row typing strip never shifts Jump to Latest vertically while keeping S400 clearance
-// above the strip. Runs against the disposable homeserver of `just hs-up` or `scripts/e2e-slot.sh`.
-// Set JUMP_TO_LATEST_TYPING_SHOTS=<directory> to save before/during screenshots.
-const PASSWORD = 'jump-to-latest-typing-password';
+/**
+ * Verifies that Jump to Latest shares the dock row with typing without shifting vertically on
+ * desktop wide, narrow split-pane width, and phone viewports, lifts cleanly above full-width
+ * background-job bars, and returns to its low dock-sharing position when jobs clear.
+ */
+const PASSWORD = 'PlaceholderPass!23';
 const RUN = Date.now().toString(36);
+const TURN_COUNT = 16;
 const SHOTS = process.env.JUMP_TO_LATEST_TYPING_SHOTS;
-const TURN_COUNT = 15;
 
 type ViewportCase = {
-  label: 'desktop' | 'phone';
+  label: string;
+  narrow: boolean;
   useOptions: Parameters<typeof test.use>[0];
 };
 
-const CASES: readonly ViewportCase[] = [
+const CASES: ViewportCase[] = [
   {
     label: 'desktop',
+    narrow: false,
     useOptions: { viewport: { width: 1280, height: 800 } },
   },
   {
+    label: 'narrow',
+    narrow: true,
+    useOptions: { viewport: { width: 480, height: 800 } },
+  },
+  {
     label: 'phone',
+    narrow: true,
     useOptions: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
   },
 ];
 
-type VerticalBounds = { top: number; bottom: number };
+type RectBounds = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+};
 
-const verticalBounds = async (locator: Locator, name: string): Promise<VerticalBounds> => {
+const boundsOf = async (locator: Locator, name: string): Promise<RectBounds> => {
   const box = await locator.boundingBox();
   if (!box) throw new Error(`${name} has no bounding box`);
-  return { top: box.y, bottom: box.y + box.height };
+  return {
+    left: box.x,
+    right: box.x + box.width,
+    top: box.y,
+    bottom: box.y + box.height,
+    width: box.width,
+    height: box.height,
+  };
 };
 
 const readThreadInsets = (page: Page) =>
@@ -71,7 +93,10 @@ const saveShot = async (page: Page, name: string): Promise<void> => {
   await page.screenshot({ path: join(SHOTS, `${name}.png`) });
 };
 
-const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Promise<void> => {
+const verifyJumpToLatestStableWithTyping = async (
+  page: Page,
+  { label, narrow }: Pick<ViewportCase, 'label' | 'narrow'>
+): Promise<void> => {
   const viewer = await registerDisposableUser(`jtl_viewer_${label}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `helper_${label}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(viewer.userId)}/displayname`, {
@@ -94,6 +119,7 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
   await allowActiveRunsState(HOMESERVER, viewer.accessToken, roomId);
+  await allowBackgroundJobsState(HOMESERVER, viewer.accessToken, roomId);
 
   const rootId = await sendRoomMessage(HOMESERVER, viewer.accessToken, roomId, {
     msgtype: 'm.text',
@@ -138,6 +164,16 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
       }
     );
 
+  const publishBackgroundJobs = (jobs: Record<string, unknown>[]) =>
+    sendStateEvent(
+      HOMESERVER,
+      agent.accessToken,
+      roomId,
+      'io.mindroom.background_jobs',
+      agent.userId,
+      { jobs }
+    );
+
   await page.route('**/v1/local-mindroom/connections', (route) =>
     route.fulfill({ json: { connections: [] } })
   );
@@ -149,10 +185,12 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
-  const threadArea = page.locator('[data-footer-of="thread"]').locator('xpath=../..');
+  const threadFooter = page.locator('[data-footer-of="thread"]');
+  const threadArea = threadFooter.locator('xpath=../..');
   const scroller = threadArea.locator('[data-thread-count]').locator('xpath=../..');
   const jumpToLatest = threadArea.getByRole('button', { name: 'Jump to Latest', exact: true });
   const typingStrip = threadArea.getByRole('status').filter({ hasText: 'Helper is typing...' });
+  const jobsBar = threadArea.locator('[data-jobs-bar]');
 
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 30_000 });
   await expect
@@ -178,6 +216,7 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
     .toBe(true);
 
   await expect(typingStrip).toHaveCount(0);
+  await expect(jobsBar).toHaveCount(0);
   await expect
     .poll(async () => {
       const insets = await readThreadInsets(page);
@@ -186,7 +225,20 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
     .toBe(true);
   await page.mouse.move(0, 0);
 
-  const emptyBox = await verticalBounds(jumpToLatest, 'Jump to Latest (empty dock)');
+  const composerBox = await boundsOf(threadFooter, 'Thread composer footer');
+  const emptyBox = await boundsOf(jumpToLatest, 'Jump to Latest (empty dock)');
+  const emptyGapAboveComposer = composerBox.top - emptyBox.bottom;
+  if (narrow) {
+    expect(emptyGapAboveComposer).toBeGreaterThanOrEqual(7);
+    expect(emptyGapAboveComposer).toBeLessThanOrEqual(9);
+    expect(emptyBox.width).toBeLessThanOrEqual(34);
+    expect(emptyBox.height).toBeLessThanOrEqual(34);
+    expect(Math.abs(emptyBox.width - emptyBox.height)).toBeLessThanOrEqual(1);
+  } else {
+    expect(emptyGapAboveComposer).toBeGreaterThanOrEqual(15);
+    expect(emptyGapAboveComposer).toBeLessThanOrEqual(17);
+    expect(emptyBox.width).toBeGreaterThan(90);
+  }
   await saveShot(page, `empty-dock-${label}`);
 
   await publishActiveRuns(HOMESERVER, agent, roomId, [rootId]);
@@ -205,20 +257,56 @@ const verifyJumpToLatestStableWithTyping = async (page: Page, label: string): Pr
     .toBeGreaterThanOrEqual(35);
   await saveShot(page, `typing-visible-${label}`);
 
-  const typingJumpBox = await verticalBounds(jumpToLatest, 'Jump to Latest (typing visible)');
-  const stripBox = await verticalBounds(typingStrip, 'Typing strip');
+  const typingJumpBox = await boundsOf(jumpToLatest, 'Jump to Latest (typing visible)');
+  const stripBox = await boundsOf(typingStrip, 'Typing strip');
   expect(Math.abs(typingJumpBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(typingJumpBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
-  expect(stripBox.top - typingJumpBox.bottom).toBeGreaterThanOrEqual(15);
+  expect(stripBox.right).toBeLessThanOrEqual(typingJumpBox.left - 8);
+  expect(Math.abs(stripBox.top - typingJumpBox.top)).toBeLessThanOrEqual(2);
 
   await setTyping(false);
   await publishActiveRuns(HOMESERVER, agent, roomId, []);
   await expect(typingStrip).toHaveCount(0, { timeout: 30_000 });
   await expect.poll(async () => (await readThreadInsets(page))?.dock).toBe(0);
 
-  const clearedBox = await verticalBounds(jumpToLatest, 'Jump to Latest (typing cleared)');
-  expect(Math.abs(clearedBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
-  expect(Math.abs(clearedBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
+  const clearedTypingBox = await boundsOf(jumpToLatest, 'Jump to Latest (typing cleared)');
+  expect(Math.abs(clearedTypingBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(clearedTypingBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
+
+  await publishBackgroundJobs([
+    {
+      job_id: `job_${label}_${RUN}`,
+      thread_id: rootId,
+      kind: 'tool',
+      tool: 'placeholder_task',
+      status: 'running',
+      requester_id: viewer.userId,
+      started_at: new Date().toISOString(),
+    },
+  ]);
+  await expect(jobsBar).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(
+      async () => {
+        const [jump, jobs] = await Promise.all([jumpToLatest.boundingBox(), jobsBar.boundingBox()]);
+        return jump && jobs ? jobs.y - (jump.y + jump.height) : -Infinity;
+      },
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThanOrEqual(15);
+  await saveShot(page, `jobs-visible-${label}`);
+
+  const jobsJumpBox = await boundsOf(jumpToLatest, 'Jump to Latest (jobs visible)');
+  const jobsBox = await boundsOf(jobsBar, 'Background jobs bar');
+  expect(jobsBox.top - jobsJumpBox.bottom).toBeGreaterThanOrEqual(15);
+
+  await publishBackgroundJobs([]);
+  await expect(jobsBar).toHaveCount(0, { timeout: 30_000 });
+  await expect.poll(async () => (await readThreadInsets(page))?.dock).toBe(0);
+
+  const clearedJobsBox = await boundsOf(jumpToLatest, 'Jump to Latest (jobs cleared)');
+  expect(Math.abs(clearedJobsBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(clearedJobsBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
 
   await jumpToLatest.click();
   await expect(jumpToLatest).toBeHidden({ timeout: 15_000 });
@@ -240,15 +328,15 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-for (const { label, useOptions } of CASES) {
+for (const { label, narrow, useOptions } of CASES) {
   test.describe(label, () => {
     test.use(useOptions);
 
-    test(`Jump to Latest stays still when typing appears in a thread (${label})`, async ({
+    test(`Jump to Latest shares the dock with typing and lifts for jobs (${label})`, async ({
       page,
     }) => {
       test.setTimeout(180_000);
-      await verifyJumpToLatestStableWithTyping(page, label);
+      await verifyJumpToLatestStableWithTyping(page, { label, narrow });
     });
   });
 }

@@ -144,10 +144,7 @@ vi.mock('../app/ui/styles/RoomOverlay.css', () => ({
   headerInset: 'var(--room-header-height, 0px)',
   composerInset: 'var(--room-composer-height, 0px)',
   footerInset: 'var(--room-footer-height, 0px)',
-  dockRowHeight: 'calc(2rem + 0.5rem)',
-  dockRowReserve: 'var(--room-dock-row-reserve)',
-  jumpToLatestBottom:
-    'calc(max(var(--room-footer-height, 0px), var(--room-composer-height, 0px) + var(--room-dock-row-reserve, calc(2rem + 0.5rem))) + 1rem)',
+  jumpLane: 'var(--room-jump-lane)',
   topInset: '0px',
   controlsTopInset: '0px',
   overviewInsetStop: {},

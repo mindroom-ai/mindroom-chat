@@ -5,6 +5,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, Icons, Spinner, Text, color, config, toRem, type IconSrc } from 'folds';
 import * as css from './RoomTimeline.css';
@@ -95,16 +96,25 @@ export function JumpToLatestAction({
   up?: boolean;
 }) {
   const { t } = useTranslation();
+  const label = t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest');
   return (
     <div
-      className={css.TimelineFloat({ position: 'Bottom' })}
-      style={{ bottom: overlay.jumpToLatestBottom }}
+      data-jump-to-latest=""
+      className={classNames(css.TimelineFloat({ position: 'Bottom' }), css.JumpToLatestFloat)}
     >
-      <FloatingAction
-        icon={up ? Icons.ArrowTop : Icons.ArrowBottom}
-        label={t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest')}
-        onSelect={onSelect}
-      />
+      <Chip
+        className={classNames(css.FloatingAction, css.JumpToLatestButton)}
+        onClick={onSelect}
+        variant="SurfaceVariant"
+        outlined
+        radii="Pill"
+        title={label}
+        before={<Icon src={up ? Icons.ArrowTop : Icons.ArrowBottom} size="50" />}
+      >
+        <Text as="span" size="L400" className={css.JumpToLatestLabel}>
+          {label}
+        </Text>
+      </Chip>
     </div>
   );
 }

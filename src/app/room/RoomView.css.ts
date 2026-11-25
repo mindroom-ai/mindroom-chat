@@ -1,8 +1,10 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { config } from 'folds';
 import { Bar, Listed } from '../background-jobs/BackgroundJobsBar.css';
+import { Following } from '../timeline/RoomViewFollowing.css';
 import { TypingStrip } from '../timeline/typing/RoomViewTyping.css';
-import { DockBars, dockRowReserve } from '../ui/styles/RoomOverlay.css';
-import { roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
+import { DockBars, DockRow, footerInset, jumpLane } from '../ui/styles/RoomOverlay.css';
+import { narrowRoomArea, roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
 
 export const RoomArea = style({ containerName: roomArea, containerType: 'size' });
 
@@ -13,10 +15,35 @@ export const HeaderInShortArea = style({
   '@container': { [shortRoomArea]: { display: 'none' } },
 });
 
-// In that same short area, drop the empty-dock reservation so Jump to Latest fits inside the
-// visible band when the dock is empty while still clearing an occupied dock via `footerInset`.
-export const TimelineArea = style({
-  '@container': { [shortRoomArea]: { vars: { [dockRowReserve]: '0px' } } },
+// When Jump to Latest is shown without a full-width jobs or approvals bar, give DockRow a
+// symmetric 3-column grid so typing and "following" sit in the outer lanes beside Jump to Latest
+// with zero vertical jump.
+const sharedDock = `${RoomArea}:has([data-jump-to-latest]):not(:has([data-jobs-bar], [data-approvals-bar]))`;
+globalStyle(`${sharedDock} ${DockRow}`, {
+  vars: { [jumpLane]: '11rem' },
+  display: 'grid',
+  gridTemplateColumns: `minmax(0, 1fr) ${jumpLane} minmax(0, 1fr)`,
+  alignItems: 'end',
+  columnGap: config.space.S300,
+  '@container': { [narrowRoomArea]: { vars: { [jumpLane]: '2.75rem' } } },
+});
+globalStyle(`${sharedDock} ${DockBars}`, {
+  gridColumn: '1',
+  minWidth: 0,
+});
+globalStyle(`${sharedDock} ${Following}`, {
+  gridColumn: '3',
+  justifySelf: 'end',
+  maxInlineSize: '100%',
+  marginInlineStart: 0,
+});
+
+// Full-width dock bars (background jobs or thread approvals) keep DockRow full width and lift
+// Jump to Latest above the dock.
+const blockedDock = `${RoomArea}:has([data-jobs-bar], [data-approvals-bar])`;
+globalStyle(`${blockedDock} [data-jump-to-latest]`, {
+  bottom: `calc(${footerInset} + ${config.space.S400})`,
+  maxWidth: `calc(100% - ${config.space.S400} * 2)`,
 });
 
 // A typing strip that holds the keyboard keeps listed jobs beside it, so its button stays in sight.

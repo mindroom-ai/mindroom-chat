@@ -9,3 +9,6 @@ export const roomArea = createContainer();
 
 /** Shorter than the header, the composer and a couple of rows together. */
 export const shortRoomArea = `${roomArea} (max-height: 240px)`;
+
+/** Narrower than 600 px (portrait phones and default split-pane threads). */
+export const narrowRoomArea = `${roomArea} (max-width: 37.49rem)`;
