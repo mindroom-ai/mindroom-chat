@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { MemoryRouter } from 'react-router-dom';
+import { MatrixEvent, SyncState, type MatrixClient, type Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
 import '@fontsource-variable/inter';
 import '../../src/index.css';
@@ -44,6 +45,34 @@ const members = new Map(
     },
   ])
 );
+const powerLevelsEvent = {
+  getContent: () => ({ users_default: 50, state_default: 50, events_default: 0 }),
+};
+const createEvent = {
+  getContent: () => ({ room_version: '11' }),
+  getSender: () => '@alex:example.org',
+};
+const roomState = {
+  getMembers: () => [...members.values()],
+  maySendEvent: () => true,
+  getStateEvents: (type: string, stateKey?: string) => {
+    if (type === 'm.room.power_levels') return powerLevelsEvent;
+    if (type === 'm.room.create') return createEvent;
+    return stateKey === undefined ? [] : null;
+  },
+};
+const rootEventsByRoom = new Map<string, Map<string, MatrixEvent>>();
+const roomsById = new Map<string, SpaceRoomItem>();
+const mx = {
+  getSafeUserId: () => '@morgan:example.org',
+  getUserId: () => '@morgan:example.org',
+  getHomeserverUrl: () => 'https://example.org',
+  getRoom: (id: string) => roomsById.get(id)?.room ?? null,
+  getSyncState: () => SyncState.Syncing,
+  on: () => undefined,
+  removeListener: () => undefined,
+  mxcUrlToHttp: (mxcUrl: string) => avatarUrls.get(mxcUrl) ?? null,
+} as unknown as MatrixClient;
 const ROOMS: readonly SpaceRoomItem[] = (
   [
     ['backend-api', '#4f8ff7'],
@@ -51,26 +80,37 @@ const ROOMS: readonly SpaceRoomItem[] = (
   ] as const
 ).map(([name, accentColor]) => {
   const roomId = `!${name}:example.org`;
-  return {
+  const item: SpaceRoomItem = {
     name,
     accentColor,
     room: {
       roomId,
       name,
+      client: mx,
+      getMyMembership: () => 'join',
+      getCanonicalAlias: () => null,
+      membersLoaded: () => true,
+      loadMembersIfNeeded: () => Promise.resolve(true),
       getMember: (userId: string) => members.get(userId) ?? null,
       getMembers: () => [...members.values()],
-      getThread: () => undefined,
-      findEventById: () => undefined,
+      getThread: (id: string) => {
+        const rootEvent = rootEventsByRoom.get(roomId)?.get(id);
+        return rootEvent
+          ? { rootEvent, findEventById: () => rootEvent, initialize: () => Promise.resolve() }
+          : undefined;
+      },
+      findEventById: (id: string) => rootEventsByRoom.get(roomId)?.get(id),
       getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
+      getLiveTimeline: () => ({ getState: () => roomState }),
+      currentState: roomState,
+      on: () => undefined,
+      off: () => undefined,
+      removeListener: () => undefined,
     } as unknown as Room,
   };
+  roomsById.set(roomId, item);
+  return item;
 });
-const roomsById = new Map(ROOMS.map((item) => [item.room.roomId, item]));
-const mx = {
-  getSafeUserId: () => '@morgan:example.org',
-  getHomeserverUrl: () => 'https://example.org',
-  mxcUrlToHttp: (mxcUrl: string) => avatarUrls.get(mxcUrl) ?? null,
-} as unknown as MatrixClient;
 
 const buildEntry = (
   i: number,
@@ -83,10 +123,22 @@ const buildEntry = (
   const participants = opts.streaming
     ? ['@morgan:example.org', '@alex:example.org']
     : ['@alex:example.org', '@morgan:example.org'];
+  const threadRootId = `$${prefix}-${i + 1}`;
+  const rootEvent = new MatrixEvent({
+    event_id: threadRootId,
+    room_id: roomItem.room.roomId,
+    type: 'm.room.message',
+    sender: participants[0],
+    content: { msgtype: 'm.text', body: preview },
+  });
+  Object.defineProperty(rootEvent, 'isThreadRoot', { value: true });
+  const roomRoots = rootEventsByRoom.get(roomItem.room.roomId) ?? new Map<string, MatrixEvent>();
+  roomRoots.set(threadRootId, rootEvent);
+  rootEventsByRoom.set(roomItem.room.roomId, roomRoots);
   return makeSpaceThreadEntry({
     roomId: roomItem.room.roomId,
     roomName: roomItem.name,
-    threadRootId: `$${prefix}-${i + 1}`,
+    threadRootId,
     summaryText: title,
     rootPreviewText: preview,
     latestReplyPreviewText: preview,
@@ -145,27 +197,29 @@ const sections: readonly CompactThreadSection[] = [
 function Fixture() {
   const [folded, setFolded] = useState<readonly CompactThreadSectionId[]>(['quiet']);
   return (
-    <MatrixClientProvider value={mx}>
-      <div className={css.PageBody} style={{ width: 1100, height: 680 }}>
-        <SpaceThreadsList
-          entryKeys={allEntries.map((e) => e.key)}
-          entryByKey={entryByKey}
-          sections={isFlat ? undefined : sections}
-          foldedSections={folded}
-          onToggleSectionFold={(id) =>
-            setFolded((prev) =>
-              prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-            )
-          }
-          roomsById={roomsById}
-          showRoomBadge
-          snoozeNow={NOW}
-          metaVersion={1}
-          showLoading={false}
-          onOpenThread={() => undefined}
-        />
-      </div>
-    </MatrixClientProvider>
+    <MemoryRouter initialEntries={['/!space:example.org/threads']}>
+      <MatrixClientProvider value={mx}>
+        <div className={css.PageBody} style={{ width: 1100, height: 680 }}>
+          <SpaceThreadsList
+            entryKeys={allEntries.map((e) => e.key)}
+            entryByKey={entryByKey}
+            sections={isFlat ? undefined : sections}
+            foldedSections={folded}
+            onToggleSectionFold={(id) =>
+              setFolded((prev) =>
+                prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+              )
+            }
+            roomsById={roomsById}
+            showRoomBadge
+            snoozeNow={NOW}
+            metaVersion={1}
+            showLoading={false}
+            onOpenThread={() => undefined}
+          />
+        </div>
+      </MatrixClientProvider>
+    </MemoryRouter>
   );
 }
 

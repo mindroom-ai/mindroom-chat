@@ -12,7 +12,9 @@ import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from '../../event-store/threads/compactThreadRootData';
+import { matchesEnum } from '../../lib/matchesEnum';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
+import { StateEvent } from '../../matrix/types/room';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { hasActiveMindroomAgent } from '../../matrix/protocol/agentIdentity';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
@@ -74,14 +76,28 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   useEffect(() => {
     if (spaceRooms.length === 0) return undefined;
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
+    const handleState = (event: MatrixEvent) => {
+      const type = event.getType();
+      if (
+        (matchesEnum(type, StateEvent.RoomPowerLevels) ||
+          matchesEnum(type, StateEvent.RoomCreate)) &&
+        event.getStateKey() === ''
+      ) {
+        bumpMeta();
+      }
+    };
     spaceRooms.forEach((room) => {
       room.on?.(RoomEvent.Name, bumpMeta);
       room.on?.(RoomStateEvent.Members, bumpMeta);
+      room.on?.(RoomStateEvent.Events, handleState);
+      room.on?.(RoomEvent.CurrentStateUpdated, bumpMeta);
     });
     return () => {
       spaceRooms.forEach((room) => {
         room.removeListener?.(RoomEvent.Name, bumpMeta);
         room.removeListener?.(RoomStateEvent.Members, bumpMeta);
+        room.removeListener?.(RoomStateEvent.Events, handleState);
+        room.removeListener?.(RoomEvent.CurrentStateUpdated, bumpMeta);
       });
     };
   }, [spaceRooms]);
