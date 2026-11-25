@@ -4,6 +4,7 @@ import {
   type ReactElement,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -12,7 +13,7 @@ import {
 
 /** How long a panel takes to open, close or trade places, on the Standard motion curve. */
 export const PANEL_MOTION_MS = 220;
-const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
+export const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
 
 /**
  * Where a panel is in its life: `shown` (there from the first render, so it does not move in),
@@ -155,8 +156,19 @@ export function usePanelForm<Form>(form: Form): Form {
 export type PanelSize = { width: number; gap: number };
 
 const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Measures the full target card width of the row for snap-to-fill previews. */
+export const measureFullRowWidth = (parent: HTMLElement): number => {
+  const style = getComputedStyle(parent);
+  const endPad = Number.parseFloat(style.paddingInlineEnd) || 0;
+  if (endPad > 0) return Math.max(0, parent.clientWidth - 2 * endPad);
+  const padding =
+    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  return Math.max(0, parent.clientWidth - padding);
+};
 
 /**
  * Finds the nearest ancestor box that participates in layout (skipping `display: contents`
@@ -221,3 +233,39 @@ export const animatePanel = (
     fill: hold ? 'forwards' : 'none',
   });
 };
+
+/** How long `data-just-filled` stays on after filling to drive the Fill button landing pulse. */
+const FILL_PULSE_MS = 750;
+
+/**
+ * Briefly sets `data-just-filled` when a panel transitions from beside to full width (skipped under
+ * reduced motion, on initial mount, while exiting, or when unfolding straight from folded).
+ */
+export function useJustFilled(
+  full: boolean,
+  folded: boolean,
+  passthrough: boolean,
+  phase: PanelPhase
+): boolean {
+  const prevFullRef = useRef(full);
+  const prevFoldedRef = useRef(folded);
+  const [justFilled, setJustFilled] = useState(false);
+
+  useEffect(() => {
+    const wasFull = prevFullRef.current;
+    const wasFolded = prevFoldedRef.current;
+    prevFullRef.current = full;
+    prevFoldedRef.current = folded;
+
+    if (!full || folded || passthrough || phase === 'exit' || wasFull || wasFolded) {
+      setJustFilled(false);
+      return undefined;
+    }
+    if (prefersReducedMotion()) return undefined;
+    setJustFilled(true);
+    const timer = setTimeout(() => setJustFilled(false), FILL_PULSE_MS);
+    return () => clearTimeout(timer);
+  }, [folded, full, passthrough, phase]);
+
+  return justFilled;
+}

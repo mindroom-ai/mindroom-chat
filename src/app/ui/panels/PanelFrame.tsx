@@ -32,6 +32,7 @@ function FrameActionButtons({
             fill="None"
             aria-label={fill}
             aria-pressed={filled}
+            data-panel-fill-button=""
             onClick={() => setLayout(filled ? 'beside' : 'filled')}
           >
             <Icon size="200" src={filled ? ShrinkIcon : ExpandIcon} />

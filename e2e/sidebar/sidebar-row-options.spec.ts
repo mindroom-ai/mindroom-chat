@@ -187,29 +187,43 @@ for (const direction of ['ltr', 'rtl'] as const) {
         await settle(page);
         const line = await handle.evaluate((element) => {
           const rect = element.getBoundingClientRect();
-          const after = getComputedStyle(element, '::after');
+          const pill = element.querySelector<HTMLElement>('[data-panel-handle-pill]');
+          if (!pill) throw new Error('missing handle pill');
+          const pillRect = pill.getBoundingClientRect();
+          const pillStyle = getComputedStyle(pill);
           return {
-            center: rect.left + parseFloat(after.left) + parseFloat(after.width) / 2,
+            center: pillRect.left + pillRect.width / 2,
+            centerY: pillRect.top + pillRect.height / 2,
             handleCenter: rect.left + rect.width / 2,
-            color: after.backgroundColor,
+            opacity: pillStyle.opacity,
+            color: pillStyle.backgroundColor,
           };
         });
         const gapCenter = (start + end) / 2;
         expect(Math.abs(line.center - gapCenter), `${name} line`).toBeLessThanOrEqual(0.5);
         expect(Math.abs(line.handleCenter - gapCenter), `${name} handle`).toBeLessThanOrEqual(0.5);
-        expect(line.color, `${name} line shows on hover`).not.toBe('rgba(0, 0, 0, 0)');
+        expect(line.opacity, `${name} line shows on hover`).toBe('1');
+        expect(line.color, `${name} line color on hover`).not.toBe('rgba(0, 0, 0, 0)');
         if (SHOTS) {
           await page.screenshot({
             path: `${SHOTS}/L9-sidebar-splitter-${name}-${direction}.png`,
-            clip: { x: gapCenter - 60, y: 0, width: 120, height: 240 },
+            clip: {
+              x: gapCenter - 60,
+              y: Math.max(0, line.centerY - 120),
+              width: 120,
+              height: 240,
+            },
           });
         }
         await page.mouse.move(900, 450);
         await settle(page);
         expect(
-          await handle.evaluate((element) => getComputedStyle(element, '::after').backgroundColor),
+          await handle.evaluate((element) => {
+            const pill = element.querySelector<HTMLElement>('[data-panel-handle-pill]');
+            return pill ? getComputedStyle(pill).opacity : '';
+          }),
           `${name} line hides at rest`
-        ).toBe('rgba(0, 0, 0, 0)');
+        ).toBe('0');
       }
     });
 

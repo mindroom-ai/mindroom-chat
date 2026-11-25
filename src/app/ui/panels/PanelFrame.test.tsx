@@ -89,6 +89,7 @@ describe('the frame of a side panel', () => {
     expect(separator()).not.toBeNull();
     const fill = screen.getByRole('button', { name: 'Fill the room with Notes' });
     expect(fill.getAttribute('aria-pressed')).toBe('false');
+    expect(fill.hasAttribute('data-panel-fill-button')).toBe(true);
     await act(async () => fill.click());
     expect(setLayout).toHaveBeenLastCalledWith('filled');
     await act(async () => screen.getByRole('button', { name: 'Fold Notes to the edge' }).click());

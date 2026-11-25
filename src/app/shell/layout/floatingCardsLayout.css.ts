@@ -72,9 +72,49 @@ globalStyle(`${FloatingShell} ${Panel}[data-side='start'] > ${Handle}`, {
 globalStyle(`${FloatingShell} ${SIDE_PANEL} > ${Handle}${Handle}`, {
   insetInlineStart: handleOffset,
 });
+// In floating cards, the handle indicator is a centered vertical pill inside the card bounds:
+// hidden at rest, revealed on hover/focus/active/drag, leaving charging and armed rules intact.
 globalStyle(
-  `${FloatingShell} ${Handle}:not(${PageSurface} *):not(:hover):not(:focus-visible):not(:active)::after`,
-  { backgroundColor: 'transparent' }
+  `${FloatingShell} ${Panel}:not(${PageSurface} *) > ${Handle} [data-panel-handle-pill]`,
+  {
+    vars: {
+      '--mr-pill-base-width': '3.5px',
+      '--mr-pill-base-height': 'min(82px, calc(100% - 40px))',
+      '--mr-pill-target-height': 'calc(100% - 28px)',
+      '--mr-pill-radius': config.radii.Pill,
+    },
+  }
+);
+globalStyle(
+  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle} [data-panel-handle-pill]`,
+  {
+    inlineSize: 'var(--mr-pill-base-width)',
+    blockSize: 'var(--mr-pill-base-height)',
+    borderRadius: config.radii.Pill,
+    backgroundColor: color.Primary.Main,
+    opacity: 0,
+  }
+);
+globalStyle(
+  `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle}:is(:hover, :focus-visible, :active) [data-panel-handle-pill], ${FloatingShell} ${Panel}[data-dragging]:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle} [data-panel-handle-pill]`,
+  { opacity: 1 }
+);
+globalStyle(`${FloatingShell} ${SIDE_PANEL} > [data-panel-expand-ghost]`, {
+  insetBlock: CARD_GAP,
+  borderRadius: cardRadius,
+});
+globalStyle(
+  `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *) > [data-conversation-behind-panel]`,
+  {
+    transition: 'opacity 140ms ease',
+    '@media': {
+      '(prefers-reduced-motion: reduce)': { transition: 'none' },
+    },
+  }
+);
+globalStyle(
+  `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *):has(> ${Panel}[data-side='end'][data-expand-charging], > [data-side-panel-host] > ${Panel}[data-side='end'][data-expand-charging]) > [data-conversation-behind-panel]`,
+  { opacity: 0.55 }
 );
 
 // The conversation's minimap keeps off the card's edge, where it would read as a splitter grip.
