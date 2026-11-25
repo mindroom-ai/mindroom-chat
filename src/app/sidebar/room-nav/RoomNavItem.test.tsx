@@ -851,4 +851,40 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(badgeDescs[0]!.props.hidden).toBe(true);
     expect(badgeDescs[0]!.children).toEqual(['Agent active']);
   });
+
+  it('places the draft pencil before background-job and call marks so hiding it on hover/focus does not shift them', () => {
+    const store = createStore();
+    const room = makeDirectRoom(2, 0, '!draft-clock-dm:example.org');
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey('@me:example.org', '!draft-clock-dm:example.org')
+    );
+    store.set(draftAtom, [{ type: 'paragraph', children: [{ text: 'Draft note' }] }] as never);
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    markCall(room.roomId);
+
+    try {
+      const renderer = renderRoomNavItem({ room, direct: true, showAvatar: true }, store);
+      const trailingIcons = () =>
+        renderer.root
+          .findAll(
+            (node) => node.type === 'i' && ['Pencil', 'Clock', 'Phone'].includes(node.props.src)
+          )
+          .map((node) => node.props.src);
+
+      expect(trailingIcons()).toEqual(['Pencil', 'Clock', 'Phone']);
+      expect(findByTestId(renderer, 'unread-badge-center')).toHaveLength(1);
+
+      for (const toggle of [testState.setHover, testState.setFocusWithin]) {
+        act(() => toggle?.(true));
+        expect(trailingIcons()).toEqual(['Clock', 'Phone']);
+        expect(findByTestId(renderer, 'unread-badge-center')).toHaveLength(0);
+        act(() => toggle?.(false));
+        expect(trailingIcons()).toEqual(['Pencil', 'Clock', 'Phone']);
+        expect(findByTestId(renderer, 'unread-badge-center')).toHaveLength(1);
+      }
+    } finally {
+      testState.backgroundJobs = [];
+      testState.activeCall = undefined;
+    }
+  });
 });

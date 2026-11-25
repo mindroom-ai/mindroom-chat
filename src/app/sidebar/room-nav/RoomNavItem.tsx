@@ -144,11 +144,11 @@ function RoomNavTrailing({
   const jobsLabel = hasBackgroundJobs ? t('mindroomUi.backgroundJobs.inRoom') : undefined;
   return (
     <>
-      {jobsLabel && <RowMarkIcon src={Icons.Clock} label={jobsLabel} labelled />}
-      {callStatus && <CallMark id={callStatusId} label={callStatus} />}
       {showDraft && (
         <RoomDraftMark room={room} descriptionId={draftStatusId} showIcon={!showOptions} />
       )}
+      {jobsLabel && <RowMarkIcon src={Icons.Clock} label={jobsLabel} labelled />}
+      {callStatus && <CallMark id={callStatusId} label={callStatus} />}
       {reserveStatusSlot && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
     </>
   );
