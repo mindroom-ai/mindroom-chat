@@ -3,11 +3,15 @@ import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
-import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import {
+  getEventAttachmentOwner,
+  type EventAttachmentOwner,
+} from '../../matrix/protocol/eventAttachments';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { RenderBody } from './RenderBody';
+import { useInlineMediaValue } from './inlineMediaContext';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
@@ -146,6 +150,7 @@ type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactPa
   metadataStatus?: ToolMetadataStatus;
   /** Whether a tool marker draws a row: only an agent's does. */
   toolRows: boolean;
+  attachmentOwner?: EventAttachmentOwner;
 };
 
 /** A body with MindRoom's markers, parsed again only when that message changes. */
@@ -154,11 +159,14 @@ function AgentRenderBody({
   markerContent,
   metadataStatus,
   toolRows,
+  attachmentOwner,
   ...props
 }: AgentRenderBodyProps) {
+  const inlineMedia = useInlineMediaValue(markerContent, attachmentOwner);
   return (
     <RenderBody
       {...props}
+      inlineMedia={inlineMedia}
       htmlReactParserOptions={useToolTraceMarkerParserOptions(
         htmlReactParserOptions,
         markerContent,
@@ -405,6 +413,7 @@ export const renderAgentMessageContent = ({
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={renderableContent}
           toolRows={toolRows}
+          attachmentOwner={getEventAttachmentOwner(mEvent)}
           linkifyOpts={linkifyOpts}
         />
       ));
@@ -483,6 +492,7 @@ export const renderAgentMessageContent = ({
             markerContent={resolvedContent}
             metadataStatus={metadataStatus}
             toolRows={toolRows}
+            attachmentOwner={getEventAttachmentOwner(mEvent)}
             linkifyOpts={linkifyOpts}
           />
         ),

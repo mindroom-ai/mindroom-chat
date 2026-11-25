@@ -5,6 +5,8 @@ import React, {
   ReactElement,
   ReactNode,
   SyntheticEvent,
+  useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -27,6 +29,11 @@ import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
 import { ImageOverlay } from '../content/ImageOverlay';
+import { InlineMediaContext } from '../content/inlineMediaContext';
+import { loadImageOriginal, type LoadedImageOriginal } from '../content/imageOriginal';
+import type { InlineMediaEntry } from '../../matrix/protocol/inlineMedia';
+import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import { revokeBlobUrl } from '../../lib/hooks/useBlobUrlCleanup';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
@@ -72,8 +79,163 @@ import {
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
 
-/** An inline homeserver image opens the same full-size viewer as link preview pictures. */
-function InlineImage({
+/**
+ * Loads and decrypts an inline encrypted image via the `m.image` loader, revoking its blob URL
+ * on replacement or unmount. Never falls back to an unencrypted fetch.
+ */
+function useEncryptedInlineImage(
+  mx: MatrixClient | undefined,
+  entry: InlineMediaEntry | undefined,
+  owner: EventAttachmentOwner | undefined
+) {
+  const ownerRef = useRef(owner);
+  ownerRef.current = owner;
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
+  const entryKey = entry
+    ? `${entry.file.url}|${entry.file.iv}|${entry.file.hashes.sha256}|${entry.file.key.k}|${entry.mimeType ?? ''}`
+    : '';
+  const active = !!entryKey && !!mx;
+
+  const [result, setResult] = useState<{
+    key: string;
+    loaded?: LoadedImageOriginal;
+    failed?: true;
+  }>();
+  const [failedSrc, setFailedSrc] = useState<string>();
+
+  useEffect(() => {
+    const current = active ? entryRef.current : undefined;
+    if (!current || !mx) return undefined;
+    const controller = new AbortController();
+    let createdUrl: string | undefined;
+    loadImageOriginal(mx, {
+      url: current.file.url,
+      mimeType: current.mimeType,
+      encInfo: current.file,
+      owner: ownerRef.current,
+      signal: controller.signal,
+    }).then(
+      (loaded) => {
+        if (controller.signal.aborted) {
+          revokeBlobUrl(loaded.src);
+          return;
+        }
+        createdUrl = loaded.src;
+        setResult({ key: entryKey, loaded });
+      },
+      () => {
+        if (!controller.signal.aborted) setResult({ key: entryKey, failed: true });
+      }
+    );
+    return () => {
+      controller.abort();
+      if (createdUrl) revokeBlobUrl(createdUrl);
+    };
+  }, [active, entryKey, mx]);
+
+  const current = active && result?.key === entryKey ? result : undefined;
+  const loaded = current?.loaded;
+  const blobSrc = loaded && failedSrc !== loaded.src ? loaded.src : undefined;
+  const loading = active && current === undefined;
+  const onImageError = useCallback(() => {
+    if (loaded?.src) setFailedSrc(loaded.src);
+  }, [loaded?.src]);
+
+  return { blobSrc, downloadBlob: loaded?.downloadBlob, loading, onImageError };
+}
+
+function EncryptedInlineMedia({
+  alt = '',
+  client,
+  entry,
+  owner,
+  fallback = null,
+  showFallbackWhileLoading = false,
+  interactive = false,
+  onError,
+  src: _plainSrc,
+  ...props
+}: ComponentPropsWithoutRef<'img'> & {
+  client?: MatrixClient;
+  entry: InlineMediaEntry | null;
+  owner?: EventAttachmentOwner;
+  fallback?: ReactNode;
+  showFallbackWhileLoading?: boolean;
+  interactive?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [viewerSrc, setViewerSrc] = useState<string>();
+  const { blobSrc, downloadBlob, loading, onImageError } = useEncryptedInlineImage(
+    client,
+    entry ?? undefined,
+    owner
+  );
+  if (!blobSrc) return !loading || showFallbackWhileLoading ? fallback : null;
+  const img = (
+    <img
+      {...props}
+      src={blobSrc}
+      alt={interactive ? revealDirectionControls(alt) : alt}
+      onError={(event) => {
+        onImageError();
+        onError?.(event);
+      }}
+    />
+  );
+  if (!interactive) return img;
+  const label = alt || t('sharedUi.imageContent.view');
+  return (
+    <>
+      <button
+        type="button"
+        className={css.InlineImageButton}
+        aria-label={revealDirectionControls(label)}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setViewerSrc(blobSrc);
+        }}
+      >
+        {img}
+      </button>
+      {viewerSrc === blobSrc && (
+        <ImageOverlay
+          src={blobSrc}
+          downloadBlob={downloadBlob}
+          alt={label}
+          requestClose={() => setViewerSrc(undefined)}
+        />
+      )}
+    </>
+  );
+}
+
+function InlineMediaImg({
+  mxcUri,
+  client,
+  ...props
+}: ComponentPropsWithoutRef<'img'> & {
+  client?: MatrixClient;
+  mxcUri: string;
+  fallback?: ReactNode;
+  showFallbackWhileLoading?: boolean;
+}) {
+  const inlineMedia = useContext(InlineMediaContext);
+  if (inlineMedia?.entries.has(mxcUri)) {
+    return (
+      <EncryptedInlineMedia
+        {...props}
+        client={client}
+        entry={inlineMedia.entries.get(mxcUri) ?? null}
+        owner={inlineMedia.owner}
+      />
+    );
+  }
+  return <AuthenticatedImage {...props} client={client} />;
+}
+
+function PlainInlineImage({
   alt = '',
   client,
   src,
@@ -112,6 +274,32 @@ function InlineImage({
       )}
     </>
   );
+}
+
+/** An inline homeserver image opens the same full-size viewer as link preview pictures. */
+function InlineImage({
+  mxcUri,
+  client,
+  alt = '',
+  ...props
+}: ComponentPropsWithoutRef<'img'> & { client?: MatrixClient; mxcUri?: string }) {
+  const inlineMedia = useContext(InlineMediaContext);
+  if (mxcUri && inlineMedia?.entries.has(mxcUri)) {
+    return (
+      <EncryptedInlineMedia
+        {...props}
+        client={client}
+        entry={inlineMedia.entries.get(mxcUri) ?? null}
+        owner={inlineMedia.owner}
+        alt={alt}
+        fallback={alt ? revealDirectionControls(alt) : null}
+        className={css.InlineImage}
+        loading="lazy"
+        interactive
+      />
+    );
+  }
+  return <PlainInlineImage {...props} client={client} alt={alt} />;
 }
 
 /** Links that leave the app open in a new tab and do not hand it their opener. */
@@ -1013,8 +1201,9 @@ export const getReactCustomHtmlParser = (
             const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
-                <AuthenticatedImage
+                <InlineMediaImg
                   client={mx}
+                  mxcUri={src}
                   className={css.Emoticon()}
                   src={url}
                   alt={emoticonAlt}
@@ -1028,9 +1217,10 @@ export const getReactCustomHtmlParser = (
           if (hasAncestor(domNode, ['a'])) {
             const linkedAlt = revealDirectionControls(alt ?? '');
             return (
-              <AuthenticatedImage
+              <InlineMediaImg
                 {...props}
                 client={mx}
+                mxcUri={src}
                 src={url}
                 alt={linkedAlt}
                 fallback={linkedAlt}
@@ -1040,7 +1230,7 @@ export const getReactCustomHtmlParser = (
               />
             );
           }
-          return <InlineImage {...props} client={mx} src={url} alt={alt ?? ''} />;
+          return <InlineImage {...props} client={mx} mxcUri={src} src={url} alt={alt ?? ''} />;
         }
         default:
           return undefined;

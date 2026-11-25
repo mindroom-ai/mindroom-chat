@@ -4,6 +4,8 @@ import { MatrixEvent, type IEventWithRoomId, type Room } from 'matrix-js-sdk';
 import { Box, Text } from 'folds';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { RenderBody } from '../messages/content/RenderBody';
+import { useInlineMediaValue } from '../messages/content/inlineMediaContext';
+import { getEventAttachmentOwner } from '../matrix/protocol/eventAttachments';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -136,6 +138,7 @@ export function SearchResultBody({
     [event, highlights, t, content]
   );
   const matrixEvent = useMemo(() => new MatrixEvent(event), [event]);
+  const inlineMedia = useInlineMediaValue(content, getEventAttachmentOwner(matrixEvent));
   // A mention opens its profile card or room here, as it does in the timeline.
   const openMention = useMentionClickHandler(room.roomId);
   const parserOptions = useMemo(
@@ -182,6 +185,7 @@ export function SearchResultBody({
           highlightRegex={highlightRegex}
           linkifyOpts={LINKIFY_OPTS}
           htmlReactParserOptions={parserOptions}
+          inlineMedia={inlineMedia}
         />
         {edited && (
           <Text as="span" size="T200" priority="300">

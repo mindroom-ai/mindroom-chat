@@ -76,16 +76,19 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const isMxc = (value: unknown): value is string =>
   typeof value === 'string' && value.startsWith('mxc://');
 
-const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
+export const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   if (
     !record(value) ||
     value.v !== 'v2' ||
     !isMxc(value.url) ||
     !record(value.key) ||
     typeof value.key.k !== 'string' ||
+    value.key.k.length === 0 ||
     typeof value.iv !== 'string' ||
+    value.iv.length === 0 ||
     !record(value.hashes) ||
-    typeof value.hashes.sha256 !== 'string'
+    typeof value.hashes.sha256 !== 'string' ||
+    value.hashes.sha256.length === 0
   ) {
     return undefined;
   }

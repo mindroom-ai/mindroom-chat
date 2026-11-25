@@ -20,6 +20,7 @@ import {
   downloadCachedAttachment,
 } from '../../event-store/cache/attachmentRepository';
 import { collectEventAttachments } from './eventAttachments';
+import { INLINE_MEDIA_CONTENT_KEY } from './inlineMedia';
 import { prefetchEventAttachments } from '../../event-store/cache/attachmentRepository';
 
 const saveAndReadCoverage = async (...args: Parameters<typeof prefetchEventAttachments>) => {
@@ -373,3 +374,59 @@ it.each([false, true])(
     });
   }
 );
+
+it('registers valid io.mindroom.inline_media entries and updates them across edits and redactions', () => {
+  const file = (url: string) => ({
+    url,
+    v: 'v2',
+    key: { kty: 'oct', key_ops: ['encrypt', 'decrypt'], alg: 'A256CTR', k: 'key', ext: true },
+    iv: 'iv',
+    hashes: { sha256: 'hash' },
+    mimetype: 'image/png',
+    size: 256,
+  });
+  const root = event('$inline', {
+    msgtype: 'm.text',
+    body: '![a](mxc://test/a)',
+    [INLINE_MEDIA_CONTENT_KEY]: {
+      'mxc://test/a': file('mxc://test/a'),
+      'mxc://test/mismatch': file('mxc://test/other'),
+    },
+  });
+  expect(collectEventAttachments([root])[0]!.attachments.map((item) => item.mxcUri)).toEqual([
+    'mxc://test/a',
+  ]);
+
+  const edit = new MatrixEvent({
+    event_id: '$inline-edit',
+    room_id: '!room',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+    origin_server_ts: 2,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$inline' },
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: '![b](mxc://test/b)',
+        [INLINE_MEDIA_CONTENT_KEY]: { 'mxc://test/b': file('mxc://test/b') },
+      },
+    },
+  });
+  expect(collectEventAttachments([root, edit])[0]!.attachments.map((item) => item.mxcUri)).toEqual([
+    'mxc://test/b',
+  ]);
+
+  const redaction = new MatrixEvent({
+    event_id: '$inline-redaction',
+    room_id: '!room',
+    sender: '@alice:example.org',
+    type: 'm.room.redaction',
+    redacts: '$inline',
+    origin_server_ts: 3,
+    content: {},
+  });
+  expect(collectEventAttachments([root, edit, redaction])[0]).toMatchObject({
+    redacted: true,
+    attachments: [],
+  });
+});

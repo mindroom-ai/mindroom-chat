@@ -134,7 +134,7 @@ export const loadImageOriginal = async (
         }
         throw error;
       })
-    : downloadCachedAttachment(mx, source));
+    : downloadCachedAttachment(mx, source, signal ? { signal } : undefined));
   if (!heic && !isHeicMimeType(blob.type)) return { src: URL.createObjectURL(blob) };
   if (blob.size > MAX_HEIC_BYTES) {
     throw new HeicDecodeError(`HEIC image exceeds ${MAX_HEIC_BYTES} byte decode limit`, blob);
