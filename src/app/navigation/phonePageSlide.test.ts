@@ -17,6 +17,7 @@ import {
   createThreadForwardSwipeScene,
   isInteractivePhoneSlideClaimed,
   movePhoneNavDrawer,
+  rekeyPhoneSwipePreviewThread,
   setActivePhoneSwipeContext,
   slidePhonePage,
   withPhonePageSlide,
@@ -1517,7 +1518,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     }
   });
 
-  it('binds roomPreview to the entered threadId, keeps it unshown through a height-only resize, and invalidates on width resize', async () => {
+  it('binds roomPreview to the entered threadId, keeps and displays it across height-only resizes, and invalidates on width resize', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Room Overview', 145);
     setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
@@ -1541,18 +1542,23 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
     t2Scene!.cleanup(false);
 
-    // Thread 1 still hits the room preview before resize.
+    const expectUnderPreview = (expectedText: string, expectedScrollTop: number) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+        fromLocationKey: 'k-t1',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      expect(under?.textContent).toContain(expectedText);
+      expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(expectedScrollTop);
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Thread 1 hits the room preview before resize.
     setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
-    const t1Scene = createThreadBackSwipeScene({
-      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-      fromLocationKey: 'k-t1',
-      onCommit: vi.fn(),
-      dirSign: 1,
-    });
-    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
-      'Room Overview'
-    );
-    t1Scene!.cleanup(false);
+    expectUnderPreview('Room Overview', 145);
 
     const origWidth = window.innerWidth;
     const origHeight = window.innerHeight;
@@ -1570,37 +1576,25 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       });
     };
     try {
-      // Stage-height shrink with window.innerHeight unchanged (iOS soft keyboard via --app-height):
-      // the preview is kept, but not shown while stage height differs; themed backdrop shows instead.
+      // Full height -> keyboard-open height (iOS --app-height shrink and Android innerHeight
+      // resize): the preview stays retained and is displayed.
       setStageHeight(844 - 280);
-      const whileKeyboardOpen = createThreadBackSwipeScene({
-        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-        fromLocationKey: 'k-t1',
-        onCommit: vi.fn(),
-        dirSign: 1,
-      });
-      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
-      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
-      whileKeyboardOpen!.cleanup(false);
+      expectUnderPreview('Room Overview', 145);
 
-      // Android soft keyboard also dispatches window resize with unchanged width: preview still kept.
       Object.defineProperty(window, 'innerHeight', { value: origHeight - 280, configurable: true });
       window.dispatchEvent(new Event('resize'));
+      expectUnderPreview('Room Overview', 145);
 
-      // The keyboard closes: stage height returns and the retained preview shows again, scrolled as it was.
+      // Keyboard-open height -> full height: capture while keyboard is open, then dismiss it.
+      const { page: keyboardPage } = makeStage('Keyboard Room Overview', 95);
+      setStageHeight(844 - 280);
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
+      keyboardPage.textContent = 'Thread 1';
+
       Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
       setStageHeight(844);
       window.dispatchEvent(new Event('resize'));
-      const afterKeyboardClosed = createThreadBackSwipeScene({
-        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-        fromLocationKey: 'k-t1',
-        onCommit: vi.fn(),
-        dirSign: 1,
-      });
-      const restored = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
-      expect(restored?.textContent).toContain('Room Overview');
-      expect(restored?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(145);
-      afterKeyboardClosed!.cleanup(false);
+      expectUnderPreview('Keyboard Room Overview', 95);
 
       // Width resize (even if rotated back to original width): preview invalidated immediately!
       Object.defineProperty(window, 'innerWidth', { value: origWidth + 200, configurable: true });
@@ -1615,11 +1609,74 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
         dirSign: 1,
       });
       expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
       afterRotateBack!.cleanup(false);
     } finally {
       Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
       Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
     }
+  });
+
+  it('rekeys a retained preview from local-echo threadId to confirmed threadId and ignores mismatches', () => {
+    const { stage, page } = makeStage('Room Before Send', 60);
+    const localId = `~${ROOM}:txn1`;
+    const confirmedId = '$confirmed-1';
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: localId });
+    page.textContent = 'New Thread';
+
+    const expectBackdropFor = (threadId: string) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId },
+        fromLocationKey: `k-${threadId}`,
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Mismatched session, room, threadId, or empty nextThreadId leave the preview untouched.
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: 'other-session', roomId: ROOM, threadId: localId },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: '!other:example.org', threadId: localId },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: '$other' },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: localId },
+      ''
+    );
+    expectBackdropFor(confirmedId);
+
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: localId },
+      confirmedId
+    );
+    expectBackdropFor(localId);
+
+    const confirmedScene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: confirmedId },
+      fromLocationKey: 'k-confirmed',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+    expect(under?.textContent).toContain('Room Before Send');
+    expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(60);
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+    confirmedScene!.cleanup(false);
   });
 
   it('preserves loaded images inside a horizontally translated page via horizontalShiftPx', async () => {

@@ -447,6 +447,101 @@ for (const engine of ENGINES) {
     }
   });
 
+  test(`${engine}: back swipe from a newly created thread reveals room preview across keyboard height change`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'newthread');
+      const { garden, gardenRoot } = seeded;
+      const { context, page } = await signIn(own, seeded);
+      try {
+        await openFromList(page, 'Garden Club', garden);
+        await expect(
+          page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first()
+        ).toBeVisible();
+
+        const composer = page.locator('[data-editable-name="RoomInput"]');
+        await expect(composer).toBeVisible();
+        await composer.tap();
+        await expect(composer).toBeFocused();
+        const newThreadText = 'Fresh seedlings ready for the weekend swap?';
+        await page.keyboard.type(newThreadText);
+
+        const stageHeight = () =>
+          page
+            .locator('[data-phone-stage]')
+            .evaluate((element) => Math.round(element.getBoundingClientRect().height));
+
+        // Let focusin's 80ms keyboard-viewport settle timer finish before shrinking --app-height.
+        await page.waitForTimeout(120);
+        await page.evaluate(() => {
+          document.documentElement.style.setProperty('--app-height', '500px');
+        });
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage shrinks to simulated soft keyboard height').toBe(500);
+
+        await page.getByRole('button', { name: 'Send message', exact: true }).tap();
+
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText(newThreadText, { exact: true }).first()).toBeVisible();
+        await expect
+          .poll(() => place(page).thread, {
+            message: 'new thread URL confirms to a $... event ID',
+            timeout: 20_000,
+          })
+          .toMatch(/^\$/);
+        expect(place(page).room, 'new thread opens inside Garden Club').toBe(garden);
+
+        await page.evaluate(() => {
+          document.documentElement.style.removeProperty('--app-height');
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage returns to full phone height').toBe(844);
+
+        const drag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await drag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          const preview = page.locator('[data-swipe-preview="under"]');
+          await expect(
+            preview,
+            'retained room preview is visible behind the newly created thread'
+          ).toBeVisible();
+          await expect(
+            preview,
+            'retained room preview shows the existing room thread card'
+          ).toContainText('Seed order for spring');
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback when room preview matches'
+          ).toHaveCount(0);
+
+          await saveShot(page, testInfo, engine, 'new-thread-back-mid-drag');
+
+          await drag.moveTo(240, { steps: 6, stepMs: 16 });
+        } finally {
+          await drag.release();
+        }
+
+        await expectAt(page, inRoom(garden), 'committed back swipe returns to Garden Club');
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectDrawer(page, false, 'drawer remains closed after exiting new thread');
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+
   test(`${engine}: sidebar drawer tracks finger interactively on open and close`, async ({
     browser,
   }, testInfo) => {
