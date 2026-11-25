@@ -2371,5 +2371,13 @@
     "error": {
       "title": "No se pudieron cargar los hilos del espacio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama de Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

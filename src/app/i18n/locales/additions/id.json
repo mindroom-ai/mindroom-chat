@@ -2213,5 +2213,13 @@
     "error": {
       "title": "Tidak dapat memuat utas space"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Sumber",
+    "showDiagram": "Tampilkan diagram",
+    "showSource": "Tampilkan sumber",
+    "mermaidDiagram": "Diagram Mermaid",
+    "diagramUnavailable": "Menampilkan sumber"
   }
 }

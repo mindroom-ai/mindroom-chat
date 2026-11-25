@@ -2292,5 +2292,13 @@
     "error": {
       "title": "Kon threads van de ruimte niet laden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Bron",
+    "showDiagram": "Diagram tonen",
+    "showSource": "Bron tonen",
+    "mermaidDiagram": "Mermaid-diagram",
+    "diagramUnavailable": "Bron wordt getoond"
   }
 }

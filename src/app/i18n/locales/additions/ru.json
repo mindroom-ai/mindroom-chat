@@ -2450,5 +2450,13 @@
     "error": {
       "title": "Не удалось загрузить треды пространства"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Диаграмма",
+    "source": "Исходник",
+    "showDiagram": "Показать диаграмму",
+    "showSource": "Показать исходник",
+    "mermaidDiagram": "Диаграмма Mermaid",
+    "diagramUnavailable": "Показан исходник"
   }
 }

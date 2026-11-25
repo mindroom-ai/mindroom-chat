@@ -32,7 +32,7 @@ Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 and PSF-2.0 (argparse), and Unlicense (big-integer
 and stream-buffers, under @capacitor/cli). It accepts six packages by name:
 require-like and khroma (MIT license text, no license field; khroma is part of
-Mermaid's build for canvases), elkjs (see below), caniuse-lite (CC-BY-4.0
+Mermaid), elkjs (see below), caniuse-lite (CC-BY-4.0
 browser data, build tooling only, not in the bundle), jsonify (public domain,
 development only), and truncate-utf8-bytes (WTFPL, development only, under
 electron-builder, never shipped).
@@ -94,14 +94,15 @@ KaTeX fonts
   included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
 
 ELK in Mermaid
-  Mermaid 12, which Chat serves to canvas pages (scripts/canvas-libraries.mjs),
-  builds elkjs 0.12.0 into its mermaid.min.js (as its source map records), the
-  Eclipse Layout Kernel compiled to JavaScript, Copyright (c) Kiel University
-  and others, offered under the Eclipse Public License 2.0 or
-  GPL-3.0-or-later. Chat takes it under EPL-2.0 and ships it unmodified inside
-  mermaid.min.js. Its source is at https://github.com/kieler/elkjs (tag
-  0.12.0). The license text is in THIRD_PARTY_NOTICES.txt, under the elkjs
-  0.12.1 that npm installs beside Mermaid, whose license is the same.
+  Mermaid 12, which Chat serves to canvas pages and to the sandboxed frame that
+  renders fenced mermaid code blocks (scripts/canvas-libraries.mjs), builds
+  elkjs 0.12.0 into its mermaid.min.js (as its source map records), the Eclipse
+  Layout Kernel compiled to JavaScript, Copyright (c) Kiel University and
+  others, offered under the Eclipse Public License 2.0 or GPL-3.0-or-later. Chat
+  takes it under EPL-2.0 and ships it unmodified inside mermaid.min.js. Its
+  source is at https://github.com/kieler/elkjs (tag 0.12.0). The license text is
+  in THIRD_PARTY_NOTICES.txt, under the elkjs 0.12.1 that npm installs beside
+  Mermaid, whose license is the same.
 
 Voice-activity detector
   Call transcription finds speech with @ricky0123/vad-web 0.0.31

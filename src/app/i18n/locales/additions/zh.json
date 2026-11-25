@@ -2213,5 +2213,13 @@
     "error": {
       "title": "无法加载空间话题"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "图表",
+    "source": "源码",
+    "showDiagram": "显示图表",
+    "showSource": "显示源码",
+    "mermaidDiagram": "Mermaid 图表",
+    "diagramUnavailable": "正在显示源码"
   }
 }

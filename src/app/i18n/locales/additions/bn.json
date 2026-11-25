@@ -2292,5 +2292,13 @@
     "error": {
       "title": "স্পেসের থ্রেড লোড করা যায়নি"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "ডায়াগ্রাম",
+    "source": "সোর্স",
+    "showDiagram": "ডায়াগ্রাম দেখান",
+    "showSource": "সোর্স দেখান",
+    "mermaidDiagram": "Mermaid ডায়াগ্রাম",
+    "diagramUnavailable": "সোর্স দেখানো হচ্ছে"
   }
 }

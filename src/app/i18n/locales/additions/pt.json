@@ -2371,5 +2371,13 @@
     "error": {
       "title": "Não foi possível carregar as conversas do espaço"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }
