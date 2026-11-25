@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -6,16 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { RoomTriggersDialog } from './RoomTriggersDialog';
 import type { RoomTrigger } from './roomTriggersApi';
-
-vi.mock('react-i18next', async () => {
-  const { translateFromEn } = await import('../../test/utils/i18n');
-  return {
-    useTranslation: () => ({
-      t: translateFromEn,
-      i18n: { language: 'en', resolvedLanguage: 'en' },
-    }),
-  };
-});
 
 const ROOM_ID = '!design:example.org';
 const NOW = Date.now();
@@ -49,27 +40,27 @@ const makeTrigger = (overrides: Partial<RoomTrigger> = {}): RoomTrigger => ({
   ...overrides,
 });
 
-const renderDialog = (props: Partial<React.ComponentProps<typeof RoomTriggersDialog>> = {}) => {
-  const onClose = vi.fn();
-  const onOpenThread = vi.fn();
-  const onToggleTrigger = vi.fn(async () => undefined);
-  const onDeleteTrigger = vi.fn(async () => undefined);
-  const view = render(
+const renderDialog = (initialProps: Partial<ComponentProps<typeof RoomTriggersDialog>> = {}) => {
+  const defaults: ComponentProps<typeof RoomTriggersDialog> = {
+    roomId: ROOM_ID,
+    triggers: [makeTrigger()],
+    onClose: vi.fn(),
+    onOpenThread: vi.fn(),
+    onToggleTrigger: vi.fn(async () => undefined),
+    onDeleteTrigger: vi.fn(async () => undefined),
+    ...initialProps,
+  };
+  const tree = (props: ComponentProps<typeof RoomTriggersDialog>) => (
     <MatrixClientProvider value={mx}>
       <MemoryRouter>
-        <RoomTriggersDialog
-          roomId={ROOM_ID}
-          triggers={[makeTrigger()]}
-          onClose={onClose}
-          onOpenThread={onOpenThread}
-          onToggleTrigger={onToggleTrigger}
-          onDeleteTrigger={onDeleteTrigger}
-          {...props}
-        />
+        <RoomTriggersDialog {...props} />
       </MemoryRouter>
     </MatrixClientProvider>
   );
-  return { ...view, onClose, onOpenThread, onToggleTrigger, onDeleteTrigger };
+  const view = render(tree(defaults));
+  const rerenderDialog = (next: Partial<ComponentProps<typeof RoomTriggersDialog>>) =>
+    view.rerender(tree({ ...defaults, ...next }));
+  return { ...view, ...defaults, rerenderDialog };
 };
 
 afterEach(() => {
@@ -149,14 +140,18 @@ describe('RoomTriggersDialog', () => {
     expect(tagCard.textContent).toContain('Expired');
   });
 
-  it('lets the owner toggle enable/disable and confirm-delete, moving focus to Close when a deleted row unmounts', async () => {
+  it('lets the owner toggle, keep (restoring Delete focus), and delete (moving focus to Close without a missing notice)', async () => {
     const onToggleTrigger = vi
       .fn<(...args: [string, boolean]) => Promise<void>>()
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce(undefined);
     const onDeleteTrigger = vi.fn(async () => undefined);
 
-    const { rerender } = renderDialog({ onToggleTrigger, onDeleteTrigger });
+    const { rerenderDialog } = renderDialog({
+      highlightTriggerId: 'tr_watch',
+      onToggleTrigger,
+      onDeleteTrigger,
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() =>
@@ -165,41 +160,31 @@ describe('RoomTriggersDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() => expect(onToggleTrigger).toHaveBeenCalledWith('tr_watch', false));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const deleteIconBtn = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(deleteIconBtn);
     const keepButton = screen.getByRole('button', { name: 'Keep' });
     expect(document.activeElement).toBe(keepButton);
     fireEvent.click(keepButton);
     expect(onDeleteTrigger).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(deleteIconBtn);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(deleteIconBtn);
     const confirmDeleteBtn = screen.getByRole('button', { name: 'Delete trigger' });
     confirmDeleteBtn.focus();
     fireEvent.click(confirmDeleteBtn);
     await waitFor(() => expect(onDeleteTrigger).toHaveBeenCalledWith('tr_watch'));
 
-    // Removing the deleted row moves lost focus back to Close.
-    rerender(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter>
-          <RoomTriggersDialog
-            roomId={ROOM_ID}
-            triggers={[]}
-            onClose={vi.fn()}
-            onOpenThread={vi.fn()}
-            onToggleTrigger={onToggleTrigger}
-            onDeleteTrigger={onDeleteTrigger}
-          />
-        </MemoryRouter>
-      </MatrixClientProvider>
-    );
+    // Removing the deleted highlighted row restores focus to Close and does not show a missing-trigger notice.
+    rerenderDialog({ triggers: [], highlightTriggerId: 'tr_watch' });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
+    expect(document.querySelector('[data-trigger-missing]')).toBeNull();
   });
 
-  it('focuses matched target row, shows loading state, loadError on failure, and missing notice on empty success', () => {
+  it('focuses matched target row, shows loading state, loadError on failure, and missing notice only when never matched', () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
 
-    const { rerender } = renderDialog({
+    const { rerenderDialog } = renderDialog({
       triggers: [
         makeTrigger({ triggerId: 'tr_first', description: 'First' }),
         makeTrigger({ triggerId: 'tr_target', description: 'Target' }),
@@ -214,44 +199,18 @@ describe('RoomTriggersDialog', () => {
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
 
     // Loading with no rows yet shows Loading… with aria-busy.
-    rerender(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter>
-          <RoomTriggersDialog
-            roomId={ROOM_ID}
-            triggers={[]}
-            loading
-            highlightTriggerId="tr_gone"
-            onClose={vi.fn()}
-            onOpenThread={vi.fn()}
-            onToggleTrigger={vi.fn(async () => undefined)}
-            onDeleteTrigger={vi.fn(async () => undefined)}
-          />
-        </MemoryRouter>
-      </MatrixClientProvider>
-    );
+    rerenderDialog({ triggers: [], loading: true, highlightTriggerId: 'tr_gone' });
     const loadingStatus = screen.getByRole('status');
     expect(loadingStatus.getAttribute('aria-busy')).toBe('true');
     expect(loadingStatus.textContent).toBe('Loading…');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
-    // Failed load even with cached rows: show only the single error line, no rows, count, or missing notice.
-    rerender(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter>
-          <RoomTriggersDialog
-            roomId={ROOM_ID}
-            triggers={[makeTrigger({ triggerId: 'tr_target', description: 'Target' })]}
-            loadFailed
-            highlightTriggerId="tr_gone"
-            onClose={vi.fn()}
-            onOpenThread={vi.fn()}
-            onToggleTrigger={vi.fn(async () => undefined)}
-            onDeleteTrigger={vi.fn(async () => undefined)}
-          />
-        </MemoryRouter>
-      </MatrixClientProvider>
-    );
+    // Failed load even with cached rows: show only the single error line, no rows or missing notice.
+    rerenderDialog({
+      triggers: [makeTrigger({ triggerId: 'tr_target', description: 'Target' })],
+      loadFailed: true,
+      highlightTriggerId: 'tr_gone',
+    });
     expect(document.querySelector('[data-triggers-error]')?.textContent).toBe(
       "Couldn't load triggers."
     );
@@ -259,24 +218,13 @@ describe('RoomTriggersDialog', () => {
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
     expect(screen.queryByText('No triggers in this room.')).toBeNull();
 
-    // Successful empty load: show missing notice + empty state, focus on Close.
-    rerender(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter>
-          <RoomTriggersDialog
-            roomId={ROOM_ID}
-            triggers={[]}
-            loading={false}
-            loadFailed={false}
-            highlightTriggerId="tr_gone"
-            onClose={vi.fn()}
-            onOpenThread={vi.fn()}
-            onToggleTrigger={vi.fn(async () => undefined)}
-            onDeleteTrigger={vi.fn(async () => undefined)}
-          />
-        </MemoryRouter>
-      </MatrixClientProvider>
-    );
+    // Successful empty load for a never-matched ID: show missing notice + empty state.
+    rerenderDialog({
+      triggers: [],
+      loading: false,
+      loadFailed: false,
+      highlightTriggerId: 'tr_gone',
+    });
     expect(document.querySelector('[data-trigger-missing]')?.textContent).toContain('tr_gone');
     expect(screen.getByText('No triggers in this room.')).toBeTruthy();
   });
@@ -297,45 +245,38 @@ describe('RoomTriggersDialog', () => {
         })
     );
     const first = makeTrigger({ triggerId: 'tr_watch', description: 'Design triage' });
-    const { rerender } = renderDialog({
+    const { rerenderDialog } = renderDialog({
       triggers: [first],
       highlightTriggerId: 'tr_watch',
       onToggleTrigger,
       onDeleteTrigger,
     });
 
+    // Open confirm bar first so we also verify Keep and Delete trigger reflect aria-disabled while toggling.
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const toggleBtn = screen.getByRole('button', { name: 'Disable' });
     toggleBtn.focus();
     fireEvent.click(toggleBtn);
     expect(document.activeElement).toBe(toggleBtn);
     expect(toggleBtn.hasAttribute('disabled')).toBe(false);
     expect(toggleBtn.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Keep' }).getAttribute('aria-disabled')).toBe('true');
+    expect(
+      screen.getByRole('button', { name: 'Delete trigger' }).getAttribute('aria-disabled')
+    ).toBe('true');
     fireEvent.click(toggleBtn);
     expect(onToggleTrigger).toHaveBeenCalledTimes(1);
 
     // Updating rows while focus is on a button inside the dialog does not steal focus back to the card.
-    rerender(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter>
-          <RoomTriggersDialog
-            roomId={ROOM_ID}
-            triggers={[first, makeTrigger({ triggerId: 'tr_other', description: 'Other' })]}
-            highlightTriggerId="tr_watch"
-            onClose={vi.fn()}
-            onOpenThread={vi.fn()}
-            onToggleTrigger={onToggleTrigger}
-            onDeleteTrigger={onDeleteTrigger}
-          />
-        </MemoryRouter>
-      </MatrixClientProvider>
-    );
+    rerenderDialog({
+      triggers: [first, makeTrigger({ triggerId: 'tr_other', description: 'Other' })],
+      highlightTriggerId: 'tr_watch',
+    });
     expect(document.activeElement).toBe(toggleBtn);
 
     resolveToggle();
     await waitFor(() => expect(toggleBtn.getAttribute('aria-disabled')).toBeNull());
 
-    const deleteIconBtn = screen.getAllByRole('button', { name: 'Delete' })[0]!;
-    fireEvent.click(deleteIconBtn);
     const confirmDeleteBtn = screen.getByRole('button', { name: 'Delete trigger' });
     confirmDeleteBtn.focus();
     fireEvent.click(confirmDeleteBtn);

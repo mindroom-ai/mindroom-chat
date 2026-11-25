@@ -6,6 +6,7 @@ import {
   parseRoomTriggersResponse,
   setRoomTriggerEnabled,
 } from './roomTriggersApi';
+import { triggerRowJson } from './useRoomTriggers.test.shared';
 
 const sendMock = vi.hoisted(() => vi.fn());
 
@@ -17,32 +18,16 @@ const mx = {} as MatrixClient;
 const API_URL = 'https://mindroom.example.org';
 const ROOM_ID = '!ops:example.org';
 
-const validRow = (overrides: Record<string, unknown> = {}) => ({
-  trigger_id: 'tr_123',
-  kind: 'room_message',
-  relation: 'target',
-  description: 'Design triage',
-  prompt: 'Summarize new issues in the Design channel',
-  target_room_id: ROOM_ID,
-  target_thread_id: '$thread1',
-  thread_mode: 'thread',
-  enabled: true,
-  disabled_reason: null,
-  last_fired_at: 1764000000000,
-  owner_user_id: '@alice:example.org',
-  can_manage: true,
-  ...overrides,
-});
-
 afterEach(() => {
+  vi.useRealTimers();
   sendMock.mockReset();
 });
 
 describe('roomTriggersApi', () => {
-  it('parses valid and unknown-kind rows while dropping malformed rows', () => {
+  it('parses valid, unknown-kind, and out-of-range-timestamp rows while dropping malformed rows', () => {
     const parsed = parseRoomTriggersResponse({
       triggers: [
-        validRow({ unknown_future_field: 'ignored' }),
+        triggerRowJson({ unknown_future_field: 'ignored' }),
         {
           trigger_id: 'tr_future',
           kind: 'cron_v2',
@@ -50,11 +35,13 @@ describe('roomTriggersApi', () => {
           description: '',
           thread_mode: 'dm_thread',
           enabled: false,
+          last_fired_at: 1e20,
           owner_user_id: '@bob:example.org',
           can_manage: false,
         },
-        validRow({ trigger_id: '   ' }),
-        validRow({ enabled: 'yes' }),
+        triggerRowJson({ trigger_id: 'tr_neg_overflow', last_fired_at: -1e20 }),
+        triggerRowJson({ trigger_id: '   ' }),
+        triggerRowJson({ enabled: 'yes' }),
         null,
       ],
     });
@@ -89,6 +76,21 @@ describe('roomTriggersApi', () => {
         lastFiredAt: null,
         ownerUserId: '@bob:example.org',
         canManage: false,
+      },
+      {
+        triggerId: 'tr_neg_overflow',
+        kind: 'room_message',
+        relation: 'target',
+        description: 'Design triage',
+        prompt: 'Summarize new issues in the Design channel',
+        targetRoomId: ROOM_ID,
+        targetThreadId: '$thread1',
+        threadMode: 'thread',
+        enabled: true,
+        disabledReason: null,
+        lastFiredAt: null,
+        ownerUserId: '@alice:example.org',
+        canManage: true,
       },
     ]);
     expect(parseRoomTriggersResponse({ triggers: 'bad' })).toBeNull();
@@ -128,5 +130,38 @@ describe('roomTriggersApi', () => {
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
     await expect(deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123')).rejects.toThrow('403');
+  });
+
+  it('keeps both caller abort and deadline active while reading res.json()', async () => {
+    const abortableResponse = (signal: AbortSignal) =>
+      ({
+        ok: true,
+        json: () =>
+          new Promise((_, reject) => {
+            signal.addEventListener('abort', () => reject(new Error('body aborted')), {
+              once: true,
+            });
+          }),
+      }) as unknown as Response;
+
+    // Caller abort during body read aborts the request signal.
+    const caller = new AbortController();
+    sendMock.mockImplementationOnce(async (_path: string, init: RequestInit) =>
+      abortableResponse(init.signal!)
+    );
+    const callerPending = fetchRoomTriggers(mx, API_URL, ROOM_ID, caller.signal);
+    await Promise.resolve();
+    caller.abort();
+    await expect(callerPending).rejects.toThrow('body aborted');
+
+    // Timeout during body read also aborts the request signal.
+    vi.useFakeTimers();
+    sendMock.mockImplementationOnce(async (_path: string, init: RequestInit) =>
+      abortableResponse(init.signal!)
+    );
+    const timedPending = fetchRoomTriggers(mx, API_URL, ROOM_ID);
+    const settled = expect(timedPending).rejects.toThrow('body aborted');
+    await vi.advanceTimersByTimeAsync(10_000);
+    await settled;
   });
 });

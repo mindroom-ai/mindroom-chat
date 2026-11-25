@@ -6,6 +6,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { useRoomTriggers } from './useRoomTriggers';
+import { triggerRowJson } from './useRoomTriggers.test.shared';
 
 type SendFn = (path: string, init?: RequestInit) => Promise<Response>;
 const mocks = vi.hoisted(
@@ -25,21 +26,14 @@ vi.mock('../computer/clientSessions', () => ({
   clientSessions: () => ({ send: mocks.send }),
 }));
 
-const makeRow = (id: string, enabled = true) => ({
-  trigger_id: id,
-  kind: 'room_message',
-  relation: 'target',
-  description: `Trigger ${id}`,
-  prompt: 'Summarize new issues in the Design channel',
-  target_room_id: '!roomA:example.org',
-  target_thread_id: '$thread1',
-  thread_mode: 'thread',
-  enabled,
-  disabled_reason: enabled ? null : 'manual',
-  last_fired_at: 1764000000000,
-  owner_user_id: '@alice:example.org',
-  can_manage: true,
-});
+const makeRow = (id: string, enabled = true) =>
+  triggerRowJson({
+    trigger_id: id,
+    description: `Trigger ${id}`,
+    target_room_id: '!roomA:example.org',
+    enabled,
+    disabled_reason: enabled ? null : 'manual',
+  });
 
 const mx = { getUserId: () => '@alice:example.org' } as unknown as MatrixClient;
 const makeRoom = (roomId: string, membership = 'join'): Room =>
@@ -60,7 +54,7 @@ afterEach(() => {
 });
 
 describe('useRoomTriggers', () => {
-  it('refetches on demand, keeps last good rows on a refetch network blip, and invalidates after mutations', async () => {
+  it('refetches on demand, keeps cached rows on refetch failure while setting loadFailed, and invalidates after mutations', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const room = makeRoom('!roomA:example.org');
 

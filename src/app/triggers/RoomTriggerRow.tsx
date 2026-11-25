@@ -15,12 +15,7 @@ const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT = { ...BTN, variant: 'Secondary', fill: 'Soft', className: s.CompactAction } as const;
 const CONFIRM = { ...BTN, className: s.CancelBarButton } as const;
 
-const KIND_KEYS = {
-  webhook: 'roomTriggers.kind.webhook',
-  room_message: 'roomTriggers.kind.room_message',
-  external_event: 'roomTriggers.kind.external_event',
-  thread_tag: 'roomTriggers.kind.thread_tag',
-} as const;
+const KNOWN_KINDS = new Set(['webhook', 'room_message', 'external_event', 'thread_tag']);
 
 const DEST_KEYS = {
   room: 'roomTriggers.destinationRoom',
@@ -46,6 +41,7 @@ export function RoomTriggerRow(props: Props) {
   const [busy, setBusy] = useState<'toggle' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteBtnRef = useRef<HTMLButtonElement>(null);
   const keepBtnRef = useRef<HTMLButtonElement>(null);
   const relativeLastFired = useRelativeTime(trigger.lastFiredAt ?? undefined);
 
@@ -54,9 +50,7 @@ export function RoomTriggerRow(props: Props) {
   }, [confirmDelete]);
 
   const kindLabel = t(
-    Object.hasOwn(KIND_KEYS, trigger.kind)
-      ? KIND_KEYS[trigger.kind as keyof typeof KIND_KEYS]
-      : 'roomTriggers.kind.unknown'
+    `roomTriggers.kind.${KNOWN_KINDS.has(trigger.kind) ? trigger.kind : 'unknown'}`
   );
   const destLabel =
     trigger.threadMode && Object.hasOwn(DEST_KEYS, trigger.threadMode)
@@ -112,7 +106,9 @@ export function RoomTriggerRow(props: Props) {
     if (busy) return;
     setConfirmDelete(false);
     setError(null);
+    deleteBtnRef.current?.focus();
   };
+  const isBusy = Boolean(busy) || undefined;
   const toggleKey =
     busy === 'toggle'
       ? 'roomTriggers.updating'
@@ -174,12 +170,13 @@ export function RoomTriggerRow(props: Props) {
                   <Button
                     {...COMPACT}
                     aria-describedby={titleId}
-                    aria-disabled={Boolean(busy) || undefined}
+                    aria-disabled={isBusy}
                     onClick={() => void run('toggle', onToggle)}
                   >
                     <Text size="T200">{t(toggleKey)}</Text>
                   </Button>
                   <IconButton
+                    ref={deleteBtnRef}
                     {...BTN}
                     fill="None"
                     variant="Critical"
@@ -187,7 +184,7 @@ export function RoomTriggerRow(props: Props) {
                     aria-label={t('roomTriggers.delete')}
                     aria-describedby={titleId}
                     aria-expanded={showDeleteBar}
-                    aria-disabled={Boolean(busy) || undefined}
+                    aria-disabled={isBusy}
                     onClick={() => {
                       if (busy) return;
                       if (showDeleteBar) closeConfirm();
@@ -216,7 +213,7 @@ export function RoomTriggerRow(props: Props) {
                   {...CONFIRM}
                   variant="Secondary"
                   fill="Soft"
-                  aria-disabled={busy === 'delete' || undefined}
+                  aria-disabled={isBusy}
                   onClick={closeConfirm}
                 >
                   <Text size="T200">{t('roomTriggers.keep')}</Text>
@@ -225,7 +222,7 @@ export function RoomTriggerRow(props: Props) {
                   {...CONFIRM}
                   variant="Critical"
                   fill="Solid"
-                  aria-disabled={busy === 'delete' || undefined}
+                  aria-disabled={isBusy}
                   onClick={() => void run('delete', onDelete)}
                 >
                   <Text size="T200">
