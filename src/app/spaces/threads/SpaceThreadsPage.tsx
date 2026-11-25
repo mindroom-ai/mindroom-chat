@@ -429,7 +429,6 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         )}
 
         <SpaceThreadsList
-          spaceId={space.roomId}
           entryKeys={displayKeys}
           entryByKey={result.entryByKey}
           sections={sectionsEnabled ? result.sections : undefined}

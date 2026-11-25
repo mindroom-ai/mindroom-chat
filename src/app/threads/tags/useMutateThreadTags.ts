@@ -102,11 +102,11 @@ export async function setThreadResolved(
   if (!resolved) return;
   // Resolving ends a snooze, as the backend's resolve does; left set, reopening would bring
   // it back and the backend would still clear it at its time.
-  const rawEvents = room
-    .getLiveTimeline?.()
-    ?.getState?.(EventTimeline.FORWARDS)
-    ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
-  const events = Array.isArray(rawEvents) ? rawEvents : [];
+  const events =
+    room
+      .getLiveTimeline()
+      .getState(EventTimeline.FORWARDS)
+      ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
   if (aggregateThreadTagEvents(events).get(threadRootId)?.tags[SNOOZED_TAG]) {
     await writeThreadTag(mx, room, threadRootId, SNOOZED_TAG, false);
   }

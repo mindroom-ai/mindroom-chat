@@ -23,6 +23,43 @@ export type ThreadActionsMenuState = {
   viewModel: CompactThreadCardViewModel;
 };
 
+export type CompactCardRowActionsInput = {
+  rootId: string;
+  isResolved: boolean;
+  pinned: boolean;
+  canToggle: boolean;
+  canPin: boolean;
+  resolving: boolean;
+  pinning: boolean;
+  menuOpen: boolean;
+};
+
+export type CompactCardRowActions = {
+  showResolveAction: boolean;
+  showPinAction: boolean;
+  swipeEnabled: boolean;
+  actionsDisabled: boolean;
+};
+
+/** Computes hover-button visibility, swipe eligibility, and disabled state for a compact card row. */
+export const getCompactCardRowActions = ({
+  rootId,
+  isResolved,
+  pinned,
+  canToggle,
+  canPin,
+  resolving,
+  pinning,
+  menuOpen,
+}: CompactCardRowActionsInput): CompactCardRowActions => {
+  const confirmed = isConfirmedMatrixEventId(rootId);
+  const showResolveAction = canToggle && !isResolved && !pinned && confirmed;
+  const showPinAction = canPin && confirmed;
+  const swipeEnabled = canToggle && !menuOpen && !pinned && confirmed && !resolving;
+  const actionsDisabled = (showResolveAction || showPinAction) && (pinning || resolving);
+  return { showResolveAction, showPinAction, swipeEnabled, actionsDisabled };
+};
+
 export type CompactThreadCardRowProps = {
   room: Room;
   scrollRootRef: RefObject<HTMLDivElement | null>;

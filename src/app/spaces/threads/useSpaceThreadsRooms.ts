@@ -77,11 +77,11 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
     if (spaceRooms.length === 0) return undefined;
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
     const handleState = (event: MatrixEvent) => {
-      const type = event.getType?.();
+      const type = event.getType();
       if (
         (matchesEnum(type, StateEvent.RoomPowerLevels) ||
           matchesEnum(type, StateEvent.RoomCreate)) &&
-        (event.getStateKey?.() ?? '') === ''
+        event.getStateKey() === ''
       ) {
         bumpMeta();
       }

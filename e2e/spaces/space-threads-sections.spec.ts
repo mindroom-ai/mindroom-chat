@@ -89,6 +89,8 @@ const scrollToBottom = (page: Page) =>
 test('grouped sections stack flat with 4px card gap, zero overlap, and interactive card actions', async ({
   page,
 }) => {
+  const pageErrors: Error[] = [];
+  page.on('pageerror', (err) => pageErrors.push(err));
   await page.goto('/e2e/fixtures/space-threads-sections.html');
   await expect(page.locator('body')).toHaveAttribute('data-fixture-ready', 'true');
   const topMetrics = await measureList(page);
@@ -127,9 +129,25 @@ test('grouped sections stack flat with 4px card gap, zero overlap, and interacti
   expect(topMetrics.lastNeedsYouCard!.bottom).toBeLessThanOrEqual(workingHeader.top + 1);
 
   const firstShell = page.locator('[data-scroll-anchor="$needs-1"]');
+  const moreButton = firstShell.locator('[data-compact-thread-more="true"]');
   await expect(firstShell.locator('[data-compact-thread-resolve="true"]')).toHaveCount(1);
   await expect(firstShell.locator('[data-compact-thread-pin="true"]')).toHaveCount(1);
-  await expect(firstShell.locator('[data-compact-thread-more="true"]')).toHaveCount(1);
+  await expect(moreButton).toHaveCount(1);
+
+  // Open the real ThreadActionsMenu via ⋯, verify room-scoped menu items render without crashing,
+  // and close with Escape returning focus to the trigger button.
+  await firstShell.hover();
+  await moreButton.click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Open thread' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Resolve' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /Pin thread/i })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Copy thread link' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(moreButton).toBeFocused();
+  expect(pageErrors).toEqual([]);
 
   await scrollToBottom(page);
   const bottomMetrics = await measureList(page);

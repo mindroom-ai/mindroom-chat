@@ -9,6 +9,7 @@ import {
   RelationType,
   RoomEvent,
   RoomStateEvent,
+  SyncState,
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
@@ -336,6 +337,7 @@ const renderSpaceThreads = ({
     getUser: () => null,
     getRoom: (id: string) => roomMap.get(id) ?? null,
     getRooms: () => [...roomMap.values()],
+    getSyncState: () => SyncState.Syncing,
     getAccountData: (type: string) =>
       type === (AccountDataEvent.IgnoredUserList as string) ? ignoredEvent : undefined,
     on: clientEmitter.on,

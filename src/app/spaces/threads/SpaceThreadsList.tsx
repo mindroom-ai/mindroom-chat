@@ -14,12 +14,15 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { canPinRoomEvents, setRoomEventPinned } from '../../event-store/threads/threadPinning';
 import { getThreadPrimarySummaryText } from '../../event-store/threads/threadPresentation';
-import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
-import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
+import {
+  getPowersLevelFromMatrixEvent,
+  PowerLevelsContextProvider,
+  usePowerLevels,
+} from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { getStateEvent } from '../../matrix/room';
@@ -37,6 +40,7 @@ import { CompactSectionHeader } from '../../threads/overview/CompactSectionHeade
 import { CompactCardList } from '../../threads/overview/CompactThreadCardChrome';
 import {
   CompactThreadCardRow,
+  getCompactCardRowActions,
   type ThreadActionsMenuState,
 } from '../../threads/overview/CompactThreadCardRow';
 import {
@@ -52,6 +56,38 @@ import * as css from './SpaceThreads.css';
 const ThreadActionsMenu = lazy(() =>
   import('../../threads/ThreadActionsMenu').then((m) => ({ default: m.ThreadActionsMenu }))
 );
+
+function RoomThreadActionsMenu({
+  room,
+  rootId,
+  summaryText,
+  anchor,
+  onClose,
+  onOpenThread,
+}: {
+  room: Room;
+  rootId: string;
+  summaryText?: string;
+  anchor: ThreadActionsMenuState['anchor'];
+  onClose: () => void;
+  onOpenThread: () => void;
+}) {
+  const powerLevels = usePowerLevels(room);
+  return (
+    <PowerLevelsContextProvider value={powerLevels}>
+      <Suspense fallback={null}>
+        <ThreadActionsMenu
+          room={room}
+          rootId={rootId}
+          summaryText={summaryText}
+          anchor={anchor}
+          onClose={onClose}
+          onOpenThread={onOpenThread}
+        />
+      </Suspense>
+    </PowerLevelsContextProvider>
+  );
+}
 
 export type SpaceThreadsEmptyKey = 'no-rooms' | 'no-threads' | 'no-matching';
 
@@ -214,9 +250,16 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
     [entry.roomId, onPin]
   );
 
-  const confirmed = isConfirmedMatrixEventId(entry.threadRootId);
-  const showResolveAction = canToggle && !viewModel.isResolved && !pinned;
-  const showPinAction = canPin && confirmed;
+  const actions = getCompactCardRowActions({
+    rootId: entry.threadRootId,
+    isResolved: viewModel.isResolved,
+    pinned,
+    canToggle,
+    canPin,
+    resolving,
+    pinning,
+    menuOpen,
+  });
 
   return (
     <CompactThreadCardRow
@@ -226,10 +269,7 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
       roomName={showRoomBadge ? roomName : undefined}
       leadingBadges={leadingBadges}
       pinned={pinned}
-      showResolveAction={showResolveAction}
-      showPinAction={showPinAction}
-      actionsDisabled={(showResolveAction || showPinAction) && (pinning || resolving)}
-      swipeEnabled={canToggle && !menuOpen && !pinned && confirmed && !resolving}
+      {...actions}
       menuOpen={menuOpen}
       resolveLabel={t('thread.resolve')}
       reopenLabel={t('threadActions.reopen')}
@@ -242,7 +282,6 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
 });
 
 export type SpaceThreadsListProps = {
-  spaceId?: string;
   entryKeys: readonly string[];
   entryByKey: ReadonlyMap<string, CrossRoomThreadIndexEntry>;
   sections?: readonly CompactThreadSection[];
@@ -260,7 +299,6 @@ export type SpaceThreadsListProps = {
 };
 
 export function SpaceThreadsList({
-  spaceId,
   entryKeys,
   entryByKey,
   sections,
@@ -357,12 +395,6 @@ export function SpaceThreadsList({
 
   const menuRoom = menu ? roomsById.get(menu.roomId)?.room : undefined;
   useLayoutEffect(() => {
-    setPinError(false);
-    if (menuRef.current === undefined) return;
-    menuRef.current = undefined;
-    setMenu(undefined);
-  }, [spaceId]);
-  useLayoutEffect(() => {
     if (!menu || menuRoom) return;
     if (menuRef.current === menu) menuRef.current = undefined;
     setMenu(undefined);
@@ -444,22 +476,20 @@ export function SpaceThreadsList({
           : entryKeys.map(renderCard)}
       </CompactCardList>
       {menu && menuRoom && (
-        <Suspense fallback={null}>
-          <ThreadActionsMenu
-            key={`${menu.roomId}:${menu.rootId}`}
-            room={menuRoom}
-            rootId={menu.rootId}
-            summaryText={menuSummaryText}
-            anchor={menu.anchor}
-            onClose={() => closeMenu(menu)}
-            onOpenThread={() => {
-              if (menuRef.current !== menu) return;
-              menuRef.current = undefined;
-              setMenu(undefined);
-              onOpenThread(menu.roomId, menu.rootId);
-            }}
-          />
-        </Suspense>
+        <RoomThreadActionsMenu
+          key={`${menu.roomId}:${menu.rootId}`}
+          room={menuRoom}
+          rootId={menu.rootId}
+          summaryText={menuSummaryText}
+          anchor={menu.anchor}
+          onClose={() => closeMenu(menu)}
+          onOpenThread={() => {
+            if (menuRef.current !== menu) return;
+            menuRef.current = undefined;
+            setMenu(undefined);
+            onOpenThread(menu.roomId, menu.rootId);
+          }}
+        />
       )}
     </div>
   );

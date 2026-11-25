@@ -19,7 +19,11 @@ import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store
 import { CompactSectionHeader } from './CompactSectionHeader';
 import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import { CompactCardList, PinnedThreadsSection } from './CompactThreadCardChrome';
-import { CompactThreadCardRow, type ThreadActionsMenuState } from './CompactThreadCardRow';
+import {
+  CompactThreadCardRow,
+  getCompactCardRowActions,
+  type ThreadActionsMenuState,
+} from './CompactThreadCardRow';
 import * as css from './CompactRoomView.css';
 import { useToggleThreadResolution } from '../tags/useRoomThreadTags';
 import { InsetScrollbar } from '../../ui/InsetScrollbar';
@@ -446,15 +450,16 @@ export function CompactRoomView({
   const renderCard = (viewModel: CompactThreadCardViewModel) => {
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
-    const showResolveAction = canToggle && !viewModel.isResolved && !pinned;
-    // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
-    const swipeEnabled =
-      canToggle &&
-      menu?.rootId !== rootId &&
-      !pinned &&
-      isConfirmedMatrixEventId(rootId) &&
-      !updatingThreadRootIds.has(rootId);
-    const showPinAction = pinning.canPin && isConfirmedMatrixEventId(rootId);
+    const actions = getCompactCardRowActions({
+      rootId,
+      isResolved: viewModel.isResolved,
+      pinned,
+      canToggle,
+      canPin: pinning.canPin,
+      resolving: updatingThreadRootIds.has(rootId),
+      pinning: pinning.updating,
+      menuOpen: menu?.rootId === rootId,
+    });
     return (
       <CompactThreadCardRow
         key={rootId}
@@ -462,13 +467,7 @@ export function CompactRoomView({
         scrollRootRef={viewRef}
         viewModel={viewModel}
         pinned={pinned}
-        showResolveAction={showResolveAction}
-        showPinAction={showPinAction}
-        actionsDisabled={
-          (showResolveAction || showPinAction) &&
-          (pinning.updating || updatingThreadRootIds.has(rootId))
-        }
-        swipeEnabled={swipeEnabled}
+        {...actions}
         menuOpen={menu?.rootId === rootId && !!menuModel}
         resolveLabel={resolveLabel}
         reopenLabel={reopenLabel}

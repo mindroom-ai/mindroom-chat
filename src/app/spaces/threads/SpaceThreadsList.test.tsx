@@ -119,7 +119,9 @@ const makeRoom = (
     getMembers: () => [],
     getThread: (id: string) => {
       const rootEvent = knownRoots.get(id);
-      return rootEvent ? { rootEvent, findEventById: () => rootEvent } : undefined;
+      return rootEvent
+        ? { rootEvent, findEventById: () => rootEvent, initialize: () => Promise.resolve() }
+        : undefined;
     },
     findEventById: (id: string) => knownRoots.get(id),
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
@@ -136,7 +138,6 @@ const renderScenario = ({
   sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$sent' }),
   sections,
   pinnedByRoom,
-  spaceId = '!space-1:example.org',
   onOpenThread = vi.fn<(roomId: string, threadRootId: string) => void>(),
 }: {
   rooms: Room[];
@@ -144,7 +145,6 @@ const renderScenario = ({
   sendStateEvent?: ReturnType<typeof vi.fn>;
   sections?: readonly CompactThreadSection[];
   pinnedByRoom?: ReadonlyMap<string, readonly string[]>;
-  spaceId?: string;
   onOpenThread?: (roomId: string, threadRootId: string) => void;
 }) => {
   const roomMap = new Map(rooms.map((r) => [r.roomId, r] as const));
@@ -177,8 +177,10 @@ const renderScenario = ({
       );
     }),
   } as unknown as MatrixClient;
+  rooms.forEach((room) => {
+    Object.assign(room, { client: mx });
+  });
   const baseProps: SpaceThreadsListProps = {
-    spaceId,
     entryKeys: entries.map((e) => e.key),
     entryByKey: new Map(entries.map((e) => [e.key, e])),
     sections,
@@ -285,6 +287,7 @@ describe('SpaceThreadsList', () => {
         entry(ROOM_A, '$a2', 'Open'),
         entry(ROOM_A, '$a-pinned', 'Pinned'),
         entry(ROOM_A, '$a-done', 'Done', { isResolved: true }),
+        entry(ROOM_A, '~local-root', 'Sending locally'),
         entry(ROOM_B, '$b1', 'Read-only'),
       ],
       pinnedByRoom: new Map([[ROOM_A, ['$a-pinned']]]),
@@ -293,6 +296,10 @@ describe('SpaceThreadsList', () => {
 
     expect(shellOf(ROOM_A, '$a-pinned').querySelector('[data-compact-thread-resolve]')).toBeNull();
     expect(shellOf(ROOM_A, '$a-done').querySelector('[data-compact-thread-resolve]')).toBeNull();
+    expect(
+      shellOf(ROOM_A, '~local-root').querySelector('[data-compact-thread-resolve]')
+    ).toBeNull();
+    expect(shellOf(ROOM_A, '~local-root').querySelector('[data-compact-thread-pin]')).toBeNull();
     expect(shellOf(ROOM_B, '$b1').querySelector('[data-compact-thread-resolve]')).toBeNull();
 
     const a1Resolve = shellOf(ROOM_A, '$a1').querySelector<HTMLButtonElement>(
@@ -389,7 +396,7 @@ describe('SpaceThreadsList', () => {
     expect(consoleError).toHaveBeenCalled();
   });
 
-  it('opens ThreadActionsMenu via ⋯, right-click, long-press, and Shift+F10, restores room-scoped focus, and closes when room or space changes', async () => {
+  it('opens ThreadActionsMenu via ⋯, right-click, long-press, and Shift+F10, restores room-scoped focus, and closes when room disappears', async () => {
     vi.useFakeTimers();
     const roomA = makeRoom(ROOM_A, 'Engineering');
     const roomB = makeRoom(ROOM_B, 'Design');
@@ -450,7 +457,7 @@ describe('SpaceThreadsList', () => {
     expect(onOpenThread).toHaveBeenCalledWith(ROOM_B, '$shared');
     expect(screen.queryByTestId('mock-thread-actions-menu')).toBeNull();
 
-    // Long-press opens menu; removing room closes it; changing spaceId also closes it
+    // Long-press opens menu; removing its room closes it cleanly
     fireEvent.touchStart(shellB, { touches: [{ clientX: 40, clientY: 60, identifier: 1 }] });
     await act(async () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
@@ -458,17 +465,6 @@ describe('SpaceThreadsList', () => {
     });
     expect(screen.getByTestId('mock-thread-actions-menu')).toBeTruthy();
     rerenderProps({ roomsById: new Map([[ROOM_A, roomsById.get(ROOM_A)!]]) });
-    expect(screen.queryByTestId('mock-thread-actions-menu')).toBeNull();
-
-    const moreA = shellOf(ROOM_A, '$shared').querySelector<HTMLButtonElement>(
-      '[data-compact-thread-more]'
-    )!;
-    await act(async () => {
-      fireEvent.click(moreA);
-      await Promise.resolve();
-    });
-    expect(screen.getByTestId('mock-thread-actions-menu')).toBeTruthy();
-    rerenderProps({ spaceId: '!space-2:example.org' });
     expect(screen.queryByTestId('mock-thread-actions-menu')).toBeNull();
   });
 
