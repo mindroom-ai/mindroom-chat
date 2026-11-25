@@ -1,4 +1,12 @@
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -41,6 +49,11 @@ import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { isEventId } from '../lib/matrixIds';
+import {
+  SWIPE_THREAD_STAGE,
+  SWIPE_UNDER_THREAD,
+  type LiveThreadBackUnder,
+} from '../navigation/phonePageSlide';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
@@ -66,7 +79,10 @@ const COLUMN_STYLE: CSSProperties = {
   minWidth: 0,
 };
 
-export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilterState'> & {
+export type RoomViewProps = Omit<
+  RoomViewHeaderProps,
+  'threadId' | 'threadFilterState' | 'passive'
+> & {
   room: Room;
   eventId?: string;
   threadId?: string;
@@ -163,7 +179,56 @@ export function RoomView({
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
-  const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
+  const [peekingRoom, setPeekingRoom] = useState(false);
+  const columnFillsRef = useRef(false);
+  const crossRoomForkRef = useRef(Boolean(crossRoomFork));
+  crossRoomForkRef.current = Boolean(crossRoomFork);
+
+  const enterLiveRoomPeek = useCallback((): LiveThreadBackUnder | null => {
+    const stage = pageRef.current;
+    const under = areaRef.current;
+    if (!columnFillsRef.current || crossRoomForkRef.current || !stage || !under) return null;
+    const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
+    if (!over) return null;
+
+    const savedReturnPlace = threadReturnPlaceRef.current;
+    const savedCompactScroll = compactRoomScrollStateRef.current.get(roomId);
+
+    stage.setAttribute(SWIPE_THREAD_STAGE, '');
+    under.setAttribute(SWIPE_UNDER_THREAD, '');
+    try {
+      flushSync(() => setPeekingRoom(true));
+    } catch (error) {
+      stage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+      throw error;
+    }
+
+    return {
+      stage,
+      over,
+      under,
+      exit(committed) {
+        if (!pageRef.current) return;
+        if (!committed || columnFillsRef.current) {
+          flushSync(() => setPeekingRoom(false));
+          threadReturnPlaceRef.current = savedReturnPlace;
+          if (savedCompactScroll) compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
+          else compactRoomScrollStateRef.current.delete(roomId);
+          return;
+        }
+        setPeekingRoom(false);
+      },
+    };
+  }, [roomId]);
+
+  const threadState = useRoomViewThreadState({
+    room,
+    threadId,
+    eventId,
+    hasMindroomAgents,
+    enterLiveRoomPeek,
+  });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
   const handleExitCrossRoomFork = useCallback(() => {
     onExitCrossRoomFork?.();
@@ -183,6 +248,11 @@ export function RoomView({
   // the page, over the room's conversation, which goes.
   const columnFills =
     columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
+  columnFillsRef.current = columnFills;
+  const peekingOnly = columnFills && peekingRoom;
+  useEffect(() => {
+    if (!columnFills) setPeekingRoom(false);
+  }, [columnFills]);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
@@ -379,13 +449,14 @@ export function RoomView({
           <>
             <RoomViewHeader
               hasMindroomAgents={hasMindroomAgents}
-              openThreadId={openThreadId}
+              openThreadId={peekingOnly ? undefined : openThreadId}
+              passive={peekingOnly}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
               canEditSchedule={composerShown && !hidden}
               {...headerProps}
             />
-            <RoomHeaderSlot room={room} headerRef={headerRef} />
+            {!peekingOnly && <RoomHeaderSlot room={room} headerRef={headerRef} />}
           </>
         )}
         timeline={<RoomTimeline {...timelineProps} />}
@@ -404,7 +475,7 @@ export function RoomView({
             />
           )
         }
-        collapsed={columnFills}
+        collapsed={columnFills && !peekingRoom}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />

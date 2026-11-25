@@ -42,8 +42,14 @@ const SWIPE_DIM = 'data-swipe-dim';
  * it has settled back or its handoff has seen the route commit.
  */
 const SWIPE_HOLD_SHIELD = 'data-swipe-hold-shield';
+/** Marks `RoomView`'s page container during a live in-place room peek behind a sliding thread. */
+export const SWIPE_THREAD_STAGE = 'data-swipe-thread-stage';
+/** Marks the live inert room area revealed behind a sliding thread during a cache-miss back swipe. */
+export const SWIPE_UNDER_THREAD = 'data-swipe-under-thread';
+/** Marks the sliding thread column above the live peeked room. */
+const SWIPE_OVER_THREAD = 'data-swipe-over-thread';
 /** Elements inside the stage that belong to active slide/swipe chrome and must never be cloned. */
-const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${SWIPE_HOLD_SHIELD}], [${COPY}]`;
+const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${SWIPE_HOLD_SHIELD}], [${COPY}], [${SWIPE_UNDER_THREAD}]`;
 /** A vertical scroll clip. */
 const CLIP = '[data-page-slide-clip]';
 /** A row in a clip becomes an empty box once it is more than one screen out of view. */
@@ -85,6 +91,13 @@ export type PhoneSwipePreviewKey = {
 export type ActivePhoneSwipeContext = PhoneSwipePreviewKey & {
   isSpaceThreads?: boolean;
   returnToSpaceThreads?: boolean;
+};
+
+export type LiveThreadBackUnder = {
+  stage: HTMLElement;
+  over: HTMLElement;
+  under: HTMLElement;
+  exit: (committed: boolean) => void;
 };
 
 type StoredPreviewKey = {
@@ -337,6 +350,8 @@ export const captureStageSnapshot = (
   copy.removeAttribute(SWIPE_BACKDROP);
   copy.removeAttribute('data-swiping');
   copy.removeAttribute('data-swipe-shadow');
+  copy.removeAttribute(SWIPE_THREAD_STAGE);
+  copy.removeAttribute(SWIPE_OVER_THREAD);
   clearInlineTranslate(copy);
   copy.setAttribute(COPY, '');
   copy.setAttribute('aria-hidden', 'true');
@@ -352,10 +367,16 @@ export const captureStageSnapshot = (
   copy.querySelectorAll('[id], [data-testid], [name], [form], [for]').forEach((element) => {
     ['id', 'data-testid', 'name', 'form', 'for'].forEach((name) => element.removeAttribute(name));
   });
-  copy.querySelectorAll<HTMLElement>('[data-swiping], [data-swipe-shadow]').forEach((element) => {
-    element.removeAttribute('data-swiping');
-    element.removeAttribute('data-swipe-shadow');
-  });
+  copy
+    .querySelectorAll<HTMLElement>(
+      `[data-swiping], [data-swipe-shadow], [${SWIPE_THREAD_STAGE}], [${SWIPE_OVER_THREAD}]`
+    )
+    .forEach((element) => {
+      element.removeAttribute('data-swiping');
+      element.removeAttribute('data-swipe-shadow');
+      element.removeAttribute(SWIPE_THREAD_STAGE);
+      element.removeAttribute(SWIPE_OVER_THREAD);
+    });
   copy.querySelectorAll<HTMLElement>('[style]').forEach((element) => {
     if (element.style.translate || element.style.getPropertyValue('translate')) {
       clearInlineTranslate(element);
@@ -618,6 +639,7 @@ export const claimInteractivePhoneSlide = ({
   holdElement,
   holdSnapshot,
   shield: settleShield,
+  onRelease,
   timeoutMs = DEFAULT_HANDOFF_TIMEOUT_MS,
 }: {
   fromLocationKey: string;
@@ -626,6 +648,8 @@ export const claimInteractivePhoneSlide = ({
   holdSnapshot?: StageSnapshot;
   /** The shield the scene mounted for its settle: the handoff keeps it, with no second one. */
   shield?: HTMLElement;
+  /** Invoked once when the handoff releases (route commit, timeout, hide, disconnect, or skip). */
+  onRelease?: () => void;
   timeoutMs?: number;
 }): (() => void) => {
   const heldElement = holdElement ?? holdSnapshot?.copy;
@@ -638,6 +662,7 @@ export const claimInteractivePhoneSlide = ({
     settleShield?.remove();
     if (heldElement) detachPreviewElement(heldElement);
     releaseOwnedSnapshot(holdSnapshot);
+    onRelease?.();
     return () => undefined;
   }
 
@@ -689,7 +714,11 @@ export const claimInteractivePhoneSlide = ({
       playing = false;
       active = undefined;
     }
-    finish();
+    try {
+      onRelease?.();
+    } finally {
+      finish();
+    }
   };
 
   const finishAfterPaint = () => {
@@ -782,11 +811,13 @@ export const createThreadBackSwipeScene = ({
   fromLocationKey,
   onCommit,
   dirSign,
+  enterLiveUnder,
 }: {
   key: PhoneSwipePreviewKey;
   fromLocationKey: string;
   onCommit: () => void;
   dirSign?: 1 | -1;
+  enterLiveUnder?: () => LiveThreadBackUnder | null;
 }): InteractiveSwipeScene | null => {
   if (typeof document === 'undefined' || typeof window === 'undefined' || playing) return null;
   const stage = document.querySelector<HTMLElement>(`[${PHONE_STAGE}]`);
@@ -797,38 +828,50 @@ export const createThreadBackSwipeScene = ({
   if (width <= 0) return null;
 
   const sign = dirSign ?? resolveLogicalDirectionSign(stage);
-  const topElements = getStageSlidingChildren(stage);
-  const topPage = topElements.find((element) => element.hasAttribute(PHONE_PAGE));
-
-  const topBarHeight = getTopBarHeight(stage);
   const matchedRoom = getMatchingPreview('room', key);
   if (matchedRoom) ownedSnapshots.add(matchedRoom);
-  const under = matchedRoom
-    ? mountStageSnapshot(matchedRoom, stage)
-    : (() => {
-        const backdrop = createBackdropElement('backdrop', topBarHeight);
-        stage.append(backdrop);
-        return backdrop;
-      })();
-  if (matchedRoom) under.setAttribute(SWIPE_PREVIEW, 'under');
+  const live = matchedRoom ? null : (enterLiveUnder?.() ?? null);
+  const topElements = live ? [live.over] : getStageSlidingChildren(stage);
+  const topPage = live
+    ? live.over
+    : topElements.find((element) => element.hasAttribute(PHONE_PAGE));
+  const topBarHeight = live ? 0 : getTopBarHeight(stage);
+  const under = live
+    ? live.under
+    : matchedRoom
+      ? mountStageSnapshot(matchedRoom, stage)
+      : (() => {
+          const backdrop = createBackdropElement('backdrop', topBarHeight);
+          stage.append(backdrop);
+          return backdrop;
+        })();
+
+  if (live) {
+    live.stage.setAttribute(SWIPE_THREAD_STAGE, '');
+    live.under.setAttribute(SWIPE_UNDER_THREAD, '');
+    live.over.setAttribute(SWIPE_OVER_THREAD, '');
+  } else {
+    if (matchedRoom) under.setAttribute(SWIPE_PREVIEW, 'under');
+    stage.setAttribute(SWIPE_STAGE, 'back');
+  }
   under.setAttribute('data-swiping', '');
   under.style.translate = `${-0.3 * width * sign}px 0`;
 
   const dim = document.createElement('div');
-  dim.setAttribute(SWIPE_DIM, 'back');
+  dim.setAttribute(SWIPE_DIM, live ? 'live-back' : 'back');
   dim.setAttribute('aria-hidden', 'true');
   dim.setAttribute('data-swiping', '');
   if (topBarHeight > 0) dim.style.insetBlockStart = `${topBarHeight}px`;
   dim.style.opacity = String(DIM_MAX_OPACITY);
-  stage.append(dim);
+  (live ? live.stage : stage).append(dim);
 
-  stage.setAttribute(SWIPE_STAGE, 'back');
   topElements.forEach((element) => element.setAttribute('data-swiping', ''));
   topPage?.setAttribute('data-swipe-shadow', '');
 
   const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
   let cleanedUp = false;
+  let liveExited = false;
   let shield: HTMLElement | undefined;
   let capturedPreview: StoredPreview | undefined;
 
@@ -846,6 +889,21 @@ export const createThreadBackSwipeScene = ({
     });
     topPage?.removeAttribute('data-swipe-shadow');
     stage.removeAttribute(SWIPE_STAGE);
+  };
+
+  const finishLive = (committed: boolean) => {
+    if (!live || liveExited) return;
+    liveExited = true;
+    live.over.style.removeProperty('visibility');
+    clearInlineTranslate(live.over);
+    live.over.removeAttribute(SWIPE_OVER_THREAD);
+    live.over.removeAttribute('data-swiping');
+    live.over.removeAttribute('data-swipe-shadow');
+    clearInlineTranslate(live.under);
+    live.under.removeAttribute(SWIPE_UNDER_THREAD);
+    live.under.removeAttribute('data-swiping');
+    live.stage.removeAttribute(SWIPE_THREAD_STAGE);
+    live.exit(committed);
   };
 
   return {
@@ -903,6 +961,16 @@ export const createThreadBackSwipeScene = ({
       handedOff = true;
       dim.remove();
       under.removeAttribute('data-swiping');
+      if (live) {
+        clearInlineTranslate(live.under);
+        live.over.style.translate = `${width * sign}px 0`;
+        live.over.style.visibility = 'hidden';
+        live.over.removeAttribute('data-swiping');
+        live.over.removeAttribute('data-swipe-shadow');
+        claimInteractivePhoneSlide({ fromLocationKey, shield, onRelease: () => finishLive(true) });
+        onCommit();
+        return;
+      }
       clearInlineTransition(under);
       under.style.translate = '0px 0';
       under.setAttribute(SWIPE_PREVIEW, 'hold');
@@ -922,6 +990,14 @@ export const createThreadBackSwipeScene = ({
       if (cleanedUp) return;
       cleanedUp = true;
       dim.remove();
+      if (live) {
+        if (!handedOff) {
+          shield?.remove();
+          rollbackCapturedPreview();
+          finishLive(false);
+        }
+        return;
+      }
       clearTopStyles();
       if (!handedOff) {
         shield?.remove();

@@ -662,6 +662,121 @@ for (const engine of ENGINES) {
     }
   });
 
+  test(`${engine}: live room peek reveals Garden Club when swiping back from a directly opened thread`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'fallback');
+      const { garden, gardenRoot } = seeded;
+      const { context, page } = await signIn(own, seeded);
+      try {
+        // Navigate directly to the thread without visiting the room first (simulates cold reload,
+        // notification, or direct link so roomPreview is guaranteed empty).
+        await page.goto(
+          `/home/${encodeURIComponent(garden)}/?threadId=${encodeURIComponent(gardenRoot)}`
+        );
+        await expectAt(page, { room: garden, thread: gardenRoot }, 'directly entering the thread');
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+
+        // 1. Drag from left edge mid-way -> verify live room underneath, no backdrop -> cancel.
+        const cancelDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await cancelDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback when live room peek is available'
+          ).toHaveCount(0);
+          await expect(
+            page.locator('[data-swipe-preview="under"]'),
+            'no cached snapshot preview on direct thread load'
+          ).toHaveCount(0);
+
+          const liveUnder = page.locator('[data-swipe-under-thread]');
+          await expect(
+            liveUnder,
+            'live room area is revealed underneath the sliding thread column'
+          ).toBeVisible();
+          await expect(liveUnder).toContainText('Garden Club');
+          await expect(liveUnder).toContainText('Seed order for spring');
+          await expect(page.locator('[data-swipe-dim="live-back"]')).toBeVisible();
+
+          const overX = await page
+            .locator('[data-swipe-over-thread]')
+            .evaluate((element) => element.getBoundingClientRect().x);
+          expect(overX, 'thread column tracks finger horizontally').toBeGreaterThan(100);
+          expect(place(page), 'URL stays on the thread mid-drag').toMatchObject({
+            room: garden,
+            thread: gardenRoot,
+          });
+
+          await saveShot(page, testInfo, engine, 'live-room-fallback-mid-drag');
+
+          await cancelDrag.moveTo(60, { steps: 8, stepMs: 16 });
+          await cancelDrag.hold(150);
+        } finally {
+          await cancelDrag.release();
+        }
+
+        // Cancelled drag returns cleanly to the thread with the room re-collapsed.
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('[data-room-header="true"]')).toHaveCount(1);
+        expect(place(page), 'URL still on thread after cancel').toMatchObject({
+          room: garden,
+          thread: gardenRoot,
+        });
+
+        // 2. Drag past threshold and release to commit return to Garden Club.
+        const commitDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
+        } finally {
+          await commitDrag.release();
+        }
+
+        await expectAt(page, inRoom(garden), 'committed live-peek swipe returns to Garden Club');
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await expect(
+          page.getByRole('banner').getByRole('heading', { name: 'Garden Club', exact: true })
+        ).toBeVisible();
+        await expect(page.getByText('Seed order for spring')).toBeVisible();
+
+        // No double-slide: stays in Garden Club with the drawer closed.
+        await page.waitForTimeout(500);
+        expect(place(page), 'stays in Garden Club without double-sliding').toMatchObject(
+          inRoom(garden)
+        );
+        await expectDrawer(page, false, 'drawer remains closed after live-peek exit');
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+
   test(`${engine}: sidebar drawer tracks finger interactively on open and close`, async ({
     browser,
   }, testInfo) => {

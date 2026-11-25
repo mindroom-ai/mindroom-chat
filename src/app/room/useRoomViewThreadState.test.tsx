@@ -22,10 +22,12 @@ import { createSessionId } from '../matrix/session/sessions';
 import {
   capturePhoneSwipePreview,
   clearPhoneSwipePreviews,
+  type LiveThreadBackUnder,
   PHONE_PAGE,
   PHONE_STAGE,
   setActivePhoneSwipeContext,
 } from '../navigation/phonePageSlide';
+import { withRoomThreadExitTargetState } from '../routes/roomNavigateState';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
@@ -126,7 +128,12 @@ const storeFilter = (filter: ThreadFilterState) =>
 const mountThreadState = ({
   advancedFilters = false,
   ...options
-}: { hasMindroomAgents?: boolean; advancedFilters?: boolean; threadId?: string } = {}) => {
+}: {
+  hasMindroomAgents?: boolean;
+  advancedFilters?: boolean;
+  threadId?: string;
+  enterLiveRoomPeek?: () => LiveThreadBackUnder | null;
+} = {}) => {
   const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
@@ -690,5 +697,59 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     );
     expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
     scene!.cleanup(false);
+  });
+
+  it('uses enterLiveRoomPeek on cache miss when exiting to this room, and keeps backdrop when returning to Space All threads', () => {
+    const { stage, page } = mountPhoneStage('');
+    const liveStage = document.createElement('div');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    liveStage.append(under, over);
+    page.append(liveStage);
+
+    const enterLiveRoomPeek = vi.fn((): LiveThreadBackUnder => ({
+      stage: liveStage,
+      over,
+      under,
+      exit: vi.fn(),
+    }));
+
+    const savedHistoryState: unknown = window.history.state;
+    window.history.replaceState(null, '');
+    try {
+      // 1. Thread exiting to this room: cache miss invokes enterLiveRoomPeek.
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+      const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+      const liveScene = begin?.({ axisSign: 1, dirSign: 1 });
+      expect(liveScene).not.toBeNull();
+      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+      expect(liveStage.querySelector('[data-swipe-dim="live-back"]')).not.toBeNull();
+      liveScene!.cleanup(false);
+
+      // 2. Thread returning to Space All threads: skips live peek and keeps backdrop fallback.
+      enterLiveRoomPeek.mockClear();
+      window.history.replaceState(
+        {
+          usr: withRoomThreadExitTargetState(undefined, {
+            exitPath: '/%21space%3Aexample.org/threads/',
+            roomId: ROOM_ID,
+            threadId: '$thread',
+            useHistoryBack: true,
+            returnToOrigin: true,
+          }),
+        },
+        ''
+      );
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+      const spaceBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+      const backdropScene = spaceBegin?.({ axisSign: 1, dirSign: 1 });
+      expect(backdropScene).not.toBeNull();
+      expect(enterLiveRoomPeek).not.toHaveBeenCalled();
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      backdropScene!.cleanup(false);
+    } finally {
+      window.history.replaceState(savedHistoryState, '');
+    }
   });
 });
