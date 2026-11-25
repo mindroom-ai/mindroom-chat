@@ -47,9 +47,13 @@ const refusedUnsandboxed = shouldRefuseUnsandboxedAppImage({
 if (refusedUnsandboxed) {
   console.error(UNSANDBOXED_APPIMAGE_ERROR);
   if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) {
-    dialog.showErrorBox('MindRoom', UNSANDBOXED_APPIMAGE_ERROR);
+    void app.whenReady().then(() => {
+      dialog.showErrorBox('MindRoom', UNSANDBOXED_APPIMAGE_ERROR);
+      app.exit(1);
+    });
+  } else {
+    app.exit(1);
   }
-  app.exit(1);
 }
 
 if (!refusedUnsandboxed) {
