@@ -19,18 +19,16 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
   sanitizeCustomHtml: sanitizeCustomHtmlSpy,
 }));
 
-// The real RenderBody and its memo, under an MText that passes the formatted body and renders
-// what comes after it, as MText does.
+// The real RenderBody and its memo, under an MText that passes the formatted body.
 vi.mock('./MsgTypeRenderers', async () => {
   return {
     MEmote: () => null,
     MNotice: () => null,
-    MText: ({ content, renderBody, renderAfterBody }: any) =>
+    MText: ({ content, renderBody }: any) =>
       React.createElement(
         'div',
         null,
-        renderBody({ body: content.body, customBody: content.formatted_body }),
-        renderAfterBody
+        renderBody({ body: content.body, customBody: content.formatted_body })
       ),
   };
 });

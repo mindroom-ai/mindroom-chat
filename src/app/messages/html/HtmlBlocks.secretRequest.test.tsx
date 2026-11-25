@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
-import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
+import type { SecretRequest } from '../../matrix/protocol/secretRequest';
 import {
   InlineSecretRequestsContext,
   createDrawnSecretRequests,
@@ -74,31 +74,27 @@ const content = reply([
   '<p>Done.</p>',
 ]);
 
-const request = (status: SecretRequestStatus): SecretRequest => ({
+const savedRequest = (): SecretRequest => ({
   kind: 'temporary',
   requestId: 'req-1',
   requesterId: '@bas:example.org',
   env: 'SUDO_PASSWORD',
   keep: { memory: 900 },
-  kept: status === 'saved' ? 'memory' : null,
+  kept: 'memory',
   reason: 'To restart',
-  status,
+  status: 'saved',
   expiresAt: Date.now() + 15 * 60_000,
 });
 
 /** A plan that lets the reply draw the card at its call `index`, with no line mounted yet. */
-const secrets = (
-  status: SecretRequestStatus,
-  index: number | string = 3,
-  value: SecretRequest = request(status)
-): InlineSecretRequestPlan => ({
+const secrets = (index: number | string = 3): InlineSecretRequestPlan => ({
   byReply: new Map([
     [
       '$reply',
       new Map([
         [
           typeof index === 'string' ? index : `call_${index}`,
-          { eventId: '$card', request: value, agentUserId: '@mindroom_dev:x' },
+          { eventId: '$card', request: savedRequest(), agentUserId: '@mindroom_dev:x' },
         ],
       ]),
     ],
@@ -169,23 +165,23 @@ describe('a secret request in its reply', () => {
   });
 
   it('takes the place of the call that asked, splitting its run', () => {
-    render(secrets('saved'));
+    render(secrets());
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
   });
 
   it('starts or ends a run without an empty run beside it', () => {
-    render(secrets('saved', 1), <Reply shown={askingAt(1)} />);
+    render(secrets(1), <Reply shown={askingAt(1)} />);
     expect(lines()).toEqual(['secret:saved', 'Ran 3 tool calls']);
-    render(secrets('saved', 4), <Reply shown={askingAt(4)} />);
+    render(secrets(4), <Reply shown={askingAt(4)} />);
     expect(lines()).toEqual(['Ran 3 tool calls', 'secret:saved']);
   });
 
   it('leaves the run whole without a request for one of its calls', () => {
-    const none = { ...secrets('saved'), byReply: new Map() };
+    const none = { ...secrets(), byReply: new Map() };
     render(none);
     expect(lines()).toEqual(['Ran 4 tool calls']);
     expect(hiddenRows(none)).toEqual([]);
-    const other = secrets('saved', 9);
+    const other = secrets(9);
     render(other);
     expect(lines()).toEqual(['Ran 4 tool calls']);
     expect(hiddenRows(other)).toEqual([]);
@@ -201,7 +197,7 @@ describe('a secret request in its reply', () => {
           .props.onClick();
       });
     showToolCalls(false);
-    const plan = secrets('saved');
+    const plan = secrets();
     render(plan);
 
     // Shown once, on the cog: the done card asks nothing, so its row stays hidden.
@@ -233,7 +229,7 @@ describe('a secret request in its reply', () => {
 describe("a secret request card's row", () => {
   it('goes to the copy of the reply whose cog opens, from a hidden copy, and stays hidden', () => {
     showToolCalls(false);
-    const plan = secrets('saved');
+    const plan = secrets();
     render(
       plan,
       <>
@@ -269,7 +265,7 @@ describe("a secret request card's row", () => {
   });
 
   it('hides while the line is mounted, and shows again when the reply leaves', () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     expect(hiddenRows(plan)).toEqual([]);
 
     render(plan);
@@ -281,7 +277,7 @@ describe("a secret request card's row", () => {
   });
 
   it("moves into a reply still streaming once a frame shows the call's line, and stays there", () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     const lead = ['<p>To deploy the demo app</p>', marker(1), marker(2)];
 
     // A live frame that has not reached the call: the done card keeps its row.
@@ -305,7 +301,7 @@ describe("a secret request card's row", () => {
   });
 
   it('shows again when a newer frame of the reply no longer has the line', () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     render(plan);
     expect(hiddenRows(plan)).toEqual(['$card']);
 
@@ -319,7 +315,7 @@ describe("a secret request card's row", () => {
   });
 
   it('shows again once the plan lets the reply draw it no longer', () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     render(plan);
 
     render({ ...plan, byReply: new Map() });
@@ -329,7 +325,7 @@ describe("a secret request card's row", () => {
   });
 
   it('goes for one line: a repeated marker is the call’s own line, as in any run', () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     const repeated = reply([marker(1), marker(3), marker(3), '<p>Then again:</p>', marker(3)]);
     render(plan, <Reply shown={repeated} />);
 
@@ -340,7 +336,7 @@ describe("a secret request card's row", () => {
 
   it('stays when the named call ID is another call’s, which asks for no secret', () => {
     // Providers reuse call IDs within a reply: the ID alone does not say which call asked.
-    const plan = secrets('saved');
+    const plan = secrets();
     const reused = reply([marker(1), marker(2), marker(3), marker(4)], undefined, NAMES, () => ({
       tool_call_id: 'call_3',
     }));
@@ -355,7 +351,7 @@ describe("a secret request card's row", () => {
   });
 
   it('never moves to the command line call that ran the request: the card names the inner call', () => {
-    const plan = secrets('saved', 'inner');
+    const plan = secrets('inner');
     const names = ['shell', 'shell', 'request_temporary_secret', 'shell'];
     const ids = ['call_1', 'outer', 'inner', 'call_4'];
     const entry = (at: number) => ({
@@ -375,7 +371,7 @@ describe("a secret request card's row", () => {
   });
 
   it('goes for one line: a second place that draws the reply keeps the call’s own line', () => {
-    const plan = secrets('saved');
+    const plan = secrets();
     render(plan, [<Reply key="first" />, <Reply key="second" />]);
 
     expect(lines()).toEqual([

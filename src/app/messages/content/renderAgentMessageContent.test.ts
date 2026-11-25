@@ -25,14 +25,13 @@ vi.mock('../canvas/InlineCanvasFrame', () => ({
 }));
 
 vi.mock('./MsgTypeRenderers', () => ({
-  MEmote: ({ content, displayName, renderAfterBody, renderBody }: any) =>
+  MEmote: ({ content, displayName, renderBody }: any) =>
     React.createElement(
       'div',
       { 'data-renderer': 'emote' },
       displayName,
       ' ',
-      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
-      renderAfterBody
+      renderBody({ body: typeof content.body === 'string' ? content.body : '' })
     ),
   MNotice: ({ content, renderAfterBody, renderBody }: any) =>
     React.createElement(
@@ -41,13 +40,12 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody
     ),
-  MText: ({ content, renderAfterBody, renderBody, renderStateSuffix }: any) =>
+  MText: ({ content, renderBody, renderStateSuffix }: any) =>
     React.createElement(
       'div',
       { 'data-renderer': 'text' },
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
-      renderStateSuffix?.(),
-      renderAfterBody
+      renderStateSuffix?.()
     ),
 }));
 vi.mock('./RenderBody', () => ({
@@ -667,58 +665,40 @@ describe('renderAgentMessageContent', () => {
     expect(serialized).toContain('data-ui-action');
   });
 
-  it('renders MindRoom long-text text paths', async () => {
-    longTextTextMock.mockReset();
+  it.each([
+    { label: 'by default', hydrateLongText: undefined, expectedHydrate: true },
+    { label: 'when deferred', hydrateLongText: false, expectedHydrate: false },
+  ])(
+    'renders MindRoom long-text text paths ($label)',
+    async ({ hydrateLongText, expectedHydrate }) => {
+      longTextTextMock.mockReset();
 
-    const renderer = await renderNode({
-      msgType: 'm.text',
-      content: {
-        msgtype: 'm.text',
-        body: 'Long text preview',
-        url: 'mxc://example.org/long-text',
-        'io.mindroom.long_text': {
-          version: 2,
-          encoding: 'matrix_event_content_json',
+      const renderer = await renderNode({
+        msgType: 'm.text',
+        ...(hydrateLongText === undefined ? {} : { hydrateLongText }),
+        content: {
+          msgtype: 'm.text',
+          body: 'Long text preview',
+          url: 'mxc://example.org/long-text',
+          'io.mindroom.long_text': {
+            version: 2,
+            encoding: 'matrix_event_content_json',
+          },
         },
-      },
-    });
+      });
 
-    const rendered = JSON.stringify(renderer.toJSON());
+      const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('long-text');
-    expect(rendered).toContain('Long text preview');
-    expect(longTextTextMock).toHaveBeenCalledWith({
-      hydrate: true,
-      kind: 'text',
-    });
+      expect(rendered).toContain('long-text');
+      expect(rendered).toContain('Long text preview');
+      expect(longTextTextMock).toHaveBeenCalledWith({
+        hydrate: expectedHydrate,
+        kind: 'text',
+      });
 
-    renderer.unmount();
-  });
-
-  it('passes long-text hydration preference to deferred long-text renderers', async () => {
-    longTextTextMock.mockReset();
-
-    const renderer = await renderNode({
-      msgType: 'm.text',
-      hydrateLongText: false,
-      content: {
-        msgtype: 'm.text',
-        body: 'Long text preview',
-        url: 'mxc://example.org/long-text',
-        'io.mindroom.long_text': {
-          version: 2,
-          encoding: 'matrix_event_content_json',
-        },
-      },
-    });
-
-    expect(longTextTextMock).toHaveBeenCalledWith({
-      hydrate: false,
-      kind: 'text',
-    });
-
-    renderer.unmount();
-  });
+      renderer.unmount();
+    }
+  );
 
   it('renders sanitized Markdown from a long-text preview before hydration', async () => {
     toolTraceParserOptionsMock.mockClear();

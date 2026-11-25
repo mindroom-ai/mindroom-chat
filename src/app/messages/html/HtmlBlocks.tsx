@@ -747,13 +747,10 @@ const valueHasMarkerCandidate = (value: unknown): boolean =>
   typeof value === 'string' &&
   (value.includes(MINDROOM_TOOL_REF_ICON) || value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
 
-const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean => {
-  if (isToolTraceV2(content)) return true;
-  if (valueHasMarkerCandidate(content.formatted_body)) return true;
-  if (valueHasMarkerCandidate(content.body)) return true;
-
-  return false;
-};
+const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean =>
+  isToolTraceV2(content) ||
+  valueHasMarkerCandidate(content.formatted_body) ||
+  valueHasMarkerCandidate(content.body);
 
 const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,

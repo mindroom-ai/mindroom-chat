@@ -33,23 +33,21 @@ vi.mock('../html/HtmlBlocks', async (importOriginal) => {
   return { ...actual, readRenderedToolCalls: vi.fn(actual.readRenderedToolCalls) };
 });
 
-// The real RenderBody under an MText that renders the body, then what comes after it.
+// The real RenderBody under an MText that renders the body.
 vi.mock('../content/MsgTypeRenderers', async () => {
   return {
     MEmote: () => null,
-    MNotice: ({ content, renderBody, renderAfterBody }: any) =>
+    MNotice: ({ content, renderBody }: any) =>
       React.createElement(
         'div',
         { 'data-notice': true },
-        renderBody({ body: content.body, customBody: content.formatted_body }),
-        renderAfterBody
+        renderBody({ body: content.body, customBody: content.formatted_body })
       ),
-    MText: ({ content, renderBody, renderAfterBody }: any) =>
+    MText: ({ content, renderBody }: any) =>
       React.createElement(
         'div',
         null,
-        renderBody({ body: content.body, customBody: content.formatted_body }),
-        renderAfterBody
+        renderBody({ body: content.body, customBody: content.formatted_body })
       ),
   };
 });

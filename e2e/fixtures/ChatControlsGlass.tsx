@@ -101,10 +101,7 @@ export function ChatControlsGlass() {
           </div>
           <output aria-live="polite">{action}</output>
         </section>
-        <section
-          data-testid="card-shells"
-          style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}
-        >
+        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
           <Text size="H4">Attachments</Text>
           <div data-testid="attachment">
             <MFile

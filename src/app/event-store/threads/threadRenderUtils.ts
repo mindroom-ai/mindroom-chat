@@ -478,16 +478,13 @@ export const estimateThreadEventRowHeight = (
   const body = typeof content.body === 'string' ? content.body : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
   if (getThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
+  const lines = estimateBodyLines(body);
   // Always-expanded rows (legacy thread summaries) never fold: the body
   // renders in full.
-  if (hasThreadSummary(contentRecord)) {
-    return base + estimateBodyLines(body) * THREAD_ROW_LINE_PX;
-  }
-  const lines = estimateBodyLines(body);
-  if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
-    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX;
-  }
-  return base + lines * THREAD_ROW_LINE_PX;
+  const shown = hasThreadSummary(contentRecord)
+    ? lines
+    : Math.min(lines, THREAD_ROW_FOLD_CONTENT_LINES);
+  return base + shown * THREAD_ROW_LINE_PX;
 };
 
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
