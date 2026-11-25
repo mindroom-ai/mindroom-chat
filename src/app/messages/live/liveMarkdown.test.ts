@@ -118,4 +118,50 @@ describe('live reply Markdown', () => {
       '<section>box</section>\n<p><strong>after</strong></p>\n'
     );
   });
+
+  it('falls back to literal text on duplicate footnote definitions without losing URL-only sources', () => {
+    const duplicateProse = renderLiveMarkdown(
+      'First[^1].\n\n[^1]: First source.\n\nSecond[^1].\n\n[^1]: Second source.'
+    );
+    expect(duplicateProse).not.toContain('class="footnote-ref"');
+    expect(duplicateProse).toContain('[^1]: First source.');
+    expect(duplicateProse).toContain('[^1]: Second source.');
+
+    const duplicateUrls = renderLiveMarkdown(
+      [
+        'Alpha[^1].',
+        '',
+        '[^1]: https://example.com',
+        '',
+        'Beta[^1] and [docs].',
+        '',
+        '[^1]: https://example.org',
+        '',
+        '[docs]: https://docs.example.com',
+      ].join('\n')
+    );
+    expect(duplicateUrls).not.toContain('class="footnote-ref"');
+    expect(duplicateUrls).toContain('<p>[^1]: https://example.com</p>');
+    expect(duplicateUrls).toContain('<p>[^1]: https://example.org</p>');
+    expect(duplicateUrls).toContain('<a href="https://docs.example.com">docs</a>');
+  });
+
+  it('does not false-flag a paragraph-interrupting or code-fenced single footnote definition', () => {
+    const interrupting = renderLiveMarkdown('Note[^1]\n[^1]: Detail.');
+    expect(interrupting).toContain(
+      '<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>'
+    );
+    expect(interrupting).toContain(
+      '<li id="fn1" class="footnote-item"><p>Detail. <a href="#fnref1" class="footnote-backref">↩︎</a></p>'
+    );
+
+    const withCodeBlock = renderLiveMarkdown(
+      'Note[^1].\n\n```\n[^1]: Not a definition.\n```\n\n[^1]: Real detail.'
+    );
+    expect(withCodeBlock).toContain(
+      '<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>'
+    );
+    expect(withCodeBlock).toContain('<li id="fn1" class="footnote-item"><p>Real detail.');
+    expect(withCodeBlock).toContain('<code>[^1]: Not a definition.\n</code>');
+  });
 });

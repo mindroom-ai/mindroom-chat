@@ -227,27 +227,80 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
 };
 
 type FootnotePlugin = (md: MarkdownIt) => void;
+type BlockRule = (
+  state: StateBlock,
+  startLine: number,
+  endLine: number,
+  silent: boolean
+) => boolean;
+type FootnoteRenderEnv = {
+  footnotes?: { refs?: Record<string, number> };
+  _hasDuplicateFootnoteDefs?: boolean;
+};
+
+const wrapBlockRule = (
+  md: MarkdownIt,
+  name: string,
+  wrap: (rule: BlockRule) => BlockRule
+): void => {
+  const entry = md.block.ruler.__rules__.find((rule) => rule.name === name);
+  if (!entry) return;
+  md.block.ruler.at(name, wrap(entry.fn), { alt: [...entry.alt] });
+};
+
+/** Flag duplicate footnote definitions in `state.env` using markdown-it's own `footnote_def` parse. */
+const trackDuplicateFootnoteDefinitions =
+  (rule: BlockRule): BlockRule =>
+  (state, startLine, endLine, silent) => {
+    if (silent) return rule(state, startLine, endLine, silent);
+    const env = state.env as FootnoteRenderEnv;
+    const existingRefs = new Set(Object.keys(env.footnotes?.refs ?? {}));
+    const tokenIndex = state.tokens.length;
+    const matched = rule(state, startLine, endLine, silent);
+    if (matched && tokenIndex < state.tokens.length) {
+      const meta = state.tokens[tokenIndex]?.meta as { label?: unknown } | null | undefined;
+      if (typeof meta?.label === 'string' && existingRefs.has(`:${meta.label}`)) {
+        env._hasDuplicateFootnoteDefs = true;
+      }
+    }
+    return matched;
+  };
+
+/** Keep footnote definitions visible instead of letting CommonMark consume `[^1]: Source` as a link reference. */
+const declineFootnoteDefinitionAsReference =
+  (rule: BlockRule): BlockRule =>
+  (state, startLine, endLine, silent) => {
+    const pos = state.bMarks[startLine]! + state.tShift[startLine]!;
+    if (pos >= state.src.length || state.src.startsWith('[^', pos)) return false;
+    return rule(state, startLine, endLine, silent);
+  };
 
 const buildRenderer = (
   MarkdownItConstructor: typeof MarkdownItDefault,
-  footnotePlugin: FootnotePlugin
+  footnotePlugin?: FootnotePlugin
 ): MarkdownIt => {
   // The runtime's sanitizer writes void tags without a closing slash.
   const md = new MarkdownItConstructor('commonmark', { breaks: true, xhtmlOut: false });
   md.enable(['table', 'strikethrough']);
-  md.use(footnotePlugin);
-  // Match backend footnote_plugin(inline=False) so prose/regexes like ^[a-z] stay literal text.
-  md.inline.ruler.disable('footnote_inline');
   md.inline.ruler.before('escape', 'math_inline', mathInline(md));
   md.block.ruler.before('fence', 'math_block', mathBlock);
   md.renderer.rules.math_inline = (tokens, index) =>
     escapeLikePython(`$${tokens[index]!.content}$`);
   md.renderer.rules.math_block = (tokens, index) =>
     `<div>${escapeLikePython(`$$\n${tokens[index]!.content.trim()}\n$$`)}</div>\n`;
+  if (footnotePlugin) {
+    md.use(footnotePlugin);
+    // Match backend footnote_plugin(inline=False) so prose/regexes like ^[a-z] stay literal text.
+    md.inline.ruler.disable('footnote_inline');
+    wrapBlockRule(md, 'footnote_def', trackDuplicateFootnoteDefinitions);
+  } else {
+    wrapBlockRule(md, 'reference', declineFootnoteDefinitionAsReference);
+  }
   return md;
 };
 
 let renderer: MarkdownIt | undefined;
+let rendererWithoutFootnotes: MarkdownIt | undefined;
 let loading: Promise<void> | undefined;
 const readyListeners = new Set<() => void>();
 
@@ -256,6 +309,7 @@ export const loadLiveMarkdown = (): Promise<void> => {
   loading ??= Promise.all([import('markdown-it'), import('markdown-it-footnote')]).then(
     ([{ default: MarkdownItConstructor }, { default: footnotePlugin }]) => {
       renderer = buildRenderer(MarkdownItConstructor, footnotePlugin);
+      rendererWithoutFootnotes = buildRenderer(MarkdownItConstructor);
       readyListeners.forEach((listener) => listener());
     },
     (error: unknown) => {
@@ -268,17 +322,21 @@ export const loadLiveMarkdown = (): Promise<void> => {
 };
 
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
-export const renderLiveMarkdown = (md: string): string | undefined =>
-  renderer
-    ?.render(
-      transformOutsideFencedCode(
-        transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
-        separateSupportedBlockHtml
-      )
-    )
-    .replace(HTML_CONSTRUCT, (construct, name?: string) =>
-      RAW_TEXT_TAGS.has((name ?? '').toLowerCase()) ? escapeLikePython(construct) : construct
-    );
+export const renderLiveMarkdown = (md: string): string | undefined => {
+  if (!renderer || !rendererWithoutFootnotes) return undefined;
+  const normalized = transformOutsideFencedCode(
+    transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
+    separateSupportedBlockHtml
+  );
+  const env: FootnoteRenderEnv = {};
+  const rendered = renderer.render(normalized, env);
+  const html = env._hasDuplicateFootnoteDefs
+    ? rendererWithoutFootnotes.render(normalized)
+    : rendered;
+  return html.replace(HTML_CONSTRUCT, (construct, name?: string) =>
+    RAW_TEXT_TAGS.has((name ?? '').toLowerCase()) ? escapeLikePython(construct) : construct
+  );
+};
 
 const subscribeReady = (listener: () => void) => {
   readyListeners.add(listener);
