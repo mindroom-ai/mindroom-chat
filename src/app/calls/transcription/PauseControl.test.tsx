@@ -48,13 +48,13 @@ function PausedBy() {
 
 let renderer: ReactTestRenderer | undefined;
 
-const mount = () => {
+const mount = (small?: boolean) => {
   const store = createStore();
   store.set(liveTranscriptAtom, { roomId: ROOM_ID, call: CALL, lines: [], names: {} });
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <PauseControl room={room} />
+        <PauseControl room={room} small={small} />
         <PausedBy />
       </Provider>
     );
@@ -121,7 +121,12 @@ describe('PauseControl', () => {
 
   it("looks like the controls' warning while the call is paused, naming who paused", () => {
     const t = mount();
-    expect(t.button().props.variant).toBe('SurfaceVariant');
+    expect(t.button().props).toMatchObject({
+      size: '500',
+      radii: 'Pill',
+      variant: 'SurfaceVariant',
+      fill: 'Soft',
+    });
     expect(t.button().props['aria-description']).toBeUndefined();
     expect(t.pausedBy()).toBe('');
 
@@ -137,6 +142,25 @@ describe('PauseControl', () => {
     membersLoaded = false;
     t.pausedInCall('@mallory:example.org', { '@mallory:example.org': 'Bob' });
     expect(t.button().props['aria-description']).toBe('Paused by @mallory:example.org');
+  });
+
+  it('renders flat when idle in a panel header, and switches to a soft warning when paused', () => {
+    const t = mount(true);
+    expect(t.button().props).toMatchObject({
+      size: '300',
+      radii: '300',
+      variant: 'Surface',
+      fill: 'None',
+    });
+
+    t.pausedInCall('@bob:example.org');
+    expect(t.button().props).toMatchObject({
+      size: '300',
+      radii: '300',
+      variant: 'Warning',
+      fill: 'Soft',
+      'aria-pressed': true,
+    });
   });
 
   it('shows the state MindRoom reports once its answer ends the request', () => {

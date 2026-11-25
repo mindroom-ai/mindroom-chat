@@ -32,11 +32,11 @@ type ControlProps = {
   pressed?: boolean;
   expanded?: boolean;
   disabled?: boolean;
-  /** Smaller, for a panel's header. */
+  /** Smaller, flat button for a panel's header. */
   small?: boolean;
 };
 
-/** A round call control that names itself in a tooltip. */
+/** A round call control (or flat header icon when `small`) that names itself in a tooltip. */
 export function CallControl({
   label,
   description,
@@ -50,7 +50,10 @@ export function CallControl({
   disabled,
   small,
 }: ControlProps) {
-  let variant: 'Critical' | 'Warning' | 'SurfaceVariant' = 'SurfaceVariant';
+  const tinted = Boolean(critical || off || warning);
+  let variant: 'Critical' | 'Warning' | 'Surface' | 'SurfaceVariant' = small
+    ? 'Surface'
+    : 'SurfaceVariant';
   if (critical || off) variant = 'Critical';
   else if (warning) variant = 'Warning';
   return (
@@ -67,9 +70,9 @@ export function CallControl({
         <IconButton
           ref={anchorRef}
           size={small ? '300' : '500'}
-          radii="Pill"
+          radii={small ? '300' : 'Pill'}
           variant={variant}
-          fill="Soft"
+          fill={small && !tinted ? 'None' : 'Soft'}
           className={critical ? css.EndControl : undefined}
           aria-label={label}
           aria-description={description}

@@ -630,7 +630,7 @@ export function ComputerPanel({
                     aria-pressed={expanded}
                     size="300"
                     radii="300"
-                    variant="SurfaceVariant"
+                    variant="Surface"
                     fill="None"
                   >
                     <Icon size="200" src={expanded ? ShrinkIcon : ExpandIcon} />

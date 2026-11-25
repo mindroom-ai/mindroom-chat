@@ -60,7 +60,7 @@ export function TitleButton(props: TitleButtonProps) {
           className={className}
           size={size}
           radii="300"
-          variant={variant ?? (inWindow ? 'Surface' : 'SurfaceVariant')}
+          variant={variant ?? 'Surface'}
           fill={inWindow || variant ? 'Soft' : 'None'}
           aria-label={label}
           aria-pressed={pressed}

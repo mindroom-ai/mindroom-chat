@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import type { ReactElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { IconButton } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
+import { ControlPill, HeaderPill } from './PanelFrame.css';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
@@ -224,16 +226,25 @@ describe('PanelHeaderControls', () => {
     cleanup();
   });
 
-  it('renders panel actions, frame controls, and close inside the pill', () => {
+  it('renders panel actions, frame controls, and close as flat Surface/None controls', () => {
     const onClose = vi.fn();
     const setLayout = vi.fn<PanelFrame['setLayout']>();
-    render(
+    const { container: expectedIcon } = render(
+      <IconButton size="300" radii="300" variant="Surface" fill="None" />
+    );
+    const surfaceNoneTokens = Array.from(expectedIcon.querySelector('button')!.classList);
+    cleanup();
+
+    const { container } = render(
       <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
         <PanelHeaderControls onClose={onClose} closeLabel="Close Notes">
           <button type="button">Extra</button>
         </PanelHeaderControls>
       </PanelFrameProvider>
     );
+
+    expect(ControlPill.split(' ')).not.toContain(HeaderPill);
+    expect(container.firstElementChild?.classList.contains(HeaderPill)).toBe(false);
 
     const buttons = screen.getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
@@ -242,6 +253,9 @@ describe('PanelHeaderControls', () => {
       'Fold Notes to the edge',
       'Close Notes',
     ]);
+    for (const button of buttons.slice(1)) {
+      expect(Array.from(button.classList)).toEqual(expect.arrayContaining(surfaceNoneTokens));
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Close Notes' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
