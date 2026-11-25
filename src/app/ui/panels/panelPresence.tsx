@@ -12,7 +12,7 @@ import {
 
 /** How long a panel takes to open, close or trade places, on the Standard motion curve. */
 export const PANEL_MOTION_MS = 220;
-const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
+export const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
 
 /**
  * Where a panel is in its life: `shown` (there from the first render, so it does not move in),
@@ -219,5 +219,31 @@ export const animatePanel = (
     duration: PANEL_MOTION_MS,
     easing: PANEL_MOTION_EASING,
     fill: hold ? 'forwards' : 'none',
+  });
+};
+
+/**
+ * Glides a panel smoothly from its beside width to full width. For an end-side panel, the start
+ * margin shrinks alongside the width growth so its start edge glides across the row instead of
+ * jumping to the far wall first.
+ */
+export const animatePanelFill = (
+  panel: HTMLElement,
+  fromWidth: number,
+  toWidth: number,
+  side: 'start' | 'end'
+): Animation | undefined => {
+  if (typeof panel.animate !== 'function' || prefersReducedMotion()) return undefined;
+  const keyframes: Keyframe[] =
+    side === 'end'
+      ? [
+          { width: `${fromWidth}px`, marginInlineStart: `${toWidth - fromWidth}px` },
+          { width: `${toWidth}px`, marginInlineStart: '0px' },
+        ]
+      : [{ width: `${fromWidth}px` }, { width: `${toWidth}px` }];
+  return panel.animate(keyframes, {
+    duration: PANEL_MOTION_MS,
+    easing: PANEL_MOTION_EASING,
+    fill: 'none',
   });
 };

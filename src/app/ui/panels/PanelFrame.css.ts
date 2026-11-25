@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { Panel } from './ResizablePanel.css';
 
@@ -116,5 +116,46 @@ export const ControlSeparator = style({
   selectors: {
     [`${ControlExtras}:empty + &`]: { display: 'none' },
     '&:last-child': { display: 'none' },
+  },
+});
+
+const fillButtonPulse = keyframes({
+  '0%': {
+    backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 24%, transparent)`,
+    color: color.Primary.Main,
+    boxShadow: `0 0 0 0 color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+    transform: 'scale(1.08)',
+  },
+  '45%': {
+    backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 16%, transparent)`,
+    color: color.Primary.Main,
+    boxShadow: `0 0 0 5px color-mix(in srgb, ${color.Primary.Main} 0%, transparent)`,
+    transform: 'scale(1)',
+  },
+  '100%': {
+    backgroundColor: 'transparent',
+    boxShadow: '0 0 0 0 transparent',
+    transform: 'scale(1)',
+  },
+});
+
+// Fill/Shrink button lights up while dragging past maxWidth and pulses briefly on landing in full width.
+globalStyle(`${Panel} [data-panel-fill-button]`, {
+  transition: 'background-color 140ms ease, color 140ms ease, box-shadow 140ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+});
+
+globalStyle(`${Panel}[data-expand-highlight] [data-panel-fill-button]`, {
+  backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 16%, transparent)`,
+  color: color.Primary.Main,
+  boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${color.Primary.Main} 75%, transparent)`,
+});
+
+globalStyle(`${Panel}[data-just-filled] [data-panel-fill-button]`, {
+  animation: `${fillButtonPulse} 700ms cubic-bezier(0.2, 0, 0, 1)`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { animation: 'none' },
   },
 });
