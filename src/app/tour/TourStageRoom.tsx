@@ -524,7 +524,7 @@ function ThreadPane({ scene, phone, live, now }: Omit<RoomProps, 'touchCards'>) 
                 <ThreadRootTitle text={t('tour.sample.typed')} whole={phone} />
               </div>
             </div>
-            <ThreadBannerActions showPinButton={!phone} showResolveButton={!phone} />
+            <ThreadBannerActions showPinButton={!phone} showResolveButton />
           </div>
         </div>
         <div className={css.Messages}>

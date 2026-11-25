@@ -435,12 +435,12 @@ describe('TourStage', () => {
     ).toEqual(['Back', 'Thread options', 'Pin thread', 'Resolve']);
     cleanup();
 
-    // Phone open thread banner keeps Back and More (omits Pin and Resolve).
+    // Phone open thread banner keeps Back, More, and Resolve (omits Pin, matching ThreadContextBanner).
     show('start', lastPhase('start'), true);
     const phoneBanner = stage().querySelector('[data-thread-context-banner]');
     expect(
       Array.from(phoneBanner?.querySelectorAll('button') ?? [], (b) => b.getAttribute('aria-label'))
-    ).toEqual(['Back', 'Thread options']);
+    ).toEqual(['Back', 'Thread options', 'Resolve']);
     cleanup();
 
     // Activity panel renders real header, tabs (including Replies 1), Today divider, and ActivityBadge.
@@ -488,6 +488,10 @@ describe('TourStage', () => {
       });
       show('activity');
       expect(stage().querySelector('[data-activity-badge="needs-you"]')?.textContent).toBe('৩');
+      const bnTabs = stage().querySelector('[role="tablist"]')?.textContent ?? '';
+      expect(bnTabs).toContain('৩');
+      expect(bnTabs).toContain('১');
+      expect(bnTabs).not.toMatch(/[0-9]/);
     } finally {
       await act(async () => {
         await i18n.changeLanguage(previousLanguage);

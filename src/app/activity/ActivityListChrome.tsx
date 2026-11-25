@@ -14,6 +14,7 @@ import {
   type IconSrc,
 } from 'folds';
 import { UserAvatar } from '../avatars/UserAvatar';
+import { localDigits } from '../lib/localDigits';
 import { TooltipProvider, ownDirectionLine } from '../ui/directional';
 import type { ActivityKind, ActivityTab } from './activityRows';
 import * as css from './ActivityList.css';
@@ -111,7 +112,7 @@ export type ActivityListTabsProps = {
 
 /** Filter tabs (All, Mentions, Replies, Needs you) with unread counts. */
 export function ActivityListTabs({ tab, unreadByTab, onSelectTab = noop }: ActivityListTabsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div className={css.Tabs} role="tablist" aria-label={t('activity.tabsLabel')}>
       {ACTIVITY_TABS.map((id) => (
@@ -126,7 +127,7 @@ export function ActivityListTabs({ tab, unreadByTab, onSelectTab = noop }: Activ
           <Text size="T200">{t(`activity.tabs.${id}`)}</Text>
           {unreadByTab[id] > 0 && (
             <Text as="span" size="L400" aria-hidden>
-              {unreadByTab[id]}
+              {localDigits(`${unreadByTab[id]}`, i18n.language)}
             </Text>
           )}
         </Chip>
