@@ -543,7 +543,8 @@
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
         "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni",
-        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia"
+        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia",
+        "mediaCompression": "screenshot, registrazioni dello schermo, immagini, video, compressione, dimensione di caricamento"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -565,6 +566,13 @@
         "updateReady": "La versione {{version}} è pronta per l’installazione.",
         "restartToUpdate": "Riavvia per aggiornare",
         "updateInstallFailed": "Impossibile riavviare per installare l’aggiornamento. Riprova."
+      },
+      "mediaCompression": {
+        "title": "Compressione multimediale",
+        "description": "Comprimi foto, screenshot e video allegati prima del caricamento. Puoi comunque usare il file originale per qualsiasi allegato.",
+        "off": "Disattivata",
+        "balanced": "Bilanciata",
+        "small": "Piccola"
       }
     },
     "createChat": {

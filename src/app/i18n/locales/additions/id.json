@@ -517,7 +517,8 @@
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
         "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
         "plugins": "plugin, ekstensi, pengaya, integrasi",
-        "appUpdates": "pembaruan, update, versi, tingkatkan, mulai ulang, restart"
+        "appUpdates": "pembaruan, update, versi, tingkatkan, mulai ulang, restart",
+        "mediaCompression": "tangkapan layar, rekaman layar, gambar, video, kompresi, ukuran unggahan"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -539,6 +540,13 @@
         "updateReady": "Versi {{version}} siap dipasang.",
         "restartToUpdate": "Mulai ulang untuk memperbarui",
         "updateInstallFailed": "Tidak dapat memulai ulang untuk memasang pembaruan. Coba lagi."
+      },
+      "mediaCompression": {
+        "title": "Kompresi media",
+        "description": "Kompres foto, tangkapan layar, dan video yang dilampirkan sebelum diunggah. Anda tetap dapat menggunakan file asli untuk lampiran apa pun.",
+        "off": "Nonaktif",
+        "balanced": "Seimbang",
+        "small": "Kecil"
       }
     },
     "createChat": {
