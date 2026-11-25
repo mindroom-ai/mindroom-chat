@@ -722,8 +722,9 @@ describe('WorkflowRunCard', () => {
         messages: 0,
       },
     };
+    const outerKeyDown = vi.fn();
     const wrap = (card: ReturnType<typeof makeCard>) => (
-      <>
+      <div onKeyDown={outerKeyDown}>
         <Button data-testid="ref-primary" type="button" size="300" variant="Primary" fill="Soft" />
         <Button
           data-testid="ref-secondary"
@@ -737,7 +738,7 @@ describe('WorkflowRunCard', () => {
             <WorkflowRunCard card={card} roomId={ROOM_ID} threadId={THREAD_ID} sender={AGENT} />
           </MatrixClientProvider>
         </JotaiProvider>
-      </>
+      </div>
     );
 
     const { rerender } = render(
@@ -749,18 +750,30 @@ describe('WorkflowRunCard', () => {
     expect(screen.getByRole('button', { name: 'Graph' }).className).toBe(primaryClass);
     expect(screen.getByRole('button', { name: 'Run again' }).className).toBe(secondaryClass);
 
-    // 1st click enters confirmation; Cancel and Escape both abort without sending resume.
+    // 1st click enters confirmation and moves focus to Cancel; Cancel restores focus to Run again.
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(sendEvent).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Confirm run again' }).className).toBe(primaryClass);
-    expect(screen.getByRole('button', { name: 'Cancel' }).className).toBe(secondaryClass);
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.getByRole('button', { name: 'Run again' })).toBeTruthy();
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelBtn.className).toBe(secondaryClass);
+    expect(document.activeElement).toBe(cancelBtn);
 
+    // Escape outside the confirmation container is not swallowed and leaves confirmation open.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Graph' }), { key: 'Escape' });
+    expect(outerKeyDown).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Confirm run again' })).toBeTruthy();
+
+    fireEvent.click(cancelBtn);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Run again' }));
+
+    // Scoped Escape inside confirmation stops propagation and restores focus to Run again.
+    outerKeyDown.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
     fireEvent.keyDown(screen.getByRole('button', { name: 'Confirm run again' }), { key: 'Escape' });
+    expect(outerKeyDown).not.toHaveBeenCalled();
     expect(sendEvent).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Run again' })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Run again' }));
 
     // Confirm sends resume.
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));

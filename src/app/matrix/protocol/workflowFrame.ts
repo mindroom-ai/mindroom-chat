@@ -7,6 +7,7 @@ export const WORKFLOW_FRAME_EVENT_TYPE = 'io.mindroom.workflow';
 export const WORKFLOW_RUN_ID_PATTERN = /^wf-[0-9a-f]{32}$/;
 const MAX_LOG_LINES = 20;
 const MAX_MESSAGES = 50;
+const MAX_DATE_MS = 8.64e15;
 
 const RUN_STATUSES = [
   'starting',
@@ -67,6 +68,10 @@ const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number
 const nonNegInt = (v: unknown, fallback = 0): number => (isNonNegInt(v) ? v : fallback);
 const nullStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const nullNum = (v: unknown): number | null => (isFiniteNum(v) ? v : null);
+const validEpochSeconds = (v: unknown): number | null => {
+  const n = nullNum(v);
+  return n !== null && Math.abs(n * 1000) <= MAX_DATE_MS ? n : null;
+};
 export const optStr = (v: unknown): string | undefined =>
   typeof v === 'string' && v.length > 0 ? v : undefined;
 export const stringList = (v: unknown): string[] =>
@@ -240,7 +245,7 @@ const parseMessage = (v: unknown) => {
     to,
     toName,
     text,
-    sentAt: nullNum(v.sent_at),
+    sentAt: validEpochSeconds(v.sent_at),
   };
 };
 export type WorkflowRunMessage = NonNullable<ReturnType<typeof parseMessage>>;

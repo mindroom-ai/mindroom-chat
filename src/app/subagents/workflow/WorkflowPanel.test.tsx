@@ -1830,13 +1830,102 @@ describe('WorkflowPanel', () => {
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
 
+      // Reduced-motion preference scrolls with behavior: 'auto'.
+      scrollIntoView.mockClear();
+      const origMatchMedia = window.matchMedia;
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as typeof window.matchMedia;
+      try {
+        fireEvent.click(turn15);
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest' });
+      } finally {
+        window.matchMedia = origMatchMedia;
+      }
+
       // Wide split (>= 36rem) does NOT scroll Inspector on click.
       scrollIntoView.mockClear();
       splitWidth = 720;
-      fireEvent.click(turn15);
+      fireEvent.click(turn11);
       expect(scrollIntoView).not.toHaveBeenCalled();
     } finally {
       Element.prototype.scrollIntoView = origScrollIntoView;
     }
+  });
+
+  it('keeps uncovered Inspector edge links for broadcasts (to: null) and aged-out messages', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Early step',
+            name: 'early',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n2', {
+            label: 'Second step',
+            name: 'second',
+            status: 'completed',
+            endedAt: 1795389742,
+          }),
+          makeNode('n4', {
+            label: 'Backend',
+            name: 'backend',
+            status: 'completed',
+            endedAt: 1795389750,
+          }),
+          makeNode('n5', {
+            label: 'Frontend',
+            name: 'frontend',
+            status: 'completed',
+            endedAt: 1795389755,
+          }),
+        ],
+        edges: [
+          { from: 'n1', to: 'n2', count: 2 },
+          { from: 'n4', to: 'n5', count: 1 },
+        ],
+        messages: [
+          {
+            seq: 51,
+            from: 'n4',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema update.',
+            sentAt: 1795389752,
+          },
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Broadcast sender keeps both the broadcast message and its uncovered aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Backend/ }));
+    const n4Details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(n4Details).getByText('Broadcast schema update.')).toBeTruthy();
+    expect(within(n4Details).getByText('Messages to frontend: 1')).toBeTruthy();
+
+    // Recipient of broadcast still sees the uncovered incoming edge link.
+    fireEvent.click(within(n4Details).getByRole('button', { name: 'Messages to frontend: 1' }));
+    const n5Details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    expect(within(n5Details).getByText('Messages from backend: 1')).toBeTruthy();
+
+    // Early node whose messages aged out of the 50-message window still shows its aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Early step/ }));
+    const n1Details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
+    expect(within(n1Details).getByText('Messages to second: 2')).toBeTruthy();
   });
 });

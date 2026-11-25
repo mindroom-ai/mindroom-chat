@@ -15,7 +15,6 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { localDigits } from '../../lib/localDigits';
-import { timeHourMinuteSecond } from '../../lib/time';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import { isLiveWorkflowRunStatus } from '../../matrix/protocol/workflowFrame';
@@ -34,20 +33,15 @@ import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { SWIPE_PRIORITY } from '../../navigation/interactiveSwipe';
 import { RoomPanelEdgeSwipeContext } from '../../navigation/roomPanelEdgeSwipeContext';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
-import { useHour24Clock } from '../../preferences/useHour24Clock';
-import { documentIsRightToLeft, ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
+import { documentIsRightToLeft, ownDirectionLine } from '../../ui/directional';
 import { PanelHeaderControls } from '../../ui/panels/PanelFrame';
 import { Header as SidePanelHeader } from '../../ui/panels/SidePanel.css';
 import { useAgentProfile } from '../AgentAvatar';
 import { Failure } from '../subagentsPanel.css';
 import { WorkflowGraphView } from './WorkflowGraph';
-import {
-  isLiveWorkflowNodeStatus,
-  layoutWorkflowRunGraph,
-  messageEndpointName,
-  routeEndpointName,
-} from './workflowGraphModel';
+import { isLiveWorkflowNodeStatus, layoutWorkflowRunGraph } from './workflowGraphModel';
 import { WorkflowInspectorEmpty, WorkflowNodeInspector } from './WorkflowInspector';
+import { WorkflowMessagesTab } from './WorkflowMessages';
 import * as css from './workflowPanel.css';
 
 type WorkflowTab = 'flow' | 'steps' | 'messages' | 'log';
@@ -88,7 +82,6 @@ export function WorkflowPanel({
 }: WorkflowPanelProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const [hour24Clock] = useHour24Clock();
   const tabsId = useId();
   const mx = useMatrixClient();
   const entry = useWorkflowRun(room.roomId, run);
@@ -104,6 +97,8 @@ export function WorkflowPanel({
   const now = useLiveClock(isLive);
   const [activeTab, setActiveTab] = useState<WorkflowTab>('flow');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const tabRefs = useRef<Partial<Record<WorkflowTab, HTMLButtonElement | null>>>({});
   const splitRef = useRef<HTMLDivElement | null>(null);
@@ -118,11 +113,9 @@ export function WorkflowPanel({
   }, [room.roomId, run]);
 
   const handleSelect = useCallback((id: string) => {
-    setSelectedId((cur) => {
-      const next = cur === id ? null : id;
-      if (next !== null) scrollInspectorRef.current = true;
-      return next;
-    });
+    const next = selectedIdRef.current === id ? null : id;
+    if (next !== null) scrollInspectorRef.current = true;
+    setSelectedId(next);
   }, []);
   const selectNode = useCallback((id: string) => setSelectedId(id), []);
   const jumpToNode = useCallback((id: string) => {
@@ -155,7 +148,10 @@ export function WorkflowPanel({
     scrollInspectorRef.current = false;
     const el = inspectorRef.current;
     if (el && isNarrowSplit(splitRef.current) && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const reducedMotion =
+        typeof window !== 'undefined' &&
+        Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+      el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
     }
   }, [activeTab, selectedNode]);
   const selectedSessionId = selectedNode
@@ -381,112 +377,15 @@ export function WorkflowPanel({
             )}
             {(activeTab === 'flow' || activeTab === 'steps') && !showSplit && omittedNotice}
             {activeTab === 'messages' && (
-              <>
-                {messages.length > 0 ? (
-                  <ul className={css.MessageList}>
-                    {messages.map((msg) => {
-                      const fromName = messageEndpointName(
-                        nodesById,
-                        msg.from,
-                        msg.fromName,
-                        'from',
-                        scriptLabel
-                      );
-                      const toName = messageEndpointName(
-                        nodesById,
-                        msg.to,
-                        msg.toName,
-                        'to',
-                        scriptLabel
-                      );
-                      const renderEndpoint = (id: string | null, name: string) =>
-                        id && nodesById.has(id) ? (
-                          <button
-                            type="button"
-                            className={css.MessageNodeLink}
-                            onClick={() => jumpToNode(id)}
-                          >
-                            <bdi>{name}</bdi>
-                          </button>
-                        ) : (
-                          <bdi className={css.StrongText}>{name}</bdi>
-                        );
-                      return (
-                        <li key={msg.seq} className={css.MessageCard}>
-                          <div className={css.MessageHeader}>
-                            <span className={css.MessageRoute} dir="ltr">
-                              {renderEndpoint(msg.from, fromName)}
-                              <span aria-hidden="true">→</span>
-                              {renderEndpoint(msg.to, toName)}
-                            </span>
-                            {msg.sentAt !== null && (
-                              <time
-                                className={css.MutedNum}
-                                dateTime={new Date(msg.sentAt * 1000).toISOString()}
-                              >
-                                {timeHourMinuteSecond(msg.sentAt * 1000, hour24Clock, language)}
-                              </time>
-                            )}
-                          </div>
-                          <p className={css.MessageText} {...ownDirectionBlock}>
-                            {msg.text}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : edges.length > 0 ? (
-                  <ul className={css.MessageList}>
-                    {edges.map((e) => {
-                      const fromName = routeEndpointName(nodesById, e.from, 'from', scriptLabel);
-                      const toName = routeEndpointName(nodesById, e.to, 'to', scriptLabel);
-                      return (
-                        <li key={`${e.from}->${e.to}`} className={css.MessageRow}>
-                          <span dir="ltr" aria-hidden="true">
-                            <bdi>{fromName}</bdi> → <bdi>{toName}</bdi>
-                          </span>
-                          <span className={css.CountBadge} aria-hidden="true">
-                            {localDigits(String(e.count), language)}
-                          </span>
-                          <span className={css.VisuallyHidden}>
-                            {t('mindroomUi.workflowRun.node.routeTo', {
-                              from: fromName,
-                              to: toName,
-                              count: e.count,
-                            })}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  omittedMessages === 0 &&
-                  omittedEdges === 0 && (
-                    <Text size="T200" priority="300" className={css.Empty}>
-                      {t('mindroomUi.workflowRun.panel.noMessages')}
-                    </Text>
-                  )
-                )}
-                {(omittedMessages > 0 || omittedEdges > 0) && (
-                  <div className={css.InsetBox}>
-                    {omittedMessages > 0 && (
-                      <Text size="T200" priority="300">
-                        {t('mindroomUi.workflowRun.panel.omittedMessages', {
-                          count: omittedMessages,
-                        })}
-                      </Text>
-                    )}
-                    {omittedEdges > 0 && (
-                      <Text size="T200" priority="300">
-                        {t('mindroomUi.workflowRun.panel.omittedEdges', { count: omittedEdges })}
-                      </Text>
-                    )}
-                    <Text size="T200" priority="300">
-                      {askAgentLine}
-                    </Text>
-                  </div>
-                )}
-              </>
+              <WorkflowMessagesTab
+                messages={messages}
+                edges={edges}
+                nodesById={nodesById}
+                omittedMessages={omittedMessages}
+                omittedEdges={omittedEdges}
+                askAgentLine={askAgentLine}
+                onJumpToNode={jumpToNode}
+              />
             )}
             {activeTab === 'log' && (
               <>

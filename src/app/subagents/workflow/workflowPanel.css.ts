@@ -188,17 +188,6 @@ export const ResultPre = style({
   ...surfaceCard,
   ...smallType,
 });
-export const PeerLinkButton = style({
-  ...flexRow,
-  ...surfaceCard,
-  ...smallType,
-  inlineSize: '100%',
-  padding: `${space.S100} ${space.S200}`,
-  borderRadius: radii.R300,
-  textAlign: 'start',
-  cursor: 'pointer',
-  selectors: surfaceHover,
-});
 
 export const GraphCanvas = style([Stack, { gap: 0 }]);
 export const Band = style([Stack, { gap: space.S200 }]);
@@ -220,7 +209,15 @@ export const FlowConnector = style({
 });
 export const BandGap = style({ blockSize: space.S300 });
 export const ItemGap = style({ blockSize: space.S200 });
-export const ForkJoinSvg = style({ display: 'block', inlineSize: '100%', blockSize: toRem(18) });
+export const ForkJoinSvg = style({
+  display: 'block',
+  inlineSize: '100%',
+  blockSize: toRem(18),
+  selectors: {
+    '&:dir(rtl)': { transform: 'scaleX(-1)' },
+    '[dir="rtl"] &': { transform: 'scaleX(-1)' },
+  },
+});
 export const ConnectorPath = style({
   fill: 'none',
   stroke: color.SurfaceVariant.OnContainer,
@@ -435,74 +432,6 @@ export const StepRowBadges = style({
   gap: space.S100,
   marginInlineStart: 'auto',
   maxInlineSize: '100%',
-});
-export const MessageList = style([Stack, { margin: 0, padding: 0, listStyle: 'none' }]);
-export const MessageRow = style({
-  ...flexRow,
-  justifyContent: 'space-between',
-  gap: space.S200,
-  padding: `${space.S200} ${space.S300}`,
-  borderRadius: radii.R300,
-  ...variantCard,
-  ...smallType,
-});
-export const MessageCard = style([
-  InsetBox,
-  {
-    gap: space.S100,
-    padding: `${space.S200} ${space.S300}`,
-    borderRadius: radii.R300,
-    ...smallType,
-  },
-]);
-export const MessageHeader = style({
-  ...flexRow,
-  justifyContent: 'space-between',
-  gap: space.S200,
-  minInlineSize: 0,
-});
-export const MessageRoute = style({
-  ...flexRow,
-  flexWrap: 'wrap',
-  gap: space.S100,
-  minInlineSize: 0,
-});
-export const MessageNodeLink = style({
-  padding: 0,
-  border: 0,
-  backgroundColor: 'transparent',
-  color: color.Primary.Main,
-  font: 'inherit',
-  fontWeight: 600,
-  cursor: 'pointer',
-  borderRadius: radii.R300,
-  selectors: { '&:hover': { textDecoration: 'underline' }, '&:focus-visible': focusRing },
-});
-export const MessageText = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
-export const PeerMessageCard = style([
-  Stack,
-  {
-    ...surfaceCard,
-    ...smallType,
-    gap: toRem(2),
-    inlineSize: '100%',
-    padding: `${space.S100} ${space.S200}`,
-    borderRadius: radii.R300,
-    textAlign: 'start',
-  },
-]);
-export const PeerMessageButton = style([
-  PeerMessageCard,
-  { cursor: 'pointer', selectors: surfaceHover },
-]);
-export const MessagePreview = style({
-  display: '-webkit-box',
-  overflow: 'hidden',
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
-  WebkitLineClamp: 3,
-  WebkitBoxOrient: 'vertical',
-  opacity: opacity.P400,
 });
 export const LogList = style([
   InsetBox,

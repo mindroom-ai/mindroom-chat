@@ -203,7 +203,7 @@ describe('workflowFrame', () => {
             to: 'n3',
             to_name: 'reviewer',
             text: 'Found 0 issues',
-            sent_at: null,
+            sent_at: 1e20,
           },
         ],
         omitted: { ...firstFrame.snapshot!.omitted, messages: 7 },

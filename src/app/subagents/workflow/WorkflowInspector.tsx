@@ -17,12 +17,11 @@ import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
 import {
   getWorkflowNodeMetrics,
-  messageEndpointName,
   nodeResultPreview,
-  routeEndpointName,
   sessionBadgeLabel,
   type WorkflowSessionInfo,
 } from './workflowGraphModel';
+import { collectNodeMessagesAndEdges, WorkflowNodeMessageItems } from './WorkflowMessages';
 import * as css from './workflowPanel.css';
 
 export function WorkflowInspectorEmpty() {
@@ -79,101 +78,20 @@ export function WorkflowNodeInspector({
     [t('mindroomUi.workflowRun.node.tokens'), tokens],
     [t('mindroomUi.workflowRun.node.cost'), cost],
   ];
-  const scriptLabel = t('mindroomUi.workflowRun.node.script');
   const preview = nodeResultPreview(subagentRun) ?? (node.preview?.trim() || undefined);
   const sessionName = sessionBadgeLabel(session);
-  const hasMessages = messages.length > 0;
-  const directMessages = hasMessages
-    ? messages.filter((m) => m.from === node.id || m.to === node.id)
-    : [];
-  const sessionMessages =
-    hasMessages && node.session
-      ? messages.filter(
-          (m) =>
-            (m.from === node.session || m.to === node.session) &&
-            m.from !== node.id &&
-            m.to !== node.id
-        )
-      : [];
-  const directOut = hasMessages ? [] : edges.filter((e) => e.from === node.id);
-  const directIn = hasMessages ? [] : edges.filter((e) => e.to === node.id);
-  const sessionOut =
-    !hasMessages && node.session
-      ? edges.filter((e) => e.from === node.session && e.to !== node.id)
-      : [];
-  const sessionIn =
-    !hasMessages && node.session
-      ? edges.filter((e) => e.to === node.session && e.from !== node.id)
-      : [];
-  const renderEdgeLinks = (
-    outEdges: readonly WorkflowRunEdge[],
-    inEdges: readonly WorkflowRunEdge[]
-  ) => (
-    <>
-      {outEdges.map((e) => (
-        <button
-          key={`out:${e.from}->${e.to}`}
-          type="button"
-          className={css.PeerLinkButton}
-          onClick={() => onSelect(e.to)}
-        >
-          {t('mindroomUi.workflowRun.node.messagesTo', {
-            name: routeEndpointName(nodesById, e.to, 'to', scriptLabel),
-            count: e.count,
-          })}
-        </button>
-      ))}
-      {inEdges.map((e) => (
-        <button
-          key={`in:${e.from}->${e.to}`}
-          type="button"
-          className={css.PeerLinkButton}
-          onClick={() => onSelect(e.from)}
-        >
-          {t('mindroomUi.workflowRun.node.messagesFrom', {
-            name: routeEndpointName(nodesById, e.from, 'from', scriptLabel),
-            count: e.count,
-          })}
-        </button>
-      ))}
-    </>
+  const direct = collectNodeMessagesAndEdges(messages, edges, node.id);
+  const sessionPeer = node.session
+    ? collectNodeMessagesAndEdges(messages, edges, node.session, node.id)
+    : null;
+  const hasDirectPeer =
+    direct.nodeMessages.length > 0 || direct.outEdges.length > 0 || direct.inEdges.length > 0;
+  const hasSessionPeer = Boolean(
+    sessionPeer &&
+    (sessionPeer.nodeMessages.length > 0 ||
+      sessionPeer.outEdges.length > 0 ||
+      sessionPeer.inEdges.length > 0)
   );
-  const renderMessageItems = (items: readonly WorkflowRunMessage[], ownerId: string) =>
-    items.map((m) => {
-      const fromName = messageEndpointName(nodesById, m.from, m.fromName, 'from', scriptLabel);
-      const toName = messageEndpointName(nodesById, m.to, m.toName, 'to', scriptLabel);
-      const peerId = m.from === ownerId ? m.to : m.from;
-      const clickablePeer = peerId && peerId !== node.id && nodesById.has(peerId) ? peerId : null;
-      const content = (
-        <>
-          <span className={css.MessageHeader}>
-            <span dir="ltr" aria-hidden="true">
-              <bdi>{fromName}</bdi> → <bdi>{toName}</bdi>
-            </span>
-            <span className={css.VisuallyHidden}>
-              {t('mindroomUi.workflowRun.node.messageRoute', { from: fromName, to: toName })}
-            </span>
-          </span>
-          <span className={css.MessagePreview} {...ownDirectionBlock}>
-            {m.text}
-          </span>
-        </>
-      );
-      return clickablePeer ? (
-        <button
-          key={m.seq}
-          type="button"
-          className={css.PeerMessageButton}
-          onClick={() => onSelect(clickablePeer)}
-        >
-          {content}
-        </button>
-      ) : (
-        <div key={m.seq} className={css.PeerMessageCard}>
-          {content}
-        </div>
-      );
-    });
   const canOpenSubagent = Boolean(node.run && subagentRun);
 
   return (
@@ -242,19 +160,25 @@ export function WorkflowNodeInspector({
         </div>
       )}
 
-      {(directMessages.length > 0 || directOut.length > 0 || directIn.length > 0) && (
+      {hasDirectPeer && (
         <div className={css.Stack}>
           <Text size="T200" className={css.StrongText}>
             {t('mindroomUi.workflowRun.node.messages')}
           </Text>
-          {hasMessages
-            ? renderMessageItems(directMessages, node.id)
-            : renderEdgeLinks(directOut, directIn)}
+          <WorkflowNodeMessageItems
+            messages={direct.nodeMessages}
+            outEdges={direct.outEdges}
+            inEdges={direct.inEdges}
+            nodesById={nodesById}
+            ownerId={node.id}
+            selectedNodeId={node.id}
+            onSelect={onSelect}
+          />
         </div>
       )}
 
-      {(sessionMessages.length > 0 || sessionOut.length > 0 || sessionIn.length > 0) && (
-        <div className={css.Stack} data-workflow-session-messages={node.session ?? undefined}>
+      {hasSessionPeer && sessionPeer && node.session && (
+        <div className={css.Stack} data-workflow-session-messages={node.session}>
           <div className={css.ChipTop}>
             <Text size="T200" className={css.StrongText}>
               {t('mindroomUi.workflowRun.node.messages')}
@@ -265,9 +189,15 @@ export function WorkflowNodeInspector({
               </span>
             )}
           </div>
-          {hasMessages && node.session
-            ? renderMessageItems(sessionMessages, node.session)
-            : renderEdgeLinks(sessionOut, sessionIn)}
+          <WorkflowNodeMessageItems
+            messages={sessionPeer.nodeMessages}
+            outEdges={sessionPeer.outEdges}
+            inEdges={sessionPeer.inEdges}
+            nodesById={nodesById}
+            ownerId={node.session}
+            selectedNodeId={node.id}
+            onSelect={onSelect}
+          />
         </div>
       )}
 
