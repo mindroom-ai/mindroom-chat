@@ -1300,6 +1300,33 @@ export const pageColors: Record<ThemeName, string> = {
   tokyoNight: tokyoNightPalette.Background.Container,
 };
 
+/** Each theme's primary accent colour, its Primary.Main. */
+export const primaryColors: Record<ThemeName, string> = {
+  light: lightPalette.Primary.Main,
+  silver: silverPalette.Primary.Main,
+  sakura: sakuraPalette.Primary.Main,
+  matcha: matchaPalette.Primary.Main,
+  catppuccinLatte: catppuccinLattePalette.Primary.Main,
+  gruvboxLight: gruvboxLightPalette.Primary.Main,
+  solarizedLight: solarizedLightPalette.Primary.Main,
+  dark: darkPalette.Primary.Main,
+  midnight: midnightPalette.Primary.Main,
+  butter: butterPalette.Primary.Main,
+  green: greenPalette.Primary.Main,
+  orange: orangePalette.Primary.Main,
+  black: blackPalette.Primary.Main,
+  ocean: oceanPalette.Primary.Main,
+  wine: winePalette.Primary.Main,
+  synthwave: synthwavePalette.Primary.Main,
+  catppuccinMocha: catppuccinMochaPalette.Primary.Main,
+  dracula: draculaPalette.Primary.Main,
+  gruvboxDark: gruvboxDarkPalette.Primary.Main,
+  nord: nordPalette.Primary.Main,
+  rosePine: rosePinePalette.Primary.Main,
+  solarizedDark: solarizedDarkPalette.Primary.Main,
+  tokyoNight: tokyoNightPalette.Primary.Main,
+};
+
 // Scrollbars (src/index.css draws them): a thumb that stays visible on every track of a theme
 // of its kind. Native controls and scrollbars follow the kind's colour scheme.
 globalStyle(`:root, ${LIGHT_THEMES}`, { vars: { '--mr-scrollbar-thumb-color': '#1f1e2659' } });
