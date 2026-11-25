@@ -44,7 +44,7 @@ export const resolveTimelineMinimapSlotIndex = (
   if (slotCount >= itemCount) {
     return clampedIndex;
   }
-  return Math.min(slotCount - 1, Math.floor((clampedIndex * slotCount) / itemCount));
+  return Math.round((clampedIndex * (slotCount - 1)) / (itemCount - 1));
 };
 
 export const resolveTimelineMinimapHeightStyle = (itemCount: number): string => {
@@ -100,10 +100,11 @@ const resolveMinimapPreviewText = (mEvent: TimelineMinimapEvent, t?: TFunction):
 };
 
 /**
- * One minimap stripe per rendered message that was NOT sent by a MindRoom
- * agent, each carrying its own preview plus the final agent reply that
- * arrived before the next non-agent message (mirrors the reference
- * implementation's user/assistant turn pairing).
+ * One minimap item per rendered message that was NOT sent by a MindRoom
+ * agent (rendered as up to `TIMELINE_MINIMAP_MAX_SLOTS` stripes), each
+ * carrying its own preview plus the final agent reply that arrived before
+ * the next non-agent message (mirrors the reference implementation's
+ * user/assistant turn pairing).
  */
 export const deriveTimelineMinimapItems = (
   events: readonly TimelineMinimapEvent[],

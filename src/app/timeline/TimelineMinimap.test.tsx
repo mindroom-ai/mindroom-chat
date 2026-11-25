@@ -3,10 +3,12 @@ import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TimelineMinimap, useTimelineMinimapInView } from './TimelineMinimap';
+import * as css from './TimelineMinimap.css';
 import {
   TIMELINE_MINIMAP_MAX_SLOTS,
   TimelineMinimapItem,
   resolveTimelineMinimapSlotIndex,
+  resolveTimelineMinimapTopPercent,
 } from './timelineMinimapViewModel';
 
 afterEach(() => {
@@ -480,5 +482,29 @@ describe('TimelineMinimap', () => {
     flushRaf();
     expect(strips[midSlot]?.dataset.inView).toBe('false');
     expect(strips[lastSlot]?.dataset.inView).toBe('true');
+  });
+
+  it('activates the exact stripe under the pointer for every stripe center at 45 turns', () => {
+    const items = makeItems(TIMELINE_MINIMAP_MAX_SLOTS + 1);
+    const { container } = render(
+      <TimelineMinimap items={items} stripMap={new Map()} onSelect={vi.fn()} />
+    );
+    const rail = screen.getByRole('slider');
+    mockRailRect(rail);
+    const strips = Array.from(container.querySelectorAll<HTMLSpanElement>('[data-minimap-strip]'));
+
+    for (let slotIndex = 0; slotIndex < TIMELINE_MINIMAP_MAX_SLOTS; slotIndex += 1) {
+      const topPercent = resolveTimelineMinimapTopPercent(slotIndex, TIMELINE_MINIMAP_MAX_SLOTS);
+      fireEvent.pointerMove(rail, {
+        pointerId: 1,
+        isPrimary: true,
+        buttons: 0,
+        clientY: 100 + topPercent,
+      });
+      const activeSlots = strips.flatMap((strip, index) =>
+        strip.className === css.MinimapStrip.Active ? [index] : []
+      );
+      expect(activeSlots).toEqual([slotIndex]);
+    }
   });
 });

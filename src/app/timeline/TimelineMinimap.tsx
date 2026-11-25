@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { formatNumber } from '../lib/localDigits';
 import { blockSelection } from '../ui/dragSelection';
 import {
   TIMELINE_MINIMAP_MAX_SLOTS,
@@ -120,7 +121,7 @@ export function TimelineMinimap({
   onSelect,
   onScrub,
 }: TimelineMinimapProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const railRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<{ pointerId: number; lastItemId: string; unblock: () => void } | null>(
@@ -390,7 +391,10 @@ export function TimelineMinimap({
             >
               {items.length > TIMELINE_MINIMAP_MAX_SLOTS && (
                 <span className={css.MinimapPreviewMeta}>
-                  {`${(resolvedActiveIndex + 1).toLocaleString()} / ${items.length.toLocaleString()}`}
+                  {`${formatNumber(resolvedActiveIndex + 1, i18n?.language)} / ${formatNumber(
+                    items.length,
+                    i18n?.language
+                  )}`}
                 </span>
               )}
               <span className={css.MinimapPreviewTitle}>

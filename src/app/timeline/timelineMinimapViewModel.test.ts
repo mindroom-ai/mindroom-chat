@@ -70,6 +70,7 @@ describe('minimap geometry', () => {
     const slotCount = TIMELINE_MINIMAP_MAX_SLOTS;
     expect(resolveTimelineMinimapSlotIndex(-5, itemCount, slotCount)).toBe(0);
     expect(resolveTimelineMinimapSlotIndex(0, itemCount, slotCount)).toBe(0);
+    expect(resolveTimelineMinimapSlotIndex(1, TIMELINE_MINIMAP_MAX_SLOTS + 1, slotCount)).toBe(1);
     expect(resolveTimelineMinimapSlotIndex(100, itemCount, slotCount)).toBe(22);
     expect(resolveTimelineMinimapSlotIndex(itemCount - 1, itemCount, slotCount)).toBe(
       slotCount - 1
@@ -86,6 +87,25 @@ describe('minimap geometry', () => {
       previousSlot = slot;
     }
     expect(seenSlots.size).toBe(slotCount);
+  });
+
+  it('activates the exact stripe when hovering every stripe center at 45 turns', () => {
+    const itemCount = TIMELINE_MINIMAP_MAX_SLOTS + 1;
+    const slotCount = TIMELINE_MINIMAP_MAX_SLOTS;
+    const railTop = 100;
+    const railHeight = 344;
+
+    for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+      const topPercent = resolveTimelineMinimapTopPercent(slotIndex, slotCount);
+      const itemIndex = resolveTimelineMinimapIndexFromPointer({
+        itemCount,
+        railTop,
+        railHeight,
+        pointerY: railTop + (topPercent / 100) * railHeight,
+      });
+      expect(itemIndex).not.toBeNull();
+      expect(resolveTimelineMinimapSlotIndex(itemIndex!, itemCount, slotCount)).toBe(slotIndex);
+    }
   });
 
   it('spreads stripes evenly across the rail', () => {
