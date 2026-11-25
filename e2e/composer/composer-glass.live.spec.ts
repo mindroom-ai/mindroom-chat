@@ -195,12 +195,18 @@ for (const [themeId, width] of [
         await buttons.evaluateAll((nodes) =>
           nodes.flatMap((node) => {
             const css = getComputedStyle(node);
-            return css.backdropFilter === 'none' || css.backgroundImage === 'none'
+            const rim = getComputedStyle(node, '::before');
+            return css.backdropFilter === 'none' ||
+              css.backgroundImage !== 'none' ||
+              rim.display === 'none' ||
+              !rim.backgroundImage.includes('linear-gradient(')
               ? [
                   {
                     label: node.getAttribute('aria-label'),
                     blur: css.backdropFilter,
-                    highlight: css.backgroundImage,
+                    background: css.backgroundImage,
+                    rimDisplay: rim.display,
+                    rimBackground: rim.backgroundImage,
                   },
                 ]
               : [];
