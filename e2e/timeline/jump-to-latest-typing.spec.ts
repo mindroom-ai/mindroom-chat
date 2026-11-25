@@ -24,7 +24,8 @@ import {
 /**
  * Verifies that Jump to Latest shares the dock row with typing without shifting vertically on
  * desktop wide, narrow split-pane width, and phone viewports, lifts cleanly above full-width
- * background-job bars, and returns to its low dock-sharing position when jobs clear.
+ * background-job bars, and returns to its low dock-sharing position when jobs clear, while the
+ * timeline minimap rail stays vertically still on fine-pointer viewports across dock changes.
  */
 const PASSWORD = 'PlaceholderPass!23';
 const RUN = Date.now().toString(36);
@@ -198,6 +199,7 @@ const verifyJumpToLatestStableWithTyping = async (
   const jumpToLatest = threadArea.getByRole('button', { name: 'Jump to Latest', exact: true });
   const typingStrip = threadArea.getByRole('status').filter({ hasText: 'Helper is typing...' });
   const jobsBar = threadArea.locator('[data-jobs-bar]');
+  const minimapRail = threadArea.getByTestId('timeline-minimap').getByRole('slider');
 
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 30_000 });
   await expect
@@ -243,6 +245,18 @@ const verifyJumpToLatestStableWithTyping = async (
     expect(emptyGapAboveComposer).toBeLessThanOrEqual(17);
     expect(emptyBox.width).toBeGreaterThan(90);
   }
+  const readEmptyMinimapBox = async (): Promise<RectBounds | null> => {
+    if (label === 'phone') return null;
+    await expect(minimapRail).toBeVisible();
+    return boundsOf(minimapRail, 'Timeline minimap rail (empty dock)');
+  };
+  const emptyMinimapBox = await readEmptyMinimapBox();
+  const expectMinimapStill = async (state: string): Promise<void> => {
+    if (!emptyMinimapBox) return;
+    const currentBox = await boundsOf(minimapRail, `Timeline minimap rail (${state})`);
+    expect(Math.abs(currentBox.top - emptyMinimapBox.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(currentBox.bottom - emptyMinimapBox.bottom)).toBeLessThanOrEqual(1);
+  };
   await saveShot(page, `empty-dock-${label}`);
 
   await publishActiveRuns(HOMESERVER, agent, roomId, [rootId]);
@@ -267,6 +281,7 @@ const verifyJumpToLatestStableWithTyping = async (
   expect(Math.abs(typingJumpBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
   expect(stripBox.right).toBeLessThanOrEqual(typingJumpBox.left - 8);
   expect(Math.abs(stripBox.top - typingJumpBox.top)).toBeLessThanOrEqual(2);
+  await expectMinimapStill('typing-visible');
 
   if (label === 'phone') {
     await expect
@@ -343,6 +358,7 @@ const verifyJumpToLatestStableWithTyping = async (
   const clearedTypingBox = await boundsOf(jumpToLatest, 'Jump to Latest (typing cleared)');
   expect(Math.abs(clearedTypingBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(clearedTypingBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
+  await expectMinimapStill('typing-cleared');
 
   await publishBackgroundJobs([
     {
@@ -370,6 +386,7 @@ const verifyJumpToLatestStableWithTyping = async (
   const jobsJumpBox = await boundsOf(jumpToLatest, 'Jump to Latest (jobs visible)');
   const jobsBox = await boundsOf(jobsBar, 'Background jobs bar');
   expect(jobsBox.top - jobsJumpBox.bottom).toBeGreaterThanOrEqual(15);
+  await expectMinimapStill('jobs-visible');
 
   await publishBackgroundJobs([]);
   await expect(jobsBar).toHaveCount(0, { timeout: 30_000 });
@@ -378,6 +395,7 @@ const verifyJumpToLatestStableWithTyping = async (
   const clearedJobsBox = await boundsOf(jumpToLatest, 'Jump to Latest (jobs cleared)');
   expect(Math.abs(clearedJobsBox.top - emptyBox.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(clearedJobsBox.bottom - emptyBox.bottom)).toBeLessThanOrEqual(1);
+  await expectMinimapStill('jobs-cleared');
 
   await jumpToLatest.click();
   await expect(jumpToLatest).toBeHidden({ timeout: 15_000 });
@@ -391,6 +409,7 @@ const verifyJumpToLatestStableWithTyping = async (
     )
     .toBeLessThanOrEqual(2);
   await expect(threadArea.getByText(latestReplyBody).first()).toBeVisible({ timeout: 15_000 });
+  await expectMinimapStill('at-bottom');
 };
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
