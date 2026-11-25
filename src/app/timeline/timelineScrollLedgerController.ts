@@ -444,7 +444,12 @@ export const useTimelineScrollLedgerController = ({
       }
       let endCorrection = 0;
       let shownPx: number | undefined;
-      if (delta < 0 && !isIOSWebKitDevice() && readVirtualizerHoldOffset(instance) === 0) {
+      if (
+        !threadId &&
+        delta < 0 &&
+        !isIOSWebKitDevice() &&
+        readVirtualizerHoldOffset(instance) === 0
+      ) {
         const scrollElement = instance.scrollElement;
         const liveOffset = scrollElement?.scrollTop ?? offset;
         const rowMovesPx = unrenderedRowMovesPxRef.current;
@@ -480,7 +485,7 @@ export const useTimelineScrollLedgerController = ({
       if (rewrapped || (item.index ?? itemCount) < itemCount - 1) renderRowMoveBeforePaint();
       return false;
     };
-  }, [itemCount, renderRowMoveBeforePaint, resettingView, viewKey, virtualizer]);
+  }, [itemCount, renderRowMoveBeforePaint, resettingView, threadId, viewKey, virtualizer]);
 
   return {
     holdThreadBannerResize,
