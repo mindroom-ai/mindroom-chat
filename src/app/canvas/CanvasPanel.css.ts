@@ -3,7 +3,7 @@ import { color, config } from 'folds';
 import { HeaderPill } from '../ui/panels/PanelFrame.css';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
-export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
+export { Error, Notice } from '../messages/canvas/canvasHost.css';
 
 const canvasPanel = createContainer();
 

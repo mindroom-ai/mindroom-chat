@@ -451,18 +451,16 @@ export function InlineCanvasFrame({
             {action.canvas.title}
           </Text>
         </div>
-        {(!readOnly || headerAction) && (
+        {!readOnly && (
           <div className={css.InlineCardControls}>
-            {!readOnly && (
-              <TipButton
-                align="End"
-                className={css.InlineCardInfo}
-                tip={t('mindroomUi.canvas.inlineDisclosure', { agent: agentName })}
-                aria-label={t('mindroomUi.canvas.fromAgent', { agent: agentName })}
-              >
-                <Icon size="50" src={Icons.Info} />
-              </TipButton>
-            )}
+            <TipButton
+              align="End"
+              className={css.InlineCardInfo}
+              tip={t('mindroomUi.canvas.inlineDisclosure', { agent: agentName })}
+              aria-label={t('mindroomUi.canvas.fromAgent', { agent: agentName })}
+            >
+              <Icon size="50" src={Icons.Info} />
+            </TipButton>
             {headerAction && (
               <div className={css.InlineCardAction} data-canvas-actions="">
                 <ChatUiActionButton event={event} compact />

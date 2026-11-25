@@ -25,12 +25,6 @@ import { ownDirectionLine } from '../ui/directional';
 import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 
-export {
-  CANVAS_GESTURE_COOLDOWN_MS,
-  CANVAS_SEND_ARM_DELAY_MS,
-  CANVAS_UNDO_DELAY_MS,
-} from '../messages/canvas/useCanvasHost';
-
 export type CanvasPanelProps = {
   mx: MatrixClient;
   room: Room;

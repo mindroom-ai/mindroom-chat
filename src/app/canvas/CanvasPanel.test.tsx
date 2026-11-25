@@ -14,13 +14,12 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
+import { CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import {
   CANVAS_GESTURE_COOLDOWN_MS,
   CANVAS_SEND_ARM_DELAY_MS,
   CANVAS_UNDO_DELAY_MS,
-  CanvasPanel,
-  type CanvasPanelProps,
-} from './CanvasPanel';
+} from '../messages/canvas/useCanvasHost';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
 import {
   CANVAS_LIBRARY_SOURCE,
@@ -138,8 +137,6 @@ vi.mock('./CanvasPanel.css.ts', () => ({
   VersionPill: 'VersionPill',
   Error: 'Error',
   Notice: 'Notice',
-  Staged: 'Staged',
-  Data: 'Data',
   Version: 'Version',
 }));
 
@@ -1056,6 +1053,8 @@ describe('CanvasPanel', () => {
     await reportError('TypeError: boom');
     await reportError('TypeError: boom');
     await reportError('Blocked https://cdn.example/x.js (script-src-elem)');
+    expect(container.querySelector('[role="alert"] > .Staged')).not.toBeNull();
+    expect(container.querySelector('[role="alert"] > .AnswerCard')).toBeNull();
     expect(container.textContent).toContain('This page reported an error.');
     expect(container.textContent).toContain('TypeError: boom');
     await act(async () => reportButton().click());

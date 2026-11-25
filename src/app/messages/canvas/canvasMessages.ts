@@ -41,6 +41,23 @@ export type CanvasTarget = {
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+const readEnvelope = (
+  event: MessageEvent,
+  source: Window | null | undefined,
+  type: string
+): Record<string, unknown> | undefined => {
+  if (!source || event.source !== source || event.origin !== 'null') return undefined;
+  const message = event.data;
+  return record(message) && message.type === type && message.version === 1 ? message : undefined;
+};
+
+// Cut between characters: half a surrogate pair would make the text invalid UTF-16.
+const safeSlice = (text: string, max: number): string =>
+  text.slice(0, max).replace(/[\uD800-\uDBFF]$/, '');
+
+const ellipsize = (text: string, max: number): string =>
+  text.length <= max ? text : `${safeSlice(text, max - 1)}…`;
+
 /**
  * Matrix canonical JSON: servers sort object keys and refuse numbers that are not safe integers
  * in unencrypted events. Sorting here keeps the body equal to the stored metadata.
@@ -110,11 +127,8 @@ export const readCanvasSubmission = (
   source: Window | null | undefined,
   options?: { trustedGesture?: boolean }
 ): CanvasSubmission | undefined => {
-  if (!source || event.source !== source || event.origin !== 'null') return undefined;
-  const message = event.data;
-  if (!record(message) || message.type !== CANVAS_SUBMIT_MESSAGE || message.version !== 1) {
-    return undefined;
-  }
+  const message = readEnvelope(event, source, CANVAS_SUBMIT_MESSAGE);
+  if (!message) return undefined;
   if (
     message.label !== undefined &&
     (typeof message.label !== 'string' || !isText(message.label))
@@ -131,11 +145,9 @@ export const readCanvasSubmission = (
   if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
     return undefined;
   }
-  // Cut between characters: half an emoji would make the answer's text invalid.
   const label = message.label
-    ?.trim()
-    .slice(0, CANVAS_LABEL_MAX_LENGTH)
-    .replace(/[\uD800-\uDBFF]$/, '');
+    ? safeSlice(message.label.trim(), CANVAS_LABEL_MAX_LENGTH)
+    : undefined;
   return {
     data: JSON.parse(json),
     ...(label ? { label } : {}),
@@ -147,11 +159,6 @@ export const readCanvasSubmission = (
 
 const MAX_SUMMARY_CHIPS = 3;
 const MAX_CHIP_LENGTH = 28;
-
-const trimChip = (text: string): string =>
-  text.length <= MAX_CHIP_LENGTH
-    ? text
-    : `${text.slice(0, MAX_CHIP_LENGTH - 1).replace(/[\uD800-\uDBFF]$/, '')}…`;
 
 /** Compact human-readable preview chips for a plain-object submission. */
 export const summarizeCanvasData = (data: unknown): string[] => {
@@ -168,10 +175,9 @@ export const summarizeCanvasData = (data: unknown): string[] => {
     }
     const formatted = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : String(value);
     if (!formatted) continue;
-    if (chips.length < MAX_SUMMARY_CHIPS) {
-      const label = key.replace(/\s+/g, ' ').trim();
-      chips.push(trimChip(label ? `${label}: ${formatted}` : formatted));
-    }
+    const label = key.replace(/\s+/g, ' ').trim();
+    chips.push(ellipsize(label ? `${label}: ${formatted}` : formatted, MAX_CHIP_LENGTH));
+    if (chips.length === MAX_SUMMARY_CHIPS) break;
   }
   if (chips.length === 0) return [];
   const more = entries.length - chips.length;
@@ -194,13 +200,11 @@ export const CANVAS_DEFAULT_LABEL = 'Submitted';
 
 // A display name can be as long as a membership event allows; the mention pill needs only a name.
 const MAX_MENTION_NAME_LENGTH = 100;
-const mentionName = (name: string): string =>
-  name.length > MAX_MENTION_NAME_LENGTH ? `${name.slice(0, MAX_MENTION_NAME_LENGTH - 1)}…` : name;
 
 /** What every message to a canvas's agent shares: the mention pill and the reply to the canvas. */
 const toCanvasAgent = (canvas: CanvasTarget) => ({
   mention: `<a href="https://matrix.to/#/${encodeURIComponent(canvas.agentUserId)}">${sanitizeText(
-    mentionName(canvas.agentName)
+    ellipsize(canvas.agentName, MAX_MENTION_NAME_LENGTH)
   )}</a>`,
   // A reply to the canvas request always has a relation; this fallback only satisfies the type.
   relation: getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
@@ -216,11 +220,8 @@ export const readCanvasState = (
   event: MessageEvent,
   frame: Window | null | undefined
 ): CanvasStateMessage | undefined => {
-  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
-  const message = event.data;
-  if (!record(message) || message.type !== CANVAS_STATE_MESSAGE || message.version !== 1) {
-    return undefined;
-  }
+  const message = readEnvelope(event, frame, CANVAS_STATE_MESSAGE);
+  if (!message) return undefined;
   const part = 'json' in message ? 'json' : 'inputs';
   const text = message[part];
   if (typeof text !== 'string' || text.length > CANVAS_STATE_MAX_LENGTH) return undefined;
@@ -241,21 +242,14 @@ export const readCanvasError = (
   event: MessageEvent,
   frame: Window | null | undefined
 ): string | undefined => {
-  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
-  const message = event.data;
-  if (!record(message) || message.type !== CANVAS_ERROR_MESSAGE || message.version !== 1) {
-    return undefined;
-  }
-  if (typeof message.message !== 'string') return undefined;
+  const message = readEnvelope(event, frame, CANVAS_ERROR_MESSAGE);
+  if (!message || typeof message.message !== 'string') return undefined;
   // Only the start of a long message is read, so a page cannot make the host work on megabytes.
-  const start = message.message.slice(0, 2 * MAX_ERROR_LENGTH).replace(/[\uD800-\uDBFF]$/, '');
+  const start = safeSlice(message.message, 2 * MAX_ERROR_LENGTH);
   if (!isText(start)) return undefined;
   const text = start.replace(/\s+/g, ' ').trim();
   if (!text) return undefined;
-  // Cut between characters: half an emoji would make the report's text invalid.
-  return text.length > MAX_ERROR_LENGTH
-    ? `${text.slice(0, MAX_ERROR_LENGTH - 1).replace(/[\uD800-\uDBFF]$/, '')}…`
-    : text;
+  return ellipsize(text, MAX_ERROR_LENGTH);
 };
 
 /** Errors the page reported, sent on the user's request as a mention in the canvas's conversation. */

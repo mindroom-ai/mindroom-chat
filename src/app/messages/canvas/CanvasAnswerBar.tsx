@@ -4,7 +4,7 @@ import { Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FailedSendActions } from '../FailedSendActions';
 import { summarizeCanvasData, type CanvasSubmission } from './canvasMessages';
-import { CANVAS_UNDO_DELAY_MS, type CanvasHost } from './useCanvasHost';
+import { CANVAS_UNDO_DELAY_MS, inUndoFlow, type CanvasHost } from './useCanvasHost';
 import * as css from './canvasHost.css';
 
 const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? 'null';
@@ -29,12 +29,12 @@ export function CanvasAnswerBar({
   inline?: boolean;
 }) {
   const { t } = useTranslation();
-  const { staged, busy, lastAnswer, answer, footer, sendError } = host;
+  const { staged, busy, countingDown, lastAnswer, answer, footer } = host;
   const barRef = useRef<HTMLDivElement>(null);
   const [inspectingSubmission, setInspectingSubmission] = useState<CanvasSubmission>();
   const inspecting = !!staged && inspectingSubmission === staged.submission;
   const isCountdown = staged?.phase === 'countdown';
-  const isUndoFlow = staged?.phase === 'countdown' || staged?.phase === 'paused';
+  const isUndoFlow = inUndoFlow(staged);
   const chips = staged ? summarizeCanvasData(staged.submission.data) : [];
   const label = staged?.submission.label ?? t('mindroomUi.canvas.unlabeled');
 
@@ -63,10 +63,13 @@ export function CanvasAnswerBar({
     host.discard();
   };
 
+  const headline = t(isCountdown ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
+    agent: agentName,
+  });
   const stagedAnnouncement = staged
     ? isCountdown
       ? t('mindroomUi.canvas.sendingAnnouncement', { agent: agentName, label })
-      : `${t('mindroomUi.canvas.sendTo', { agent: agentName })} ${label}`
+      : `${headline} ${label}`
     : '';
 
   return (
@@ -85,10 +88,10 @@ export function CanvasAnswerBar({
           ref={barRef}
           tabIndex={-1}
           onKeyDown={handleKeyDown}
-          className={inline ? `${css.Staged} ${css.StickyAnswer}` : css.Staged}
+          className={inline ? `${css.AnswerCard} ${css.StickyAnswer}` : css.AnswerCard}
           data-auto-send={isCountdown ? '' : undefined}
         >
-          {isCountdown && !busy && (
+          {countingDown && (
             <div
               className={css.CountdownTrack}
               style={{ animationDuration: `${CANVAS_UNDO_DELAY_MS}ms` }}
@@ -97,13 +100,10 @@ export function CanvasAnswerBar({
           )}
           <div className={css.StagedRow}>
             <div className={css.StagedInfo}>
-              <span className={css.StagedHeadline} data-canvas-staged-headline>
+              <span className={css.IconLine} data-canvas-staged-headline>
                 <span className={css.StatusDot} aria-hidden="true" />
                 <Text as="span" size="T300">
-                  {t(isCountdown ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
-                    agent: agentName,
-                  })}{' '}
-                  <b>{label}</b>
+                  {headline} <b>{label}</b>
                 </Text>
               </span>
               {chips.length > 0 && (
@@ -180,14 +180,14 @@ export function CanvasAnswerBar({
             })}
           />
         ) : footer === 'sent' && lastAnswer ? (
-          <span className={css.SentLine}>
+          <span className={css.IconLine}>
             <Icon size="50" src={Icons.Check} aria-hidden="true" className={css.SentIcon} />
             <Text as="span" size="T200" priority="300">
               {t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
             </Text>
           </span>
         ) : (
-          <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
+          <Text size="T200" priority="300" className={footer === 'refused' ? css.Error : undefined}>
             {footer === 'refused' && t('mindroomUi.canvas.sendFailed')}
             {footer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
             {!inline &&

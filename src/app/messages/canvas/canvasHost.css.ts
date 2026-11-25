@@ -11,18 +11,35 @@ export const Error = style({
   color: color.Critical.Main,
 });
 
-export const Notice = style({
+const barHeader = {
   alignItems: 'center',
   backgroundColor: color.SurfaceVariant.Container,
   borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   display: 'flex',
-  flex: '0 0 auto',
   gap: config.space.S200,
   justifyContent: 'space-between',
   padding: `${config.space.S200} ${config.space.S300}`,
+} as const;
+
+const compactWrap = {
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
+} as const;
+
+export const Notice = style({
+  ...barHeader,
+  flex: '0 0 auto',
 });
 
 export const Staged = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  width: '100%',
+});
+
+export const AnswerCard = style({
   backgroundColor: color.SurfaceVariant.Container,
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   borderRadius: config.radii.R300,
@@ -67,15 +84,13 @@ export const StagedRow = style({
 });
 
 export const StagedInfo = style({
-  alignItems: 'center',
+  ...compactWrap,
   display: 'flex',
   flex: '1 1 12rem',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
   minWidth: 0,
 });
 
-export const StagedHeadline = style({
+export const IconLine = style({
   alignItems: 'center',
   display: 'inline-flex',
   gap: config.space.S100,
@@ -101,10 +116,8 @@ export const StatusDot = style({
 });
 
 export const Chips = style({
-  alignItems: 'center',
+  ...compactWrap,
   display: 'inline-flex',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
   minWidth: 0,
 });
 
@@ -123,10 +136,8 @@ export const Chip = style({
 });
 
 export const StagedActions = style({
-  alignItems: 'center',
+  ...compactWrap,
   display: 'flex',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
   marginInlineStart: 'auto',
 });
 
@@ -154,12 +165,6 @@ export const StickyAnswer = style({
   zIndex: 1,
 });
 
-export const SentLine = style({
-  alignItems: 'center',
-  display: 'inline-flex',
-  gap: config.space.S100,
-});
-
 export const SentIcon = style({
   color: color.Success.Main,
   flexShrink: 0,
@@ -177,15 +182,9 @@ export const InlineCard = style({
 });
 
 export const InlineCardHeader = style({
-  alignItems: 'center',
-  backgroundColor: color.SurfaceVariant.Container,
-  borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  ...barHeader,
   borderStartEndRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
   borderStartStartRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
-  display: 'flex',
-  gap: config.space.S200,
-  justifyContent: 'space-between',
-  padding: `${config.space.S200} ${config.space.S300}`,
 });
 
 export const InlineCardTitle = style({

@@ -21,6 +21,7 @@ import {
 } from './canvasMessages';
 import type { CanvasTheme } from './canvasTheme';
 import { useLocalEchoStatus } from '../useLocalEchoStatus';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { uploadLongTextSidecar } from '../../matrix/send/longTextSidecarUpload';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -58,6 +59,9 @@ export type Staged = {
   resubmitted?: true;
 };
 
+export const inUndoFlow = (staged?: Staged): boolean =>
+  staged?.phase === 'countdown' || staged?.phase === 'paused';
+
 // Submissions arrive as canonical JSON (`readCanvasSubmission`), so equal answers stringify equally.
 const sameAnswer = (a: CanvasSubmission, b: CanvasSubmission): boolean =>
   a.label === b.label && JSON.stringify(a.data) === JSON.stringify(b.data);
@@ -81,11 +85,11 @@ const answerState = (status: EventStatus | null): AnswerState => {
   return 'sending';
 };
 
+const isOpen = (state?: AnswerState): boolean => state === 'sending' || state === 'failed';
+
 /** An answer still sending or failed holds the host: one unresolved answer at a time. */
-const isUnresolved = (answer?: SentAnswer): boolean => {
-  const state = answer && answerState(answer.echo.status);
-  return state === 'sending' || state === 'failed';
-};
+const isUnresolved = (answer?: SentAnswer): boolean =>
+  isOpen(answer && answerState(answer.echo.status));
 
 const STAGE_INTERVAL_MS = 100;
 
@@ -134,11 +138,10 @@ export function useCanvasHost({
     theme,
   }));
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const buildNow = useRef(build);
-  buildNow.current = build;
+  const buildNow = useLatestRef(build);
   // Saving never rebuilds the page; every page shown, and every reload, starts from the latest saved state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const doc = useMemo(() => buildNow.current(displayed), [displayed, buildKey]);
+  const doc = useMemo(() => buildNow.current(displayed), [buildNow, displayed, buildKey]);
   const docKey = useMemo(() => canvasDocumentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${buildKey}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
@@ -166,19 +169,36 @@ export function useCanvasHost({
     },
     []
   );
-  const busyNow = useRef(false);
+  const pauseCountdown = useCallback(
+    (only?: CanvasSubmission, resubmitted?: true) => {
+      updateStaged((current) =>
+        current?.phase === 'countdown' && (!only || current.submission === only)
+          ? { ...current, phase: 'paused', ...(resubmitted ? { resubmitted } : {}) }
+          : current
+      );
+    },
+    [updateStaged]
+  );
+  const answerStatus = useLocalEchoStatus(lastAnswer?.echo);
+  const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
+  const answerOpen = isOpen(answer);
+  const busy = answerOpen || uploading;
+  const busyNow = useLatestRef(busy);
+  const countingDown = staged?.phase === 'countdown' && !busy;
+  // A refused send or an upload happen only while no answer is open, so they take priority.
+  let footer: CanvasFooter = answer ?? 'idle';
+  if (uploading) footer = 'sending';
+  if (sendError) footer = 'refused';
   // Blocks follow-up auto-sends within the same transient browser activation window.
   const gestureCooldownUntil = useRef(0);
   const loads = useRef({ frameKey, count: 0 });
-  const currentFrameKey = useRef(frameKey);
-  currentFrameKey.current = frameKey;
+  const currentFrameKey = useLatestRef(frameKey);
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
   // Whether the user has worked in this page since it loaded; what the page saves before that is not theirs.
   const used = useRef(false);
   const lastStageAt = useRef(0);
-  const latest = useRef({ canvas, colorScheme, theme, onSaveState });
-  latest.current = { canvas, colorScheme, theme, onSaveState };
+  const latest = useLatestRef({ canvas, colorScheme, theme, onSaveState });
   // Pages can be megabytes, so revisions compare by a hash of their HTML.
   const incomingHtmlKey = useMemo(() => canvasDocumentKey(canvas.html), [canvas.html]);
   const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
@@ -249,7 +269,14 @@ export function useCanvasHost({
       );
       setUpdateAvailable(true);
     }
-  }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending, updateStaged]);
+  }, [
+    incomingRevision,
+    displayedRevision,
+    displayedRevisionId,
+    displayedPending,
+    latest,
+    updateStaged,
+  ]);
 
   useEffect(() => {
     const handleBlur = () => {
@@ -263,13 +290,7 @@ export function useCanvasHost({
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
       if (now - lastStageAt.current < STAGE_INTERVAL_MS) {
-        if (stagedNow.current?.phase === 'countdown') {
-          updateStaged((current) =>
-            current?.phase === 'countdown'
-              ? { ...current, phase: 'paused', resubmitted: true }
-              : current
-          );
-        }
+        pauseCountdown(undefined, true);
         return;
       }
       lastStageAt.current = now;
@@ -281,7 +302,6 @@ export function useCanvasHost({
       updateStaged((current) => {
         if (!current) {
           const canAutoSend =
-            trustedGesture &&
             submission.userGesture === true &&
             document.activeElement === frameRef.current &&
             now >= gestureCooldownUntil.current;
@@ -325,9 +345,7 @@ export function useCanvasHost({
         // A report still sending or failed may return to the list, so its errors count toward the five.
         const { report } = listed;
         const held =
-          report?.echo && ['sending', 'failed'].includes(answerState(report.echo.status))
-            ? report.errors.length
-            : 0;
+          report?.echo && isOpen(answerState(report.echo.status)) ? report.errors.length : 0;
         // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
         if (seenErrors.current.has(error) || listed.errors.length + held >= MAX_PAGE_ERRORS) return;
         seenErrors.current.add(error);
@@ -345,33 +363,24 @@ export function useCanvasHost({
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('message', handleMessage);
     };
-  }, [mx, updateStaged]);
+  }, [busyNow, currentFrameKey, latest, mx, pauseCountdown, updateStaged]);
 
-  const stagedSubmission = staged?.submission;
-  const stagedPhase = staged?.phase;
-  useEffect(() => {
-    if (!stagedSubmission || stagedPhase !== 'arming') return undefined;
-    const timer = window.setTimeout(
-      () =>
-        updateStaged((current) =>
-          current?.submission === stagedSubmission && current.phase === 'arming'
-            ? { ...current, phase: 'ready' }
-            : current
-        ),
-      CANVAS_SEND_ARM_DELAY_MS
-    );
-    return () => window.clearTimeout(timer);
-  }, [stagedPhase, stagedSubmission, updateStaged]);
-
-  const answerStatus = useLocalEchoStatus(lastAnswer?.echo);
-  const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
-  const answerOpen = answer === 'sending' || answer === 'failed';
-
-  const busy = answerOpen || uploading;
-  // A refused send or an upload happen only while no answer is open, so they take priority.
-  let footer: CanvasFooter = answer ?? 'idle';
-  if (uploading) footer = 'sending';
-  if (sendError) footer = 'refused';
+  const target = useMemo(
+    () => ({
+      eventId: displayed.eventId,
+      revisionEventId: displayed.revisionEventId,
+      agentUserId: displayed.agentUserId,
+      agentName,
+      threadId: displayed.threadId,
+    }),
+    [
+      agentName,
+      displayed.agentUserId,
+      displayed.eventId,
+      displayed.revisionEventId,
+      displayed.threadId,
+    ]
+  );
 
   // Hands one event to the SDK; from then on its local echo carries the answer's status.
   const deliver = useCallback(
@@ -393,7 +402,7 @@ export function useCanvasHost({
       const echo = room.getEventForTxnId(txnId);
       // A newer snapshot staged during an upload stays.
       if (stagedNow.current?.submission === submission) {
-        if (stagedNow.current.phase === 'countdown' || submission.userGesture === true) {
+        if (submission.userGesture === true) {
           gestureCooldownUntil.current = Date.now() + CANVAS_GESTURE_COOLDOWN_MS;
         }
         updateStaged(undefined);
@@ -406,37 +415,20 @@ export function useCanvasHost({
     [mx, room, updateStaged]
   );
 
-  busyNow.current = busy;
-
   const handleSend = useCallback(() => {
     const currentStaged = stagedNow.current;
     if (!currentStaged || currentStaged.phase === 'arming' || busyNow.current) return;
     const { submission } = currentStaged;
     if (uploadingSubmission.current === submission) return;
     const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
-    const content = buildCanvasResponseContent(
-      {
-        eventId: displayed.eventId,
-        revisionEventId: displayed.revisionEventId,
-        agentUserId: displayed.agentUserId,
-        agentName,
-        threadId: displayed.threadId,
-      },
-      submission
-    );
+    const content = buildCanvasResponseContent(target, submission);
     setSendError(false);
-    const stopCountdown = () =>
-      updateStaged((current) =>
-        current?.submission === submission && current.phase === 'countdown'
-          ? { ...current, phase: 'paused' }
-          : current
-      );
     // Until the answer is handed to the SDK, the frame still holds the user's work, so an update
     // during an upload waits for "Load update" and a failed upload can be tried again.
     const refused = () => {
       setSendError(true);
       // Do not loop auto-send after a refusal; leave it paused for an explicit retry.
-      stopCountdown();
+      pauseCountdown(submission);
       // The snapshot stays unsent, so an update must not replace the page without asking.
       touched.current = true;
     };
@@ -449,7 +441,7 @@ export function useCanvasHost({
     // and Discard until then cancels the answer.
     uploadingSubmission.current = submission;
     setUploading(true);
-    stopCountdown();
+    pauseCountdown(submission);
     const current = () => uploadingSubmission.current === submission;
     uploadLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
       .then((preview) => {
@@ -463,28 +455,31 @@ export function useCanvasHost({
         uploadingSubmission.current = undefined;
         setUploading(false);
       });
-  }, [agentName, deliver, displayed, mx, room, t, updateStaged]);
+  }, [busyNow, deliver, mx, pauseCountdown, room, t, target]);
 
-  const sendNow = useRef(handleSend);
-  sendNow.current = handleSend;
+  const sendNow = useLatestRef(handleSend);
+  const stagedSubmission = staged?.submission;
+  const timerPhase = staged?.phase === 'arming' ? 'arming' : countingDown ? 'countdown' : undefined;
   useEffect(() => {
-    if (!stagedSubmission || stagedPhase !== 'countdown' || busy) return undefined;
+    if (!stagedSubmission || !timerPhase) return undefined;
+    const delay = timerPhase === 'arming' ? CANVAS_SEND_ARM_DELAY_MS : CANVAS_UNDO_DELAY_MS;
     const timer = window.setTimeout(() => {
-      if (
-        stagedNow.current?.submission === stagedSubmission &&
-        stagedNow.current.phase === 'countdown'
-      ) {
+      const current = stagedNow.current;
+      if (current?.submission !== stagedSubmission || current.phase !== timerPhase) return;
+      if (timerPhase === 'arming') {
+        updateStaged({ ...current, phase: 'ready' });
+      } else {
         sendNow.current();
       }
-    }, CANVAS_UNDO_DELAY_MS);
+    }, delay);
     return () => window.clearTimeout(timer);
-  }, [busy, stagedPhase, stagedSubmission]);
+  }, [sendNow, stagedSubmission, timerPhase, updateStaged]);
 
   const reportStatus = useLocalEchoStatus(pageErrors.report?.echo);
   const reportState =
     pageErrors.report?.echo && reportStatus !== undefined ? answerState(reportStatus) : undefined;
   // One report at a time, as with answers; new errors keep collecting meanwhile.
-  const reportOpen = reportState === 'sending' || reportState === 'failed';
+  const reportOpen = isOpen(reportState);
   useEffect(() => {
     // A report the user deleted after it failed was never sent, so its errors are offered again.
     if (reportState === 'cancelled') {
@@ -498,16 +493,7 @@ export function useCanvasHost({
   const handleReport = useCallback(() => {
     if (reportOpen || pageErrors.errors.length === 0) return;
     const sent = pageErrors.errors;
-    const content = buildCanvasErrorContent(
-      {
-        eventId: displayed.eventId,
-        revisionEventId: displayed.revisionEventId,
-        agentUserId: displayed.agentUserId,
-        agentName,
-        threadId: displayed.threadId,
-      },
-      sent
-    );
+    const content = buildCanvasErrorContent(target, sent);
     const txnId = mx.makeTxnId();
     try {
       // A failure shows through the echo's status, here and in the timeline.
@@ -520,13 +506,7 @@ export function useCanvasHost({
       errors: current.errors.filter((error) => !sent.includes(error)),
       report: { echo, errors: sent },
     }));
-  }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
-
-  const handlePause = useCallback(() => {
-    updateStaged((current) =>
-      current?.phase === 'countdown' ? { ...current, phase: 'paused' } : current
-    );
-  }, [updateStaged]);
+  }, [mx, pageErrors, reportOpen, room, target]);
 
   const handleDiscard = useCallback(() => {
     const current = stagedNow.current;
@@ -535,7 +515,7 @@ export function useCanvasHost({
       uploadingSubmission.current = undefined;
       setUploading(false);
     }
-    if (current?.phase === 'countdown' || current?.phase === 'paused') {
+    if (inUndoFlow(current)) {
       gestureCooldownUntil.current = Date.now() + CANVAS_GESTURE_COOLDOWN_MS;
       if (frameRef.current && document.activeElement === frameRef.current) {
         frameRef.current.blur();
@@ -558,13 +538,13 @@ export function useCanvasHost({
     doc,
     frameKey,
     staged,
+    countingDown,
     lastAnswer,
     answer,
     busy,
     footer,
-    sendError,
     send: handleSend,
-    pause: handlePause,
+    pause: () => pauseCountdown(),
     discard: handleDiscard,
     pageErrors,
     reportState,
