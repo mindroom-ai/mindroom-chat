@@ -27,8 +27,10 @@ import {
   guardSession,
   registerExternalOpenHandler,
   setBlockedUrlRecorder,
+  shouldRefuseUnsandboxedAppImage,
   supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
+  UNSANDBOXED_APPIMAGE_ERROR,
 } from './security';
 import { setTrackpadSwipeRecorder, type TrackpadSwipePhase } from './trackpadSwipe';
 import { isUpdaterSupported, startUpdater, type UpdaterHandle } from './updater';
@@ -36,22 +38,38 @@ import { isUpdaterSupported, startUpdater, type UpdaterHandle } from './updater'
 const SCREEN_RECORDING_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
-// Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
-app.commandLine.appendSwitch(
-  'disable-features',
-  [app.commandLine.getSwitchValue('disable-features'), 'UseAncestorRenderFrameForWorker']
-    .filter(Boolean)
-    .join(',')
-);
+const refusedUnsandboxed = shouldRefuseUnsandboxedAppImage({
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  appImageEnv: process.env.APPIMAGE,
+  hasNoSandboxSwitch: app.commandLine.hasSwitch('no-sandbox'),
+});
+if (refusedUnsandboxed) {
+  console.error(UNSANDBOXED_APPIMAGE_ERROR);
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) {
+    dialog.showErrorBox('MindRoom', UNSANDBOXED_APPIMAGE_ERROR);
+  }
+  app.exit(1);
+}
 
-registerBundleScheme();
+if (!refusedUnsandboxed) {
+  // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
+  app.commandLine.appendSwitch(
+    'disable-features',
+    [app.commandLine.getSwitchValue('disable-features'), 'UseAncestorRenderFrameForWorker']
+      .filter(Boolean)
+      .join(',')
+  );
 
-if (process.platform === 'linux') {
-  const linuxApp: Pick<Electron.App, 'isPackaged'> & {
-    setDesktopName?: (name: string) => void;
-  } = app;
-  if (typeof linuxApp.setDesktopName === 'function') {
-    linuxApp.setDesktopName('mindroom-chat.desktop');
+  registerBundleScheme();
+
+  if (process.platform === 'linux') {
+    const linuxApp: Pick<Electron.App, 'isPackaged'> & {
+      setDesktopName?: (name: string) => void;
+    } = app;
+    if (typeof linuxApp.setDesktopName === 'function') {
+      linuxApp.setDesktopName('mindroom-chat.desktop');
+    }
   }
 }
 
@@ -113,26 +131,28 @@ const setAppBadge = (count: number): void => {
 // Carries no URL: the page takes the return itself, once, through `desktop:take-app-url`.
 const notifyAppUrl = (): void => getMainWindow()?.webContents.send('desktop:app-url');
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
+const gotLock = !refusedUnsandboxed && app.requestSingleInstanceLock();
+if (!refusedUnsandboxed && !gotLock) app.quit();
 
 const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
 let updater: UpdaterHandle | undefined;
 let quickCapture: QuickCaptureHandle | undefined;
 let desktopAccess: DesktopAccessHandle | undefined;
 
-app.on('second-instance', () => {
-  if (gotLock && app.isReady()) focusMainWindow();
-});
+if (!refusedUnsandboxed) {
+  app.on('second-instance', () => {
+    if (gotLock && app.isReady()) focusMainWindow();
+  });
 
-app.on('before-quit', () => {
-  markQuitting();
-  flushMainWindowState();
-  quickCapture?.flushState();
-  void desktopAccess?.stop();
-});
+  app.on('before-quit', () => {
+    markQuitting();
+    flushMainWindowState();
+    quickCapture?.flushState();
+    void desktopAccess?.stop();
+  });
+}
 
-void app.whenReady().then(() => {
+const initializeApp = (): void => {
   if (!gotLock) return;
   if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
     session.defaultSession.enableNetworkEmulation({ offline: true });
@@ -478,17 +498,23 @@ void app.whenReady().then(() => {
   });
   showMainWindow();
   void activeDesktopAccess.start();
-});
+};
 
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-  updater?.stop();
-  authCallback.close();
-  void desktopAccess?.stop();
-});
-app.on('activate', () => {
-  if (gotLock) showMainWindow();
-});
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+if (gotLock) {
+  void app.whenReady().then(initializeApp);
+}
+
+if (!refusedUnsandboxed) {
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+    updater?.stop();
+    authCallback.close();
+    void desktopAccess?.stop();
+  });
+  app.on('activate', () => {
+    if (gotLock) showMainWindow();
+  });
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}

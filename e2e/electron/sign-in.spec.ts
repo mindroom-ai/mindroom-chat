@@ -346,17 +346,7 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
       const redirect = await startSsoFromPage(app, page, HOMESERVER, 0);
       const token = await mintToken();
 
-      // On Linux, closing the last window quits the app; hold an auxiliary hidden window so the
-      // main window can close and be recreated by focusMainWindow() on the loopback return.
-      const keepAliveId =
-        process.platform === 'darwin'
-          ? undefined
-          : await app.evaluate(({ BrowserWindow }) => {
-              const aux = new BrowserWindow({ show: false });
-              return aux.id;
-            });
-
-      try {
+      if (process.platform === 'darwin') {
         await page.close();
         const reopenedPromise = app.waitForEvent('window');
         const res = await fetch(`${redirect.href}&loginToken=${encodeURIComponent(token)}`);
@@ -365,13 +355,31 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
         const reopened = await reopenedPromise;
         await session.watchPage(reopened);
         await waitForShell(reopened);
-      } finally {
-        if (keepAliveId !== undefined) {
-          await app.evaluate(({ BrowserWindow }, id: number) => {
-            const aux = BrowserWindow.fromId(id);
-            if (aux && !aux.isDestroyed()) aux.destroy();
-          }, keepAliveId);
-        }
+      } else {
+        // On Linux, closing the main window quits the app, so hide it and verify the SSO callback
+        // brings it back into view and completes sign-in.
+        await app.evaluate(({ BrowserWindow }) => {
+          BrowserWindow.getAllWindows()[0]?.hide();
+        });
+        await expect
+          .poll(() =>
+            app.evaluate(
+              ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false
+            )
+          )
+          .toBe(false);
+
+        const res = await fetch(`${redirect.href}&loginToken=${encodeURIComponent(token)}`);
+        expect(res.status).toBe(200);
+
+        await expect
+          .poll(() =>
+            app.evaluate(
+              ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false
+            )
+          )
+          .toBe(true);
+        await waitForShell(page);
       }
     } finally {
       await session.close();

@@ -45,8 +45,10 @@ host_matches_arch() {
 }
 
 smoke_launch() {
-  local extracted_bin="$1" target_arch="$2" require_smoke="${MINDROOM_LINUX_REQUIRE_SMOKE:-0}"
-  local host_arch smoke_home smoke_log smoke_rc
+  local squashfs_root="$1" appimage_path="$2" target_arch="$3"
+  local require_smoke="${MINDROOM_LINUX_REQUIRE_SMOKE:-0}"
+  local extracted_apprun="$squashfs_root/AppRun" extracted_bin="$squashfs_root/mindroom-chat"
+  local host_arch refuse_home refuse_log refuse_rc smoke_home smoke_log smoke_rc
 
   if ! host_matches_arch "$target_arch"; then
     host_arch=$(uname -m)
@@ -54,6 +56,35 @@ smoke_launch() {
     echo "Skipping packaged smoke launch: host arch '$host_arch' != --arch '$target_arch'"
     return 0
   fi
+
+  refuse_home="$scratch/refuse-home"
+  refuse_log="$scratch/refuse.log"
+  mkdir -p "$refuse_home/.config" "$refuse_home/.cache" "$refuse_home/.local/share" "$refuse_home/runtime"
+  chmod 700 "$refuse_home/runtime"
+
+  set +e
+  env -u DISPLAY -u WAYLAND_DISPLAY -u APPDIR \
+    APPIMAGE="$appimage_path" HOME="$refuse_home" XDG_CONFIG_HOME="$refuse_home/.config" \
+    XDG_CACHE_HOME="$refuse_home/.cache" XDG_DATA_HOME="$refuse_home/.local/share" \
+    XDG_RUNTIME_DIR="$refuse_home/runtime" \
+    timeout -k 5 -s TERM 10 "$extracted_apprun" --no-sandbox --ozone-platform=headless --disable-gpu \
+    >"$refuse_log" 2>&1
+  refuse_rc=$?
+  set -e
+
+  if [[ "$refuse_rc" -eq 124 ]]; then
+    cat "$refuse_log" >&2
+    die "Packaged AppImage unsandboxed refusal check timed out (exit 124)"
+  fi
+  if [[ "$refuse_rc" -ne 1 ]]; then
+    cat "$refuse_log" >&2
+    die "Packaged AppImage unsandboxed launch expected exit 1, got $refuse_rc"
+  fi
+  if ! grep -Fq 'MindRoom Chat cannot start with Chromium sandboxing disabled' "$refuse_log"; then
+    cat "$refuse_log" >&2
+    die "Packaged AppImage unsandboxed launch did not report expected sandbox error"
+  fi
+
   if ! command -v xvfb-run >/dev/null 2>&1; then
     [[ "$require_smoke" != "1" ]] || die "xvfb-run is required when MINDROOM_LINUX_REQUIRE_SMOKE=1"
     echo "Skipping packaged smoke launch: xvfb-run not found"
@@ -191,8 +222,9 @@ verify_linux_artifacts() {
   fi
 
   check_no_macos_artifacts "AppImage ($appimage)" "$(find "$squashfs_root" -mindepth 1)"
+  [[ -x "$squashfs_root/AppRun" ]] || die "Extracted AppImage is missing executable AppRun: $appimage"
   [[ -x "$squashfs_root/mindroom-chat" ]] || die "Extracted AppImage is missing executable mindroom-chat: $appimage"
-  smoke_launch "$squashfs_root/mindroom-chat" "$arch"
+  smoke_launch "$squashfs_root" "$appimage_abs" "$arch"
 }
 
 arch=""

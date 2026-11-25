@@ -9,7 +9,7 @@
 #     mindroom-ai/homebrew-tap when this release is the newest;
 #   - Linux (build-linux -> release-linux -> feed-linux): builds and verifies x64 and arm64
 #     AppImages (with embedded blockmaps), .deb packages, and latest-linux*.yml manifests,
-#     attaches all six Linux assets atomically, and updates linux-feed.
+#     uploads all 6 Linux assets in one gh release upload, and updates linux-feed.
 # Existing release assets are never replaced.
 name: Desktop shell
 
