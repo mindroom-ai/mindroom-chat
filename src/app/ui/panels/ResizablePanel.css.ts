@@ -97,7 +97,6 @@ globalStyle(`${Handle} [data-panel-handle-pill]`, {
   blockSize: '100%',
   borderRadius: 0,
   backgroundColor: color.Background.ContainerLine,
-  overflow: 'hidden',
   pointerEvents: 'none',
   transition:
     'background-color 140ms ease, inline-size 140ms ease, block-size 160ms ease, border-radius 140ms ease, opacity 140ms ease, box-shadow 140ms ease',
@@ -106,37 +105,26 @@ globalStyle(`${Handle} [data-panel-handle-pill]`, {
   },
 });
 
-globalStyle(`${Handle} [data-panel-handle-pill-fill]`, {
-  position: 'absolute',
-  inset: 0,
-  borderRadius: 'inherit',
-  backgroundColor: color.Primary.Main,
-  transformOrigin: 'center',
-  transform: 'scaleY(0)',
-  opacity: 0,
-  pointerEvents: 'none',
-});
-
 globalStyle(
   `${Handle}:is(:hover, :focus-visible, :active) [data-panel-handle-pill], ${Panel}[data-dragging] > ${Handle} [data-panel-handle-pill]`,
   { backgroundColor: color.Primary.Main }
 );
 
-// Dragging past maxWidth grows the pill into a tall charging gauge whose inner fill scales with
-// `--mr-expand-progress`.
+// Dragging past maxWidth stretches the solid accent pill monotonically with `--mr-expand-progress`
+// (`0` -> `1`) with no size transition lag or background flip that could flicker at the max edge.
 globalStyle(`${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill]`, {
-  inlineSize: '4.5px',
-  blockSize: 'calc(100% - 28px)',
+  inlineSize:
+    'calc(var(--mr-pill-base-width, 2px) + (4.5px - var(--mr-pill-base-width, 2px)) * var(--mr-expand-progress, 0))',
+  blockSize:
+    'calc(var(--mr-pill-base-height, 100%) + (100% - 28px - var(--mr-pill-base-height, 100%)) * var(--mr-expand-progress, 0))',
   borderRadius: config.radii.Pill,
-  backgroundColor: `color-mix(in srgb, ${color.Primary.Main} 22%, transparent)`,
-  boxShadow: `0 0 10px color-mix(in srgb, ${color.Primary.Main} 35%, transparent)`,
+  backgroundColor: color.Primary.Main,
+  boxShadow: `0 0 10px color-mix(in srgb, ${color.Primary.Main} 45%, transparent)`,
   opacity: 1,
-});
-
-globalStyle(`${Panel}[data-expand-charging] > ${Handle} [data-panel-handle-pill-fill]`, {
-  opacity: 1,
-  transform: 'scaleY(calc(0.28 + var(--mr-expand-progress, 0) * 0.72))',
-  boxShadow: `0 0 8px color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+  transition: 'opacity 140ms ease, box-shadow 140ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
 });
 
 // Once armed past EXPAND_PAST, hide the handle pill so no vertical line competes with the snap preview.

@@ -285,7 +285,6 @@ describe('dragging a side panel past its widest', () => {
     const panel = screen.getByTestId('panel');
     const pill = separator().querySelector('[data-panel-handle-pill]');
     expect(pill?.getAttribute('aria-hidden')).toBe('true');
-    expect(pill?.querySelector('[data-panel-handle-pill-fill]')).not.toBeNull();
 
     dragTo(610);
     expect(panel.style.width).toBe('600px');

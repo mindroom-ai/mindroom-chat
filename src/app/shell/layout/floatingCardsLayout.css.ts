@@ -75,10 +75,19 @@ globalStyle(`${FloatingShell} ${SIDE_PANEL} > ${Handle}${Handle}`, {
 // In floating cards, the handle indicator is a centered vertical pill inside the card bounds:
 // hidden at rest, revealed on hover/focus/active/drag, leaving charging and armed rules intact.
 globalStyle(
+  `${FloatingShell} ${Panel}:not(${PageSurface} *) > ${Handle} [data-panel-handle-pill]`,
+  {
+    vars: {
+      '--mr-pill-base-width': '3.5px',
+      '--mr-pill-base-height': 'min(82px, calc(100% - 40px))',
+    },
+  }
+);
+globalStyle(
   `${FloatingShell} ${Panel}:not(${PageSurface} *, [data-expand-charging], [data-expand-preview]) > ${Handle} [data-panel-handle-pill]`,
   {
-    inlineSize: '3.5px',
-    blockSize: 'min(82px, calc(100% - 40px))',
+    inlineSize: 'var(--mr-pill-base-width)',
+    blockSize: 'var(--mr-pill-base-height)',
     borderRadius: config.radii.Pill,
     backgroundColor: color.Primary.Main,
     opacity: 0,

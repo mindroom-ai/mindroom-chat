@@ -447,9 +447,7 @@ export function ResizablePanel({
           onLostPointerCapture={(event) => finishResize(event, false)}
           onKeyDown={resizeWithKeyboard}
         >
-          <span data-panel-handle-pill="" aria-hidden="true">
-            <span data-panel-handle-pill-fill="" />
-          </span>
+          <span data-panel-handle-pill="" aria-hidden="true" />
         </div>
       )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
