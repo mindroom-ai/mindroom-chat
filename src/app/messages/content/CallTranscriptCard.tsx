@@ -1,9 +1,10 @@
-import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EventType, type MatrixClient, type Room, type RoomMember } from 'matrix-js-sdk';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
+import { useRevealOnOpen } from '../../ui/disclosureReveal';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -259,6 +260,9 @@ export function CallTranscriptCard({
         turns.map((turn) => turn.text)
       )
   );
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const turnsRef = useRef<HTMLOListElement>(null);
+  const armReveal = useRevealOnOpen(open, toggleRef, turnsRef);
   const groups = useMemo(() => groupCallTranscriptTurns(turns), [turns]);
   const room = roomId ? client.getRoom(roomId) : null;
   // The room's members load in the background; a speaker who joins them later is trusted then.
@@ -306,12 +310,16 @@ export function CallTranscriptCard({
         </div>
         {/* Named "Transcript, N turns"; only the count shows, beside the call it belongs to. */}
         <button
+          ref={toggleRef}
           type="button"
           className={`${css.Toggle} ${LoneTouchTarget}`}
           aria-expanded={open}
           aria-controls={turnsId}
           aria-labelledby={`${toggleLabelId} ${toggleCountId}`}
-          onClick={() => setOpen((shown) => !shown)}
+          onClick={() => {
+            if (!open) armReveal();
+            setOpen((shown) => !shown);
+          }}
         >
           <span id={toggleLabelId} hidden>
             {t('featureUi.calls.transcript.transcript')}
@@ -330,7 +338,7 @@ export function CallTranscriptCard({
         </div>
       )}
       {open && (
-        <ol id={turnsId} className={css.Turns}>
+        <ol ref={turnsRef} id={turnsId} className={css.Turns}>
           {groups.map((group) => (
             <TranscriptGroup
               key={group.index}

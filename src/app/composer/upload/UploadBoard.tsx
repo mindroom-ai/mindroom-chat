@@ -14,18 +14,25 @@ import * as css from './UploadBoard.css';
 type UploadBoardProps = {
   header: ReactNode;
   children?: ReactNode;
+  /** Renders in normal document flow above the composer instead of floating over a timeline. */
+  inline?: boolean;
 };
 
 /** The panel of staged uploads above the composer: a header and, when open, the file cards. */
-export function UploadBoard({ header, children }: UploadBoardProps) {
+export function UploadBoard({ header, children, inline }: UploadBoardProps) {
+  const board = (
+    <Box
+      className={classNames(css.UploadBoard, inline && css.UploadBoardInline)}
+      direction="Column"
+    >
+      {header}
+      {children}
+    </Box>
+  );
+  if (inline) return board;
   return (
     <Box className={css.UploadBoardBase}>
-      <Box className={css.UploadBoardContainer}>
-        <Box className={css.UploadBoard} direction="Column">
-          {header}
-          {children}
-        </Box>
-      </Box>
+      <Box className={css.UploadBoardContainer}>{board}</Box>
     </Box>
   );
 }

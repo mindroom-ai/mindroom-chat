@@ -433,7 +433,9 @@
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom.",
         "usage": "Verbruik in de zijbalk tonen",
-        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer."
+        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer.",
+        "help": "Hulp & gidsen in de zijbalk tonen",
+        "helpDescription": "Snelle gidsen, de rondleiding en sneltoetsen. Verborgen open je de rondleiding via Instellingen onder Over of het commandopalet ({{shortcut}}), en sneltoetsen met {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plug-ins",
@@ -722,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
-      "searchEncrypted": "Niet beschikbaar in versleutelde kamers"
+      "searchEncrypted": "Niet beschikbaar in versleutelde kamers",
+      "viewSection": "Weergave",
+      "roomSection": "Kamer",
+      "preferencesSection": "Voorkeuren",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Vermeldingen"
     },
     "phoneNav": {
       "navigation": "Navigatie"
@@ -1054,6 +1061,21 @@
         "payloadLabel": "Gebeurtenispayload JSON",
         "openTriggerLabel": "Trigger {{id}} bekijken"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} taak klaar",
+        "readyCount_other": "{{count}} taken klaar",
+        "hide": "Verbergen",
+        "show": "Tonen",
+        "copyId": "Taak-ID {{id}} kopiëren",
+        "moreItems_one": "+{{count}} extra uitvoerbaar item",
+        "moreItems_other": "+{{count}} extra uitvoerbare items",
+        "priority": {
+          "critical": "Kritiek",
+          "high": "Hoog",
+          "medium": "Gemiddeld",
+          "low": "Laag"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"
@@ -1199,7 +1221,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Compacte weergave",
-        "threadFiltersActive": "Threadfilters (actief)"
+        "threadFiltersActive": "Threadfilters (actief)",
+        "mindroomSettings": "MindRoom-instellingen"
       },
       "roomThreadOverview": {
         "advancedFilters": "Geavanceerde filters",
@@ -1232,6 +1255,25 @@
         "expandAllLong": "Alle lange berichten uitklappen",
         "collapseAllLong": "Alle lange berichten inklappen",
         "showFullMessage": "Volledig bericht tonen"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Helemaal bij",
+        "resolvedCount_one": "{{count}} opgelost",
+        "resolvedCount_other": "{{count}} opgelost",
+        "snoozedCount_one": "{{count}} gesnoozed",
+        "snoozedCount_other": "{{count}} gesnoozed",
+        "showAll": "Alles tonen",
+        "startNewThreadBelow": "Start hieronder een nieuwe thread",
+        "recentlyResolved": "Recent opgelost",
+        "noMatchHeading": "Geen threads komen overeen met je filters",
+        "hiddenByForMe_one": "{{count}} open thread wordt verborgen door Voor mij.",
+        "hiddenByForMe_other": "{{count}} open threads worden verborgen door Voor mij.",
+        "hiddenByFilters_one": "{{count}} open thread wordt verborgen door je filters.",
+        "hiddenByFilters_other": "{{count}} open threads worden verborgen door je filters.",
+        "adjustOrResetFilters": "Pas je filters aan of zet ze terug om threads in deze kamer te zien.",
+        "turnOffForMe": "Voor mij uitschakelen",
+        "resetAll": "Alles terugzetten",
+        "resetFilters": "Filters terugzetten"
       }
     },
     "computer": {
@@ -1260,7 +1302,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
+      "awaitingAnswer": "Wacht op jouw antwoord: {{tool}}",
       "jobCountFinished": "{{count}} achtergrondtaken voltooid",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Subagenten · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1305,6 +1349,95 @@
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
       "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starten",
+        "running": "Actief",
+        "waiting": "Wacht op jou",
+        "completed": "Klaar",
+        "failed": "Mislukt",
+        "cancelled": "Geannuleerd",
+        "interrupted": "Onderbroken"
+      },
+      "counts": "{{done}} klaar, {{running}} actief, {{waiting}} wachtend",
+      "reused": "Hergebruikt: {{count}}",
+      "cost": "{{spent}} tot nu toe, ongeveer {{projected}} in totaal",
+      "costAtLeast": "minstens {{spent}} tot nu toe",
+      "largeRun": "Grote run",
+      "attempt": "Poging {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Stoppen…",
+      "resume": "Hervatten",
+      "runAgain": "Opnieuw uitvoeren",
+      "starting": "Starten…",
+      "failedCount_one": "{{count}} mislukt",
+      "failedCount_other": "{{count}} mislukt",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Al beantwoord.",
+          "noLongerOpen": "Deze vraag staat niet meer open.",
+          "notAnOption": "Dat is geen van de opties.",
+          "notForYou": "Alleen degene die de run startte kan antwoorden."
+        },
+        "noReply": "Nog geen reactie. Probeer opnieuw.",
+        "placeholder": "Typ je antwoord",
+        "send": "Versturen",
+        "answered": "Beantwoord: {{answer}}",
+        "cancelled": "Geannuleerd",
+        "onlyRequester": "Alleen {{name}} kan antwoorden."
+      },
+      "graph": "Grafiek",
+      "panel": {
+        "close": "Sluiten",
+        "resize": "Workflowpaneel vergroten of verkleinen",
+        "hide": "Workflow verbergen",
+        "waitingForUpdate": "Wachten op de volgende update van de run…",
+        "stale": "Wordt niet bijgewerkt. Laatste update {{time}}.",
+        "log": "Logboek",
+        "showMore": "Toon nog {{count}}",
+        "omitted": {
+          "queued_one": "en nog {{count}} in wachtrij",
+          "queued_other": "en nog {{count}} in wachtrij",
+          "running_one": "en nog {{count}} actief",
+          "running_other": "en nog {{count}} actief",
+          "waiting_one": "en nog {{count}} wachtend",
+          "waiting_other": "en nog {{count}} wachtend",
+          "failed_one": "en nog {{count}} mislukt",
+          "failed_other": "en nog {{count}} mislukt",
+          "done_one": "en nog {{count}} klaar",
+          "done_other": "en nog {{count}} klaar"
+        },
+        "askAgent": "Vraag {{agent}} om de rest."
+      },
+      "group": {
+        "foreach": "Voor elk",
+        "parallel": "Parallel",
+        "run": "Opgeslagen workflow",
+        "workflow": "Geneste workflow",
+        "progress": "{{done}} van {{total}}",
+        "failed": "Mislukt: {{count}}"
+      },
+      "node": {
+        "reused": "Hergebruikt van de vorige run",
+        "queued": "In wachtrij",
+        "mayHaveRun": "Mogelijk uitgevoerd",
+        "waitingOn": {
+          "user": "Wacht op jouw antwoord",
+          "approval": "Wacht op goedkeuring",
+          "peer": "Wacht op een bericht"
+        },
+        "sessionTurns_one": "{{count}} beurt",
+        "sessionTurns_other": "{{count}} beurten",
+        "result": "Resultaat",
+        "error": "Fout",
+        "messages": "Berichten",
+        "messagesTo": "Berichten naar {{name}}: {{count}}",
+        "open": "Openen",
+        "detailsUnavailable": "Details zijn na herladen niet meer beschikbaar.",
+        "stop": "Agent stoppen"
+      }
     },
     "subagents": {
       "title": "Subagenten",
@@ -1548,7 +1681,9 @@
     },
     "actions": {
       "goActivity": "Naar Activiteit",
-      "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht"
+      "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht",
+      "openCurrentRoomMindroomSettings": "MindRoom-kamerinstellingen openen",
+      "openCurrentRoomMindroomSettingsDescription": "MindRoom-instellingen voor {{room}} openen"
     },
     "recentVisits": {
       "recentlyOpened": "Recent geopend",
@@ -1703,8 +1838,7 @@
       "replyAndOthers_one": "{{name}} en {{count}} ander hebben geantwoord",
       "replyAndOthers_other": "{{name}} en {{count}} anderen hebben geantwoord",
       "finished": "{{name}} is klaar",
-      "stopped": "{{name}} is gestopt",
-      "youReplied": "Je hebt gereageerd"
+      "stopped": "{{name}} is gestopt"
     },
     "newCount_one": "{{count}} nieuw",
     "newCount_other": "{{count}} nieuw",
@@ -2045,7 +2179,11 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Afsplitsen & delen",
+    "shareSection": "Delen",
+    "viewSection": "Weergave"
   },
   "roomSchedules": {
     "thisThread": "Deze thread",
@@ -2154,5 +2292,35 @@
   },
   "nav": {
     "usage": "Verbruik"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} kamer",
+      "roomsCount_other": "{{count}} kamers",
+      "roomsFiltered": "{{active}} van {{total}} kamers"
+    },
+    "roomFilter": {
+      "label": "Kamers",
+      "ariaLabel": "Threads filteren op kamer",
+      "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "ariaLabelOne": "Kamers: {{room}}",
+      "search": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers"
+    },
+    "composer": {
+      "postTo": "Plaatsen in:",
+      "postToRoom": "Plaatsen in #{{room}}",
+      "chooseRoomAria": "Kies een kamer om in te plaatsen",
+      "draftPinned": "Concept voor #{{room}}",
+      "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
+    },
+    "loading": "Threads laden...",
+    "empty": {
+      "noRooms": "Neem deel aan een kamer in deze ruimte om hier threads te zien.",
+      "noThreads": "Nog geen threads in deze ruimte."
+    },
+    "error": {
+      "title": "Kon threads van de ruimte niet laden"
+    }
   }
 }

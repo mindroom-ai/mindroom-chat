@@ -403,7 +403,9 @@ test.describe('live issue073 persistent thread navigation', () => {
       await expect(recentlyOpenedCategory).toBeVisible();
       await expect(recentlyOpenedPanel).toBeVisible();
       await expect(
-        page.locator('[data-testid="room-nav-category"] + [data-testid="thread-nav-category"]')
+        page.locator(
+          '[data-testid="room-nav-category"] ~ [data-testid="thread-nav-category"]:last-child'
+        )
       ).toHaveCount(1);
       await expect(
         page.locator(

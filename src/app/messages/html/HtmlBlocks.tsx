@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, type JSX, useContext, useMemo, useState } from 'react';
+import React, { ReactNode, type JSX, use, useContext, useMemo, useRef, useState } from 'react';
 import {
   type DOMNode,
   Element,
@@ -71,6 +71,7 @@ import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { formatWorkDuration } from '../../lib/time';
+import { useRevealOnOpen } from '../../ui/disclosureReveal';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
@@ -142,14 +143,21 @@ function CollapsibleBlock({
 }) {
   const [expanded, setExpanded] = useState(false);
   const glassRef = useGlassHighlight<HTMLDivElement>();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(expanded, toggleRef, bodyRef);
 
   return (
     <Text ref={glassRef} as="div" size="T300" className={css.Block}>
       <button
+        ref={toggleRef}
         type="button"
         className={css.BlockHeader}
         aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          if (!expanded) armReveal();
+          setExpanded((v) => !v);
+        }}
       >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
@@ -164,7 +172,11 @@ function CollapsibleBlock({
           aria-hidden
         />
       </button>
-      {expanded && <Box className={css.BlockBody}>{children}</Box>}
+      {expanded && (
+        <Box ref={bodyRef} className={css.BlockBody}>
+          {children}
+        </Box>
+      )}
     </Text>
   );
 }
@@ -479,7 +491,6 @@ function ToolRefGroupBlock({
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const fold = useContext(ToolCallsFoldContext);
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
   const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
@@ -495,7 +506,8 @@ function ToolRefGroupBlock({
     shown ? undefined : calls.map((tool) => ({ toolName: tool.toolName, state: stateOf(tool) }))
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
-  if (!shown && fold && !fold.open) return null;
+  const fold = shown ? undefined : use(ToolCallsFoldContext);
+  if (fold && !fold.open) return null;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Only a running call shows how long it has run; the line shows the one that started first.
@@ -507,6 +519,7 @@ function ToolRefGroupBlock({
 
   return (
     <ThreadActivity
+      rootRef={fold?.open ? fold.registerRun : undefined}
       icon={
         <ActivityIcon
           src={icon.src}
@@ -587,11 +600,11 @@ function InlineSecretRequestBlock({
 }) {
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const fold = useContext(ToolCallsFoldContext);
   const { eventId, request, agentUserId } = secret;
   const toolName = request.kind === 'key' ? request.displayName : (request.label ?? request.env);
   const roomId = message?.roomId;
-  const hidden = !shown && !!fold && !fold.open;
+  const fold = shown ? undefined : use(ToolCallsFoldContext);
+  const hidden = !!fold && !fold.open;
   const { line, taken, lineRef } = useSecretRequestLine(eventId, !!roomId, hidden);
   useFoldedToolCalls(
     shown || taken ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
@@ -602,6 +615,7 @@ function InlineSecretRequestBlock({
   return (
     <SecretRequestLine
       lineRef={lineRef}
+      rootRef={fold?.open ? fold.registerRun : undefined}
       eventId={eventId}
       request={request}
       roomId={roomId}

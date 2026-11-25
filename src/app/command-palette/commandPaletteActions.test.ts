@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Icons } from 'folds';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { type TFunction } from 'i18next';
 import { translateFromEn } from '../../test/utils/i18n';
 import {
@@ -83,6 +84,7 @@ describe('getCommandPaletteQuickActions', () => {
       'mark-current-room-read': Icons.CheckTwice,
       'copy-current-room-link': Icons.Link,
       'open-current-room-settings': Icons.Setting,
+      'open-current-room-mindroom-settings': MindroomIcon,
       'resolve-current-thread': Icons.Check,
       'page-theme': Icons.Sun,
       'toggle-theme': Icons.Sun,
@@ -99,23 +101,36 @@ describe('getCommandPaletteQuickActions', () => {
     expect(unresolve?.icon).toBe(Icons.Check);
   });
 
-  it('adds room-scoped actions when a room is selected', () => {
+  it('adds room-scoped actions when a room is selected, omitting MindRoom settings for spaces', () => {
+    const roomActions = getCommandPaletteQuickActions({ currentRoomName: 'General' }, t);
+    const ids = roomActions.map((item) => item.id);
+    expect(ids).toContain('mark-current-room-read');
+    expect(ids.indexOf('open-current-room-mindroom-settings')).toBe(
+      ids.indexOf('open-current-room-settings') + 1
+    );
     expect(
-      getCommandPaletteQuickActions(
-        {
-          currentRoomName: 'General',
-        },
-        t
-      ).map((item) => item.id)
-    ).toContain('mark-current-room-read');
-    expect(
-      getCommandPaletteQuickActions(
-        {
-          currentRoomName: 'General',
-        },
-        t
-      ).map((item) => item.id)
-    ).toContain('open-current-room-settings');
+      roomActions.find((item) => item.id === 'open-current-room-mindroom-settings')
+    ).toMatchObject({
+      title: 'Open MindRoom Room Settings',
+      description: 'Open MindRoom settings for General',
+      sortRank: 48,
+      icon: MindroomIcon,
+    });
+    const matched = (query: string) =>
+      matchCommandPaletteSection({
+        items: roomActions,
+        query,
+        config: commandPaletteSearchConfig.actions,
+      }).map(({ item }) => item.id);
+    expect(matched('mindroom')[0]).toBe('open-current-room-mindroom-settings');
+    expect(matched('reply mode')[0]).toBe('open-current-room-mindroom-settings');
+
+    const spaceIds = getCommandPaletteQuickActions(
+      { currentRoomName: 'Workspace', isCurrentRoomSpace: true },
+      t
+    ).map((item) => item.id);
+    expect(spaceIds).toContain('open-current-room-settings');
+    expect(spaceIds).not.toContain('open-current-room-mindroom-settings');
   });
 
   it('switches between resolve and unresolve for the active thread', () => {

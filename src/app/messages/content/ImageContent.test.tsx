@@ -20,15 +20,16 @@ vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
   const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children);
-  const Button = React.forwardRef<
-    HTMLButtonElement,
-    {
-      children?: React.ReactNode;
-      onClick?: () => void;
-    }
-  >(({ children, onClick, ...props }, ref) =>
-    React.createElement('button', { ...props, onClick, ref }, children)
-  );
+  const Button = ({
+    children,
+    onClick,
+    ref,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    onClick?: () => void;
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement('button', { ...props, onClick, ref }, children);
   const Overlay = ({
     backdrop,
     children,
@@ -46,7 +47,10 @@ vi.mock('folds', async (importOriginal) => {
     typeof children === 'function'
       ? React.createElement(React.Fragment, null, children(undefined))
       : React.createElement(React.Fragment, null, children);
-  const as = (component: Parameters<typeof React.forwardRef>[0]) => React.forwardRef(component);
+  const as =
+    (component: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+    ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+      component(props, ref ?? null);
 
   return {
     ...actual,

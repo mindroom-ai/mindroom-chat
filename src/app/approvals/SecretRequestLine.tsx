@@ -1,4 +1,12 @@
-import { useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
@@ -8,6 +16,7 @@ import { formatLifetime } from '../lib/time';
 import { ActivityIcon, type ActivityTone } from '../ui/ThreadActivity';
 import * as activityCss from '../ui/ThreadActivity.css';
 import { IsolatedText } from '../ui/directional';
+import { useRevealOnOpen } from '../ui/disclosureReveal';
 import {
   SecretRequestChip,
   SecretRequestDetails,
@@ -67,6 +76,7 @@ const CLOSED_FOLD =
  */
 export function SecretRequestLine({
   lineRef,
+  rootRef,
   eventId,
   request,
   roomId,
@@ -74,6 +84,8 @@ export function SecretRequestLine({
 }: {
   /** Receives the line's element, for the reply that draws it. */
   lineRef?: RefObject<HTMLDivElement | null>;
+  /** Additional root ref (for example, ToolCallsFold reveal registration). */
+  rootRef?: Ref<HTMLDivElement>;
   /** The card's event, whose row hid. */
   eventId: string;
   request: SecretRequest;
@@ -92,6 +104,23 @@ export function SecretRequestLine({
   // the closed fold of the reply, else to the reply, all in the line's own timeline.
   const ownRef = useRef<HTMLDivElement>(null);
   const line = lineRef ?? ownRef;
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(expanded, toggleRef, cardRef);
+  const setRoot = useCallback(
+    (node: HTMLDivElement | null) => {
+      line.current = node;
+      const cleanup = typeof rootRef === 'function' ? rootRef(node) : undefined;
+      if (rootRef && typeof rootRef !== 'function') rootRef.current = node;
+      return () => {
+        if (typeof cleanup === 'function') cleanup();
+        else if (typeof rootRef === 'function') rootRef(null);
+        else if (rootRef) rootRef.current = null;
+        line.current = null;
+      };
+    },
+    [line, rootRef]
+  );
   useLayoutEffect(() => {
     const node = line.current;
     const timeline = timelineOf(node);
@@ -115,7 +144,7 @@ export function SecretRequestLine({
   return (
     // Keeps the interface's direction in a message that reads the other way (index.css).
     <div
-      ref={line}
+      ref={setRoot}
       className={activityCss.Activity}
       data-message-disclosure=""
       data-secret-request-line={status}
@@ -127,13 +156,17 @@ export function SecretRequestLine({
       )}
     >
       <button
+        ref={toggleRef}
         type="button"
         // Where the focus goes when the card's row goes with it (SecretRequestCard.tsx).
         data-secret-request-for={eventId}
         className={activityCss.Line}
         aria-expanded={expanded}
         aria-controls={expanded ? panelId : undefined}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={() => {
+          if (!expanded) armReveal();
+          setExpanded((value) => !value);
+        }}
       >
         <ActivityIcon src={Icons.Lock} tone={STATUS_TONE[status]} />
         <SecretName request={request} className={activityCss.Title} />
@@ -141,7 +174,7 @@ export function SecretRequestLine({
         <Icon size="50" className={activityCss.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>
       {expanded && (
-        <div id={panelId} className={css.Card} data-secret-request-receipt="">
+        <div ref={cardRef} id={panelId} className={css.Card} data-secret-request-receipt="">
           <div className={css.Header}>
             <Icon size="100" src={Icons.Lock} aria-hidden />
             <SecretName request={request} className={css.HeaderName} />

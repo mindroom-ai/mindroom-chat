@@ -765,9 +765,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             </div>
           ) : (
             <div className={css.TreeRoot}>
-              <JsonTreeContext.Provider value={treeCtx}>
+              <JsonTreeContext value={treeCtx}>
                 <JsonTreeNode value={activeDoc.data} path="" depth={0} hasTrailingComma={false} />
-              </JsonTreeContext.Provider>
+              </JsonTreeContext>
             </div>
           )}
         </PageScroll>

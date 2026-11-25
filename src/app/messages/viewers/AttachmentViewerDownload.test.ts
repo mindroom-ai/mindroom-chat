@@ -11,11 +11,14 @@ const { downloadMediaMock, downloadSidecarMock, saveFileMock } = vi.hoisted(() =
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
-  const container = (tag: string) =>
-    reactModule.forwardRef(
-      ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }, ref) =>
-        reactModule.createElement(tag, { ...props, ref }, children)
-    );
+  const container =
+    (tag: string) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: { children?: React.ReactNode; [key: string]: unknown } & { ref?: React.Ref<unknown> }) =>
+      reactModule.createElement(tag, { ...props, ref }, children);
 
   return {
     Box: container('div'),
@@ -47,8 +50,10 @@ vi.mock('folds', async () => {
     }: {
       children: (triggerRef: React.Ref<unknown>) => React.ReactNode;
     }) => children(null),
-    as: (render: (props: object, ref: React.ForwardedRef<unknown>) => React.ReactNode) =>
-      reactModule.forwardRef((props, ref) => render(props, ref)),
+    as:
+      (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
+      ({ ref, ...props }: { ref?: React.Ref<unknown> } & Record<string, unknown>) =>
+        render(props, ref ?? null),
     config: { space: { S200: '8px' } },
     toRem: (value: number) => `${value / 16}rem`,
   };

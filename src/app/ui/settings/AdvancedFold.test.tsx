@@ -18,11 +18,11 @@ let root: Root;
 const render = (target: SettingsTarget | undefined) =>
   act(() =>
     root.render(
-      <SettingsTargetContext.Provider value={target}>
+      <SettingsTargetContext value={target}>
         <AdvancedFold>
           <p>Message spacing</p>
         </AdvancedFold>
-      </SettingsTargetContext.Provider>
+      </SettingsTargetContext>
     )
   );
 

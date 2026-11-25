@@ -59,10 +59,17 @@ type FocusItemState = {
   scrollTo: boolean;
 };
 
+export type OpenRoomEventOptions = {
+  behavior?: ScrollBehavior;
+  stopInView?: boolean;
+  updateFocus?: boolean;
+};
+
 export type OpenRoomEventHandler = (
   eventId: string,
   highlight?: boolean,
-  onScroll?: (scrolled: boolean) => void
+  onScroll?: (scrolled: boolean) => void,
+  options?: OpenRoomEventOptions
 ) => Promise<void>;
 
 /**
@@ -364,7 +371,7 @@ export const useRoomEventOpenController = ({
   );
 
   const handleOpenEvent = useCallback(
-    async (...[evtId, highlight = true, onScroll, returned]: OpenRoomEventArgs) => {
+    async (...[evtId, highlight = true, onScroll, options, returned]: OpenRoomEventArgs) => {
       if (threadId && evtId !== threadId) {
         // The render index map is authoritative thread membership: events
         // loaded through the MindRoom thread cache may be absent from the SDK
@@ -387,18 +394,22 @@ export const useRoomEventOpenController = ({
           // mounted-target jumps, which otherwise lose to a stale
           // unmounted-target chain still scrolling toward the older target.
           threadJumpGenerationRef.current += 1;
+          const behavior = options?.behavior ?? 'smooth';
+          const stopInView = options?.stopInView ?? true;
           const target = getEventElementById(scrollRef.current, evtId);
-          setFocusItem({
-            eventId: evtId,
-            index: threadItemIndex,
-            scrollTo: false,
-            highlight,
-          });
+          if (options?.updateFocus ?? true) {
+            setFocusItem({
+              eventId: evtId,
+              index: threadItemIndex,
+              scrollTo: false,
+              highlight,
+            });
+          }
           if (target) {
             scrollToElement(target, {
-              behavior: 'smooth',
+              behavior,
               align: 'center',
-              stopInView: true,
+              stopInView,
             });
             if (onScroll) onScroll(true);
             return;
@@ -416,9 +427,9 @@ export const useRoomEventOpenController = ({
               const retryTarget = getEventElementById(scrollRef.current, evtId);
               if (retryTarget) {
                 scrollToElement(retryTarget, {
-                  behavior: 'smooth',
+                  behavior,
                   align: 'center',
-                  stopInView: true,
+                  stopInView,
                 });
                 if (onScroll) onScroll(true);
                 return;
@@ -527,7 +538,7 @@ export const useRoomEventOpenController = ({
   const openRoomEventRoute = useCallback<OpenRoomEventRoute>(
     async (targetEventId, isCurrentRoute, returned) => {
       if (returned) {
-        await handleOpenEvent(targetEventId, true, undefined, true);
+        await handleOpenEvent(targetEventId, true, undefined, undefined, true);
         return;
       }
       if (redirectRoomEventDeepLink(targetEventId)) return;

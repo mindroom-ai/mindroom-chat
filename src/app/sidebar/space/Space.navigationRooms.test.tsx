@@ -6,13 +6,14 @@ import { createStore, Provider } from 'jotai';
 import { RelationType, RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { Space } from './Space';
+import { type RenderedSpaceRoomSection, SpaceRoomSection } from './SpaceRoomSection';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
-import { getSpaceRoomPath } from '../../routes/pathUtils';
+import { getHomeRoomPath, getSpaceRoomPath } from '../../routes/pathUtils';
 
 // Integration tests for Space sidebar navigation: inline collapsible sub-space sections, persisted
 // collapse state, scoped collapsed unread indicators, single shortcut hook, and atomic sort reset.
@@ -118,7 +119,10 @@ const {
       unmounts: new Map<string, number>(),
       renders: new Map<string, number>(),
     },
-    subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
+    subRooms: {
+      renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined,
+      previewPath: undefined as ((roomId: string) => string) | undefined,
+    },
     screen: { size: 'Desktop' },
     selected: { roomId: undefined as string | undefined },
     shortcutCalls: [] as Array<readonly string[]>,
@@ -184,15 +188,17 @@ vi.mock('../../ui/nav/NavItem', () => ({
   NavLink: passthrough,
 }));
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
-  NavCategoryHeader: React.forwardRef<HTMLDivElement, Record<string, unknown>>(
-    function MockNavCategoryHeader({ children, ...props }, ref) {
-      return (
-        <div ref={ref} data-nav-category-header {...props}>
-          {children as React.ReactNode}
-        </div>
-      );
-    }
-  ),
+  NavCategoryHeader: function MockNavCategoryHeader({
+    children,
+    ref,
+    ...props
+  }: Record<string, unknown> & { ref?: React.Ref<HTMLDivElement> }) {
+    return (
+      <div ref={ref} data-nav-category-header {...props}>
+        {children as React.ReactNode}
+      </div>
+    );
+  },
 }));
 vi.mock('../../ui/directional', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/directional')>()),
@@ -223,16 +229,20 @@ vi.mock('../../ui/MenuEntry', () => ({
   ),
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
-  RoomNavCategoryButton: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      closed?: boolean;
-      ownDirection?: boolean;
-      after?: React.ReactNode;
-      children?: React.ReactNode;
-      'data-category-id'?: string;
-    }
-  >(function MockRoomNavCategoryButton({ closed, ownDirection, after, children, ...props }, ref) {
+  RoomNavCategoryButton: function MockRoomNavCategoryButton({
+    closed,
+    ownDirection,
+    after,
+    children,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    closed?: boolean;
+    ownDirection?: boolean;
+    after?: React.ReactNode;
+    children?: React.ReactNode;
+    'data-category-id'?: string;
+  }) {
     const categoryId = props['data-category-id'] ?? '';
     categoryButtonStats.renders.set(
       categoryId,
@@ -263,13 +273,20 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
         {after}
       </button>
     );
-  }),
+  },
 }));
 // The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
-  SubRoomRows: ({ renderRoom }: { renderRoom: (room: unknown) => React.ReactNode }) => {
+  SubRoomRows: ({
+    renderRoom,
+    previewPath,
+  }: {
+    renderRoom: (room: unknown) => React.ReactNode;
+    previewPath: (roomId: string) => string;
+  }) => {
     subRooms.renderRoom = renderRoom;
+    subRooms.previewPath = previewPath;
     return null;
   },
 }));
@@ -1331,5 +1348,153 @@ describe('Space navigation', () => {
         .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
         .map((node) => node.props['data-menu-entry'])
     ).toEqual(['New Room', 'Add Existing Room']);
+  });
+
+  it('supports Home roomPath, showOverview, pinMode, and optional sort.inherit on SpaceRoomSection', () => {
+    const { space, joined, design, designReview } = rooms.ids;
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [space, joined, design, designReview] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        [joined, new Set([space])],
+        [design, new Set([space])],
+        [designReview, new Set([design])],
+      ]),
+    });
+    const closedAtom = makeClosedNavCategoriesAtom('@alice:example.org');
+    const makeSection = (
+      spaceId: string,
+      roomId: string,
+      parentSpaceId?: string
+    ): RenderedSpaceRoomSection => ({
+      spaceId,
+      isRoot: false,
+      parentSpaceId,
+      ancestorSpaceIds: parentSpaceId ? [parentSpaceId] : [],
+      isEmpty: false,
+      categoryId: makeNavCategoryId('home', 'space', spaceId),
+      ownRoomsByName: [roomId],
+      scopeRoomsByName: [roomId],
+      closed: false,
+      tree: { top: [roomId], children: new Map() },
+      orderedTop: [roomId],
+      shownRoomIds: [roomId],
+      listedRoomIds: [roomId],
+      mode: 'name',
+      showTimes: false,
+      inheritFrom: parentSpaceId ? [parentSpaceId] : undefined,
+      sort: {
+        mode: 'name',
+        inherit: parentSpaceId ? { mode: 'name', overridden: false, onReset: vi.fn() } : undefined,
+        showTimes: false,
+        hasSavedOrder: false,
+        onModeChange: vi.fn(),
+        onShowTimesChange: vi.fn(),
+      },
+    });
+
+    const topSection = makeSection(space, joined);
+    const subSection = makeSection(design, designReview, space);
+
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <ClosedNavCategoriesProvider value={closedAtom}>
+            <SpaceRoomSection
+              section={topSection}
+              spaceId={space}
+              spaceIdOrAlias={space}
+              selectedRoomId={undefined}
+              onCategoryClick={vi.fn()}
+              onReorder={vi.fn()}
+              roomPath={getHomeRoomPath}
+              showOverview
+              pinMode={undefined}
+            />
+            <SpaceRoomSection
+              section={subSection}
+              spaceId={design}
+              spaceIdOrAlias={design}
+              selectedRoomId={undefined}
+              onCategoryClick={vi.fn()}
+              onReorder={vi.fn()}
+              roomPath={getHomeRoomPath}
+              showOverview
+              pinMode="toggle"
+            />
+          </ClosedNavCategoriesProvider>
+        </Provider>
+      );
+    });
+
+    // Rows link to /home/<room>, omit spaceId (so actions stay in Home), and keep removeFromSpaceId.
+    expect(
+      rows().map((node) => ({
+        room: node.props['data-row-room'],
+        link: node.props['data-link'],
+        spaceId: node.props['data-space'],
+        removeFromSpaceId: node.props['data-remove-from-space'],
+      }))
+    ).toEqual([
+      { room: joined, link: getHomeRoomPath(joined), spaceId: undefined, removeFromSpaceId: space },
+      {
+        room: designReview,
+        link: getHomeRoomPath(designReview),
+        spaceId: undefined,
+        removeFromSpaceId: design,
+      },
+    ]);
+    expect(subRooms.previewPath?.(designReview)).toBe(getHomeRoomPath(designReview));
+
+    const rect = { x: 0, y: 0, width: 24, height: 24 };
+
+    // Top-level Home space section: shows Space overview, omits Match space and Pin/Unpin.
+    const topOptions = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'garden options'
+    );
+    act(() => {
+      topOptions.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+        nativeEvent: { pointerType: 'mouse' },
+      });
+    });
+    const topPopout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const topRadios = topPopout
+      .findAll((node) => node.props.role === 'menuitemradio')
+      .map((node) => textOf(node));
+    const topEntries = topPopout
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(topRadios.some((label) => label.includes('Match space'))).toBe(false);
+    expect(topEntries).toContain('Space overview');
+    expect(topEntries).not.toContain('Pin to Sidebar');
+    expect(topEntries).not.toContain('Unpin from Sidebar');
+
+    // Sub-space Home section: shows Space overview, Match space, and Pin to Sidebar.
+    const subOptions = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Design Team options'
+    );
+    act(() => {
+      subOptions.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+        nativeEvent: { pointerType: 'mouse' },
+      });
+    });
+    const subPopout = renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    )[1]!;
+    const subRadios = subPopout
+      .findAll((node) => node.props.role === 'menuitemradio')
+      .map((node) => textOf(node));
+    const subEntries = subPopout
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(subRadios.some((label) => label.includes('Match space'))).toBe(true);
+    expect(subEntries).toContain('Space overview');
+    expect(subEntries).toContain('Pin to Sidebar');
   });
 });

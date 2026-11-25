@@ -31,7 +31,7 @@ const mountUpdater = (hidden: boolean, view?: string) => {
   };
   const inView = (hide: boolean) =>
     React.createElement(
-      ConversationViewContext.Provider,
+      ConversationViewContext,
       { value: view },
       React.createElement(Harness, { hide })
     );

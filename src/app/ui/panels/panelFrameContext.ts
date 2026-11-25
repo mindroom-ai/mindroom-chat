@@ -15,5 +15,5 @@ const PanelFrameContext = createContext<PanelFrame | undefined>(undefined);
  * panel with `frame: 'own'` draws its own. A panel outside one has none. Apart from the strip, so
  * the client SDK's `usePanelFrame` loads without it.
  */
-export const PanelFrameProvider = PanelFrameContext.Provider;
+export const PanelFrameProvider = PanelFrameContext;
 export const usePanelFrame = (): PanelFrame | undefined => useContext(PanelFrameContext);

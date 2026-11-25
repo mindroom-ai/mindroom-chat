@@ -459,7 +459,9 @@
         "localMindroom": "Показывать Local MindRoom на боковой панели",
         "localMindroomDescription": "Связывает MindRoom на вашем компьютере. Если скрыть, он остаётся здесь, в настройках, в разделе Local MindRoom.",
         "usage": "Показывать Использование на боковой панели",
-        "usageDescription": "Лимиты провайдеров и расход токенов за 7 дней, как только среда выполнения сообщит о них. Когда скрыто, откройте Использование из меню ⋮ на Главной или в выборе модели."
+        "usageDescription": "Лимиты провайдеров и расход токенов за 7 дней, как только среда выполнения сообщит о них. Когда скрыто, откройте Использование из меню ⋮ на Главной или в выборе модели.",
+        "help": "Показывать «Помощь и руководства» на боковой панели",
+        "helpDescription": "Краткие руководства, тур и сочетания клавиш. Если скрыть, тур можно открыть в настройках в разделе «О приложении» или из палитры команд ({{shortcut}}), а сочетания клавиш — сочетанием {{helpShortcut}}."
       },
       "plugins": {
         "title": "Плагины",
@@ -756,7 +758,12 @@
     },
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",
-      "searchEncrypted": "Недоступно в зашифрованных комнатах"
+      "searchEncrypted": "Недоступно в зашифрованных комнатах",
+      "viewSection": "Вид",
+      "roomSection": "Комната",
+      "preferencesSection": "Параметры",
+      "notificationModeAll": "Все",
+      "notificationModeMentions": "Упоминания"
     },
     "phoneNav": {
       "navigation": "Навигация"
@@ -1092,6 +1099,25 @@
         "payloadLabel": "Полезная нагрузка события JSON",
         "openTriggerLabel": "Показать триггер {{id}}"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "Готова {{count}} задача",
+        "readyCount_few": "Готовы {{count}} задачи",
+        "readyCount_many": "Готово {{count}} задач",
+        "readyCount_other": "Готово {{count}} задач",
+        "hide": "Скрыть",
+        "show": "Показать",
+        "copyId": "Копировать ID задачи {{id}}",
+        "moreItems_one": "+ещё {{count}} задача к выполнению",
+        "moreItems_few": "+ещё {{count}} задачи к выполнению",
+        "moreItems_many": "+ещё {{count}} задач к выполнению",
+        "moreItems_other": "+ещё {{count}} задач к выполнению",
+        "priority": {
+          "critical": "Критическая",
+          "high": "Высокая",
+          "medium": "Средняя",
+          "low": "Низкая"
+        }
+      },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
@@ -1269,7 +1295,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Компактный вид",
-        "threadFiltersActive": "Фильтры веток (активны)"
+        "threadFiltersActive": "Фильтры веток (активны)",
+        "mindroomSettings": "Настройки MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Расширенные фильтры",
@@ -1302,6 +1329,33 @@
         "expandAllLong": "Развернуть все длинные сообщения",
         "collapseAllLong": "Свернуть все длинные сообщения",
         "showFullMessage": "Показать сообщение полностью"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Всё разобрано",
+        "resolvedCount_one": "{{count}} решена",
+        "resolvedCount_few": "{{count}} решены",
+        "resolvedCount_many": "{{count}} решено",
+        "resolvedCount_other": "{{count}} решено",
+        "snoozedCount_one": "{{count}} отложена",
+        "snoozedCount_few": "{{count}} отложены",
+        "snoozedCount_many": "{{count}} отложено",
+        "snoozedCount_other": "{{count}} отложено",
+        "showAll": "Показать все",
+        "startNewThreadBelow": "Начните новую ветку ниже",
+        "recentlyResolved": "Недавно решённые",
+        "noMatchHeading": "Нет веток, подходящих под фильтры",
+        "hiddenByForMe_one": "{{count}} открытая ветка скрыта фильтром «Для меня».",
+        "hiddenByForMe_few": "{{count}} открытые ветки скрыты фильтром «Для меня».",
+        "hiddenByForMe_many": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByForMe_other": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByFilters_one": "{{count}} открытая ветка скрыта вашими фильтрами.",
+        "hiddenByFilters_few": "{{count}} открытые ветки скрыты вашими фильтрами.",
+        "hiddenByFilters_many": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "hiddenByFilters_other": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "adjustOrResetFilters": "Измените или сбросьте фильтры, чтобы увидеть ветки в этой комнате.",
+        "turnOffForMe": "Отключить «Для меня»",
+        "resetAll": "Сбросить все",
+        "resetFilters": "Сбросить фильтры"
       }
     },
     "computer": {
@@ -1330,7 +1384,9 @@
     "backgroundJobs": {
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
+      "awaitingAnswer": "Ждёт вашего ответа: {{tool}}",
       "jobCountFinished": "Завершено фоновых задач: {{count}}",
+      "groupWorkflows": "Рабочие процессы · {{number}}",
       "groupSubagents": "Субагенты · {{number}}",
       "groupTools": "Инструменты · {{number}}",
       "tools_one": "{{count}} инструмент",
@@ -1385,6 +1441,109 @@
       "jobTotalFinished_few": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_many": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_other": "Завершено фоновых задач: {{count}}"
+    },
+    "workflowRun": {
+      "title": "Рабочий процесс",
+      "status": {
+        "starting": "Запуск",
+        "running": "Выполняется",
+        "waiting": "Ждёт вас",
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "cancelled": "Отменено",
+        "interrupted": "Прервано"
+      },
+      "counts": "{{done}} готово, {{running}} выполняется, {{waiting}} ждёт",
+      "reused": "Повторно использовано: {{count}}",
+      "cost": "{{spent}} сейчас, всего около {{projected}}",
+      "costAtLeast": "не менее {{spent}} сейчас",
+      "largeRun": "Крупный запуск",
+      "attempt": "Попытка {{number}}",
+      "stop": "Остановить",
+      "stopping": "Остановка…",
+      "resume": "Продолжить",
+      "runAgain": "Запустить снова",
+      "starting": "Запуск…",
+      "failedCount_one": "{{count}} с ошибкой",
+      "failedCount_few": "{{count}} с ошибкой",
+      "failedCount_many": "{{count}} с ошибкой",
+      "failedCount_other": "{{count}} с ошибкой",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Ответ уже дан.",
+          "noLongerOpen": "Этот вопрос больше не открыт.",
+          "notAnOption": "Это не один из вариантов.",
+          "notForYou": "Ответить может только тот, кто запустил процесс."
+        },
+        "noReply": "Ответа пока нет. Попробуйте снова.",
+        "placeholder": "Введите ответ",
+        "send": "Отправить",
+        "answered": "Ответ: {{answer}}",
+        "cancelled": "Отменено",
+        "onlyRequester": "Ответить может только {{name}}."
+      },
+      "graph": "Граф",
+      "panel": {
+        "close": "Закрыть",
+        "resize": "Изменить размер панели рабочего процесса",
+        "hide": "Скрыть рабочий процесс",
+        "waitingForUpdate": "Ожидание следующего обновления запуска…",
+        "stale": "Нет обновлений. Последнее обновление {{time}}.",
+        "log": "Журнал",
+        "showMore": "Показать ещё {{count}}",
+        "omitted": {
+          "queued_one": "и ещё {{count}} в очереди",
+          "queued_few": "и ещё {{count}} в очереди",
+          "queued_many": "и ещё {{count}} в очереди",
+          "queued_other": "и ещё {{count}} в очереди",
+          "running_one": "и ещё {{count}} выполняется",
+          "running_few": "и ещё {{count}} выполняются",
+          "running_many": "и ещё {{count}} выполняются",
+          "running_other": "и ещё {{count}} выполняются",
+          "waiting_one": "и ещё {{count}} ждёт",
+          "waiting_few": "и ещё {{count}} ждут",
+          "waiting_many": "и ещё {{count}} ждут",
+          "waiting_other": "и ещё {{count}} ждут",
+          "failed_one": "и ещё {{count}} с ошибкой",
+          "failed_few": "и ещё {{count}} с ошибкой",
+          "failed_many": "и ещё {{count}} с ошибкой",
+          "failed_other": "и ещё {{count}} с ошибкой",
+          "done_one": "и ещё {{count}} готово",
+          "done_few": "и ещё {{count}} готово",
+          "done_many": "и ещё {{count}} готово",
+          "done_other": "и ещё {{count}} готово"
+        },
+        "askAgent": "Спросите {{agent}} об остальном."
+      },
+      "group": {
+        "foreach": "Для каждого",
+        "parallel": "Параллельно",
+        "run": "Сохранённый процесс",
+        "workflow": "Вложенный процесс",
+        "progress": "{{done}} из {{total}}",
+        "failed": "С ошибкой: {{count}}"
+      },
+      "node": {
+        "reused": "Использовано из прошлого запуска",
+        "queued": "В очереди",
+        "mayHaveRun": "Возможно, выполнено",
+        "waitingOn": {
+          "user": "Ждёт вашего ответа",
+          "approval": "Ждёт одобрения",
+          "peer": "Ждёт сообщения"
+        },
+        "sessionTurns_one": "{{count}} шаг",
+        "sessionTurns_few": "{{count}} шага",
+        "sessionTurns_many": "{{count}} шагов",
+        "sessionTurns_other": "{{count}} шагов",
+        "result": "Результат",
+        "error": "Ошибка",
+        "messages": "Сообщения",
+        "messagesTo": "Сообщения для {{name}}: {{count}}",
+        "open": "Открыть",
+        "detailsUnavailable": "Подробности больше недоступны после перезагрузки.",
+        "stop": "Остановить агента"
+      }
     },
     "subagents": {
       "title": "Субагенты",
@@ -1642,7 +1801,9 @@
     },
     "actions": {
       "goActivity": "Перейти к активности",
-      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас"
+      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас",
+      "openCurrentRoomMindroomSettings": "Открыть настройки MindRoom комнаты",
+      "openCurrentRoomMindroomSettingsDescription": "Открыть настройки MindRoom для {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Недавно открытые",
@@ -1801,8 +1962,7 @@
       "replyAndOthers_many": "{{name}} и ещё {{count}} участников ответили",
       "replyAndOthers_other": "{{name}} и ещё {{count}} участника ответили",
       "finished": "{{name}}: работа завершена",
-      "stopped": "{{name}}: работа остановлена",
-      "youReplied": "Вы ответили"
+      "stopped": "{{name}}: работа остановлена"
     },
     "newCount_one": "{{count}} новое",
     "newCount_few": "{{count}} новых",
@@ -2175,7 +2335,11 @@
     "done": "Готово"
   },
   "threadActions": {
-    "openBeside": "Открыть во второй колонке"
+    "openBeside": "Открыть во второй колонке",
+    "detailsSection": "Сведения",
+    "forkAndShareSection": "Ответвить и поделиться",
+    "shareSection": "Поделиться",
+    "viewSection": "Вид"
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",
@@ -2284,5 +2448,37 @@
   },
   "nav": {
     "usage": "Использование"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} комната",
+      "roomsCount_few": "{{count}} комнаты",
+      "roomsCount_many": "{{count}} комнат",
+      "roomsCount_other": "{{count}} комнат",
+      "roomsFiltered": "{{active}} из {{total}} комнат"
+    },
+    "roomFilter": {
+      "label": "Комнаты",
+      "ariaLabel": "Фильтровать ветки по комнатам",
+      "ariaLabelActive": "Фильтровать ветки по комнатам (выбрано: {{number}})",
+      "ariaLabelOne": "Комнаты: {{room}}",
+      "search": "Поиск комнат",
+      "noMatch": "Подходящих комнат нет"
+    },
+    "composer": {
+      "postTo": "Отправить в:",
+      "postToRoom": "Отправить в #{{room}}",
+      "chooseRoomAria": "Выберите комнату для отправки",
+      "draftPinned": "Черновик для #{{room}}",
+      "readOnly": "В этом пространстве нет комнат с правом отправки сообщений."
+    },
+    "loading": "Загрузка тредов...",
+    "empty": {
+      "noRooms": "Присоединитесь к комнате в этом пространстве, чтобы видеть треды здесь.",
+      "noThreads": "В этом пространстве пока нет тредов."
+    },
+    "error": {
+      "title": "Не удалось загрузить треды пространства"
+    }
   }
 }

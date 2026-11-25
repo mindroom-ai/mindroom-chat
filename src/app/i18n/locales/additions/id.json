@@ -420,7 +420,9 @@
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal.",
         "usage": "Tampilkan Penggunaan di bilah sisi",
-        "usageDescription": "Batas penggunaan penyedia dan pemakaian token 7 hari setelah runtime melaporkannya. Saat disembunyikan, buka Penggunaan dari menu ⋮ di Beranda atau pemilih model."
+        "usageDescription": "Batas penggunaan penyedia dan pemakaian token 7 hari setelah runtime melaporkannya. Saat disembunyikan, buka Penggunaan dari menu ⋮ di Beranda atau pemilih model.",
+        "help": "Tampilkan Bantuan & panduan di bilah sisi",
+        "helpDescription": "Panduan singkat, tur, dan pintasan keyboard. Saat disembunyikan, buka tur dari Pengaturan di bawah Tentang atau palet perintah ({{shortcut}}), dan pintasan dengan {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugin",
@@ -705,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",
-      "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
+      "searchEncrypted": "Tidak tersedia di ruang terenkripsi",
+      "viewSection": "Tampilan",
+      "roomSection": "Ruang",
+      "preferencesSection": "Preferensi",
+      "notificationModeAll": "Semua",
+      "notificationModeMentions": "Sebutan"
     },
     "phoneNav": {
       "navigation": "Navigasi"
@@ -1035,6 +1042,19 @@
         "payloadLabel": "Payload acara JSON",
         "openTriggerLabel": "Lihat pemicu {{id}}"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} tugas siap",
+        "hide": "Sembunyikan",
+        "show": "Tampilkan",
+        "copyId": "Salin ID tugas {{id}}",
+        "moreItems_other": "+{{count}} item lain yang dapat ditindaklanjuti",
+        "priority": {
+          "critical": "Kritis",
+          "high": "Tinggi",
+          "medium": "Sedang",
+          "low": "Rendah"
+        }
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
@@ -1164,7 +1184,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Tampilan ringkas",
-        "threadFiltersActive": "Filter utas (aktif)"
+        "threadFiltersActive": "Filter utas (aktif)",
+        "mindroomSettings": "Pengaturan MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filter lanjutan",
@@ -1197,6 +1218,21 @@
         "expandAllLong": "Bentangkan semua pesan panjang",
         "collapseAllLong": "Ciutkan semua pesan panjang",
         "showFullMessage": "Tampilkan pesan lengkap"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Semua sudah beres",
+        "resolvedCount_other": "{{count}} selesai",
+        "snoozedCount_other": "{{count}} ditunda",
+        "showAll": "Tampilkan semua",
+        "startNewThreadBelow": "Mulai utas baru di bawah",
+        "recentlyResolved": "Baru diselesaikan",
+        "noMatchHeading": "Tidak ada utas yang cocok dengan filter Anda",
+        "hiddenByForMe_other": "{{count}} utas terbuka disembunyikan oleh Untuk saya.",
+        "hiddenByFilters_other": "{{count}} utas terbuka disembunyikan oleh filter Anda.",
+        "adjustOrResetFilters": "Sesuaikan atau atur ulang filter Anda untuk melihat utas di ruang ini.",
+        "turnOffForMe": "Matikan Untuk saya",
+        "resetAll": "Atur ulang semua",
+        "resetFilters": "Atur ulang filter"
       }
     },
     "computer": {
@@ -1225,7 +1261,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
+      "awaitingAnswer": "Menunggu jawaban Anda: {{tool}}",
       "jobCountFinished": "{{count}} tugas latar belakang selesai",
+      "groupWorkflows": "Alur kerja · {{number}}",
       "groupSubagents": "Subagen · {{number}}",
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
@@ -1265,6 +1303,88 @@
       },
       "jobTotal_other": "{{count}} tugas latar belakang",
       "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
+    },
+    "workflowRun": {
+      "title": "Alur kerja",
+      "status": {
+        "starting": "Memulai",
+        "running": "Berjalan",
+        "waiting": "Menunggu Anda",
+        "completed": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dibatalkan",
+        "interrupted": "Terhenti"
+      },
+      "counts": "{{done}} selesai, {{running}} berjalan, {{waiting}} menunggu",
+      "reused": "Digunakan kembali: {{count}}",
+      "cost": "{{spent}} sejauh ini, sekitar {{projected}} total",
+      "costAtLeast": "setidaknya {{spent}} sejauh ini",
+      "largeRun": "Eksekusi besar",
+      "attempt": "Percobaan {{number}}",
+      "stop": "Hentikan",
+      "stopping": "Menghentikan…",
+      "resume": "Lanjutkan",
+      "runAgain": "Jalankan lagi",
+      "starting": "Memulai…",
+      "failedCount_other": "{{count}} gagal",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Sudah dijawab.",
+          "noLongerOpen": "Pertanyaan ini tidak lagi terbuka.",
+          "notAnOption": "Itu bukan salah satu pilihan.",
+          "notForYou": "Hanya orang yang memulai eksekusi yang dapat menjawab."
+        },
+        "noReply": "Belum ada balasan. Coba lagi.",
+        "placeholder": "Ketik jawaban Anda",
+        "send": "Kirim",
+        "answered": "Dijawab: {{answer}}",
+        "cancelled": "Dibatalkan",
+        "onlyRequester": "Hanya {{name}} yang dapat menjawab."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Tutup",
+        "resize": "Ubah ukuran panel alur kerja",
+        "hide": "Sembunyikan alur kerja",
+        "waitingForUpdate": "Menunggu pembaruan berikutnya dari eksekusi…",
+        "stale": "Tidak diperbarui. Pembaruan terakhir {{time}}.",
+        "log": "Log",
+        "showMore": "Tampilkan {{count}} lagi",
+        "omitted": {
+          "queued_other": "dan {{count}} lagi dalam antrean",
+          "running_other": "dan {{count}} lagi berjalan",
+          "waiting_other": "dan {{count}} lagi menunggu",
+          "failed_other": "dan {{count}} lagi gagal",
+          "done_other": "dan {{count}} lagi selesai"
+        },
+        "askAgent": "Tanyakan sisanya kepada {{agent}}."
+      },
+      "group": {
+        "foreach": "Untuk setiap",
+        "parallel": "Paralel",
+        "run": "Alur kerja tersimpan",
+        "workflow": "Alur kerja bersarang",
+        "progress": "{{done}} dari {{total}}",
+        "failed": "Gagal: {{count}}"
+      },
+      "node": {
+        "reused": "Digunakan kembali dari eksekusi terakhir",
+        "queued": "Dalam antrean",
+        "mayHaveRun": "Mungkin sudah berjalan",
+        "waitingOn": {
+          "user": "Menunggu jawaban Anda",
+          "approval": "Menunggu persetujuan",
+          "peer": "Menunggu pesan"
+        },
+        "sessionTurns_other": "{{count}} giliran",
+        "result": "Hasil",
+        "error": "Kesalahan",
+        "messages": "Pesan",
+        "messagesTo": "Pesan ke {{name}}: {{count}}",
+        "open": "Buka",
+        "detailsUnavailable": "Detail tidak lagi tersedia setelah muat ulang.",
+        "stop": "Hentikan agen"
+      }
     },
     "subagents": {
       "title": "Subagen",
@@ -1501,7 +1621,9 @@
     },
     "actions": {
       "goActivity": "Ke Aktivitas",
-      "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda"
+      "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda",
+      "openCurrentRoomMindroomSettings": "Buka pengaturan MindRoom ruang",
+      "openCurrentRoomMindroomSettingsDescription": "Buka pengaturan MindRoom untuk {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Baru dibuka",
@@ -1654,8 +1776,7 @@
       "replyAndOther": "{{name}} dan {{other}} membalas",
       "replyAndOthers_other": "{{name}} dan {{count}} lainnya membalas",
       "finished": "{{name}} selesai",
-      "stopped": "{{name}} berhenti",
-      "youReplied": "Anda membalas"
+      "stopped": "{{name}} berhenti"
     },
     "newCount_other": "{{count}} baru",
     "runMinutes_other": "{{count}} mnt",
@@ -1980,7 +2101,11 @@
     "done": "Selesai"
   },
   "threadActions": {
-    "openBeside": "Buka di kolom kedua"
+    "openBeside": "Buka di kolom kedua",
+    "detailsSection": "Detail",
+    "forkAndShareSection": "Cabangkan & Bagikan",
+    "shareSection": "Bagikan",
+    "viewSection": "Tampilan"
   },
   "roomSchedules": {
     "thisThread": "Utas ini",
@@ -2089,5 +2214,34 @@
   },
   "nav": {
     "usage": "Penggunaan"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} ruang",
+      "roomsFiltered": "{{active}} dari {{total}} ruang"
+    },
+    "roomFilter": {
+      "label": "Ruang",
+      "ariaLabel": "Filter utas menurut ruang",
+      "ariaLabelActive": "Filter utas menurut ruang ({{number}} dipilih)",
+      "ariaLabelOne": "Ruang: {{room}}",
+      "search": "Cari ruang",
+      "noMatch": "Tidak ada ruang yang cocok"
+    },
+    "composer": {
+      "postTo": "Kirim ke:",
+      "postToRoom": "Kirim ke #{{room}}",
+      "chooseRoomAria": "Pilih ruang tujuan kirim",
+      "draftPinned": "Draf untuk #{{room}}",
+      "readOnly": "Tidak ada ruang di space ini yang mengizinkan pengiriman."
+    },
+    "loading": "Memuat utas...",
+    "empty": {
+      "noRooms": "Bergabunglah dengan ruang di space ini untuk melihat utas di sini.",
+      "noThreads": "Belum ada utas di space ini."
+    },
+    "error": {
+      "title": "Tidak dapat memuat utas space"
+    }
   }
 }

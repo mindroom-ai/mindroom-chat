@@ -1,6 +1,15 @@
-import { ReactNode, useCallback, useContext, useMemo, useState } from 'react';
+import {
+  ReactNode,
+  type RefObject,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
+import { useRevealOnOpen, useRevealTargets } from '../../ui/disclosureReveal';
 import { useToolCallsShown } from '../toolCallVisibility';
 import {
   type FoldedToolCall,
@@ -19,14 +28,19 @@ const sameCalls = (a: readonly FoldedToolCall[], b: readonly FoldedToolCall[]) =
   a.length === b.length &&
   a.every((call, index) => call.toolName === b[index]?.toolName && call.state === b[index]?.state);
 
-type CogProps = { calls: readonly FoldedToolCall[]; open: boolean; onToggle: () => void };
+type CogProps = {
+  calls: readonly FoldedToolCall[];
+  open: boolean;
+  onToggle: () => void;
+  cogRef: RefObject<HTMLButtonElement | null>;
+};
 
 // The outer edge of folds' Setting icon, which the comet and the ripple follow.
 const GEAR_OUTLINE =
   'M9.00001 2H15V4.58152C15.6948 4.86278 16.3411 5.23882 16.9229 5.69361L19.1603 4.40186L22.1603 9.59801L19.9235 10.8894C19.9739 11.2524 20 11.6231 20 12C20 12.3768 19.9739 12.7475 19.9235 13.1105L22.1603 14.4019L19.1603 19.598L16.923 18.3063C16.3412 18.7611 15.6949 19.1372 15 19.4185V22H9.00001V19.4185C8.30516 19.1372 7.65881 18.7612 7.07702 18.3063L4.83978 19.598L1.83978 14.4019L4.07646 13.1105C4.02605 12.7476 4 12.3768 4 12C4 11.6231 4.02606 11.2524 4.07647 10.8894L1.83978 9.59801L4.83978 4.40186L7.07712 5.69358C7.65889 5.2388 8.3052 4.86276 9.00001 4.58151V2Z';
 
 /** The cog: the number of the reply's calls, named by what they did, as a run's line is. */
-function Cog({ calls, open, onToggle }: CogProps) {
+function Cog({ calls, open, onToggle, cogRef }: CogProps) {
   const { t } = useTranslation();
   // Each click sheds a ripple: the count keys it, so a new one starts while the last one fades.
   const [ripples, setRipples] = useState(0);
@@ -61,6 +75,7 @@ function Cog({ calls, open, onToggle }: CogProps) {
       data-state={summary.state}
     >
       <button
+        ref={cogRef}
         type="button"
         className={css.Cog}
         aria-expanded={open}
@@ -120,16 +135,24 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
         : { ...current, [key]: calls };
     });
   }, []);
-  const fold = useMemo(() => ({ open, report }), [open, report]);
-  const toggle = useCallback(() => setOpen((value) => !value), []);
+  const cogRef = useRef<HTMLButtonElement>(null);
+  const { register: registerRun, getTargets } = useRevealTargets();
+  const armReveal = useRevealOnOpen(open, cogRef, getTargets);
+  const fold = useMemo(() => ({ open, report, registerRun }), [open, report, registerRun]);
+  const toggle = useCallback(() => {
+    if (!open) armReveal();
+    setOpen(!open);
+  }, [armReveal, open]);
 
   const calls = Object.values(runs).flat();
   const cog =
-    !shown && calls.length > 0 ? <Cog calls={calls} open={open} onToggle={toggle} /> : null;
+    !shown && calls.length > 0 ? (
+      <Cog calls={calls} open={open} onToggle={toggle} cogRef={cogRef} />
+    ) : null;
 
   return (
-    <ToolCallsFoldContext.Provider value={fold}>
-      <ToolCallsCogContext.Provider value={cog}>{children}</ToolCallsCogContext.Provider>
-    </ToolCallsFoldContext.Provider>
+    <ToolCallsFoldContext value={fold}>
+      <ToolCallsCogContext value={cog}>{children}</ToolCallsCogContext>
+    </ToolCallsFoldContext>
   );
 }

@@ -6,6 +6,7 @@ import {
   getAppliedEdit,
   installEventContentGuard,
   isTrustedAgentSender,
+  isUsableEdit,
   sanitizeContent,
   sanitizeRelation,
   trustAgentsOfViewer,
@@ -291,5 +292,105 @@ describe('installEventContentGuard', () => {
     });
     expect(message.getContent()).toBe(message.getContent());
     expect(message.getWireContent()).toBe(message.getWireContent());
+  });
+
+  it('checks edit usability without restoring tool markers', async () => {
+    let htmlReads = 0;
+    const newContent: Record<string, unknown> = {
+      msgtype: 'm.text',
+      body: 'Found it.',
+      'io.mindroom.tool_trace': {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 0, at: 0 }],
+      },
+    };
+    Object.defineProperty(newContent, 'formatted_body', {
+      enumerable: true,
+      get() {
+        htmlReads += 1;
+        return '<p>Found it.</p>\n';
+      },
+    });
+    const agentEdit = event(
+      AGENT,
+      {
+        msgtype: 'm.text',
+        body: '* Found it.',
+        'm.new_content': newContent,
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      '$agent-edit'
+    );
+    expect(isUsableEdit(agentEdit)).toBe(true);
+    expect(htmlReads).toBe(0);
+    // Reading full content still restores markers as usual.
+    expect((agentEdit.getContent()['m.new_content'] as Record<string, unknown>).body).toContain(
+      '🔧 `shell` [1]'
+    );
+    expect(htmlReads).toBeGreaterThan(0);
+
+    // Redacted edits are unusable.
+    const redactedEdit = event(
+      PERSON,
+      {
+        msgtype: 'm.text',
+        body: '* gone',
+        'm.new_content': { msgtype: 'm.text', body: 'gone' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      '$redacted-edit'
+    );
+    redactedEdit.makeRedacted(
+      new MatrixEvent({ type: 'm.room.redaction', redacts: '$redacted-edit' }),
+      { getUnfilteredTimelineSet: () => undefined } as never
+    );
+    expect(isUsableEdit(redactedEdit)).toBe(false);
+
+    // Encrypted edit: usable before decryption, unusable on failure, usable once decrypted.
+    const encrypted = new MatrixEvent({
+      type: 'm.room.encrypted',
+      room_id: '!room:example.org',
+      event_id: '$enc-edit',
+      sender: PERSON,
+      origin_server_ts: 2,
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'opaque',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+    });
+    expect(isUsableEdit(encrypted)).toBe(true);
+    await encrypted.attemptDecryption({
+      decryptEvent: () =>
+        Promise.reject(
+          new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key')
+        ),
+    } as never);
+    expect(isUsableEdit(encrypted)).toBe(false);
+    await encrypted.attemptDecryption(
+      {
+        decryptEvent: () =>
+          Promise.resolve({
+            clearEvent: {
+              type: 'm.room.message',
+              content: {
+                msgtype: 'm.text',
+                body: '* decrypted',
+                'm.new_content': { msgtype: 'm.text', body: 'decrypted' },
+              },
+            },
+          }),
+      } as never,
+      { isRetry: true }
+    );
+    expect(isUsableEdit(encrypted)).toBe(true);
+
+    // Custom stand-in falls back to getContent().
+    const customEdit = {
+      getContent: () => ({ 'm.new_content': { body: 'mocked' } }),
+      isEncrypted: () => false,
+      getClearContent: () => null,
+    } as unknown as MatrixEvent;
+    expect(isUsableEdit(customEdit)).toBe(true);
   });
 });

@@ -43,3 +43,14 @@ export const makeSpaceOrderAtom = (userId: string): SpaceOrderAtom => {
     }
   );
 };
+
+// One local order atom per account, made once, so the rail and Home share live reorders.
+const spaceOrderAtoms = new Map<string, SpaceOrderAtom>();
+export const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
+  let orderAtom = spaceOrderAtoms.get(userId);
+  if (!orderAtom) {
+    orderAtom = makeSpaceOrderAtom(userId);
+    spaceOrderAtoms.set(userId, orderAtom);
+  }
+  return orderAtom;
+};

@@ -15,6 +15,24 @@ import globals from 'globals';
 export const LINTED_FILES = ['**/*.{ts,tsx,js,jsx,mjs,cjs}'];
 export const RESOLVER_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
+/** Runtime-specific global sets from `globals` for explicit `files` entries. */
+export const RUNTIME_GLOBALS = {
+  browser: {
+    ...globals.browser,
+    // Turn off common-word globals@17 browser names so stray undeclared uses fail `no-undef`.
+    model: 'off',
+    when: 'off',
+    ai: 'off',
+    navigation: 'off',
+    viewport: 'off',
+    scheduler: 'off',
+    fence: 'off',
+  },
+  node: globals.node,
+  audioWorklet: globals.audioWorklet,
+  serviceworker: globals.serviceworker,
+};
+
 // eslint-plugin-react 7.37.5 still calls RuleContext/SourceCode methods removed in ESLint 10.
 const compatReactPlugin = fixupPluginRules(reactPlugin);
 
@@ -112,11 +130,7 @@ export const createCommonConfigs = ({
       ecmaVersion: 'latest',
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: {
-        ...globals.browser,
-        ...globals.es2021,
-        ...globals.node,
-      },
+      globals: globals.es2021,
     },
     plugins: {
       // Registered as `import` so existing rule IDs (`import/no-restricted-paths`) and
@@ -130,6 +144,20 @@ export const createCommonConfigs = ({
       'import-x/resolver-next': [resolver],
     },
     rules: COMMON_RULES,
+  },
+  {
+    // TypeScript checks undefined identifiers via tsconfig (`lib: DOM` + `types: node`) and
+    // @typescript-eslint/eslint-recommended disables `no-undef` on .ts/.tsx; keeping both
+    // read-only browser and Node globals here ensures `no-global-assign` still catches
+    // mutations of globals visible to TypeScript (`window`, `document`, `process`).
+    name: 'mindroom/ts-globals',
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
   },
 ];
 

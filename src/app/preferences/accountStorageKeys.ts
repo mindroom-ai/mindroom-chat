@@ -35,6 +35,9 @@ export const callTranscriptWidthStorageKey = (userId: string): string =>
 export const subagentsWidthStorageKey = (userId: string): string =>
   `mindroom.subagents.width:${userId}`;
 
+export const workflowRunWidthStorageKey = (userId: string): string =>
+  `mindroom.workflowRun.width:${userId}`;
+
 /** The second thread shown beside the open one, by room (`{ [roomId]: threadId }`), and its width. */
 export const secondThreadStorageKey = (userId: string): string => `mindroom.secondThread:${userId}`;
 export const secondThreadWidthStorageKey = (userId: string): string =>
@@ -67,6 +70,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   computerWidthStorageKey(userId),
   callTranscriptWidthStorageKey(userId),
   subagentsWidthStorageKey(userId),
+  workflowRunWidthStorageKey(userId),
   secondThreadStorageKey(userId),
   secondThreadWidthStorageKey(userId),
   modelCatalogStorageKey(userId),

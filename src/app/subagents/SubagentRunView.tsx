@@ -199,7 +199,7 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
             <div className={css.Reply} data-subagent-transcript="">
               {/* Its running calls show how long they have run while the turn is at it; an
                   ended turn's call that never completed has no clock to grow on. */}
-              <ToolCallClockContext.Provider value={working ? now : undefined}>
+              <ToolCallClockContext value={working ? now : undefined}>
                 <RenderMessageContent
                   msgType="m.text"
                   displayName={agent.name}
@@ -210,7 +210,7 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
                   htmlReactParserOptions={parserOptions}
                   linkifyOpts={LINKIFY_OPTS}
                 />
-              </ToolCallClockContext.Provider>
+              </ToolCallClockContext>
             </div>
           )}
           {failed && docs.md !== meta.result && (

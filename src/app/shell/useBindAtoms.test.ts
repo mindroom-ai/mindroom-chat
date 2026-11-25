@@ -5,6 +5,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useBindSubagentFrames } from '../messages/live/bindSubagentFrames';
+import { useBindWorkflowFrames } from '../messages/live/bindWorkflowFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useProviderUsageControllerLifetime } from '../usage/useProviderUsage';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
@@ -32,6 +33,7 @@ vi.mock('../matrix/state/typingMembers', () => ({
 }));
 vi.mock('../messages/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
 vi.mock('../messages/live/bindSubagentFrames', () => ({ useBindSubagentFrames: vi.fn() }));
+vi.mock('../messages/live/bindWorkflowFrames', () => ({ useBindWorkflowFrames: vi.fn() }));
 vi.mock('../models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../usage/useProviderUsage', () => ({ useProviderUsageControllerLifetime: vi.fn() }));
 vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
@@ -56,6 +58,7 @@ describe('useBindAtoms', () => {
 
     expect(useBindLiveReplyFrames).toHaveBeenCalledWith(client);
     expect(useBindSubagentFrames).toHaveBeenCalledWith(client);
+    expect(useBindWorkflowFrames).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   deriveTimelineMinimapItems,
   resolveTimelineMinimapHeightStyle,
@@ -164,6 +164,25 @@ describe('deriveTimelineMinimapItems', () => {
     ]);
 
     expect(items).toEqual([{ id: '$u1', userText: 'question', agentText: 'the answer' }]);
+  });
+
+  it('scans backwards per turn without reading intermediate agent content', () => {
+    const skippedGetContent = vi.fn(() => ({ msgtype: 'm.text', body: 'intermediate reply' }));
+    const intermediate: TimelineMinimapEvent = {
+      getId: () => '$a1',
+      getType: () => 'm.room.message',
+      getSender: () => '@mindroom_assistant:server',
+      getContent: skippedGetContent,
+    };
+
+    const items = deriveTimelineMinimapItems([
+      userMessage('$u1', 'question'),
+      intermediate,
+      agentMessage('$a2', 'final reply'),
+    ]);
+
+    expect(items).toEqual([{ id: '$u1', userText: 'question', agentText: 'final reply' }]);
+    expect(skippedGetContent).not.toHaveBeenCalled();
   });
 
   it('does not pair an agent reply across a redacted question', () => {

@@ -16,11 +16,11 @@ describe('ModalLayer in a pop-out that opened it', () => {
     const show = vi.fn();
     const hide = vi.fn(() => show);
     const layer = (open: boolean) => (
-      <DialogOpenerContext.Provider value={hide}>
+      <DialogOpenerContext value={hide}>
         <ModalLayer open={open} onClose={vi.fn()}>
           <div role="dialog">Details</div>
         </ModalLayer>
-      </DialogOpenerContext.Provider>
+      </DialogOpenerContext>
     );
 
     const { rerender, unmount } = render(layer(false));

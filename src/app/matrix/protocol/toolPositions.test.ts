@@ -121,6 +121,58 @@ describe('tool positions', () => {
     expect(restored.body).toBe(`Let me check.\n\n${ONE}\n\nFound it.\n\n${TWO}`);
   });
 
+  it('preserves call order across ties at start, middle, and end', () => {
+    const events = [
+      { type: 'tool_call_completed', tool_name: 'first', body_line: 0, at: 0 },
+      { type: 'tool_call_started', tool_name: 'second', body_line: 0, at: 0 },
+      { type: 'tool_call_completed', tool_name: 'invalid_end', body_line: 99, at: 99 },
+      { type: 'tool_call_completed', tool_name: 'mid_a', body_line: 1, at: 1 },
+      { type: 'tool_call_completed', tool_name: 'mid_b', body_line: 1, at: 1 },
+      { type: 'tool_call_completed', tool_name: 'valid_end', body_line: 2, at: 2 },
+    ];
+    const restored = withToolMarkersRestored({
+      body: 'Line 1\nLine 2',
+      formatted_body: '<p>Line 1</p>\n<p>Line 2</p>\n',
+      [TRACE]: { version: 3, events },
+    });
+    expect(restored.body).toBe(
+      [
+        '🔧 `first` [1]',
+        '',
+        '🔧 `second` [2] ⏳',
+        '',
+        'Line 1',
+        '🔧 `mid_a` [4]',
+        '',
+        '🔧 `mid_b` [5]',
+        '',
+        'Line 2',
+        '',
+        '🔧 `invalid_end` [3]',
+        '',
+        '🔧 `valid_end` [6]',
+      ].join('\n')
+    );
+    expect(restored.formatted_body).toBe(
+      '<p>🔧 <code>first</code> [1]</p>\n' +
+        '<p>🔧 <code>second</code> [2] ⏳</p>\n' +
+        '<p>Line 1</p>\n' +
+        '<p>🔧 <code>mid_a</code> [4]</p>\n' +
+        '<p>🔧 <code>mid_b</code> [5]</p>\n' +
+        '<p>Line 2</p>\n' +
+        '<p>🔧 <code>invalid_end</code> [3]</p>\n' +
+        '<p>🔧 <code>valid_end</code> [6]</p>\n'
+    );
+  });
+
+  it('finds block starts for plain text without tags and trailing text after tags', () => {
+    expect(htmlBlockStarts('')).toEqual([]);
+    expect(htmlBlockStarts('   \t\n\r\f  ')).toEqual([]);
+    expect(htmlBlockStarts('  plain text')).toEqual([2]);
+    expect(htmlBlockStarts('<p>a</p>')).toEqual([0]);
+    expect(htmlBlockStarts('<p>a</p> tail')).toEqual([0, 9]);
+  });
+
   it('draws no line for a call without a position, whose marker the text never showed', () => {
     const content = wireContent(between);
     content[TRACE].events = content[TRACE].events.map((event, index) => {

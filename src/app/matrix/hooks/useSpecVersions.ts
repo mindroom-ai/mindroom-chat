@@ -10,7 +10,7 @@ const serverVersionsContext = createContext<SpecVersions | undefined>(undefined)
 
 const NO_VERSIONS: SpecVersions = { versions: [] };
 
-export const SpecVersionsProvider = serverVersionsContext.Provider;
+export const SpecVersionsProvider = serverVersionsContext;
 
 /** Reads the loaded versions; a component outside `SpecVersionsProvider` sees no versions. */
 export function useSpecVersions(): SpecVersions {

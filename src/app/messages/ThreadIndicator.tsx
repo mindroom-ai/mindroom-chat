@@ -1,4 +1,4 @@
-import React, { forwardRef, type ComponentPropsWithoutRef } from 'react';
+import React, { type ComponentPropsWithoutRef, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { EventTimelineSet, Room } from 'matrix-js-sdk';
@@ -35,6 +35,7 @@ type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'>
   threadTitle?: string;
   /** Set while the thread is unread: the chip takes the accent and reads "New". */
   unread?: ThreadIndicatorUnread;
+  ref?: Ref<HTMLElement>;
 };
 
 const resolveReplyCount = (
@@ -80,110 +81,98 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
  * With `threadTitle`, the title wraps and the metadata follows it after a dot, as a single inline
  * group.
  */
-export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
-  function ThreadIndicator(
-    {
-      threadReplyCount,
-      threadParticipantIds,
-      threadRootId,
-      timelineSet,
-      isResolved,
-      unread,
-      threadTitle,
-      room,
-      className,
-      as: tag = 'div',
-      ...rest
-    },
-    ref
-  ) {
-    const { t } = useTranslation();
+export function ThreadIndicator({
+  threadReplyCount,
+  threadParticipantIds,
+  threadRootId,
+  timelineSet,
+  isResolved,
+  unread,
+  threadTitle,
+  room,
+  className,
+  as: tag = 'div',
+  ref,
+  ...rest
+}: ThreadIndicatorProps) {
+  const { t } = useTranslation();
 
-    let replyCount = threadReplyCount;
-    if (replyCount === undefined && threadRootId) {
-      replyCount = resolveReplyCount(room, threadRootId, timelineSet);
-    }
-    const counted = replyCount !== undefined;
-    const replies = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
-    const label = unread
-      ? t('thread.newAndReplies', { news: t('thread.newUnknown'), replies })
-      : replies;
-    // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".
-    const iconLabel = counted
-      ? { role: 'img', 'aria-label': t('thread.chip') }
-      : { 'aria-hidden': true as const };
-    const participants = threadParticipantIds?.slice(0, MAX_PARTICIPANTS) ?? [];
-
-    const ownProps = {
-      // A button inside a form must never submit it.
-      ...(tag === 'button' ? { type: 'button' as const } : undefined),
-      ...rest,
-      ref,
-      className: classNames(
-        css.ThreadIndicator,
-        threadTitle && css.ThreadIndicatorTitled,
-        isResolved ? css.ThreadIndicatorResolved : undefined,
-        unread ? css.ThreadIndicatorUnread : undefined,
-        className
-      ),
-    };
-
-    const metadata = (
-      <>
-        <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
-          {label}
-        </Text>
-        {participants.length > 0 && (
-          <span className={css.ThreadParticipants} aria-hidden="true">
-            {participants.map((userId) => (
-              <ParticipantAvatar key={userId} room={room} userId={userId} />
-            ))}
-          </span>
-        )}
-        {unread?.mentionsMe && (
-          <Badge
-            className={css.ThreadMentionPill}
-            variant="Primary"
-            fill="Solid"
-            radii="Pill"
-            size="200"
-            role="img"
-            aria-label={t('thread.mentionsYou')}
-          >
-            <Text as="span" size="L400" aria-hidden="true">
-              @
-            </Text>
-          </Badge>
-        )}
-        {isResolved && (
-          <Icon
-            size="50"
-            src={Icons.Check}
-            aria-label={t('thread.aria.resolvedThread')}
-            role="img"
-          />
-        )}
-      </>
-    );
-    return React.createElement(
-      tag,
-      ownProps,
-      <Icon size="50" src={Icons.Thread} {...iconLabel} />,
-      threadTitle ? (
-        <span className={css.ThreadIndicatorBody} dir="auto">
-          <span className={css.ThreadIndicatorTitle}>{threadTitle}</span>
-          {/* A dot parts the title from the count; the no-break space keeps it on the title's line. */}
-          <span aria-hidden="true">{'\u00a0'}·</span>{' '}
-          <bdi
-            className={css.ThreadIndicatorMetadata}
-            dir={documentIsRightToLeft() ? 'rtl' : 'ltr'}
-          >
-            {metadata}
-          </bdi>
-        </span>
-      ) : (
-        metadata
-      )
-    );
+  let replyCount = threadReplyCount;
+  if (replyCount === undefined && threadRootId) {
+    replyCount = resolveReplyCount(room, threadRootId, timelineSet);
   }
-);
+  const counted = replyCount !== undefined;
+  const replies = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
+  const label = unread
+    ? t('thread.newAndReplies', { news: t('thread.newUnknown'), replies })
+    : replies;
+  // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".
+  const iconLabel = counted
+    ? { role: 'img', 'aria-label': t('thread.chip') }
+    : { 'aria-hidden': true as const };
+  const participants = threadParticipantIds?.slice(0, MAX_PARTICIPANTS) ?? [];
+
+  const ownProps = {
+    // A button inside a form must never submit it.
+    ...(tag === 'button' ? { type: 'button' as const } : undefined),
+    ...rest,
+    ref,
+    className: classNames(
+      css.ThreadIndicator,
+      threadTitle && css.ThreadIndicatorTitled,
+      isResolved ? css.ThreadIndicatorResolved : undefined,
+      unread ? css.ThreadIndicatorUnread : undefined,
+      className
+    ),
+  };
+
+  const metadata = (
+    <>
+      <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
+        {label}
+      </Text>
+      {participants.length > 0 && (
+        <span className={css.ThreadParticipants} aria-hidden="true">
+          {participants.map((userId) => (
+            <ParticipantAvatar key={userId} room={room} userId={userId} />
+          ))}
+        </span>
+      )}
+      {unread?.mentionsMe && (
+        <Badge
+          className={css.ThreadMentionPill}
+          variant="Primary"
+          fill="Solid"
+          radii="Pill"
+          size="200"
+          role="img"
+          aria-label={t('thread.mentionsYou')}
+        >
+          <Text as="span" size="L400" aria-hidden="true">
+            @
+          </Text>
+        </Badge>
+      )}
+      {isResolved && (
+        <Icon size="50" src={Icons.Check} aria-label={t('thread.aria.resolvedThread')} role="img" />
+      )}
+    </>
+  );
+  return React.createElement(
+    tag,
+    ownProps,
+    <Icon size="50" src={Icons.Thread} {...iconLabel} />,
+    threadTitle ? (
+      <span className={css.ThreadIndicatorBody} dir="auto">
+        <span className={css.ThreadIndicatorTitle}>{threadTitle}</span>
+        {/* A dot parts the title from the count; the no-break space keeps it on the title's line. */}
+        <span aria-hidden="true">{'\u00a0'}·</span>{' '}
+        <bdi className={css.ThreadIndicatorMetadata} dir={documentIsRightToLeft() ? 'rtl' : 'ltr'}>
+          {metadata}
+        </bdi>
+      </span>
+    ) : (
+      metadata
+    )
+  );
+}

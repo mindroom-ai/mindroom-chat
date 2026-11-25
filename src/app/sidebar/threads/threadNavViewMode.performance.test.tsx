@@ -154,11 +154,18 @@ describe('a sidebar of many thread entries', () => {
     expect(memberScans).toBe(0);
   });
 
-  it('scans a room again after a membership change in it and follows an agent joining', () => {
+  it('ignores non-agent membership events and scans once when an agent joins', () => {
     const roomId = roomOf(7);
     const room = rooms.get(roomId);
     if (!room) throw new Error('missing room');
     memberScans = 0;
+
+    act(() => {
+      const human = { roomId, userId: '@person999:example.org', membership: 'join' };
+      room.members[human.userId] = human;
+      client.emit(RoomMemberEvent.Membership, {}, human, undefined);
+    });
+    expect(memberScans).toBe(0);
 
     act(() => {
       room.members[AGENT] = { roomId, userId: AGENT, membership: 'join' };

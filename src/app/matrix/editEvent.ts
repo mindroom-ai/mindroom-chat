@@ -52,6 +52,9 @@ export const getSerializedRelationEvent = (
   return relationEvent ? new MatrixEvent(cloneRawEvent(relationEvent)) : undefined;
 };
 
+export const getSerializedReplacementEventId = (mEvent: MatrixEvent): string | undefined =>
+  getRawSerializedRelationEvent(mEvent, RelationType.Replace)?.event_id;
+
 export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent | undefined =>
   getSerializedRelationEvent(mEvent, RelationType.Replace);
 

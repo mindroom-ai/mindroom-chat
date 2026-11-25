@@ -103,6 +103,8 @@ import {
   useSubagentsPanel,
 } from '../navigation/subagentsPanel';
 import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
+import { useWorkflowRunPanel, workflowRunPanelAtom } from '../navigation/workflowPanel';
+import { WorkflowPanelPart } from '../subagents/workflow/WorkflowPanelPart';
 import { subagentConversation } from '../messages/live/subagentRunStore';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
@@ -118,6 +120,7 @@ import {
   pluginPanelWidthStorageKey,
   secondThreadWidthStorageKey,
   subagentsWidthStorageKey,
+  workflowRunWidthStorageKey,
 } from '../preferences/accountStorageKeys';
 import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { SecondThreadPanel } from './SecondThreadPanel';
@@ -364,6 +367,7 @@ function RoomContent() {
   const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
   const subagents = useSubagentsPanel(roomId);
+  const workflowPanel = useWorkflowRunPanel(roomId);
 
   const pluginClientConfig = usePluginClientConfig();
   const pluginPanels = usePluginSidePanels(registeredPlugins, pluginClientConfig);
@@ -380,7 +384,12 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callInSidePanel || transcript.open || subagents.open,
+    computerOpen ||
+      !!canvas ||
+      callInSidePanel ||
+      transcript.open ||
+      subagents.open ||
+      workflowPanel.open,
     { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
 
@@ -540,6 +549,41 @@ function RoomContent() {
         </ResizablePanel>
       ),
     },
+    {
+      id: 'workflow',
+      open: workflowPanel.open,
+      close: workflowPanel.close,
+      label: t('mindroomUi.workflowRun.title'),
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={workflowRunWidthStorageKey(ownUserId)}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('mindroomUi.workflowRun.panel.resize')}
+          collapseLabel={t('mindroomUi.workflowRun.panel.hide')}
+          onCollapse={workflowPanel.close}
+          testId="resizable-workflow-panel"
+        >
+          <Suspense fallback={null}>
+            {workflowPanel.run && (
+              <WorkflowPanelPart
+                room={room}
+                run={workflowPanel.run}
+                threadId={
+                  workflowPanel.threadId !== undefined ? workflowPanel.threadId : (threadId ?? null)
+                }
+                onClose={workflowPanel.close}
+                readOnly={isForkDraft}
+              />
+            )}
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
     ...pluginPanels.map((panel): PanelEntry => ({
       id: panel.id,
       open: pluginPanel?.id === panel.id,
@@ -656,19 +700,27 @@ function RoomContent() {
   // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
   // conversation, so the panel lists its run.
   const subagentsShown = useLatestRef({ threadId, classic: viewMode === 'classic' });
-  useEffect(
-    () =>
-      store.sub(subagentsPanelAtom, () => {
-        const opened = store.get(subagentsPanelAtom);
+  useEffect(() => {
+    const bind = (
+      panelAtom: typeof subagentsPanelAtom | typeof workflowRunPanelAtom,
+      panelId: 'subagents' | 'workflow'
+    ) =>
+      store.sub(panelAtom, () => {
+        const opened = store.get(panelAtom);
         if (opened?.roomId !== roomId) return;
-        request('subagents', () => undefined);
+        request(panelId, () => undefined);
         const shown = subagentsShown.current;
         const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
         if (target === null) navigateRoom(roomId);
         else if (target !== undefined) navigateRoomThread(roomId, target);
-      }),
-    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
-  );
+      });
+    const unsubSub = bind(subagentsPanelAtom, 'subagents');
+    const unsubWf = bind(workflowRunPanelAtom, 'workflow');
+    return () => {
+      unsubSub();
+      unsubWf();
+    };
+  }, [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]);
   const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
@@ -1150,18 +1202,18 @@ function RoomContent() {
   const sidePanel = usePanelSlot(
     shown && (
       <PanelFrameProvider key={shown.id} value={frame}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
           {shown.render()}
-        </PluginPanelControlsContext.Provider>
+        </PluginPanelControlsContext>
       </PanelFrameProvider>
     )
   );
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
-      <ChatUiActionContext.Provider value={uiActions}>
-        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
-          <SecondThreadContext.Provider value={secondThread}>
+      <ChatUiActionContext value={uiActions}>
+        <PluginPanelControlsContext value={pluginPanelControls}>
+          <SecondThreadContext value={secondThread}>
             <Box
               ref={conversationRef}
               data-conversation-behind-panel={String(behindPanel)}
@@ -1195,7 +1247,7 @@ function RoomContent() {
                 />
               </MessageLinkCards>
             </Box>
-            <RoomPanelEdgeSwipeContext.Provider value={mobile && behindPanel}>
+            <RoomPanelEdgeSwipeContext value={mobile && behindPanel}>
               {sidePanel && (
                 <div
                   ref={sidePanelHostRef}
@@ -1210,7 +1262,7 @@ function RoomContent() {
                   {sidePanel}
                 </div>
               )}
-            </RoomPanelEdgeSwipeContext.Provider>
+            </RoomPanelEdgeSwipeContext>
             {/* A thread card dragged on the page drops at the room's end edge into B. */}
             {secondThread && (
               <SecondThreadDropZone
@@ -1218,9 +1270,9 @@ function RoomContent() {
                 onOpen={secondThread.open}
               />
             )}
-          </SecondThreadContext.Provider>
-        </PluginPanelControlsContext.Provider>
-      </ChatUiActionContext.Provider>
+          </SecondThreadContext>
+        </PluginPanelControlsContext>
+      </ChatUiActionContext>
     </PowerLevelsContextProvider>
   );
 }

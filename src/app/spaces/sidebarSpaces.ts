@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAtomValue } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { EventTimeline, EventType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
 import { useAccountData } from '../matrix/hooks/useAccountData';
@@ -7,6 +7,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { isSpace } from '../matrix/room';
+import { spaceOrderAtomFor } from './sidebarOrder';
 import type { SidebarFolder, SidebarItem } from './sidebarReorder';
 
 /**
@@ -139,6 +140,36 @@ export const getShownSidebarItems = ({
     if (keep(id)) shown.push(id);
   });
   return applyLocalOrder(shown, localOrder);
+};
+
+/** Live icon-rail space entries shared by `SpaceTabs` and Home's space sections. */
+export const useShownSidebarItems = () => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const saved = useSavedSidebarItems();
+  const topLevelSpaces = useTopLevelSpaceIds();
+  const [localOrder, setLocalOrder] = useAtom(spaceOrderAtomFor(client.getSafeUserId()));
+  const joinedSpaces = useMemo(
+    () =>
+      new Map(
+        joinedRoomIds
+          .map((roomId) => client.getRoom(roomId))
+          .filter((room): room is Room => !!room && isSpace(room))
+          .map((room) => [room.roomId, room])
+      ),
+    [client, joinedRoomIds]
+  );
+  const items = useMemo(
+    () =>
+      getShownSidebarItems({
+        saved,
+        topLevelSpaces,
+        isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
+        localOrder,
+      }),
+    [saved, topLevelSpaces, joinedSpaces, localOrder]
+  );
+  return { items, saved, topLevelSpaces, joinedSpaces, localOrder, setLocalOrder };
 };
 
 const writeSidebar = (client: MatrixClient, items: SidebarItem[]) => {

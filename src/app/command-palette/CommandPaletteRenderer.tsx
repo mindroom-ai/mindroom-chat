@@ -16,8 +16,7 @@ import { useCommandPaletteMessages } from './useCommandPaletteMessages';
 import { matchesShortcut } from '../shortcuts/shortcuts';
 import { useCommandPalettePeople } from './useCommandPalettePeople';
 
-// The app's own matcher, which decides ⌘ or Ctrl the way the shortcut's label does; is-hotkey
-// asks navigator.platform, which can disagree with the user agent (WebKit on Linux).
+// The app's own matcher decides ⌘ or Ctrl the same way the shortcut's label does.
 const matchesPaletteShortcut = (event: KeyboardEvent) => matchesShortcut(event, 'palette');
 
 // A sheet at the bottom on phones: as tall as most of the small viewport, so the on-screen

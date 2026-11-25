@@ -8,8 +8,8 @@ import { isPluginEnabled } from './pluginDeploymentConfig';
 import { pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
-/** The placements a plugin may give a side panel's toggle: a header action's, and `row`. */
-const PANEL_PLACEMENTS: readonly unknown[] = [...PLACEMENTS, 'row'];
+/** The placements a plugin may give a side panel's toggle: a header action's, `row` and `none`. */
+const PANEL_PLACEMENTS: readonly unknown[] = [...PLACEMENTS, 'row', 'none'];
 
 /**
  * A panel a plugin adds beside a room. It is one of the room's side panels: one shows at a time,
@@ -28,10 +28,12 @@ export type SidePanel = {
   /**
    * Where its toggle shows: `row` in the header's row on every screen, phones included; `auto` in
    * the header's row, except on phones, where it goes in the room menu; `menu`, the default, always
-   * in the room menu. The toggle is pressed while the room shows the panel, not folded to its tab;
-   * folded, choosing it unfolds the panel.
+   * in the room menu; `none` leaves out the header button, the room menu entry and the command
+   * palette entry, for panels opened only from code (such as {@link useRoomSidePanel}, message links
+   * or thread header slots). The toggle is pressed while the room shows the panel, not folded to its
+   * tab; folded, choosing it unfolds the panel.
    */
-  placement?: HeaderAction['placement'] | 'row';
+  placement?: HeaderAction['placement'] | 'row' | 'none';
   /**
    * What it shows, for the room it is open in. `request` is what the plugin's code asked it to show
    * when it last opened it ({@link useRoomSidePanel}), or undefined after its toggle opened it.

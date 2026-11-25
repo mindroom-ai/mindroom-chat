@@ -167,8 +167,10 @@ vi.mock('folds', async () => {
     }: {
       children: (triggerRef: React.Ref<unknown>) => React.ReactNode;
     }) => createElement(reactModule.Fragment, null, children(null)),
-    as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
-      reactModule.forwardRef(render),
+    as:
+      (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
+      ({ ref, ...props }: Record<string, unknown> & { ref?: React.Ref<unknown> }) =>
+        render(props, ref ?? null),
     color: {
       Critical: { Main: '#f00' },
       Success: { Main: '#0a0' },
@@ -202,41 +204,38 @@ vi.mock('../layout/layout', () => ({
   }) => React.createElement('div', null, before, header, children),
   CompactLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
-  MessageBase: React.forwardRef(
-    (
-      {
-        children,
-        ...props
-      }: {
-        children?: React.ReactNode;
-        [key: string]: unknown;
-      },
-      ref: React.Ref<HostNodeMock>
-    ) => {
-      const nodeRef = React.useRef<HostNodeMock>({
-        focus: vi.fn(),
-        getBoundingClientRect: () => ({
-          x: 10,
-          y: 20,
-          width: 30,
-          height: 40,
-        }),
-        props: {},
-        type: 'div',
-      });
+  MessageBase: ({
+    children,
+    ref,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    ref?: React.Ref<HostNodeMock>;
+    [key: string]: unknown;
+  }) => {
+    const nodeRef = React.useRef<HostNodeMock>({
+      focus: vi.fn(),
+      getBoundingClientRect: () => ({
+        x: 10,
+        y: 20,
+        width: 30,
+        height: 40,
+      }),
+      props: {},
+      type: 'div',
+    });
 
-      nodeRef.current.props = props;
-      lastMessageBaseNode = nodeRef.current;
+    nodeRef.current.props = props;
+    lastMessageBaseNode = nodeRef.current;
 
-      if (typeof ref === 'function') {
-        ref(nodeRef.current);
-      } else if (ref) {
-        ref.current = nodeRef.current;
-      }
-
-      return React.createElement('div', props, children);
+    if (typeof ref === 'function') {
+      ref(nodeRef.current);
+    } else if (ref) {
+      ref.current = nodeRef.current;
     }
-  ),
+
+    return React.createElement('div', props, children);
+  },
   ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
   Username: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>

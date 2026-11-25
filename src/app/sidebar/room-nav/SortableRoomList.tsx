@@ -357,7 +357,7 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
       onDragCancel={endDrag}
       accessibility={{ announcements: silentAnnouncements }}
     >
-      <RoomGroupDragContext.Provider value={group}>{children}</RoomGroupDragContext.Provider>
+      <RoomGroupDragContext value={group}>{children}</RoomGroupDragContext>
     </DndContext>
   );
 }
@@ -426,7 +426,7 @@ function SortableRoomListInner({
       items={roomIds.map((roomId) => makeRoomSortableId(listId, roomId))}
       strategy={keepInPlace}
     >
-      <RoomListDragContext.Provider value={drag}>{children}</RoomListDragContext.Provider>
+      <RoomListDragContext value={drag}>{children}</RoomListDragContext>
     </SortableContext>
   );
 }

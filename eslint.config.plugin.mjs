@@ -13,6 +13,7 @@ import {
   DIRECTIONAL_COMPONENTS,
   LINTED_FILES,
   RESOLVER_EXTENSIONS,
+  RUNTIME_GLOBALS,
   TYPE_AWARE_RULES,
   createCommonConfigs,
   logicalSidesOverrides,
@@ -22,6 +23,16 @@ const ROOT_DIR = fs.realpathSync(path.dirname(fileURLToPath(import.meta.url)));
 
 // The plugin's end-to-end specs in its e2e/ count as tests, as the app's own do.
 const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'e2e/**'];
+
+const PLUGIN_NODE_JS = [
+  'scripts/**/*.{js,mjs,cjs}',
+  '*.config.{js,mjs,cjs}',
+  'eslint.config*.mjs',
+  'build.{js,mjs,cjs}',
+  'e2e/helpers/**/*.{js,mjs,cjs}',
+  'e2e/rtc/**/*.{js,mjs,cjs}',
+  'e2e/fixtures/live/**/*.{js,mjs,cjs}',
+];
 
 // Real paths (`symlinks: true`), so an import through a link to the app (`.mindroom-chat`)
 // resolves into the app's directories below; and `.js`/`.jsx`/`.mjs` map to TypeScript sources so
@@ -41,6 +52,28 @@ export default [
   // (including `.mindroom-chat/` and `.cache/` at any depth).
   globalIgnores(['**/node_modules/**', '**/dist/**', '**/.*/**', '**/.*']),
   ...createCommonConfigs({ resolver: pluginResolver }),
+  {
+    name: 'mindroom/plugin-node-globals',
+    files: PLUGIN_NODE_JS,
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.node,
+    },
+  },
+  {
+    name: 'mindroom/plugin-browser-globals',
+    files: ['**/*.{js,jsx,mjs,cjs}'],
+    ignores: [...PLUGIN_NODE_JS, 'src/**/*Worklet.js'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.browser,
+    },
+  },
+  {
+    name: 'mindroom/plugin-audioworklet-globals',
+    files: ['src/**/*Worklet.js'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.audioWorklet,
+    },
+  },
   {
     files: LINTED_FILES,
     rules: {

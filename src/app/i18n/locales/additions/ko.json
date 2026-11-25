@@ -420,7 +420,9 @@
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다.",
         "usage": "사이드바에 사용량 표시",
-        "usageDescription": "런타임이 보고하면 공급자 사용 한도와 7일 토큰 사용량을 표시합니다. 숨겨진 경우 홈의 ⋮ 메뉴나 모델 선택기에서 열 수 있습니다."
+        "usageDescription": "런타임이 보고하면 공급자 사용 한도와 7일 토큰 사용량을 표시합니다. 숨겨진 경우 홈의 ⋮ 메뉴나 모델 선택기에서 열 수 있습니다.",
+        "help": "사이드바에 도움말 및 가이드 표시",
+        "helpDescription": "빠른 가이드, 둘러보기, 키보드 단축키입니다. 숨기면 설정의 정보 또는 명령 팔레트({{shortcut}})에서 둘러보기를, {{helpShortcut}}로 단축키를 열 수 있습니다."
       },
       "plugins": {
         "title": "플러그인",
@@ -705,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "초대할 권한이 없습니다",
-      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다"
+      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다",
+      "viewSection": "보기",
+      "roomSection": "방",
+      "preferencesSection": "환경설정",
+      "notificationModeAll": "모두",
+      "notificationModeMentions": "멘션"
     },
     "phoneNav": {
       "navigation": "탐색"
@@ -1035,6 +1042,19 @@
         "payloadLabel": "이벤트 페이로드 JSON",
         "openTriggerLabel": "트리거 {{id}} 보기"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "할 일 {{count}}개 준비됨",
+        "hide": "숨기기",
+        "show": "표시",
+        "copyId": "할 일 ID {{id}} 복사",
+        "moreItems_other": "+실행 가능한 항목 {{count}}개 더 있음",
+        "priority": {
+          "critical": "긴급",
+          "high": "높음",
+          "medium": "보통",
+          "low": "낮음"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"
@@ -1164,7 +1184,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "간결 보기",
-        "threadFiltersActive": "스레드 필터 (사용 중)"
+        "threadFiltersActive": "스레드 필터 (사용 중)",
+        "mindroomSettings": "MindRoom 설정"
       },
       "roomThreadOverview": {
         "advancedFilters": "고급 필터",
@@ -1197,6 +1218,21 @@
         "expandAllLong": "긴 메시지 모두 펼치기",
         "collapseAllLong": "긴 메시지 모두 접기",
         "showFullMessage": "전체 메시지 보기"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "모두 확인했습니다",
+        "resolvedCount_other": "해결됨 {{count}}개",
+        "snoozedCount_other": "일시 중지 {{count}}개",
+        "showAll": "모두 보기",
+        "startNewThreadBelow": "아래에서 새 스레드 시작",
+        "recentlyResolved": "최근 해결됨",
+        "noMatchHeading": "필터와 일치하는 스레드가 없습니다",
+        "hiddenByForMe_other": "열린 스레드 {{count}}개가 '나를 위한 스레드' 필터로 숨겨져 있습니다.",
+        "hiddenByFilters_other": "열린 스레드 {{count}}개가 필터로 숨겨져 있습니다.",
+        "adjustOrResetFilters": "이 방의 스레드를 보려면 필터를 조정하거나 재설정하세요.",
+        "turnOffForMe": "'나를 위한 스레드' 끄기",
+        "resetAll": "모두 재설정",
+        "resetFilters": "필터 재설정"
       }
     },
     "computer": {
@@ -1225,7 +1261,9 @@
     "backgroundJobs": {
       "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
       "finished": "완료됨: {{tool}}",
+      "awaitingAnswer": "답변 대기 중: {{tool}}",
       "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨",
+      "groupWorkflows": "워크플로 · {{number}}",
       "groupSubagents": "하위 에이전트 · {{number}}",
       "groupTools": "도구 · {{number}}",
       "tools_other": "도구 {{count}}개",
@@ -1265,6 +1303,88 @@
       },
       "jobTotal_other": "백그라운드 작업 {{count}}개",
       "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
+    },
+    "workflowRun": {
+      "title": "워크플로",
+      "status": {
+        "starting": "시작 중",
+        "running": "실행 중",
+        "waiting": "응답 대기 중",
+        "completed": "완료",
+        "failed": "실패",
+        "cancelled": "취소됨",
+        "interrupted": "중단됨"
+      },
+      "counts": "완료 {{done}}, 실행 중 {{running}}, 대기 중 {{waiting}}",
+      "reused": "재사용: {{count}}",
+      "cost": "지금까지 {{spent}}, 총 약 {{projected}}",
+      "costAtLeast": "지금까지 최소 {{spent}}",
+      "largeRun": "대규모 실행",
+      "attempt": "시도 {{number}}",
+      "stop": "중지",
+      "stopping": "중지 중…",
+      "resume": "재개",
+      "runAgain": "다시 실행",
+      "starting": "시작 중…",
+      "failedCount_other": "{{count}}개 실패",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "이미 답변했습니다.",
+          "noLongerOpen": "이 질문은 더 이상 열려 있지 않습니다.",
+          "notAnOption": "선택지에 없는 항목입니다.",
+          "notForYou": "실행을 시작한 사람만 답변할 수 있습니다."
+        },
+        "noReply": "아직 응답이 없습니다. 다시 시도하세요.",
+        "placeholder": "답변 입력",
+        "send": "보내기",
+        "answered": "답변함: {{answer}}",
+        "cancelled": "취소됨",
+        "onlyRequester": "{{name}}님만 답변할 수 있습니다."
+      },
+      "graph": "그래프",
+      "panel": {
+        "close": "닫기",
+        "resize": "워크플로 패널 크기 조절",
+        "hide": "워크플로 숨기기",
+        "waitingForUpdate": "다음 업데이트를 기다리는 중…",
+        "stale": "업데이트되지 않음. 마지막 업데이트 {{time}}.",
+        "log": "로그",
+        "showMore": "{{count}}개 더 보기",
+        "omitted": {
+          "queued_other": "대기열에 {{count}}개 더 있음",
+          "running_other": "실행 중 {{count}}개 더 있음",
+          "waiting_other": "대기 중 {{count}}개 더 있음",
+          "failed_other": "실패 {{count}}개 더 있음",
+          "done_other": "완료 {{count}}개 더 있음"
+        },
+        "askAgent": "나머지는 {{agent}}에게 물어보세요."
+      },
+      "group": {
+        "foreach": "각 항목별",
+        "parallel": "병렬",
+        "run": "저장된 워크플로",
+        "workflow": "중첩 워크플로",
+        "progress": "{{total}} 중 {{done}}",
+        "failed": "실패: {{count}}"
+      },
+      "node": {
+        "reused": "이전 실행에서 재사용됨",
+        "queued": "대기열에 있음",
+        "mayHaveRun": "실행되었을 수 있음",
+        "waitingOn": {
+          "user": "답변 대기 중",
+          "approval": "승인 대기 중",
+          "peer": "메시지 대기 중"
+        },
+        "sessionTurns_other": "{{count}}턴",
+        "result": "결과",
+        "error": "오류",
+        "messages": "메시지",
+        "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
+        "open": "열기",
+        "detailsUnavailable": "새로고침 후에는 세부 정보를 볼 수 없습니다.",
+        "stop": "에이전트 중지"
+      }
     },
     "subagents": {
       "title": "하위 에이전트",
@@ -1501,7 +1621,9 @@
     },
     "actions": {
       "goActivity": "활동으로 이동",
-      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
+      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목",
+      "openCurrentRoomMindroomSettings": "MindRoom 방 설정 열기",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}의 MindRoom 설정 열기"
     },
     "recentVisits": {
       "recentlyOpened": "최근에 연 항목",
@@ -1654,8 +1776,7 @@
       "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",
       "replyAndOthers_other": "{{name}} 님 외 {{count}}명이 답글을 남겼습니다",
       "finished": "{{name}} 님이 작업을 마쳤습니다",
-      "stopped": "{{name}} 님의 작업이 중지되었습니다",
-      "youReplied": "내가 답장함"
+      "stopped": "{{name}} 님의 작업이 중지되었습니다"
     },
     "newCount_other": "새 항목 {{count}}개",
     "runMinutes_other": "{{count}}분",
@@ -1980,7 +2101,11 @@
     "done": "완료"
   },
   "threadActions": {
-    "openBeside": "두 번째 열에서 열기"
+    "openBeside": "두 번째 열에서 열기",
+    "detailsSection": "세부 정보",
+    "forkAndShareSection": "분기 및 공유",
+    "shareSection": "공유",
+    "viewSection": "보기"
   },
   "roomSchedules": {
     "thisThread": "이 스레드",
@@ -2089,5 +2214,34 @@
   },
   "nav": {
     "usage": "사용량"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "방 {{count}}개",
+      "roomsFiltered": "방 {{total}}개 중 {{active}}개"
+    },
+    "roomFilter": {
+      "label": "방",
+      "ariaLabel": "방으로 스레드 필터링",
+      "ariaLabelActive": "방으로 스레드 필터링 ({{number}}개 선택됨)",
+      "ariaLabelOne": "방: {{room}}",
+      "search": "방 검색",
+      "noMatch": "일치하는 방이 없습니다"
+    },
+    "composer": {
+      "postTo": "게시 대상:",
+      "postToRoom": "#{{room}}에 게시",
+      "chooseRoomAria": "게시할 방 선택",
+      "draftPinned": "#{{room}} 임시 저장",
+      "readOnly": "이 스페이스에 게시할 수 있는 방이 없습니다."
+    },
+    "loading": "스레드 불러오는 중...",
+    "empty": {
+      "noRooms": "이 스페이스의 방에 참여하면 여기에서 스레드를 볼 수 있습니다.",
+      "noThreads": "이 스페이스에는 아직 스레드가 없습니다."
+    },
+    "error": {
+      "title": "스페이스 스레드를 불러올 수 없습니다"
+    }
   }
 }

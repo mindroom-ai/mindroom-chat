@@ -40,9 +40,9 @@ const openPage = (store = createStore(), view?: string) => {
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <ConversationViewContext.Provider value={view}>
+        <ConversationViewContext value={view}>
           <Probe userId={ME} roomId={ROOM} />
-        </ConversationViewContext.Provider>
+        </ConversationViewContext>
       </Provider>
     );
   });

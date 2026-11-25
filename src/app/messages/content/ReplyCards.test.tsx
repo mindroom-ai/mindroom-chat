@@ -31,11 +31,9 @@ const renderCards = (enabled: boolean, unavailable?: string) => {
   const activate = vi.fn();
   render(
     <ClientConfigProvider value={{ mindroom: { canvas: { enabled } } }}>
-      <ChatUiActionContext.Provider
-        value={{ read: () => action, unavailable: () => unavailable, activate }}
-      >
+      <ChatUiActionContext value={{ read: () => action, unavailable: () => unavailable, activate }}>
         <ReplyCards cards={[{ canvas: action }, { reminder }]} />
-      </ChatUiActionContext.Provider>
+      </ChatUiActionContext>
     </ClientConfigProvider>
   );
   return activate;

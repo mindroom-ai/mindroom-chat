@@ -1,7 +1,6 @@
 import {
   type AnimationEvent,
-  type ComponentPropsWithoutRef,
-  forwardRef,
+  type ComponentPropsWithRef,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -105,16 +104,14 @@ export function DialogNoticeSlot() {
 }
 
 /** A dialog with its own layout rather than a glass Modal or Dialog. */
-export const DialogFrame = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(
-  function DialogFrame({ children, ...props }, ref) {
-    return (
-      <div ref={ref} role="dialog" {...props}>
-        {children}
-        <DialogNoticeSlot />
-      </div>
-    );
-  }
-);
+export function DialogFrame({ children, ref, ...props }: ComponentPropsWithRef<'div'>) {
+  return (
+    <div ref={ref} role="dialog" {...props}>
+      {children}
+      <DialogNoticeSlot />
+    </div>
+  );
+}
 
 /**
  * The layer that can cover a phone's page, the drawer or a sheet: whether it is out

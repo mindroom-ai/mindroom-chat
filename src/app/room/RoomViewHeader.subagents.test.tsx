@@ -76,6 +76,7 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal
   setRoomNotificationPreference: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: currentRoom.id,
@@ -126,6 +127,8 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => screen.size,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: view.mode,
     setViewMode: () => undefined,
@@ -534,7 +537,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     const actionGroup = renderer?.root.findAllByType(MenuGroup)[0];
     expect(actionGroup?.findAllByType(MenuEntry).map((entry) => entry.props.label)).toEqual([
       'Thread filters',
-      'Show tool calls',
       'Scheduled tasks (2)',
       'Show Computer',
       'Show sub-agents, 1 active',
@@ -749,7 +751,10 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       if (isCall) {
         pins.ids = ['$pinned:example.org'];
         rerender();
+      } else {
+        window.dispatchEvent(new Event('resize'));
       }
+      await Promise.resolve();
       await nextFrame();
       expect(positioner.style.right).toBe('144px');
       expect(host.querySelector(selector)).toBe(content);
@@ -1140,8 +1145,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
       try {
         actInDom(() => more.click());
-        const opener = Array.from(host.querySelectorAll('button')).find(
-          (button) => button.textContent === 'Notifications'
+        const opener = Array.from(host.querySelectorAll('button')).find((button) =>
+          button.textContent?.startsWith('Notifications')
         )!;
         const bounds = vi
           .spyOn(opener, 'getBoundingClientRect')
@@ -1153,6 +1158,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         if (action === 'move') {
           expect(menu.parentElement?.style.top).toBe('10px');
           bounds.mockReturnValue(new DOMRect(250, 54, 40, 40));
+          window.dispatchEvent(new Event('scroll'));
           await nextFrame();
           expect(submenu()).toBe(menu);
           expect(menu.parentElement?.style.top).toBe('54px');

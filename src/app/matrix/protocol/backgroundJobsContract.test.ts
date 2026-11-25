@@ -130,4 +130,17 @@ describe('selectBackgroundJobs', () => {
     const exact = [jobsEvent([job('job_1'), job('job_2')], { total: 2 })];
     expect(selectBackgroundJobs(exact).total).toBe(2);
   });
+
+  it('reads the workflow join key and drops a malformed one', () => {
+    const run = 'wf-11111111111111111111111111111111';
+    const events = [
+      jobsEvent([
+        job('job_1', { kind: 'workflow', tool: 'workflow', workflow: run }),
+        job('job_2', { kind: 'workflow', tool: 'workflow', workflow: 5 }),
+      ]),
+    ];
+    const { jobs } = selectBackgroundJobs(events);
+    expect(jobs[0]?.workflow).toBe(run);
+    expect(jobs[1]).not.toHaveProperty('workflow');
+  });
 });

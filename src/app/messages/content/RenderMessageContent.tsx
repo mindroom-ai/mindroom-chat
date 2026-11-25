@@ -44,8 +44,10 @@ import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { readCallRow } from '../../matrix/protocol/callRow';
 import { getLongTextSource } from '../../matrix/protocol/longText';
 import { readTriggerWake } from '../../matrix/protocol/triggerWake';
+import { readTodoPoke } from '../../matrix/protocol/todoPoke';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { TriggerWakeMarker } from '../TriggerWakeMarker';
+import { TodoPokeMarker } from '../TodoPokeMarker';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import {
   useMessageRenderer,
@@ -188,6 +190,14 @@ function CoreMessageContent({
     );
   }
 
+  const todoPoke =
+    !highlightRegex && fromMindroomAgent && !getLongTextSource(content)
+      ? readTodoPoke(content)
+      : null;
+  if (todoPoke) {
+    return <TodoPokeMarker poke={todoPoke} ts={ts} senderDisplayName={displayName} />;
+  }
+
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
     : undefined;
@@ -217,9 +227,9 @@ function CoreMessageContent({
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (
-    <ToolCallMessageContext.Provider value={toolCallMessage}>
+    <ToolCallMessageContext value={toolCallMessage}>
       <ToolCallsFold>{agentContent}</ToolCallsFold>
-    </ToolCallMessageContext.Provider>
+    </ToolCallMessageContext>
   );
   if (callTranscript && agentMessage) {
     return (

@@ -24,12 +24,15 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
       { 'data-tooltip': tooltip },
       children(() => undefined)
     ),
-  SidebarAvatar: React.forwardRef<
-    HTMLElement,
-    { as?: 'button' | 'div'; outlined?: boolean; children?: ReactNode }
-  >(({ as = 'div', outlined, children, ...props }, ref) =>
-    React.createElement(as, { ...props, ref, 'data-outlined': outlined }, children)
-  ),
+  SidebarAvatar: ({
+    as = 'div',
+    outlined,
+    children,
+    ref,
+    ...props
+  }: { as?: 'button' | 'div'; outlined?: boolean; children?: ReactNode } & {
+    ref?: React.Ref<HTMLElement>;
+  }) => React.createElement(as, { ...props, ref, 'data-outlined': outlined }, children),
 }));
 
 vi.mock('../../ui/Modal500', () => ({

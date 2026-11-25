@@ -1,6 +1,6 @@
 // HTML a plugin shows as the timeline shows an agent's reply, which `/ui` gives plugins as
 // `MarkdownContent`. Not a subpath: only the SDK's own modules import it.
-import { forwardRef, useMemo } from 'react';
+import { type RefAttributes, useMemo } from 'react';
 import { parseHtml } from '../../app/rich-text/parseHtml';
 import { useOptionalMatrixClient } from '../../app/matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../app/matrix/hooks/useMediaAuthentication';
@@ -28,33 +28,36 @@ type MarkdownContentProps = {
  * else their alt text). Outside the app (a fixture page, which
  * has no account) the HTML goes in as it is.
  */
-export const MarkdownContent = forwardRef<HTMLDivElement, MarkdownContentProps>(
-  function MarkdownContent({ html, className, mxcImages = false }, ref) {
-    const mx = useOptionalMatrixClient();
-    const useAuthentication = useMediaAuthentication();
-    const content = useMemo(
-      () =>
-        mx &&
-        parseHtml(
-          html,
-          getReactCustomHtmlParser(mx, undefined, {
-            linkifyOpts: LINKIFY_OPTS,
-            useAuthentication,
-            httpsImages: true,
-            mxcImages,
-          })
-        ),
-      [html, mx, mxcImages, useAuthentication]
-    );
-    if (!mx) {
-      // The plugin's HTML, sanitized by the app's policy.
-      // eslint-disable-next-line react/no-danger
-      return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
-    }
-    return (
-      <div ref={ref} className={className}>
-        {content}
-      </div>
-    );
+export function MarkdownContent({
+  html,
+  className,
+  mxcImages = false,
+  ref,
+}: MarkdownContentProps & RefAttributes<HTMLDivElement>) {
+  const mx = useOptionalMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const content = useMemo(
+    () =>
+      mx &&
+      parseHtml(
+        html,
+        getReactCustomHtmlParser(mx, undefined, {
+          linkifyOpts: LINKIFY_OPTS,
+          useAuthentication,
+          httpsImages: true,
+          mxcImages,
+        })
+      ),
+    [html, mx, mxcImages, useAuthentication]
+  );
+  if (!mx) {
+    // The plugin's HTML, sanitized by the app's policy.
+    // eslint-disable-next-line react/no-danger
+    return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
   }
-);
+  return (
+    <div ref={ref} className={className}>
+      {content}
+    </div>
+  );
+}

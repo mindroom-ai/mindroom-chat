@@ -157,7 +157,11 @@ vi.mock('./ComposerSendButton', () => ({ ComposerSendButton: () => null }));
 vi.mock('../event-store/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
-vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
+vi.mock('../lib/user-agent', () => ({
+  mobileOrTablet: () => false,
+  isMacOS: () => false,
+  isIOS: () => false,
+}));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
 }));
@@ -280,7 +284,7 @@ const mountComposer = async (
   const { RoomInput } = await import('./RoomInput');
   const element = (
     <Provider store={store}>
-      <ConversationViewContext.Provider value={view}>
+      <ConversationViewContext value={view}>
         <RoomInput
           editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
@@ -288,7 +292,7 @@ const mountComposer = async (
           room={room}
           {...props}
         />
-      </ConversationViewContext.Provider>
+      </ConversationViewContext>
     </Provider>
   );
   act(() => {

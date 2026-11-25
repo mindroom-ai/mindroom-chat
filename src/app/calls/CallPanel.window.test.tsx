@@ -219,11 +219,11 @@ const panel = (place: Place = {}) => {
     <Provider store={store}>
       <ScreenSizeProvider value={size}>
         <MemoryRouter initialEntries={[route]}>
-          <CallWindowFrameContext.Provider value={inFrame}>
-            <CallWindowSizeContext.Provider value={inFrame && { width: 400, height: 480 }}>
+          <CallWindowFrameContext value={inFrame}>
+            <CallWindowSizeContext value={inFrame && { width: 400, height: 480 }}>
               <CallPanel room={panelRoom} onClose={onClose} />
-            </CallWindowSizeContext.Provider>
-          </CallWindowFrameContext.Provider>
+            </CallWindowSizeContext>
+          </CallWindowFrameContext>
         </MemoryRouter>
       </ScreenSizeProvider>
     </Provider>

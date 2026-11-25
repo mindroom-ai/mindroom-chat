@@ -5,28 +5,40 @@ import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { conversationBehindPanelAtom } from '../../navigation/conversationCover';
+import { RoomSettingsPage } from '../../navigation/roomSettingsState';
+import { MindroomIcon } from '../../ui/branding/MindroomIcon';
 import { runShortcut } from '../../shortcuts/useShortcut';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
-const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState, topicState } =
-  vi.hoisted(() => ({
-    navigateSpy: vi.fn(),
-    membersState: { open: false, setOpen: vi.fn() },
-    encryptionState: {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-      value: undefined as unknown,
-    },
-    permissionState: {
-      canInvite: true,
-      canKick: true,
-    },
-    screenSizeState: {
-      value: 'Desktop',
-    },
-    topicState: {
-      value: undefined as string | undefined,
-    },
-  }));
+const {
+  encryptionState,
+  navigateSpy,
+  openRoomSettingsSpy,
+  hasMindroomAgentState,
+  permissionState,
+  screenSizeState,
+  membersState,
+  topicState,
+} = vi.hoisted(() => ({
+  navigateSpy: vi.fn(),
+  openRoomSettingsSpy: vi.fn(),
+  hasMindroomAgentState: { value: false },
+  membersState: { open: false, setOpen: vi.fn() },
+  encryptionState: {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
+    value: undefined as unknown,
+  },
+  permissionState: {
+    canInvite: true,
+    canKick: true,
+  },
+  screenSizeState: {
+    value: 'Desktop',
+  },
+  topicState: {
+    value: undefined as string | undefined,
+  },
+}));
 
 vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
@@ -46,9 +58,8 @@ vi.mock('folds', async (importOriginal) => {
       reactModule.createElement('div', null, children),
     Badge: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    Box: reactModule.forwardRef<HTMLDivElement, React.PropsWithChildren>(({ children }, ref) =>
-      reactModule.createElement('div', { ref }, children)
-    ),
+    Box: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     config: {
       ...actual.config,
       space: {
@@ -57,14 +68,13 @@ vi.mock('folds', async (importOriginal) => {
       },
     },
     Icon: ({ src }: { src: string }) => reactModule.createElement('span', { 'data-icon': src }),
-    IconButton: React.forwardRef<
-      HTMLButtonElement,
-      React.ButtonHTMLAttributes<HTMLButtonElement> & {
-        children: React.ReactNode;
-      }
-    >(({ children, ...props }, ref) =>
-      reactModule.createElement('button', { ref, type: 'button', ...props }, children)
-    ),
+    IconButton: ({
+      children,
+      ref,
+      ...props
+    }: React.ComponentPropsWithRef<'button'> & {
+      children: React.ReactNode;
+    }) => reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ArrowLeft: 'ArrowLeft',
       CheckTwice: 'CheckTwice',
@@ -76,9 +86,8 @@ vi.mock('folds', async (importOriginal) => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: reactModule.forwardRef<HTMLDivElement, React.PropsWithChildren>(({ children }, ref) =>
-      reactModule.createElement('div', { ref }, children)
-    ),
+    Menu: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ref }, children),
     MenuItem: ({
       children,
       after,
@@ -127,9 +136,8 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../../ui/page/Page', () => ({
-  PageHeader: React.forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) =>
-    React.createElement('header', { ref }, children)
-  ),
+  PageHeader: ({ children, ref }: React.PropsWithChildren & { ref?: React.Ref<HTMLElement> }) =>
+    React.createElement('header', { ref }, children),
 }));
 
 vi.mock('../../ui/styles/ContainerColor.css', () => ({
@@ -162,6 +170,9 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
     getHomeserverUrl: () => 'https://example.org',
     getSafeUserId: () => '@user:example.org',
   }),
+}));
+vi.mock('../../matrix/hooks/useRoomMembers', () => ({
+  useRoomMembers: () => [],
 }));
 
 vi.mock('../../matrix/hooks/useRoom', () => ({
@@ -236,6 +247,8 @@ vi.mock('../../canvas/CanvasHeaderButton', () => ({
 }));
 
 vi.mock('../../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
+  useRoomHasMindroomAgent: () => hasMindroomAgentState.value,
   useRoomViewMode: () => ({ availableViewModes: [], setViewMode: vi.fn(), viewMode: 'threaded' }),
 }));
 
@@ -300,7 +313,7 @@ vi.mock('../../messages/pins/RoomPinMenu', () => ({
 }));
 
 vi.mock('../../navigation/useRoomSettingsState', () => ({
-  useOpenRoomSettings: () => vi.fn(),
+  useOpenRoomSettings: () => openRoomSettingsSpy,
 }));
 
 vi.mock('../../notifications/RoomNotificationSwitcher', () => ({
@@ -416,6 +429,8 @@ const membersControl = async (renderer: ReturnType<typeof create>, label: string
 afterEach(() => {
   membersState.open = false;
   membersState.setOpen.mockClear();
+  openRoomSettingsSpy.mockClear();
+  hasMindroomAgentState.value = false;
   encryptionState.value = undefined;
   screenSizeState.value = 'Desktop';
   topicState.value = undefined;
@@ -426,6 +441,47 @@ afterEach(() => {
 importBeforeTests(() => import('../RoomViewHeader'));
 
 describe('RoomViewHeader', () => {
+  it('shows MindRoom Settings only in the room menu for agent rooms (not as a header button)', async () => {
+    hasMindroomAgentState.value = true;
+    const { renderer } = await renderHeader(0, { hasMindroomAgents: true });
+    expect(renderer.root.findAllByProps({ 'aria-label': 'MindRoom Settings' })).toHaveLength(0);
+    await openRoomMenu(renderer);
+    const desktopEntries = findMenuEntries(renderer, 'MindRoom Settings');
+    expect(desktopEntries).toHaveLength(1);
+    const [desktopEntry] = desktopEntries;
+    if (!desktopEntry) throw new Error('Expected MindRoom Settings menu entry');
+    expect(desktopEntry.findByProps({ 'data-icon': MindroomIcon })).toBeTruthy();
+    act(() => {
+      desktopEntry.props.onClick();
+    });
+    expect(openRoomSettingsSpy).toHaveBeenCalledWith(
+      '!room:example.org',
+      RoomSettingsPage.MindroomPage
+    );
+    act(() => renderer.unmount());
+
+    // Hidden without agents.
+    hasMindroomAgentState.value = false;
+    const noAgents = await renderHeader(0, { hasMindroomAgents: false });
+    expect(
+      noAgents.renderer.root.findAllByProps({ 'aria-label': 'MindRoom Settings' })
+    ).toHaveLength(0);
+    await openRoomMenu(noAgents.renderer);
+    expect(findMenuEntries(noAgents.renderer, 'MindRoom Settings')).toHaveLength(0);
+    act(() => noAgents.renderer.unmount());
+
+    // On mobile: not in the header row, and once in the room menu.
+    screenSizeState.value = 'Mobile';
+    hasMindroomAgentState.value = true;
+    const mobile = await renderHeader(0, { hasMindroomAgents: true });
+    expect(mobile.renderer.root.findAllByProps({ 'aria-label': 'MindRoom Settings' })).toHaveLength(
+      0
+    );
+    await openRoomMenu(mobile.renderer);
+    expect(findMenuEntries(mobile.renderer, 'MindRoom Settings')).toHaveLength(1);
+    act(() => mobile.renderer.unmount());
+  });
+
   it('hides schedules without agents', async () => {
     const { renderer } = await renderHeader(0, { hasMindroomAgents: false });
     expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);

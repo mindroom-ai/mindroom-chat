@@ -1,5 +1,4 @@
-import { Fragment, type ReactNode, useMemo, useReducer } from 'react';
-import { useAtomValue } from 'jotai';
+import { Fragment, type ReactNode } from 'react';
 import { Avatar, Box, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { KnownMembership, RoomType, type Room } from 'matrix-js-sdk';
@@ -13,13 +12,6 @@ import { useStateEvents } from '../../matrix/hooks/useStateEvents';
 import { isRoomId } from '../../matrix/matrix';
 import { StateEvent, type RoomToParents } from '../../matrix/types/room';
 import { withSearchParam } from '../../routes/pathUtils';
-import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { useRoomOrders, type RoomOrder, type RoomSortMode } from './roomOrder';
-import {
-  type ActivityTrackedSection,
-  orderRoomsForMode,
-  useRoomActivityListener,
-} from './roomActivity';
 
 /** A section's rooms: the ones it shows on their own, and the sub-rooms under each room. */
 export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[]> };
@@ -98,80 +90,6 @@ export const buildSubRoomList = (
     ? shownRoomIds.filter((roomId) => roomId === selectedRoomId)
     : orderedTop;
   return { tree, orderedTop, shownRoomIds, listedRoomIds };
-};
-
-/**
- * A section's room list, with `roomIds` and `topRoomIds` as for `nestSubRooms`: sorted by the
- * section's active sort mode (`recent`, `name`, or `manual` from `useRoomOrders`), with live
- * activity updates when Recent sorting or activity times are active, and each room's sub-rooms
- * nested beneath it. A collapsed section still lists the selected room, on its own.
- */
-export const useSubRoomList = (
-  listId: string,
-  topRoomIds: string[],
-  roomIds: string[],
-  closed: boolean,
-  selectedRoomId: string | undefined
-) => {
-  const client = useMatrixClient();
-  const roomToParents = useAtomValue(roomToParentsAtom);
-  const chatRooms = useAtomValue(chatRoomParentsAtom);
-  const roomOrders = useRoomOrders();
-  const [activityVersion, bumpActivity] = useReducer((count: number) => count + 1, 0);
-  const mode = roomOrders.modeOf(listId);
-  const showTimes = roomOrders.showTimesOf(listId);
-  const list = useMemo(() => {
-    void activityVersion;
-    return buildSubRoomList(
-      topRoomIds,
-      roomIds,
-      roomToParents,
-      chatRooms,
-      (top, tree) =>
-        orderRoomsForMode(client, mode, top, (ids) => roomOrders.orderOf(listId, ids), tree),
-      closed,
-      selectedRoomId
-    );
-  }, [
-    activityVersion,
-    client,
-    mode,
-    topRoomIds,
-    roomIds,
-    roomToParents,
-    chatRooms,
-    roomOrders,
-    listId,
-    closed,
-    selectedRoomId,
-  ]);
-  const trackedSections = useMemo<ActivityTrackedSection[]>(
-    () => [
-      {
-        recent: mode === 'recent',
-        showTimes,
-        baseTop: list.tree.top,
-        orderedTop: list.orderedTop,
-        tree: list.tree,
-        trackedRoomIds: new Set(list.shownRoomIds),
-      },
-    ],
-    [mode, showTimes, list.tree, list.orderedTop, list.shownRoomIds]
-  );
-  useRoomActivityListener(trackedSections, bumpActivity);
-
-  const roomOrder = useMemo<RoomOrder>(
-    () => ({
-      mode,
-      showTimes,
-      hasSavedOrder: roomOrders.hasSavedOrder(listId),
-      save: (order: string[]) => roomOrders.save(listId, order),
-      setMode: (nextMode: RoomSortMode) => roomOrders.setMode(listId, nextMode, list.orderedTop),
-      setShowTimes: (show: boolean) => roomOrders.setShowTimes(listId, show),
-    }),
-    [roomOrders, listId, list.orderedTop, mode, showTimes]
-  );
-  return { ...list, roomOrder };
 };
 
 const viaOf = (content: Record<string, unknown>): string[] => {

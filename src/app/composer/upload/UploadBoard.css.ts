@@ -46,6 +46,13 @@ export const UploadBoard = style([
   },
 ]);
 
+/** In-flow variant above composers without a timeline (Home): full width, spaced above the field. */
+export const UploadBoardInline = style({
+  maxWidth: 'none',
+  width: '100%',
+  marginBlockEnd: config.space.S200,
+});
+
 /** The header row: the file count toggle on the start side, Remove All at the end. */
 export const UploadBoardHeaderContent = style({
   minWidth: 0,

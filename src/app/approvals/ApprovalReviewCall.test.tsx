@@ -39,14 +39,10 @@ vi.mock('./ThreadApprovals.css', () => ({
   BarDetail: 'BarDetail',
 }));
 vi.mock('folds', () => ({
-  Button: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-    // The prop-types rule cannot infer native props on this typed test double.
-    // eslint-disable-next-line react/prop-types
-    ({ type, onClick, disabled, children }, ref) => (
-      <button ref={ref} type={type ?? 'button'} onClick={onClick} disabled={disabled}>
-        {children}
-      </button>
-    )
+  Button: ({ type, onClick, disabled, children, ref }: React.ComponentPropsWithRef<'button'>) => (
+    <button ref={ref} type={type ?? 'button'} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
   ),
   Input: 'input',
   Text: 'span',

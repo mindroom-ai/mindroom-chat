@@ -141,7 +141,7 @@ export const useRoomsNotificationPreferences = (): RoomToNotificationMode => {
 
 const RoomsNotificationPreferencesContext = createContext<RoomToNotificationMode | null>(null);
 
-export const RoomsNotificationPreferencesProvider = RoomsNotificationPreferencesContext.Provider;
+export const RoomsNotificationPreferencesProvider = RoomsNotificationPreferencesContext;
 
 export const useRoomsNotificationPreferencesContext = (): RoomToNotificationMode => {
   const preferences = useContext(RoomsNotificationPreferencesContext);

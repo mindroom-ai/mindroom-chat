@@ -40,6 +40,11 @@ export const Cards = style({
   position: 'relative',
 });
 
+// Expands the empty card container to fill the visible canvas so the empty state centers cleanly.
+export const CardsEmpty = style({
+  flex: '1 0 auto',
+});
+
 // What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
 const hoverTint = createVar();
 
@@ -376,7 +381,7 @@ export const Chips = style({
 
 // Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
 // edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
-globalStyle(`${CardShell} ${MetadataRow}`, {
+globalStyle(`${CardShell}:has(${CardAction}) ${MetadataRow}`, {
   '@media': {
     [touchActions]: {
       paddingInlineEnd: toRem(36),

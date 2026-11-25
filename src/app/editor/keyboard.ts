@@ -1,6 +1,6 @@
 import { KeyboardEvent } from 'react';
-import { isHotkey } from 'is-hotkey';
 import { Editor } from 'slate';
+import { matchesHotkey } from '../shortcuts/shortcuts';
 import { MarkType } from './types';
 
 /**
@@ -34,9 +34,7 @@ export const toggleMark = (editor: Editor, mark: MarkType): void => {
  * event; unhandled events keep their default browser behavior.
  */
 export const toggleKeyboardShortcut = (editor: Editor, event: KeyboardEvent<Element>): boolean => {
-  // is-hotkey reads the same key fields React's synthetic event carries.
-  const keyEvent = event as unknown as globalThis.KeyboardEvent;
-  const match = MARK_HOTKEYS.find(([hotkey]) => isHotkey(hotkey, keyEvent));
+  const match = MARK_HOTKEYS.find(([hotkey]) => matchesHotkey(hotkey, event));
   if (!match) return false;
   event.preventDefault();
   toggleMark(editor, match[1]);

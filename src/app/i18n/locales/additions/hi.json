@@ -433,7 +433,9 @@
         "localMindroom": "साइडबार में स्थानीय MindRoom दिखाएँ",
         "localMindroomDescription": "आपके कंप्यूटर पर चल रहे MindRoom को जोड़ता है। छिपा होने पर यह यहीं सेटिंग्स में स्थानीय MindRoom के अंतर्गत रहता है।",
         "usage": "साइडबार में उपयोग दिखाएँ",
-        "usageDescription": "रनटाइम द्वारा रिपोर्ट किए जाने पर प्रदाता उपयोग सीमाएँ और 7-दिन का टोकन खर्च दिखाएँ। छिपा होने पर होम के ⋮ मेनू या मॉडल पिकर से उपयोग खोलें।"
+        "usageDescription": "रनटाइम द्वारा रिपोर्ट किए जाने पर प्रदाता उपयोग सीमाएँ और 7-दिन का टोकन खर्च दिखाएँ। छिपा होने पर होम के ⋮ मेनू या मॉडल पिकर से उपयोग खोलें।",
+        "help": "साइडबार में सहायता और गाइड दिखाएँ",
+        "helpDescription": "त्वरित गाइड, टूर और कीबोर्ड शॉर्टकट। छिपा होने पर सेटिंग्स में ऐप के बारे में या कमांड पैलेट ({{shortcut}}) से टूर और {{helpShortcut}} से शॉर्टकट खोलें।"
       },
       "plugins": {
         "title": "प्लगइन",
@@ -722,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",
-      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं"
+      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं",
+      "viewSection": "दृश्य",
+      "roomSection": "रूम",
+      "preferencesSection": "प्राथमिकताएँ",
+      "notificationModeAll": "सभी",
+      "notificationModeMentions": "उल्लेख"
     },
     "phoneNav": {
       "navigation": "नेविगेशन"
@@ -1054,6 +1061,21 @@
         "payloadLabel": "इवेंट पेलोड JSON",
         "openTriggerLabel": "ट्रिगर {{id}} देखें"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} कार्य तैयार",
+        "readyCount_other": "{{count}} कार्य तैयार",
+        "hide": "छिपाएँ",
+        "show": "दिखाएँ",
+        "copyId": "कार्य आईडी {{id}} कॉपी करें",
+        "moreItems_one": "+{{count}} और करने योग्य आइटम",
+        "moreItems_other": "+{{count}} और करने योग्य आइटम",
+        "priority": {
+          "critical": "गंभीर",
+          "high": "उच्च",
+          "medium": "मध्यम",
+          "low": "निम्न"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"
@@ -1199,7 +1221,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "सघन दृश्य",
-        "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
+        "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)",
+        "mindroomSettings": "MindRoom सेटिंग्स"
       },
       "roomThreadOverview": {
         "advancedFilters": "उन्नत फ़िल्टर",
@@ -1232,6 +1255,25 @@
         "expandAllLong": "सभी लंबे संदेश खोलें",
         "collapseAllLong": "सभी लंबे संदेश समेटें",
         "showFullMessage": "पूरा संदेश दिखाएँ"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "सब कुछ पूरा हो गया",
+        "resolvedCount_one": "{{count}} सुलझा हुआ",
+        "resolvedCount_other": "{{count}} सुलझे हुए",
+        "snoozedCount_one": "{{count}} स्थगित",
+        "snoozedCount_other": "{{count}} स्थगित",
+        "showAll": "सभी दिखाएँ",
+        "startNewThreadBelow": "नीचे एक नया थ्रेड शुरू करें",
+        "recentlyResolved": "हाल ही में सुलझे हुए",
+        "noMatchHeading": "कोई भी थ्रेड आपके फ़िल्टर से मेल नहीं खाता",
+        "hiddenByForMe_one": "{{count}} खुला थ्रेड «मेरे लिए» द्वारा छिपा हुआ है।",
+        "hiddenByForMe_other": "{{count}} खुले थ्रेड «मेरे लिए» द्वारा छिपे हुए हैं।",
+        "hiddenByFilters_one": "{{count}} खुला थ्रेड आपके फ़िल्टर द्वारा छिपा हुआ है।",
+        "hiddenByFilters_other": "{{count}} खुले थ्रेड आपके फ़िल्टर द्वारा छिपे हुए हैं।",
+        "adjustOrResetFilters": "इस रूम में थ्रेड देखने के लिए अपने फ़िल्टर बदलें या रीसेट करें।",
+        "turnOffForMe": "«मेरे लिए» बंद करें",
+        "resetAll": "सभी रीसेट करें",
+        "resetFilters": "फ़िल्टर रीसेट करें"
       }
     },
     "computer": {
@@ -1260,7 +1302,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
       "finished": "पूरा हुआ: {{tool}}",
+      "awaitingAnswer": "आपके उत्तर की प्रतीक्षा में: {{tool}}",
       "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "groupWorkflows": "वर्कफ़्लो · {{number}}",
       "groupSubagents": "सब-एजेंट · {{number}}",
       "groupTools": "टूल · {{number}}",
       "tools_one": "{{count}} टूल",
@@ -1305,6 +1349,95 @@
       "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
       "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
       "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
+    },
+    "workflowRun": {
+      "title": "वर्कफ़्लो",
+      "status": {
+        "starting": "शुरू हो रहा है",
+        "running": "चल रहा है",
+        "waiting": "आपकी प्रतीक्षा में",
+        "completed": "पूर्ण",
+        "failed": "विफल",
+        "cancelled": "रद्द",
+        "interrupted": "बाधित"
+      },
+      "counts": "{{done}} पूर्ण, {{running}} चल रहे, {{waiting}} प्रतीक्षारत",
+      "reused": "पुनः प्रयुक्त: {{count}}",
+      "cost": "अब तक {{spent}}, कुल लगभग {{projected}}",
+      "costAtLeast": "अब तक कम से कम {{spent}}",
+      "largeRun": "बड़ा रन",
+      "attempt": "प्रयास {{number}}",
+      "stop": "रोकें",
+      "stopping": "रोका जा रहा है…",
+      "resume": "फिर शुरू करें",
+      "runAgain": "फिर से चलाएं",
+      "starting": "शुरू हो रहा है…",
+      "failedCount_one": "{{count}} विफल",
+      "failedCount_other": "{{count}} विफल",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "पहले ही उत्तर दिया जा चुका है।",
+          "noLongerOpen": "यह प्रश्न अब खुला नहीं है।",
+          "notAnOption": "यह विकल्पों में से नहीं है।",
+          "notForYou": "केवल रन शुरू करने वाला व्यक्ति ही उत्तर दे सकता है।"
+        },
+        "noReply": "अभी तक कोई उत्तर नहीं। पुनः प्रयास करें।",
+        "placeholder": "अपना उत्तर लिखें",
+        "send": "भेजें",
+        "answered": "उत्तर दिया गया: {{answer}}",
+        "cancelled": "रद्द",
+        "onlyRequester": "केवल {{name}} उत्तर दे सकते हैं।"
+      },
+      "graph": "ग्राफ़",
+      "panel": {
+        "close": "बंद करें",
+        "resize": "वर्कफ़्लो पैनल का आकार बदलें",
+        "hide": "वर्कफ़्लो छुपाएं",
+        "waitingForUpdate": "रन के अगले अपडेट की प्रतीक्षा में…",
+        "stale": "अपडेट नहीं हो रहा। अंतिम अपडेट {{time}}।",
+        "log": "लॉग",
+        "showMore": "{{count}} और दिखाएं",
+        "omitted": {
+          "queued_one": "और {{count}} कतार में",
+          "queued_other": "और {{count}} कतार में",
+          "running_one": "और {{count}} चल रहे",
+          "running_other": "और {{count}} चल रहे",
+          "waiting_one": "और {{count}} प्रतीक्षारत",
+          "waiting_other": "और {{count}} प्रतीक्षारत",
+          "failed_one": "और {{count}} विफल",
+          "failed_other": "और {{count}} विफल",
+          "done_one": "और {{count}} पूर्ण",
+          "done_other": "और {{count}} पूर्ण"
+        },
+        "askAgent": "बाकी के लिए {{agent}} से पूछें।"
+      },
+      "group": {
+        "foreach": "प्रत्येक के लिए",
+        "parallel": "समानांतर",
+        "run": "सहेजा गया वर्कफ़्लो",
+        "workflow": "नेस्टेड वर्कफ़्लो",
+        "progress": "{{total}} में से {{done}}",
+        "failed": "विफल: {{count}}"
+      },
+      "node": {
+        "reused": "पिछले रन से पुनः प्रयुक्त",
+        "queued": "कतार में",
+        "mayHaveRun": "संभवतः चला हो",
+        "waitingOn": {
+          "user": "आपके उत्तर की प्रतीक्षा में",
+          "approval": "अनुमोदन की प्रतीक्षा में",
+          "peer": "संदेश की प्रतीक्षा में"
+        },
+        "sessionTurns_one": "{{count}} मोड़",
+        "sessionTurns_other": "{{count}} मोड़",
+        "result": "परिणाम",
+        "error": "त्रुटि",
+        "messages": "संदेश",
+        "messagesTo": "{{name}} को संदेश: {{count}}",
+        "open": "खोलें",
+        "detailsUnavailable": "रीलोड के बाद विवरण अब उपलब्ध नहीं हैं।",
+        "stop": "एजेंट रोकें"
+      }
     },
     "subagents": {
       "title": "सब-एजेंट",
@@ -1548,7 +1681,9 @@
     },
     "actions": {
       "goActivity": "गतिविधि पर जाएँ",
-      "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है"
+      "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है",
+      "openCurrentRoomMindroomSettings": "MindRoom रूम सेटिंग्स खोलें",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} के लिए MindRoom सेटिंग्स खोलें"
     },
     "recentVisits": {
       "recentlyOpened": "हाल ही में खोला गया",
@@ -1703,8 +1838,7 @@
       "replyAndOthers_one": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "replyAndOthers_other": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "finished": "{{name}} ने काम पूरा किया",
-      "stopped": "{{name}} का काम रुक गया",
-      "youReplied": "आपने जवाब दिया"
+      "stopped": "{{name}} का काम रुक गया"
     },
     "newCount_one": "{{count}} नया",
     "newCount_other": "{{count}} नए",
@@ -2045,7 +2179,11 @@
     "done": "पूरे"
   },
   "threadActions": {
-    "openBeside": "दूसरे कॉलम में खोलें"
+    "openBeside": "दूसरे कॉलम में खोलें",
+    "detailsSection": "विवरण",
+    "forkAndShareSection": "शाखा बनाएँ और साझा करें",
+    "shareSection": "साझा करें",
+    "viewSection": "दृश्य"
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",
@@ -2154,5 +2292,35 @@
   },
   "nav": {
     "usage": "उपयोग"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} रूम",
+      "roomsCount_other": "{{count}} रूम",
+      "roomsFiltered": "{{total}} में से {{active}} रूम"
+    },
+    "roomFilter": {
+      "label": "रूम",
+      "ariaLabel": "रूम के अनुसार थ्रेड फ़िल्टर करें",
+      "ariaLabelActive": "रूम के अनुसार थ्रेड फ़िल्टर करें (चुने गए: {{number}})",
+      "ariaLabelOne": "रूम: {{room}}",
+      "search": "रूम खोजें",
+      "noMatch": "कोई मेल खाता रूम नहीं"
+    },
+    "composer": {
+      "postTo": "यहाँ पोस्ट करें:",
+      "postToRoom": "#{{room}} में पोस्ट करें",
+      "chooseRoomAria": "पोस्ट करने के लिए रूम चुनें",
+      "draftPinned": "#{{room}} के लिए ड्राफ़्ट",
+      "readOnly": "इस स्पेस के किसी भी रूम में पोस्ट करने की अनुमति नहीं है।"
+    },
+    "loading": "थ्रेड लोड हो रहे हैं...",
+    "empty": {
+      "noRooms": "यहाँ थ्रेड देखने के लिए इस स्पेस के किसी रूम में शामिल हों।",
+      "noThreads": "इस स्पेस में अभी तक कोई थ्रेड नहीं है।"
+    },
+    "error": {
+      "title": "स्पेस के थ्रेड लोड नहीं हो सके"
+    }
   }
 }

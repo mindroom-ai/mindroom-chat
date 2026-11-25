@@ -336,3 +336,75 @@ test("a raw page follows the browser's color scheme, not Chat's theme, inline an
   await context.unrouteAll({ behavior: 'ignoreErrors' });
   await context.close();
 });
+
+const setPageZoom = (page: Page, pageZoom: number) =>
+  page.evaluate((zoom) => {
+    const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<string, unknown>;
+    localStorage.setItem('settings', JSON.stringify({ ...stored, pageZoom: zoom }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'settings' }));
+  }, pageZoom);
+
+test('inline and panel canvases follow pageZoom and keep Open canvas in the inline header', async ({
+  context,
+  page,
+}) => {
+  const room = await openPanelRoom(context, page);
+  await sendInlineCanvas(
+    room,
+    'Zoom card',
+    '<style>html,body{margin:0;padding:0}</style><div style="height:400px">Zoom card body</div>'
+  );
+  const frame = page.locator('iframe[title="Zoom card"]');
+  await expect(frame).toBeVisible({ timeout: 60_000 });
+  await expect.poll(frameHeight(page, 'Zoom card'), { timeout: 20_000 }).toBe(400);
+
+  // Open canvas sits in the card header above the iframe.
+  const openButton = page.getByRole('button', { name: 'Open canvas', exact: true }).last();
+  await expect(openButton).toBeVisible();
+  const buttonBox = (await openButton.boundingBox())!;
+  const initialFrameBox = (await frame.boundingBox())!;
+  expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(initialFrameBox.y);
+
+  // At 50% page zoom the inline canvas scales visually to half height while filling the column.
+  await setPageZoom(page, 50);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.style.fontSize))
+    .toBe('50%');
+  await expect.poll(frameHeight(page, 'Zoom card'), { timeout: 20_000 }).toBeCloseTo(200, 0);
+  const zoomedBoxHeight = (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
+  expect(zoomedBoxHeight).toBeCloseTo(200, 0);
+  const columnWidth = await frame.evaluate((element) => element.parentElement!.clientWidth);
+  const zoomedFrameWidth = (await frame.boundingBox())?.width ?? 0;
+  expect(Math.abs(zoomedFrameWidth - columnWidth)).toBeLessThanOrEqual(2);
+
+  // Opening the side panel scales the panel iframe at the same zoom and resets at 100%.
+  await openButton.click();
+  const panel = panelLocator(page, 'canvas');
+  await expect(panel).toBeVisible({ timeout: 30_000 });
+  const panelFrame = panel.locator('iframe');
+  await expect(panelFrame).toBeVisible({ timeout: 30_000 });
+  const panelMetrics = await panelFrame.evaluate((element) => {
+    const wrap = element.parentElement!;
+    const frameRect = element.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    return {
+      transform: getComputedStyle(element).transform,
+      frameWidth: frameRect.width,
+      frameHeight: frameRect.height,
+      wrapWidth: wrapRect.width,
+      wrapHeight: wrapRect.height,
+      layoutRatioX: element.clientWidth / wrap.clientWidth,
+      layoutRatioY: element.clientHeight / wrap.clientHeight,
+    };
+  });
+  expect(panelMetrics.transform).toBe('matrix(0.5, 0, 0, 0.5, 0, 0)');
+  expect(Math.abs(panelMetrics.frameWidth - panelMetrics.wrapWidth)).toBeLessThanOrEqual(2);
+  expect(Math.abs(panelMetrics.frameHeight - panelMetrics.wrapHeight)).toBeLessThanOrEqual(2);
+  expect(panelMetrics.layoutRatioX).toBeCloseTo(2, 1);
+  expect(panelMetrics.layoutRatioY).toBeCloseTo(2, 1);
+
+  await setPageZoom(page, 100);
+  await expect
+    .poll(() => panelFrame.evaluate((element) => getComputedStyle(element).transform))
+    .toBe('none');
+});

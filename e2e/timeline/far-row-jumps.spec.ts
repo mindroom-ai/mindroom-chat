@@ -177,6 +177,22 @@ type Form = 'desktop' | 'phone';
 const minimapSlider = (page: Page) =>
   page.getByRole('slider', { name: 'Jump to message', exact: true });
 
+const timelineScrollTop = (slider: ReturnType<typeof minimapSlider>) =>
+  slider.evaluate((rail) => {
+    let element = rail.parentElement;
+    while (element) {
+      const { overflowY } = getComputedStyle(element);
+      if (
+        (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+        element.scrollHeight > element.clientHeight
+      ) {
+        return element.scrollTop;
+      }
+      element = element.parentElement;
+    }
+    throw new Error('Timeline scroll container not found');
+  });
+
 const replyQuoteJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
   const seeded = await seed(`q_${engine}_${form}`);
   await openTimeline(page, seeded);
@@ -210,6 +226,39 @@ const minimapJump = async (page: Page, engine: string, form: Form, testInfo: Tes
   await page.keyboard.press('Enter');
   await expectLanded(page, seeded.old, `${engine}, ${form}, minimap`);
   await shoot(page, testInfo, `minimap-${engine}-${form}`);
+
+  const box = await slider.boundingBox();
+  expect(box, `minimap slider box (${engine}, ${form})`).not.toBeNull();
+  const railBox = box!;
+
+  // Vertical wheel events over the minimap rail scroll the timeline.
+  await page.mouse.move(railBox.x + railBox.width / 2, railBox.y + railBox.height / 2);
+  const scrollTopBeforeWheel = await timelineScrollTop(slider);
+  await page.mouse.wheel(0, 320);
+  await expect
+    .poll(() => timelineScrollTop(slider), {
+      message: `wheel over minimap rail scrolled timeline (${engine}, ${form})`,
+      timeout: 5_000,
+    })
+    .toBeGreaterThan(scrollTopBeforeWheel);
+
+  // Drag-scrubbing along the rail keeps the preview open off-rail, jumps to both ends, and avoids selecting text.
+  await page.mouse.move(railBox.x + railBox.width / 2, railBox.y + 2);
+  await page.mouse.down();
+  await page.mouse.move(railBox.x + 80, railBox.y + railBox.height - 2, { steps: 10 });
+  await expect(
+    slider.getByText(REPLY),
+    `minimap preview stays visible during off-rail drag (${engine}, ${form})`
+  ).toBeVisible();
+  await expectLanded(page, seeded.reply, `${engine}, ${form}, minimap drag bottom`);
+  await page.mouse.move(railBox.x + 80, railBox.y + 2, { steps: 10 });
+  await page.mouse.up();
+  await expectLanded(page, seeded.old, `${engine}, ${form}, minimap drag top`);
+  const hasSelection = await page.evaluate(() => window.getSelection()?.isCollapsed === false);
+  expect(
+    hasSelection,
+    `no non-collapsed text selection after minimap drag (${engine}, ${form})`
+  ).toBe(false);
 };
 
 const unloadedQuoteJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
