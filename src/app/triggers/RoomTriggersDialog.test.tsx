@@ -211,7 +211,7 @@ describe('RoomTriggersDialog', () => {
       loadFailed: true,
       highlightTriggerId: 'tr_gone',
     });
-    expect(document.querySelector('[data-triggers-error]')?.textContent).toBe(
+    expect(screen.getByRole('alert').textContent).toBe(
       "Couldn't load triggers."
     );
     expect(screen.queryAllByRole('article')).toHaveLength(0);

@@ -619,6 +619,7 @@ export function RoomSchedulesDialog({
       icon={Icons.Clock}
       title={t('roomSchedules.title')}
       count={tasks.length}
+      closeLabel={t('roomSchedules.close')}
       onClose={onClose}
     >
       {tasks.length === 0 ? (

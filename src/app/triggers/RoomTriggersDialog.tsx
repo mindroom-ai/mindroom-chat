@@ -74,10 +74,11 @@ export function RoomTriggersDialog({
       icon={TriggersIcon}
       title={t('roomTriggers.title')}
       count={!loadFailed && (!loading || triggers.length > 0) ? triggers.length : undefined}
+      closeLabel={t('roomSchedules.close')}
       onClose={onClose}
     >
       {loadFailed ? (
-        <RoomDialogEmpty role="alert" data-triggers-error="">
+        <RoomDialogEmpty role="alert">
           <Text size="T300">{t('roomTriggers.loadError')}</Text>
         </RoomDialogEmpty>
       ) : (

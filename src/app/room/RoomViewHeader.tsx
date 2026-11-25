@@ -309,9 +309,7 @@ export function RoomViewHeader({
   };
   const closeTriggers = (dismissed?: boolean) => {
     store.set(roomTriggersDialogAtom, undefined);
-    if (dismissed || (dismissed === false && !triggersDialog?.opener?.isConnected)) {
-      restoreFocusAfterDismiss(triggersDialog?.opener);
-    }
+    restoreOverlayFocus(triggersDialog?.opener, dismissed);
   };
   useEffect(() => {
     if (triggersOpen) void refetchRoomTriggers();
@@ -403,6 +401,11 @@ export function RoomViewHeader({
     },
     [headerFocusTarget]
   );
+  const restoreOverlayFocus = (opener: HTMLElement | undefined, dismissed?: boolean) => {
+    if (dismissed || (dismissed === false && !opener?.isConnected)) {
+      restoreFocusAfterDismiss(opener);
+    }
+  };
 
   const canvasesHere = showCanvases && canvases ? canvases : [];
   const needsCanvasChooser = canvasesHere.length > 1;
@@ -789,9 +792,7 @@ export function RoomViewHeader({
               topic={topic}
               requestClose={(dismissed) => {
                 setTopicOpener(undefined);
-                if (dismissed || (dismissed === false && !topicOpener.isConnected)) {
-                  restoreFocusAfterDismiss(topicOpener);
-                }
+                restoreOverlayFocus(topicOpener, dismissed);
               }}
             />
           )}
@@ -864,9 +865,7 @@ export function RoomViewHeader({
           openThreadId={openThreadId}
           onClose={(dismissed) => {
             setSchedules(undefined);
-            if (dismissed || (dismissed === false && !schedules?.opener?.isConnected)) {
-              restoreFocusAfterDismiss(schedules?.opener);
-            }
+            restoreOverlayFocus(schedules?.opener, dismissed);
           }}
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}

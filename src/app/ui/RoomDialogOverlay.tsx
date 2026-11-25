@@ -126,6 +126,7 @@ export function RoomDialogFrame({
   icon,
   title,
   count,
+  closeLabel,
   onClose,
   modalRef,
   closeButtonRef,
@@ -135,13 +136,14 @@ export function RoomDialogFrame({
   icon: IconSrc;
   title: string;
   count?: number;
+  closeLabel: string;
   onClose: () => void;
   modalRef?: RefObject<HTMLDivElement | null>;
   closeButtonRef?: Ref<HTMLButtonElement>;
   ref?: Ref<HTMLDivElement>;
   children: ReactNode;
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const titleId = useId();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const setModalRef = useCallback(
@@ -175,11 +177,7 @@ export function RoomDialogFrame({
                 <span className={css.HeaderCount}>{localDigits(String(count), locale)}</span>
               )}
             </Box>
-            <DialogCloseButton
-              ref={closeButtonRef}
-              label={t('roomSchedules.close')}
-              onClick={onClose}
-            />
+            <DialogCloseButton ref={closeButtonRef} label={closeLabel} onClick={onClose} />
           </Header>
         }
       >
@@ -203,7 +201,6 @@ export function RoomDialogEmpty({
   hint?: string;
   role?: 'alert' | 'status';
   'aria-busy'?: boolean;
-  'data-triggers-error'?: '';
   children?: ReactNode;
 }) {
   return (

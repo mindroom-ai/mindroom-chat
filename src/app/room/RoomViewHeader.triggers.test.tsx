@@ -275,7 +275,7 @@ describe('RoomViewHeader triggers integration', () => {
     enableBtn.focus();
     fireEvent.click(enableBtn);
     await waitFor(() =>
-      expect(dialog.querySelector('[data-triggers-error]')?.textContent).toBe(
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
         "Couldn't load triggers."
       )
     );
