@@ -20,6 +20,7 @@ import {
   isFlaggedAiRunStatus,
 } from '../agent-run/aiRunDisplay';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
+import { formatRunErrorCode } from '../agent-run/RunErrorCard';
 import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ReplyDetails.css';
 
@@ -439,7 +440,7 @@ export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: str
       <Tokens info={info} eventId={eventId} />
       <ContextWindow info={info} />
       <Activity info={info} />
-      {(info.modelConfig || info.runId || info.sessionId) && (
+      {(info.modelConfig || info.runId || info.sessionId || info.error) && (
         <details>
           <Text as="summary" size="T200" priority="300" className={css.TechnicalSummary}>
             {t('mindroomUi.messages.mindroomReplyDetails.technicalDetails')}
@@ -450,6 +451,14 @@ export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: str
                 [t('mindroomUi.messages.mindroomReplyDetails.configuredModel'), info.modelConfig],
                 [t('mindroomUi.messages.mindroomReplyDetails.runId'), info.runId],
                 [t('mindroomUi.messages.mindroomReplyDetails.sessionId'), info.sessionId],
+                [
+                  t('mindroomUi.messages.runError.details.error'),
+                  info.error
+                    ? [info.error.title, formatRunErrorCode(info.error), info.error.summary]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : undefined,
+                ],
               ] as const
             ).map(([label, value]) =>
               value === undefined ? null : (

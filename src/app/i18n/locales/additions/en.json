@@ -1390,6 +1390,39 @@
       "stopReply": {
         "label": "Stop reply",
         "stopping": "Stopping…"
+      },
+      "runError": {
+        "cardLabel": "Run error",
+        "actions": {
+          "continue": "Continue",
+          "retry": "Retry",
+          "compact": "Compact"
+        },
+        "chips": {
+          "streamStalled": "Stream stalled",
+          "providerUnavailable": "Unavailable",
+          "rateLimited": "Rate limit",
+          "timeout": "Timed out",
+          "contextWindow": "Context limit",
+          "tokensPerMinute": "Token limit",
+          "safeguardRefusal": "Refused",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "API key",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Error"
+        },
+        "technicalDetails": "Technical details",
+        "details": {
+          "model": "Model",
+          "provider": "Provider",
+          "code": "Code",
+          "detail": "Detail",
+          "error": "Error"
+        },
+        "resumed": "Resumed",
+        "sendFailed": "Could not send message. Try again.",
+        "restartSeam": "Service restarted · context preserved",
+        "restartSeamRepeated": "Service restarted ({{times}}×) · context preserved"
       }
     },
     "message-search": {

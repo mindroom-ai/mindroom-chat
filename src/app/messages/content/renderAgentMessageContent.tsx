@@ -2,6 +2,10 @@ import { useContext, useMemo, type ComponentProps, type ReactNode } from 'react'
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
+import {
+  resolveHtmlReactParserOptions,
+  type HtmlReactParserOptionsSource,
+} from '../../rich-text/htmlReactParserOptions';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
@@ -27,6 +31,13 @@ import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
+import { RestartSeam, RunErrorCard } from '../agent-run/RunErrorCard';
+import {
+  collapseRestartMarkersHtml,
+  parseRestartSeamNode,
+  stripTrailingRunErrorHtml,
+  stripTrailingRunErrorText,
+} from '../agent-run/runErrorHtml';
 import {
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
@@ -146,6 +157,8 @@ type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactPa
   metadataStatus?: ToolMetadataStatus;
   /** Whether a tool marker draws a row: only an agent's does. */
   toolRows: boolean;
+  /** Whether the HTML contains service-restart seam sentinels to replace. */
+  restartSeams?: boolean;
 };
 
 /** A body with MindRoom's markers, parsed again only when that message changes. */
@@ -154,19 +167,31 @@ function AgentRenderBody({
   markerContent,
   metadataStatus,
   toolRows,
+  restartSeams = false,
   ...props
 }: AgentRenderBodyProps) {
-  return (
-    <RenderBody
-      {...props}
-      htmlReactParserOptions={useToolTraceMarkerParserOptions(
-        htmlReactParserOptions,
-        markerContent,
-        metadataStatus,
-        toolRows
-      )}
-    />
+  const toolOptions = useToolTraceMarkerParserOptions(
+    htmlReactParserOptions,
+    markerContent,
+    metadataStatus,
+    toolRows
   );
+  const parserOptions = useMemo<HtmlReactParserOptionsSource>(() => {
+    if (!restartSeams) return toolOptions;
+    return () => {
+      const resolved = resolveHtmlReactParserOptions(toolOptions);
+      return {
+        ...resolved,
+        replace: (domNode, index) => {
+          const restartCount = parseRestartSeamNode(domNode);
+          if (restartCount !== undefined) return <RestartSeam count={restartCount} />;
+          return resolved.replace?.(domNode, index);
+        },
+      };
+    };
+  }, [restartSeams, toolOptions]);
+
+  return <RenderBody {...props} htmlReactParserOptions={parserOptions} />;
 }
 
 type AgentWorkBodyProps = {
@@ -335,7 +360,8 @@ export const renderAgentMessageContent = ({
   // regenerated reply keeps its previous answer's run status, so a stream status of its own must
   // also say it ended well.
   const foldEventId = eventId ?? mEvent?.getId();
-  const status = getAiRunInfo(content)?.status;
+  const outerAiRun = getAiRunInfo(content);
+  const status = outerAiRun?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
   const streamStatus = readStreamStatus(content);
   const finished =
@@ -346,16 +372,42 @@ export const renderAgentMessageContent = ({
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
 
-  /** The reply's reasoning and body, the work folded when it finished, and its question card. */
+  /** The reply's reasoning and body, folded work, question card, restart seam, and run error card. */
   const wrapAgentBody = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
-    renderHtml: (customBody: string | undefined) => ReactNode,
-    canFold = true
+    renderHtml: (customBody: string | undefined, restartSeams: boolean) => ReactNode,
+    canFold = true,
+    plainBodyEmpty = false
   ) => {
+    const aiRun = fromMindroomAgent ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined;
+    const runError = aiRun?.error;
+    let processedHtml = html;
+    let bodyEmpty = plainBodyEmpty;
+    let hasRestartSeam = false;
+
+    if (fromMindroomAgent && processedHtml !== undefined) {
+      if (runError) {
+        const stripped = stripTrailingRunErrorHtml(processedHtml, runError);
+        processedHtml = stripped.html;
+        if (stripped.stripped && processedHtml.trim() === '') {
+          bodyEmpty = true;
+          processedHtml = undefined;
+        }
+      }
+      if (!bodyEmpty && processedHtml !== undefined) {
+        const collapsed = collapseRestartMarkersHtml(processedHtml);
+        processedHtml = collapsed.html;
+        hasRestartSeam = collapsed.hasRestartSeam;
+      }
+    }
+
+    const renderEffectiveHtml = (customBody: string | undefined): ReactNode =>
+      bodyEmpty ? null : renderHtml(customBody, hasRestartSeam);
+
     const wrap = (
       render: (customBody: string | undefined) => ReactNode,
-      bodyHtml: string | undefined = html
+      bodyHtml: string | undefined = processedHtml
     ) => {
       if (!foldsWork || foldEventId === undefined) {
         return wrapWithReasoning(bodyContent, bodyHtml, render(bodyHtml));
@@ -372,15 +424,33 @@ export const renderAgentMessageContent = ({
         />
       );
     };
-    if (!question || !renderQuestionCard) return wrap(renderHtml);
+
+    const wrappedBody =
+      !question || !renderQuestionCard ? (
+        wrap(renderEffectiveHtml)
+      ) : (
+        <QuestionReply
+          html={processedHtml}
+          question={question}
+          renderCard={renderQuestionCard}
+          renderHtml={renderEffectiveHtml}
+          renderBody={wrap}
+        />
+      );
+
+    if (!runError) return wrappedBody;
     return (
-      <QuestionReply
-        html={html}
-        question={question}
-        renderCard={renderQuestionCard}
-        renderHtml={renderHtml}
-        renderBody={wrap}
-      />
+      <>
+        {wrappedBody}
+        <RunErrorCard
+          error={runError}
+          aiRun={aiRun}
+          mEvent={mEvent}
+          roomId={roomId ?? mEvent?.getRoomId()}
+          threadId={threadId}
+          readOnly={readOnly}
+        />
+      </>
     );
   };
 
@@ -396,18 +466,35 @@ export const renderAgentMessageContent = ({
         (typeof renderableContent.formatted_body === 'string'
           ? renderableContent.formatted_body
           : undefined);
+      const runError = fromMindroomAgent
+        ? (getAiRunInfo(renderableContent) ?? outerAiRun)?.error
+        : undefined;
+      const strippedPlain =
+        customBody === undefined && runError
+          ? stripTrailingRunErrorText(body, runError)
+          : undefined;
+      const effectiveBody = strippedPlain ? strippedPlain.body : body;
+      const plainBodyEmpty = Boolean(strippedPlain?.stripped && effectiveBody === '');
 
-      return wrapAgentBody(renderableContent, customBody, (html) => (
-        <AgentRenderBody
-          {...props}
-          customBody={html}
-          highlightRegex={highlightRegex}
-          htmlReactParserOptions={htmlReactParserOptions}
-          markerContent={renderableContent}
-          toolRows={toolRows}
-          linkifyOpts={linkifyOpts}
-        />
-      ));
+      return wrapAgentBody(
+        renderableContent,
+        customBody,
+        (html, restartSeams) => (
+          <AgentRenderBody
+            {...props}
+            body={effectiveBody}
+            customBody={html}
+            highlightRegex={highlightRegex}
+            htmlReactParserOptions={htmlReactParserOptions}
+            markerContent={renderableContent}
+            toolRows={toolRows}
+            restartSeams={restartSeams}
+            linkifyOpts={linkifyOpts}
+          />
+        ),
+        true,
+        plainBodyEmpty
+      );
     };
 
   // A long call's transcript is only in the sidecar; until it is hydrated, and when the card may
@@ -467,6 +554,15 @@ export const renderAgentMessageContent = ({
     // or mocked callers.
     const resolvedContent = transformLongTextContent(downloadedContent);
     const mergedContent = withLiveWrapperContent(resolvedContent, content);
+    const runError = fromMindroomAgent
+      ? (getAiRunInfo(mergedContent) ?? outerAiRun)?.error
+      : undefined;
+    const strippedPlain =
+      props.customBody === undefined && runError
+        ? stripTrailingRunErrorText(props.body, runError)
+        : undefined;
+    const effectiveBody = strippedPlain ? strippedPlain.body : props.body;
+    const plainBodyEmpty = Boolean(strippedPlain?.stripped && effectiveBody === '');
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -474,21 +570,24 @@ export const renderAgentMessageContent = ({
         // sidecar.
         mergedContent,
         props.customBody,
-        (html) => (
+        (html, restartSeams) => (
           <AgentRenderBody
             {...props}
+            body={effectiveBody}
             customBody={html}
             highlightRegex={highlightRegex}
             htmlReactParserOptions={htmlReactParserOptions}
             markerContent={resolvedContent}
             metadataStatus={metadataStatus}
             toolRows={toolRows}
+            restartSeams={restartSeams}
             linkifyOpts={linkifyOpts}
           />
         ),
         // The preview stops partway, also when the sidecar could not be read; only the whole
         // reply from the sidecar folds.
-        !hasLongTextMetadata(resolvedContent)
+        !hasLongTextMetadata(resolvedContent),
+        plainBodyEmpty
       )
     );
   };

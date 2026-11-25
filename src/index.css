@@ -278,12 +278,16 @@ html [data-own-direction][data-own-direction='block'] {
 /* An agent's tool calls and compaction seams inside a message are the interface's, so they keep
    its direction when the message reads the other way. */
 html[dir='rtl'] [data-message-disclosure],
-html[dir='rtl'] [data-compaction-seam] {
+html[dir='rtl'] [data-compaction-seam],
+html[dir='rtl'] [data-restart-seam],
+html[dir='rtl'] [data-run-error-card] {
   direction: rtl;
 }
 
 html[dir='ltr'] [data-message-disclosure],
-html[dir='ltr'] [data-compaction-seam] {
+html[dir='ltr'] [data-compaction-seam],
+html[dir='ltr'] [data-restart-seam],
+html[dir='ltr'] [data-run-error-card] {
   direction: ltr;
 }
 

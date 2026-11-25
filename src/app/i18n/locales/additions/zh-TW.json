@@ -1354,6 +1354,39 @@
       "stopReply": {
         "label": "停止回覆",
         "stopping": "正在停止…"
+      },
+      "runError": {
+        "cardLabel": "執行錯誤",
+        "actions": {
+          "continue": "繼續",
+          "retry": "重試",
+          "compact": "壓縮內容"
+        },
+        "chips": {
+          "streamStalled": "串流中斷",
+          "providerUnavailable": "無法使用",
+          "rateLimited": "頻率受限",
+          "timeout": "逾時",
+          "contextWindow": "內容上限",
+          "tokensPerMinute": "權杖上限",
+          "safeguardRefusal": "已拒絕",
+          "quotaExhausted": "額度已滿",
+          "missingApiKey": "缺少 API 金鑰",
+          "authenticationFailed": "驗證失敗",
+          "runtimeError": "錯誤"
+        },
+        "technicalDetails": "技術詳情",
+        "details": {
+          "model": "模型",
+          "provider": "供應商",
+          "code": "錯誤碼",
+          "detail": "詳情",
+          "error": "錯誤"
+        },
+        "resumed": "已恢復",
+        "sendFailed": "無法傳送訊息，請重試。",
+        "restartSeam": "服務已重啟 · 上下文已保留",
+        "restartSeamRepeated": "服務已重啟（{{times}}×）· 上下文已保留"
       }
     },
     "message-search": {

@@ -1390,6 +1390,39 @@
       "stopReply": {
         "label": "Antwoord stoppen",
         "stopping": "Wordt gestopt…"
+      },
+      "runError": {
+        "cardLabel": "Uitvoeringsfout",
+        "actions": {
+          "continue": "Doorgaan",
+          "retry": "Opnieuw proberen",
+          "compact": "Comprimeren"
+        },
+        "chips": {
+          "streamStalled": "Stream gestopt",
+          "providerUnavailable": "Niet beschikbaar",
+          "rateLimited": "Limiet bereikt",
+          "timeout": "Time-out",
+          "contextWindow": "Contextlimiet",
+          "tokensPerMinute": "Tokenlimiet",
+          "safeguardRefusal": "Geweigerd",
+          "quotaExhausted": "Quotum",
+          "missingApiKey": "API-sleutel",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Fout"
+        },
+        "technicalDetails": "Technische details",
+        "details": {
+          "model": "Model",
+          "provider": "Provider",
+          "code": "Code",
+          "detail": "Detail",
+          "error": "Fout"
+        },
+        "resumed": "Hervat",
+        "sendFailed": "Kon bericht niet verzenden. Probeer opnieuw.",
+        "restartSeam": "Service herstart · context behouden",
+        "restartSeamRepeated": "Service herstart ({{times}}×) · context behouden"
       }
     },
     "message-search": {

@@ -1354,6 +1354,39 @@
       "stopReply": {
         "label": "Hentikan respons",
         "stopping": "Menghentikan…"
+      },
+      "runError": {
+        "cardLabel": "Kesalahan eksekusi",
+        "actions": {
+          "continue": "Lanjutkan",
+          "retry": "Coba lagi",
+          "compact": "Ringkas"
+        },
+        "chips": {
+          "streamStalled": "Aliran terhenti",
+          "providerUnavailable": "Tidak tersedia",
+          "rateLimited": "Batas laju",
+          "timeout": "Waktu habis",
+          "contextWindow": "Batas konteks",
+          "tokensPerMinute": "Batas token",
+          "safeguardRefusal": "Ditolak",
+          "quotaExhausted": "Kuota habis",
+          "missingApiKey": "Kunci API",
+          "authenticationFailed": "Autentikasi",
+          "runtimeError": "Kesalahan"
+        },
+        "technicalDetails": "Detail teknis",
+        "details": {
+          "model": "Model",
+          "provider": "Penyedia",
+          "code": "Kode",
+          "detail": "Detail",
+          "error": "Kesalahan"
+        },
+        "resumed": "Dilanjutkan",
+        "sendFailed": "Tidak dapat mengirim pesan. Coba lagi.",
+        "restartSeam": "Layanan dimulai ulang · konteks dipertahankan",
+        "restartSeamRepeated": "Layanan dimulai ulang ({{times}}×) · konteks dipertahankan"
       }
     },
     "message-search": {

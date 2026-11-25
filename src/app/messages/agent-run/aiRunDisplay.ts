@@ -190,6 +190,7 @@ export const hasRenderableAiRunDetails = (info: AiRunInfo): boolean => {
     formatAiRunTimeToFirstToken(info.timeToFirstToken) ||
     info.modelConfig ||
     info.runId ||
-    info.sessionId
+    info.sessionId ||
+    info.error
   );
 };
