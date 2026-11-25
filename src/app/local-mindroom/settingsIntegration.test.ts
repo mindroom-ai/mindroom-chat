@@ -78,6 +78,28 @@ describe('getSettingsMenuItems', () => {
       pages.indexOf(SettingsPages.PluginsPage) + 1
     );
   });
+
+  it('shows This Mac under mindroom between Agents & servers and Local MindRoom when desktopAccess is true', () => {
+    const withoutDesktopAccess = getSettingsMenuItems(true, t, false, false, false, false, false);
+    expect(withoutDesktopAccess.some((item) => item.page === SettingsPages.ThisMacPage)).toBe(
+      false
+    );
+
+    const withDesktopAccess = getSettingsMenuItems(true, t, false, false, false, false, true);
+    const pages = withDesktopAccess.map((item) => item.page);
+    expect(withDesktopAccess.find((item) => item.page === SettingsPages.ThisMacPage)).toMatchObject(
+      {
+        name: 'This Mac',
+        group: 'mindroom',
+      }
+    );
+    expect(pages.indexOf(SettingsPages.ThisMacPage)).toBe(
+      pages.indexOf(SettingsPages.MindroomPage) + 1
+    );
+    expect(pages.indexOf(LOCAL_MINDROOM_SETTINGS_PAGE)).toBe(
+      pages.indexOf(SettingsPages.ThisMacPage) + 1
+    );
+  });
 });
 
 describe('resolveSettingsInitialPage', () => {
@@ -132,6 +154,33 @@ describe('resolveSettingsInitialPage', () => {
       resolveSettingsInitialPage(
         SettingsPages.PluginsPage,
         ScreenSize.Desktop,
+        false,
+        false,
+        false,
+        false,
+        false
+      )
+    ).toBe(SettingsPages.AppearancePage);
+  });
+
+  it('opens This Mac only when desktopAccess is true', () => {
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.ThisMacPage,
+        ScreenSize.Desktop,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true
+      )
+    ).toBe(SettingsPages.ThisMacPage);
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.ThisMacPage,
+        ScreenSize.Desktop,
+        false,
         false,
         false,
         false,

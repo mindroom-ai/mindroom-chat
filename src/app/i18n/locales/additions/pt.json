@@ -946,6 +946,164 @@
         "startEntireScreenShare": "Partilhar todo o ecrã",
         "stopEntireScreenShare": "Parar de partilhar todo o ecrã"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Permitir acesso total",
+        "cancel": "Cancelar",
+        "chooseLimits": "Escolher limites...",
+        "close": "Fechar",
+        "disconnect": "Desconectar",
+        "done": "Concluído",
+        "editLimits": "Editar limites...",
+        "switchToFull": "Mudar para acesso total"
+      },
+      "banner": {
+        "restrictedActive": "Acesso restrito ativo neste Mac.",
+        "shellReadyWaitingPermissions": "Shell pronta - Aguardando permissões de ecrã e entrada do macOS",
+        "waitingPermissions": "Aguardando permissões de ecrã e entrada do macOS"
+      },
+      "browser": {
+        "brewHint": "Ou instale com Homebrew:",
+        "confirmOnMac": "Confirme este código em {{mac}} para aprovar o acesso.",
+        "copied": "Copiado",
+        "copyCommand": "Copiar comando",
+        "copyFailed": "Falha ao copiar",
+        "downloadMacApp": "Transferir MindRoom Chat para Mac",
+        "noMacDescription": "Para dar acesso do seu Mac a {{agent}}, inicie sessão com esta conta no MindRoom Chat para Mac.",
+        "paired": "{{agent}} está agora emparelhado com {{mac}}.",
+        "relayDescription": "Envie um pedido de emparelhamento para {{mac}}. Vai confirmar o código de 6 dígitos e escolher acesso total ou limites no seu Mac.",
+        "selectMac": "Escolher um Mac",
+        "sendToMac": "Enviar para {{mac}}",
+        "waitingOnMac": "Aguardando confirmação em {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} pode ver o seu ecrã, controlar qualquer app e executar comandos shell como o seu utilizador macOS sem perguntar, incluindo após reiniciar. Pare a qualquer momento pela barra de menus.",
+        "upgradeHeading": "A mudar para acesso total"
+      },
+      "empty": {
+        "noAgents": "Nenhum agente MindRoom encontrado nesta sala."
+      },
+      "incoming": {
+        "decline": "Recusar",
+        "failedTitle": "Não foi possível emparelhar {{agent}}",
+        "sasHint": "Certifique-se de que este código de 6 dígitos corresponde a {{requester}} antes de aprovar.",
+        "title": "Emparelhar {{agent}} de {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Adicionar pasta...",
+        "allowShellOnMac": "Permitir comandos shell neste Mac",
+        "foldersLabel": "Pastas só de leitura",
+        "fullNote": "O acesso total até revogação ativa o controlo de ecrã inteiro e a shell aprovada automaticamente até ser revogado.",
+        "fullScreen": "Ecrã inteiro (primary-screen)",
+        "gui15m": "Permitir controlo por 15 min",
+        "gui1h": "Permitir controlo por 1 hora",
+        "guiFull": "Acesso total até revogação",
+        "guiLabel": "Controlo de ecrã e entrada",
+        "guiObserve": "Apenas observar",
+        "installedApps": "Apps Mac permitidas",
+        "loadingApps": "A carregar apps instaladas...",
+        "needCapability": "Ative ecrã inteiro, pelo menos uma app, uma pasta ou comandos shell.",
+        "noAppsFound": "Nenhuma app Mac instalada encontrada.",
+        "noFolders": "Nenhuma pasta só de leitura adicionada.",
+        "perAgentHeading": "Controlo e aprovação de shell para {{agent}} (por agente)",
+        "removeFolder": "Remover",
+        "save": "Permitir com limites",
+        "saveChanges": "Guardar limites",
+        "sharedHeading": "Apps, pastas e shell partilhados neste Mac (aplica-se a todos os agentes emparelhados)",
+        "sharedWithOthersHint": "Partilhado com outros agentes emparelhados neste Mac",
+        "shell15m": "Aprovar automaticamente por 15 min",
+        "shell1h": "Aprovar automaticamente por 1 hora",
+        "shellApprovalLabel": "Aprovação de shell",
+        "shellAsk": "Perguntar antes de cada comando",
+        "shellDisabledHint": "Ative \"Permitir comandos shell neste Mac\" abaixo para configurar a aprovação de shell.",
+        "shellUntilRevoked": "Aprovar automaticamente até revogação"
+      },
+      "permissions": {
+        "accessibility": "Acessibilidade",
+        "accessibilityGrantedHint": "Controlo de teclado e rato permitido.",
+        "accessibilityMissingHint": "Permite controlo de teclado e rato. Atualiza automaticamente assim que for ativado.",
+        "allowAccessibility": "Permitir Acessibilidade",
+        "allowScreenRecording": "Permitir Gravação de Ecrã",
+        "allowed": "Permitido",
+        "relaunchToActivate": "Reiniciar para ativar o controlo do ecrã",
+        "screenRecording": "Gravação de Ecrã",
+        "screenRecordingGrantedHint": "Visualização do ecrã permitida.",
+        "screenRecordingMissingHint": "Permite que agentes emparelhados vejam o seu ecrã.",
+        "screenRecordingRelaunchHint": "Reinicie o MindRoom Chat uma vez para que o macOS ative a Gravação de Ecrã."
+      },
+      "picker": {
+        "subtitle": "Escolha que agente nesta sala se deve ligar a este Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Dar acesso ao Mac",
+        "manageAccess": "Acesso ao Mac"
+      },
+      "sas": {
+        "label": "Código de verificação"
+      },
+      "settings": {
+        "bridgeState": "Estado da ponte",
+        "helperVersion": "Versão do auxiliar",
+        "keywords": "mac, acesso ao computador, controlo de ambiente de trabalho, shell, acessibilidade, gravação de ecrã, permissões",
+        "lastError": "Último erro",
+        "manage": "Gerir",
+        "noPairedAgentsDescription": "Abra uma sala com um agente e escolha Dar acesso ao Mac para o ligar.",
+        "noPairedAgentsTitle": "Ainda não há agentes emparelhados",
+        "notSignedIn": "Sessão não iniciada",
+        "pairedAgentsTitle": "Agentes emparelhados",
+        "permissionsTitle": "Permissões macOS",
+        "revokeAll": "Revogar todo o acesso",
+        "revokeAllDescription": "Desconecta todos os agentes emparelhados e interrompe imediatamente o acesso ao computador neste Mac.",
+        "runningShellTitle": "Comandos shell em execução",
+        "savedSession": "Sessão Matrix guardada",
+        "sectionTitle": "Este Mac",
+        "statusActive": "Ativo",
+        "statusDescription": "Controle quais agentes MindRoom podem ver e controlar este Mac.",
+        "statusStopped": "Parado",
+        "statusTitle": "Acesso ao computador Mac",
+        "statusUnavailable": "Não disponível neste Mac",
+        "stopCommand": "Parar",
+        "title": "Este Mac",
+        "unavailableDescription": "O acesso ao computador Mac requer o MindRoom Chat para Mac em Apple Silicon.",
+        "unknown": "Desconhecido"
+      },
+      "shellApproval": {
+        "approveOnce": "Aprovar uma vez",
+        "approveOnceCountdown": "Aprovar uma vez ({{seconds}})",
+        "autoApprove15m": "Aprovar auto 15 min",
+        "autoApprove15mCountdown": "Aprovar auto 15 min ({{seconds}})",
+        "cwdLabel": "Diretório de trabalho",
+        "deny": "Recusar",
+        "empty": "Nenhum comando shell à espera de aprovação.",
+        "title": "Aprovar comando shell?"
+      },
+      "status": {
+        "fullAccess": "Acesso total",
+        "fullAccessActive": "Acesso total ativo",
+        "permissionsNeeded": "Permissões necessárias",
+        "restricted": "Restrito",
+        "shellReady": "Shell pronta"
+      },
+      "steps": {
+        "confirming": "A confirmar emparelhamento...",
+        "finishing": "A ativar acesso...",
+        "pairing": "A emparelhar com {{agent}}...",
+        "requestingOffer": "A contactar {{agent}}...",
+        "signingIn": "A iniciar sessão neste Mac..."
+      },
+      "title": {
+        "allowFull": "Permitir a {{agent}} acesso total a este Mac?",
+        "browserPair": "Dar acesso do seu Mac a {{agent}}",
+        "chooseLimits": "Escolher limites para {{agent}}",
+        "default": "Acesso ao computador Mac",
+        "editLimits": "Editar limites para {{agent}}",
+        "manageAgent": "{{agent}} neste Mac",
+        "pickAgent": "Dar a um agente acesso a este Mac"
+      },
+      "unavailable": {
+        "description": "O acesso ao computador Mac não está disponível neste dispositivo."
+      }
     }
   },
   "mindroomUi": {

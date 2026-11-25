@@ -26,15 +26,20 @@ on:
   pull_request:
     paths:
       - electron/**
+      - electron/afterPack.cjs
       - scripts/build-desktop-app.sh
       - scripts/build-trackpad-swipe-addon.sh
+      - scripts/desktop-helper-pin.json
+      - scripts/fetch-desktop-helper.mjs
       - scripts/desktop-latest-yml.mjs
       - scripts/macos-dmg/**
       - scripts/macos-publish-appcast.sh
       - src/app/lib/desktopBridge.ts
       - src/app/lib/nativeShell.ts
       - src/app/lib/hooks/useDocumentFocusChange.ts
+      - src/app/desktop-access/**
       - src/app/native/**
+      - src/app/navigation/desktopAccessModal.ts
       - src/app/navigation/desktopHistorySwipe*
       - src/app/quick-capture/**
       - src/app/composer/voice/liveVoiceRecording.ts

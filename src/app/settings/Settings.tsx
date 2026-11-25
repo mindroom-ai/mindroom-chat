@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
@@ -69,6 +69,12 @@ type PageContentProps = {
   closeDialog: () => void;
 };
 
+const LazyThisMacSettingsPage = lazy(() =>
+  import('../desktop-access/ThisMacSettingsPage').then((mod) => ({
+    default: mod.ThisMacSettingsPage,
+  }))
+);
+
 function SettingsPageContent({ page, requestClose, closeDialog }: PageContentProps) {
   switch (page) {
     case 'account':
@@ -93,6 +99,12 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <LanguageRegion requestClose={requestClose} />;
     case 'mindroom':
       return <MindroomSettingsPage requestClose={requestClose} />;
+    case 'thisMac':
+      return (
+        <Suspense fallback={null}>
+          <LazyThisMacSettingsPage requestClose={requestClose} />
+        </Suspense>
+      );
     case 'mindroom.local-mindroom':
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
     case 'storage':
@@ -235,7 +247,8 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       context.native,
       context.serverAdmin,
       context.nativeIOS,
-      context.hasPlugins
+      context.hasPlugins,
+      context.desktopAccess
     )
   );
   const [query, setQuery] = useState('');
@@ -276,9 +289,11 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
         context.native,
         context.serverAdmin,
         context.nativeIOS,
-        context.hasPlugins
+        context.hasPlugins,
+        context.desktopAccess
       ),
     [
+      context.desktopAccess,
       context.hasPlugins,
       context.localMindroom,
       context.native,

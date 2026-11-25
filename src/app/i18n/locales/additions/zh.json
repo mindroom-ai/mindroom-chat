@@ -912,6 +912,164 @@
         "startEntireScreenShare": "共享整个屏幕",
         "stopEntireScreenShare": "停止共享整个屏幕"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "允许完全访问",
+        "cancel": "取消",
+        "chooseLimits": "选择限制...",
+        "close": "关闭",
+        "disconnect": "断开连接",
+        "done": "完成",
+        "editLimits": "编辑限制...",
+        "switchToFull": "切换到完全访问"
+      },
+      "banner": {
+        "restrictedActive": "此 Mac 已启用受限访问。",
+        "shellReadyWaitingPermissions": "Shell 已就绪 - 等待 macOS 屏幕与输入权限",
+        "waitingPermissions": "等待 macOS 屏幕与输入权限"
+      },
+      "browser": {
+        "brewHint": "或使用 Homebrew 安装：",
+        "confirmOnMac": "请在 {{mac}} 上确认此代码以批准访问。",
+        "copied": "已复制",
+        "copyCommand": "复制命令",
+        "copyFailed": "复制失败",
+        "downloadMacApp": "下载 Mac 版 MindRoom Chat",
+        "noMacDescription": "要授予 {{agent}} 访问你的 Mac 的权限，请在 Mac 版 MindRoom Chat 中登录此账号。",
+        "paired": "{{agent}} 现已与 {{mac}} 配对。",
+        "relayDescription": "向 {{mac}} 发送配对请求。你将在 Mac 上确认 6 位验证码，并选择完全访问或设置限制。",
+        "selectMac": "选择一台 Mac",
+        "sendToMac": "发送到 {{mac}}",
+        "waitingOnMac": "正在等待 {{mac}} 确认..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} 可以查看你的屏幕、控制所有应用，并无需询问即可作为你的 macOS 用户运行 Shell 命令（包括重启后）。可随时从菜单栏停止。",
+        "upgradeHeading": "正在切换到完全访问"
+      },
+      "empty": {
+        "noAgents": "此房间中未找到 MindRoom 智能体。"
+      },
+      "incoming": {
+        "decline": "拒绝",
+        "failedTitle": "无法配对 {{agent}}",
+        "sasHint": "批准前请确保此 6 位验证码与 {{requester}} 一致。",
+        "title": "是否接受来自 {{requester}} 的 {{agent}} 配对请求？"
+      },
+      "limits": {
+        "addFolder": "添加文件夹...",
+        "allowShellOnMac": "允许在此 Mac 上运行 Shell 命令",
+        "foldersLabel": "只读文件夹",
+        "fullNote": "“撤销前完全访问”会启用全屏控制和自动批准 Shell 命令，直到你撤销为止。",
+        "fullScreen": "全屏 (primary-screen)",
+        "gui15m": "允许控制 15 分钟",
+        "gui1h": "允许控制 1 小时",
+        "guiFull": "撤销前完全访问",
+        "guiLabel": "屏幕与输入控制",
+        "guiObserve": "仅观察",
+        "installedApps": "允许的 Mac 应用",
+        "loadingApps": "正在加载已安装的应用...",
+        "needCapability": "请至少启用全屏、一个应用、一个文件夹或 Shell 命令。",
+        "noAppsFound": "未找到已安装的 Mac 应用。",
+        "noFolders": "尚未添加只读文件夹。",
+        "perAgentHeading": "{{agent}} 的控制与 Shell 审批（按智能体）",
+        "removeFolder": "移除",
+        "save": "按限制允许",
+        "saveChanges": "保存限制",
+        "sharedHeading": "此 Mac 上共享的应用、文件夹与 Shell（适用于所有已配对智能体）",
+        "sharedWithOthersHint": "与此 Mac 上其他已配对智能体共享",
+        "shell15m": "15 分钟内自动批准",
+        "shell1h": "1 小时内自动批准",
+        "shellApprovalLabel": "Shell 审批",
+        "shellAsk": "每次执行命令前询问",
+        "shellDisabledHint": "请先在下方开启“允许在此 Mac 上运行 Shell 命令”以配置 Shell 审批。",
+        "shellUntilRevoked": "撤销前自动批准"
+      },
+      "permissions": {
+        "accessibility": "辅助功能",
+        "accessibilityGrantedHint": "已允许键盘和鼠标控制。",
+        "accessibilityMissingHint": "允许键盘和鼠标控制。开启后会自动更新。",
+        "allowAccessibility": "允许辅助功能",
+        "allowScreenRecording": "允许屏幕录制",
+        "allowed": "已允许",
+        "relaunchToActivate": "重新启动以激活屏幕控制",
+        "screenRecording": "屏幕录制",
+        "screenRecordingGrantedHint": "已允许查看屏幕。",
+        "screenRecordingMissingHint": "允许已配对的智能体查看你的屏幕。",
+        "screenRecordingRelaunchHint": "请重新启动一次 MindRoom Chat，让 macOS 激活屏幕录制权限。"
+      },
+      "picker": {
+        "subtitle": "选择此房间中要连接到此 Mac 的智能体。"
+      },
+      "roomHeader": {
+        "giveAccess": "授予 Mac 访问权限",
+        "manageAccess": "Mac 访问"
+      },
+      "sas": {
+        "label": "验证码"
+      },
+      "settings": {
+        "bridgeState": "桥接状态",
+        "helperVersion": "辅助程序版本",
+        "keywords": "mac, 电脑访问, 桌面控制, shell, 辅助功能, 屏幕录制, 权限",
+        "lastError": "最近错误",
+        "manage": "管理",
+        "noPairedAgentsDescription": "打开包含智能体的房间并选择“授予 Mac 访问权限”以连接。",
+        "noPairedAgentsTitle": "尚未配对任何智能体",
+        "notSignedIn": "未登录",
+        "pairedAgentsTitle": "已配对的智能体",
+        "permissionsTitle": "macOS 权限",
+        "revokeAll": "撤销所有访问权限",
+        "revokeAllDescription": "断开所有已配对智能体，并立即停止此 Mac 上的电脑访问。",
+        "runningShellTitle": "运行中的 Shell 命令",
+        "savedSession": "已保存的 Matrix 会话",
+        "sectionTitle": "此 Mac",
+        "statusActive": "运行中",
+        "statusDescription": "控制哪些 MindRoom 智能体可以查看和控制此 Mac。",
+        "statusStopped": "已停止",
+        "statusTitle": "Mac 电脑访问",
+        "statusUnavailable": "此 Mac 上不可用",
+        "stopCommand": "停止",
+        "title": "此 Mac",
+        "unavailableDescription": "Mac 电脑访问需要在 Apple Silicon 上运行 Mac 版 MindRoom Chat。",
+        "unknown": "未知"
+      },
+      "shellApproval": {
+        "approveOnce": "批准一次",
+        "approveOnceCountdown": "批准一次 ({{seconds}})",
+        "autoApprove15m": "15 分钟自动批准",
+        "autoApprove15mCountdown": "15 分钟自动批准 ({{seconds}})",
+        "cwdLabel": "工作目录",
+        "deny": "拒绝",
+        "empty": "当前没有等待批准的 Shell 命令。",
+        "title": "批准 Shell 命令？"
+      },
+      "status": {
+        "fullAccess": "完全访问",
+        "fullAccessActive": "完全访问已启用",
+        "permissionsNeeded": "需要权限",
+        "restricted": "受限",
+        "shellReady": "Shell 已就绪"
+      },
+      "steps": {
+        "confirming": "正在确认配对...",
+        "finishing": "正在激活访问权限...",
+        "pairing": "正在与 {{agent}} 配对...",
+        "requestingOffer": "正在联系 {{agent}}...",
+        "signingIn": "正在此 Mac 上登录..."
+      },
+      "title": {
+        "allowFull": "允许 {{agent}} 完全访问此 Mac？",
+        "browserPair": "授予 {{agent}} 访问你的 Mac 的权限",
+        "chooseLimits": "为 {{agent}} 选择限制",
+        "default": "Mac 电脑访问",
+        "editLimits": "编辑 {{agent}} 的限制",
+        "manageAgent": "此 Mac 上的 {{agent}}",
+        "pickAgent": "授予智能体访问此 Mac 的权限"
+      },
+      "unavailable": {
+        "description": "此设备不支持 Mac 电脑访问。"
+      }
     }
   },
   "mindroomUi": {

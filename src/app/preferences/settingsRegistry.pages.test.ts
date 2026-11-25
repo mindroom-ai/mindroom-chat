@@ -45,6 +45,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'connections/ConnectionsSettings.tsx',
     'computer/ComputerSettings.tsx',
   ],
+  thisMac: ['desktop-access/ThisMacSettingsPage.tsx'],
   'mindroom.local-mindroom': ['local-mindroom/LocalMindroom.tsx'],
   'archived-rooms': ['rooms/archive/ArchivedRoomsPage.tsx'],
   'server-accounts': ['server-admin/ServerAccounts.tsx', 'server-admin/ServerAccountDetail.tsx'],

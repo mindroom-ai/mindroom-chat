@@ -929,6 +929,164 @@
         "startEntireScreenShare": "Hele scherm delen",
         "stopEntireScreenShare": "Stoppen met delen van hele scherm"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Volledige toegang toestaan",
+        "cancel": "Annuleren",
+        "chooseLimits": "Grenzen kiezen...",
+        "close": "Sluiten",
+        "disconnect": "Loskoppelen",
+        "done": "Klaar",
+        "editLimits": "Grenzen bewerken...",
+        "switchToFull": "Overschakelen naar volledige toegang"
+      },
+      "banner": {
+        "restrictedActive": "Beperkte toegang actief op deze Mac.",
+        "shellReadyWaitingPermissions": "Shell gereed - Wachten op macOS-machtigingen voor scherm en invoer",
+        "waitingPermissions": "Wachten op macOS-machtigingen voor scherm en invoer"
+      },
+      "browser": {
+        "brewHint": "Of installeer met Homebrew:",
+        "confirmOnMac": "Bevestig deze code op {{mac}} om toegang goed te keuren.",
+        "copied": "Gekopieerd",
+        "copyCommand": "Opdracht kopiëren",
+        "copyFailed": "Kopiëren mislukt",
+        "downloadMacApp": "Download MindRoom Chat voor Mac",
+        "noMacDescription": "Om {{agent}} toegang te geven tot je Mac, log je met dit account in bij MindRoom Chat voor Mac.",
+        "paired": "{{agent}} is nu gekoppeld met {{mac}}.",
+        "relayDescription": "Stuur een koppelverzoek naar {{mac}}. Je bevestigt de 6-cijferige code en kiest volledige toegang of grenzen op je Mac.",
+        "selectMac": "Kies een Mac",
+        "sendToMac": "Versturen naar {{mac}}",
+        "waitingOnMac": "Wachten op bevestiging op {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} kan je scherm zien, elke app bedienen en zonder te vragen shell-opdrachten uitvoeren als jouw macOS-gebruiker, ook na herstart. Je kunt dit op elk moment stoppen via de menubalk.",
+        "upgradeHeading": "Overschakelen naar volledige toegang"
+      },
+      "empty": {
+        "noAgents": "Geen MindRoom-agents gevonden in deze ruimte."
+      },
+      "incoming": {
+        "decline": "Weigeren",
+        "failedTitle": "Kan {{agent}} niet koppelen",
+        "sasHint": "Controleer voor goedkeuring of deze 6-cijferige code overeenkomt met {{requester}}.",
+        "title": "{{agent}} koppelen vanaf {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Map toevoegen...",
+        "allowShellOnMac": "Shell-opdrachten op deze Mac toestaan",
+        "foldersLabel": "Alleen-lezen mappen",
+        "fullNote": "Volledige toegang tot intrekking schakelt volledige schermbediening en automatisch goedgekeurde shell-opdrachten in tot je deze intrekt.",
+        "fullScreen": "Volledig scherm (primary-screen)",
+        "gui15m": "Bediening 15 min toestaan",
+        "gui1h": "Bediening 1 uur toestaan",
+        "guiFull": "Volledige toegang tot intrekking",
+        "guiLabel": "Scherm- en invoerbediening",
+        "guiObserve": "Alleen meekijken",
+        "installedApps": "Toegestane Mac-apps",
+        "loadingApps": "Geïnstalleerde apps laden...",
+        "needCapability": "Schakel volledig scherm, minstens één app, een map of shell-opdrachten in.",
+        "noAppsFound": "Geen geïnstalleerde Mac-apps gevonden.",
+        "noFolders": "Geen alleen-lezen mappen toegevoegd.",
+        "perAgentHeading": "Bediening en shell-goedkeuring voor {{agent}} (per agent)",
+        "removeFolder": "Verwijderen",
+        "save": "Toestaan met grenzen",
+        "saveChanges": "Grenzen opslaan",
+        "sharedHeading": "Gedeelde apps, mappen en shell op deze Mac (geldt voor alle gekoppelde agents)",
+        "sharedWithOthersHint": "Gedeeld met andere gekoppelde agents op deze Mac",
+        "shell15m": "15 min automatisch goedkeuren",
+        "shell1h": "1 uur automatisch goedkeuren",
+        "shellApprovalLabel": "Shell-goedkeuring",
+        "shellAsk": "Voor elke opdracht vragen",
+        "shellDisabledHint": "Zet hieronder \"Shell-opdrachten op deze Mac toestaan\" aan om shell-goedkeuring in te stellen.",
+        "shellUntilRevoked": "Automatisch goedkeuren tot intrekking"
+      },
+      "permissions": {
+        "accessibility": "Toegankelijkheid",
+        "accessibilityGrantedHint": "Toetsenbord- en muisbediening toegestaan.",
+        "accessibilityMissingHint": "Staat toetsenbord- en muisbediening toe. Wordt automatisch bijgewerkt zodra dit is ingeschakeld.",
+        "allowAccessibility": "Toegankelijkheid toestaan",
+        "allowScreenRecording": "Schermopname toestaan",
+        "allowed": "Toegestaan",
+        "relaunchToActivate": "Herstart om schermbediening te activeren",
+        "screenRecording": "Schermopname",
+        "screenRecordingGrantedHint": "Schermweergave toegestaan.",
+        "screenRecordingMissingHint": "Staat gekoppelde agents toe om je scherm te zien.",
+        "screenRecordingRelaunchHint": "Herstart MindRoom Chat één keer zodat macOS Schermopname activeert."
+      },
+      "picker": {
+        "subtitle": "Kies welke agent in deze ruimte verbinding mag maken met deze Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Mac-toegang geven",
+        "manageAccess": "Mac-toegang"
+      },
+      "sas": {
+        "label": "Verificatiecode"
+      },
+      "settings": {
+        "bridgeState": "Bridge-status",
+        "helperVersion": "Helper-versie",
+        "keywords": "mac, computertoegang, bureaubladbediening, shell, toegankelijkheid, schermopname, machtigingen",
+        "lastError": "Laatste fout",
+        "manage": "Beheren",
+        "noPairedAgentsDescription": "Open een ruimte met een agent en kies Mac-toegang geven om deze te verbinden.",
+        "noPairedAgentsTitle": "Nog geen agents gekoppeld",
+        "notSignedIn": "Niet ingelogd",
+        "pairedAgentsTitle": "Gekoppelde agents",
+        "permissionsTitle": "macOS-machtigingen",
+        "revokeAll": "Alle toegang intrekken",
+        "revokeAllDescription": "Koppelt alle gekoppelde agents los en stopt direct de computertoegang op deze Mac.",
+        "runningShellTitle": "Actieve shell-opdrachten",
+        "savedSession": "Opgeslagen Matrix-sessie",
+        "sectionTitle": "Deze Mac",
+        "statusActive": "Actief",
+        "statusDescription": "Bepaal welke MindRoom-agents deze Mac mogen zien en bedienen.",
+        "statusStopped": "Gestopt",
+        "statusTitle": "Mac-computertoegang",
+        "statusUnavailable": "Niet beschikbaar op deze Mac",
+        "stopCommand": "Stoppen",
+        "title": "Deze Mac",
+        "unavailableDescription": "Mac-computertoegang vereist MindRoom Chat voor Mac op Apple Silicon.",
+        "unknown": "Onbekend"
+      },
+      "shellApproval": {
+        "approveOnce": "Eenmalig goedkeuren",
+        "approveOnceCountdown": "Eenmalig goedkeuren ({{seconds}})",
+        "autoApprove15m": "15 min automatisch goedkeuren",
+        "autoApprove15mCountdown": "15 min automatisch goedkeuren ({{seconds}})",
+        "cwdLabel": "Werkmap",
+        "deny": "Weigeren",
+        "empty": "Er wacht geen shell-opdracht op goedkeuring.",
+        "title": "Shell-opdracht goedkeuren?"
+      },
+      "status": {
+        "fullAccess": "Volledige toegang",
+        "fullAccessActive": "Volledige toegang actief",
+        "permissionsNeeded": "Machtigingen vereist",
+        "restricted": "Beperkt",
+        "shellReady": "Shell gereed"
+      },
+      "steps": {
+        "confirming": "Koppeling bevestigen...",
+        "finishing": "Toegang activeren...",
+        "pairing": "Koppelen met {{agent}}...",
+        "requestingOffer": "Contact opnemen met {{agent}}...",
+        "signingIn": "Inloggen op deze Mac..."
+      },
+      "title": {
+        "allowFull": "{{agent}} volledige toegang tot deze Mac geven?",
+        "browserPair": "Geef {{agent}} toegang tot je Mac",
+        "chooseLimits": "Grenzen kiezen voor {{agent}}",
+        "default": "Mac-computertoegang",
+        "editLimits": "Grenzen bewerken voor {{agent}}",
+        "manageAgent": "{{agent}} op deze Mac",
+        "pickAgent": "Een agent toegang geven tot deze Mac"
+      },
+      "unavailable": {
+        "description": "Mac-computertoegang is niet beschikbaar op dit apparaat."
+      }
     }
   },
   "mindroomUi": {

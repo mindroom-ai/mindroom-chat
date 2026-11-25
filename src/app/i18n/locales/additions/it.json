@@ -946,6 +946,164 @@
         "startEntireScreenShare": "Condividi l’intero schermo",
         "stopEntireScreenShare": "Interrompi la condivisione dell’intero schermo"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Consenti accesso completo",
+        "cancel": "Annulla",
+        "chooseLimits": "Scegli limiti...",
+        "close": "Chiudi",
+        "disconnect": "Disconnetti",
+        "done": "Fine",
+        "editLimits": "Modifica limiti...",
+        "switchToFull": "Passa ad accesso completo"
+      },
+      "banner": {
+        "restrictedActive": "Accesso limitato attivo su questo Mac.",
+        "shellReadyWaitingPermissions": "Shell pronta - In attesa delle autorizzazioni macOS per schermo e input",
+        "waitingPermissions": "In attesa delle autorizzazioni macOS per schermo e input"
+      },
+      "browser": {
+        "brewHint": "Oppure installa con Homebrew:",
+        "confirmOnMac": "Conferma questo codice su {{mac}} per approvare l'accesso.",
+        "copied": "Copiato",
+        "copyCommand": "Copia comando",
+        "copyFailed": "Copia non riuscita",
+        "downloadMacApp": "Scarica MindRoom Chat per Mac",
+        "noMacDescription": "Per dare a {{agent}} accesso al tuo Mac, accedi con questo account in MindRoom Chat per Mac.",
+        "paired": "{{agent}} è ora associato a {{mac}}.",
+        "relayDescription": "Invia una richiesta di associazione a {{mac}}. Confermerai il codice a 6 cifre e sceglierai accesso completo o limiti sul tuo Mac.",
+        "selectMac": "Scegli un Mac",
+        "sendToMac": "Invia a {{mac}}",
+        "waitingOnMac": "In attesa di conferma su {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} può vedere il tuo schermo, controllare ogni app ed eseguire comandi shell come il tuo utente macOS senza chiedere, anche dopo il riavvio. Interrompi in qualsiasi momento dalla barra dei menu.",
+        "upgradeHeading": "Passaggio ad accesso completo"
+      },
+      "empty": {
+        "noAgents": "Nessun agente MindRoom trovato in questa stanza."
+      },
+      "incoming": {
+        "decline": "Rifiuta",
+        "failedTitle": "Impossibile associare {{agent}}",
+        "sasHint": "Assicurati che questo codice a 6 cifre corrisponda a {{requester}} prima di approvare.",
+        "title": "Associare {{agent}} da {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Aggiungi cartella...",
+        "allowShellOnMac": "Consenti comandi shell su questo Mac",
+        "foldersLabel": "Cartelle in sola lettura",
+        "fullNote": "L'accesso completo fino alla revoca abilita il controllo a schermo intero e la shell approvata automaticamente fino alla revoca.",
+        "fullScreen": "Schermo intero (primary-screen)",
+        "gui15m": "Consenti controllo per 15 min",
+        "gui1h": "Consenti controllo per 1 ora",
+        "guiFull": "Accesso completo fino alla revoca",
+        "guiLabel": "Controllo schermo e input",
+        "guiObserve": "Solo osservazione",
+        "installedApps": "App Mac consentite",
+        "loadingApps": "Caricamento delle app installate...",
+        "needCapability": "Abilita schermo intero, almeno un'app, una cartella o i comandi shell.",
+        "noAppsFound": "Nessuna app Mac installata trovata.",
+        "noFolders": "Nessuna cartella in sola lettura aggiunta.",
+        "perAgentHeading": "Controllo e approvazione shell per {{agent}} (per agente)",
+        "removeFolder": "Rimuovi",
+        "save": "Consenti con limiti",
+        "saveChanges": "Salva limiti",
+        "sharedHeading": "App, cartelle e shell condivisi su questo Mac (vale per tutti gli agenti associati)",
+        "sharedWithOthersHint": "Condiviso con altri agenti associati su questo Mac",
+        "shell15m": "Approva automaticamente per 15 min",
+        "shell1h": "Approva automaticamente per 1 ora",
+        "shellApprovalLabel": "Approvazione shell",
+        "shellAsk": "Chiedi prima di ogni comando",
+        "shellDisabledHint": "Attiva \"Consenti comandi shell su questo Mac\" sotto per configurare l'approvazione della shell.",
+        "shellUntilRevoked": "Approva automaticamente fino alla revoca"
+      },
+      "permissions": {
+        "accessibility": "Accessibilità",
+        "accessibilityGrantedHint": "Controllo di tastiera e mouse consentito.",
+        "accessibilityMissingHint": "Consente il controllo di tastiera e mouse. Si aggiorna automaticamente una volta abilitato.",
+        "allowAccessibility": "Consenti Accessibilità",
+        "allowScreenRecording": "Consenti Registrazione schermo",
+        "allowed": "Consentito",
+        "relaunchToActivate": "Riavvia per attivare il controllo dello schermo",
+        "screenRecording": "Registrazione schermo",
+        "screenRecordingGrantedHint": "Visualizzazione dello schermo consentita.",
+        "screenRecordingMissingHint": "Consente agli agenti associati di vedere il tuo schermo.",
+        "screenRecordingRelaunchHint": "Riavvia MindRoom Chat una volta affinché macOS attivi la Registrazione schermo."
+      },
+      "picker": {
+        "subtitle": "Scegli quale agente in questa stanza deve connettersi a questo Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Dai accesso al Mac",
+        "manageAccess": "Accesso al Mac"
+      },
+      "sas": {
+        "label": "Codice di verifica"
+      },
+      "settings": {
+        "bridgeState": "Stato del bridge",
+        "helperVersion": "Versione helper",
+        "keywords": "mac, accesso computer, controllo desktop, shell, accessibilità, registrazione schermo, autorizzazioni",
+        "lastError": "Ultimo errore",
+        "manage": "Gestisci",
+        "noPairedAgentsDescription": "Apri una stanza con un agente e scegli Dai accesso al Mac per connetterlo.",
+        "noPairedAgentsTitle": "Nessun agente associato",
+        "notSignedIn": "Non connesso",
+        "pairedAgentsTitle": "Agenti associati",
+        "permissionsTitle": "Autorizzazioni macOS",
+        "revokeAll": "Revoca tutto l'accesso",
+        "revokeAllDescription": "Disconnette tutti gli agenti associati e interrompe subito l'accesso al computer su questo Mac.",
+        "runningShellTitle": "Comandi shell in esecuzione",
+        "savedSession": "Sessione Matrix salvata",
+        "sectionTitle": "Questo Mac",
+        "statusActive": "Attivo",
+        "statusDescription": "Controlla quali agenti MindRoom possono vedere e controllare questo Mac.",
+        "statusStopped": "Interrotto",
+        "statusTitle": "Accesso al Mac",
+        "statusUnavailable": "Non disponibile su questo Mac",
+        "stopCommand": "Interrompi",
+        "title": "Questo Mac",
+        "unavailableDescription": "L'accesso al Mac richiede MindRoom Chat per Mac su Apple Silicon.",
+        "unknown": "Sconosciuto"
+      },
+      "shellApproval": {
+        "approveOnce": "Approva una volta",
+        "approveOnceCountdown": "Approva una volta ({{seconds}})",
+        "autoApprove15m": "Approva auto 15 min",
+        "autoApprove15mCountdown": "Approva auto 15 min ({{seconds}})",
+        "cwdLabel": "Directory di lavoro",
+        "deny": "Nega",
+        "empty": "Nessun comando shell in attesa di approvazione.",
+        "title": "Approvare il comando shell?"
+      },
+      "status": {
+        "fullAccess": "Accesso completo",
+        "fullAccessActive": "Accesso completo attivo",
+        "permissionsNeeded": "Autorizzazioni necessarie",
+        "restricted": "Limitato",
+        "shellReady": "Shell pronta"
+      },
+      "steps": {
+        "confirming": "Conferma dell'associazione...",
+        "finishing": "Attivazione dell'accesso...",
+        "pairing": "Associazione con {{agent}}...",
+        "requestingOffer": "Contatto con {{agent}}...",
+        "signingIn": "Accesso su questo Mac..."
+      },
+      "title": {
+        "allowFull": "Consentire a {{agent}} l'accesso completo a questo Mac?",
+        "browserPair": "Dai a {{agent}} accesso al tuo Mac",
+        "chooseLimits": "Scegli limiti per {{agent}}",
+        "default": "Accesso al Mac",
+        "editLimits": "Modifica limiti per {{agent}}",
+        "manageAgent": "{{agent}} su questo Mac",
+        "pickAgent": "Dai accesso a un agente a questo Mac"
+      },
+      "unavailable": {
+        "description": "L'accesso al Mac non è disponibile su questo dispositivo."
+      }
     }
   },
   "mindroomUi": {

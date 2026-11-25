@@ -24,6 +24,7 @@ const CONTEXT: SettingsContext = {
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
+  desktopAccess: false,
 };
 
 const rows = (stored: Partial<Settings> = {}, context: SettingsContext = CONTEXT) =>

@@ -912,6 +912,164 @@
         "startEntireScreenShare": "画面全体を共有",
         "stopEntireScreenShare": "画面全体の共有を停止"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "フルアクセスを許可",
+        "cancel": "キャンセル",
+        "chooseLimits": "制限を選択...",
+        "close": "閉じる",
+        "disconnect": "接続解除",
+        "done": "完了",
+        "editLimits": "制限を編集...",
+        "switchToFull": "フルアクセスに切り替え"
+      },
+      "banner": {
+        "restrictedActive": "この Mac で制限付きアクセスが有効です。",
+        "shellReadyWaitingPermissions": "シェル準備完了 - macOS の画面と入力の権限を待機中",
+        "waitingPermissions": "macOS の画面と入力の権限を待機中"
+      },
+      "browser": {
+        "brewHint": "または Homebrew でインストール:",
+        "confirmOnMac": "アクセスを承認するには、{{mac}} でこのコードを確認してください。",
+        "copied": "コピーしました",
+        "copyCommand": "コマンドをコピー",
+        "copyFailed": "コピーに失敗しました",
+        "downloadMacApp": "Mac 版 MindRoom Chat をダウンロード",
+        "noMacDescription": "{{agent}} に Mac へのアクセスを許可するには、Mac 版 MindRoom Chat でこのアカウントにサインインしてください。",
+        "paired": "{{agent}} は {{mac}} とペアリングされました。",
+        "relayDescription": "{{mac}} にペアリングリクエストを送信します。Mac で 6 桁のコードを確認し、フルアクセスまたは制限を選択します。",
+        "selectMac": "Mac を選択",
+        "sendToMac": "{{mac}} に送信",
+        "waitingOnMac": "{{mac}} での確認を待機しています..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} は再起動後も含め、確認なしであなたの画面を表示し、すべてのアプリを操作し、macOS ユーザーとしてシェルコマンドを実行できます。メニューバーからいつでも停止できます。",
+        "upgradeHeading": "フルアクセスへの切り替え"
+      },
+      "empty": {
+        "noAgents": "このルームに MindRoom エージェントが見つかりません。"
+      },
+      "incoming": {
+        "decline": "拒否",
+        "failedTitle": "{{agent}} をペアリングできませんでした",
+        "sasHint": "承認する前に、この 6 桁のコードが {{requester}} と一致していることを確認してください。",
+        "title": "{{requester}} から {{agent}} をペアリングしますか？"
+      },
+      "limits": {
+        "addFolder": "フォルダを追加...",
+        "allowShellOnMac": "この Mac でシェルコマンドを許可",
+        "foldersLabel": "読み取り専用フォルダ",
+        "fullNote": "取り消すまでフルアクセスを有効にすると、取り消すまでフルスクリーン操作とシェルの自動承認が有効になります。",
+        "fullScreen": "フルスクリーン (primary-screen)",
+        "gui15m": "15 分間操作を許可",
+        "gui1h": "1 時間操作を許可",
+        "guiFull": "取り消すまでフルアクセス",
+        "guiLabel": "画面と入力の操作",
+        "guiObserve": "閲覧のみ",
+        "installedApps": "許可する Mac アプリ",
+        "loadingApps": "インストール済みアプリを読み込み中...",
+        "needCapability": "フルスクリーン、1 つ以上のアプリ、フォルダ、またはシェルコマンドを有効にしてください。",
+        "noAppsFound": "インストール済みの Mac アプリが見つかりません。",
+        "noFolders": "読み取り専用フォルダは追加されていません。",
+        "perAgentHeading": "{{agent}} の操作とシェル承認 (エージェント別)",
+        "removeFolder": "削除",
+        "save": "制限付きで許可",
+        "saveChanges": "制限を保存",
+        "sharedHeading": "この Mac で共有するアプリ・フォルダ・シェル (ペアリング済みの全エージェントに適用)",
+        "sharedWithOthersHint": "この Mac の他のペアリング済みエージェントと共有されます",
+        "shell15m": "15 分間自動承認",
+        "shell1h": "1 時間自動承認",
+        "shellApprovalLabel": "シェル承認",
+        "shellAsk": "コマンドごとに確認",
+        "shellDisabledHint": "シェル承認を設定するには、下の「この Mac でシェルコマンドを許可」をオンにしてください。",
+        "shellUntilRevoked": "取り消すまで自動承認"
+      },
+      "permissions": {
+        "accessibility": "アクセシビリティ",
+        "accessibilityGrantedHint": "キーボードとマウスの操作が許可されています。",
+        "accessibilityMissingHint": "キーボードとマウスの操作を許可します。有効にすると自動で更新されます。",
+        "allowAccessibility": "アクセシビリティを許可",
+        "allowScreenRecording": "画面収録を許可",
+        "allowed": "許可済み",
+        "relaunchToActivate": "再起動して画面操作を有効化",
+        "screenRecording": "画面収録",
+        "screenRecordingGrantedHint": "画面の表示が許可されています。",
+        "screenRecordingMissingHint": "ペアリング済みエージェントが画面を見ることを許可します。",
+        "screenRecordingRelaunchHint": "macOS で画面収録を有効にするため、MindRoom Chat を一度再起動してください。"
+      },
+      "picker": {
+        "subtitle": "この Mac に接続するルーム内のエージェントを選択してください。"
+      },
+      "roomHeader": {
+        "giveAccess": "Mac アクセスを許可",
+        "manageAccess": "Mac アクセス"
+      },
+      "sas": {
+        "label": "確認コード"
+      },
+      "settings": {
+        "bridgeState": "ブリッジ状態",
+        "helperVersion": "ヘルパーバージョン",
+        "keywords": "mac, コンピューターアクセス, デスクトップ操作, シェル, shell, アクセシビリティ, 画面収録, 権限",
+        "lastError": "最後のエラー",
+        "manage": "管理",
+        "noPairedAgentsDescription": "エージェントがいるルームを開き、「Mac アクセスを許可」を選んで接続してください。",
+        "noPairedAgentsTitle": "ペアリング済みのエージェントはありません",
+        "notSignedIn": "サインインしていません",
+        "pairedAgentsTitle": "ペアリング済みエージェント",
+        "permissionsTitle": "macOS の権限",
+        "revokeAll": "すべてのアクセスを取り消す",
+        "revokeAllDescription": "ペアリング済みの全エージェントを切断し、この Mac でのコンピューターアクセスを直ちに停止します。",
+        "runningShellTitle": "実行中のシェルコマンド",
+        "savedSession": "保存済みの Matrix セッション",
+        "sectionTitle": "この Mac",
+        "statusActive": "有効",
+        "statusDescription": "この Mac を表示・操作できる MindRoom エージェントを管理します。",
+        "statusStopped": "停止中",
+        "statusTitle": "Mac コンピューターアクセス",
+        "statusUnavailable": "この Mac では利用できません",
+        "stopCommand": "停止",
+        "title": "この Mac",
+        "unavailableDescription": "Mac コンピューターアクセスには Apple Silicon 搭載 Mac 版 MindRoom Chat が必要です。",
+        "unknown": "不明"
+      },
+      "shellApproval": {
+        "approveOnce": "1 回だけ承認",
+        "approveOnceCountdown": "1 回だけ承認 ({{seconds}})",
+        "autoApprove15m": "15 分間自動承認",
+        "autoApprove15mCountdown": "15 分間自動承認 ({{seconds}})",
+        "cwdLabel": "作業ディレクトリ",
+        "deny": "拒否",
+        "empty": "承認待ちのシェルコマンドはありません。",
+        "title": "シェルコマンドを承認しますか？"
+      },
+      "status": {
+        "fullAccess": "フルアクセス",
+        "fullAccessActive": "フルアクセス有効",
+        "permissionsNeeded": "権限が必要",
+        "restricted": "制限付き",
+        "shellReady": "シェル準備完了"
+      },
+      "steps": {
+        "confirming": "ペアリングを確認しています...",
+        "finishing": "アクセスを有効化しています...",
+        "pairing": "{{agent}} とペアリング中...",
+        "requestingOffer": "{{agent}} に接続中...",
+        "signingIn": "この Mac でサインイン中..."
+      },
+      "title": {
+        "allowFull": "{{agent}} にこの Mac へのフルアクセスを許可しますか？",
+        "browserPair": "{{agent}} に Mac へのアクセスを許可",
+        "chooseLimits": "{{agent}} の制限を選択",
+        "default": "Mac コンピューターアクセス",
+        "editLimits": "{{agent}} の制限を編集",
+        "manageAgent": "この Mac の {{agent}}",
+        "pickAgent": "エージェントにこの Mac へのアクセスを許可"
+      },
+      "unavailable": {
+        "description": "このデバイスでは Mac コンピューターアクセスを利用できません。"
+      }
     }
   },
   "mindroomUi": {

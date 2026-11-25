@@ -120,6 +120,9 @@ export type RoomViewHeaderProps = {
   /** Whether an agent or the user showed the computer in this conversation before. */
   computerShown?: boolean;
   onComputerToggle?: () => void;
+  canGiveMacAccess?: boolean;
+  macAccessActive?: boolean;
+  onOpenMacAccess?: () => void;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
@@ -176,11 +179,11 @@ const dotStyle = {
   padding: 0,
   pointerEvents: 'none',
 } as const;
-const cornerDot = (marker: `data-${string}`) => (
+const cornerDot = (marker: `data-${string}`, variant: 'Primary' | 'Success' = 'Primary') => (
   <Badge
     style={dotStyle}
     size="200"
-    variant="Primary"
+    variant={variant}
     fill="Solid"
     radii="Pill"
     aria-hidden="true"
@@ -240,6 +243,9 @@ export function RoomViewHeader({
   computerOpen,
   computerShown,
   onComputerToggle,
+  canGiveMacAccess,
+  macAccessActive,
+  onOpenMacAccess,
   canvases,
   openCanvasId,
   onCanvasOpen,
@@ -585,6 +591,19 @@ export function RoomViewHeader({
       placement: computerShown || computerOpen ? 'auto' : 'menu',
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
+    },
+    canGiveMacAccess && {
+      id: 'macAccess',
+      label: macAccessActive
+        ? t('featureUi.desktopAccess.roomHeader.manageAccess')
+        : t('featureUi.desktopAccess.roomHeader.giveAccess'),
+      icon: Icons.ScreenShare,
+      placement: 'auto',
+      phoneEligible: false,
+      active: !!macAccessActive,
+      badge: macAccessActive && cornerDot('data-mac-access-active-dot', 'Success'),
+      marker: 'data-mac-access-button',
+      run: () => onOpenMacAccess?.(),
     },
     (keptSubagents > 0 || subagentsVisible) && {
       id: 'subagents',

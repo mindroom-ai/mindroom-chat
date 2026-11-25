@@ -6,8 +6,10 @@ import {
   getSpaceThreadsPath,
   getThreadsRoomPath,
   getUsagePath,
+  isAuxiliaryWindowPath,
   isQuickCapturePath,
   isRoomIdOrAliasSegment,
+  isShellApprovalPath,
 } from './pathUtils';
 
 describe('Activity and Threads paths', () => {
@@ -45,6 +47,18 @@ describe('isQuickCapturePath', () => {
     expect(isQuickCapturePath('/quick-captured/', '/')).toBe(false);
     expect(isQuickCapturePath('/quick-capture/', '/chat')).toBe(false);
     expect(isQuickCapturePath('/chatter/quick-capture/', '/chat')).toBe(false);
+  });
+});
+
+describe('isShellApprovalPath and isAuxiliaryWindowPath', () => {
+  it('matches the floating shell-approval route with or without trailing slash', () => {
+    expect(isShellApprovalPath('/shell-approval/', '/')).toBe(true);
+    expect(isShellApprovalPath('/shell-approval', '/')).toBe(true);
+    expect(isShellApprovalPath('/chat/shell-approval/', '/chat')).toBe(true);
+    expect(isShellApprovalPath('/home/', '/')).toBe(false);
+    expect(isAuxiliaryWindowPath('/shell-approval/', '/')).toBe(true);
+    expect(isAuxiliaryWindowPath('/quick-capture/', '/')).toBe(true);
+    expect(isAuxiliaryWindowPath('/home/', '/')).toBe(false);
   });
 });
 

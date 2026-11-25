@@ -43,6 +43,8 @@ export type SettingsContext = {
   macApp: boolean;
   /** At least one bundled client plugin is left enabled by deployment config.json. */
   hasPlugins: boolean;
+  /** Native Mac Computer Access is exposed by the Electron desktop shell. */
+  desktopAccess: boolean;
 };
 
 export const SETTINGS_GROUPS = [
@@ -57,7 +59,7 @@ export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 /** What decides whether a page is offered: the platform and the account. */
 export type SettingsPageContext = Pick<
   SettingsContext,
-  'native' | 'nativeIOS' | 'localMindroom' | 'serverAdmin' | 'hasPlugins'
+  'native' | 'nativeIOS' | 'localMindroom' | 'serverAdmin' | 'hasPlugins' | 'desktopAccess'
 >;
 
 type PageDefinition = {
@@ -105,6 +107,13 @@ export const SETTINGS_PAGES = [
     group: 'mindroom',
     labelKey: 'featureUi.settings.menu.pages.agentsServers',
     aliases: ['connections', 'computers'],
+  },
+  {
+    id: 'thisMac',
+    group: 'mindroom',
+    labelKey: 'featureUi.desktopAccess.settings.sectionTitle',
+    aliases: ['mac', 'computer access', 'desktop control', 'shell'],
+    hidden: (context) => !context.desktopAccess,
   },
   {
     id: 'mindroom.local-mindroom',
@@ -732,6 +741,27 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.computers`,
     scope: 'device',
     advanced: true,
+  },
+  // MindRoom: This Mac
+  {
+    id: 'thisMacAccess',
+    page: 'thisMac',
+    group: 'featureUi.desktopAccess.settings.sectionTitle',
+    labelKey: 'featureUi.desktopAccess.settings.statusTitle',
+    descriptionKey: 'featureUi.desktopAccess.settings.statusDescription',
+    keywordsKey: 'featureUi.desktopAccess.settings.keywords',
+    scope: 'device',
+    hidden: (context) => !context.desktopAccess,
+  },
+  {
+    id: 'thisMacRevokeAll',
+    page: 'thisMac',
+    group: 'featureUi.desktopAccess.settings.sectionTitle',
+    labelKey: 'featureUi.desktopAccess.settings.revokeAll',
+    descriptionKey: 'featureUi.desktopAccess.settings.revokeAllDescription',
+    keywordsKey: 'featureUi.desktopAccess.settings.keywords',
+    scope: 'device',
+    hidden: (context) => !context.desktopAccess,
   },
   // MindRoom: Local MindRoom
   {

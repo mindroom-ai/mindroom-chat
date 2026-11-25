@@ -19,13 +19,19 @@ const SAVE_DEBOUNCE_MS = 250;
 let mainWindow: BrowserWindow | undefined;
 let screenShareEnabled = false;
 let updaterEnabled = false;
+let desktopAccessEnabled = false;
 let quitting = false;
 let hideAfterFullScreen = false;
 let activeFlushWindowState: (() => void) | undefined;
 
-export const configureMainWindow = (options: { screenShare: boolean; updater?: boolean }): void => {
+export const configureMainWindow = (options: {
+  screenShare: boolean;
+  updater?: boolean;
+  desktopAccess?: boolean;
+}): void => {
   screenShareEnabled = options.screenShare;
   updaterEnabled = Boolean(options.updater);
+  desktopAccessEnabled = Boolean(options.desktopAccess);
 };
 
 export const markQuitting = (): void => {
@@ -91,6 +97,7 @@ export const showMainWindow = (): BrowserWindow => {
       additionalArguments: [
         screenShareEnabled ? '--mindroom-screen-share=1' : '--mindroom-screen-share=0',
         ...(updaterEnabled ? ['--mindroom-updater=1'] : []),
+        ...(desktopAccessEnabled ? ['--mindroom-desktop-access=1'] : []),
       ],
       contextIsolation: true,
       sandbox: true,

@@ -27,6 +27,7 @@ const WEB: SettingsContext = {
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
+  desktopAccess: false,
 };
 
 const translated = (key: string | undefined) => !!key && translateFromEn(key) !== key;
@@ -160,6 +161,30 @@ describe('settings registry', () => {
     expect(getShownSettings(WEB).map((setting) => setting.id)).not.toContain('macApp');
     expect(found({ ...WEB, macApp: true }, 'mac')).toContain('macApp');
     expect(found({ ...WEB, macApp: true }, 'homebrew')).toEqual(['macApp']);
+  });
+
+  it('lists This Mac only when desktopAccess is true, where search finds access and revoke', () => {
+    const found = (context: SettingsContext, query: string) =>
+      searchSettings(query, getShownSettings(context), (key, values) =>
+        translateFromEn(key, values)
+      ).map(({ setting }) => setting.id);
+    expect(getShownSettingsPages(WEB).map((page) => page.id)).not.toContain('thisMac');
+    const desktopPages = getShownSettingsPages({ ...WEB, desktopAccess: true });
+    expect(desktopPages.find((page) => page.id === 'thisMac')?.group).toBe('mindroom');
+    const desktopPageIds = desktopPages.map((page) => page.id);
+    expect(desktopPageIds.indexOf('thisMac')).toBe(desktopPageIds.indexOf('mindroom') + 1);
+    expect(desktopPageIds.indexOf('mindroom.local-mindroom')).toBe(
+      desktopPageIds.indexOf('thisMac') + 1
+    );
+    expect(resolveSettingsPageId('mac')).toBe('thisMac');
+    expect(resolveSettingsPageId('computer access')).toBe('thisMac');
+    expect(getShownSettings(WEB).map((setting) => setting.id)).not.toEqual(
+      expect.arrayContaining(['thisMacAccess', 'thisMacRevokeAll'])
+    );
+    expect(found({ ...WEB, desktopAccess: true }, 'computer access')).toEqual(
+      expect.arrayContaining(['thisMacAccess', 'thisMacRevokeAll'])
+    );
+    expect(found({ ...WEB, desktopAccess: true }, 'revoke')).toContain('thisMacRevokeAll');
   });
 
   it('lists App updates on About only when nativeUpdate is true, where search finds it', () => {

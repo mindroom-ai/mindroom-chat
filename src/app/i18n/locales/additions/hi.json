@@ -929,6 +929,164 @@
         "startEntireScreenShare": "पूरी स्क्रीन शेयर करें",
         "stopEntireScreenShare": "पूरी स्क्रीन शेयर करना बंद करें"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "पूर्ण एक्सेस की अनुमति दें",
+        "cancel": "रद्द करें",
+        "chooseLimits": "सीमाएँ चुनें...",
+        "close": "बंद करें",
+        "disconnect": "डिस्कनेक्ट करें",
+        "done": "पूर्ण",
+        "editLimits": "सीमाएँ संपादित करें...",
+        "switchToFull": "पूर्ण एक्सेस पर स्विच करें"
+      },
+      "banner": {
+        "restrictedActive": "इस Mac पर सीमित एक्सेस सक्रिय है।",
+        "shellReadyWaitingPermissions": "शेल तैयार - macOS स्क्रीन और इनपुट अनुमतियों की प्रतीक्षा है",
+        "waitingPermissions": "macOS स्क्रीन और इनपुट अनुमतियों की प्रतीक्षा है"
+      },
+      "browser": {
+        "brewHint": "या Homebrew से इंस्टॉल करें:",
+        "confirmOnMac": "एक्सेस स्वीकृत करने के लिए {{mac}} पर इस कोड की पुष्टि करें।",
+        "copied": "कॉपी किया गया",
+        "copyCommand": "कमांड कॉपी करें",
+        "copyFailed": "कॉपी विफल रहा",
+        "downloadMacApp": "Mac के लिए MindRoom Chat डाउनलोड करें",
+        "noMacDescription": "{{agent}} को अपने Mac का एक्सेस देने के लिए, Mac के लिए MindRoom Chat में इस खाते से साइन इन करें।",
+        "paired": "{{agent}} अब {{mac}} से पेयर हो गया है।",
+        "relayDescription": "{{mac}} पर पेयरिंग अनुरोध भेजें। आप अपने Mac पर 6-अंकीय कोड की पुष्टि करेंगे और पूर्ण एक्सेस या सीमाएँ चुनेंगे।",
+        "selectMac": "एक Mac चुनें",
+        "sendToMac": "{{mac}} पर भेजें",
+        "waitingOnMac": "{{mac}} पर पुष्टि की प्रतीक्षा है..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} रीस्टार्ट के बाद भी बिना पूछे आपकी स्क्रीन देख सकता है, हर ऐप को नियंत्रित कर सकता है और आपके macOS उपयोगकर्ता के रूप में शेल कमांड चला सकता है। मेनू बार से कभी भी रोकें।",
+        "upgradeHeading": "पूर्ण एक्सेस पर स्विच किया जा रहा है"
+      },
+      "empty": {
+        "noAgents": "इस रूम में कोई MindRoom एजेंट नहीं मिला।"
+      },
+      "incoming": {
+        "decline": "अस्वीकार करें",
+        "failedTitle": "{{agent}} को पेयर नहीं किया जा सका",
+        "sasHint": "स्वीकृत करने से पहले सुनिश्चित करें कि यह 6-अंकीय कोड {{requester}} से मेल खाता है।",
+        "title": "{{requester}} से {{agent}} को पेयर करें?"
+      },
+      "limits": {
+        "addFolder": "फ़ोल्डर जोड़ें...",
+        "allowShellOnMac": "इस Mac पर शेल कमांड की अनुमति दें",
+        "foldersLabel": "केवल-पढ़ने योग्य फ़ोल्डर",
+        "fullNote": "निरस्त करने तक पूर्ण एक्सेस, निरस्त होने तक फ़ुल-स्क्रीन नियंत्रण और स्वतः स्वीकृत शेल को सक्षम करता है।",
+        "fullScreen": "फ़ुल स्क्रीन (primary-screen)",
+        "gui15m": "15 मिनट के लिए नियंत्रण की अनुमति दें",
+        "gui1h": "1 घंटे के लिए नियंत्रण की अनुमति दें",
+        "guiFull": "निरस्त करने तक पूर्ण एक्सेस",
+        "guiLabel": "स्क्रीन और इनपुट नियंत्रण",
+        "guiObserve": "केवल देखें",
+        "installedApps": "अनुमत Mac ऐप्स",
+        "loadingApps": "इंस्टॉल किए गए ऐप्स लोड हो रहे हैं...",
+        "needCapability": "फ़ुल स्क्रीन, कम से कम एक ऐप, एक फ़ोल्डर या शेल कमांड सक्षम करें।",
+        "noAppsFound": "कोई इंस्टॉल किया गया Mac ऐप नहीं मिला।",
+        "noFolders": "कोई केवल-पढ़ने योग्य फ़ोल्डर नहीं जोड़ा गया।",
+        "perAgentHeading": "{{agent}} के लिए नियंत्रण और शेल स्वीकृति (प्रति एजेंट)",
+        "removeFolder": "हटाएँ",
+        "save": "सीमाओं के साथ अनुमति दें",
+        "saveChanges": "सीमाएँ सहेजें",
+        "sharedHeading": "इस Mac पर साझा ऐप्स, फ़ोल्डर और शेल (सभी पेयर किए गए एजेंटों पर लागू)",
+        "sharedWithOthersHint": "इस Mac पर अन्य पेयर किए गए एजेंटों के साथ साझा",
+        "shell15m": "15 मिनट के लिए स्वतः स्वीकृत करें",
+        "shell1h": "1 घंटे के लिए स्वतः स्वीकृत करें",
+        "shellApprovalLabel": "शेल स्वीकृति",
+        "shellAsk": "प्रत्येक कमांड से पहले पूछें",
+        "shellDisabledHint": "शेल स्वीकृति कॉन्फ़िगर करने के लिए नीचे \"इस Mac पर शेल कमांड की अनुमति दें\" चालू करें।",
+        "shellUntilRevoked": "निरस्त करने तक स्वतः स्वीकृत करें"
+      },
+      "permissions": {
+        "accessibility": "एक्सेसिबिलिटी",
+        "accessibilityGrantedHint": "कीबोर्ड और माउस नियंत्रण की अनुमति है।",
+        "accessibilityMissingHint": "कीबोर्ड और माउस नियंत्रण की अनुमति देता है। सक्षम होने पर स्वतः अपडेट होता है।",
+        "allowAccessibility": "एक्सेसिबिलिटी की अनुमति दें",
+        "allowScreenRecording": "स्क्रीन रिकॉर्डिंग की अनुमति दें",
+        "allowed": "अनुमत",
+        "relaunchToActivate": "स्क्रीन नियंत्रण सक्रिय करने के लिए पुनः लॉन्च करें",
+        "screenRecording": "स्क्रीन रिकॉर्डिंग",
+        "screenRecordingGrantedHint": "स्क्रीन देखने की अनुमति है।",
+        "screenRecordingMissingHint": "पेयर किए गए एजेंटों को आपकी स्क्रीन देखने की अनुमति देता है।",
+        "screenRecordingRelaunchHint": "MindRoom Chat को एक बार पुनः लॉन्च करें ताकि macOS स्क्रीन रिकॉर्डिंग सक्रिय कर सके।"
+      },
+      "picker": {
+        "subtitle": "चुनें कि इस रूम का कौन सा एजेंट इस Mac से कनेक्ट होगा।"
+      },
+      "roomHeader": {
+        "giveAccess": "Mac एक्सेस दें",
+        "manageAccess": "Mac एक्सेस"
+      },
+      "sas": {
+        "label": "सत्यापन कोड"
+      },
+      "settings": {
+        "bridgeState": "ब्रिज स्थिति",
+        "helperVersion": "हेल्पर संस्करण",
+        "keywords": "mac, कंप्यूटर एक्सेस, डेस्कटॉप नियंत्रण, शेल, shell, एक्सेसिबिलिटी, स्क्रीन रिकॉर्डिंग, अनुमतियाँ",
+        "lastError": "अंतिम त्रुटि",
+        "manage": "प्रबंधित करें",
+        "noPairedAgentsDescription": "एजेंट वाला रूम खोलें और इसे कनेक्ट करने के लिए Mac एक्सेस दें चुनें।",
+        "noPairedAgentsTitle": "अभी कोई एजेंट पेयर नहीं है",
+        "notSignedIn": "साइन इन नहीं है",
+        "pairedAgentsTitle": "पेयर किए गए एजेंट",
+        "permissionsTitle": "macOS अनुमतियाँ",
+        "revokeAll": "सभी एक्सेस निरस्त करें",
+        "revokeAllDescription": "सभी पेयर किए गए एजेंटों को डिस्कनेक्ट करता है और इस Mac पर कंप्यूटर एक्सेस तुरंत बंद कर देता है।",
+        "runningShellTitle": "चल रहे शेल कमांड",
+        "savedSession": "सहेजा गया Matrix सत्र",
+        "sectionTitle": "यह Mac",
+        "statusActive": "सक्रिय",
+        "statusDescription": "नियंत्रित करें कि कौन से MindRoom एजेंट इस Mac को देख और नियंत्रित कर सकते हैं।",
+        "statusStopped": "रुका हुआ",
+        "statusTitle": "Mac कंप्यूटर एक्सेस",
+        "statusUnavailable": "इस Mac पर उपलब्ध नहीं है",
+        "stopCommand": "रोकें",
+        "title": "यह Mac",
+        "unavailableDescription": "Mac कंप्यूटर एक्सेस के लिए Apple Silicon पर Mac के लिए MindRoom Chat आवश्यक है।",
+        "unknown": "अज्ञात"
+      },
+      "shellApproval": {
+        "approveOnce": "एक बार स्वीकृत करें",
+        "approveOnceCountdown": "एक बार स्वीकृत करें ({{seconds}})",
+        "autoApprove15m": "15 मिनट स्वतः स्वीकृत",
+        "autoApprove15mCountdown": "15 मिनट स्वतः स्वीकृत ({{seconds}})",
+        "cwdLabel": "कार्यशील निर्देशिका",
+        "deny": "अस्वीकार करें",
+        "empty": "कोई शेल कमांड स्वीकृति की प्रतीक्षा में नहीं है।",
+        "title": "शेल कमांड स्वीकृत करें?"
+      },
+      "status": {
+        "fullAccess": "पूर्ण एक्सेस",
+        "fullAccessActive": "पूर्ण एक्सेस सक्रिय",
+        "permissionsNeeded": "अनुमतियाँ आवश्यक",
+        "restricted": "सीमित",
+        "shellReady": "शेल तैयार"
+      },
+      "steps": {
+        "confirming": "पेयरिंग की पुष्टि हो रही है...",
+        "finishing": "एक्सेस सक्रिय हो रहा है...",
+        "pairing": "{{agent}} के साथ पेयर किया जा रहा है...",
+        "requestingOffer": "{{agent}} से संपर्क किया जा रहा है...",
+        "signingIn": "इस Mac पर साइन इन हो रहा है..."
+      },
+      "title": {
+        "allowFull": "क्या {{agent}} को इस Mac का पूर्ण एक्सेस दें?",
+        "browserPair": "{{agent}} को अपने Mac का एक्सेस दें",
+        "chooseLimits": "{{agent}} के लिए सीमाएँ चुनें",
+        "default": "Mac कंप्यूटर एक्सेस",
+        "editLimits": "{{agent}} की सीमाएँ संपादित करें",
+        "manageAgent": "इस Mac पर {{agent}}",
+        "pickAgent": "किसी एजेंट को इस Mac का एक्सेस दें"
+      },
+      "unavailable": {
+        "description": "इस डिवाइस पर Mac कंप्यूटर एक्सेस उपलब्ध नहीं है।"
+      }
     }
   },
   "mindroomUi": {

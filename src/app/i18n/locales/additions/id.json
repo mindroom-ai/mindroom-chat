@@ -912,6 +912,164 @@
         "startEntireScreenShare": "Bagikan seluruh layar",
         "stopEntireScreenShare": "Berhenti membagikan seluruh layar"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Izinkan Akses Penuh",
+        "cancel": "Batal",
+        "chooseLimits": "Pilih batasan...",
+        "close": "Tutup",
+        "disconnect": "Putuskan",
+        "done": "Selesai",
+        "editLimits": "Ubah batasan...",
+        "switchToFull": "Beralih ke Akses Penuh"
+      },
+      "banner": {
+        "restrictedActive": "Akses terbatas aktif di Mac ini.",
+        "shellReadyWaitingPermissions": "Shell siap - Menunggu izin layar & input macOS",
+        "waitingPermissions": "Menunggu izin layar & input macOS"
+      },
+      "browser": {
+        "brewHint": "Atau pasang dengan Homebrew:",
+        "confirmOnMac": "Konfirmasi kode ini di {{mac}} untuk menyetujui akses.",
+        "copied": "Disalin",
+        "copyCommand": "Salin perintah",
+        "copyFailed": "Gagal menyalin",
+        "downloadMacApp": "Unduh MindRoom Chat untuk Mac",
+        "noMacDescription": "Untuk memberi {{agent}} akses ke Mac Anda, masuk dengan akun ini di MindRoom Chat untuk Mac.",
+        "paired": "{{agent}} sekarang terhubung dengan {{mac}}.",
+        "relayDescription": "Kirim permintaan pemasangan ke {{mac}}. Anda akan mengonfirmasi kode 6 digit dan memilih Akses Penuh atau batasan di Mac Anda.",
+        "selectMac": "Pilih Mac",
+        "sendToMac": "Kirim ke {{mac}}",
+        "waitingOnMac": "Menunggu konfirmasi di {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} dapat melihat layar Anda, mengontrol setiap aplikasi, dan menjalankan perintah shell sebagai pengguna macOS Anda tanpa bertanya, termasuk setelah restart. Hentikan kapan saja dari bilah menu.",
+        "upgradeHeading": "Beralih ke Akses Penuh"
+      },
+      "empty": {
+        "noAgents": "Tidak ada agen MindRoom di ruangan ini."
+      },
+      "incoming": {
+        "decline": "Tolak",
+        "failedTitle": "Tidak dapat memasangkan {{agent}}",
+        "sasHint": "Pastikan kode 6 digit ini cocok dengan {{requester}} sebelum menyetujui.",
+        "title": "Pasangkan {{agent}} dari {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Tambah folder...",
+        "allowShellOnMac": "Izinkan perintah shell di Mac ini",
+        "foldersLabel": "Folder baca-saja",
+        "fullNote": "Akses Penuh hingga dicabut mengaktifkan kontrol layar penuh dan persetujuan otomatis shell hingga dicabut.",
+        "fullScreen": "Layar penuh (primary-screen)",
+        "gui15m": "Izinkan kontrol selama 15 mnt",
+        "gui1h": "Izinkan kontrol selama 1 jam",
+        "guiFull": "Akses Penuh hingga dicabut",
+        "guiLabel": "Kontrol layar & input",
+        "guiObserve": "Hanya mengamati",
+        "installedApps": "Aplikasi Mac yang diizinkan",
+        "loadingApps": "Memuat aplikasi terpasang...",
+        "needCapability": "Aktifkan layar penuh, minimal satu aplikasi, folder, atau perintah shell.",
+        "noAppsFound": "Tidak ada aplikasi Mac terpasang yang ditemukan.",
+        "noFolders": "Belum ada folder baca-saja yang ditambahkan.",
+        "perAgentHeading": "Kontrol & persetujuan shell untuk {{agent}} (per agen)",
+        "removeFolder": "Hapus",
+        "save": "Izinkan dengan batasan",
+        "saveChanges": "Simpan batasan",
+        "sharedHeading": "Aplikasi, folder & shell bersama di Mac ini (berlaku untuk semua agen terpasang)",
+        "sharedWithOthersHint": "Dibagikan dengan agen terpasang lainnya di Mac ini",
+        "shell15m": "Setujui otomatis selama 15 mnt",
+        "shell1h": "Setujui otomatis selama 1 jam",
+        "shellApprovalLabel": "Persetujuan shell",
+        "shellAsk": "Tanya sebelum setiap perintah",
+        "shellDisabledHint": "Aktifkan \"Izinkan perintah shell di Mac ini\" di bawah untuk mengatur persetujuan shell.",
+        "shellUntilRevoked": "Setujui otomatis hingga dicabut"
+      },
+      "permissions": {
+        "accessibility": "Aksesibilitas",
+        "accessibilityGrantedHint": "Kontrol papan ketik dan tetikus diizinkan.",
+        "accessibilityMissingHint": "Mengizinkan kontrol papan ketik dan tetikus. Diperbarui otomatis setelah diaktifkan.",
+        "allowAccessibility": "Izinkan Aksesibilitas",
+        "allowScreenRecording": "Izinkan Perekaman Layar",
+        "allowed": "Diizinkan",
+        "relaunchToActivate": "Buka ulang untuk mengaktifkan kontrol layar",
+        "screenRecording": "Perekaman Layar",
+        "screenRecordingGrantedHint": "Tampilan layar diizinkan.",
+        "screenRecordingMissingHint": "Mengizinkan agen terpasang melihat layar Anda.",
+        "screenRecordingRelaunchHint": "Buka ulang MindRoom Chat sekali agar macOS mengaktifkan Perekaman Layar."
+      },
+      "picker": {
+        "subtitle": "Pilih agen di ruangan ini yang harus terhubung ke Mac ini."
+      },
+      "roomHeader": {
+        "giveAccess": "Beri Akses Mac",
+        "manageAccess": "Akses Mac"
+      },
+      "sas": {
+        "label": "Kode verifikasi"
+      },
+      "settings": {
+        "bridgeState": "Status bridge",
+        "helperVersion": "Versi helper",
+        "keywords": "mac, akses komputer, kontrol desktop, shell, aksesibilitas, perekaman layar, izin",
+        "lastError": "Kesalahan terakhir",
+        "manage": "Kelola",
+        "noPairedAgentsDescription": "Buka ruangan dengan agen lalu pilih Beri Akses Mac untuk menghubungkannya.",
+        "noPairedAgentsTitle": "Belum ada agen yang terpasang",
+        "notSignedIn": "Belum masuk",
+        "pairedAgentsTitle": "Agen terpasang",
+        "permissionsTitle": "Izin macOS",
+        "revokeAll": "Cabut Semua Akses",
+        "revokeAllDescription": "Memutuskan semua agen terpasang dan segera menghentikan akses komputer di Mac ini.",
+        "runningShellTitle": "Perintah shell yang berjalan",
+        "savedSession": "Sesi Matrix tersimpan",
+        "sectionTitle": "Mac Ini",
+        "statusActive": "Aktif",
+        "statusDescription": "Kontrol agen MindRoom mana yang dapat melihat dan mengontrol Mac ini.",
+        "statusStopped": "Dihentikan",
+        "statusTitle": "Akses Komputer Mac",
+        "statusUnavailable": "Tidak tersedia di Mac ini",
+        "stopCommand": "Hentikan",
+        "title": "Mac Ini",
+        "unavailableDescription": "Akses Komputer Mac memerlukan MindRoom Chat untuk Mac di Apple Silicon.",
+        "unknown": "Tidak diketahui"
+      },
+      "shellApproval": {
+        "approveOnce": "Setujui sekali",
+        "approveOnceCountdown": "Setujui sekali ({{seconds}})",
+        "autoApprove15m": "Setujui otomatis 15 mnt",
+        "autoApprove15mCountdown": "Setujui otomatis 15 mnt ({{seconds}})",
+        "cwdLabel": "Direktori kerja",
+        "deny": "Tolak",
+        "empty": "Tidak ada perintah shell yang menunggu persetujuan.",
+        "title": "Setujui perintah shell?"
+      },
+      "status": {
+        "fullAccess": "Akses Penuh",
+        "fullAccessActive": "Akses Penuh aktif",
+        "permissionsNeeded": "Perlu izin",
+        "restricted": "Terbatas",
+        "shellReady": "Shell siap"
+      },
+      "steps": {
+        "confirming": "Mengonfirmasi pemasangan...",
+        "finishing": "Mengaktifkan akses...",
+        "pairing": "Memasangkan dengan {{agent}}...",
+        "requestingOffer": "Menghubungi {{agent}}...",
+        "signingIn": "Masuk di Mac ini..."
+      },
+      "title": {
+        "allowFull": "Izinkan {{agent}} akses penuh ke Mac ini?",
+        "browserPair": "Beri {{agent}} akses ke Mac Anda",
+        "chooseLimits": "Pilih batasan untuk {{agent}}",
+        "default": "Akses Komputer Mac",
+        "editLimits": "Ubah batasan untuk {{agent}}",
+        "manageAgent": "{{agent}} di Mac ini",
+        "pickAgent": "Beri agen akses ke Mac ini"
+      },
+      "unavailable": {
+        "description": "Akses Komputer Mac tidak tersedia di perangkat ini."
+      }
     }
   },
   "mindroomUi": {

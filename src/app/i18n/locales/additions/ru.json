@@ -963,6 +963,164 @@
         "startEntireScreenShare": "Поделиться всем экраном",
         "stopEntireScreenShare": "Остановить показ всего экрана"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Разрешить полный доступ",
+        "cancel": "Отмена",
+        "chooseLimits": "Выбрать ограничения...",
+        "close": "Закрыть",
+        "disconnect": "Отключить",
+        "done": "Готово",
+        "editLimits": "Изменить ограничения...",
+        "switchToFull": "Перейти на полный доступ"
+      },
+      "banner": {
+        "restrictedActive": "На этом Mac активен ограниченный доступ.",
+        "shellReadyWaitingPermissions": "Оболочка готова - Ожидание разрешений macOS для экрана и ввода",
+        "waitingPermissions": "Ожидание разрешений macOS для экрана и ввода"
+      },
+      "browser": {
+        "brewHint": "Или установите через Homebrew:",
+        "confirmOnMac": "Подтвердите этот код на {{mac}}, чтобы разрешить доступ.",
+        "copied": "Скопировано",
+        "copyCommand": "Копировать команду",
+        "copyFailed": "Не удалось скопировать",
+        "downloadMacApp": "Скачать MindRoom Chat для Mac",
+        "noMacDescription": "Чтобы предоставить {{agent}} доступ к вашему Mac, войдите в этот аккаунт в MindRoom Chat для Mac.",
+        "paired": "{{agent}} теперь связан с {{mac}}.",
+        "relayDescription": "Отправьте запрос на связывание на {{mac}}. Вы подтвердите 6-значный код и выберете полный доступ или ограничения на вашем Mac.",
+        "selectMac": "Выберите Mac",
+        "sendToMac": "Отправить на {{mac}}",
+        "waitingOnMac": "Ожидание подтверждения на {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} сможет видеть ваш экран, управлять любыми приложениями и выполнять команды оболочки от имени вашего пользователя macOS без подтверждения, в том числе после перезагрузки. Остановить можно в любой момент в строке меню.",
+        "upgradeHeading": "Переход на полный доступ"
+      },
+      "empty": {
+        "noAgents": "В этой комнате не найдено агентов MindRoom."
+      },
+      "incoming": {
+        "decline": "Отклонить",
+        "failedTitle": "Не удалось связать {{agent}}",
+        "sasHint": "Перед одобрением убедитесь, что этот 6-значный код совпадает с кодом на {{requester}}.",
+        "title": "Связать {{agent}} по запросу {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Добавить папку...",
+        "allowShellOnMac": "Разрешить команды оболочки на этом Mac",
+        "foldersLabel": "Папки только для чтения",
+        "fullNote": "Полный доступ до отзыва включает управление всем экраном и автоматическое одобрение команд оболочки до отзыва.",
+        "fullScreen": "Весь экран (primary-screen)",
+        "gui15m": "Разрешить управление на 15 мин",
+        "gui1h": "Разрешить управление на 1 час",
+        "guiFull": "Полный доступ до отзыва",
+        "guiLabel": "Управление экраном и вводом",
+        "guiObserve": "Только наблюдение",
+        "installedApps": "Разрешённые приложения Mac",
+        "loadingApps": "Загрузка установленных приложений...",
+        "needCapability": "Включите весь экран, хотя бы одно приложение, папку или команды оболочки.",
+        "noAppsFound": "Установленные приложения Mac не найдены.",
+        "noFolders": "Папки только для чтения не добавлены.",
+        "perAgentHeading": "Управление и одобрение оболочки для {{agent}} (для агента)",
+        "removeFolder": "Удалить",
+        "save": "Разрешить с ограничениями",
+        "saveChanges": "Сохранить ограничения",
+        "sharedHeading": "Общие приложения, папки и оболочка на этом Mac (для всех связанных агентов)",
+        "sharedWithOthersHint": "Общее для других связанных агентов на этом Mac",
+        "shell15m": "Автоодобрение на 15 мин",
+        "shell1h": "Автоодобрение на 1 час",
+        "shellApprovalLabel": "Одобрение оболочки",
+        "shellAsk": "Спрашивать перед каждой командой",
+        "shellDisabledHint": "Включите ниже «Разрешить команды оболочки на этом Mac», чтобы настроить одобрение оболочки.",
+        "shellUntilRevoked": "Автоодобрение до отзыва"
+      },
+      "permissions": {
+        "accessibility": "Универсальный доступ",
+        "accessibilityGrantedHint": "Управление клавиатурой и мышью разрешено.",
+        "accessibilityMissingHint": "Разрешает управление клавиатурой и мышью. Обновляется автоматически после включения.",
+        "allowAccessibility": "Разрешить универсальный доступ",
+        "allowScreenRecording": "Разрешить запись экрана",
+        "allowed": "Разрешено",
+        "relaunchToActivate": "Перезапустить для активации управления экраном",
+        "screenRecording": "Запись экрана",
+        "screenRecordingGrantedHint": "Просмотр экрана разрешён.",
+        "screenRecordingMissingHint": "Позволяет связанным агентам видеть ваш экран.",
+        "screenRecordingRelaunchHint": "Перезапустите MindRoom Chat один раз, чтобы macOS активировала запись экрана."
+      },
+      "picker": {
+        "subtitle": "Выберите, какой агент в этой комнате должен подключиться к этому Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Дать доступ к Mac",
+        "manageAccess": "Доступ к Mac"
+      },
+      "sas": {
+        "label": "Код подтверждения"
+      },
+      "settings": {
+        "bridgeState": "Состояние моста",
+        "helperVersion": "Версия помощника",
+        "keywords": "mac, доступ к компьютеру, управление рабочим столом, оболочка, shell, универсальный доступ, запись экрана, разрешения",
+        "lastError": "Последняя ошибка",
+        "manage": "Настроить",
+        "noPairedAgentsDescription": "Откройте комнату с агентом и нажмите «Дать доступ к Mac», чтобы подключить его.",
+        "noPairedAgentsTitle": "Связанных агентов пока нет",
+        "notSignedIn": "Вход не выполнен",
+        "pairedAgentsTitle": "Связанные агенты",
+        "permissionsTitle": "Разрешения macOS",
+        "revokeAll": "Отозвать весь доступ",
+        "revokeAllDescription": "Отключает всех связанных агентов и немедленно останавливает доступ к компьютеру на этом Mac.",
+        "runningShellTitle": "Выполняемые команды оболочки",
+        "savedSession": "Сохранённая сессия Matrix",
+        "sectionTitle": "Этот Mac",
+        "statusActive": "Активно",
+        "statusDescription": "Управляйте тем, какие агенты MindRoom могут видеть этот Mac и управлять им.",
+        "statusStopped": "Остановлено",
+        "statusTitle": "Доступ к компьютеру Mac",
+        "statusUnavailable": "Недоступно на этом Mac",
+        "stopCommand": "Остановить",
+        "title": "Этот Mac",
+        "unavailableDescription": "Доступ к компьютеру Mac требует MindRoom Chat для Mac на Apple Silicon.",
+        "unknown": "Неизвестно"
+      },
+      "shellApproval": {
+        "approveOnce": "Разрешить один раз",
+        "approveOnceCountdown": "Разрешить один раз ({{seconds}})",
+        "autoApprove15m": "Автоодобрение на 15 мин",
+        "autoApprove15mCountdown": "Автоодобрение на 15 мин ({{seconds}})",
+        "cwdLabel": "Рабочий каталог",
+        "deny": "Отклонить",
+        "empty": "Нет команд оболочки, ожидающих одобрения.",
+        "title": "Разрешить команду оболочки?"
+      },
+      "status": {
+        "fullAccess": "Полный доступ",
+        "fullAccessActive": "Полный доступ активен",
+        "permissionsNeeded": "Нужны разрешения",
+        "restricted": "Ограниченный",
+        "shellReady": "Оболочка готова"
+      },
+      "steps": {
+        "confirming": "Подтверждение связывания...",
+        "finishing": "Активация доступа...",
+        "pairing": "Связывание с {{agent}}...",
+        "requestingOffer": "Обращение к {{agent}}...",
+        "signingIn": "Вход на этом Mac..."
+      },
+      "title": {
+        "allowFull": "Предоставить {{agent}} полный доступ к этому Mac?",
+        "browserPair": "Дать {{agent}} доступ к вашему Mac",
+        "chooseLimits": "Выбрать ограничения для {{agent}}",
+        "default": "Доступ к компьютеру Mac",
+        "editLimits": "Изменить ограничения для {{agent}}",
+        "manageAgent": "{{agent}} на этом Mac",
+        "pickAgent": "Дать агенту доступ к этому Mac"
+      },
+      "unavailable": {
+        "description": "Доступ к компьютеру Mac недоступен на этом устройстве."
+      }
     }
   },
   "mindroomUi": {

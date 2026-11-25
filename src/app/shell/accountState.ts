@@ -27,6 +27,8 @@ import {
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
+import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
+import { incomingPairInviteAtom } from '../desktop-access/incomingPairInviteAtom';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
 import { clearPhoneSwipePreviews } from '../navigation/phonePageSlide';
 import {
@@ -131,6 +133,9 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(roomTriggersDialogAtom),
   toInitial(createRoomModalAtom),
   toInitial(createSpaceModalAtom),
+  // The Mac Computer Access sheet, and a browser's pairing invite waiting for consent on this Mac.
+  toInitial(desktopAccessModalAtom),
+  toInitial(incomingPairInviteAtom),
   toInitial(userRoomProfileAtom),
   toInitial(commandPaletteOpenAtom),
   toInitial(shortcutHelpOpenAtom),

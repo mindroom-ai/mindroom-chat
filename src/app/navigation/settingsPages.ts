@@ -13,6 +13,7 @@ export const SettingsPages = {
   PluginsPage: 'plugins',
   LanguagePage: 'language',
   MindroomPage: 'mindroom',
+  ThisMacPage: 'thisMac',
   LocalMindroomPage: 'mindroom.local-mindroom',
   StoragePage: 'storage',
   DeveloperToolsPage: 'developer-tools',

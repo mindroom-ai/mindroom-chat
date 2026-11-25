@@ -76,6 +76,7 @@ const SETTINGS_CONTEXT: SettingsContext = {
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
+  desktopAccess: false,
 };
 
 const SEARCH_VALUES: SettingsSearchValues = {
