@@ -39,13 +39,18 @@ const railNav = (page: Page) => page.getByRole('navigation', { name: 'Main', exa
 const roomLink = (scope: Locator, roomId: string) =>
   scope.locator(`a[href*="${encodeURIComponent(roomId)}"], a[href*="${roomId}"]`);
 
-const createDirectRoom = async (accessToken: string, invite?: string[]): Promise<string> => {
+const createDirectRoom = async (
+  accessToken: string,
+  invite?: string[],
+  name?: string
+): Promise<string> => {
   const body = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
     method: 'POST',
     accessToken,
     body: JSON.stringify({
       preset: 'trusted_private_chat',
       invite,
+      name,
       is_direct: true,
     }),
   });
@@ -109,7 +114,7 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
 
   const liamDm = await createDirectRoom(viewer.accessToken, [liam.userId]);
   const groupDm = await createDirectRoom(viewer.accessToken, [liam.userId, sora.userId]);
-  const selfDm = await createDirectRoom(viewer.accessToken);
+  const selfDm = await createDirectRoom(viewer.accessToken, undefined, 'Maya Patel');
   const devDm = await createDirectRoom(viewer.accessToken, [devAgent.userId]);
 
   await Promise.all([

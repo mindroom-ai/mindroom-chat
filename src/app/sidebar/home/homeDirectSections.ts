@@ -1,10 +1,18 @@
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
+import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import {
   isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
 } from '../../matrix/protocol/agentIdentity';
-import { roomTrustedAgents } from '../../matrix/protocol/agentRoomState';
+import {
+  boundRoomRoster,
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+  trustedRouterUserId,
+} from '../../matrix/protocol/routerBinding';
 import { getDirectPartnerId } from '../../matrix/room';
+import { StateEvent } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { getDirectActiveMemberCount, getMDirectPartnerId } from '../room-nav/DirectRoomRowExtras';
 import { agentNameIn, type HomeAgent } from './homeAgents';
@@ -60,10 +68,42 @@ export const getDirectPartnerUserId = (
   return fromMDirect && fromMDirect !== room.myUserId ? fromMDirect : undefined;
 };
 
+const getRoomStateByKey = (
+  room: Room,
+  eventType: string,
+  stateKey: string
+): MatrixEvent | undefined =>
+  room.currentState
+    ?.getStateEvents(eventType)
+    .find((event) => event.getStateKey() === stateKey && !event.isRedacted?.());
+
+/**
+ * Custom-username agent vouched for by an explicit `io.mindroom.accounts` roster written by a
+ * trusted same-homeserver MindRoom router (never a self-bound foreign DM creator with no roster).
+ */
+const isRosteredLocalAgent = (room: Room, partnerId: string): boolean => {
+  if (!room.currentState) return false;
+  const binding = getRoomStateByKey(room, MINDROOM_ROUTER_STATE_EVENT, '');
+  if (!binding) return false;
+  const powerLevelsEvent = getRoomStateByKey(room, StateEvent.RoomPowerLevels, '');
+  const powerLevels = getPowersLevelFromMatrixEvent(powerLevelsEvent);
+  const createEvent = getRoomStateByKey(room, StateEvent.RoomCreate, '');
+  const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
+  const boundUserId = trustedRouterUserId(
+    binding,
+    powerLevels,
+    creators,
+    powerLevelsEvent?.getContent()
+  );
+  if (!boundUserId || !isMindroomAgentUserIdForViewer(boundUserId, room.myUserId)) return false;
+  const rosterEvent = getRoomStateByKey(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId);
+  return boundRoomRoster(boundUserId, rosterEvent).has(partnerId);
+};
+
 /**
  * Whether `room` is a 1:1 agent DM (<= 2 active members, excluding self-DMs and the router owner
  * account, with a partner matching same-homeserver MindRoom agent identity, `homeAgentIds`, or
- * the room's trusted MindRoom roster).
+ * an explicit same-homeserver MindRoom router roster).
  */
 export const isAgentOneToOneDirectRoom = (
   room: Room,
@@ -78,7 +118,7 @@ export const isAgentOneToOneDirectRoom = (
   return (
     isMindroomAgentUserIdForViewer(partnerId, room.myUserId) ||
     homeAgentIds.has(partnerId) ||
-    (Boolean(room.currentState) && roomTrustedAgents(room).has(partnerId))
+    isRosteredLocalAgent(room, partnerId)
   );
 };
 

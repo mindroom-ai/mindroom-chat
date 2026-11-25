@@ -1181,5 +1181,31 @@ describe('Home', () => {
     ).toHaveLength(1);
     expectPopulatedAddRoomsMenuWorks(dmOnly);
     act(() => dmOnly.unmount());
+
+    // Account with only an agent DM and Direct rail shown still shows Direct messages so New direct message is reachable.
+    homeState.directTabShown = true;
+    homeState.directRooms = [
+      {
+        roomId: '!dm-dev:example.org',
+        name: 'DevAgent',
+        myUserId: '@alice:example.org',
+        getJoinedMemberCount: () => 2,
+        getInvitedMemberCount: () => 0,
+        getLastActiveTimestamp: () => 1000,
+        getAvatarFallbackMember: () => ({
+          userId: '@mindroom_dev:example.org',
+          getMxcAvatarUrl: () => null,
+        }),
+      },
+    ];
+    const { renderer: agentDmOnly } = renderHome(['!room:example.org']);
+    const agentOnlyDmSection = agentDmOnly.root.findByProps({
+      'data-testid': 'home-direct-section',
+    });
+    const agentOnlyNewDm = agentOnlyDmSection.find(
+      (n) => n.type === 'a' && n.props['data-home-dm-action'] === 'new'
+    );
+    expect(agentOnlyNewDm.props.href).toBe('/direct/create');
+    act(() => agentDmOnly.unmount());
   });
 });

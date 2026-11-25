@@ -9,7 +9,7 @@ type RoomNavCategoryButtonProps = {
   closed?: boolean;
   /** User-authored label: reads in its own direction while lining up with the interface. */
   ownDirection?: boolean;
-  /** Optional leading content before the chevron, such as a subtle section icon. */
+  /** Optional leading content between the chevron and label, such as a subtle section icon. */
   before?: ReactNode;
   /** Trailing content inside the button, such as a collapsed section's unread dot. */
   after?: ReactNode;
@@ -39,12 +39,12 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
       {...props}
       ref={ref}
     >
-      {before}
       <Icon
         size="50"
         src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
         data-directional={closed || undefined}
       />
+      {before}
       <Box as="span" grow="Yes">
         <Text
           as="span"

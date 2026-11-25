@@ -209,7 +209,7 @@ export function Home() {
   const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
   const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
   const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
-  const showDirectSection = humanDms.length > 0 || !directTabShown;
+  const showDirectSection = humanDms.length > 0 || agentDmRoomIds.length > 0 || !directTabShown;
   const isEmptyHome =
     unspaced.length === 0 &&
     sectionTree.length === 0 &&

@@ -351,6 +351,25 @@ describe('homeDirectSections', () => {
       partnerId: '@mindroom_dev:foreign.example',
       lastActiveTs: 4000,
     });
+    const foreignSelfBoundId = '@alice:foreign.example';
+    const foreignSelfBoundDm = makeRoom({
+      roomId: '!dm-foreign-selfbound:example.org',
+      joined: 2,
+      partnerId: foreignSelfBoundId,
+      lastActiveTs: 3500,
+      stateEvents: {
+        'm.room.power_levels': [
+          {
+            stateKey: '',
+            sender: foreignSelfBoundId,
+            content: { users_default: 0, state_default: 50, users: { [foreignSelfBoundId]: 100 } },
+          },
+        ],
+        'io.mindroom.router': [
+          { stateKey: '', sender: foreignSelfBoundId, content: { user_id: foreignSelfBoundId } },
+        ],
+      },
+    });
     const routerId = '@mindroom_router:example.org';
     const rosteredCustomId = '@studio_helper:example.org';
     const rosteredCustomDm = makeRoom({
@@ -378,8 +397,11 @@ describe('homeDirectSections', () => {
       },
     });
 
-    const result = splitHomeDirectSections([foreignSpoofDm, rosteredCustomDm], []);
-    expect(result.humanDms.map((r) => r.roomId)).toEqual(['!dm-foreign:example.org']);
+    const result = splitHomeDirectSections([foreignSpoofDm, foreignSelfBoundDm, rosteredCustomDm], []);
+    expect(result.humanDms.map((r) => r.roomId)).toEqual([
+      '!dm-foreign:example.org',
+      '!dm-foreign-selfbound:example.org',
+    ]);
     expect(result.agents.map((a) => ({ userId: a.userId, dmRoomId: a.dmRoom?.roomId }))).toEqual([
       { userId: rosteredCustomId, dmRoomId: '!dm-rostered:example.org' },
     ]);
