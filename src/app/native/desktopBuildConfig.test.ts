@@ -171,7 +171,7 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         },
       },
       appImage: { artifactName: 'MindRoom-Chat-${arch}.AppImage', executableArgs: [] },
-      deb: { artifactName: 'MindRoom-Chat-${arch}.deb' },
+      deb: { packageName: 'mindroom-chat', artifactName: 'MindRoom-Chat-${arch}.deb' },
     });
 
     expect(signed.files).toContain('!build/electron/MindRoom Desktop Helper.app/**');

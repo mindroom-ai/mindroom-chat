@@ -159,6 +159,8 @@ verify_linux_artifacts() {
   scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-linux-verify.XXXXXX")
 
   deb_info=$(dpkg-deb -I "$deb_abs")
+  grep -Eq '^[[:space:]]*Package:[[:space:]]*mindroom-chat$' <<<"$deb_info" \
+    || die ".deb Package name does not match mindroom-chat: $deb"
   grep -Eq "^[[:space:]]*Architecture:[[:space:]]*${deb_arch}$" <<<"$deb_info" \
     || die ".deb Architecture does not match ${deb_arch}: $deb"
   grep -Eq '^[[:space:]]*Homepage:[[:space:]]*https://github\.com/mindroom-ai/mindroom-chat$' <<<"$deb_info" \

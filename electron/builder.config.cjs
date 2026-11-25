@@ -119,6 +119,7 @@ module.exports = {
     executableArgs: [],
   },
   deb: {
+    packageName: 'mindroom-chat',
     artifactName: 'MindRoom-Chat-${arch}.deb',
   },
   electronFuses: {
