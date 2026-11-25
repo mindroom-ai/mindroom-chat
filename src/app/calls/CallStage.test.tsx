@@ -297,6 +297,80 @@ describe('CallStage without video', () => {
     const joined = showStage({ participants: [me, helper] });
     expect(within(joined.container).getByText('Listening')).toBeTruthy();
   });
+
+  it('wires 5 waveform bars to remote speaker, local mic, or none without leaking other own devices', () => {
+    const attached: MediaStreamTrack[] = [];
+    const audioTrack = (id: string) =>
+      Object.assign(new EventTarget(), { id, readyState: 'live' }) as unknown as MediaStreamTrack;
+    class StubStream {
+      constructor(readonly tracks: MediaStreamTrack[]) {}
+    }
+    class StubAudio {
+      sampleRate = 48_000;
+      state = 'running';
+      createAnalyser = () => ({
+        fftSize: 1024,
+        frequencyBinCount: 512,
+        getByteFrequencyData: vi.fn(),
+      });
+      createMediaStreamSource = (s: StubStream) => {
+        if (s.tracks[0]) attached.push(s.tracks[0]);
+        return { connect: vi.fn(), disconnect: vi.fn() };
+      };
+      resume = vi.fn(async () => undefined);
+      close = vi.fn(async () => undefined);
+    }
+    vi.stubGlobal('MediaStream', StubStream);
+    vi.stubGlobal('AudioContext', StubAudio);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1)
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const localMic = audioTrack('local-mic');
+    const ownPhoneTrack = audioTrack('own-phone');
+    const remoteTrack = audioTrack('remote-voice');
+    const sourceOf = (root: HTMLElement) =>
+      root.querySelector('[data-call-voice-bars]')?.getAttribute('data-audio-source');
+
+    const remote = showStage({
+      participants: [
+        { ...me, audioTrack: localMic },
+        { ...mind, speaking: true, audioTrack: remoteTrack },
+      ],
+      microphone: false,
+    });
+    expect(remote.container.querySelectorAll('[data-call-voice-bar]')).toHaveLength(5);
+    expect(sourceOf(remote.container)).toBe('remote');
+    expect(attached).toEqual([remoteTrack]);
+    cleanup();
+
+    attached.length = 0;
+    const local = showStage({
+      participants: [
+        onPhone(me, { audioTrack: ownPhoneTrack }),
+        { ...me, audioTrack: localMic },
+        mind,
+      ],
+      microphone: true,
+    });
+    expect(sourceOf(local.container)).toBe('local');
+    expect(attached).toEqual([localMic]);
+    cleanup();
+
+    attached.length = 0;
+    const muted = showStage({
+      participants: [
+        onPhone(me, { audioTrack: ownPhoneTrack }),
+        { ...me, audioTrack: localMic },
+        mind,
+      ],
+      microphone: false,
+    });
+    expect(sourceOf(muted.container)).toBe('none');
+    expect(attached).toEqual([]);
+  });
 });
 
 describe('CallStage with video', () => {
