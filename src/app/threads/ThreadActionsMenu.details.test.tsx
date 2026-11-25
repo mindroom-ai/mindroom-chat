@@ -8,6 +8,7 @@ import { ThreadActionsMenu } from './ThreadActionsMenu';
 import * as css from './ThreadActionsMenu.css';
 import type { RegisteredPlugin } from '../plugins/registry';
 import type { ThreadDetailProps } from '../plugins/threadDetails';
+import { popOutPx } from '../../test/popOutPlacement';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => () => undefined }));
@@ -217,8 +218,6 @@ describe("ThreadActionsMenu's thread details", () => {
       const Loaded = () => <div data-loaded-detail>Loaded details</div>;
       const { Detail, load } = deferredDetail(Loaded);
       renderMenu(Detail, anchor);
-      const popOutPx = (value?: string) =>
-        value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
       const positioned = menu().parentElement;
       if (!positioned) throw new Error('The menu has no pop-out');
       expect(popOutPx(positioned.style.top)).toBe('354px');

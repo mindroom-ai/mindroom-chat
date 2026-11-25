@@ -5,6 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { RegisteredPlugin } from '../../plugins/registry';
 import type { ThreadDetailProps } from '../../plugins/threadDetails';
+import { popOutPx } from '../../../test/popOutPlacement';
 import { ThreadCardDetails, THREAD_CARD_DETAILS_DELAY_MS } from './ThreadCardDetails';
 
 const observers = new Set<SurfaceResizeObserver>();
@@ -101,7 +102,6 @@ it('repositions inside the viewport when a lazy-only detail grows after opening 
   const layer = document.querySelector('[data-thread-card-details]');
   const positioned = layer?.firstElementChild;
   if (!(positioned instanceof HTMLElement)) throw new Error('Details did not open');
-  const popOutPx = (value?: string) => value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
   expect(positioned.textContent).toBe('');
   expect(popOutPx(positioned.style.left)).toBe('970px');
 

@@ -23,6 +23,7 @@ import { SubagentsIcon } from '../subagents/SubagentsIcon';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { installOverlayFocus, observeLayerHost } from '../lib/overlayFocus';
 import { PhoneMembersSheet } from '../members/PhoneMembersSheet';
+import { popOutPx } from '../../test/popOutPlacement';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // The Sub-agents panel's toggle in the room header: there while the room's store holds a run of
@@ -745,8 +746,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         ? '[aria-label="Choose an agent to call"]'
         : '[role="dialog"][aria-label="Pinned Messages"]';
       const content = host.querySelector(selector)!;
-      const popOutPx = (value?: string) =>
-        value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
       const positioner = content.parentElement!;
       expect(popOutPx(positioner.style.left)).toBe('250px');
       bounds.mockReturnValue(new DOMRect(206, 10, 40, 40));
@@ -1158,8 +1157,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         const submenu = () => host.querySelector('[role="menu"][aria-label="Notifications"]');
         const menu = submenu()!;
         if (action === 'move') {
-          const popOutPx = (value?: string) =>
-            value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
           expect(popOutPx(menu.parentElement?.style.top)).toBe('10px');
           bounds.mockReturnValue(new DOMRect(250, 54, 40, 40));
           window.dispatchEvent(new Event('scroll'));

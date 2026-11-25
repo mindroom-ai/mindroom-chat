@@ -10,6 +10,7 @@ import type { ModelCatalogEntry } from '../../../models/modelProtocol';
 import type { ModelPickerState } from '../../../models/useModelPicker';
 import { ScreenSize, ScreenSizeProvider } from '../../../lib/hooks/useScreenSize';
 import { ROOM_SETTING_SECTIONS, type RoomModelSettingDefinition } from './roomSettingDefinitions';
+import { popOutPx } from '../../../../test/popOutPlacement';
 import { RoomModelSettingTile } from './RoomModelSettingTile';
 
 const ROOM = { roomId: '!room:example.test' } as Room;
@@ -443,8 +444,6 @@ describe('RoomModelSettingTile', () => {
     });
     const { rerender } = renderTile(MODEL_DEF, createCatalog({ ...NO_CATALOG, loading: true }));
     const dialog = open();
-    const popOutPx = (value?: string) =>
-      value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
     const placed = dialog.parentElement!.parentElement!;
     expect(popOutPx(placed.style.top)).toBe('535px');
     expect(placed.style.bottom).toBe('unset');

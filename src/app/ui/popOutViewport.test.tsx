@@ -56,9 +56,7 @@ describe("folds' PopOut placement", () => {
     menuWidth = 220;
     menuHeight = 540;
     open({ x: 335, y: 520, width: 24, height: 24 });
-    const style = placed();
-    expect(style.top).toContain('var(--app-inset-top, env(safe-area-inset-top, 0px)) + 0.5rem');
-    expect(style).toEqual({
+    expect(placed()).toEqual({
       top: clampY(4, 540),
       bottom: 'unset',
       left: clampX(111, 220),
@@ -71,9 +69,7 @@ describe("folds' PopOut placement", () => {
     menuWidth = 220;
     menuHeight = 540;
     open({ x: 335, y: 362, width: 24, height: 24 });
-    const style = placed();
-    expect(style.top).toContain('env(safe-area-inset-bottom, 0px)');
-    expect(style).toEqual({
+    expect(placed()).toEqual({
       top: clampY(390, 540),
       bottom: 'unset',
       left: clampX(139, 220),

@@ -22,6 +22,7 @@ import {
 } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
+import { popOutPx } from '../test/popOutPlacement';
 import { useBindMDirectAtom } from '../app/matrix/state/mDirectList';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from '../app/matrix/state/roomToParents';
 import { UserRoomProfileRenderer } from '../app/members/profile/UserRoomProfileRenderer';
@@ -319,8 +320,6 @@ describe('useOpenUserProfile, useShownUserProfile, useCloseUserProfile and UserP
     const card = screen.getByRole('dialog', { name: BOB });
     expect(card.querySelector('h2')?.textContent).toBe('Bob Builder');
     expect(card.textContent).toContain(BOB);
-    const popOutPx = (value?: string) =>
-      value?.match(/^clamp\(.*, (-?\d+(?:\.\d+)?px), calc\(/)?.[1];
     // Under the anchor, lined up with its start, as a mention pill's card opens.
     expect(popOutPx(card.parentElement?.style.top)).toBe('228px');
     expect(popOutPx(card.parentElement?.style.left)).toBe('100px');
