@@ -10,7 +10,13 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import {
   conversationBehindPanelAtom,
   conversationHiddenAtom,
+  conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
+import {
+  SWIPE_THREAD_STAGE,
+  SWIPE_UNDER_THREAD,
+  type LiveThreadBackUnder,
+} from '../navigation/phonePageSlide';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
@@ -24,6 +30,7 @@ import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import type { LiveRoomPeekFocus } from './useRoomViewThreadState';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -56,6 +63,10 @@ const state = vi.hoisted(() => ({
   openFocus: [] as [string, boolean | undefined][],
   // The threads of the Compact cards the room's messages show while no thread is open.
   cards: undefined as string[] | undefined,
+  enterLiveRoomPeek: undefined as
+    ((peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null) | undefined,
+  timelineMounts: 0,
+  headerProps: [] as Array<{ passive?: boolean; openThreadId?: string; threadId?: string }>,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -78,25 +89,46 @@ vi.mock('../event-store/engine/engineContext', () => ({
 }));
 const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
-  useRoomViewThreadState: () => ({
-    viewMode: 'compact',
-    handleToggleForMe: toggleForMe,
-    effectiveThreadId: state.thread,
-    handleExitThread: () => undefined,
-    handleThreadRootDeleted: state.rootDeleted,
-    threadNotFound: state.threadNotFound,
-    handleThreadLoadError: (threadId: string) => state.threadLoadError(threadId),
-    storeThreadSummary: () => undefined,
-    summaryMap: new Map(),
-    threadSortFreezeState: null,
-    // A Compact send opens its root's thread.
-    handleRoomMessageSent: (eventId: string) => {
-      state.thread = eventId;
-      return true;
-    },
-  }),
+  useRoomViewThreadState: (opts: {
+    enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
+  }) => {
+    state.enterLiveRoomPeek = opts.enterLiveRoomPeek;
+    return {
+      viewMode: 'compact',
+      handleToggleForMe: toggleForMe,
+      effectiveThreadId: state.thread,
+      handleExitThread: () => undefined,
+      handleThreadRootDeleted: state.rootDeleted,
+      threadNotFound: state.threadNotFound,
+      handleThreadLoadError: (threadId: string) => state.threadLoadError(threadId),
+      storeThreadSummary: () => undefined,
+      summaryMap: new Map(),
+      threadSortFreezeState: null,
+      // A Compact send opens its root's thread.
+      handleRoomMessageSent: (eventId: string) => {
+        state.thread = eventId;
+        return true;
+      },
+    };
+  },
 }));
-vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
+vi.mock('./RoomViewHeader', () => ({
+  RoomViewHeader: (props: { passive?: boolean; openThreadId?: string; threadId?: string }) => {
+    state.headerProps.push({
+      passive: props.passive,
+      openThreadId: props.openThreadId,
+      threadId: props.threadId,
+    });
+    return (
+      <div
+        data-testid="room-header"
+        data-passive={props.passive ? 'true' : 'false'}
+        data-open-thread-id={props.openThreadId ?? ''}
+        data-thread-id={props.threadId ?? ''}
+      />
+    );
+  },
+}));
 // A plugin of the build whose header slot shows a marker.
 vi.mock('../plugins/pluginEntries', async () => {
   const { useEffect } = await import('react');
@@ -147,6 +179,9 @@ vi.mock('../timeline/RoomTimeline', async () => {
   return {
     RoomTimeline: (props: RoomTimelineProps) => {
       state.main = props;
+      useLayoutEffect(() => {
+        state.timelineMounts += 1;
+      }, []);
       return (
         <div data-testid="messages">
           {props.threadHeader}
@@ -304,6 +339,9 @@ beforeEach(() => {
   state.coverMounts = 0;
   state.openFocus = [];
   state.cards = undefined;
+  state.enterLiveRoomPeek = undefined;
+  state.timelineMounts = 0;
+  state.headerProps = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -982,4 +1020,214 @@ it('leaves the focus on a control that took it as the keys closed the thread', a
   state.thread = '$thread';
   expect(await leaveThreadByKey({ elsewhere: true, cards: ['$other'] })).toEqual([null]);
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
+});
+
+it('live room peek uncollapses inert ConversationLayout with passive header, single header slot, and preserves scroll memory on cancel', () => {
+  state.thread = undefined;
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  // Capture refs on the live room, seed scroll memory, then open a filling thread.
+  const returnPlace = { roomId: room.roomId, eventId: '$saved-row', offset: 42 };
+  const compactScroll = { scrollTop: 310, anchors: [] };
+  state.main!.threadReturnPlaceRef!.current = returnPlace;
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, compactScroll);
+
+  state.thread = '$thread';
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+  expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
+
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.() ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(true);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(true);
+  expect(live!.under.inert).toBe(true);
+  expect(live!.under.getAttribute('aria-hidden')).toBe('true');
+  expect(live!.over).toBe(screen.getByTestId('thread-column'));
+  expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
+  expect(screen.getByTestId('messages')).toBeDefined();
+  expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+  const passiveHeaders = screen
+    .getAllByTestId('room-header')
+    .filter((el) => el.dataset.passive === 'true');
+  expect(passiveHeaders).toHaveLength(1);
+  expect(passiveHeaders[0]?.dataset.openThreadId).toBe('');
+
+  // Simulate timeline mount/unmount overwriting scroll refs during peek.
+  state.main!.threadReturnPlaceRef!.current = undefined;
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, { scrollTop: 0, anchors: [] });
+
+  act(() => {
+    live!.exit(false);
+  });
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(state.main!.threadReturnPlaceRef!.current).toEqual(returnPlace);
+  expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(compactScroll);
+});
+
+it('live room peek keeps ConversationLayout mounted continuously on commit and re-collapses on aborted commit', () => {
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  expect(state.timelineMounts).toBe(0);
+
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.() ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.timelineMounts).toBe(1);
+  expect(screen.getByTestId('messages')).toBeDefined();
+
+  // Aborted commit (e.g. handoff timeout while still in thread) re-collapses cleanly.
+  act(() => {
+    live!.exit(true);
+  });
+  expect(screen.queryByTestId('messages')).toBeNull();
+
+  // Start a second peek, then commit route back to room before handoff release.
+  act(() => {
+    live = state.enterLiveRoomPeek?.() ?? null;
+  });
+  expect(state.timelineMounts).toBe(2);
+  state.thread = undefined;
+  rerender(tree({}, ScreenSize.Mobile));
+  act(() => {
+    live!.exit(true);
+  });
+  // ConversationLayout stayed continuously mounted through commit (no remount).
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+  expect(state.timelineMounts).toBe(2);
+  expect(screen.getByTestId('messages')).toBeDefined();
+  expect(live!.under.inert).toBe(false);
+  expect(live!.under.hasAttribute('aria-hidden')).toBe(false);
+  expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+  expect(screen.getByTestId('room-header').dataset.passive).toBe('false');
+});
+
+it('live room peek forwards direct-exit and unsaved focused-entry targets while preserving saved scroll positions', () => {
+  state.thread = undefined;
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  const savedCompactScroll = { scrollTop: 240, anchors: [{ key: '$other', offset: 12 }] };
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, savedCompactScroll);
+
+  state.thread = '$thread';
+  rerender(
+    tree(
+      {
+        eventId: '$reply',
+        focusEventInRoom: false,
+        entryKey: 'k-thread',
+        entryPushed: true,
+        entryReturned: true,
+      },
+      ScreenSize.Mobile
+    )
+  );
+
+  // 1. Direct exit (!returnsToRoom): passes eventId as room focus target with cleared route flags.
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$thread' }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: '$thread',
+    focusEventInRoom: true,
+    entryKey: undefined,
+    entryPushed: false,
+    entryReturned: false,
+  });
+
+  // Simulate CompactRoomView overwriting compactRoomScrollStateRef during peek, then cancel.
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, {
+    scrollTop: 1,
+    anchors: [{ key: '$thread', offset: 160 }],
+  });
+  act(() => {
+    live!.exit(false);
+  });
+  expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(
+    savedCompactScroll
+  );
+
+  // 2. Focused room entry with saved compact scroll (onlyIfUnsaved): omits focus override.
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
+
+  // 3. Focused room entry with saved Threaded return place for this room: omits focus override.
+  state.main!.compactRoomScrollStateRef!.current.delete(room.roomId);
+  state.main!.threadReturnPlaceRef!.current = {
+    roomId: room.roomId,
+    eventId: '$saved-row',
+    offset: 18,
+  };
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
+
+  // 4. Focused room entry with no saved scroll (e.g. after reload): forwards room focus props.
+  state.main!.threadReturnPlaceRef!.current = undefined;
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$older', onlyIfUnsaved: true }) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: '$older',
+    focusEventInRoom: true,
+    entryKey: undefined,
+    entryPushed: false,
+    entryReturned: false,
+  });
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, {
+    scrollTop: 1,
+    anchors: [{ key: '$older', offset: 160 }],
+  });
+  act(() => {
+    live!.exit(false);
+  });
+  expect(state.main!.compactRoomScrollStateRef!.current.has(room.roomId)).toBe(false);
+
+  // 5. Plain room history entry (undefined): omits focus override even without saved scroll.
+  act(() => {
+    live = state.enterLiveRoomPeek?.(undefined) ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(state.main).toMatchObject({
+    eventId: undefined,
+    focusEventInRoom: false,
+    entryKey: 'k-thread',
+    entryPushed: true,
+    entryReturned: true,
+  });
+  act(() => {
+    live!.exit(false);
+  });
 });

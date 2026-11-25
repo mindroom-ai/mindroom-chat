@@ -7,6 +7,8 @@ import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { getRoomCommands } from '../navigation/roomCommands';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
+import { hasShortcutHandler } from '../shortcuts/useShortcut';
 
 const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
@@ -206,5 +208,17 @@ describe("the room header's commands", () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     expect(getRoomCommands()).toEqual([]);
+  });
+
+  it('registers no commands, members shortcut, or triggers dialog side effects while passive', () => {
+    const store = renderHeader({ passive: true });
+    expect(getRoomCommands()).toEqual([]);
+    expect(hasShortcutHandler('members')).toBe(false);
+
+    // Passive header must not clear roomTriggersDialogAtom on unmount.
+    act(() => store.set(roomTriggersDialogAtom, { roomId: '!room:example.org' }));
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(store.get(roomTriggersDialogAtom)).toEqual({ roomId: '!room:example.org' });
   });
 });
