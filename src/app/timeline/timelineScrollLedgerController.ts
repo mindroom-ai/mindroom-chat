@@ -52,6 +52,8 @@ export type TimelineScrollLedgerControllerOptions = {
   pinThreadLeadingItem?: boolean;
   /** Stable leading items before prepended content (`anchorTo: 'end'`). */
   anchorSkipLeading?: number;
+  /** Whether older history can still prepend above item 0 (keeps clamped negative holds). */
+  canLoadOlder?: boolean;
   automaticFill?: {
     geometryReader: MutableRefObject<() => string | undefined>;
   };
@@ -88,6 +90,7 @@ type VirtualizerInternals = {
   _canWriteScroll?: () => boolean;
   applyScrollAdjustment?: (delta: number) => boolean;
   pendingScrollAnchor?: unknown;
+  scrollState?: { phase?: string } | null;
   notify?: (sync: boolean) => void;
 };
 
@@ -127,6 +130,7 @@ export const useTimelineScrollLedgerController = ({
   threadId,
   pinThreadLeadingItem = false,
   anchorSkipLeading = 0,
+  canLoadOlder = false,
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const virtualInnerRef = useRef<HTMLDivElement>(null);
@@ -269,6 +273,15 @@ export const useTimelineScrollLedgerController = ({
     anchorSizeCacheRef.current = virtualizer.itemSizeCache;
     virtualizerRef.current = virtualizer;
     anchorRoomRowsRef.current = anchorRoomRows;
+    // Drop a clamped negative hold once at rest at the true start of the list (no older page left).
+    const internal = asInternals(virtualizer);
+    if (
+      !canLoadOlder &&
+      (internal?._holdOffset ?? 0) < 0 &&
+      internal?._canWriteScroll?.() !== false &&
+      internal?.scrollState?.phase !== 'smooth'
+    )
+      clearVirtualizerHoldOffset(virtualizer);
   });
   const anchorRoomLedgerAt = useCallback((scrollTop: number) => {
     const view = roomLedgerViewRef.current;

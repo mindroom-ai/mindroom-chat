@@ -880,6 +880,114 @@ describe('RoomTimeline', () => {
           });
         }
       });
+
+      it('releases a clamped negative hold at the start of a detached permalink timeline', async () => {
+        const { RoomTimeline } = await import('../RoomTimeline');
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        const ev = makeEvent('$old-target');
+        const targetTimeline = makeTimeline([ev], {
+          backwardToken: null,
+          forwardToken: 'newer',
+        });
+        const room = makeRoom({
+          liveEvents: [makeEvent('$newer-live')],
+          timelinesByEventId: new Map([[ev.getId(), targetTimeline]]),
+        });
+        matrixClientMock.getEventTimeline.mockResolvedValue(targetTimeline);
+
+        let renderer: ReturnType<typeof create> | undefined;
+        try {
+          await act(async () => {
+            renderer = create(
+              React.createElement(ControlledRoomTimeline, {
+                room,
+                eventId: ev.getId(),
+                initialViewMode: 'classic',
+              })
+            );
+            await flushAsyncWork(5);
+          });
+          expect(getRenderedEventIds(renderer!)).toContain(ev.getId());
+
+          const instance = roomTimelineVirtualizerState.lastInstance as Record<string, unknown>;
+          const notify = vi.fn();
+          instance._holdOffset = -200;
+          instance.notify = notify;
+
+          await act(async () => {
+            renderer!.update(
+              React.createElement(ControlledRoomTimeline, {
+                room,
+                eventId: ev.getId(),
+                initialViewMode: 'classic',
+              })
+            );
+            await flushAsyncWork(2);
+          });
+
+          expect(instance._holdOffset).toBe(0);
+          expect(notify).toHaveBeenCalledWith(false);
+        } finally {
+          await act(async () => {
+            renderer?.unmount();
+            await flushAsyncWork(1);
+          });
+        }
+      });
+
+      it('keeps a clamped negative hold while a detached permalink timeline still has older history', async () => {
+        const { RoomTimeline } = await import('../RoomTimeline');
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        const ev = makeEvent('$mid-target');
+        const targetTimeline = makeTimeline([ev], {
+          backwardToken: 'older',
+          forwardToken: 'newer',
+        });
+        const room = makeRoom({
+          liveEvents: [makeEvent('$newer-live')],
+          timelinesByEventId: new Map([[ev.getId(), targetTimeline]]),
+        });
+        matrixClientMock.getEventTimeline.mockResolvedValue(targetTimeline);
+
+        let renderer: ReturnType<typeof create> | undefined;
+        try {
+          await act(async () => {
+            renderer = create(
+              React.createElement(ControlledRoomTimeline, {
+                room,
+                eventId: ev.getId(),
+                initialViewMode: 'classic',
+              })
+            );
+            await flushAsyncWork(5);
+          });
+          expect(getRenderedEventIds(renderer!)).toContain(ev.getId());
+
+          const instance = roomTimelineVirtualizerState.lastInstance as Record<string, unknown>;
+          const notify = vi.fn();
+          instance._holdOffset = -200;
+          instance.notify = notify;
+
+          await act(async () => {
+            renderer!.update(
+              React.createElement(ControlledRoomTimeline, {
+                room,
+                eventId: ev.getId(),
+                initialViewMode: 'classic',
+              })
+            );
+            await flushAsyncWork(2);
+          });
+
+          expect(instance._holdOffset).toBe(-200);
+          expect(notify).not.toHaveBeenCalled();
+        } finally {
+          await act(async () => {
+            renderer?.unmount();
+            await flushAsyncWork(1);
+          });
+        }
+      });
     });
   });
 });
