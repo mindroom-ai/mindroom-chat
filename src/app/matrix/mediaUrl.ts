@@ -1,4 +1,5 @@
 import type { MatrixClient } from 'matrix-js-sdk';
+import { isCapacitorMediaShell } from '../lib/nativeShell';
 
 // Authenticated media (Matrix 1.11, MSC3916) needs the access token in an Authorization header on
 // every download (MSC4127 removed `?access_token=` query parameters). On the web a controlling
@@ -120,7 +121,9 @@ export const mxcUrlToHttp = (
 /**
  * The fetch options that authenticate a request for homeserver media, if it needs any. Only the
  * homeserver's authenticated endpoints (`/_matrix/client/v1/media/`) take the access token; the
- * legacy `/_matrix/media/v3/` endpoints are unauthenticated, so they never receive it.
+ * legacy `/_matrix/media/v3/` endpoints are unauthenticated, so they never receive it. On Capacitor
+ * shells `cache: 'no-store'` keeps authenticated media out of the WebView's shared HTTP cache
+ * across sign-out.
  */
 export const authenticatedMediaRequestInit = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getAccessToken'>,
@@ -132,5 +135,6 @@ export const authenticatedMediaRequestInit = (
   if (!token || !homeserver || !parsed || !isHomeserverMediaUrl(parsed, homeserver)) {
     return undefined;
   }
-  return { headers: { Authorization: `Bearer ${token}` } };
+  const headers = { Authorization: `Bearer ${token}` };
+  return isCapacitorMediaShell() ? { headers, cache: 'no-store' } : { headers };
 };

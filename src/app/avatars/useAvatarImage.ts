@@ -73,6 +73,8 @@ const startFor = (
 export type AvatarImage = {
   /** What the `<img>` shows; undefined while there is nothing to show, so the fallback renders. */
   imageSrc: string | undefined;
+  /** Whether an authenticated fetch for `src` is currently in flight. */
+  loading: boolean;
   /** For the `<img>`'s `onError`. */
   onImageError: () => void;
 };
@@ -147,5 +149,5 @@ export function useAvatarImage(
   let imageSrc: string | undefined;
   if (current.source === 'direct') imageSrc = src;
   else if (current.source === 'fetched') imageSrc = current.objectUrl;
-  return { imageSrc, onImageError };
+  return { imageSrc, loading: fetching, onImageError };
 }

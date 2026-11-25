@@ -283,7 +283,27 @@ describe('authenticatedMediaRequestInit', () => {
   });
   const mediaUrl = 'https://matrix.example.org/_matrix/client/v1/media/download/example.org/media';
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('sends the access token in a header to the homeserver media URL', () => {
+    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
+      headers: { Authorization: 'Bearer test-token' },
+    });
+  });
+
+  it('sets cache no-store on Capacitor shells and leaves Electron desktop unchanged', () => {
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
+      headers: { Authorization: 'Bearer test-token' },
+      cache: 'no-store',
+    });
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'capacitor:' },
+      mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
+    });
     expect(authenticatedMediaRequestInit(mx, mediaUrl)).toEqual({
       headers: { Authorization: 'Bearer test-token' },
     });

@@ -29,7 +29,7 @@ export const Reaction = as<'button', ReactionProps>(
     const mediaSrc = reaction.startsWith('mxc://')
       ? (mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined)
       : undefined;
-    const { imageSrc, onImageError } = useAvatarImage(mediaSrc, mx);
+    const { imageSrc, loading, onImageError } = useAvatarImage(mediaSrc, mx);
     return (
       <button
         type="button"
@@ -50,6 +50,8 @@ export const Reaction = as<'button', ReactionProps>(
             alt={revealDirectionControls(reaction)}
             onError={onImageError}
           />
+        ) : loading ? (
+          <span className={css.ReactionImg} aria-hidden="true" />
         ) : (
           <Text as="span" size="Inherit" className={css.ReactionText}>
             {revealDirectionControls(reaction)}

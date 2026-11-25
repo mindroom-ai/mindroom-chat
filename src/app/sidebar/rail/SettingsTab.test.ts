@@ -621,6 +621,30 @@ describe('SettingsTab', () => {
     );
   });
 
+  it('sets cache no-store when fetching the authenticated rail avatar on Capacitor', async () => {
+    mediaAuthState.value = true;
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    const fetchSpy = vi.fn(() => Promise.resolve({ ok: false }));
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.mocked(useUserProfile).mockReturnValue({
+      displayName: 'Alice',
+      avatarUrl: 'mxc://mindroom.chat/avatar',
+      isAvatarResolved: true,
+      isDisplayNameResolved: true,
+    });
+
+    await act(async () => {
+      renderSettingsTab([activeSession]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/mindroom.chat/avatar?width=96&height=96&method=crop',
+      { headers: { Authorization: 'Bearer token-a' }, cache: 'no-store' }
+    );
+  });
+
   it('never attaches credentials to a path-traversing MXC avatar', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

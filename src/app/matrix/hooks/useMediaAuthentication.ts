@@ -8,8 +8,8 @@ import { useSpecVersions } from './useSpecVersions';
 
 // Authenticated media (Matrix 1.11) needs the access token in an Authorization header on every
 // download. A controlling service worker adds it on the web, Electron's webRequest interceptor adds
-// it on desktop, and Capacitor native shells authenticate via Bearer `fetch` (`authenticatedMediaRequestInit`
-// and `useAvatarImage`) rather than `?access_token=` query parameters.
+// it on desktop, and Capacitor native shells authenticate via Bearer `fetch`
+// (`authenticatedMediaRequestInit` and `useAvatarImage`) rather than `?access_token=` query params.
 
 const hasServiceWorkerController = (): boolean =>
   typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;

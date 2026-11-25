@@ -75,6 +75,7 @@ describe('authenticated image rendering on Capacitor', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(src, {
       headers: { Authorization: 'Bearer cap-token' },
+      cache: 'no-store',
     });
     expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:cap-1');
     expect(container.querySelector('img')?.getAttribute('alt')).toBe('sticker');
@@ -93,7 +94,7 @@ describe('authenticated image rendering on Capacitor', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/_matrix/client/v1/media/thumbnail/hs.test/model-icon');
     expect(url).not.toContain('access_token');
-    expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' } });
+    expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' }, cache: 'no-store' });
     expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:cap-1');
   });
 
@@ -107,7 +108,7 @@ describe('authenticated image rendering on Capacitor', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/_matrix/client/v1/media/thumbnail/hs.test/pack-avatar');
     expect(url).not.toContain('access_token');
-    expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' } });
+    expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' }, cache: 'no-store' });
     expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:cap-1');
     expect(container.querySelector('img')?.getAttribute('alt')).toBe('Birds');
   });

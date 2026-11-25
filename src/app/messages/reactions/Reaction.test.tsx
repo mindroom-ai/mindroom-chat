@@ -55,8 +55,12 @@ afterEach(() => {
 it('fetches custom emoji reactions with Authorization Bearer on Capacitor using explicit mx prop', async () => {
   vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
   vi.stubGlobal('navigator', {});
+  let finishFetch!: (response: Response) => void;
   const fetchMock = vi.fn(
-    async (_url: string, _init?: RequestInit) => new Response(new Blob(['png']), { status: 200 })
+    (_url: string, _init?: RequestInit) =>
+      new Promise<Response>((resolve) => {
+        finishFetch = resolve;
+      })
   );
   vi.stubGlobal('fetch', fetchMock);
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:reaction-1');
@@ -73,6 +77,13 @@ it('fetches custom emoji reactions with Authorization Bearer on Capacitor using 
       <Reaction mx={mx} reaction="mxc://example.org/parrot" count={2} useAuthentication />
     );
   });
+
+  // While fetching, render a placeholder instead of flashing the raw mxc:// URI text.
+  expect(text(chip)).not.toContain('mxc://example.org/parrot');
+  expect(chip.root.findAllByType('img')).toHaveLength(0);
+  expect(chip.root.findByProps({ className: 'ReactionImg', 'aria-hidden': 'true' })).toBeTruthy();
+
+  finishFetch(new Response(new Blob(['png']), { status: 200 }));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 
   expect(fetchMock).toHaveBeenCalledOnce();
@@ -81,7 +92,32 @@ it('fetches custom emoji reactions with Authorization Bearer on Capacitor using 
     'https://example.org/_matrix/client/v1/media/download/example.org/parrot?allow_redirect=true'
   );
   expect(url).not.toContain('access_token');
-  expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' } });
+  expect(init).toEqual({ headers: { Authorization: 'Bearer cap-token' }, cache: 'no-store' });
   expect(chip.root.findByType('img').props.src).toBe('blob:reaction-1');
+  act(() => chip.unmount());
+});
+
+it('falls back to reaction text when fetching a custom emoji reaction fails on Capacitor', async () => {
+  vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+  vi.stubGlobal('navigator', {});
+  const fetchMock = vi.fn(async () => new Response('', { status: 404 }));
+  vi.stubGlobal('fetch', fetchMock);
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:unused');
+
+  const mx = createClient({
+    baseUrl: 'https://example.org',
+    userId: '@reader:example.org',
+    accessToken: 'cap-token',
+  });
+  let chip!: ReactTestRenderer;
+  act(() => {
+    chip = create(
+      <Reaction mx={mx} reaction="mxc://example.org/missing" count={1} useAuthentication />
+    );
+  });
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  expect(chip.root.findAllByType('img')).toHaveLength(0);
+  expect(text(chip)).toContain('mxc://example.org/missing');
   act(() => chip.unmount());
 });

@@ -85,6 +85,7 @@ describe('loadServerScaledPicture', () => {
     );
     expect(url).not.toContain('access_token');
     expect(init.headers).toEqual({ Authorization: 'Bearer secret-token' });
+    expect(init.cache).toBe('no-store');
   });
 
   it('shows an original this device saved, without the network', async () => {

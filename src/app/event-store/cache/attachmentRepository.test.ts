@@ -318,6 +318,7 @@ describe('persistent attachment repository', () => {
       );
       expect(String(url)).not.toContain('access_token');
       expect(init?.headers).toEqual({ Authorization: 'Bearer cap-token' });
+      expect(init?.cache).toBe('no-store');
       return new Response('image-bytes', { headers: { 'Content-Type': 'image/png' } });
     });
     vi.stubGlobal('fetch', fetchMock);

@@ -138,6 +138,7 @@ describe('inline message images', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(url, {
       headers: { Authorization: 'Bearer cap-token' },
+      cache: 'no-store',
     });
     expect(renderer!.root.findByType('img').props.src).toBe('blob:inline-1');
 
@@ -153,5 +154,49 @@ describe('inline message images', () => {
       src: 'blob:inline-2',
       alt: 'chart',
     });
+  });
+
+  it('keeps accessible link text for a linked image and falls back to alt text for failed emoticons on Capacitor', async () => {
+    vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
+    vi.stubGlobal('navigator', {});
+    let finishFetch!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishFetch = resolve;
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:unused');
+
+    const options = getReactCustomHtmlParser(mx, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+      useAuthentication: true,
+    });
+    act(() => {
+      renderer = create(
+        <div>
+          {parse(
+            '<a href="https://example.org/report"><img src="mxc://example/chart" alt="Report"></a>' +
+              '<img src="mxc://example/chart" data-mx-emoticon alt=":parrot:">',
+            options
+          )}
+        </div>
+      );
+    });
+
+    // While fetching, the anchor stays labelled by its alt text and the emoticon does not flash text.
+    const link = renderer!.root.findByType('a');
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Report');
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain(':parrot:');
+    expect(link.findAllByType('img')).toHaveLength(0);
+
+    // After a failed Bearer fetch, both keep their fallback text.
+    finishFetch(new Response('', { status: 404 }));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    expect(link.findAllByType('img')).toHaveLength(0);
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Report');
+    expect(JSON.stringify(renderer!.toJSON())).toContain(':parrot:');
   });
 });

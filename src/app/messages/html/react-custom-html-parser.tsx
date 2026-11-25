@@ -102,6 +102,7 @@ function InlineImage({
           client={client}
           src={src}
           alt={revealDirectionControls(alt)}
+          fallback={alt ? revealDirectionControls(alt) : null}
           className={css.InlineImage}
           loading="lazy"
         />
@@ -1009,13 +1010,15 @@ export const getReactCustomHtmlParser = (
           if (params.mxcImages === false) return <>{alt ?? ''}</>;
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
+            const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
                 <AuthenticatedImage
                   client={mx}
                   className={css.Emoticon()}
                   src={url}
-                  alt={alt ?? title ?? ''}
+                  alt={emoticonAlt}
+                  fallback={emoticonAlt}
                   title={title ?? alt}
                   loading="lazy"
                 />
@@ -1023,12 +1026,15 @@ export const getReactCustomHtmlParser = (
             );
           }
           if (hasAncestor(domNode, ['a'])) {
+            const linkedAlt = revealDirectionControls(alt ?? '');
             return (
               <AuthenticatedImage
                 {...props}
                 client={mx}
                 src={url}
-                alt={revealDirectionControls(alt ?? '')}
+                alt={linkedAlt}
+                fallback={linkedAlt}
+                showFallbackWhileLoading
                 className={css.InlineImage}
                 loading="lazy"
               />
