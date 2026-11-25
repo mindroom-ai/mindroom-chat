@@ -252,29 +252,18 @@ const renderRoomNavItem = (
   } = {},
   store?: ReturnType<typeof createStore>
 ) => {
+  const element = (
+    <RoomNavItem
+      room={props.room ?? room}
+      selected={false}
+      linkPath="/room"
+      notificationMode={RoomNotificationMode.Unset}
+      {...props}
+    />
+  );
   let renderer!: ReturnType<typeof create>;
   act(() => {
-    renderer = create(
-      store ? (
-        <Provider store={store}>
-          <RoomNavItem
-            room={props.room ?? room}
-            selected={false}
-            linkPath="/room"
-            notificationMode={RoomNotificationMode.Unset}
-            {...props}
-          />
-        </Provider>
-      ) : (
-        <RoomNavItem
-          room={props.room ?? room}
-          selected={false}
-          linkPath="/room"
-          notificationMode={RoomNotificationMode.Unset}
-          {...props}
-        />
-      )
-    );
+    renderer = create(store ? <Provider store={store}>{element}</Provider> : element);
   });
   renders.push(renderer);
   return renderer;
@@ -649,54 +638,50 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     return mockRoom;
   };
 
+  const groupCountNodes = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
+    );
+  const selfDmTags = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+    );
+  const activeDescriptions = (renderer: ReactTestRenderer) => {
+    const ids =
+      (renderer.root.findByType('a').props['aria-describedby'] as string | undefined)?.split(' ') ??
+      [];
+    return ids
+      .flatMap((id) =>
+        renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
+      )
+      .filter((node) => node.children.length > 0);
+  };
+
   it('renders an accessible group count avatar (> 2 active members) and updates on Members and Summary events', () => {
     const dm = makeDirectRoom(2, 1);
     const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true });
 
-    const countNodes = renderer.root.findAll(
-      (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
-    );
-    expect(countNodes).toHaveLength(1);
-    expect(countNodes[0]!.props['data-direct-group-count']).toBe(3);
-    expect(countNodes[0]!.props['aria-hidden']).toBe('true');
+    const counts = groupCountNodes(renderer);
+    expect(counts).toHaveLength(1);
+    expect(counts[0]!.props['data-direct-group-count']).toBe(3);
+    expect(counts[0]!.props['aria-hidden']).toBe('true');
     expect(renderer.root.findAllByType('span').some((n) => n.children.includes('3'))).toBe(true);
     expect(findByTestId(renderer, 'room-avatar-image')).toHaveLength(0);
 
-    const activeDescriptions = () => {
-      const ids =
-        (renderer.root.findByType('a').props['aria-describedby'] as string | undefined)?.split(
-          ' '
-        ) ?? [];
-      return ids
-        .flatMap((id) =>
-          renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
-        )
-        .filter((node) => node.children.length > 0);
-    };
-
-    const initialDescriptions = activeDescriptions();
+    const initialDescriptions = activeDescriptions(renderer);
     expect(initialDescriptions).toHaveLength(1);
     expect(initialDescriptions[0]!.props.hidden).toBe(true);
     expect(initialDescriptions[0]!.children).toEqual(['3 members']);
 
     // Dropping back to 2 members switches back to the person avatar and drops the group description.
     act(() => dm.setCounts(2, 0));
-    expect(
-      renderer.root.findAll(
-        (node) =>
-          typeof node.type === 'string' && node.props['data-direct-group-count'] !== undefined
-      )
-    ).toHaveLength(0);
-    expect(activeDescriptions()).toHaveLength(0);
+    expect(groupCountNodes(renderer)).toHaveLength(0);
+    expect(activeDescriptions(renderer)).toHaveLength(0);
 
     // Sync summary updates (lazy-loaded rooms without full member events) also refresh the count.
     act(() => dm.setSummaryCounts(4, 0));
-    expect(
-      renderer.root.findAll(
-        (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 4
-      )
-    ).toHaveLength(1);
-    expect(activeDescriptions().flatMap((node) => node.children)).toEqual(['4 members']);
+    expect(groupCountNodes(renderer).map((n) => n.props['data-direct-group-count'])).toEqual([4]);
+    expect(activeDescriptions(renderer).flatMap((node) => node.children)).toEqual(['4 members']);
   });
 
   it('formats the group DM count avatar with locale-native digits', async () => {
@@ -706,12 +691,12 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
       await i18n.changeLanguage('bn');
     });
     try {
-      const dm = makeDirectRoom(3, 0);
-      const renderer = renderRoomNavItem({ room: dm, direct: true, showAvatar: true });
-      const countAvatar = renderer.root.find(
-        (node) => typeof node.type === 'string' && node.props['data-direct-group-count'] === 3
-      );
-      expect(countAvatar.findByType('span').children).toEqual(['৩']);
+      const renderer = renderRoomNavItem({
+        room: makeDirectRoom(3, 0),
+        direct: true,
+        showAvatar: true,
+      });
+      expect(groupCountNodes(renderer)[0]!.findByType('span').children).toEqual(['৩']);
     } finally {
       await act(async () => {
         await i18n.changeLanguage(prevLang);
@@ -720,43 +705,47 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
   });
 
   it('renders a muted "you" tag only for verified self-DMs listed under myUserId in m.direct', () => {
-    const selfDm = makeDirectRoom(1, 0, '!dm-self:example.org');
     testState.mDirectContent = { '@me:example.org': ['!dm-self:example.org'] };
-    const selfRenderer = renderRoomNavItem({ room: selfDm, direct: true, showAvatar: true });
-    const selfTags = selfRenderer.root.findAll(
-      (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+    const selfTags = selfDmTags(
+      renderRoomNavItem({
+        room: makeDirectRoom(1, 0, '!dm-self:example.org'),
+        direct: true,
+        showAvatar: true,
+      })
     );
     expect(selfTags).toHaveLength(1);
     expect(selfTags[0]!.children).toEqual(['you']);
 
     // Abandoned 1:1 DM (1 active member, mapped to a former partner in m.direct) must NOT show "you".
-    const abandonedDm = makeDirectRoom(1, 0, '!dm-abandoned:example.org');
     testState.mDirectContent = { '@liam:example.org': ['!dm-abandoned:example.org'] };
-    const abandonedRenderer = renderRoomNavItem({
-      room: abandonedDm,
-      direct: true,
-      showAvatar: true,
-    });
     expect(
-      abandonedRenderer.root.findAll(
-        (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+      selfDmTags(
+        renderRoomNavItem({
+          room: makeDirectRoom(1, 0, '!dm-abandoned:example.org'),
+          direct: true,
+          showAvatar: true,
+        })
       )
     ).toHaveLength(0);
 
-    const oneToOne = makeDirectRoom(2, 0, '!dm-1to1:example.org');
     testState.mDirectContent = { '@me:example.org': ['!dm-1to1:example.org'] };
-    const oneToOneRenderer = renderRoomNavItem({ room: oneToOne, direct: true, showAvatar: true });
     expect(
-      oneToOneRenderer.root.findAll(
-        (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+      selfDmTags(
+        renderRoomNavItem({
+          room: makeDirectRoom(2, 0, '!dm-1to1:example.org'),
+          direct: true,
+          showAvatar: true,
+        })
       )
     ).toHaveLength(0);
 
-    const groupDm = makeDirectRoom(3, 0, '!dm-group:example.org');
-    const groupRenderer = renderRoomNavItem({ room: groupDm, direct: true, showAvatar: true });
     expect(
-      groupRenderer.root.findAll(
-        (node) => typeof node.type === 'string' && node.props['data-self-dm-tag'] === 'true'
+      selfDmTags(
+        renderRoomNavItem({
+          room: makeDirectRoom(3, 0, '!dm-group:example.org'),
+          direct: true,
+          showAvatar: true,
+        })
       )
     ).toHaveLength(0);
   });
@@ -766,8 +755,9 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     const useRoomNameMock = vi.mocked(useRoomName);
     const store = createStore();
     const dm = makeDirectRoom(2, 0, '!draft-dm:example.org');
-    const draftKey = getRoomInputDraftKey('@me:example.org', dm.roomId);
-    const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey('@me:example.org', dm.roomId)
+    );
     store.set(draftAtom, []);
 
     testState.unread = { total: 1, highlight: 0 };
@@ -778,6 +768,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
       renderer.root.findAll(
         (node) => node.type === 'i' && node.props['data-draft-indicator'] === 'true'
       );
+    const draftText = () => activeDescriptions(renderer).flatMap((node) => node.children);
 
     expect(pencils()).toHaveLength(0);
     const rendersAfterMount = useRoomNameMock.mock.calls.length;
@@ -807,35 +798,18 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     });
     expect(pencils()).toHaveLength(1);
     expect(pencils()[0]!.props.src).toBe('Pencil');
-    expect(useRoomNameMock.mock.calls.length).toBe(rendersAfterMount);
-
-    const draftDescriptionText = () => {
-      const ids =
-        (renderer.root.findByType('a').props['aria-describedby'] as string | undefined)?.split(
-          ' '
-        ) ?? [];
-      return ids
-        .flatMap((id) =>
-          renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
-        )
-        .flatMap((node) => node.children);
-    };
-
     expect(pencils()[0]!.props['aria-hidden']).toBe(true);
-    expect(draftDescriptionText()).toEqual(['Draft']);
+    expect(useRoomNameMock.mock.calls.length).toBe(rendersAfterMount);
+    expect(draftText()).toEqual(['Draft']);
 
     // Hovering or focusing the row hides the visual pencil for options, while keeping "Draft" in aria-describedby.
-    act(() => testState.setHover?.(true));
-    expect(pencils()).toHaveLength(0);
-    expect(draftDescriptionText()).toEqual(['Draft']);
-    act(() => testState.setHover?.(false));
-    expect(pencils()).toHaveLength(1);
-
-    act(() => testState.setFocusWithin?.(true));
-    expect(pencils()).toHaveLength(0);
-    expect(draftDescriptionText()).toEqual(['Draft']);
-    act(() => testState.setFocusWithin?.(false));
-    expect(pencils()).toHaveLength(1);
+    for (const toggle of [testState.setHover, testState.setFocusWithin]) {
+      act(() => toggle?.(true));
+      expect(pencils()).toHaveLength(0);
+      expect(draftText()).toEqual(['Draft']);
+      act(() => toggle?.(false));
+      expect(pencils()).toHaveLength(1);
+    }
 
     // Clearing the draft removes both the pencil and the hidden description without re-rendering RoomNavItem.
     const rendersBeforeClear = useRoomNameMock.mock.calls.length;
@@ -843,14 +817,13 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
       store.set(draftAtom, []);
     });
     expect(pencils()).toHaveLength(0);
-    expect(draftDescriptionText()).toEqual([]);
+    expect(draftText()).toEqual([]);
     expect(useRoomNameMock.mock.calls.length).toBe(rendersBeforeClear);
   });
 
   it('supports nameOverride, fallbackAvatarMxc, and function-form avatarBadge wired to aria-describedby', () => {
-    const dm = makeDirectRoom(2, 0, '!agent-dm:example.org');
     const renderer = renderRoomNavItem({
-      room: dm,
+      room: makeDirectRoom(2, 0, '!agent-dm:example.org'),
       direct: true,
       showAvatar: true,
       nameOverride: 'DevAgent',
@@ -873,12 +846,7 @@ describe('RoomNavItem direct group count, self-DM tag, draft pencil, and agent c
     expect(
       renderer.root.findAll((node) => node.props['data-agent-active-run'] === 'true')
     ).toHaveLength(1);
-    const ids = (renderer.root.findByType('a').props['aria-describedby'] as string).split(' ');
-    const badgeDescs = ids
-      .flatMap((id) =>
-        renderer.root.findAll((node) => node.type === 'span' && node.props.id === id)
-      )
-      .filter((node) => node.children.length > 0);
+    const badgeDescs = activeDescriptions(renderer);
     expect(badgeDescs).toHaveLength(1);
     expect(badgeDescs[0]!.props.hidden).toBe(true);
     expect(badgeDescs[0]!.children).toEqual(['Agent active']);

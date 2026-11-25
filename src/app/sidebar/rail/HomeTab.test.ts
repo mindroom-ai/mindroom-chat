@@ -237,31 +237,21 @@ describe('HomeTab', () => {
     }
   );
 
-  it('keeps direct rooms out of Home unread counts while the Direct Messages rail button is shown', () => {
-    state.directShown = true;
-    state.homeRooms = ['!general:example.org'];
-    state.directRooms = ['!dm-maya:example.org'];
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(HomeTab));
-    });
-    expect(state.roomsUnreadCalls.at(-1)).toEqual(['!general:example.org']);
-    act(() => renderer.unmount());
-  });
-
-  it('rolls direct room unreads into Home when the Direct Messages rail button is hidden', () => {
-    state.directShown = false;
-    state.homeRooms = ['!general:example.org'];
-    state.directRooms = ['!dm-maya:example.org', '!dm-dev:example.org'];
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(HomeTab));
-    });
-    expect(state.roomsUnreadCalls.at(-1)).toEqual([
-      '!general:example.org',
-      '!dm-maya:example.org',
-      '!dm-dev:example.org',
-    ]);
-    act(() => renderer.unmount());
-  });
+  it.each([
+    [true, ['!general:example.org']],
+    [false, ['!general:example.org', '!dm-maya:example.org', '!dm-dev:example.org']],
+  ])(
+    'rolls direct room unreads into Home only when Direct Messages rail is hidden (directShown=%s)',
+    (directShown, expectedRooms) => {
+      state.directShown = directShown;
+      state.homeRooms = ['!general:example.org'];
+      state.directRooms = ['!dm-maya:example.org', '!dm-dev:example.org'];
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(HomeTab));
+      });
+      expect(state.roomsUnreadCalls.at(-1)).toEqual(expectedRooms);
+      act(() => renderer.unmount());
+    }
+  );
 });

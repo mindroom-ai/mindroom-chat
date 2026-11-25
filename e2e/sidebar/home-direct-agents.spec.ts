@@ -1,6 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
-import { createRoom } from '../helpers/createRoom';
 import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -9,6 +8,8 @@ import {
 } from '../helpers/disposableAccounts';
 import {
   addRoomToSpace,
+  createPrivateRoom,
+  createPrivateSpace,
   joinRoom,
   matrixFetch,
   registerAgentAccount,
@@ -38,24 +39,6 @@ const homeNav = (page: Page) => page.getByRole('navigation', { name: 'Home', exa
 const railNav = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
 const roomLink = (scope: Locator, roomId: string) =>
   scope.locator(`a[href*="${encodeURIComponent(roomId)}"], a[href*="${roomId}"]`);
-
-const createDirectRoom = async (
-  accessToken: string,
-  invite?: string[],
-  name?: string
-): Promise<string> => {
-  const body = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken,
-    body: JSON.stringify({
-      preset: 'trusted_private_chat',
-      invite,
-      name,
-      is_direct: true,
-    }),
-  });
-  return body.room_id;
-};
 
 const setDisplayName = async (accessToken: string, userId: string, displayName: string) => {
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(userId)}/displayname`, {
@@ -97,25 +80,31 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
   ]);
 
   // Create unspaced room, space + nested room, 1:1 human DM, group DM, self-DM, and 1:1 agent DM.
-  const general = await createRoom(HOMESERVER, viewer.accessToken, {
+  const createDm = (invite?: string[], name?: string) =>
+    createPrivateRoom(HOMESERVER, viewer.accessToken, {
+      preset: 'trusted_private_chat',
+      invite,
+      name,
+      isDirect: true,
+    });
+  const general = await createPrivateRoom(HOMESERVER, viewer.accessToken, {
     name: 'general',
     // Invitees get the creator's power, so the agents may publish their io.mindroom.server state.
     preset: 'trusted_private_chat',
     invite: [devAgent.userId, researcher.userId],
   });
-  const engineering = await createRoom(HOMESERVER, viewer.accessToken, {
+  const engineering = await createPrivateSpace(HOMESERVER, viewer.accessToken, {
     name: 'Engineering',
-    space: true,
   });
-  const designReview = await createRoom(HOMESERVER, viewer.accessToken, {
+  const designReview = await createPrivateRoom(HOMESERVER, viewer.accessToken, {
     name: 'design-review',
   });
   await addRoomToSpace(HOMESERVER, viewer.accessToken, engineering, designReview);
 
-  const liamDm = await createDirectRoom(viewer.accessToken, [liam.userId]);
-  const groupDm = await createDirectRoom(viewer.accessToken, [liam.userId, sora.userId]);
-  const selfDm = await createDirectRoom(viewer.accessToken, undefined, 'Maya Patel');
-  const devDm = await createDirectRoom(viewer.accessToken, [devAgent.userId]);
+  const liamDm = await createDm([liam.userId]);
+  const groupDm = await createDm([liam.userId, sora.userId]);
+  const selfDm = await createDm(undefined, 'Maya Patel');
+  const devDm = await createDm([devAgent.userId]);
 
   await Promise.all([
     joinRoom(HOMESERVER, devAgent.accessToken, general),
@@ -184,6 +173,7 @@ test('renders Slack-style Rooms, Spaces, Direct messages, and Agents on Home and
   await expect(page.locator('[data-home-room-action="join"]')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-home-room-action="create"]')).toHaveCount(0);
+  await expect(addRoomsBtn).toBeFocused();
 
   // Verify Direct messages chrome: 1:1 human DM, group DM count badge (3), and self-DM "you" tag.
   const liamRow = roomLink(dmSection, liamDm);

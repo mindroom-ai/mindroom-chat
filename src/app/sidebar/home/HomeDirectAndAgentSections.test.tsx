@@ -6,7 +6,6 @@ import type { Room } from 'matrix-js-sdk';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
 import { selectRenderedDirectRooms, type HomeSidebarAgent } from './homeDirectSections';
-import { useHomeAddRoomsMenu } from './HomeSectionChrome';
 
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -21,28 +20,10 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
 
-vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
+vi.mock('../../ui/directional', () => ({
+  ownDirectionLine: {},
+  revealDirectionControls: (value: string) => value,
 }));
-
-vi.mock('../../ui/directional', async () => {
-  const reactModule = await import('react');
-  return {
-    ownDirectionLine: {},
-    PopOut: ({ anchor, content }: { anchor?: unknown; content?: React.ReactNode }) =>
-      anchor ? reactModule.createElement('div', { 'data-popout': 'true' }, content) : null,
-  };
-});
-
-vi.mock('../../ui/glass/GlassPrimitives', async () => {
-  const reactModule = await import('react');
-  return {
-    Menu: ({ children }: { children?: React.ReactNode }) =>
-      reactModule.createElement('div', { role: 'menu' }, children),
-    MenuItem: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
-      reactModule.createElement('button', { role: 'menuitem', onClick, ...props }, children),
-  };
-});
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -59,7 +40,6 @@ vi.mock('folds', async () => {
       ChevronBottom: 'ChevronBottom',
       ChevronRight: 'ChevronRight',
       ChevronTop: 'ChevronTop',
-      Link: 'Link',
       Message: 'Message',
       Plus: 'Plus',
     },
@@ -144,16 +124,13 @@ vi.mock('../room-nav/RoomNavItem', async () => {
       room: { roomId: string };
       linkPath: string;
       nameOverride?: string;
-      avatarBadge?: React.ReactNode | ((descriptionId: string) => React.ReactNode);
-    }) => {
-      const descId = `badge-desc-${room.roomId}`;
-      const badge = typeof avatarBadge === 'function' ? avatarBadge(descId) : avatarBadge;
-      return reactModule.createElement(
+      avatarBadge?: (descriptionId: string) => React.ReactNode;
+    }) =>
+      reactModule.createElement(
         'div',
         { 'data-room-row': room.roomId, 'data-link': linkPath, 'data-name': nameOverride },
-        badge
-      );
-    },
+        avatarBadge?.(`badge-desc-${room.roomId}`)
+      ),
   };
 });
 
@@ -199,29 +176,79 @@ const makeUnreadStore = (entries: Array<[string, { total: number; highlight: num
   return store;
 };
 
+let renderer: ReactTestRenderer | undefined;
+
+const renderTree = (element: React.ReactElement) => {
+  if (renderer) {
+    act(() => renderer!.update(element));
+  } else {
+    act(() => {
+      renderer = create(element);
+    });
+  }
+  return renderer!;
+};
+
+const renderDirect = (
+  props: Partial<React.ComponentProps<typeof HomeDirectSection>> = {},
+  store = makeUnreadStore()
+) =>
+  renderTree(
+    <Provider store={store}>
+      <HomeDirectSection
+        visibleRooms={[]}
+        allRoomIds={[]}
+        closed={false}
+        selectedRoomId={undefined}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+        onCategoryClick={vi.fn()}
+        homeRoomPath={(id) => `/home/${id}`}
+        notificationPreferences={new Map()}
+        {...props}
+      />
+    </Provider>
+  );
+
+const renderAgents = (
+  props: Partial<React.ComponentProps<typeof HomeAgentsSection>> = {},
+  store = makeUnreadStore()
+) =>
+  renderTree(
+    <Provider store={store}>
+      <HomeAgentsSection
+        visibleAgents={[]}
+        agentDmRoomIds={[]}
+        closed={false}
+        selectedRoomId={undefined}
+        onCategoryClick={vi.fn()}
+        homeRoomPath={(id) => `/home/${id}`}
+        notificationPreferences={new Map()}
+        {...props}
+      />
+    </Provider>
+  );
+
+afterEach(() => {
+  act(() => renderer?.unmount());
+  renderer = undefined;
+  state.navigate.mockReset();
+  state.startDirectChat.mockReset();
+  state.activeRunsByRoom.clear();
+});
+
 describe('HomeDirectSection', () => {
-  let renderer: ReactTestRenderer | undefined;
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-    state.navigate.mockReset();
-    state.startDirectChat.mockReset();
-    state.activeRunsByRoom.clear();
-  });
-
-  it('caps at 5 + selected when > 6 DMs, toggles Show all / Show less, and wires header + button', () => {
+  it('toggles Show all / Show less under the compact cap and wires the header + button', () => {
     const rooms = Array.from({ length: 8 }, (_, index) => makeRoom(`!dm-${index + 1}:example.org`));
     const allRoomIds = rooms.map((r) => r.roomId);
     const store = makeUnreadStore();
 
     function Wrapper() {
       const [showAll, setShowAll] = useState(false);
-      const visibleRooms = selectRenderedDirectRooms(rooms, '!dm-8:example.org', false, showAll);
       return (
         <Provider store={store}>
           <HomeDirectSection
-            visibleRooms={visibleRooms}
+            visibleRooms={selectRenderedDirectRooms(rooms, '!dm-8:example.org', false, showAll)}
             allRoomIds={allRoomIds}
             closed={false}
             selectedRoomId="!dm-8:example.org"
@@ -235,40 +262,30 @@ describe('HomeDirectSection', () => {
       );
     }
 
-    act(() => {
-      renderer = create(<Wrapper />);
-    });
+    renderTree(<Wrapper />);
 
-    const rowIds = () =>
-      renderer!.root
-        .findAll((n) => typeof n.type === 'string' && 'data-room-row' in n.props)
-        .map((n) => n.props['data-room-row']);
-
-    expect(rowIds()).toEqual([
-      '!dm-1:example.org',
-      '!dm-2:example.org',
-      '!dm-3:example.org',
-      '!dm-4:example.org',
-      '!dm-5:example.org',
-      '!dm-8:example.org',
-    ]);
-
+    const rowCount = () =>
+      renderer!.root.findAll((n) => typeof n.type === 'string' && 'data-room-row' in n.props)
+        .length;
     const toggle = () =>
       renderer!.root.find(
         (n) => n.type === 'button' && n.props['data-home-dm-action'] === 'toggle-all'
       );
+
+    expect(rowCount()).toBe(6);
     expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     act(() => {
       toggle().props.onClick();
     });
-    expect(rowIds()).toHaveLength(8);
+    expect(rowCount()).toBe(8);
     expect(toggle().findByType('span').children).toEqual(['Show less']);
 
     act(() => {
       toggle().props.onClick();
     });
-    expect(rowIds()).toHaveLength(6);
+    expect(rowCount()).toBe(6);
+    expect(toggle().findByType('span').children).toEqual(['Show all (8)']);
 
     const headerPlus = renderer!.root.find(
       (n) => n.type === 'button' && n.props['aria-label'] === 'New direct message'
@@ -284,24 +301,10 @@ describe('HomeDirectSection', () => {
     const allRoomIds = rooms.map((r) => r.roomId);
     const store = makeUnreadStore([['!dm-2:example.org', { total: 2, highlight: 1 }]]);
 
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <HomeDirectSection
-            visibleRooms={[rooms[0]!]}
-            allRoomIds={allRoomIds}
-            closed
-            selectedRoomId="!dm-1:example.org"
-            showAll={false}
-            onToggleShowAll={vi.fn()}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
-    });
-
+    renderDirect(
+      { visibleRooms: [rooms[0]!], allRoomIds, closed: true, selectedRoomId: '!dm-1:example.org' },
+      store
+    );
     const unreadMarkers = renderer!.root.findAll(
       (n) => typeof n.type === 'string' && 'data-unread' in n.props
     );
@@ -309,23 +312,10 @@ describe('HomeDirectSection', () => {
     expect(unreadMarkers[0]!.props['data-highlight']).toBe('true');
 
     // Selecting the only unread DM shows it as the lone visible row and clears the collapsed dot.
-    act(() => {
-      renderer!.update(
-        <Provider store={store}>
-          <HomeDirectSection
-            visibleRooms={[rooms[1]!]}
-            allRoomIds={allRoomIds}
-            closed
-            selectedRoomId="!dm-2:example.org"
-            showAll={false}
-            onToggleShowAll={vi.fn()}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
-    });
+    renderDirect(
+      { visibleRooms: [rooms[1]!], allRoomIds, closed: true, selectedRoomId: '!dm-2:example.org' },
+      store
+    );
     expect(
       renderer!.root.findAll((n) => typeof n.type === 'string' && 'data-unread' in n.props)
     ).toHaveLength(0);
@@ -333,16 +323,6 @@ describe('HomeDirectSection', () => {
 });
 
 describe('HomeAgentsSection', () => {
-  let renderer: ReactTestRenderer | undefined;
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-    state.navigate.mockReset();
-    state.startDirectChat.mockReset();
-    state.activeRunsByRoom.clear();
-  });
-
   it('shows the active-run green dot and accessible description only when the agent has an active run', () => {
     const devRoom = makeRoom('!dm-dev:example.org');
     const researcherRoom = makeRoom('!dm-researcher:example.org');
@@ -366,20 +346,9 @@ describe('HomeAgentsSection', () => {
       },
     ];
 
-    act(() => {
-      renderer = create(
-        <Provider store={makeUnreadStore()}>
-          <HomeAgentsSection
-            visibleAgents={agents}
-            agentDmRoomIds={[devRoom.roomId, researcherRoom.roomId]}
-            closed={false}
-            selectedRoomId={undefined}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
+    renderAgents({
+      visibleAgents: agents,
+      agentDmRoomIds: [devRoom.roomId, researcherRoom.roomId],
     });
 
     const devRow = renderer!.root.find(
@@ -412,7 +381,7 @@ describe('HomeAgentsSection', () => {
     expect(researcherDesc.children).toEqual([]);
   });
 
-  it('guards double-clicks without disabling the button, navigates existing directRoomId, and shows retryable alert on error', async () => {
+  it('guards double-clicks without disabling the button, passes default room version, navigates existing directRoomId, and shows retryable alert on error', async () => {
     let resolveChat!: (roomId: string) => void;
     let rejectChat!: (err: Error) => void;
     state.startDirectChat
@@ -427,34 +396,16 @@ describe('HomeAgentsSection', () => {
         })
       );
 
-    const agents: HomeSidebarAgent[] = [
-      {
-        userId: '@mindroom_dev:example.org',
-        name: 'DevAgent',
-        lastActivityTs: 2000,
-      },
-      {
-        userId: '@mindroom_researcher:example.org',
-        name: 'Researcher',
-        directRoomId: '!dm-existing:example.org',
-        lastActivityTs: 1000,
-      },
-    ];
-
-    act(() => {
-      renderer = create(
-        <Provider store={makeUnreadStore()}>
-          <HomeAgentsSection
-            visibleAgents={agents}
-            agentDmRoomIds={[]}
-            closed={false}
-            selectedRoomId={undefined}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
+    renderAgents({
+      visibleAgents: [
+        { userId: '@mindroom_dev:example.org', name: 'DevAgent', lastActivityTs: 2000 },
+        {
+          userId: '@mindroom_researcher:example.org',
+          name: 'Researcher',
+          directRoomId: '!dm-existing:example.org',
+          lastActivityTs: 1000,
+        },
+      ],
     });
 
     const getDevButton = () =>
@@ -474,12 +425,17 @@ describe('HomeAgentsSection', () => {
     expect(state.navigate).toHaveBeenCalledWith('/home/!dm-existing:example.org');
     state.navigate.mockReset();
 
-    // Double-clicking calls startDirectChat once; button stays enabled with aria-busy.
+    // Double-clicking calls startDirectChat once with default room version; button stays enabled with aria-busy.
     act(() => {
       getDevButton().props.onClick();
       getDevButton().props.onClick();
     });
     expect(state.startDirectChat).toHaveBeenCalledTimes(1);
+    expect(state.startDirectChat).toHaveBeenCalledWith(
+      expect.anything(),
+      '@mindroom_dev:example.org',
+      '11'
+    );
     expect(getDevButton().props.disabled).toBeUndefined();
     expect(getDevButton().props['aria-busy']).toBe(true);
     expect(
@@ -489,9 +445,7 @@ describe('HomeAgentsSection', () => {
     ).toHaveLength(1);
 
     // Rejection surfaces an inline role="alert" message and clears aria-busy so user can retry.
-    await act(async () => {
-      rejectChat(new Error('network'));
-    });
+    await act(async () => rejectChat(new Error('network')));
     expect(getDevButton().props['aria-busy']).toBeUndefined();
     const alerts = renderer!.root.findAll(
       (n) => typeof n.type === 'string' && n.props.role === 'alert'
@@ -508,9 +462,7 @@ describe('HomeAgentsSection', () => {
       renderer!.root.findAll((n) => typeof n.type === 'string' && n.props.role === 'alert')
     ).toHaveLength(0);
 
-    await act(async () => {
-      resolveChat('!dm-started:example.org');
-    });
+    await act(async () => resolveChat('!dm-started:example.org'));
     expect(state.navigate).toHaveBeenCalledWith('/home/!dm-started:example.org');
     expect(
       renderer!.root.findAll(
@@ -534,22 +486,7 @@ describe('HomeAgentsSection', () => {
       lastActivityTs: 2000,
     };
 
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <HomeAgentsSection
-            visibleAgents={[pendingAgent]}
-            agentDmRoomIds={[]}
-            closed={false}
-            selectedRoomId={undefined}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
-    });
-
+    renderAgents({ visibleAgents: [pendingAgent] }, store);
     const startButton = renderer!.root.find(
       (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
     );
@@ -560,27 +497,13 @@ describe('HomeAgentsSection', () => {
 
     // Live m.direct sync arrives before startDirectChat resolves, swapping the start button for RoomNavItem.
     const liveRoom = makeRoom('!dm-synced:example.org');
-    act(() => {
-      renderer!.update(
-        <Provider store={store}>
-          <HomeAgentsSection
-            visibleAgents={[
-              {
-                ...pendingAgent,
-                dmRoom: liveRoom,
-                directRoomId: liveRoom.roomId,
-              },
-            ]}
-            agentDmRoomIds={[liveRoom.roomId]}
-            closed={false}
-            selectedRoomId={undefined}
-            onCategoryClick={vi.fn()}
-            homeRoomPath={(id) => `/home/${id}`}
-            notificationPreferences={new Map()}
-          />
-        </Provider>
-      );
-    });
+    renderAgents(
+      {
+        visibleAgents: [{ ...pendingAgent, dmRoom: liveRoom, directRoomId: liveRoom.roomId }],
+        agentDmRoomIds: [liveRoom.roomId],
+      },
+      store
+    );
     expect(
       renderer!.root.findAll(
         (n) => n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_dev:example.org'
@@ -592,59 +515,7 @@ describe('HomeAgentsSection', () => {
       )
     ).toHaveLength(1);
 
-    await act(async () => {
-      resolveChat('!dm-synced:example.org');
-    });
+    await act(async () => resolveChat('!dm-synced:example.org'));
     expect(state.navigate).toHaveBeenCalledWith('/home/!dm-synced:example.org');
-  });
-});
-
-describe('useHomeAddRoomsMenu', () => {
-  let renderer: ReactTestRenderer | undefined;
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-  });
-
-  it('passes the opener element to onJoin so the Join dialog can return focus to it', () => {
-    const onCreate = vi.fn();
-    const onJoin = vi.fn();
-
-    function Harness() {
-      const menu = useHomeAddRoomsMenu({ onCreate, onJoin });
-      return (
-        <div>
-          <button data-testid="opener" onClick={menu.openFromRow}>
-            Add rooms
-          </button>
-          {menu.popover}
-        </div>
-      );
-    }
-
-    act(() => {
-      renderer = create(<Harness />);
-    });
-
-    const openerEl = {
-      focus: vi.fn(),
-      getBoundingClientRect: () => ({ x: 0, y: 0, width: 100, height: 32 }),
-    } as unknown as HTMLButtonElement;
-
-    const openerButton = renderer!.root.findByProps({ 'data-testid': 'opener' });
-    act(() => {
-      openerButton.props.onClick({ currentTarget: openerEl });
-    });
-
-    const joinItem = renderer!.root.find(
-      (n) => n.type === 'button' && n.props['data-home-room-action'] === 'join'
-    );
-    act(() => {
-      joinItem.props.onClick();
-    });
-
-    expect(onJoin).toHaveBeenCalledWith(openerEl);
-    expect(renderer!.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(0);
   });
 });

@@ -21,8 +21,8 @@ const {
   sectionDropIds,
   closedState,
   homeState,
-  startDirectChatMock,
   shortcutCalls,
+  focusTrapState,
 } = vi.hoisted(() => {
   const sort: {
     mode: 'recent' | 'name' | 'manual';
@@ -52,8 +52,15 @@ const {
       directTabShown: true,
       selectedRoomId: undefined as string | undefined,
     },
-    startDirectChatMock: vi.fn(),
     shortcutCalls: [] as Array<readonly string[]>,
+    focusTrapState: {
+      options: undefined as
+        | {
+            escapeDeactivates?: (event: KeyboardEvent) => boolean;
+            onDeactivate?: () => void;
+          }
+        | undefined,
+    },
     roomsById: new Map<
       string,
       { roomId: string; name: string; lastActive: number; space?: boolean }
@@ -183,8 +190,16 @@ vi.mock('../../matrix/state/archivedRooms', async (importOriginal) => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({ children }: { children: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children),
+  FocusTrap: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children: React.ReactNode;
+    focusTrapOptions?: typeof focusTrapState.options;
+  }) => {
+    focusTrapState.options = focusTrapOptions;
+    return React.createElement(React.Fragment, null, children);
+  },
 }));
 
 vi.mock('../../ui/nav/NavItem', async () => {
@@ -459,7 +474,7 @@ vi.mock('../../ui/page/Page', async () => {
 vi.mock('../../ui/nav/useClosedNavCategories', () => ({
   useClosedNavCategoriesAtom: () => closedState.atom!,
 }));
-vi.mock('../../lib/keyboard', () => ({ stopPropagation: vi.fn() }));
+vi.mock('../../lib/keyboard', () => ({ stopPropagation: vi.fn(() => true) }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationMode: vi.fn(),
   useRoomsNotificationPreferencesContext: () => new Map(),
@@ -498,7 +513,7 @@ vi.mock('../direct/useDirectRooms', () => ({
 }));
 vi.mock('./homeAgents', () => ({
   useHomeAgents: () => homeState.homeAgents,
-  startDirectChat: (...args: unknown[]) => startDirectChatMock(...args),
+  startDirectChat: vi.fn(),
   agentNameIn: (_room: unknown, userId: string) => userId.replace(/^@mindroom_/, '').split(':')[0],
 }));
 vi.mock('../../settings/railButtons', () => ({
@@ -548,6 +563,20 @@ const renderHome = (rooms: string[], parents: Record<string, string[]> = {}) => 
   });
   return { renderer, store };
 };
+
+const makeDm = (roomId: string, partnerId: string, joined = 2, lastActive = 1000) => ({
+  roomId,
+  name: roomId,
+  myUserId: '@alice:example.org',
+  getJoinedMemberCount: () => joined,
+  getInvitedMemberCount: () => 0,
+  getLastActiveTimestamp: () => lastActive,
+  getAvatarFallbackMember: () => ({ userId: partnerId, getMxcAvatarUrl: () => null }),
+  getMembers: () => [
+    { userId: '@alice:example.org', membership: 'join' },
+    { userId: partnerId, membership: 'join' },
+  ],
+});
 
 const fakeAnchorEvent = {
   currentTarget: {
@@ -604,6 +633,8 @@ const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
     });
   };
 
+  const openMenus = () => renderer.root.findAll((node) => node.props.role === 'menu');
+
   openMenu();
   const createItem = renderer.root.find(
     (node) => node.type === 'button' && node.props['data-home-room-action'] === 'create'
@@ -611,6 +642,7 @@ const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
   act(() => {
     createItem.props.onClick();
   });
+  expect(openMenus()).toHaveLength(0);
   expect(navigate).toHaveBeenCalledWith('/home/create');
   navigate.mockReset();
 
@@ -621,6 +653,7 @@ const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
   act(() => {
     joinItem.props.onClick();
   });
+  expect(openMenus()).toHaveLength(0);
   const joinPrompt = renderer.root.find(
     (node) => node.type === 'div' && node.props['data-join-address-prompt'] === 'true'
   );
@@ -629,6 +662,20 @@ const expectPopulatedAddRoomsMenuWorks = (renderer: ReactTestRenderer) => {
     joinPrompt.props.onOpen('!joined:example.org');
   });
   expect(navigate).toHaveBeenCalledWith('/home/!joined:example.org');
+
+  // Escape closes the menu and restores focus to its opener; outside click closes without refocusing.
+  fakeAnchorEvent.currentTarget.focus.mockReset();
+  openMenu();
+  expect(focusTrapState.options?.escapeDeactivates?.({} as KeyboardEvent)).toBe(true);
+  act(() => focusTrapState.options?.onDeactivate?.());
+  expect(openMenus()).toHaveLength(0);
+  expect(fakeAnchorEvent.currentTarget.focus).toHaveBeenCalledTimes(1);
+
+  fakeAnchorEvent.currentTarget.focus.mockReset();
+  openMenu();
+  act(() => focusTrapState.options?.onDeactivate?.());
+  expect(openMenus()).toHaveLength(0);
+  expect(fakeAnchorEvent.currentTarget.focus).not.toHaveBeenCalled();
 };
 
 describe('Home', () => {
@@ -646,7 +693,8 @@ describe('Home', () => {
     homeState.homeAgents = [];
     homeState.directTabShown = true;
     homeState.selectedRoomId = undefined;
-    startDirectChatMock.mockReset();
+    focusTrapState.options = undefined;
+    fakeAnchorEvent.currentTarget.focus.mockReset();
     shortcutCalls.length = 0;
   });
 
@@ -1004,21 +1052,7 @@ describe('Home', () => {
     act(() => spacedOnly.unmount());
   });
 
-  it('renders Direct messages and Agents sections in mindroom categories, stays in Home on click, and includes DMs in shortcuts and Mark as Read', async () => {
-    const makeDm = (roomId: string, partnerId: string, joined: number, lastActive: number) => ({
-      roomId,
-      name: roomId,
-      myUserId: '@alice:example.org',
-      getJoinedMemberCount: () => joined,
-      getInvitedMemberCount: () => 0,
-      getLastActiveTimestamp: () => lastActive,
-      getAvatarFallbackMember: () => ({ userId: partnerId, getMxcAvatarUrl: () => null }),
-      getMembers: () => [
-        { userId: '@alice:example.org', membership: 'join' },
-        { userId: partnerId, membership: 'join' },
-      ],
-    });
-
+  it('renders Direct messages and Agents sections in mindroom categories, stays in Home on click, and includes DMs in shortcuts and Mark as Read', () => {
     homeState.directRooms = [
       makeDm('!dm-maya:example.org', '@maya:example.org', 2, 5000),
       makeDm('!dm-group:example.org', '@mindroom_dev:example.org', 3, 4500),
@@ -1039,7 +1073,6 @@ describe('Home', () => {
         lastUsedTs: 2000,
       },
     ];
-    startDirectChatMock.mockResolvedValue('!dm-researcher-new:example.org');
 
     const { renderer } = renderHome(['!room:example.org']);
 
@@ -1087,20 +1120,13 @@ describe('Home', () => {
       },
     ]);
 
-    // Clicking an agent without a DM starts one and navigates in Home.
-    const researcherButton = agentsSection.find(
-      (n) =>
-        n.type === 'button' && n.props['data-home-agent-id'] === '@mindroom_researcher:example.org'
-    );
-    await act(async () => {
-      researcherButton.props.onClick();
-    });
-    expect(startDirectChatMock).toHaveBeenCalledWith(
-      expect.anything(),
-      '@mindroom_researcher:example.org',
-      '11'
-    );
-    expect(navigate).toHaveBeenCalledWith('/home/!dm-researcher-new:example.org');
+    expect(
+      agentsSection.findAll(
+        (n) =>
+          n.type === 'button' &&
+          n.props['data-home-agent-id'] === '@mindroom_researcher:example.org'
+      )
+    ).toHaveLength(1);
 
     // Shortcuts and HomeHeader Mark as Read include both ordinary rooms and DMs/agent DMs.
     expect(shortcutCalls.at(-1)).toEqual([
@@ -1155,20 +1181,7 @@ describe('Home', () => {
 
     // Account with only a DM (no rooms or spaces) renders populated Home, not NavEmptyLayout.
     homeState.directTabShown = true;
-    homeState.directRooms = [
-      {
-        roomId: '!dm-liam:example.org',
-        name: 'Liam',
-        myUserId: '@alice:example.org',
-        getJoinedMemberCount: () => 2,
-        getInvitedMemberCount: () => 0,
-        getLastActiveTimestamp: () => 1000,
-        getAvatarFallbackMember: () => ({
-          userId: '@liam:example.org',
-          getMxcAvatarUrl: () => null,
-        }),
-      },
-    ];
+    homeState.directRooms = [makeDm('!dm-liam:example.org', '@liam:example.org')];
     const { renderer: dmOnly } = renderHome([]);
     expect(dmOnly.root.findAllByProps({ 'data-empty-layout': 'true' })).toHaveLength(0);
     expect(
@@ -1181,20 +1194,7 @@ describe('Home', () => {
 
     // Account with only an agent DM and Direct rail shown still shows Direct messages so New direct message is reachable.
     homeState.directTabShown = true;
-    homeState.directRooms = [
-      {
-        roomId: '!dm-dev:example.org',
-        name: 'DevAgent',
-        myUserId: '@alice:example.org',
-        getJoinedMemberCount: () => 2,
-        getInvitedMemberCount: () => 0,
-        getLastActiveTimestamp: () => 1000,
-        getAvatarFallbackMember: () => ({
-          userId: '@mindroom_dev:example.org',
-          getMxcAvatarUrl: () => null,
-        }),
-      },
-    ];
+    homeState.directRooms = [makeDm('!dm-dev:example.org', '@mindroom_dev:example.org')];
     const { renderer: agentDmOnly } = renderHome(['!room:example.org']);
     const agentOnlyDmSection = agentDmOnly.root.findByProps({
       'data-testid': 'home-direct-section',
