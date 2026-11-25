@@ -270,6 +270,13 @@
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
     },
+    "callout": {
+      "note": "Not",
+      "tip": "İpucu",
+      "important": "Önemli",
+      "warning": "Uyarı",
+      "caution": "Dikkat"
+    },
     "deviceVerification": {
       "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Alana genel bakış"
+    },
+    "footnote": {
+      "backToReference": "Başvuruya dön"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Kullanılan sunucu",
         "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
         "useServer": "{{host}} kullan",
-        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin.",
+        "foundNotSavedChoose": "Ajanlarınızdan bulundu, kaydedilmedi. Güvendiğiniz sunucuyu seçin; bu cihaz tüm odalar için onu kullanır."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
@@ -1220,7 +1231,8 @@
         "triggerLabel": "Tetikleyici {{id}}",
         "sourceLabel": "Kaynak {{source}}",
         "triageLabel": "Triyaj: {{reason}}",
-        "payloadLabel": "Olay yükü JSON"
+        "payloadLabel": "Olay yükü JSON",
+        "openTriggerLabel": "{{id}} tetikleyicisini görüntüle"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} görev hazır",
@@ -2217,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Sabitleyin ve etiketleyin",
-        "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
+        "text": "Bir konuyu en üstte tutmak için karttaki raptiyeye basın ya da “Konu seçenekleri” (⋯) menüsünden “Konuyu sabitle” öğesini seçin. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
       },
       "filters": {
         "title": "Filtreler çözülen konuları gizler",
@@ -2376,6 +2388,45 @@
     "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
     "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   },
+  "roomTriggers": {
+    "title": "Tetikleyiciler",
+    "openLabel": "Tetikleyiciler ({{total}})",
+    "loading": "Yükleniyor…",
+    "empty": "Bu odada tetikleyici yok.",
+    "emptyHint": "Bu oda için ayarlanan tetikleyiciler burada görünür.",
+    "loadError": "Tetikleyiciler yüklenemedi.",
+    "missingTrigger": "{{id}} tetikleyicisi artık bu odada değil.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Oda izleme",
+      "external_event": "Olay aboneliği",
+      "thread_tag": "Konu etiketi",
+      "unknown": "Tetikleyici"
+    },
+    "watchingRoom": "Bu odayı izliyor",
+    "stateOn": "Açık",
+    "stateOff": "Kapalı",
+    "disabledExpired": "Süresi doldu",
+    "disabledOnceConsumed": "Bir kez kullanıldı",
+    "lastFired": "Son tetikleme {{time}}",
+    "neverFired": "Kayıtlı tetikleme yok",
+    "destinationRoom": "Oda zaman akışı",
+    "destinationThread": "Konu",
+    "destinationNewThread": "Yeni konu",
+    "destinationOrigin": "Kaynak konu",
+    "openThread": "Konuyu aç",
+    "prompt": "İstem",
+    "enable": "Etkinleştir",
+    "disable": "Devre dışı bırak",
+    "updating": "Güncelleniyor...",
+    "toggleError": "Tetikleyici güncellenemedi. Tekrar deneyin.",
+    "delete": "Sil",
+    "deleteConfirm": "Bu tetikleyici silinsin mi?",
+    "keep": "Kalsın",
+    "deleteTrigger": "Tetikleyiciyi sil",
+    "deleting": "Siliniyor...",
+    "deleteError": "Tetikleyici silinemedi. Tekrar deneyin."
+  },
   "home": {
     "greeting": {
       "morning": "Günaydın, {{name}}",
@@ -2418,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} oda",
       "roomsCount_other": "{{count}} oda",
-      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi",
+      "switchSpace": "Alan değiştir"
     },
     "roomFilter": {
       "label": "Odalar",
@@ -2443,5 +2495,13 @@
     "error": {
       "title": "Alan iş parçacıkları yüklenemedi"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diyagram",
+    "source": "Kaynak",
+    "showDiagram": "Diyagramı göster",
+    "showSource": "Kaynağı göster",
+    "mermaidDiagram": "Mermaid diyagramı",
+    "diagramUnavailable": "Kaynak gösteriliyor"
   }
 }

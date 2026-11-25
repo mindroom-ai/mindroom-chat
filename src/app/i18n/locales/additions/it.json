@@ -278,6 +278,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Messaggio in un'altra stanza"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Suggerimento",
+      "important": "Importante",
+      "warning": "Avviso",
+      "caution": "Attenzione"
+    },
     "deviceVerification": {
       "acceptStalled": "L'altra sessione non ha risposto. Chiudi qui e avvia di nuovo la verifica."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Panoramica dello spazio"
+    },
+    "footnote": {
+      "backToReference": "Torna al riferimento"
     }
   },
   "featureUi": {
@@ -495,7 +505,8 @@
         "inUse": "Server in uso",
         "inUseNone": "Nessuno impostato, quindi i computer sono disattivati su questo dispositivo.",
         "useServer": "Usa {{host}}",
-        "foundNotSaved": "Trovato tramite i tuoi agenti, non salvato; salvalo per inserire chiavi qui."
+        "foundNotSaved": "Trovato tramite i tuoi agenti, non salvato; salvalo per inserire chiavi qui.",
+        "foundNotSavedChoose": "Trovati tramite i tuoi agenti, non salvati. Scegli il server di cui ti fidi; questo dispositivo lo usa per tutte le stanze."
       },
       "keywords": {
         "theme": "modalità scura, modalità chiara, modalità notte, colori",
@@ -1239,7 +1250,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Origine {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Payload dell’evento JSON"
+        "payloadLabel": "Payload dell’evento JSON",
+        "openTriggerLabel": "Visualizza trigger {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} attività pronta",
@@ -2286,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Fissa e aggiungi tag",
-        "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
+        "text": "Premi la puntina su una scheda, oppure Fissa thread in Opzioni del thread (⋯), per tenere un thread in cima. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
       },
       "filters": {
         "title": "I filtri nascondono i thread risolti",
@@ -2454,6 +2466,45 @@
     "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
     "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
   },
+  "roomTriggers": {
+    "title": "Trigger",
+    "openLabel": "Trigger ({{total}})",
+    "loading": "Caricamento…",
+    "empty": "Nessun trigger in questa stanza.",
+    "emptyHint": "I trigger configurati per questa stanza compaiono qui.",
+    "loadError": "Impossibile caricare i trigger.",
+    "missingTrigger": "Il trigger {{id}} non è più in questa stanza.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Monitoraggio stanza",
+      "external_event": "Sottoscrizione eventi",
+      "thread_tag": "Tag thread",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Monitora questa stanza",
+    "stateOn": "Attivo",
+    "stateOff": "Disattivo",
+    "disabledExpired": "Scaduto",
+    "disabledOnceConsumed": "Usato una volta",
+    "lastFired": "Ultimo avvio {{time}}",
+    "neverFired": "Nessuna attivazione registrata",
+    "destinationRoom": "Cronologia stanza",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Nuovo thread",
+    "destinationOrigin": "Thread di origine",
+    "openThread": "Apri thread",
+    "prompt": "Prompt",
+    "enable": "Attiva",
+    "disable": "Disattiva",
+    "updating": "Aggiornamento...",
+    "toggleError": "Impossibile aggiornare il trigger. Riprova.",
+    "delete": "Elimina",
+    "deleteConfirm": "Eliminare questo trigger?",
+    "keep": "Mantieni",
+    "deleteTrigger": "Elimina trigger",
+    "deleting": "Eliminazione...",
+    "deleteError": "Impossibile eliminare il trigger. Riprova."
+  },
   "home": {
     "greeting": {
       "morning": "Buongiorno, {{name}}",
@@ -2497,7 +2548,8 @@
       "roomsCount_one": "{{count}} stanza",
       "roomsCount_many": "{{count}} stanze",
       "roomsCount_other": "{{count}} stanze",
-      "roomsFiltered": "{{active}} di {{total}} stanze"
+      "roomsFiltered": "{{active}} di {{total}} stanze",
+      "switchSpace": "Cambia spazio"
     },
     "roomFilter": {
       "label": "Stanze",
@@ -2522,5 +2574,13 @@
     "error": {
       "title": "Impossibile caricare le discussioni dello spazio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramma",
+    "source": "Sorgente",
+    "showDiagram": "Mostra diagramma",
+    "showSource": "Mostra sorgente",
+    "mermaidDiagram": "Diagramma Mermaid",
+    "diagramUnavailable": "Sorgente visualizzato"
   }
 }

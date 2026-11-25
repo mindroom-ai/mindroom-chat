@@ -6,6 +6,7 @@ import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
@@ -217,17 +218,19 @@ function AgentWorkBody({
     [finished, waiting, html, htmlReactParserOptions, sanitizeOptions]
   );
   return (
-    <FinishedWorkFold
-      foldKey={foldKey}
-      durationMs={durationMs}
-      whole={wrapWithReasoning(renderHtml(html))}
-      folded={
-        split && {
-          work: wrapWithReasoning(renderHtml(split.head)),
-          answer: renderHtml(split.tail),
+    <FootnoteScopeProvider>
+      <FinishedWorkFold
+        foldKey={foldKey}
+        durationMs={durationMs}
+        whole={wrapWithReasoning(renderHtml(html))}
+        folded={
+          split && {
+            work: wrapWithReasoning(renderHtml(split.head)),
+            answer: renderHtml(split.tail),
+          }
         }
-      }
-    />
+      />
+    </FootnoteScopeProvider>
   );
 }
 

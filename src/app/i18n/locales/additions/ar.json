@@ -302,6 +302,13 @@
       "threadIn": "سلسلة محادثة في ⁨{{room}}⁩",
       "messageElsewhere": "رسالة في غرفة أخرى"
     },
+    "callout": {
+      "note": "ملاحظة",
+      "tip": "نصيحة",
+      "important": "مهم",
+      "warning": "تحذير",
+      "caution": "تنبيه"
+    },
     "deviceVerification": {
       "acceptStalled": "لم تستجب الجلسة الأخرى. أغلق هذه النافذة وابدأ التحقق مرة أخرى."
     },
@@ -422,6 +429,9 @@
     },
     "space": {
       "overview": "نظرة عامة على المساحة"
+    },
+    "footnote": {
+      "backToReference": "العودة إلى المرجع"
     }
   },
   "featureUi": {
@@ -534,7 +544,8 @@
         "inUse": "الخادم المستخدم",
         "inUseNone": "لم يُعيَّن أي خادم، لذا الحواسيب متوقفة على هذا الجهاز.",
         "useServer": "استخدم ⁨{{host}}⁩",
-        "foundNotSaved": "عُثر عليه من وكلائك ولم يُحفظ؛ احفظه لإدخال المفاتيح هنا."
+        "foundNotSaved": "عُثر عليه من وكلائك ولم يُحفظ؛ احفظه لإدخال المفاتيح هنا.",
+        "foundNotSavedChoose": "عُثر عليها من وكلائك ولم تُحفظ. اختر الخادم الذي تثق به؛ يستخدمه هذا الجهاز لجميع الغرف."
       },
       "keywords": {
         "theme": "الوضع الداكن، الوضع الفاتح، الوضع الليلي، الألوان",
@@ -1296,7 +1307,8 @@
         "triggerLabel": "المشغّل ⁨{{id}}⁩",
         "sourceLabel": "المصدر ⁨{{source}}⁩",
         "triageLabel": "الفرز: ⁨{{reason}}⁩",
-        "payloadLabel": "حمولة الحدث JSON"
+        "payloadLabel": "حمولة الحدث JSON",
+        "openTriggerLabel": "عرض المشغّل ⁨{{id}}⁩"
       },
       "todoPokeMarker": {
         "readyCount_zero": "⁨{{count}}⁩ مهام جاهزة",
@@ -2493,7 +2505,7 @@
       },
       "pinAndTag": {
         "title": "التثبيت والوسوم",
-        "text": "«تثبيت سلسلة المحادثة» يبقيها في أعلى القائمة. «تعديل الوسوم» في «خيارات سلسلة المحادثة» يضيف وسومًا إلى سلسلة المحادثة، ويمكنك التصفية حسب الوسم."
+        "text": "اضغط على أيقونة التثبيت على البطاقة، أو «تثبيت سلسلة المحادثة» في «خيارات سلسلة المحادثة» (⋯)، لإبقاء سلسلة المحادثة في الأعلى. «تعديل الوسوم» في «خيارات سلسلة المحادثة» يضيف وسومًا إلى سلسلة المحادثة، ويمكنك التصفية حسب الوسم."
       },
       "filters": {
         "title": "عوامل التصفية تخفي سلاسل المحادثات المحلولة",
@@ -2688,6 +2700,45 @@
     "editDraftBusy": "امسح المسودة الحالية قبل تعديل هذه المهمة المجدولة.",
     "copyFailed": "تعذر النسخ. حدد معرف المهمة في التفاصيل."
   },
+  "roomTriggers": {
+    "title": "المشغّلات",
+    "openLabel": "المشغّلات (⁨{{total}}⁩)",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد مشغّلات في هذه الغرفة.",
+    "emptyHint": "تظهر هنا المشغّلات المُعدّة لهذه الغرفة.",
+    "loadError": "تعذر تحميل المشغلات.",
+    "missingTrigger": "لم يعد المشغّل ⁨{{id}}⁩ موجودًا في هذه الغرفة.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "مراقبة الغرفة",
+      "external_event": "اشتراك حدث",
+      "thread_tag": "وسم السلسلة",
+      "unknown": "مشغل"
+    },
+    "watchingRoom": "يراقب هذه الغرفة",
+    "stateOn": "مفعّل",
+    "stateOff": "متوقف",
+    "disabledExpired": "منتهي الصلاحية",
+    "disabledOnceConsumed": "استُخدم مرة واحدة",
+    "lastFired": "آخر تشغيل ⁨{{time}}⁩",
+    "neverFired": "لا يوجد تشغيل مسجل",
+    "destinationRoom": "الخط الزمني للغرفة",
+    "destinationThread": "سلسلة محادثة",
+    "destinationNewThread": "سلسلة جديدة",
+    "destinationOrigin": "السلسلة الأصلية",
+    "openThread": "فتح السلسلة",
+    "prompt": "الموجّه",
+    "enable": "تفعيل",
+    "disable": "تعطيل",
+    "updating": "جارٍ التحديث...",
+    "toggleError": "تعذر تحديث المشغّل. حاول مجددًا.",
+    "delete": "حذف",
+    "deleteConfirm": "هل تريد حذف هذا المشغّل؟",
+    "keep": "إبقاء",
+    "deleteTrigger": "حذف المشغّل",
+    "deleting": "جارٍ الحذف...",
+    "deleteError": "تعذر حذف المشغّل. حاول مجددًا."
+  },
   "home": {
     "greeting": {
       "morning": "صباح الخير، ⁨{{name}}⁩",
@@ -2734,7 +2785,8 @@
       "roomsCount_few": "⁨{{count}}⁩ غرف",
       "roomsCount_many": "⁨{{count}}⁩ غرفة",
       "roomsCount_other": "⁨{{count}}⁩ غرفة",
-      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة"
+      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة",
+      "switchSpace": "تبديل المساحة"
     },
     "roomFilter": {
       "label": "الغرف",
@@ -2759,5 +2811,13 @@
     "error": {
       "title": "تعذر تحميل سلاسل رسائل المساحة"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "مخطط",
+    "source": "المصدر",
+    "showDiagram": "إظهار المخطط",
+    "showSource": "إظهار المصدر",
+    "mermaidDiagram": "مخطط Mermaid",
+    "diagramUnavailable": "عرض المصدر"
   }
 }

@@ -436,3 +436,43 @@ it('selecting a tab replaces legacy statuses but preserves people, tags, search 
   ).toBeUndefined();
   expect(simplifyThreadFilterState(selected).tab).toBeUndefined();
 });
+
+describe('space rooms filter persistence and projection', () => {
+  it('deduplicates, sorts, and round-trips rooms, keeps them in simplified modes, and clears on reset', async () => {
+    const {
+      createDefaultThreadFilterState,
+      serializeThreadFilterState,
+      deserializeThreadFilterState,
+      simplifyThreadFilterState,
+      simplifyAgentlessSimpleThreadFilterState,
+      simplifyAgentlessThreadFilterState,
+      resetThreadFilterState,
+    } = await import('./roomThreadOverviewModel');
+
+    const withRooms = {
+      ...createDefaultThreadFilterState(),
+      rooms: ['!b:example.org', '!a:example.org', '!b:example.org'],
+    };
+    const serialized = serializeThreadFilterState(withRooms);
+    expect(serialized.rooms).toEqual(['!a:example.org', '!b:example.org']);
+    expect(deserializeThreadFilterState(serialized).rooms).toEqual([
+      '!a:example.org',
+      '!b:example.org',
+    ]);
+    expect(
+      deserializeThreadFilterState({
+        ...serialized,
+        rooms: ['!z:example.org', 42, '!a:example.org', '!z:example.org'],
+      }).rooms
+    ).toEqual(['!a:example.org', '!z:example.org']);
+    expect(
+      serializeThreadFilterState({ ...createDefaultThreadFilterState(), rooms: [] }).rooms
+    ).toBeUndefined();
+    expect(deserializeThreadFilterState({ ...serialized, rooms: [] }).rooms).toBeUndefined();
+
+    expect(simplifyThreadFilterState(withRooms).rooms).toEqual(withRooms.rooms);
+    expect(simplifyAgentlessSimpleThreadFilterState(withRooms).rooms).toEqual(withRooms.rooms);
+    expect(simplifyAgentlessThreadFilterState(withRooms).rooms).toEqual(withRooms.rooms);
+    expect(resetThreadFilterState().rooms).toBeUndefined();
+  });
+});

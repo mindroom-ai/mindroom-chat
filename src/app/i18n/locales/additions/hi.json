@@ -270,6 +270,13 @@
       "threadIn": "{{room}} में थ्रेड",
       "messageElsewhere": "किसी दूसरे रूम में संदेश"
     },
+    "callout": {
+      "note": "नोट",
+      "tip": "सुझाव",
+      "important": "महत्वपूर्ण",
+      "warning": "चेतावनी",
+      "caution": "सावधानी"
+    },
     "deviceVerification": {
       "acceptStalled": "दूसरे सत्र ने जवाब नहीं दिया। इसे बंद करें और सत्यापन फिर से शुरू करें।"
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "स्पेस का अवलोकन"
+    },
+    "footnote": {
+      "backToReference": "संदर्भ पर वापस जाएं"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "उपयोग में सर्वर",
         "inUseNone": "कोई सर्वर सेट नहीं है, इसलिए इस डिवाइस पर कंप्यूटर बंद हैं।",
         "useServer": "{{host}} का उपयोग करें",
-        "foundNotSaved": "आपके एजेंटों से मिला, सहेजा नहीं गया; यहाँ कुंजियाँ दर्ज करने के लिए इसे सहेजें।"
+        "foundNotSaved": "आपके एजेंटों से मिला, सहेजा नहीं गया; यहाँ कुंजियाँ दर्ज करने के लिए इसे सहेजें।",
+        "foundNotSavedChoose": "आपके एजेंटों से मिले, सहेजे नहीं गए। उस सर्वर को चुनें जिस पर आप भरोसा करते हैं; यह डिवाइस सभी रूम के लिए इसका उपयोग करता है।"
       },
       "keywords": {
         "theme": "डार्क मोड, लाइट मोड, नाइट मोड, रंग",
@@ -1220,7 +1231,8 @@
         "triggerLabel": "ट्रिगर {{id}}",
         "sourceLabel": "स्रोत {{source}}",
         "triageLabel": "ट्रायज: {{reason}}",
-        "payloadLabel": "इवेंट पेलोड JSON"
+        "payloadLabel": "इवेंट पेलोड JSON",
+        "openTriggerLabel": "ट्रिगर {{id}} देखें"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} कार्य तैयार",
@@ -2217,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "पिन करें और टैग लगाएँ",
-        "text": "\"थ्रेड पिन करें\" थ्रेड को सूची में सबसे ऊपर रखता है। \"थ्रेड के विकल्प\" में \"टैग संपादित करें\" से थ्रेड पर टैग लगते हैं, और आप टैग के अनुसार फ़िल्टर कर सकते हैं।"
+        "text": "थ्रेड को सबसे ऊपर रखने के लिए कार्ड पर बने पिन आइकन को दबाएँ, या \"थ्रेड के विकल्प\" (⋯) में \"थ्रेड पिन करें\" चुनें। \"थ्रेड के विकल्प\" में \"टैग संपादित करें\" से थ्रेड पर टैग लगते हैं, और आप टैग के अनुसार फ़िल्टर कर सकते हैं।"
       },
       "filters": {
         "title": "फ़िल्टर सुलझे हुए थ्रेड छिपाते हैं",
@@ -2376,6 +2388,45 @@
     "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
     "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
   },
+  "roomTriggers": {
+    "title": "ट्रिगर",
+    "openLabel": "ट्रिगर ({{total}})",
+    "loading": "लोड हो रहा है…",
+    "empty": "इस रूम में कोई ट्रिगर नहीं है।",
+    "emptyHint": "इस रूम के लिए बनाए गए ट्रिगर यहाँ दिखते हैं।",
+    "loadError": "ट्रिगर लोड नहीं हो सके।",
+    "missingTrigger": "ट्रिगर {{id}} अब इस रूम में नहीं है।",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "रूम वॉच",
+      "external_event": "इवेंट सब्सक्रिप्शन",
+      "thread_tag": "थ्रेड टैग",
+      "unknown": "ट्रिगर"
+    },
+    "watchingRoom": "इस रूम की निगरानी कर रहा है",
+    "stateOn": "चालू",
+    "stateOff": "बंद",
+    "disabledExpired": "समय समाप्त",
+    "disabledOnceConsumed": "एक बार उपयोग किया गया",
+    "lastFired": "आख़िरी बार चला {{time}}",
+    "neverFired": "कोई दर्ज संचालन नहीं",
+    "destinationRoom": "रूम टाइमलाइन",
+    "destinationThread": "थ्रेड",
+    "destinationNewThread": "नया थ्रेड",
+    "destinationOrigin": "मूल थ्रेड",
+    "openThread": "थ्रेड खोलें",
+    "prompt": "प्रॉम्प्ट",
+    "enable": "चालू करें",
+    "disable": "बंद करें",
+    "updating": "अपडेट हो रहा है...",
+    "toggleError": "ट्रिगर अपडेट नहीं हो सका। फिर से प्रयास करें।",
+    "delete": "हटाएँ",
+    "deleteConfirm": "क्या यह ट्रिगर हटाएँ?",
+    "keep": "रखें",
+    "deleteTrigger": "ट्रिगर हटाएँ",
+    "deleting": "हटाया जा रहा है...",
+    "deleteError": "ट्रिगर हटाया नहीं जा सका। फिर से प्रयास करें।"
+  },
   "home": {
     "greeting": {
       "morning": "सुप्रभात, {{name}}",
@@ -2418,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} रूम",
       "roomsCount_other": "{{count}} रूम",
-      "roomsFiltered": "{{total}} में से {{active}} रूम"
+      "roomsFiltered": "{{total}} में से {{active}} रूम",
+      "switchSpace": "स्पेस बदलें"
     },
     "roomFilter": {
       "label": "रूम",
@@ -2443,5 +2495,13 @@
     "error": {
       "title": "स्पेस के थ्रेड लोड नहीं हो सके"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "आरेख",
+    "source": "स्रोत",
+    "showDiagram": "आरेख दिखाएं",
+    "showSource": "स्रोत दिखाएं",
+    "mermaidDiagram": "Mermaid आरेख",
+    "diagramUnavailable": "स्रोत दिखाया जा रहा है"
   }
 }

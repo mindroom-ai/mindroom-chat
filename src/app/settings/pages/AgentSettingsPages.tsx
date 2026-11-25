@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Button, Text, color } from 'folds';
+import { Box, Button, Text, color } from 'folds';
 import { isBundledApp } from '../../lib/nativeShell';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
@@ -53,9 +53,35 @@ export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
   const { urls, discovered } = useComputerApiUrls();
   const setPreference = useSetAtom(computerServicePreferenceAtom);
   const [saveFailed, setSaveFailed] = useState(false);
-  // A server found from the agents is in use but not saved, and secret requests accept only a saved
-  // one. Only a single found server is offered: a saved one serves every room's agents.
-  const found = discovered && urls.length === 1 ? urls[0] : undefined;
+  // Servers found from the agents are in use for computers but not saved, and secret requests
+  // accept only a saved origin. Offer each found server so the user can pick one even when rooms'
+  // agents publish several; saving one sets this device's server for every room.
+  const foundServers = (discovered ? urls : []).map((url) => ({ url, parsed: new URL(url) }));
+  const hostCounts = new Map<string, number>();
+  foundServers.forEach(({ parsed }) =>
+    hostCounts.set(parsed.host, (hostCounts.get(parsed.host) ?? 0) + 1)
+  );
+  const singleFound = foundServers.length === 1 ? foundServers[0] : undefined;
+  const multipleFound = foundServers.length > 1;
+  let description = t('featureUi.settings.computers.inUseNone');
+  if (multipleFound) description = t('featureUi.settings.computers.foundNotSavedChoose');
+  else if (urls.length > 0) description = urls.join(', ');
+
+  const saveServerButton = ({ url, parsed }: { url: string; parsed: URL }) => (
+    <Button
+      onClick={() => setSaveFailed(!setPreference(url))}
+      variant="Secondary"
+      fill="Soft"
+      size="300"
+      radii="300"
+    >
+      <Text size="B300">
+        {t('featureUi.settings.computers.useServer', {
+          host: (hostCounts.get(parsed.host) ?? 0) > 1 ? parsed.origin : parsed.host,
+        })}
+      </Text>
+    </Button>
+  );
 
   return (
     <SettingsPageFrame
@@ -84,31 +110,26 @@ export function MindroomSettingsPage({ requestClose }: SettingsPageProps) {
         <SettingTile
           focusId="computerServerInUse"
           title={t('featureUi.settings.computers.inUse')}
-          description={
-            urls.length > 0 ? urls.join(', ') : t('featureUi.settings.computers.inUseNone')
-          }
-          after={
-            found !== undefined && (
-              <Button
-                onClick={() => setSaveFailed(!setPreference(found))}
-                variant="Secondary"
-                fill="Soft"
-                size="300"
-                radii="300"
-              >
-                <Text size="B300">
-                  {t('featureUi.settings.computers.useServer', { host: new URL(found).host })}
-                </Text>
-              </Button>
-            )
-          }
+          description={description}
+          after={singleFound !== undefined && saveServerButton(singleFound)}
         >
-          {found !== undefined && (
+          {singleFound !== undefined && (
             <Text priority="300" size="T200">
               {t('featureUi.settings.computers.foundNotSaved')}
             </Text>
           )}
-          {found !== undefined && saveFailed && (
+          {multipleFound && (
+            <Box direction="Column" gap="300">
+              {foundServers.map((server) => (
+                <SettingTile
+                  key={server.url}
+                  description={server.url}
+                  after={saveServerButton(server)}
+                />
+              ))}
+            </Box>
+          )}
+          {foundServers.length > 0 && saveFailed && (
             <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
               {t('settings.general.computers.saveFailed')}
             </Text>

@@ -278,6 +278,13 @@
       "threadIn": "Tópico em {{room}}",
       "messageElsewhere": "Mensagem noutra sala"
     },
+    "callout": {
+      "note": "Nota",
+      "tip": "Dica",
+      "important": "Importante",
+      "warning": "Aviso",
+      "caution": "Cuidado"
+    },
     "deviceVerification": {
       "acceptStalled": "A outra sessão não respondeu. Feche isto e inicie a verificação novamente."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Visão geral do espaço"
+    },
+    "footnote": {
+      "backToReference": "Voltar para a referência"
     }
   },
   "featureUi": {
@@ -495,7 +505,8 @@
         "inUse": "Servidor em utilização",
         "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo.",
         "useServer": "Usar {{host}}",
-        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui."
+        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui.",
+        "foundNotSavedChoose": "Encontrados através dos seus agentes, não guardados. Escolha o servidor em que confia; este dispositivo utiliza-o em todas as salas."
       },
       "keywords": {
         "theme": "modo escuro, modo claro, modo noturno, cores",
@@ -1239,7 +1250,8 @@
         "triggerLabel": "Gatilho {{id}}",
         "sourceLabel": "Origem {{source}}",
         "triageLabel": "Triagem: {{reason}}",
-        "payloadLabel": "Carga do evento JSON"
+        "payloadLabel": "Carga do evento JSON",
+        "openTriggerLabel": "Ver gatilho {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tarefa pronta",
@@ -2286,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Fixar e etiquetar",
-        "text": "Fixar tópico mantém um tópico no topo da lista. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
+        "text": "Prima o alfinete num cartão, ou Fixar tópico em Opções do tópico (⋯), para manter um tópico no topo. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
       },
       "filters": {
         "title": "Os filtros ocultam os tópicos resolvidos",
@@ -2454,6 +2466,45 @@
     "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
     "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
   },
+  "roomTriggers": {
+    "title": "Gatilhos",
+    "openLabel": "Gatilhos ({{total}})",
+    "loading": "Carregando…",
+    "empty": "Nenhum gatilho nesta sala.",
+    "emptyHint": "Os gatilhos configurados para esta sala aparecem aqui.",
+    "loadError": "Não foi possível carregar os gatilhos.",
+    "missingTrigger": "O gatilho {{id}} não está mais nesta sala.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Monitoramento da sala",
+      "external_event": "Assinatura de eventos",
+      "thread_tag": "Tag de tópico",
+      "unknown": "Gatilho"
+    },
+    "watchingRoom": "Monitorando esta sala",
+    "stateOn": "Ativo",
+    "stateOff": "Inativo",
+    "disabledExpired": "Expirado",
+    "disabledOnceConsumed": "Usado uma vez",
+    "lastFired": "Último disparo {{time}}",
+    "neverFired": "Nenhum disparo registrado",
+    "destinationRoom": "Linha do tempo da sala",
+    "destinationThread": "Tópico",
+    "destinationNewThread": "Novo tópico",
+    "destinationOrigin": "Tópico de origem",
+    "openThread": "Abrir tópico",
+    "prompt": "Prompt",
+    "enable": "Ativar",
+    "disable": "Desativar",
+    "updating": "Atualizando...",
+    "toggleError": "Não foi possível atualizar o gatilho. Tente novamente.",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir este gatilho?",
+    "keep": "Manter",
+    "deleteTrigger": "Excluir gatilho",
+    "deleting": "Excluindo...",
+    "deleteError": "Não foi possível excluir o gatilho. Tente novamente."
+  },
   "home": {
     "greeting": {
       "morning": "Bom dia, {{name}}",
@@ -2497,7 +2548,8 @@
       "roomsCount_one": "{{count}} sala",
       "roomsCount_many": "{{count}} salas",
       "roomsCount_other": "{{count}} salas",
-      "roomsFiltered": "{{active}} de {{total}} salas"
+      "roomsFiltered": "{{active}} de {{total}} salas",
+      "switchSpace": "Mudar de espaço"
     },
     "roomFilter": {
       "label": "Salas",
@@ -2522,5 +2574,13 @@
     "error": {
       "title": "Não foi possível carregar as conversas do espaço"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagrama",
+    "source": "Código",
+    "showDiagram": "Mostrar diagrama",
+    "showSource": "Mostrar código",
+    "mermaidDiagram": "Diagrama Mermaid",
+    "diagramUnavailable": "Mostrando código"
   }
 }

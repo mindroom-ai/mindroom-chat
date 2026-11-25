@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Nachricht in einem anderen Raum"
     },
+    "callout": {
+      "note": "Hinweis",
+      "tip": "Tipp",
+      "important": "Wichtig",
+      "warning": "Warnung",
+      "caution": "Vorsicht"
+    },
     "deviceVerification": {
       "acceptStalled": "Die andere Sitzung hat nicht geantwortet. Schließe dies und starte die Verifizierung erneut."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space-Übersicht"
+    },
+    "footnote": {
+      "backToReference": "Zurück zum Verweis"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Verwendeter Server",
         "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus.",
         "useServer": "{{host}} verwenden",
-        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben."
+        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben.",
+        "foundNotSavedChoose": "Über deine Agenten gefunden, nicht gespeichert. Wähle den Server, dem du vertraust; dieses Gerät verwendet ihn für alle Räume."
       },
       "keywords": {
         "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",
@@ -1220,7 +1231,8 @@
         "triggerLabel": "Auslöser {{id}}",
         "sourceLabel": "Quelle {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Ereignis-Payload JSON"
+        "payloadLabel": "Ereignis-Payload JSON",
+        "openTriggerLabel": "Auslöser {{id}} anzeigen"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} Aufgabe bereit",
@@ -2217,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Anheften und Tags vergeben",
-        "text": "„Thread anheften“ hält einen Thread oben in der Liste. Mit „Tags bearbeiten“ in den Thread-Optionen versiehst du einen Thread mit Tags, und du kannst nach Tags filtern."
+        "text": "Drücke auf die Stecknadel auf einer Karte oder auf „Thread anheften“ in den Thread-Optionen (⋯), um einen Thread oben zu halten. Mit „Tags bearbeiten“ in den Thread-Optionen versiehst du einen Thread mit Tags, und du kannst nach Tags filtern."
       },
       "filters": {
         "title": "Filter blenden gelöste Threads aus",
@@ -2376,6 +2388,45 @@
     "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
     "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   },
+  "roomTriggers": {
+    "title": "Auslöser",
+    "openLabel": "Auslöser ({{total}})",
+    "loading": "Wird geladen…",
+    "empty": "Keine Auslöser in diesem Raum.",
+    "emptyHint": "Für diesen Raum eingerichtete Auslöser erscheinen hier.",
+    "loadError": "Auslöser konnten nicht geladen werden.",
+    "missingTrigger": "Auslöser {{id}} ist nicht mehr in diesem Raum.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Raumüberwachung",
+      "external_event": "Ereignis-Abo",
+      "thread_tag": "Thread-Tag",
+      "unknown": "Auslöser"
+    },
+    "watchingRoom": "Überwacht diesen Raum",
+    "stateOn": "An",
+    "stateOff": "Aus",
+    "disabledExpired": "Abgelaufen",
+    "disabledOnceConsumed": "Einmalig ausgelöst",
+    "lastFired": "Zuletzt ausgelöst {{time}}",
+    "neverFired": "Keine Auslösung erfasst",
+    "destinationRoom": "Raum-Zeitleiste",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Neuer Thread",
+    "destinationOrigin": "Ursprungs-Thread",
+    "openThread": "Thread öffnen",
+    "prompt": "Prompt",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "updating": "Wird aktualisiert...",
+    "toggleError": "Auslöser konnte nicht aktualisiert werden. Erneut versuchen.",
+    "delete": "Löschen",
+    "deleteConfirm": "Diesen Auslöser löschen?",
+    "keep": "Behalten",
+    "deleteTrigger": "Auslöser löschen",
+    "deleting": "Wird gelöscht...",
+    "deleteError": "Auslöser konnte nicht gelöscht werden. Erneut versuchen."
+  },
   "home": {
     "greeting": {
       "morning": "Guten Morgen, {{name}}",
@@ -2418,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} Raum",
       "roomsCount_other": "{{count}} Räume",
-      "roomsFiltered": "{{active}} von {{total}} Räumen"
+      "roomsFiltered": "{{active}} von {{total}} Räumen",
+      "switchSpace": "Space wechseln"
     },
     "roomFilter": {
       "label": "Räume",
@@ -2443,5 +2495,13 @@
     "error": {
       "title": "Space-Threads konnten nicht geladen werden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramm",
+    "source": "Quelltext",
+    "showDiagram": "Diagramm anzeigen",
+    "showSource": "Quelltext anzeigen",
+    "mermaidDiagram": "Mermaid-Diagramm",
+    "diagramUnavailable": "Quelltext wird angezeigt"
   }
 }

@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
     },
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    },
     "deviceVerification": {
       "acceptStalled": "The other session did not answer. Close this and start the verification again."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space overview"
+    },
+    "footnote": {
+      "backToReference": "Back to reference"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Server in use",
         "inUseNone": "None set, so computers are off on this device.",
         "useServer": "Use {{host}}",
-        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here.",
+        "foundNotSavedChoose": "Found from your agents, not saved. Choose the server you trust; this device uses it for all rooms."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -1220,7 +1231,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Event payload JSON"
+        "payloadLabel": "Event payload JSON",
+        "openTriggerLabel": "View trigger {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} todo ready",
@@ -2217,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "text": "Press the pin on a card, or Pin thread in Thread options (⋯), to keep a thread at the top. Edit tags in Thread options labels a thread, and you can filter by tag."
       },
       "filters": {
         "title": "Filters hide resolved threads",
@@ -2376,6 +2388,45 @@
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
   },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Loading…",
+    "empty": "No triggers in this room.",
+    "emptyHint": "Triggers configured for this room appear here.",
+    "loadError": "Couldn't load triggers.",
+    "missingTrigger": "Trigger {{id}} is no longer in this room.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Room watch",
+      "external_event": "Event subscription",
+      "thread_tag": "Thread tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Watching this room",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "disabledExpired": "Expired",
+    "disabledOnceConsumed": "Used",
+    "lastFired": "Last fired {{time}}",
+    "neverFired": "No recorded firing",
+    "destinationRoom": "Room timeline",
+    "destinationThread": "Thread",
+    "destinationNewThread": "New thread",
+    "destinationOrigin": "Origin thread",
+    "openThread": "Open thread",
+    "prompt": "Prompt",
+    "enable": "Enable",
+    "disable": "Disable",
+    "updating": "Updating...",
+    "toggleError": "Could not update trigger. Try again.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this trigger?",
+    "keep": "Keep",
+    "deleteTrigger": "Delete trigger",
+    "deleting": "Deleting...",
+    "deleteError": "Could not delete trigger. Try again."
+  },
   "home": {
     "greeting": {
       "morning": "Good morning, {{name}}",
@@ -2418,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} room",
       "roomsCount_other": "{{count}} rooms",
-      "roomsFiltered": "{{active}} of {{total}} rooms"
+      "roomsFiltered": "{{active}} of {{total}} rooms",
+      "switchSpace": "Switch space"
     },
     "roomFilter": {
       "label": "Rooms",
@@ -2443,5 +2495,13 @@
     "error": {
       "title": "Could not load space threads"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }

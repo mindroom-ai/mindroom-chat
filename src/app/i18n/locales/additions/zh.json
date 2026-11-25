@@ -262,6 +262,13 @@
       "threadIn": "{{room}} 中的讨论串",
       "messageElsewhere": "其他房间中的消息"
     },
+    "callout": {
+      "note": "备注",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "小心"
+    },
     "deviceVerification": {
       "acceptStalled": "另一个会话没有响应。请关闭此窗口并重新开始验证。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "空间概览"
+    },
+    "footnote": {
+      "backToReference": "返回引用处"
     }
   },
   "featureUi": {
@@ -469,7 +479,8 @@
         "inUse": "正在使用的服务器",
         "inUseNone": "未设置，因此此设备上的计算机已关闭。",
         "useServer": "使用 {{host}}",
-        "foundNotSaved": "从您的智能体中找到，尚未保存；保存后即可在此输入密钥。"
+        "foundNotSaved": "从您的智能体中找到，尚未保存；保存后即可在此输入密钥。",
+        "foundNotSavedChoose": "从您的智能体中找到，尚未保存。选择您信任的服务器；此设备将在所有房间中使用它。"
       },
       "keywords": {
         "theme": "深色模式, 浅色模式, 夜间模式, 颜色",
@@ -1201,7 +1212,8 @@
         "triggerLabel": "触发器 {{id}}",
         "sourceLabel": "来源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件载荷 JSON"
+        "payloadLabel": "事件载荷 JSON",
+        "openTriggerLabel": "查看触发器 {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 项待办就绪",
@@ -2148,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "置顶和添加标签",
-        "text": "“置顶讨论串”会让讨论串保持在列表顶部。“讨论串选项”中的“编辑标签”可为讨论串添加标签，之后可以按标签过滤。"
+        "text": "点击卡片上的图钉，或在“讨论串选项”（⋯）中选择“置顶讨论串”，即可将讨论串保持在顶部。“讨论串选项”中的“编辑标签”可为讨论串添加标签，之后可以按标签过滤。"
       },
       "filters": {
         "title": "过滤器会隐藏已解决的讨论串",
@@ -2298,6 +2310,45 @@
     "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
     "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
   },
+  "roomTriggers": {
+    "title": "触发器",
+    "openLabel": "触发器 ({{total}})",
+    "loading": "正在加载…",
+    "empty": "此房间没有触发器。",
+    "emptyHint": "为此房间配置的触发器会显示在这里。",
+    "loadError": "无法加载触发器。",
+    "missingTrigger": "触发器 {{id}} 已不在此房间中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房间监听",
+      "external_event": "事件订阅",
+      "thread_tag": "话题标签",
+      "unknown": "触发器"
+    },
+    "watchingRoom": "正在监听此房间",
+    "stateOn": "已开启",
+    "stateOff": "已关闭",
+    "disabledExpired": "已过期",
+    "disabledOnceConsumed": "已运行一次",
+    "lastFired": "上次触发 {{time}}",
+    "neverFired": "无触发记录",
+    "destinationRoom": "房间时间线",
+    "destinationThread": "话题",
+    "destinationNewThread": "新话题",
+    "destinationOrigin": "原话题",
+    "openThread": "打开话题",
+    "prompt": "提示词",
+    "enable": "开启",
+    "disable": "关闭",
+    "updating": "正在更新...",
+    "toggleError": "无法更新触发器，请重试。",
+    "delete": "删除",
+    "deleteConfirm": "要删除此触发器吗？",
+    "keep": "保留",
+    "deleteTrigger": "删除触发器",
+    "deleting": "正在删除...",
+    "deleteError": "无法删除触发器，请重试。"
+  },
   "home": {
     "greeting": {
       "morning": "早上好，{{name}}",
@@ -2339,7 +2390,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}} 个房间",
-      "roomsFiltered": "{{active}}/{{total}} 个房间"
+      "roomsFiltered": "{{active}}/{{total}} 个房间",
+      "switchSpace": "切换空间"
     },
     "roomFilter": {
       "label": "房间",
@@ -2364,5 +2416,13 @@
     "error": {
       "title": "无法加载空间话题"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "图表",
+    "source": "源码",
+    "showDiagram": "显示图表",
+    "showSource": "显示源码",
+    "mermaidDiagram": "Mermaid 图表",
+    "diagramUnavailable": "正在显示源码"
   }
 }

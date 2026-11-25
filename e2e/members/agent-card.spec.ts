@@ -13,6 +13,7 @@ import {
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
+  sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
 
@@ -22,7 +23,8 @@ import {
 // the agent's power through the power chip's menu, which opens inside the sheet: Escape closes only
 // that menu and leaves the focus on the chip. An ordinary member sees the chip as a plain tag and no
 // kick or ban. On a short desktop window the card stays inside the window as its tools arrive and
-// More opens. AGENT_CARD_SHOTS=<directory> saves the sheet and the menu.
+// More opens. Without a configured apiUrl, the card discovers the agent's server from its
+// io.mindroom.server room state. AGENT_CARD_SHOTS=<directory> saves the sheet, menu and card.
 const PASSWORD = 'agent-card-spec-password';
 const RUN = randomUUID().replaceAll('-', '').slice(0, 8);
 const MINDROOM_API = 'http://127.0.0.1:29597';
@@ -100,8 +102,12 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-/** Answers for the configured MindRoom server: a session for `user` and the agent's profile. */
-const serveMindroom = async (context: BrowserContext, user: DisposableUser) => {
+/** Answers for the MindRoom server: a session for `user` and the agent's profile. */
+const serveMindroom = async (
+  context: BrowserContext,
+  user: DisposableUser,
+  computersApiUrl = MINDROOM_API
+) => {
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = (await response.json()) as Record<string, Record<string, unknown>>;
@@ -111,7 +117,7 @@ const serveMindroom = async (context: BrowserContext, user: DisposableUser) => {
         ...config,
         homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
-        mindroom: { ...config.mindroom, computers: { apiUrl: MINDROOM_API } },
+        mindroom: { ...config.mindroom, computers: { apiUrl: computersApiUrl } },
       },
     });
   });
@@ -229,4 +235,72 @@ test('on a short window the card stays inside it as its tools arrive and More op
   await page.keyboard.press('Escape');
   await expect(card).toBeHidden();
   await expect(page.getByText('Sorted by project, newest first.')).toBeVisible();
+});
+
+test('discovers the agent server from room state when config.json sets no apiUrl', async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const created = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+    method: 'POST',
+    accessToken: founder.accessToken,
+    body: JSON.stringify({
+      preset: 'private_chat',
+      name: `Agent card discovered ${RUN}`,
+      invite: [agent.userId, member.userId],
+      power_level_content_override: { events: { 'io.mindroom.server': 0 } },
+    }),
+  });
+  const discoveredRoom = created.room_id;
+  await joinRoom(HOMESERVER, agent.accessToken, discoveredRoom);
+  await joinRoom(HOMESERVER, member.accessToken, discoveredRoom);
+  await sendStateEvent(
+    HOMESERVER,
+    agent.accessToken,
+    discoveredRoom,
+    'io.mindroom.server',
+    agent.userId,
+    {
+      api_origin: MINDROOM_API,
+      computer: false,
+      role: 'Sorts weekly planning notes',
+    }
+  );
+  const discoveredRoot = await sendRoomMessage(HOMESERVER, founder.accessToken, discoveredRoom, {
+    msgtype: 'm.text',
+    body: 'Can you sort the weekly planning notes?',
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, discoveredRoom, {
+    msgtype: 'm.text',
+    body: 'Notes are grouped by project.',
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: discoveredRoot,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: discoveredRoot },
+    },
+  });
+
+  await serveMindroom(context, member, '');
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...member });
+  await page.goto(
+    `/home/${encodeURIComponent(discoveredRoom)}?threadId=${encodeURIComponent(discoveredRoot)}`
+  );
+  await expect(page.getByText('Notes are grouped by project.')).toBeVisible({ timeout: 60_000 });
+  await agentAvatar(page).click();
+  const card = page.getByRole('dialog', { name: 'Helper', exact: true });
+  await expect(card.getByText('Example Model', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(card.getByText('Sorts weekly planning notes', { exact: true })).toBeVisible();
+  await expect(card.getByText('Configured tools', { exact: true })).toBeVisible();
+  await expect(card.getByText('File Tools', { exact: true })).toBeVisible();
+  await expect(card.getByText('Web Search', { exact: true })).toBeVisible();
+  if (SHOTS) {
+    await page.mouse.move(0, 0);
+    await page.waitForFunction(
+      () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
+    );
+    await card.screenshot({ path: `${SHOTS}/discovered-card.png` });
+  }
 });

@@ -4,6 +4,7 @@ import {
   addRoomToSpace,
   matrixFetch,
   sendRoomMessage,
+  sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
@@ -66,6 +67,20 @@ const savedRoomOrder = async (account: Account): Promise<SavedRoomOrder | undefi
 /** The saved lists of `io.mindroom.room_order`, straight from the homeserver. */
 const savedLists = async (account: Account): Promise<Record<string, unknown> | undefined> =>
   (await savedRoomOrder(account))?.lists;
+
+/** The saved `sidebar` of `io.mindroom.spaces`, straight from the homeserver. */
+const savedSidebar = async (account: Account): Promise<unknown[] | undefined> => {
+  try {
+    const content = await matrixFetch<{ sidebar?: unknown[] }>(
+      HOMESERVER,
+      `/user/${encodeURIComponent(account.userId)}/account_data/io.mindroom.spaces`,
+      { accessToken: account.accessToken }
+    );
+    return content.sidebar;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Drags `from` with the mouse onto the upper edge of `to`, near enough to its middle that `to`
@@ -276,8 +291,9 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
   });
   await page.mouse.up();
   await expect.poll(railOrder).toEqual([lower, upper]);
+  await expect.poll(() => savedSidebar(account)).toEqual([lower, upper]);
 
-  // Both orders hold after a reload: the rooms' from the account, the rail's from this device.
+  // Both orders hold after a reload, loaded from the account's saved data.
   await page.reload();
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
@@ -337,6 +353,14 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await sendRoomMessage(HOMESERVER, account.accessToken, alder, {
     msgtype: 'm.text',
     body: 'latest in alder',
+  });
+  await page.waitForTimeout(50);
+  // Newer state events in Birch must not bump Birch above Alder in Recent activity mode.
+  await sendStateEvent(HOMESERVER, account.accessToken, birch, 'm.room.topic', '', {
+    topic: 'birch topic',
+  });
+  await sendStateEvent(HOMESERVER, account.accessToken, birch, 'com.example.room_features', '', {
+    capabilities: ['threads'],
   });
   await sendRoomMessage(HOMESERVER, account.accessToken, dahlia, {
     msgtype: 'm.text',

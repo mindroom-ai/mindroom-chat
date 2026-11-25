@@ -9,6 +9,7 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from 'react';
+import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -24,6 +25,7 @@ import { useHour24Clock } from '../preferences/useHour24Clock';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { settingsAtom } from '../preferences/settings';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomOptionally } from '../matrix/hooks/useRoom';
 import { testMatrixTo } from '../matrix/matrix-to';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
@@ -46,6 +48,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from './html/react-custom-html-parser';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { useMentionClickHandler } from './useMentionClickHandler';
 import { Time } from './Time';
 import * as css from './TriggerWakeMarker.css';
@@ -225,7 +228,9 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
   const [hour24Clock] = useHour24Clock();
   const dateFormatString = useSettingValue(settingsAtom, 'dateFormatString');
   const client = useOptionalMatrixClient();
+  const currentRoom = useRoomOptionally();
   const inRouter = useInRouterContext();
+  const store = useStore();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -237,7 +242,29 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
   const source = describeSource(wake);
   const metaItems: ReactNode[] = [];
   if (wake.triggerId) {
-    metaItems.push(t(`${KEY}.triggerLabel`, { id: revealDirectionControls(wake.triggerId) }));
+    const id = revealDirectionControls(wake.triggerId);
+    const label = t(`${KEY}.triggerLabel`, { id });
+    metaItems.push(
+      roomId && currentRoom?.roomId === roomId ? (
+        <button
+          type="button"
+          className={css.MetaLink}
+          aria-haspopup="dialog"
+          aria-label={t(`${KEY}.openTriggerLabel`, { id })}
+          onClick={(event) =>
+            store.set(roomTriggersDialogAtom, {
+              roomId,
+              triggerId: wake.triggerId!,
+              opener: event.currentTarget,
+            })
+          }
+        >
+          {label}
+        </button>
+      ) : (
+        label
+      )
+    );
   }
   if (source) {
     metaItems.push(t(`${KEY}.sourceLabel`, { source: revealDirectionControls(source) }));

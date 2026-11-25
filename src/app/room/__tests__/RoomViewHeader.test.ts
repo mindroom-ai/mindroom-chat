@@ -210,7 +210,7 @@ vi.mock('../RoomViewHeaderLayout.css', () => ({
   CallGroup: 'CallGroup',
 }));
 
-vi.mock('../../schedules/roomSchedules.css', () => ({
+vi.mock('../../ui/RoomDialogOverlay.css', () => ({
   Trigger: 'Trigger',
   Count: 'Count',
 }));
@@ -218,6 +218,14 @@ vi.mock('../../schedules/roomSchedules.css', () => ({
 // The schedules browser tests exercise the dialog and its mention/profile UI.
 vi.mock('../../schedules/RoomSchedulesDialog', () => ({
   RoomSchedulesDialog: () => null,
+}));
+
+vi.mock(
+  '../../triggers/useRoomTriggers',
+  () => import('../../triggers/useRoomTriggers.test.shared')
+);
+vi.mock('../../triggers/RoomTriggersDialog', () => ({
+  RoomTriggersDialog: () => null,
 }));
 
 vi.mock('../../matrix/hooks/useStateEvents', () => ({

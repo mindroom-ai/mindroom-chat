@@ -270,6 +270,13 @@
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Bericht in een andere kamer"
     },
+    "callout": {
+      "note": "Opmerking",
+      "tip": "Tip",
+      "important": "Belangrijk",
+      "warning": "Waarschuwing",
+      "caution": "Voorzichtig"
+    },
     "deviceVerification": {
       "acceptStalled": "De andere sessie heeft niet geantwoord. Sluit dit en start de verificatie opnieuw."
     },
@@ -374,6 +381,9 @@
     },
     "space": {
       "overview": "Space-overzicht"
+    },
+    "footnote": {
+      "backToReference": "Terug naar verwijzing"
     }
   },
   "featureUi": {
@@ -482,7 +492,8 @@
         "inUse": "Server in gebruik",
         "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat.",
         "useServer": "{{host}} gebruiken",
-        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren."
+        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren.",
+        "foundNotSavedChoose": "Gevonden via je agents, niet opgeslagen. Kies de server die je vertrouwt; dit apparaat gebruikt die voor alle kamers."
       },
       "keywords": {
         "theme": "donkere modus, lichte modus, nachtmodus, kleuren",
@@ -1220,7 +1231,8 @@
         "triggerLabel": "Trigger {{id}}",
         "sourceLabel": "Bron {{source}}",
         "triageLabel": "Triage: {{reason}}",
-        "payloadLabel": "Gebeurtenispayload JSON"
+        "payloadLabel": "Gebeurtenispayload JSON",
+        "openTriggerLabel": "Trigger {{id}} bekijken"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} taak klaar",
@@ -2217,7 +2229,7 @@
       },
       "pinAndTag": {
         "title": "Vastmaken en taggen",
-        "text": "Thread vastmaken houdt een thread bovenaan de lijst. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
+        "text": "Druk op de punaise op een kaart, of op Thread vastmaken in Threadopties (⋯), om een thread bovenaan te houden. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
       },
       "filters": {
         "title": "Filters verbergen opgeloste threads",
@@ -2376,6 +2388,45 @@
     "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
     "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
   },
+  "roomTriggers": {
+    "title": "Triggers",
+    "openLabel": "Triggers ({{total}})",
+    "loading": "Laden…",
+    "empty": "Geen triggers in deze kamer.",
+    "emptyHint": "Triggers die voor deze kamer zijn ingesteld verschijnen hier.",
+    "loadError": "Kon triggers niet laden.",
+    "missingTrigger": "Trigger {{id}} bevindt zich niet meer in deze kamer.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Kamerbewaking",
+      "external_event": "Gebeurtenisabonnement",
+      "thread_tag": "Thread-tag",
+      "unknown": "Trigger"
+    },
+    "watchingRoom": "Bewaakt deze kamer",
+    "stateOn": "Aan",
+    "stateOff": "Uit",
+    "disabledExpired": "Verlopen",
+    "disabledOnceConsumed": "Eenmalig gebruikt",
+    "lastFired": "Laatst afgegaan {{time}}",
+    "neverFired": "Geen uitvoering geregistreerd",
+    "destinationRoom": "Kamertijdlijn",
+    "destinationThread": "Thread",
+    "destinationNewThread": "Nieuwe thread",
+    "destinationOrigin": "Oorspronkelijke thread",
+    "openThread": "Thread openen",
+    "prompt": "Prompt",
+    "enable": "Inschakelen",
+    "disable": "Uitschakelen",
+    "updating": "Bijwerken...",
+    "toggleError": "Kon trigger niet bijwerken. Probeer het opnieuw.",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Deze trigger verwijderen?",
+    "keep": "Behouden",
+    "deleteTrigger": "Trigger verwijderen",
+    "deleting": "Verwijderen...",
+    "deleteError": "Kon trigger niet verwijderen. Probeer het opnieuw."
+  },
   "home": {
     "greeting": {
       "morning": "Goedemorgen, {{name}}",
@@ -2418,7 +2469,8 @@
     "header": {
       "roomsCount_one": "{{count}} kamer",
       "roomsCount_other": "{{count}} kamers",
-      "roomsFiltered": "{{active}} van {{total}} kamers"
+      "roomsFiltered": "{{active}} van {{total}} kamers",
+      "switchSpace": "Space wisselen"
     },
     "roomFilter": {
       "label": "Kamers",
@@ -2443,5 +2495,13 @@
     "error": {
       "title": "Kon threads van de ruimte niet laden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Bron",
+    "showDiagram": "Diagram tonen",
+    "showSource": "Bron tonen",
+    "mermaidDiagram": "Mermaid-diagram",
+    "diagramUnavailable": "Bron wordt getoond"
   }
 }

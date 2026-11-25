@@ -1,4 +1,8 @@
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { sortRoomIdsByName } from '../../lib/nameOrder';
+import type { RoomToParents } from '../../matrix/types/room';
+import { getOrderedSpaceEntries, getSpaceRoomSections } from '../spaceRoomSections';
+import { revealDirectionControls } from '../../ui/directional';
 import {
   buildCrossRoomThreadIndexEntry,
   getCrossRoomThreadIndexKey,
@@ -119,6 +123,160 @@ export const toggleSpaceRoomSelection = (
   return pruneSpaceRoomSelection(next, allRoomIds);
 };
 
+/**
+ * Toggles a subspace group of rooms: if every room in `groupRoomIds` is already selected, removes
+ * them; otherwise adds them all. Empty or full selections normalize to `undefined` (all rooms).
+ */
+export const toggleSpaceRoomGroupSelection = (
+  selectedRoomIds: ReadonlySet<string> | undefined,
+  groupRoomIds: readonly string[],
+  allRoomIds: readonly string[]
+): Set<string> | undefined => {
+  const valid = new Set(allRoomIds);
+  const target = groupRoomIds.filter((id) => valid.has(id));
+  const current = pruneSpaceRoomSelection(selectedRoomIds, allRoomIds);
+  if (target.length === 0) return current;
+  const next = new Set(current);
+  const allSelected = target.every((id) => next.has(id));
+  target.forEach((id) => {
+    if (allSelected) next.delete(id);
+    else next.add(id);
+  });
+  return pruneSpaceRoomSelection(next, allRoomIds);
+};
+
+export type SwitchableSpaceItem = {
+  room: Room;
+  spaceId: string;
+  name: string;
+  depth: number;
+};
+
+/**
+ * Ordered, cycle-safe list of joined spaces and subspaces for the All threads header switcher:
+ * walks `railSpaceIds` with pre-order DFS over each space's joined subspaces (siblings sorted A-Z),
+ * then sweeps any remaining joined spaces (parentless roots first, then cycles/orphans, A-Z).
+ */
+export const buildSwitchableSpaceItems = (
+  mx: MatrixClient,
+  railSpaceIds: readonly string[],
+  joinedRoomIds: readonly string[],
+  roomToParents: RoomToParents
+): SwitchableSpaceItem[] =>
+  getOrderedSpaceEntries(mx, railSpaceIds, joinedRoomIds, roomToParents).flatMap(
+    ({ spaceId, depth }) => {
+      const room = mx.getRoom(spaceId);
+      if (!room) return [];
+      return [{ room, spaceId, name: revealDirectionControls(room.name || room.roomId), depth }];
+    }
+  );
+
+export type SpaceRoomFilterGroup = {
+  spaceId: string;
+  room: Room;
+  depth: number;
+  directRoomIds: string[];
+  subtreeRoomIds: string[];
+};
+
+export type SpaceRoomFilterGroups = {
+  rootRoomIds: string[];
+  subspaces: SpaceRoomFilterGroup[];
+};
+
+export type BuildSpaceRoomFilterGroupsOptions = {
+  mx: MatrixClient;
+  spaceId: string;
+  roomsById: ReadonlyMap<string, Pick<SpaceRoomItem, 'room' | 'name'>>;
+  orderedRoomIds: readonly string[];
+  joinedRoomIds: readonly string[];
+  directs: Set<string>;
+  roomToParents: RoomToParents;
+  chatRooms: ReadonlySet<string>;
+};
+
+/**
+ * Groups a Space's visible rooms into root rooms and toggleable subspace sections matching the
+ * sidebar's subspace deduplication. Returns `undefined` when no toggleable subspace groups remain.
+ */
+export const buildSpaceRoomFilterGroups = ({
+  mx,
+  spaceId,
+  roomsById,
+  orderedRoomIds,
+  joinedRoomIds,
+  directs,
+  roomToParents,
+  chatRooms,
+}: BuildSpaceRoomFilterGroupsOptions): SpaceRoomFilterGroups | undefined => {
+  const visibleRoomIds = orderedRoomIds.filter((id) => roomsById.has(id));
+  if (visibleRoomIds.length <= 1) return undefined;
+  const visibleSet = new Set(visibleRoomIds);
+  const spaceRoomsByName = sortRoomIdsByName(mx, visibleRoomIds);
+  const sections = getSpaceRoomSections(
+    mx,
+    spaceId,
+    [...joinedRoomIds],
+    visibleRoomIds,
+    spaceRoomsByName,
+    directs,
+    roomToParents,
+    chatRooms,
+    () => true
+  );
+
+  const rootSection = sections.find((section) => section.isRoot);
+  const subspaceSections = sections.filter((section) => !section.isRoot);
+  if (subspaceSections.length === 0) return undefined;
+
+  const candidates = subspaceSections
+    .map((section) => {
+      const room = mx.getRoom(section.spaceId);
+      if (!room) return undefined;
+      const directRoomIds = section.scopeRoomsByName.filter((id) => visibleSet.has(id));
+      const subtreeSet = new Set(directRoomIds);
+      subspaceSections.forEach((other) => {
+        if (other.ancestorSpaceIds.includes(section.spaceId)) {
+          other.scopeRoomsByName.forEach((id) => {
+            if (visibleSet.has(id)) subtreeSet.add(id);
+          });
+        }
+      });
+      const subtreeRoomIds = spaceRoomsByName.filter((id) => subtreeSet.has(id));
+      if (subtreeRoomIds.length === 0 || subtreeRoomIds.length === visibleRoomIds.length) {
+        return undefined;
+      }
+      return { section, room, directRoomIds, subtreeRoomIds };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  if (candidates.length === 0) return undefined;
+
+  const keptSpaceIds = new Set(candidates.map((entry) => entry.section.spaceId));
+  const subspaces: SpaceRoomFilterGroup[] = candidates.map(
+    ({ section, room, directRoomIds, subtreeRoomIds }) => ({
+      spaceId: section.spaceId,
+      room,
+      depth: 1 + section.ancestorSpaceIds.filter((id) => keptSpaceIds.has(id)).length,
+      directRoomIds,
+      subtreeRoomIds,
+    })
+  );
+
+  const placedInSubspace = new Set(subspaces.flatMap((group) => group.directRoomIds));
+  const rootRoomIds: string[] = [];
+  const placedRoot = new Set<string>();
+  const addRoot = (id: string) => {
+    if (!visibleSet.has(id) || placedInSubspace.has(id) || placedRoot.has(id)) return;
+    placedRoot.add(id);
+    rootRoomIds.push(id);
+  };
+  rootSection?.scopeRoomsByName.forEach(addRoot);
+  spaceRoomsByName.forEach(addRoot);
+
+  return { rootRoomIds, subspaces };
+};
+
 export type FilterAndSortSpaceThreadsOptions = {
   /** Entries already scoped to this Space's visible rooms. */
   entries: readonly CrossRoomThreadIndexEntry[];
@@ -140,6 +298,7 @@ export type SpaceThreadsResult = {
   scopedTotalCount: number;
   roomCounts: Map<string, number>;
   entryByKey: ReadonlyMap<string, CrossRoomThreadIndexEntry>;
+  scopedRecords: ReadonlyMap<string, ThreadRecord>;
   orderedKeys: string[];
   sections: CompactThreadSection[];
   nextQuietWakeTs?: number;
@@ -186,7 +345,10 @@ export const filterAndSortSpaceThreads = ({
   const statusCounts = computeThreadRecordStatusCounts(scopedKeys, keyedRecordMap, snoozeNow);
   const tagCounts = computeThreadRecordTagCounts(scopedKeys, keyedRecordMap);
 
-  const effective = projectThreadFilterState(filterState, simpleMode, hasMindroomAgents);
+  const effective: ThreadFilterState = {
+    ...projectThreadFilterState(filterState, simpleMode, hasMindroomAgents),
+    rooms: selectedRoomIds ? [...selectedRoomIds].sort() : undefined,
+  };
   const searchTokens = normalizeThreadSearchText(effective.freeText).split(' ').filter(Boolean);
   const searchMatchedKeys =
     searchTokens.length > 0
@@ -240,6 +402,7 @@ export const filterAndSortSpaceThreads = ({
     scopedTotalCount: scoped.length,
     roomCounts,
     entryByKey,
+    scopedRecords: keyedRecordMap,
     orderedKeys,
     sections: grouped?.sections ?? [],
     nextQuietWakeTs: grouped?.nextQuietWakeTs,

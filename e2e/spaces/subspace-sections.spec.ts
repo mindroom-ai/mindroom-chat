@@ -191,7 +191,20 @@ const sectionContainer = (page: Page, categoryId: string) =>
 const sectionRoomIds = (page: Page, categoryId: string) =>
   sectionContainer(page, categoryId)
     .locator('[data-room-id]')
-    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-room-id')));
+    .evaluateAll(
+      (nodes, ownerCategoryId) =>
+        nodes
+          .filter((node) => {
+            const ownerSection = node.closest('[data-depth]');
+            if (!ownerSection) return true;
+            const ownerButton = ownerSection.querySelector(
+              ':scope > [role="heading"] [data-category-id]'
+            );
+            return ownerButton?.getAttribute('data-category-id') === ownerCategoryId;
+          })
+          .map((node) => node.getAttribute('data-room-id')),
+      categoryId
+    );
 
 const dragToSection = async (
   page: Page,

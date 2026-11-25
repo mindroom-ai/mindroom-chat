@@ -124,7 +124,7 @@ const LAYERS = [
   ['approvals', 'bug-reports', 'calls', 'connections', 'editor'],
   ['members', 'messages'],
   ['canvas', 'composer', 'notifications', 'schedules', 'search', 'subagents'],
-  ['rooms', 'threads'],
+  ['rooms', 'threads', 'triggers'],
   ['account', 'activity', 'background-jobs', 'quick-capture', 'spaces', 'timeline'],
   ['desktop-access'],
   ['invites', 'local-mindroom', 'room'],

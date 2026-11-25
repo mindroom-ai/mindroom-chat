@@ -262,6 +262,13 @@
       "threadIn": "{{room}} 中的討論串",
       "messageElsewhere": "其他房間中的訊息"
     },
+    "callout": {
+      "note": "備註",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "小心"
+    },
     "deviceVerification": {
       "acceptStalled": "另一個工作階段沒有回應。請關閉此視窗並重新開始驗證。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "空間概覽"
+    },
+    "footnote": {
+      "backToReference": "返回引用處"
     }
   },
   "featureUi": {
@@ -469,7 +479,8 @@
         "inUse": "使用中的伺服器",
         "inUseNone": "未設定，因此此裝置上的電腦已關閉。",
         "useServer": "使用 {{host}}",
-        "foundNotSaved": "從您的代理找到，尚未儲存；儲存後即可在此輸入金鑰。"
+        "foundNotSaved": "從您的代理找到，尚未儲存；儲存後即可在此輸入金鑰。",
+        "foundNotSavedChoose": "從您的代理找到，尚未儲存。選擇您信任的伺服器；此裝置會在所有房間中使用它。"
       },
       "keywords": {
         "theme": "深色模式, 淺色模式, 夜間模式, 顏色",
@@ -1201,7 +1212,8 @@
         "triggerLabel": "觸發器 {{id}}",
         "sourceLabel": "來源 {{source}}",
         "triageLabel": "分流：{{reason}}",
-        "payloadLabel": "事件酬載 JSON"
+        "payloadLabel": "事件酬載 JSON",
+        "openTriggerLabel": "檢視觸發器 {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 項待辦就緒",
@@ -2148,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "釘選和加上標籤",
-        "text": "「釘選討論串」會讓討論串保持在清單頂端。「討論串選項」中的「編輯標籤」可為討論串加上標籤，之後可以依標籤篩選。"
+        "text": "點選卡片上的圖釘，或在「討論串選項」（⋯）中選擇「釘選討論串」，即可將討論串保持在頂端。「討論串選項」中的「編輯標籤」可為討論串加上標籤，之後可以依標籤篩選。"
       },
       "filters": {
         "title": "篩選器會隱藏已解決的討論串",
@@ -2298,6 +2310,45 @@
     "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
     "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
   },
+  "roomTriggers": {
+    "title": "觸發器",
+    "openLabel": "觸發器 ({{total}})",
+    "loading": "載入中…",
+    "empty": "此房間沒有觸發器。",
+    "emptyHint": "為此房間設定的觸發器會顯示在這裡。",
+    "loadError": "無法載入觸發器。",
+    "missingTrigger": "觸發器 {{id}} 已不在此房間中。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "房間監看",
+      "external_event": "事件訂閱",
+      "thread_tag": "討論串標籤",
+      "unknown": "觸發器"
+    },
+    "watchingRoom": "正在監看此房間",
+    "stateOn": "已開啟",
+    "stateOff": "已關閉",
+    "disabledExpired": "已過期",
+    "disabledOnceConsumed": "已執行一次",
+    "lastFired": "上次觸發 {{time}}",
+    "neverFired": "無觸發記錄",
+    "destinationRoom": "房間時間軸",
+    "destinationThread": "討論串",
+    "destinationNewThread": "新討論串",
+    "destinationOrigin": "原討論串",
+    "openThread": "開啟討論串",
+    "prompt": "提示詞",
+    "enable": "開啟",
+    "disable": "關閉",
+    "updating": "更新中...",
+    "toggleError": "無法更新觸發器，請重試。",
+    "delete": "刪除",
+    "deleteConfirm": "要刪除此觸發器嗎？",
+    "keep": "保留",
+    "deleteTrigger": "刪除觸發器",
+    "deleting": "刪除中...",
+    "deleteError": "無法刪除觸發器，請重試。"
+  },
   "home": {
     "greeting": {
       "morning": "早安，{{name}}",
@@ -2339,7 +2390,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}} 個房間",
-      "roomsFiltered": "{{active}}/{{total}} 個房間"
+      "roomsFiltered": "{{active}}/{{total}} 個房間",
+      "switchSpace": "切換空間"
     },
     "roomFilter": {
       "label": "房間",
@@ -2364,5 +2416,13 @@
     "error": {
       "title": "無法載入空間討論串"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "圖表",
+    "source": "原始碼",
+    "showDiagram": "顯示圖表",
+    "showSource": "顯示原始碼",
+    "mermaidDiagram": "Mermaid 圖表",
+    "diagramUnavailable": "正在顯示原始碼"
   }
 }

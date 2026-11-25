@@ -19,7 +19,7 @@ import { documentIsRightToLeft } from '../ui/directional';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { Modal500 } from '../ui/Modal500';
 import * as css from './TourDialog.css';
-import { prefersReducedMotion } from './tourMotion';
+import { hasTouchCardActions, prefersReducedMotion } from './tourMotion';
 import { sampleGraphemes } from './tourSample';
 import { START_TYPING_PHASE, sceneOf } from './tourScenes';
 import { TourStage } from './TourStage';
@@ -104,6 +104,7 @@ type TourDialogProps = {
 export function TourDialog({ level, initialStep, onLevelChange, onClose }: TourDialogProps) {
   const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const touchCards = hasTouchCardActions(phone);
   const steps = stepsOf(level);
   const [position, setPosition] = useState(() => stepIndexOf(level, initialStep));
   const index = Math.min(position, steps.length - 1);
@@ -118,8 +119,8 @@ export function TourDialog({ level, initialStep, onLevelChange, onClose }: TourD
     step.id === 'start' && phase === START_TYPING_PHASE
   );
   const scene = useMemo(
-    () => sceneOf(step.id, phase, phone, typedLength),
-    [step.id, phase, phone, typedLength]
+    () => sceneOf(step.id, phase, phone, typedLength, touchCards),
+    [step.id, phase, phone, typedLength, touchCards]
   );
 
   // A live region says only what changes in it, so it is silent about the step the tour opens

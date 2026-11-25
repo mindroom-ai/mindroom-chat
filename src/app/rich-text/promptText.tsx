@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import * as css from './roomSchedules.css';
+import * as css from './promptText.css';
 
 const FENCE_OPEN = /^[ \t]*`{3,}[^`\n]*\r?\n?$/;
 const FENCE_CLOSE = /^[ \t]*`{3,}[ \t]*\r?\n?$/;
@@ -26,7 +26,7 @@ const splitFences = (prompt: string): [boolean, string][] => {
 };
 
 /** Formats single-line backtick spans and `@handle` mentions, leaving fences and multi-backtick runs verbatim. */
-export const renderSchedulePrompt = (prompt: string): ReactNode => {
+export const renderPromptText = (prompt: string): ReactNode => {
   if (!prompt) return prompt;
   const nodes: ReactNode[] = [];
   splitFences(prompt).forEach(([fence, text], seg) => {

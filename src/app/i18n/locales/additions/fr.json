@@ -278,6 +278,13 @@
       "threadIn": "Fil dans {{room}}",
       "messageElsewhere": "Message dans une autre salle"
     },
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "Important",
+      "warning": "Avertissement",
+      "caution": "Attention"
+    },
     "deviceVerification": {
       "acceptStalled": "L'autre session n'a pas répondu. Fermez ceci et relancez la vérification."
     },
@@ -386,6 +393,9 @@
     },
     "space": {
       "overview": "Vue d'ensemble de l'espace"
+    },
+    "footnote": {
+      "backToReference": "Retour à la référence"
     }
   },
   "featureUi": {
@@ -495,7 +505,8 @@
         "inUse": "Serveur utilisé",
         "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
         "useServer": "Utiliser {{host}}",
-        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici."
+        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici.",
+        "foundNotSavedChoose": "Trouvés via vos agents, non enregistrés. Choisissez le serveur auquel vous faites confiance ; cet appareil l'utilise pour toutes les salles."
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
@@ -1239,7 +1250,8 @@
         "triggerLabel": "Déclencheur {{id}}",
         "sourceLabel": "Source {{source}}",
         "triageLabel": "Triage : {{reason}}",
-        "payloadLabel": "Charge utile de l’événement JSON"
+        "payloadLabel": "Charge utile de l’événement JSON",
+        "openTriggerLabel": "Afficher le déclencheur {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_one": "{{count}} tâche prête",
@@ -2286,7 +2298,7 @@
       },
       "pinAndTag": {
         "title": "Épingler et étiqueter",
-        "text": "Épingler le fil garde un fil en haut de la liste. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
+        "text": "Appuyez sur l’épingle d’une carte, ou sur Épingler le fil dans Options du fil (⋯), pour garder un fil en haut. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
       },
       "filters": {
         "title": "Les filtres masquent les fils résolus",
@@ -2454,6 +2466,45 @@
     "editDraftBusy": "Effacez votre brouillon actuel avant de modifier cette tâche planifiée.",
     "copyFailed": "Impossible de copier. Sélectionnez l'ID de la tâche dans Détails."
   },
+  "roomTriggers": {
+    "title": "Déclencheurs",
+    "openLabel": "Déclencheurs ({{total}})",
+    "loading": "Chargement…",
+    "empty": "Aucun déclencheur dans ce salon.",
+    "emptyHint": "Les déclencheurs configurés pour ce salon apparaissent ici.",
+    "loadError": "Impossible de charger les déclencheurs.",
+    "missingTrigger": "Le déclencheur {{id}} ne se trouve plus dans ce salon.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Veille du salon",
+      "external_event": "Abonnement d’événement",
+      "thread_tag": "Étiquette de fil",
+      "unknown": "Déclencheur"
+    },
+    "watchingRoom": "Surveille ce salon",
+    "stateOn": "Activé",
+    "stateOff": "Désactivé",
+    "disabledExpired": "Expiré",
+    "disabledOnceConsumed": "Utilisé une fois",
+    "lastFired": "Dernier déclenchement {{time}}",
+    "neverFired": "Aucun déclenchement enregistré",
+    "destinationRoom": "Fil du salon",
+    "destinationThread": "Fil",
+    "destinationNewThread": "Nouveau fil",
+    "destinationOrigin": "Fil d’origine",
+    "openThread": "Ouvrir le fil",
+    "prompt": "Prompt",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "updating": "Mise à jour...",
+    "toggleError": "Impossible de mettre à jour le déclencheur. Réessayez.",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer ce déclencheur ?",
+    "keep": "Conserver",
+    "deleteTrigger": "Supprimer le déclencheur",
+    "deleting": "Suppression...",
+    "deleteError": "Impossible de supprimer le déclencheur. Réessayez."
+  },
   "home": {
     "greeting": {
       "morning": "Bonjour, {{name}}",
@@ -2497,7 +2548,8 @@
       "roomsCount_one": "{{count}} salon",
       "roomsCount_many": "{{count}} salons",
       "roomsCount_other": "{{count}} salons",
-      "roomsFiltered": "{{active}} sur {{total}} salons"
+      "roomsFiltered": "{{active}} sur {{total}} salons",
+      "switchSpace": "Changer d'espace"
     },
     "roomFilter": {
       "label": "Salons",
@@ -2522,5 +2574,13 @@
     "error": {
       "title": "Impossible de charger les fils de l’espace"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramme",
+    "source": "Source",
+    "showDiagram": "Afficher le diagramme",
+    "showSource": "Afficher la source",
+    "mermaidDiagram": "Diagramme Mermaid",
+    "diagramUnavailable": "Affichage de la source"
   }
 }

@@ -178,6 +178,13 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
   MathBlock: 'MathBlock',
 }));
 
+vi.mock('../../rich-text/Footnote.css', () => ({}));
+vi.mock('../../rich-text/Callout.css', () => ({
+  Callout: ({ tone }: { tone?: string } = {}) => `Callout-${tone ?? ''}`,
+  Header: ({ tone }: { tone?: string } = {}) => `CalloutHeader-${tone ?? ''}`,
+  Icon: 'CalloutIcon',
+  Body: 'CalloutBody',
+}));
 vi.mock('../../rich-text/ScrollableTable.css', () => ({
   Container: 'TableContainer',
   ScrollArea: 'TableScrollArea',

@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react';
+import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text, type IconSrc } from 'folds';
@@ -24,6 +25,8 @@ import {
   type SecretRequest,
   type SecretRequestStatus,
 } from '../matrix/protocol/secretRequest';
+import { settingsModalAtom } from '../navigation/settingsModal';
+import { SettingsPages } from '../navigation/settingsPages';
 import { clientSessions, MindroomServerError } from '../computer/clientSessions';
 import { useAgentMindroomServer } from '../computer/useAgentMindroomServer';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
@@ -118,6 +121,7 @@ function SecretRequestAnswer({
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const mx = useMatrixClient();
+  const openSettings = useSetAtom(settingsModalAtom);
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
   const temporary = request.kind === 'temporary' ? request : undefined;
   // A new service this client cannot show is never saved here, but the person can still decline.
@@ -167,6 +171,23 @@ function SecretRequestAnswer({
             page: t('featureUi.settings.menu.pages.agentsServers'),
           })}
         </Text>
+        <div className={sectionCss.Actions}>
+          <Button
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            radii="300"
+            onClick={() =>
+              openSettings({
+                initialPage: SettingsPages.MindroomPage,
+                initialSetting: 'computerServerInUse',
+              })
+            }
+          >
+            <Text size="B300">{t('commandPalette.actions.openSettings')}</Text>
+          </Button>
+        </div>
       </>
     );
   }

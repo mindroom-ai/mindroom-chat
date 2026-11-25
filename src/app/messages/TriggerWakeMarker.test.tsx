@@ -6,8 +6,10 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ar from '../i18n/locales/additions/ar.json';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { RoomProvider } from '../matrix/hooks/useRoom';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { getHomeRoomPath } from '../routes/pathUtils';
 import { TriggerWakeMarker } from './TriggerWakeMarker';
 
@@ -37,6 +39,7 @@ vi.mock('./TriggerWakeMarker.css', () => ({
   Panel: 'Panel',
   PanelHeader: 'PanelHeader',
   Meta: 'Meta',
+  MetaLink: 'MetaLink',
   CopyButton: 'CopyButton',
   Prompt: 'Prompt',
   InlineCode: 'InlineCode',
@@ -272,7 +275,7 @@ describe('TriggerWakeMarker', () => {
       </JotaiProvider>
     );
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
 
     const mdPermalink = screen.getByRole('link', { name: 'thread' });
     expect(mdPermalink.getAttribute('data-mention-id')).toBe(ROOM_ID);
@@ -303,5 +306,56 @@ describe('TriggerWakeMarker', () => {
 
     const payload = screen.getByRole('region', { name: 'Event payload JSON' });
     expect(payload.querySelector('a')).toBeNull();
+  });
+
+  it('links to its trigger row from the expanded panel when rendered inside the matching RoomProvider', () => {
+    const store = createStore();
+    render(
+      <JotaiProvider store={store}>
+        <RoomProvider value={{ roomId: '!ops:example.org' } as Room}>
+          <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+        </RoomProvider>
+      </JotaiProvider>
+    );
+
+    // Collapsed pill stays unchanged.
+    const expandButton = screen.getByRole('button', { expanded: false });
+    expect(expandButton.textContent).toBe('Triggeredpr.opened · tr_demo_watch');
+    expect(screen.queryByRole('button', { name: 'View trigger tr_demo_watch' })).toBeNull();
+
+    fireEvent.click(expandButton);
+    const linkButton = screen.getByRole('button', { name: 'View trigger tr_demo_watch' });
+    expect(linkButton.getAttribute('aria-haspopup')).toBe('dialog');
+    fireEvent.click(linkButton);
+
+    expect(store.get(roomTriggersDialogAtom)).toEqual({
+      roomId: '!ops:example.org',
+      triggerId: 'tr_demo_watch',
+      opener: linkButton,
+    });
+  });
+
+  it('keeps the trigger ID as plain text outside a matching RoomProvider', () => {
+    // Search previews have no RoomProvider.
+    const { rerender } = render(
+      <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+    );
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.queryByRole('button', { name: /View trigger/ })).toBeNull();
+    expect(document.querySelector('[data-trigger-wake-details]')?.textContent).toContain(
+      'Trigger tr_demo_watch'
+    );
+
+    // Cross-room fork prefix rows sit inside another room's RoomProvider.
+    rerender(
+      <RoomProvider value={{ roomId: '!fork:example.org' } as Room}>
+        <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+      </RoomProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.queryByRole('button', { name: /View trigger/ })).toBeNull();
+    expect(document.querySelector('[data-trigger-wake-details]')?.textContent).toContain(
+      'Trigger tr_demo_watch'
+    );
   });
 });

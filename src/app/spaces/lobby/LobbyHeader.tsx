@@ -69,17 +69,38 @@ export const useSpaceAvatarSrc = (space: Room): string | undefined => {
   return mxcUrlToHttp(client, avatarMxc, authenticated, 96, 96, 'crop') ?? undefined;
 };
 
-type SpaceAvatarProps = { roomId: string; name: string; src?: string; large?: boolean };
+type SpaceAvatarProps = {
+  roomId: string;
+  name: string;
+  src?: string;
+  large?: boolean;
+  /** Compact 24 px tile for dropdown/menu rows (`size="200"`). */
+  compact?: boolean;
+  /** Defaults to `name`; pass `""` when the avatar sits beside the space's visible name. */
+  alt?: string;
+};
 
-/** The space's picture (in the header, or large atop the lobby), or its initials without one. */
-export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarProps) {
+/** The space's picture (in the header, a menu row, or large atop the lobby), or its initials without one. */
+export function SpaceAvatar({
+  roomId,
+  name,
+  src,
+  large = false,
+  compact = false,
+  alt = name,
+}: SpaceAvatarProps) {
+  const size = large ? '500' : compact ? '200' : '300';
   return (
-    <Avatar size={large ? '500' : '300'} radii={large ? '500' : '300'}>
+    <Avatar size={size} radii={large ? '500' : '300'}>
       <RoomAvatar
         roomId={roomId}
         src={src}
-        alt={name}
-        renderFallback={() => <Text size={large ? 'H2' : 'H6'}>{nameInitials(name)}</Text>}
+        alt={alt}
+        renderFallback={() => (
+          <Text as={compact ? 'span' : undefined} size={large ? 'H2' : 'H6'}>
+            {nameInitials(name)}
+          </Text>
+        )}
       />
     </Avatar>
   );

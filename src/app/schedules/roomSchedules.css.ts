@@ -1,6 +1,5 @@
 import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
 const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}`;
@@ -9,7 +8,12 @@ const surfaceMix = (pct: number) =>
 const subtleBorder = surfaceMix(10);
 const activePillBorder = `color-mix(in srgb, ${color.Primary.OnContainer} 35%, transparent)`;
 const monoFont = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-const tones = { primary: color.Primary, success: color.Success, warning: color.Warning } as const;
+const tones = {
+  primary: color.Primary,
+  success: color.Success,
+  warning: color.Warning,
+  neutral: color.SurfaceVariant,
+} as const;
 const toneSurface = (tone: { Container: string; OnContainer: string; ContainerLine: string }) => ({
   backgroundColor: tone.Container,
   color: tone.OnContainer,
@@ -57,78 +61,6 @@ const panelBoxBase = {
 const compactTouchBase = minBox(38, 33);
 // 36-38 px padding box + 2 * 4 px = 44-46 px wide; 30-33 px + 2 * 7 px = 44-47 px tall (zero overlap).
 const compactTouch = touchTarget('4px', '', { blockReach: '7px' });
-
-// The room header's schedules button; the count sits on its corner. 40 px with 4 px to the next
-// button, so 44 by 44 px to a finger.
-export const Trigger = style([{ position: 'relative' }, touchTarget('2px')]);
-
-export const Count = style({
-  position: 'absolute',
-  insetBlockStart: toRem(2),
-  insetInlineEnd: toRem(2),
-  minWidth: toRem(14),
-  height: toRem(14),
-  paddingBlock: 0,
-  paddingInline: toRem(3),
-  borderRadius: config.radii.Pill,
-  backgroundColor: color.Secondary.Main,
-  color: color.Secondary.OnMain,
-  fontSize: toRem(9),
-  fontWeight: config.fontWeight.W600,
-  lineHeight: toRem(14),
-  textAlign: 'center',
-  pointerEvents: 'none',
-});
-
-/** The horizontal center of the room view, in viewport pixels; RoomSchedulesOverlay sets it. */
-export const ROOM_VIEW_CENTER = '--mr-room-view-center';
-
-// Dense text: the glass is tinted nearly opaque so the room behind does not show through.
-export const Dialog = style([
-  glassDenseOverBackdrop,
-  {
-    width: `min(${toRem(540)}, 100vw)`,
-    maxWidth: '100vw',
-    maxHeight: `min(${toRem(700)}, 85vh, 100dvh)`,
-    overflow: 'hidden',
-    // Over the room view rather than the whole window, but never past the window's edges.
-    translate: `clamp((100% - 100vw) / 2, var(${ROOM_VIEW_CENTER}, 50vw) - 50vw, (100vw - 100%) / 2) 0`,
-  },
-]);
-
-export const Header = style({
-  gap: config.space.S200,
-  paddingInline: config.space.S400,
-  borderBlockEnd: solid(config.borderWidth.B300, color.Surface.ContainerLine),
-});
-
-export const HeaderCount = style({
-  ...inlineCenter,
-  minWidth: toRem(22),
-  height: toRem(20),
-  paddingInline: toRem(7),
-  borderRadius: config.radii.Pill,
-  backgroundColor: surfaceMix(8),
-  color: color.Surface.OnContainer,
-  fontSize: config.fontSize.T200,
-  fontWeight: config.fontWeight.W600,
-  lineHeight: 1,
-  flexShrink: 0,
-});
-
-export const Content = style({
-  paddingBlock: config.space.S300,
-  paddingInline: config.space.S400,
-  minWidth: 0,
-  '@media': { '(max-width: 380px)': { paddingInline: config.space.S300 } },
-});
-
-export const Empty = style({
-  paddingBlock: config.space.S500,
-  paddingInline: config.space.S300,
-  alignItems: 'center',
-  textAlign: 'center',
-});
 
 export const FilterBar = style(actionRowBase);
 
@@ -303,25 +235,6 @@ export const PromptClamped = style({
   WebkitLineClamp: 3,
   WebkitBoxOrient: 'vertical',
   overflow: 'hidden',
-});
-export const InlineCode = style([
-  Wrap,
-  {
-    fontFamily: monoFont,
-    fontSize: '0.9em',
-    paddingBlock: toRem(1),
-    paddingInline: toRem(4),
-    borderRadius: config.radii.R300,
-    backgroundColor: surfaceMix(8),
-    color: color.Surface.OnContainer,
-  },
-]);
-export const PromptMention = style({
-  color: color.Primary.OnContainer,
-  backgroundColor: color.Primary.Container,
-  borderRadius: config.radii.R300,
-  paddingInline: toRem(3),
-  fontWeight: config.fontWeight.W500,
 });
 export const PromptToggle = style([
   {

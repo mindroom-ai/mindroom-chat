@@ -262,6 +262,13 @@
       "threadIn": "Utas di {{room}}",
       "messageElsewhere": "Pesan di ruang lain"
     },
+    "callout": {
+      "note": "Catatan",
+      "tip": "Tips",
+      "important": "Penting",
+      "warning": "Peringatan",
+      "caution": "Perhatian"
+    },
     "deviceVerification": {
       "acceptStalled": "Sesi lain tidak menjawab. Tutup ini dan mulai verifikasi lagi."
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "Ikhtisar space"
+    },
+    "footnote": {
+      "backToReference": "Kembali ke referensi"
     }
   },
   "featureUi": {
@@ -469,7 +479,8 @@
         "inUse": "Server yang digunakan",
         "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini.",
         "useServer": "Gunakan {{host}}",
-        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini."
+        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini.",
+        "foundNotSavedChoose": "Ditemukan dari agen Anda, belum disimpan. Pilih server yang Anda percaya; perangkat ini menggunakannya untuk semua ruang."
       },
       "keywords": {
         "theme": "mode gelap, mode terang, mode malam, warna",
@@ -1201,7 +1212,8 @@
         "triggerLabel": "Pemicu {{id}}",
         "sourceLabel": "Sumber {{source}}",
         "triageLabel": "Triase: {{reason}}",
-        "payloadLabel": "Payload acara JSON"
+        "payloadLabel": "Payload acara JSON",
+        "openTriggerLabel": "Lihat pemicu {{id}}"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} tugas siap",
@@ -2148,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "Sematkan dan beri tag",
-        "text": "Sematkan utas menjaga utas tetap di bagian atas daftar. Edit tag di Opsi utas memberi tag pada utas, dan Anda bisa memfilter menurut tag."
+        "text": "Tekan pin pada kartu, atau Sematkan utas di Opsi utas (⋯), untuk menjaga utas tetap di atas. Edit tag di Opsi utas memberi tag pada utas, dan Anda bisa memfilter menurut tag."
       },
       "filters": {
         "title": "Filter menyembunyikan utas yang sudah selesai",
@@ -2298,6 +2310,45 @@
     "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
     "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
   },
+  "roomTriggers": {
+    "title": "Pemicu",
+    "openLabel": "Pemicu ({{total}})",
+    "loading": "Memuat…",
+    "empty": "Tidak ada pemicu di ruang ini.",
+    "emptyHint": "Pemicu yang diatur untuk ruang ini akan muncul di sini.",
+    "loadError": "Tidak dapat memuat pemicu.",
+    "missingTrigger": "Pemicu {{id}} tidak lagi ada di ruang ini.",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "Pantauan ruang",
+      "external_event": "Langganan peristiwa",
+      "thread_tag": "Tag utas",
+      "unknown": "Pemicu"
+    },
+    "watchingRoom": "Memantau ruang ini",
+    "stateOn": "Aktif",
+    "stateOff": "Nonaktif",
+    "disabledExpired": "Kedaluwarsa",
+    "disabledOnceConsumed": "Sekali pakai",
+    "lastFired": "Terakhir dipicu {{time}}",
+    "neverFired": "Belum ada pemicuan tercatat",
+    "destinationRoom": "Linimasa ruang",
+    "destinationThread": "Utas",
+    "destinationNewThread": "Utas baru",
+    "destinationOrigin": "Utas asal",
+    "openThread": "Buka utas",
+    "prompt": "Prompt",
+    "enable": "Aktifkan",
+    "disable": "Nonaktifkan",
+    "updating": "Memperbarui...",
+    "toggleError": "Tidak dapat memperbarui pemicu. Coba lagi.",
+    "delete": "Hapus",
+    "deleteConfirm": "Hapus pemicu ini?",
+    "keep": "Pertahankan",
+    "deleteTrigger": "Hapus pemicu",
+    "deleting": "Menghapus...",
+    "deleteError": "Tidak dapat menghapus pemicu. Coba lagi."
+  },
   "home": {
     "greeting": {
       "morning": "Selamat pagi, {{name}}",
@@ -2339,7 +2390,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}} ruang",
-      "roomsFiltered": "{{active}} dari {{total}} ruang"
+      "roomsFiltered": "{{active}} dari {{total}} ruang",
+      "switchSpace": "Ganti space"
     },
     "roomFilter": {
       "label": "Ruang",
@@ -2364,5 +2416,13 @@
     "error": {
       "title": "Tidak dapat memuat utas space"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Sumber",
+    "showDiagram": "Tampilkan diagram",
+    "showSource": "Tampilkan sumber",
+    "mermaidDiagram": "Diagram Mermaid",
+    "diagramUnavailable": "Menampilkan sumber"
   }
 }

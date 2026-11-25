@@ -262,6 +262,13 @@
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
     },
+    "callout": {
+      "note": "メモ",
+      "tip": "ヒント",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    },
     "deviceVerification": {
       "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     },
@@ -362,6 +369,9 @@
     },
     "space": {
       "overview": "スペースの概要"
+    },
+    "footnote": {
+      "backToReference": "参照元に戻る"
     }
   },
   "featureUi": {
@@ -469,7 +479,8 @@
         "inUse": "使用中のサーバー",
         "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。",
         "useServer": "{{host}} を使用",
-        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。"
+        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。",
+        "foundNotSavedChoose": "エージェントから見つかりましたが、保存されていません。信頼するサーバーを選んでください。このデバイスではすべてのルームでそのサーバーを使用します。"
       },
       "keywords": {
         "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
@@ -1201,7 +1212,8 @@
         "triggerLabel": "トリガー {{id}}",
         "sourceLabel": "ソース {{source}}",
         "triageLabel": "トリアージ：{{reason}}",
-        "payloadLabel": "イベントペイロード JSON"
+        "payloadLabel": "イベントペイロード JSON",
+        "openTriggerLabel": "トリガー {{id}} を表示"
       },
       "todoPokeMarker": {
         "readyCount_other": "{{count}} 件のタスクが準備完了",
@@ -2148,7 +2160,7 @@
       },
       "pinAndTag": {
         "title": "ピン留めとタグ",
-        "text": "「スレッドをピン留め」を使うと、スレッドがリストの一番上に固定されます。「スレッドのオプション」の「タグを編集」でスレッドにタグを付けると、タグで絞り込めます。"
+        "text": "カードのピンを押すか、「スレッドのオプション」(⋯) で「スレッドをピン留め」を選ぶと、スレッドを一番上に固定できます。「スレッドのオプション」の「タグを編集」でスレッドにタグを付けると、タグで絞り込めます。"
       },
       "filters": {
         "title": "フィルターは解決済みのスレッドを隠す",
@@ -2298,6 +2310,45 @@
     "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
     "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
   },
+  "roomTriggers": {
+    "title": "トリガー",
+    "openLabel": "トリガー ({{total}})",
+    "loading": "読み込み中…",
+    "empty": "このルームにトリガーはありません。",
+    "emptyHint": "このルームに設定されたトリガーがここに表示されます。",
+    "loadError": "トリガーを読み込めませんでした。",
+    "missingTrigger": "トリガー {{id}} はこのルームにもうありません。",
+    "kind": {
+      "webhook": "Webhook",
+      "room_message": "ルーム監視",
+      "external_event": "イベント購読",
+      "thread_tag": "スレッドタグ",
+      "unknown": "トリガー"
+    },
+    "watchingRoom": "このルームを監視中",
+    "stateOn": "オン",
+    "stateOff": "オフ",
+    "disabledExpired": "期限切れ",
+    "disabledOnceConsumed": "1回実行済み",
+    "lastFired": "最終発火 {{time}}",
+    "neverFired": "発火履歴なし",
+    "destinationRoom": "ルームタイムライン",
+    "destinationThread": "スレッド",
+    "destinationNewThread": "新しいスレッド",
+    "destinationOrigin": "元のスレッド",
+    "openThread": "スレッドを開く",
+    "prompt": "プロンプト",
+    "enable": "有効にする",
+    "disable": "無効にする",
+    "updating": "更新中...",
+    "toggleError": "トリガーを更新できませんでした。もう一度お試しください。",
+    "delete": "削除",
+    "deleteConfirm": "このトリガーを削除しますか？",
+    "keep": "残す",
+    "deleteTrigger": "トリガーを削除",
+    "deleting": "削除中...",
+    "deleteError": "トリガーを削除できませんでした。もう一度お試しください。"
+  },
   "home": {
     "greeting": {
       "morning": "おはようございます、{{name}}さん",
@@ -2339,7 +2390,8 @@
   "spaceThreads": {
     "header": {
       "roomsCount_other": "{{count}}件のルーム",
-      "roomsFiltered": "{{total}}件中{{active}}件のルーム"
+      "roomsFiltered": "{{total}}件中{{active}}件のルーム",
+      "switchSpace": "スペースを切り替え"
     },
     "roomFilter": {
       "label": "ルーム",
@@ -2364,5 +2416,13 @@
     "error": {
       "title": "スペースのスレッドを読み込めませんでした"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "図",
+    "source": "ソース",
+    "showDiagram": "図を表示",
+    "showSource": "ソースを表示",
+    "mermaidDiagram": "Mermaid 図",
+    "diagramUnavailable": "ソースを表示中"
   }
 }
