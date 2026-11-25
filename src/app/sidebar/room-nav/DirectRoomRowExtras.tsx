@@ -18,7 +18,7 @@ import { isRoomInSelfMDirect, useMDirectContent } from '../../matrix/state/mDire
 import { IconTooltip } from '../../ui/IconTooltip';
 import * as css from './RoomNavItem.css';
 
-const EMPTY_DRAFT_VALUE_ATOM = atom<readonly unknown[] | undefined>(undefined);
+const EMPTY_DRAFT_VALUE_ATOM = atom<readonly unknown[] | undefined>(() => undefined);
 
 /** Subtle trailing row mark icon wrapped in an `IconTooltip`. */
 export function RowMarkIcon({
