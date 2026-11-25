@@ -112,12 +112,26 @@ const transformOutsideFencedCode = (text: string, transform: (prose: string) => 
 };
 
 // Comments, declarations, processing instructions and disallowed tags would open raw HTML blocks.
-const escapeHtmlBlockOpeners = (text: string, allowHtmlComments = false): string =>
-  splitLinesKeepingEnds(text)
+const escapeHtmlBlockOpeners = (text: string, allowHtmlComments = false): string => {
+  let inHtmlComment = false;
+  return splitLinesKeepingEnds(text)
     .map((line) => {
+      if (inHtmlComment) {
+        if (line.includes('-->')) inHtmlComment = false;
+        return line;
+      }
       const stripped = stripLeadingSpaces(line);
       if (line.length - stripped.length > 3) return line;
-      if (allowHtmlComments && stripped.startsWith('<!--')) return line;
+      if (allowHtmlComments && stripped.startsWith('<!--')) {
+        if (
+          !stripped.startsWith('<!-->') &&
+          !stripped.startsWith('<!--->') &&
+          !stripped.includes('-->', 4)
+        ) {
+          inHtmlComment = true;
+        }
+        return line;
+      }
       if (stripped.startsWith('<!') || stripped.startsWith('<?')) {
         return line.slice(0, line.length - stripped.length) + escapeLikePython(stripped);
       }
@@ -128,6 +142,7 @@ const escapeHtmlBlockOpeners = (text: string, allowHtmlComments = false): string
       return line;
     })
     .join('');
+};
 
 // CommonMark ends block HTML only at a blank line, so Markdown after a complete block tag line needs one.
 const separateSupportedBlockHtml = (text: string): string => {

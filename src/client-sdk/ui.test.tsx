@@ -286,6 +286,30 @@ describe('useMarkdownHtml', () => {
       '<!-- indented -->',
     ]);
   });
+
+  it('strips multiline HTML comments whose inner or closing lines start with disallowed tags', async () => {
+    const pictureMd = ['<!-- <picture>', '</picture> -->', '', '## Setup'].join('\n');
+    const { result: pictureResult } = renderHook(() =>
+      useMarkdownHtml(pictureMd, { stripHtmlComments: true })
+    );
+    await waitFor(() => expect(pictureResult.current).toBeDefined());
+    const pictureHtml = pictureResult.current ?? '';
+    expect(pictureHtml).not.toContain('<!--');
+    expect(pictureHtml).not.toContain('picture');
+    expect(pictureHtml.trim()).toBe('<h2>Setup</h2>');
+
+    const scriptMd = ['<!-- note', '<script>x</script>', '-->', '', '## After'].join('\n');
+    const { result: scriptResult } = renderHook(() =>
+      useMarkdownHtml(scriptMd, { stripHtmlComments: true })
+    );
+    await waitFor(() => expect(scriptResult.current).toBeDefined());
+    const scriptHtml = scriptResult.current ?? '';
+    const scriptShown = elementsOf(scriptHtml);
+    expect(scriptHtml).not.toContain('<!--');
+    expect(scriptHtml).not.toContain('<script');
+    expect(scriptShown.querySelector('script')).toBeNull();
+    expect(scriptHtml.trim()).toBe('<h2>After</h2>');
+  });
 });
 
 describe('MarkdownContent', () => {

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import parity from './__fixtures__/live-markdown-parity-v1.json';
 import { loadLiveMarkdown, renderLiveMarkdown } from './liveMarkdown';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { cpuNow } from '../../../test/utils/cpuNow';
 
 describe('live reply Markdown', () => {
@@ -185,6 +186,33 @@ describe('live reply Markdown', () => {
     );
     expect(renderLiveMarkdown('<?php echo 1; ?>', { allowHtmlComments: true })).toBe(
       '<p>&lt;?php echo 1; ?&gt;</p>\n'
+    );
+  });
+
+  it('keeps multiline HTML comments intact when inner or closing lines start with disallowed tags', () => {
+    const pictureComment = renderLiveMarkdown('<!-- <picture>\n</picture> -->\n\n## Setup', {
+      allowHtmlComments: true,
+    });
+    expect(pictureComment).toBe('<!-- <picture>\n</picture> -->\n<h2>Setup</h2>\n');
+    expect(sanitizeCustomHtml(pictureComment ?? '').trim()).toBe('<h2>Setup</h2>');
+
+    const scriptComment = renderLiveMarkdown('<!-- note\n<script>x</script>\n-->\n\n## After', {
+      allowHtmlComments: true,
+    });
+    expect(scriptComment).toBe('<!-- note\n<script>x</script>\n-->\n<h2>After</h2>\n');
+    expect(sanitizeCustomHtml(scriptComment ?? '').trim()).toBe('<h2>After</h2>');
+
+    expect(
+      renderLiveMarkdown('<!-- <picture>\n</picture> -->\n<picture>after</picture>', {
+        allowHtmlComments: true,
+      })
+    ).toBe('<!-- <picture>\n</picture> -->\n<p>&lt;picture&gt;after&lt;/picture&gt;</p>\n');
+
+    expect(renderLiveMarkdown('<!-->\n<picture>', { allowHtmlComments: true })).toBe(
+      '<!-->\n<p>&lt;picture&gt;</p>\n'
+    );
+    expect(renderLiveMarkdown('<!--->\n<picture>', { allowHtmlComments: true })).toBe(
+      '<!--->\n<p>&lt;picture&gt;</p>\n'
     );
   });
 
