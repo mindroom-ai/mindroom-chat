@@ -15,7 +15,6 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { Modal500 } from '../ui/Modal500';
-import { Dialog } from '../ui/glass/GlassPrimitives';
 import { BrowserPairSection } from './BrowserPairSection';
 import { ChooseLimitsForm, type ChooseLimitsResult } from './ChooseLimitsForm';
 import {
@@ -31,6 +30,7 @@ import {
   findPairedController,
   getRoomMindroomAgents,
   isControllerFullAccess,
+  resolveMemberDisplayName,
   useDesktopT,
   type DesktopT,
   type RoomMindroomAgent,
@@ -45,6 +45,7 @@ export type DesktopAccessModalProps = {
   agents: RoomMindroomAgent[];
   runUia: UiaRunner;
   onClose: () => void;
+  onLimitsOpenChange?: (open: boolean) => void;
 };
 
 const stepLabel = (dt: DesktopT, step: DesktopPairingStep, agentName: string): string => {
@@ -67,7 +68,13 @@ const stepLabel = (dt: DesktopT, step: DesktopPairingStep, agentName: string): s
 };
 
 /** 2-click Mac Computer Access consent sheet, multi-agent picker, limits editor, and browser relay. */
-export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAccessModalProps) {
+export function DesktopAccessModal({
+  mx,
+  agents,
+  runUia,
+  onClose,
+  onLimitsOpenChange,
+}: DesktopAccessModalProps) {
   const dt = useDesktopT();
   const desktopAvailable = isDesktopAccessAvailable();
   const { snapshot: liveSnapshot } = useDesktopAccessSnapshot({
@@ -88,6 +95,10 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
   useEffect(() => {
     setSnapshotOverride(null);
   }, [liveSnapshot]);
+
+  useEffect(() => {
+    onLimitsOpenChange?.(showLimits);
+  }, [onLimitsOpenChange, showLimits]);
 
   useEffect(
     () => () => {
@@ -193,24 +204,24 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
         ? dt('featureUi.desktopAccess.title.pickAgent', 'Give an agent access to this Mac')
         : !desktopAvailable
           ? dt('featureUi.desktopAccess.title.browserPair', 'Give {{agent}} access to your Mac', {
-              agent: selectedAgent.agentName,
+              agent: selectedAgent.displayName,
             })
           : showLimits
             ? pairedController
               ? dt('featureUi.desktopAccess.title.editLimits', 'Edit limits for {{agent}}', {
-                  agent: selectedAgent.agentName,
+                  agent: selectedAgent.displayName,
                 })
               : dt('featureUi.desktopAccess.title.chooseLimits', 'Choose limits for {{agent}}', {
-                  agent: selectedAgent.agentName,
+                  agent: selectedAgent.displayName,
                 })
             : pairedController
               ? dt('featureUi.desktopAccess.title.manageAgent', '{{agent}} on this Mac', {
-                  agent: selectedAgent.agentName,
+                  agent: selectedAgent.displayName,
                 })
               : dt(
                   'featureUi.desktopAccess.title.allowFull',
                   'Allow {{agent}} full access to this Mac?',
-                  { agent: selectedAgent.agentName }
+                  { agent: selectedAgent.displayName }
                 );
 
   const renderContent = () => {
@@ -275,7 +286,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
                       )}
                       <Box direction="Column" style={{ minWidth: 0 }}>
                         <Text size="T300" style={{ fontWeight: 600 }} truncate>
-                          {agent.agentName}
+                          {agent.displayName}
                         </Text>
                         <Text size="T200" priority="300" truncate>
                           {agent.userId}
@@ -371,7 +382,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
             </Text>
           )}
           <ChooseLimitsForm
-            agentName={selectedAgent.agentName}
+            agentName={selectedAgent.displayName}
             snapshot={snapshot}
             controllerKey={pairedController?.controller_key}
             busy={busy}
@@ -391,27 +402,19 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
     }
 
     if (pairedController && snapshot) {
-      const pillTone = isFullAccess && guiReady ? 'active' : !guiReady ? 'waiting' : 'neutral';
       return (
         <>
           <div className={css.ModalBody}>
-            <Box alignItems="Center" gap="200" wrap="Wrap">
-              <span className={classNames(css.StatusPill, css.StatusPillTone[pillTone])}>
-                <span className={classNames(css.StatusDot, css.StatusDotTone[pillTone])} />
-                <Text as="span" size="T200">
-                  {isFullAccess && guiReady
-                    ? dt('featureUi.desktopAccess.status.fullAccessActive', 'Full Access active')
-                    : !isFullAccess
-                      ? dt('featureUi.desktopAccess.status.restricted', 'Restricted')
-                      : shellReady
-                        ? dt('featureUi.desktopAccess.status.shellReady', 'Shell ready')
-                        : dt(
-                            'featureUi.desktopAccess.status.permissionsNeeded',
-                            'Permissions needed'
-                          )}
-                </Text>
-              </span>
-            </Box>
+            {!isFullAccess && !guiReady && (
+              <Box alignItems="Center" gap="200" wrap="Wrap">
+                <span className={classNames(css.StatusPill, css.StatusPillTone.waiting)}>
+                  <span className={classNames(css.StatusDot, css.StatusDotTone.waiting)} />
+                  <Text as="span" size="T200">
+                    {dt('featureUi.desktopAccess.status.restricted', 'Restricted')}
+                  </Text>
+                </span>
+              </Box>
+            )}
 
             <div
               className={classNames(
@@ -454,7 +457,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
                     {dt(
                       'featureUi.desktopAccess.consent.fullDisclosure',
                       '{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.',
-                      { agent: selectedAgent.agentName }
+                      { agent: selectedAgent.displayName }
                     )}
                   </Text>
                 </Box>
@@ -564,7 +567,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
               {dt(
                 'featureUi.desktopAccess.consent.fullDisclosure',
                 '{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.',
-                { agent: selectedAgent.agentName }
+                { agent: selectedAgent.displayName }
               )}
             </Text>
           </div>
@@ -572,7 +575,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
             <Box alignItems="Center" gap="200">
               <Spinner size="100" />
               <Text size="T200" priority="300">
-                {stepLabel(dt, step, selectedAgent.agentName)}
+                {stepLabel(dt, step, selectedAgent.displayName)}
               </Text>
             </Box>
           )}
@@ -645,18 +648,44 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
   );
 }
 
-/** Mounts `DesktopAccessModal` inside `Modal500` + `Dialog` whenever `desktopAccessModalAtom` is set. */
+/** Mounts `DesktopAccessModal` inside `Modal500` whenever `desktopAccessModalAtom` is set. */
 export function DesktopAccessModalDialog() {
   const request = useAtomValue(desktopAccessModalAtom);
   const setRequest = useSetAtom(desktopAccessModalAtom);
   const mx = useMatrixClient();
   const { run: runUia, prompt: uiaPrompt } = useAuthenticatedAction();
+  const [limitsOpen, setLimitsOpen] = useState(false);
+
+  const modalKey = request
+    ? `${request.roomId ?? ''}:${request.agentUserId ?? ''}:${request.agentName ?? ''}`
+    : '';
+
+  useEffect(() => {
+    setLimitsOpen(false);
+  }, [modalKey]);
 
   const agents = useMemo<RoomMindroomAgent[]>(() => {
     if (!request) return [];
     if (request.agentUserId) {
       const agentName = request.agentName ?? extractAgentName(request.agentUserId);
-      return [{ userId: request.agentUserId, agentName, displayName: agentName }];
+      const roomAgent = request.roomId
+        ? getRoomMindroomAgents(mx, request.roomId).find(
+            (agent) => agent.userId === request.agentUserId
+          )
+        : undefined;
+      const roomMember =
+        !roomAgent && request.roomId
+          ? mx.getRoom(request.roomId)?.getMember?.(request.agentUserId)
+          : undefined;
+      const userDisplayName = mx.getUser?.(request.agentUserId)?.displayName?.trim();
+      const displayName =
+        roomAgent?.displayName ??
+        (roomMember ? resolveMemberDisplayName(roomMember, agentName) : undefined) ??
+        (userDisplayName && userDisplayName !== request.agentUserId
+          ? userDisplayName
+          : undefined) ??
+        agentName;
+      return [{ userId: request.agentUserId, agentName, displayName }];
     }
     if (request.roomId) return getRoomMindroomAgents(mx, request.roomId);
     return [];
@@ -665,20 +694,18 @@ export function DesktopAccessModalDialog() {
   if (!request) return uiaPrompt;
 
   const close = () => setRequest(null);
-  const modalKey = `${request.roomId ?? ''}:${request.agentUserId ?? ''}:${request.agentName ?? ''}`;
 
   return (
     <>
-      <Modal500 requestClose={close} fitContent narrow>
-        <Dialog variant="Surface" className={css.ModalSurface}>
-          <DesktopAccessModal
-            key={modalKey}
-            mx={mx}
-            agents={agents}
-            runUia={runUia}
-            onClose={close}
-          />
-        </Dialog>
+      <Modal500 requestClose={close} fitContent narrow={!limitsOpen} className={css.ModalDialog}>
+        <DesktopAccessModal
+          key={modalKey}
+          mx={mx}
+          agents={agents}
+          runUia={runUia}
+          onClose={close}
+          onLimitsOpenChange={setLimitsOpen}
+        />
       </Modal500>
       {uiaPrompt}
     </>

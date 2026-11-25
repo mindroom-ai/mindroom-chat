@@ -82,7 +82,7 @@ vi.mock('./macPairInvite', async (importOriginal) => {
   };
 });
 
-import { findPairedController } from './desktopAccessHelpers';
+import { findPairedController, resolveRoomAgents } from './desktopAccessHelpers';
 import { DesktopAccessModalRenderer } from './DesktopAccessModal';
 import { IncomingPairInviteModal } from './IncomingPairInviteModal';
 import { incomingPairInviteAtom } from './macPairInvite';
@@ -218,22 +218,29 @@ const makeDesktopAccessMock = (
   return access;
 };
 
-const makeRoomClient = (members: Array<{ userId: string; name?: string }>): MatrixClient =>
-  ({
-    getUserId: () => '@alice:example.org',
+const makeRoomClient = (
+  members: Array<{ userId: string; name?: string; rawDisplayName?: string }>,
+  options?: { viewerUserId?: string; roomId?: string }
+): MatrixClient => {
+  const viewerUserId = options?.viewerUserId ?? '@alice:example.org';
+  const targetRoomId = options?.roomId ?? '!room:example.org';
+  return {
+    getUserId: () => viewerUserId,
     getHomeserverUrl: () => 'https://matrix.example.org',
     getRoom: (roomId: string) =>
-      roomId === '!room:example.org'
+      roomId === targetRoomId
         ? {
             getJoinedMembers: () =>
               members.map((m) => ({
                 userId: m.userId,
                 name: m.name ?? m.userId,
+                ...(m.rawDisplayName !== undefined ? { rawDisplayName: m.rawDisplayName } : {}),
                 membership: 'join',
               })),
           }
         : null,
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient;
+};
 
 const renderWithStore = (node: React.ReactNode, store = createStore()) =>
   render(
@@ -273,12 +280,13 @@ describe('DesktopAccessModal', () => {
     store.set(desktopAccessModalAtom, { roomId: '!room:example.org' });
     renderWithStore(<DesktopAccessModalRenderer />, store);
 
-    expect(await screen.findByText('Allow code full access to this Mac?')).toBeTruthy();
+    expect(await screen.findByText('Allow Code full access to this Mac?')).toBeTruthy();
     expect(
       screen.getByText(
-        'code can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.'
+        'Code can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.'
       )
     ).toBeTruthy();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Allow Full Access' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose limits...' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
@@ -319,7 +327,7 @@ describe('DesktopAccessModal', () => {
 
     fireEvent.click(researchButton);
 
-    expect(await screen.findByText('Allow research full access to this Mac?')).toBeTruthy();
+    expect(await screen.findByText('Allow Research full access to this Mac?')).toBeTruthy();
   });
 
   it('runs pairAgentOnThisMac on Allow Full Access and shows Shell-ready banner, live Accessibility row, and Screen Recording relaunch button', async () => {
@@ -428,7 +436,7 @@ describe('DesktopAccessModal', () => {
     const sharedSection = screen.getByTestId('limits-shared-section');
 
     expect(
-      within(perAgentSection).getByText('Control & shell approval for code (per-agent)')
+      within(perAgentSection).getByText('Control & shell approval for Code (per-agent)')
     ).toBeTruthy();
     expect(within(perAgentSection).queryByRole('radio', { name: 'Off' })).toBeNull();
     expect(
@@ -641,7 +649,7 @@ describe('DesktopAccessModal', () => {
       finishRelay();
     });
 
-    expect(await screen.findByText("code is now paired with Bas's MacBook Pro.")).toBeTruthy();
+    expect(await screen.findByText("Code is now paired with Bas's MacBook Pro.")).toBeTruthy();
   });
 
   it('in browser mode with no registered Mac renders Download MindRoom Chat for Mac and Homebrew command', async () => {
@@ -679,29 +687,18 @@ describe('DesktopAccessModal', () => {
 
     // Different homeserver sharing the same agent name "assistant" must NOT match.
     expect(
-      findPairedController(
-        snapshot,
-        '@mindroom_assistant:server-b.test',
-        '@alice:server-a.test'
-      )
+      findPairedController(snapshot, '@mindroom_assistant:server-b.test', '@alice:server-a.test')
     ).toBeUndefined();
 
     // Same agent user ID but different requester must NOT match.
     expect(
-      findPairedController(
-        snapshot,
-        '@mindroom_assistant:server-a.test',
-        '@bob:server-a.test'
-      )
+      findPairedController(snapshot, '@mindroom_assistant:server-a.test', '@bob:server-a.test')
     ).toBeUndefined();
 
     // Exact agent user ID + allowed requester ID matches cleanly.
     expect(
-      findPairedController(
-        snapshot,
-        '@mindroom_assistant:server-a.test',
-        '@alice:server-a.test'
-      )?.controller_key
+      findPairedController(snapshot, '@mindroom_assistant:server-a.test', '@alice:server-a.test')
+        ?.controller_key
     ).toBe('ctrl:server-a');
   });
 
@@ -862,6 +859,135 @@ describe('DesktopAccessModal', () => {
         'writer'
       );
     });
+  });
+
+  it('excludes a namespaced router with a sibling agent and opens directly on the clean rawDisplayName', async () => {
+    const initial = makeSnapshot({ accessibility: 'granted', screenRecording: 'granted' });
+    const paired = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'granted',
+      controllers: [
+        {
+          controller_key: 'ctrl:helper',
+          user_id: '@mindroom_helper_t528831bc:matrix.localhost',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:matrix.localhost'],
+          allowed_agent_names: ['helper_t528831bc'],
+        },
+      ],
+      consent: {
+        'ctrl:helper': { mode: 'full', grantedAt: 1000, agentName: 'helper_t528831bc' },
+      },
+    });
+    makeDesktopAccessMock(initial);
+    mocks.pairAgentOnThisMac.mockResolvedValueOnce(paired);
+    mocks.mx = makeRoomClient(
+      [
+        { userId: '@alice:matrix.localhost', name: 'Alice', rawDisplayName: 'Alice' },
+        {
+          userId: '@mindroom_helper_t528831bc:matrix.localhost',
+          name: 'Helper (@mindroom_helper_t528831bc:matrix.localhost)',
+          rawDisplayName: 'Helper',
+        },
+        {
+          userId: '@mindroom_router_t528831bc:matrix.localhost',
+          name: 'Router',
+          rawDisplayName: 'Router',
+        },
+      ],
+      { viewerUserId: '@alice:matrix.localhost', roomId: '!room:matrix.localhost' }
+    );
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, { roomId: '!room:matrix.localhost' });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    expect(await screen.findByText('Allow Helper full access to this Mac?')).toBeTruthy();
+    expect(screen.queryByText(/router/i)).toBeNull();
+    expect(
+      screen.getByText(
+        'Helper can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.'
+      )
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow Full Access' }));
+
+    await waitFor(() => {
+      expect(mocks.pairAgentOnThisMac).toHaveBeenCalledWith(
+        mocks.mx,
+        {
+          agentUserId: '@mindroom_helper_t528831bc:matrix.localhost',
+          agentName: 'helper_t528831bc',
+          mode: 'full',
+        },
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(AbortSignal)
+      );
+    });
+
+    // Post-pair view with gui_permissions_ready renders a single Full Access active banner (no duplicate pill).
+    expect(await screen.findByText('Helper on this Mac')).toBeTruthy();
+    expect(screen.getAllByText('Full Access active')).toHaveLength(1);
+  });
+
+  it('resolves clean displayName from room members when opened with preselected agentUserId and roomId', async () => {
+    makeDesktopAccessMock(makeSnapshot());
+    mocks.mx = makeRoomClient(
+      [
+        {
+          userId: '@mindroom_helper_t528831bc:matrix.localhost',
+          name: 'Helper (@mindroom_helper_t528831bc:matrix.localhost)',
+          rawDisplayName: 'Helper',
+        },
+        {
+          userId: '@mindroom_router_t528831bc:matrix.localhost',
+          name: 'Router',
+          rawDisplayName: 'Router',
+        },
+      ],
+      { viewerUserId: '@alice:matrix.localhost', roomId: '!room:matrix.localhost' }
+    );
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      roomId: '!room:matrix.localhost',
+      agentUserId: '@mindroom_helper_t528831bc:matrix.localhost',
+      agentName: 'helper_t528831bc',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    expect(await screen.findByText('Allow Helper full access to this Mac?')).toBeTruthy();
+  });
+
+  it('keeps a standalone mindroom_router_<ns> agent and falls back to agentName when display names equal userId', () => {
+    const resolved = resolveRoomAgents(
+      [
+        {
+          userId: '@mindroom_router_foo1:example.org',
+          name: '@mindroom_router_foo1:example.org',
+          rawDisplayName: '@mindroom_router_foo1:example.org',
+          membership: 'join',
+        },
+        {
+          userId: '@mindroom_code:example.org',
+          name: 'Code',
+          rawDisplayName: '   ',
+          membership: 'join',
+        },
+      ],
+      '@alice:example.org'
+    );
+
+    expect(resolved).toEqual([
+      { userId: '@mindroom_code:example.org', agentName: 'code', displayName: 'Code' },
+      {
+        userId: '@mindroom_router_foo1:example.org',
+        agentName: 'router_foo1',
+        displayName: 'router_foo1',
+      },
+    ]);
   });
 });
 

@@ -11,7 +11,6 @@ import { errorMessage } from '../lib/errorMessage';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { Modal500 } from '../ui/Modal500';
-import { Dialog } from '../ui/glass/GlassPrimitives';
 import { ChooseLimitsForm, type ChooseLimitsResult } from './ChooseLimitsForm';
 import { useDesktopAccessSnapshot, type DesktopAccessLimits } from './desktopAccessController';
 import { useDesktopT } from './desktopAccessHelpers';
@@ -327,10 +326,13 @@ export function IncomingPairInviteModalDialog({ onDismiss }: { onDismiss: () => 
 
   return (
     <>
-      <Modal500 requestClose={handleClose} fitContent narrow>
-        <Dialog variant="Surface" className={css.ModalSurface}>
-          {renderContent()}
-        </Dialog>
+      <Modal500
+        requestClose={handleClose}
+        fitContent
+        narrow={!showLimits}
+        className={css.ModalDialog}
+      >
+        {renderContent()}
       </Modal500>
       {uiaPrompt}
     </>

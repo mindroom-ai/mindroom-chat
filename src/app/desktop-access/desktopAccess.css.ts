@@ -1,12 +1,12 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-export const ModalSurface = style({
-  display: 'flex',
-  flexDirection: 'column',
-  maxHeight: '85dvh',
-  minHeight: 0,
-  width: '100%',
+export const ModalDialog = style({
+  selectors: {
+    '&&': {
+      maxHeight: `min(85dvh, calc(100% - 2 * ${config.space.S400}))`,
+    },
+  },
 });
 
 export const ModalHeader = style({
@@ -14,6 +14,7 @@ export const ModalHeader = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: config.space.S300,
+  width: '100%',
   paddingBlock: config.space.S300,
   paddingInline: config.space.S400,
   borderBlockEnd: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
@@ -24,8 +25,10 @@ export const ModalBody = style({
   display: 'flex',
   flexDirection: 'column',
   gap: config.space.S400,
+  width: '100%',
   padding: config.space.S400,
   overflowY: 'auto',
+  flex: '1 1 auto',
   minHeight: 0,
 });
 
@@ -35,6 +38,7 @@ export const ModalFooter = style({
   justifyContent: 'flex-end',
   flexWrap: 'wrap',
   gap: config.space.S200,
+  width: '100%',
   paddingBlock: config.space.S300,
   paddingInline: config.space.S400,
   borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,

@@ -78,7 +78,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
             {dt(
               'featureUi.desktopAccess.browser.noMacDescription',
               'To give {{agent}} access to your Mac, sign in with this account in MindRoom Chat for Mac.',
-              { agent: agent.agentName }
+              { agent: agent.displayName }
             )}
           </Text>
 
@@ -206,7 +206,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
             <Spinner size="100" />
             <Text size="T300">
               {dt('featureUi.desktopAccess.steps.requestingOffer', 'Contacting {{agent}}...', {
-                agent: agent.agentName,
+                agent: agent.displayName,
               })}
             </Text>
           </Box>
@@ -258,7 +258,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
               {dt(
                 'featureUi.desktopAccess.browser.paired',
                 '{{agent}} is now paired with {{mac}}.',
-                { agent: agent.agentName, mac: selectedMac.label }
+                { agent: agent.displayName, mac: selectedMac.label }
               )}
             </Text>
           </div>
