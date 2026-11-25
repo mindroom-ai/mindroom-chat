@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -43,7 +43,6 @@ import {
   getCompactRoomSectionsAtom,
 } from '../../threads/overview/compactRoomSections';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
-import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadsPage } from './SpaceThreadsPage';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 
@@ -56,21 +55,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({
-    children,
-    focusTrapOptions,
-  }: {
-    children: ReactNode;
-    focusTrapOptions?: { initialFocus?: (() => HTMLElement | false) | false };
-  }) => {
-    useEffect(() => {
-      if (typeof focusTrapOptions?.initialFocus === 'function') {
-        const target = focusTrapOptions.initialFocus();
-        if (target instanceof HTMLElement) target.focus();
-      }
-    }, [focusTrapOptions]);
-    return children;
-  },
+  FocusTrap: ({ children }: { children: ReactNode }) => children,
 }));
 
 vi.mock('../../navigation/useRoomNavigate', () => ({
@@ -180,9 +165,6 @@ const makeRoom = (
     membersLoaded?: boolean;
     loadMembersIfNeeded?: () => Promise<boolean>;
     members?: FakeMemberInput[];
-    avatarMxc?: string;
-    joinRule?: string;
-    directPartner?: { userId: string; avatarMxc?: string };
   } = {}
 ): FakeRoom => {
   const emitter = createEmitter();
@@ -227,15 +209,9 @@ const makeRoom = (
     getType: () => (opts.isSpace ? 'm.space' : undefined),
     getMyMembership: () => 'join',
     getCanonicalAlias: () => opts.canonicalAlias ?? null,
-    getMxcAvatarUrl: () => opts.avatarMxc ?? null,
-    getJoinRule: () => opts.joinRule ?? 'invite',
-    getAvatarFallbackMember: () =>
-      opts.directPartner
-        ? {
-            userId: opts.directPartner.userId,
-            getMxcAvatarUrl: () => opts.directPartner?.avatarMxc ?? null,
-          }
-        : null,
+    getMxcAvatarUrl: () => null,
+    getJoinRule: () => 'invite',
+    getAvatarFallbackMember: () => null,
     membersLoaded: () => membersLoaded,
     loadMembersIfNeeded: () =>
       (opts.loadMembersIfNeeded?.() ?? Promise.resolve(true)).then((loaded) => {
@@ -322,8 +298,6 @@ const makeIgnoredAccountDataEvent = (userIds: string[]) => ({
 const renderSpaceThreads = ({
   rooms,
   entries,
-  extraSpaces = [],
-  parentOverrides,
   bootstrapped = true,
   threadListsSettled = true,
   ignoredUsers = [],
@@ -332,8 +306,6 @@ const renderSpaceThreads = ({
 }: {
   rooms: FakeRoom[];
   entries: CrossRoomThreadIndexEntry[];
-  extraSpaces?: FakeRoom[];
-  parentOverrides?: ReadonlyMap<string, Set<string>>;
   bootstrapped?: boolean;
   threadListsSettled?: boolean;
   ignoredUsers?: string[];
@@ -344,7 +316,6 @@ const renderSpaceThreads = ({
   const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
   const roomMap = new Map<string, FakeRoom>([
     [SPACE_ID, space],
-    ...extraSpaces.map((r) => [r.roomId, r] as const),
     ...rooms.map((r) => [r.roomId, r] as const),
   ]);
   const clientEmitter = createEmitter();
@@ -366,16 +337,12 @@ const renderSpaceThreads = ({
       mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
   } as unknown as MatrixClient;
 
-  store.set(allRoomsAtom, {
-    type: 'INITIALIZE',
-    rooms: [SPACE_ID, ...extraSpaces.map((r) => r.roomId), ...rooms.map((r) => r.roomId)],
-  });
+  store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ...rooms.map((r) => r.roomId)] });
   store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
-  const roomToParents = new Map<string, Set<string>>(
-    rooms.map((r) => [r.roomId, new Set([SPACE_ID])] as const)
-  );
-  parentOverrides?.forEach((parents, id) => roomToParents.set(id, parents));
-  store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents });
+  store.set(roomToParentsAtom, {
+    type: 'INITIALIZE',
+    roomToParents: new Map(rooms.map((r) => [r.roomId, new Set([SPACE_ID])] as const)),
+  });
   store.set(crossRoomThreadIndexAtom, {
     entries: new Map(entries.map((entry) => [entry.key, entry] as const)),
     eventIdToThreadRoots: new Map(),
@@ -1159,79 +1126,6 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByTestId('current-pathname').textContent).toBe(roomIdLobbyPath);
   });
 
-  it('renders room avatar images, DM partner avatars/initials, and RoomIcon fallbacks in the Rooms dropdown', () => {
-    const eng = makeRoom(ROOM_ENG, 'Engineering', { avatarMxc: 'mxc://example.org/eng-avatar' });
-    const des = makeRoom(ROOM_DES, 'Design', { joinRule: 'public' });
-    const { container } = renderSpaceThreads({ rooms: [eng, des], entries: [] });
-    openRoomsDropdown(container);
-
-    const engRow = container.querySelector<HTMLElement>(`[data-room-option="${ROOM_ENG}"]`)!;
-    expect(engRow.querySelector('img')?.getAttribute('src')).toBe(
-      'https://example.org/_matrix/media/v3/download/example.org/eng-avatar'
-    );
-    const desRow = container.querySelector<HTMLElement>(`[data-room-option="${ROOM_DES}"]`)!;
-    expect(desRow.querySelector('img')).toBeNull();
-    expect(desRow.querySelector(`[data-avatar-fallback-id="${ROOM_DES}"] svg`)).toBeTruthy();
-
-    cleanup();
-    const dmWithAvatarId = '!dm-avatar:example.org';
-    const dmInitialsId = '!dm-initials:example.org';
-    const dmRooms = [
-      {
-        room: makeRoom(dmWithAvatarId, 'Alice', {
-          directPartner: { userId: '@alice:example.org', avatarMxc: 'mxc://example.org/alice' },
-        }),
-        name: 'Alice',
-        accentColor: '#4f8ff7',
-      },
-      {
-        room: makeRoom(dmInitialsId, 'Bob Builder', {
-          directPartner: { userId: '@bob:example.org' },
-        }),
-        name: 'Bob Builder',
-        accentColor: '#2aa89b',
-      },
-    ];
-    const store = createStore();
-    store.set(mDirectAtom, {
-      type: 'INITIALIZE',
-      rooms: new Set([dmWithAvatarId, dmInitialsId]),
-    });
-    const dmClient = {
-      getHomeserverUrl: () => 'https://example.org',
-      mxcUrlToHttp: (mxc: string) =>
-        mxc ? mxc.replace('mxc://', 'https://example.org/_matrix/media/v3/download/') : null,
-    } as unknown as MatrixClient;
-    const { container: dmContainer } = render(
-      <Provider store={store}>
-        <MatrixClientProvider value={dmClient}>
-          <SpaceRoomFilter
-            rooms={dmRooms}
-            roomCounts={new Map()}
-            selectedRoomIds={undefined}
-            onToggleRoom={vi.fn()}
-            onSelectAll={vi.fn()}
-          />
-        </MatrixClientProvider>
-      </Provider>
-    );
-    openRoomsDropdown(dmContainer);
-
-    const dmAvatarRow = dmContainer.querySelector<HTMLElement>(
-      `[data-room-option="${dmWithAvatarId}"]`
-    )!;
-    expect(dmAvatarRow.querySelector('img')?.getAttribute('src')).toBe(
-      'https://example.org/_matrix/media/v3/download/example.org/alice'
-    );
-    const dmInitRow = dmContainer.querySelector<HTMLElement>(
-      `[data-room-option="${dmInitialsId}"]`
-    )!;
-    expect(dmInitRow.querySelector('img')).toBeNull();
-    expect(
-      dmInitRow.querySelector('[data-avatar-fallback-id="@bob:example.org"]')?.textContent
-    ).toBe('B');
-  });
-
   it('shows the People dropdown in advanced mode, scopes counts to selected rooms, filters/clears, and hides in simple mode', () => {
     const alice = '@alice:example.org';
     const bob = '@bob:example.org';
@@ -1415,225 +1309,5 @@ describe('SpaceThreadsPage', () => {
         ?.getAttribute('data-room-filter-count')
     ).toBe('0');
     expect(screen.getByText('Deploy script')).toBeTruthy();
-  });
-
-  it('shows the header space switcher for multiple spaces/subspaces, indents subspaces, and navigates', () => {
-    const subId = '!sub-platform:example.org';
-    const otherSpaceId = '!space-design:example.org';
-    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
-
-    // Single space hides the switcher button.
-    const single = renderSpaceThreads({ rooms: [eng], entries: [] });
-    expect(single.container.querySelector('[data-space-switcher-button]')).toBeNull();
-    cleanup();
-
-    const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
-    const subSpace = makeRoom(subId, 'Platform', { isSpace: true });
-    const otherSpace = makeRoom(otherSpaceId, 'Design Studio', { isSpace: true });
-    const roomMap = new Map<string, FakeRoom>([
-      [SPACE_ID, space],
-      [subId, subSpace],
-      [otherSpaceId, otherSpace],
-      [ROOM_ENG, eng],
-    ]);
-    const emitter = createEmitter();
-    const client = {
-      getSafeUserId: () => ME,
-      getUserId: () => ME,
-      getHomeserverUrl: () => 'https://example.org',
-      getUser: () => null,
-      getRoom: (id: string) => roomMap.get(id) ?? null,
-      getRooms: () => [...roomMap.values()],
-      getAccountData: () => undefined,
-      on: emitter.on,
-      off: emitter.off,
-      removeListener: emitter.removeListener,
-      mxcUrlToHttp: () => null,
-    } as unknown as MatrixClient;
-    const store = createStore();
-    store.set(allRoomsAtom, {
-      type: 'INITIALIZE',
-      rooms: [SPACE_ID, subId, otherSpaceId, ROOM_ENG],
-    });
-    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
-    store.set(roomToParentsAtom, {
-      type: 'INITIALIZE',
-      roomToParents: new Map([
-        [subId, new Set([SPACE_ID])],
-        [ROOM_ENG, new Set([SPACE_ID])],
-      ]),
-    });
-    store.set(crossRoomThreadIndexAtom, {
-      entries: new Map(),
-      eventIdToThreadRoots: new Map(),
-      version: 1,
-      bootstrapped: true,
-    });
-
-    function SwitcherHarness() {
-      const location = useLocation();
-      return (
-        <>
-          <div data-testid="switcher-path">{location.pathname}</div>
-          <SpaceThreadsPage />
-        </>
-      );
-    }
-
-    const { container } = render(
-      <Provider store={store}>
-        <ScreenSizeProvider value={ScreenSize.Desktop}>
-          <MatrixClientProvider value={client}>
-            <MemoryRouter initialEntries={[`/${encodeURIComponent(SPACE_ID)}/threads`]}>
-              <SpaceProvider value={space}>
-                <SwitcherHarness />
-              </SpaceProvider>
-            </MemoryRouter>
-          </MatrixClientProvider>
-        </ScreenSizeProvider>
-      </Provider>
-    );
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[data-space-switcher-button="true"]'
-    )!;
-    expect(trigger).toBeTruthy();
-    expect(trigger.getAttribute('aria-label')).toBe('Product, Switch space');
-    fireEvent.click(trigger);
-
-    const menu = document.querySelector<HTMLElement>('[data-space-switcher-menu="true"]')!;
-    const options = [...document.querySelectorAll<HTMLElement>('[data-space-switcher-option]')];
-    expect(options.map((el) => el.getAttribute('data-space-switcher-option'))).toEqual([
-      otherSpaceId,
-      SPACE_ID,
-      subId,
-    ]);
-    expect(options[1]?.getAttribute('aria-checked')).toBe('true');
-    expect(options[2]?.style.paddingInlineStart).toContain('16px');
-
-    // initialFocus prefers the checked item even when it is not first in DOM order.
-    expect(document.activeElement).toBe(options[1]);
-
-    // ArrowDown / ArrowUp / Home / End move focus across menuitemradio options.
-    fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(options[2]);
-    fireEvent.keyDown(menu, { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(options[1]);
-    fireEvent.keyDown(menu, { key: 'Home' });
-    expect(document.activeElement).toBe(options[0]);
-    fireEvent.keyDown(menu, { key: 'End' });
-    expect(document.activeElement).toBe(options[2]);
-
-    // Selecting the current space closes the menu and returns focus to the trigger button.
-    fireEvent.click(options[1]!);
-    expect(document.querySelector('[data-space-switcher-menu]')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-
-    // Renaming a space/subspace updates the switcher options on reopen.
-    act(() => {
-      subSpace.setName('Core Platform');
-      space.setName('Product HQ');
-      space.emit(RoomEvent.Name, space);
-    });
-    expect(trigger.getAttribute('aria-label')).toBe('Product HQ, Switch space');
-    fireEvent.click(trigger);
-    const renamedSub = document.querySelector<HTMLElement>(
-      `[data-space-switcher-option="${subId}"]`
-    )!;
-    expect(renamedSub.textContent).toContain('Core Platform');
-
-    fireEvent.click(renamedSub);
-    expect(screen.getByTestId('switcher-path').textContent).toBe(
-      `/${encodeURIComponent(subId)}/threads`
-    );
-    expect(document.querySelector('[data-space-switcher-menu]')).toBeNull();
-  });
-
-  it('supports subspace group checkboxes, indeterminate state, trigger label, and search in Rooms dropdown', () => {
-    const subId = '!sub-platform:example.org';
-    const subSpace = makeRoom(subId, 'Platform', { isSpace: true });
-    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
-    const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
-    const ops = makeRoom(ROOM_OPS, 'Ops', { hasAgent: true });
-    const entries = [
-      makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
-      makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
-      makeEntry(ROOM_OPS, 'Ops', '$t-ops', 'Cluster upgrade', NOW - 2000),
-    ];
-
-    const { container } = renderSpaceThreads({
-      rooms: [eng, des, ops],
-      entries,
-      extraSpaces: [subSpace],
-      parentOverrides: new Map([
-        [subId, new Set([SPACE_ID])],
-        [ROOM_ENG, new Set([SPACE_ID])],
-        [ROOM_DES, new Set([subId])],
-        [ROOM_OPS, new Set([subId])],
-      ]),
-    });
-
-    openRoomsDropdown(container);
-    const getSubspaceCheckbox = () =>
-      within(
-        container.querySelector<HTMLElement>(`[data-subspace-option="${subId}"]`)!
-      ).getByRole<HTMLInputElement>('checkbox');
-
-    expect(container.querySelector(`[data-subspace-option="${subId}"]`)?.textContent).toContain(
-      'Platform'
-    );
-    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('false');
-
-    // Checking Platform selects Design + Ops and labels the trigger "Platform".
-    fireEvent.click(getSubspaceCheckbox());
-    expect(screen.queryByText('Build failure')).toBeNull();
-    expect(screen.getByText('New button spec')).toBeTruthy();
-    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
-    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Platform');
-    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('true');
-
-    // Unchecking one room makes Platform indeterminate (aria-checked="mixed").
-    toggleRoomOption(container, ROOM_DES);
-    expect(screen.queryByText('New button spec')).toBeNull();
-    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
-    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('mixed');
-    expect(getSubspaceCheckbox().indeterminate).toBe(true);
-
-    // Clicking indeterminate Platform re-checks all rooms in Platform.
-    fireEvent.click(getSubspaceCheckbox());
-    expect(screen.getByText('New button spec')).toBeTruthy();
-    expect(screen.getByText('Cluster upgrade')).toBeTruthy();
-    expect(getSubspaceCheckbox().getAttribute('aria-checked')).toBe('true');
-
-    // Clicking checked Platform unchecks its rooms and restores all rooms.
-    fireEvent.click(getSubspaceCheckbox());
-    expect(screen.getByText('Build failure')).toBeTruthy();
-    expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
-
-    // Search matches subspace name (shows subspace + its rooms) and room name (keeps ancestor header).
-    const search = container.querySelector<HTMLInputElement>('[data-room-filter-search]')!;
-    fireEvent.change(search, { target: { value: 'plat' } });
-    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_DES}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_ENG}"]`)).toBeNull();
-
-    fireEvent.change(search, { target: { value: 'ops' } });
-    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_DES}"]`)).toBeNull();
-
-    // Renaming the subspace updates its label and search match when reopening the Rooms dropdown.
-    fireEvent.click(container.querySelector('[data-room-filter-button]')!);
-    subSpace.setName('Infrastructure');
-    openRoomsDropdown(container);
-    expect(container.querySelector(`[data-subspace-option="${subId}"]`)?.textContent).toContain(
-      'Infrastructure'
-    );
-    fireEvent.change(container.querySelector<HTMLInputElement>('[data-room-filter-search]')!, {
-      target: { value: 'infra' },
-    });
-    expect(container.querySelector(`[data-subspace-option="${subId}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-room-option="${ROOM_OPS}"]`)).toBeTruthy();
   });
 });

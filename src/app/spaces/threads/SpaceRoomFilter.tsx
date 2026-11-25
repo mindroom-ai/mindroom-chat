@@ -14,6 +14,7 @@ import {
 } from '../../threads/overview/ThreadFilterDropdown';
 import * as dropdownCss from '../../threads/overview/ThreadFilterDropdown.css';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
+import { SpaceAvatar } from '../lobby/LobbyHeader';
 import type {
   SpaceRoomFilterGroup,
   SpaceRoomFilterGroups,
@@ -156,18 +157,13 @@ function RoomFilterPanel({
             count,
             content: (
               <>
-                <Avatar size="200" radii="300">
-                  <RoomAvatar
-                    roomId={group.spaceId}
-                    src={getRoomAvatarUrl(mx, group.room, 96, authenticated)}
-                    alt=""
-                    renderFallback={() => (
-                      <Text as="span" size="H6">
-                        {nameInitials(name)}
-                      </Text>
-                    )}
-                  />
-                </Avatar>
+                <SpaceAvatar
+                  roomId={group.spaceId}
+                  name={name}
+                  src={getRoomAvatarUrl(mx, group.room, 96, authenticated)}
+                  compact
+                  alt=""
+                />
                 <Text
                   as="span"
                   size="T300"

@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { IconChevronDown } from '@tabler/icons-react';
 import { FocusTrap } from 'focus-trap-react';
-import { Avatar, Box, config, Icon, Icons, Text, type RectCords } from 'folds';
+import { Box, config, Icon, Icons, Text, type RectCords } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
-import { RoomAvatar } from '../../avatars/RoomAvatar';
-import { nameInitials } from '../../lib/common';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { stopPropagation } from '../../lib/keyboard';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -48,7 +46,7 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
   const authenticated = useMediaAuthentication();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const { items: sidebarItems } = useShownSidebarItems();
+  const { items: sidebarItems, joinedSpaces } = useShownSidebarItems();
   const [anchor, setAnchor] = useState<RectCords>();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -65,13 +63,8 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
     () => sidebarItems.flatMap((item) => (typeof item === 'string' ? [item] : item.content)),
     [sidebarItems]
   );
-  const switchableSpaces = useMemo(() => {
-    void open;
-    void spaceName;
-    return buildSwitchableSpaceItems(mx, railSpaceIds, joinedRoomIds, roomToParents);
-  }, [joinedRoomIds, mx, open, railSpaceIds, roomToParents, spaceName]);
 
-  if (switchableSpaces.length <= 1) {
+  if (joinedSpaces.size <= 1) {
     return (
       <>
         <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
@@ -82,6 +75,10 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
     );
   }
 
+  // Computed while open so renamed spaces/subspaces always show fresh names and A-Z order.
+  const switchableSpaces = open
+    ? buildSwitchableSpaceItems(mx, railSpaceIds, joinedRoomIds, roomToParents)
+    : [];
   const label = t('spaceThreads.header.switchSpace');
   const handleSelect = (targetSpaceId: string) => {
     if (targetSpaceId === space.roomId) {
@@ -160,18 +157,13 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
                           : undefined
                       }
                       before={
-                        <Avatar size="200" radii="300">
-                          <RoomAvatar
-                            roomId={item.spaceId}
-                            src={getRoomAvatarUrl(mx, item.room, 64, authenticated)}
-                            alt=""
-                            renderFallback={() => (
-                              <Text as="span" size="H6">
-                                {nameInitials(item.name)}
-                              </Text>
-                            )}
-                          />
-                        </Avatar>
+                        <SpaceAvatar
+                          roomId={item.spaceId}
+                          name={item.name}
+                          src={getRoomAvatarUrl(mx, item.room, 64, authenticated)}
+                          compact
+                          alt=""
+                        />
                       }
                       after={isCurrent ? <Icon size="50" src={Icons.Check} /> : undefined}
                       onClick={() => handleSelect(item.spaceId)}

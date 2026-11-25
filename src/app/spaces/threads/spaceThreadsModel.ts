@@ -1,9 +1,7 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
-import { isSpace } from '../../matrix/room';
-import { getJoinedSubspaces } from '../../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents } from '../../matrix/types/room';
-import { getSpaceRoomSections } from '../spaceRoomSections';
+import { getOrderedSpaceEntries, getSpaceRoomSections } from '../spaceRoomSections';
 import { revealDirectionControls } from '../../ui/directional';
 import {
   buildCrossRoomThreadIndexEntry,
@@ -164,49 +162,18 @@ export const buildSwitchableSpaceItems = (
   railSpaceIds: readonly string[],
   joinedRoomIds: readonly string[],
   roomToParents: RoomToParents
-): SwitchableSpaceItem[] => {
-  const joinedSpaceIds = joinedRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId)));
-  const joinedSpaceSet = new Set(joinedSpaceIds);
-  const joinedList = [...joinedRoomIds];
-  const emitted = new Set<string>();
-  const items: SwitchableSpaceItem[] = [];
-
-  const emitTree = (rootSpaceId: string) => {
-    const walk = (spaceId: string, depth: number) => {
-      if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return;
+): SwitchableSpaceItem[] =>
+  getOrderedSpaceEntries(mx, railSpaceIds, joinedRoomIds, roomToParents).flatMap(
+    ({ spaceId, depth }) => {
       const room = mx.getRoom(spaceId);
-      if (!room) return;
-      emitted.add(spaceId);
-      items.push({
-        room,
-        spaceId,
-        name: revealDirectionControls(room.name || room.roomId),
-        depth,
-      });
-      sortRoomIdsByName(mx, getJoinedSubspaces(mx, spaceId, joinedList, roomToParents)).forEach(
-        (childId) => walk(childId, depth + 1)
-      );
-    };
-    walk(rootSpaceId, 0);
-  };
-
-  railSpaceIds.forEach(emitTree);
-
-  const remaining = sortRoomIdsByName(
-    mx,
-    joinedSpaceIds.filter((id) => !emitted.has(id))
+      if (!room) return [];
+      return [{ room, spaceId, name: revealDirectionControls(room.name || room.roomId), depth }];
+    }
   );
-  const remainingRoots = remaining.filter(
-    (id) => ![...(roomToParents.get(id) ?? [])].some((parentId) => joinedSpaceSet.has(parentId))
-  );
-  [...remainingRoots, ...remaining].forEach(emitTree);
-  return items;
-};
 
 export type SpaceRoomFilterGroup = {
   spaceId: string;
   room: Room;
-  name: string;
   depth: number;
   directRoomIds: string[];
   subtreeRoomIds: string[];
@@ -290,7 +257,6 @@ export const buildSpaceRoomFilterGroups = ({
     ({ section, room, directRoomIds, subtreeRoomIds }) => ({
       spaceId: section.spaceId,
       room,
-      name: revealDirectionControls(room.name || room.roomId),
       depth: 1 + section.ancestorSpaceIds.filter((id) => keptSpaceIds.has(id)).length,
       directRoomIds,
       subtreeRoomIds,
