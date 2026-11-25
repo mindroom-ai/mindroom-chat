@@ -35,6 +35,7 @@ export const Staged = style({
   position: 'relative',
   width: '100%',
   selectors: { '&[data-auto-send]': { borderColor: color.Primary.ContainerLine } },
+  ':focus': { outline: 'none' },
 });
 
 export const CountdownTrack = style({
@@ -69,6 +70,22 @@ export const StagedInfo = style({
   flexWrap: 'wrap',
   gap: config.space.S100,
   minWidth: 0,
+});
+
+export const StagedHeadline = style({
+  alignItems: 'center',
+  display: 'inline-flex',
+  gap: config.space.S100,
+  minWidth: 0,
+});
+
+export const SrOnly = style({
+  clipPath: 'inset(50%)',
+  height: 1,
+  overflow: 'hidden',
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: 1,
 });
 
 export const StatusDot = style({

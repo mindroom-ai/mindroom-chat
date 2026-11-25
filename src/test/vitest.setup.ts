@@ -77,6 +77,8 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
   CountdownTrack: 'CountdownTrack',
   StagedRow: 'StagedRow',
   StagedInfo: 'StagedInfo',
+  StagedHeadline: 'StagedHeadline',
+  SrOnly: 'SrOnly',
   StatusDot: 'StatusDot',
   Chips: 'Chips',
   Chip: 'Chip',

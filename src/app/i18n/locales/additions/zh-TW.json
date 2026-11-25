@@ -1630,7 +1630,8 @@
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。",
       "sendingTo": "正在傳送給 {{agent}}：",
       "undo": "復原",
-      "sendNow": "立即傳送"
+      "sendNow": "立即傳送",
+      "sendingAnnouncement": "正在傳送給 {{agent}}：{{label}}。使用「復原」可取消。"
     },
     "invites": {
       "invalid": "此邀請連結不完整。請重新開啟郵件中的連結。",

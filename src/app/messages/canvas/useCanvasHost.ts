@@ -29,6 +29,9 @@ export const CANVAS_SEND_ARM_DELAY_MS = 500;
 /** Grace window to undo a gesture-triggered submission before it sends automatically. */
 export const CANVAS_UNDO_DELAY_MS = 2500;
 
+/** Cooldown after Undo or a gesture send, longer than Chromium's ~5 s transient user activation. */
+export const CANVAS_GESTURE_COOLDOWN_MS = 5500;
+
 export type CanvasView = {
   eventId: string;
   revisionEventId: string;
@@ -153,9 +156,21 @@ export function useCanvasHost({
   const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
   const uploadingSubmission = useRef<CanvasSubmission>(undefined);
-  const stagedNow = useRef(staged);
-  stagedNow.current = staged;
+  const stagedNow = useRef<Staged>(undefined);
+  const updateStaged = useCallback(
+    (next: Staged | undefined | ((current: Staged | undefined) => Staged | undefined)) => {
+      const resolved = typeof next === 'function' ? next(stagedNow.current) : next;
+      if (resolved === stagedNow.current) return;
+      stagedNow.current = resolved;
+      setStaged(resolved);
+    },
+    []
+  );
   const busyNow = useRef(false);
+  // Blocks follow-up auto-sends within the same transient browser activation window.
+  const gestureCooldownUntil = useRef(0);
+  // Focus left on the iframe after a completed send does not count as unsent work until new input.
+  const staleFocusAfterSend = useRef(false);
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
@@ -185,16 +200,17 @@ export function useCanvasHost({
       sameRevision && current && current.submission === uploadingSubmission.current
         ? current
         : undefined;
-    stagedNow.current = sending;
     touched.current = !!sending;
     used.current = false;
     lastStageAt.current = 0;
-    setStaged(sending);
+    gestureCooldownUntil.current = 0;
+    staleFocusAfterSend.current = false;
+    updateStaged(sending);
     setSendError(false);
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     // An update held behind Load update stays held when the same page starts again.
-  }, [frameKey, shownRevisionId]);
+  }, [frameKey, shownRevisionId, updateStaged]);
 
   // Reset error state in layout phase so the previous alert unmounts before paint and before the
   // new iframe can post errors that would race with a passive effect.
@@ -222,7 +238,8 @@ export function useCanvasHost({
     // A page that finished downloading belongs to the revision already shown.
     const sameRevisionLoaded =
       latest.current.canvas.revisionEventId === displayedRevisionId && displayedPending;
-    if (sameRevisionLoaded || (!touched.current && document.activeElement !== frameRef.current)) {
+    const frameActive = document.activeElement === frameRef.current && !staleFocusAfterSend.current;
+    if (sameRevisionLoaded || (!touched.current && !frameActive)) {
       setDisplayed({
         ...latest.current.canvas,
         colorScheme: latest.current.colorScheme,
@@ -231,21 +248,19 @@ export function useCanvasHost({
     } else if (heldRevisionId.current !== latest.current.canvas.revisionEventId) {
       heldRevisionId.current = latest.current.canvas.revisionEventId;
       // An answer the user is already sending stays until it is sent or its upload fails.
-      if (stagedNow.current?.submission !== uploadingSubmission.current) {
-        stagedNow.current = undefined;
-      }
-      setStaged((current) =>
+      updateStaged((current) =>
         current && current.submission === uploadingSubmission.current ? current : undefined
       );
       setUpdateAvailable(true);
     }
-  }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
+  }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending, updateStaged]);
 
   useEffect(() => {
     const handleBlur = () => {
       if (document.activeElement !== frameRef.current) return;
       touched.current = true;
       used.current = true;
+      staleFocusAfterSend.current = false;
     };
     const stageSubmission = (event: MessageEvent, source: Window, trustedGesture: boolean) => {
       // Size reports and other messages leave the snapshot budget alone.
@@ -257,18 +272,28 @@ export function useCanvasHost({
       const submission = readCanvasSubmission(event, source, { trustedGesture });
       if (!submission) return;
       touched.current = true;
+      staleFocusAfterSend.current = false;
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
-      setStaged((current) => {
+      updateStaged((current) => {
         if (!current) {
-          if (submission.userGesture === true) {
+          const canAutoSend =
+            trustedGesture &&
+            submission.userGesture === true &&
+            document.activeElement === frameRef.current &&
+            now >= gestureCooldownUntil.current;
+          if (canAutoSend) {
             return { submission, phase: busyNow.current ? 'paused' : 'countdown' };
           }
           return { submission, phase: 'arming' };
         }
-        return current.resubmitted || sameAnswer(current.submission, submission)
-          ? current
-          : { ...current, resubmitted: true };
+        if (sameAnswer(current.submission, submission)) return current;
+        if (current.resubmitted && current.phase !== 'countdown') return current;
+        return {
+          ...current,
+          phase: current.phase === 'countdown' ? 'paused' : current.phase,
+          resubmitted: true,
+        };
       });
     };
     const handleMessage = (event: MessageEvent) => {
@@ -288,6 +313,7 @@ export function useCanvasHost({
       if (saved !== undefined) {
         // The page's own focus() cannot fake user activation; focus is the fallback where it is unknown.
         const byUser = saved.user ?? (used.current || document.activeElement === frameRef.current);
+        if (byUser) staleFocusAfterSend.current = false;
         latest.current.onSaveState?.(saved.change, byUser);
         return;
       }
@@ -317,7 +343,7 @@ export function useCanvasHost({
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('message', handleMessage);
     };
-  }, [mx]);
+  }, [mx, updateStaged]);
 
   const stagedSubmission = staged?.submission;
   const stagedPhase = staged?.phase;
@@ -325,7 +351,7 @@ export function useCanvasHost({
     if (!stagedSubmission || stagedPhase !== 'arming') return undefined;
     const timer = window.setTimeout(
       () =>
-        setStaged((current) =>
+        updateStaged((current) =>
           current?.submission === stagedSubmission && current.phase === 'arming'
             ? { ...current, phase: 'ready' }
             : current
@@ -333,7 +359,7 @@ export function useCanvasHost({
       CANVAS_SEND_ARM_DELAY_MS
     );
     return () => window.clearTimeout(timer);
-  }, [stagedPhase, stagedSubmission]);
+  }, [stagedPhase, stagedSubmission, updateStaged]);
 
   const answerStatus = useLocalEchoStatus(lastAnswer?.echo);
   const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
@@ -365,15 +391,18 @@ export function useCanvasHost({
       const echo = room.getEventForTxnId(txnId);
       // A newer snapshot staged during an upload stays.
       if (stagedNow.current?.submission === submission) {
-        stagedNow.current = undefined;
-        setStaged(undefined);
+        if (stagedNow.current.phase === 'countdown' || submission.userGesture === true) {
+          gestureCooldownUntil.current = Date.now() + CANVAS_GESTURE_COOLDOWN_MS;
+        }
+        updateStaged(undefined);
         // Work in the frame after this answer marks it again.
         touched.current = false;
+        staleFocusAfterSend.current = document.activeElement === frameRef.current;
       }
       setLastAnswer(echo ? { echo, label } : undefined);
       return true;
     },
-    [mx, room]
+    [mx, room, updateStaged]
   );
 
   busyNow.current = busy;
@@ -395,16 +424,12 @@ export function useCanvasHost({
       submission
     );
     setSendError(false);
-    const stopCountdown = () => {
-      if (stagedNow.current?.submission === submission && stagedNow.current.phase === 'countdown') {
-        stagedNow.current = { ...stagedNow.current, phase: 'paused' };
-      }
-      setStaged((current) =>
+    const stopCountdown = () =>
+      updateStaged((current) =>
         current?.submission === submission && current.phase === 'countdown'
           ? { ...current, phase: 'paused' }
           : current
       );
-    };
     // Until the answer is handed to the SDK, the frame still holds the user's work, so an update
     // during an upload waits for "Load update" and a failed upload can be tried again.
     const refused = () => {
@@ -437,7 +462,7 @@ export function useCanvasHost({
         uploadingSubmission.current = undefined;
         setUploading(false);
       });
-  }, [agentName, deliver, displayed, mx, room, t]);
+  }, [agentName, deliver, displayed, mx, room, t, updateStaged]);
 
   const sendNow = useRef(handleSend);
   sendNow.current = handleSend;
@@ -497,24 +522,27 @@ export function useCanvasHost({
   }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
 
   const handlePause = useCallback(() => {
-    if (stagedNow.current?.phase === 'countdown') {
-      stagedNow.current = { ...stagedNow.current, phase: 'paused' };
-    }
-    setStaged((current) =>
+    updateStaged((current) =>
       current?.phase === 'countdown' ? { ...current, phase: 'paused' } : current
     );
-  }, []);
+  }, [updateStaged]);
 
   const handleDiscard = useCallback(() => {
+    const current = stagedNow.current;
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
-    if (uploadingSubmission.current === stagedNow.current?.submission) {
+    if (uploadingSubmission.current === current?.submission) {
       uploadingSubmission.current = undefined;
       setUploading(false);
     }
-    stagedNow.current = undefined;
-    setStaged(undefined);
+    if (current?.phase === 'countdown' || current?.phase === 'paused') {
+      gestureCooldownUntil.current = Date.now() + CANVAS_GESTURE_COOLDOWN_MS;
+      if (frameRef.current && document.activeElement === frameRef.current) {
+        frameRef.current.blur();
+      }
+    }
+    updateStaged(undefined);
     setSendError(false);
-  }, []);
+  }, [updateStaged]);
 
   const handleLoad = useCallback(() => {
     if (loads.current.frameKey !== frameKey) loads.current = { frameKey, count: 0 };

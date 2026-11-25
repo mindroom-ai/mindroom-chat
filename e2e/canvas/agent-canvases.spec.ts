@@ -34,7 +34,9 @@ test('a canvas from the agent opens in the panel and sends a confirmed answer ba
   // The panel's frame holds a wrapper; the agent's page runs in the frame inside it.
   const page2 = page.frameLocator('aside[aria-label="Canvas panel"] iframe').frameLocator('iframe');
   await page2.getByRole('button', { name: 'Blue' }).click();
-  await expect(panel.getByText('Sending to')).toContainText('Submitted');
+  await expect(panel.locator('[data-canvas-staged-headline]')).toHaveText(
+    /Sending to .+: Submitted/
+  );
   // Nothing leaves immediately while the 2.5 s undo window is open.
   // This thread's answers only: the stack keeps its lobby, and earlier runs answered there too.
   const responses = async () =>

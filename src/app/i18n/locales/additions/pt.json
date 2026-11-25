@@ -1746,7 +1746,8 @@
       "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página.",
       "sendingTo": "Enviando para {{agent}}:",
       "undo": "Desfazer",
-      "sendNow": "Enviar agora"
+      "sendNow": "Enviar agora",
+      "sendingAnnouncement": "Enviando para {{agent}}: {{label}}. Use Desfazer para cancelar."
     },
     "invites": {
       "invalid": "Este link de convite está incompleto. Abra novamente o link do e-mail.",

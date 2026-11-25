@@ -1630,7 +1630,8 @@
       "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。",
       "sendingTo": "正在发送给 {{agent}}：",
       "undo": "撤消",
-      "sendNow": "立即发送"
+      "sendNow": "立即发送",
+      "sendingAnnouncement": "正在发送给 {{agent}}：{{label}}。使用“撤消”可取消。"
     },
     "invites": {
       "invalid": "此邀请链接不完整。请重新打开邮件中的链接。",

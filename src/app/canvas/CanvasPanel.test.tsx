@@ -14,6 +14,7 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import {
+  CANVAS_GESTURE_COOLDOWN_MS,
   CANVAS_SEND_ARM_DELAY_MS,
   CANVAS_UNDO_DELAY_MS,
   CanvasPanel,
@@ -220,6 +221,15 @@ const refuse = () =>
     requests.shift()?.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403));
   });
 
+const focusFrame = () => {
+  frame().focus();
+};
+
+const postGesture = async (label = 'Pro plan', data: unknown = { plan: 'pro' }) => {
+  focusFrame();
+  await post(submit(label, data, true), frame().contentWindow);
+};
+
 const touchFrame = () =>
   act(async () => {
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
@@ -361,6 +371,7 @@ describe('CanvasPanel', () => {
 
   it('ignores forged userGesture: true sent directly from the inner canvas frame', async () => {
     render();
+    focusFrame();
     await post(submit('Spoofed', { plan: 'spoof' }, true));
     expect(container.textContent).toContain('Send to Planner: Spoofed');
     expect(button('[data-canvas-discard]').textContent).toBe('Discard');
@@ -375,12 +386,35 @@ describe('CanvasPanel', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('auto-sends a wrapper-attested user-gesture submission after the 2.5 s undo window', async () => {
+  it('requires focus inside the canvas frame even for a wrapper-attested gesture submission', async () => {
     render();
-    await post(submit('Pro plan', { plan: 'pro', seats: 3 }, true), frame().contentWindow);
+    // Focus is outside the iframe (e.g. on the room composer).
+    expect(document.activeElement).not.toBe(frame());
+    await post(submit('Unfocused', { plan: 'unfocused' }, true), frame().contentWindow);
+    expect(container.textContent).toContain('Send to Planner: Unfocused');
+    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
+    expect(button('[data-canvas-send]').textContent).toBe('Send');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+
+    await arm();
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
     expect(sendMessage).not.toHaveBeenCalled();
-    const liveHeadline = container.querySelector('[role="status"][aria-live="polite"]');
-    expect(liveHeadline?.textContent).toContain('Sending to Planner: Pro plan');
+  });
+
+  it('auto-sends a focused wrapper-attested submission, announces Undo in a persistent live region, and loads the next step in place', async () => {
+    render();
+    const live = container.querySelector('[data-canvas-staged-live]')!;
+    expect(live).not.toBeNull();
+    expect(live.getAttribute('role')).toBe('status');
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(live.textContent).toBe('');
+
+    await postGesture('Pro plan', { plan: 'pro', seats: 3 });
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(live.textContent).toBe('Sending to Planner: Pro plan. Use Undo to cancel.');
+    expect(document.activeElement).toBe(container.querySelector('[data-auto-send]'));
     expect(button('[data-canvas-discard]').textContent).toBe('Undo');
     expect(button('[data-canvas-send]').textContent).toBe('Send now');
     expect(button('[data-canvas-send]').disabled).toBe(false);
@@ -400,26 +434,86 @@ describe('CanvasPanel', () => {
     });
     await accept();
     expect(status()).toContain('Sent to Planner: Pro plan');
+
+    // After auto-send completes, an incoming revision replaces the page in place.
+    render({ canvas: { ...canvas, revisionEventId: '$step-2', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    expect(buttonNamed('Load update')).toBeUndefined();
   });
 
-  it('cancels an auto-send countdown when the user clicks Undo', async () => {
+  it('loads the next step in place after auto-send even if focus remained pinned on the iframe', async () => {
     render();
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
     await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    await accept();
+
+    render({ canvas: { ...canvas, revisionEventId: '$step-2', html: '<p>Next</p>' } });
+    expect(page()).toContain('<p>Next</p>');
+    expect(buttonNamed('Load update')).toBeUndefined();
+    delete (document as { activeElement?: unknown }).activeElement;
+  });
+
+  it('cancels an auto-send countdown on Undo or Escape and enforces post-Undo cooldown', async () => {
+    render();
+    await postGesture('Pro plan', { plan: 'pro' });
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
-    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => {
+      container
+        .querySelector('[data-auto-send]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
     expect(button('[data-canvas-send]')).toBeNull();
 
     await act(async () => {
       vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
     });
     expect(sendMessage).not.toHaveBeenCalled();
+
+    // A follow-up submission within the post-Undo cooldown falls back to explicit confirm.
+    await postGesture('Follow-up', { plan: 'sneaky' });
+    expect(container.textContent).toContain('Send to Planner: Follow-up');
+    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
+    expect(button('[data-canvas-send]').textContent).toBe('Send');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('enforces cooldown after an auto-send so a follow-up script cannot trigger a second auto-send', async () => {
+    render();
+    await postGesture('First', { step: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    await accept();
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    await postGesture('Sneaky second', { step: 2 });
+    expect(container.textContent).toContain('Send to Planner: Sneaky second');
+    expect(button('[data-canvas-discard]').textContent).toBe('Discard');
+    expect(button('[data-canvas-send]').textContent).toBe('Send');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
   it('pauses the auto-send countdown when the user opens the data drawer', async () => {
     render();
-    await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
+    await postGesture('Pro plan', { plan: 'pro' });
     await act(async () => button('[data-canvas-inspect]').click());
     expect(container.querySelector('pre')?.textContent).toContain('"plan": "pro"');
     expect(container.textContent).toContain('Send to Planner: Pro plan');
@@ -437,7 +531,7 @@ describe('CanvasPanel', () => {
 
   it('sends immediately on Send now without double-sending when the timer elapses', async () => {
     render();
-    await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
+    await postGesture('Pro plan', { plan: 'pro' });
     await act(async () => {
       const sendBtn = button('[data-canvas-send]');
       sendBtn.click();
@@ -451,19 +545,26 @@ describe('CanvasPanel', () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('does not swap a pending gesture submission when the page resubmits during countdown', async () => {
+  it('pauses the countdown and refuses to swap when a different submission arrives during countdown', async () => {
     render();
-    await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
+    await postGesture('Pro plan', { plan: 'pro' });
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
     await post(submit('Everything', { plan: 'everything' }, false), frame().contentWindow);
-    expect(container.textContent).toContain('Sending to Planner: Pro plan');
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
     expect(container.textContent).toContain('To change your answer, discard this one first.');
+    expect(button('[data-canvas-discard]').textContent).toBe('Undo');
+    expect(button('[data-canvas-send]').textContent).toBe('Send now');
 
+    // Stale Plan A must NOT auto-send after a different submission arrived.
     await act(async () => {
-      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS - 1000);
+      vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS * 2);
     });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    // User can still explicitly send the preserved original snapshot.
+    await clickSend();
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY]).toMatchObject({
       label: 'Pro plan',
@@ -473,16 +574,15 @@ describe('CanvasPanel', () => {
 
   it('stages a gesture submission as paused while an earlier answer is still unresolved', async () => {
     render();
-    await post(submit('First', { step: 1 }, true), frame().contentWindow);
+    await postGesture('First', { step: 1 });
     await clickSend();
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
-    // While the first send is still in flight (busy), a second gesture submission pauses instead
-    // of arming a surprise delayed auto-send when the first one eventually resolves.
+    // Wait out the post-send cooldown while the first send is still in flight (busy).
     await act(async () => {
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(CANVAS_GESTURE_COOLDOWN_MS);
     });
-    await post(submit('Second', { step: 2 }, true), frame().contentWindow);
+    await postGesture('Second', { step: 2 });
     expect(container.textContent).toContain('Send to Planner: Second');
     expect(button('[data-canvas-send]').disabled).toBe(true);
 
@@ -502,7 +602,7 @@ describe('CanvasPanel', () => {
     sendMessage.mockImplementationOnce(() => {
       throw new Error('offline');
     });
-    await post(submit('Pro plan', { plan: 'pro' }, true), frame().contentWindow);
+    await postGesture('Pro plan', { plan: 'pro' });
     await act(async () => {
       vi.advanceTimersByTime(CANVAS_UNDO_DELAY_MS);
     });

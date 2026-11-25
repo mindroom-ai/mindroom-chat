@@ -1688,7 +1688,8 @@
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir.",
       "sendingTo": "{{agent}} ajanına gönderiliyor:",
       "undo": "Geri al",
-      "sendNow": "Şimdi gönder"
+      "sendNow": "Şimdi gönder",
+      "sendingAnnouncement": "{{agent}} ajanına gönderiliyor: {{label}}. İptal etmek için Geri al düğmesini kullanın."
     },
     "invites": {
       "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",

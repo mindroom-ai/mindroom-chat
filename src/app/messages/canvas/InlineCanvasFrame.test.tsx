@@ -13,7 +13,11 @@ import { makeUiEvent, makeUiRoom } from '../../ui-actions/testUtils';
 import { InlineCanvasFrame, inlineCanvasScale } from './InlineCanvasFrame';
 import { canvasFrameWindow, CANVAS_WRAPPER_SANDBOX, type CanvasSaved } from './canvasDocument';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
-import { CANVAS_SEND_ARM_DELAY_MS, CANVAS_UNDO_DELAY_MS } from './useCanvasHost';
+import {
+  CANVAS_GESTURE_COOLDOWN_MS,
+  CANVAS_SEND_ARM_DELAY_MS,
+  CANVAS_UNDO_DELAY_MS,
+} from './useCanvasHost';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const download = vi.hoisted(() => vi.fn());
@@ -703,14 +707,25 @@ describe('InlineCanvasFrame as a host', () => {
     expect(status()).toMatch(/^Sent to .+: Pro plan$/);
   });
 
-  it('auto-sends a wrapper-attested inline submission after 2.5 s, pauses on inspect, and cancels on Undo', async () => {
+  it('auto-sends a focused wrapper-attested inline submission after 2.5 s, pauses on inspect, and cancels on Undo or Escape', async () => {
     render();
     const wrapper = frame().contentWindow!;
-    // 1. Undo cancels before auto-send.
-    post(submit(true, 'Pro plan', { plan: 'pro' }, true), wrapper);
-    expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toContain(
-      'Sending to'
+    const live = container.querySelector('[data-canvas-staged-live]')!;
+    expect(live.textContent).toBe('');
+
+    // Unfocused wrapper gesture submission falls back to explicit confirm.
+    post(submit(true, 'Unfocused', { plan: 'x' }, true), wrapper);
+    expect(sendButton()!.textContent).toBe('Send');
+    expect(sendButton()!.disabled).toBe(true);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-canvas-discard]')!.click()
     );
+    await later(100);
+
+    // 1. Focused gesture submission announces Undo and cancels on Undo click.
+    frame().focus();
+    post(submit(true, 'Pro plan', { plan: 'pro' }, true), wrapper);
+    expect(live.textContent).toContain('Use Undo to cancel.');
     expect(container.querySelector('[data-canvas-discard]')?.textContent).toBe('Undo');
     expect(sendButton()!.textContent).toBe('Send now');
     expect(sendButton()!.disabled).toBe(false);
@@ -720,7 +735,9 @@ describe('InlineCanvasFrame as a host', () => {
     await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).not.toHaveBeenCalled();
 
-    // 2. Opening Data pauses the countdown until Send now is clicked.
+    // 2. After cooldown expires, opening Data pauses the countdown until Send now is clicked.
+    await later(CANVAS_GESTURE_COOLDOWN_MS);
+    frame().focus();
     post(submit(true, 'Basic plan', { plan: 'basic' }, true), wrapper);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-canvas-inspect]')!.click()
@@ -733,8 +750,9 @@ describe('InlineCanvasFrame as a host', () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     await act(async () => requests.shift()?.resolve({ event_id: '$answer1' }));
 
-    // 3. Leaving a gesture submission alone sends automatically at 2.5 s.
-    await later(100);
+    // 3. After cooldown expires, leaving a focused gesture submission alone auto-sends at 2.5 s.
+    await later(CANVAS_GESTURE_COOLDOWN_MS);
+    frame().focus();
     post(submit(true, 'Auto plan', { plan: 'auto' }, true), wrapper);
     await later(CANVAS_UNDO_DELAY_MS);
     expect(sendMessage).toHaveBeenCalledTimes(2);

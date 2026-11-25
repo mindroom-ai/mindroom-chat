@@ -104,7 +104,9 @@ for (const [name, viewport] of [
       const discard = page.locator('[data-canvas-discard]');
       const inspect = page.locator('[data-canvas-inspect]');
       await expect(send).toBeEnabled();
-      await expect(page.getByText(/Sending to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+        /Sending to .+: Plan chosen/
+      );
       await expect(page.locator('[data-canvas-summary]')).toContainText('team: Team Lark');
       await expect(page.locator('[data-canvas-summary]')).toContainText('plan: Pro');
       await expect(discard).toHaveText('Undo');
@@ -113,17 +115,11 @@ for (const [name, viewport] of [
       if (shots) {
         await page.screenshot({ path: `${shots}/inline-confirm-bar-${name}.png` });
       }
-      // Undo cancels before anything sends.
-      await discard.click();
-      await expect(send).toHaveCount(0);
-      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(0);
-      await page.waitForTimeout(150);
-
       // Opening Data pauses the countdown and shows the JSON payload; Send now sends immediately.
-      await form.getByRole('button', { name: 'Choose' }).click();
-      await expect(inspect).toBeVisible();
       await inspect.click();
-      await expect(page.getByText(/Send to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+        /Send to .+: Plan chosen/
+      );
       await expect(page.locator('pre')).toContainText('"team": "Team Lark"');
       await page.waitForTimeout(2_800);
       await expect(page.locator('[data-canvas-receipt]')).toHaveCount(0);
@@ -135,15 +131,18 @@ for (const [name, viewport] of [
         timeout: 30_000,
       });
 
-      // Leaving a gesture submission alone sends automatically after 2.5 s without a second click.
+      // After the 5.5 s cooldown expires, leaving a gesture submission alone auto-sends after 2.5 s.
+      await page.waitForTimeout(5_600);
       await form.getByRole('button', { name: 'Choose' }).click();
-      await expect(page.getByText(/Sending to .+: Plan chosen/)).toBeVisible();
+      await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+        /Sending to .+: Plan chosen/
+      );
       await expect(page.locator('[data-canvas-receipt]')).toHaveCount(2, { timeout: 30_000 });
 
-      // A paused answer left unsent is dropped when the row scrolls away.
+      // Right after auto-send (inside cooldown), a new submission waits for explicit confirm and is
+      // dropped when the row scrolls away.
       await form.getByRole('button', { name: 'Choose' }).click();
-      await expect(inspect).toBeVisible();
-      await inspect.click();
+      await expect(send).toHaveText('Send');
       await expect(send).toBeVisible();
       // Finds the thread's scroller while the canvas is still in it.
       await scrollThread(page, 'bottom');
@@ -228,10 +227,10 @@ for (const [name, viewport] of [
       await page.mouse.click(discard.x, discard.y);
       await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
       await page.waitForTimeout(150);
+      // Re-submitting right after Undo stays inside the cooldown and enters explicit confirm.
       await form.getByRole('button', { name: 'Finish' }).click();
-      await expect(page.locator('[data-canvas-inspect]')).toBeVisible();
-      // Pause the countdown before clicking Send now so slow runners never race the 2.5 s timer.
-      await page.locator('[data-canvas-inspect]').click();
+      await expect(page.locator('[data-canvas-send]')).toHaveText('Send');
+      await expect(page.locator('[data-canvas-discard]')).toHaveText('Discard');
       await expect(page.locator('[data-canvas-send]')).toBeEnabled();
       const send = await target('[data-canvas-send]');
       expect(send).toMatchObject({ onScreen: true, hit: true });
@@ -267,7 +266,9 @@ test('untrusted canvas scripts cannot forge a user gesture or auto-send without 
     await sendInlineForm(room, title, html);
     await expect(page.locator(`iframe[title="${title}"]`)).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-canvas-send]')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(new RegExp(`Send to .+: ${label}`))).toBeVisible();
+    await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+      new RegExp(`Send to .+: ${label}`)
+    );
     await expect(page.getByText(/Sending to /)).toHaveCount(0);
     await expect(page.locator('[data-canvas-send]')).toHaveText('Send');
     await expect(page.locator('[data-canvas-discard]')).toHaveText('Discard');
@@ -319,4 +320,40 @@ test('untrusted canvas scripts cannot forge a user gesture or auto-send without 
     </script>`,
     'Spoofed direct'
   );
+
+  // 4. Submit -> Undo -> delayed scripted follow-up within browser's 5 s user activation window.
+  const postUndoTitle = 'Post-Undo follow-up probe';
+  await sendInlineForm(
+    room,
+    postUndoTitle,
+    `<button id="go">Choose</button>
+    <script>
+      document.getElementById('go').addEventListener('click', () => {
+        mindroom.submit({ step: 'initial' }, { label: 'Initial choice' });
+        setTimeout(() => mindroom.submit({ step: 'sneaky' }, { label: 'Sneaky retry' }), 1000);
+      });
+    </script>`
+  );
+  await expect(page.locator(`iframe[title="${postUndoTitle}"]`)).toBeVisible({ timeout: 60_000 });
+  await page
+    .frameLocator(`iframe[title="${postUndoTitle}"]`)
+    .frameLocator('iframe')
+    .getByRole('button', { name: 'Choose' })
+    .click();
+  await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+    /Sending to .+: Initial choice/
+  );
+  await page.locator('[data-canvas-discard]').click();
+  await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
+  // 1 s later the canvas retries inside the same transient activation window; cooldown must hold it
+  // in explicit confirm and never auto-send.
+  await expect(page.locator('[data-canvas-staged-headline]')).toHaveText(
+    /Send to .+: Sneaky retry/,
+    { timeout: 5_000 }
+  );
+  await expect(page.getByText(/Sending to /)).toHaveCount(0);
+  await expect(page.locator('[data-canvas-send]')).toHaveText('Send');
+  await expect(page.locator('[data-canvas-discard]')).toHaveText('Discard');
+  await page.waitForTimeout(3_200);
+  expect(await viewerResponses()).toHaveLength(0);
 });

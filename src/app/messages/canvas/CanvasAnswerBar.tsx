@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
@@ -30,12 +30,21 @@ export function CanvasAnswerBar({
 }) {
   const { t } = useTranslation();
   const { staged, busy, lastAnswer, answer, footer, sendError } = host;
+  const barRef = useRef<HTMLDivElement>(null);
   const [inspectingSubmission, setInspectingSubmission] = useState<CanvasSubmission>();
   const inspecting = !!staged && inspectingSubmission === staged.submission;
   const isCountdown = staged?.phase === 'countdown';
   const isUndoFlow = staged?.phase === 'countdown' || staged?.phase === 'paused';
   const chips = staged ? summarizeCanvasData(staged.submission.data) : [];
   const label = staged?.submission.label ?? t('mindroomUi.canvas.unlabeled');
+
+  // Move focus onto the Undo bar only for verified countdowns so keyboard users can Tab to Undo
+  // or press Escape immediately, and so stale iframe focus does not block the agent's next step.
+  const countdownSubmission = isCountdown ? staged.submission : undefined;
+  useEffect(() => {
+    if (!countdownSubmission) return;
+    barRef.current?.focus({ preventScroll: true });
+  }, [countdownSubmission]);
 
   const handleToggleInspect = () => {
     if (!staged) return;
@@ -47,10 +56,35 @@ export function CanvasAnswerBar({
     setInspectingSubmission(staged.submission);
   };
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !isUndoFlow) return;
+    event.preventDefault();
+    event.stopPropagation();
+    host.discard();
+  };
+
+  const stagedAnnouncement = staged
+    ? isCountdown
+      ? t('mindroomUi.canvas.sendingAnnouncement', { agent: agentName, label })
+      : `${t('mindroomUi.canvas.sendTo', { agent: agentName })} ${label}`
+    : '';
+
   return (
     <>
+      <span
+        className={css.SrOnly}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-canvas-staged-live
+      >
+        {stagedAnnouncement}
+      </span>
       {staged && (
         <div
+          ref={barRef}
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
           className={inline ? `${css.Staged} ${css.StickyAnswer}` : css.Staged}
           data-auto-send={isCountdown ? '' : undefined}
         >
@@ -63,8 +97,8 @@ export function CanvasAnswerBar({
           )}
           <div className={css.StagedRow}>
             <div className={css.StagedInfo}>
-              <span className={css.StatusDot} aria-hidden="true" />
-              <span role="status" aria-live="polite" aria-atomic="true">
+              <span className={css.StagedHeadline} data-canvas-staged-headline>
+                <span className={css.StatusDot} aria-hidden="true" />
                 <Text as="span" size="T300">
                   {t(isCountdown ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
                     agent: agentName,

@@ -1688,7 +1688,8 @@
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen.",
       "sendingTo": "Wird an {{agent}} gesendet:",
       "undo": "Rückgängig",
-      "sendNow": "Jetzt senden"
+      "sendNow": "Jetzt senden",
+      "sendingAnnouncement": "Wird an {{agent}} gesendet: {{label}}. Mit Rückgängig abbrechen."
     },
     "invites": {
       "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",
