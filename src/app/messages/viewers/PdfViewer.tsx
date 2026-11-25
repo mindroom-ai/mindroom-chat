@@ -43,7 +43,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
     return (
       <Box direction="Column" className={classNames(css.PdfViewer, className)} {...props} ref={ref}>
         {/* The header's own gap spaces back button, title and download. */}
-        <Header size="400" className={css.PdfViewerHeader}>
+        <Header size="400" appearance="inherit" className={css.PdfViewerHeader}>
           <IconButton
             aria-label={t('sharedUi.pdfViewer.close')}
             onClick={requestClose}

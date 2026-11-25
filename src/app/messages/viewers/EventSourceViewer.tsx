@@ -571,7 +571,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
         {...props}
         ref={ref}
       >
-        <Header size="400" className={css.ViewerHeader}>
+        <Header size="400" appearance="inherit" className={css.ViewerHeader}>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text title={shownName} truncate size="H4">
               {shownName}

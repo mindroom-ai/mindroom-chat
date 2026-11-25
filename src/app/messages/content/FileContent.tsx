@@ -124,7 +124,7 @@ type ViewerOverlayProps = {
 /** A viewer in a modal over the page, closed by Escape or a click outside. */
 export function ViewerOverlay({ label, onClose, children }: ViewerOverlayProps) {
   const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
-  const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
+  const { centerClassName, modalClassName, modalStyle, modalAppearance } = useViewerFrame();
   return (
     <Overlay backdrop={<OverlayBackdrop />} open>
       <OverlayCenter className={centerClassName}>
@@ -134,6 +134,7 @@ export function ViewerOverlay({ label, onClose, children }: ViewerOverlayProps) 
             aria-modal="true"
             aria-label={revealDirectionControls(label)}
             size="500"
+            appearance={modalAppearance}
             className={modalClassName}
             style={modalStyle}
             // The message under the viewer has its own context menu; keep right-clicks here.

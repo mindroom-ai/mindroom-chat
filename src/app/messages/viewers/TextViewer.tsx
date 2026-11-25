@@ -53,7 +53,7 @@ export const TextViewer = as<'div', TextViewerProps>(
 
     return (
       <Box direction="Column" className={rootClassName} {...props} ref={ref}>
-        <Header size="400" className={css.TextViewerHeader}>
+        <Header size="400" appearance="inherit" className={css.TextViewerHeader}>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text title={shownName} truncate size="H4">
               {shownName}

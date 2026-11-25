@@ -5,14 +5,15 @@ import 'folds/dist/style.css';
 import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
-import { LightTheme } from '../../src/app/theme/useTheme';
+import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
 import { ImageViewer } from '../../src/app/messages/viewers/ImageViewer';
 import { ImageOverlay } from '../../src/app/messages/content/ImageOverlay';
 import { ScreenSize, ScreenSizeProvider } from '../../src/app/lib/hooks/useScreenSize';
 
-applyThemeToDom(LightTheme);
+const params = new URLSearchParams(window.location.search);
+applyThemeToDom(params.get('theme') === 'dark' ? DarkTheme : LightTheme);
 
 // A 4:3 picture drawn inline, so the viewer needs no homeserver.
 const picture = [
@@ -45,13 +46,17 @@ function PhoneViewer() {
 
 // The viewer in the dialog an opened image message shows it in.
 createRoot(document.getElementById('root')!).render(
-  new URLSearchParams(window.location.search).has('phone') ? (
+  params.has('phone') ? (
     <PhoneViewer />
   ) : (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
         <Modal
+          role="dialog"
+          aria-modal="true"
+          aria-label="Test image"
           size="500"
+          appearance="plain"
           style={{ width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' }}
         >
           <ImageViewer src={src} alt="Test image" requestClose={() => undefined} />
