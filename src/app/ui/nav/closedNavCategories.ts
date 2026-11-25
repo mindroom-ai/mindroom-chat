@@ -13,8 +13,10 @@ import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalS
 const CLOSED_NAV_CATEGORIES = 'closedNavCategories';
 const INITIALIZED_NAV_CATEGORIES = 'initializedNavCategories';
 
-type ClosedNavCategoriesAction =
-  { type: 'PUT'; categoryId: string } | { type: 'DELETE'; categoryId: string };
+export type ClosedNavCategoriesAction =
+  | { type: 'PUT'; categoryId: string }
+  | { type: 'DELETE'; categoryId: string }
+  | { type: 'INIT_CLOSED'; categoryIds: readonly string[] };
 
 export type ClosedNavCategoriesAtom = WritableAtom<Set<string>, [ClosedNavCategoriesAction], void>;
 
@@ -42,11 +44,19 @@ export const makeClosedNavCategoriesAtom = (
   initiallyClosedCategoryIds: string[] = []
 ): ClosedNavCategoriesAtom => {
   const closedKey = `${CLOSED_NAV_CATEGORIES}${userId}`;
+  const initializedKey = `${INITIALIZED_NAV_CATEGORIES}${userId}`;
   initializeCategories(
     closedKey,
-    `${INITIALIZED_NAV_CATEGORIES}${userId}`,
+    initializedKey,
     Array.from(new Set(initiallyClosedCategoryIds))
   );
+
+  // Mirrors initializedKey in memory so storage-refused contexts still respect manual toggles.
+  const initializedMemory = new Set<string>(readStringArray(initializedKey));
+  const syncInitialized = (): Set<string> => {
+    readStringArray(initializedKey).forEach((id) => initializedMemory.add(id));
+    return initializedMemory;
+  };
 
   const closedAtom = atomWithLocalStorage<Set<string>>(
     closedKey,
@@ -62,7 +72,38 @@ export const makeClosedNavCategoriesAtom = (
 
   return atom<Set<string>, [ClosedNavCategoriesAction], void>(
     (get) => get(closedAtom),
-    (get, set, { type, categoryId }) => {
+    (get, set, action) => {
+      if (action.type === 'INIT_CLOSED') {
+        if (action.categoryIds.length === 0) return;
+        const initialized = syncInitialized();
+        const pending = Array.from(new Set(action.categoryIds)).filter(
+          (categoryId) => !initialized.has(categoryId)
+        );
+        if (pending.length === 0) return;
+
+        pending.forEach((categoryId) => initialized.add(categoryId));
+        setLocalStorageItem(initializedKey, Array.from(initialized));
+
+        const current = get(closedAtom);
+        const next = new Set(current);
+        let changed = false;
+        pending.forEach((categoryId) => {
+          if (!next.has(categoryId)) {
+            next.add(categoryId);
+            changed = true;
+          }
+        });
+        if (changed) set(closedAtom, next);
+        return;
+      }
+
+      const { type, categoryId } = action;
+      const initialized = syncInitialized();
+      if (!initialized.has(categoryId)) {
+        initialized.add(categoryId);
+        setLocalStorageItem(initializedKey, Array.from(initialized));
+      }
+
       const current = get(closedAtom);
       if ((type === 'PUT') === current.has(categoryId)) return;
       const next = new Set(current);

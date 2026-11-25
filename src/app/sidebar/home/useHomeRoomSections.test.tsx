@@ -165,7 +165,7 @@ describe('useHomeRoomSections', () => {
     return { state, closedAtom };
   };
 
-  it('reorders live with io.mindroom.spaces, keeps useHomeRooms unspaced-only, and persists collapse under home|space|<id>', async () => {
+  it('default-collapses mixed Home spaces, nests sectionTree, reorders live with io.mindroom.spaces, and persists toggle across reload', async () => {
     const { client, setAccountData } = makeRealClient({
       '!notes': { name: 'Personal Notes', createdAt: 100 },
       '!work': { name: 'Work', space: true, createdAt: 200 },
@@ -196,13 +196,22 @@ describe('useHomeRoomSections', () => {
 
     const { state } = mount(client, store);
 
-    // Rail age order: Work (with sub-space Design Team right after it), then Garden Club.
+    // Mixed Home starts all spaces collapsed on first visit, with Design Team nested under Work.
     expect(state.sections.unspaced).toEqual(['!notes']);
-    expect(state.sections.sections.map((section) => section.spaceId)).toEqual([
+    expect(state.sections.sectionTree.map((node) => node.section.spaceId)).toEqual([
       '!work',
-      '!design',
       '!garden',
     ]);
+    expect(state.sections.sectionTree[0]?.children.map((node) => node.section.spaceId)).toEqual([
+      '!design',
+    ]);
+    expect(state.sections.sectionTree[0]?.subtreeShownRoomIds).toEqual(['!planning', '!sketches']);
+    expect(state.sections.sections.map((section) => [section.spaceId, section.closed])).toEqual([
+      ['!work', true],
+      ['!design', true],
+      ['!garden', true],
+    ]);
+    expect(state.sections.shortcutRoomIds).toEqual(['!notes']);
     // useHomeRooms stays unspaced-only; allVisibleHomeRooms includes space rooms (no DMs/spaces).
     expect(state.homeRooms).toEqual(['!notes']);
     expect(state.sections.allVisibleHomeRooms).toEqual([
@@ -212,34 +221,43 @@ describe('useHomeRoomSections', () => {
       '!planning',
     ]);
 
-    // Live rail reorder via io.mindroom.spaces moves Garden Club ahead of Work (and Design Team moves with Work).
+    // Live rail reorder via io.mindroom.spaces moves Garden Club ahead of Work (and Design Team stays nested under Work).
     await act(async () => {
       await setAccountData(AccountDataEvent.MindroomSpaces, { sidebar: ['!garden', '!work'] });
     });
-    expect(state.sections.sections.map((section) => section.spaceId)).toEqual([
+    expect(state.sections.sectionTree.map((node) => node.section.spaceId)).toEqual([
       '!garden',
       '!work',
+    ]);
+    expect(state.sections.sectionTree[1]?.children.map((node) => node.section.spaceId)).toEqual([
       '!design',
     ]);
 
-    // Collapse Work under its Home category ID (home|space|!work) and verify persistence across reload.
+    // Expand Work under its Home category ID (home|space|!work) and verify persistence across reload.
     const workCategoryId = makeNavCategoryId('home', 'space', '!work');
     act(() => {
       state.sections.onCategoryClick({
         currentTarget: { getAttribute: () => workCategoryId },
       } as unknown as React.MouseEvent<HTMLElement>);
     });
-    expect(state.sections.sections.find((s) => s.spaceId === '!work')?.closed).toBe(true);
-    expect(state.sections.sections.find((s) => s.spaceId === '!work')?.listedRoomIds).toEqual([]);
+    expect(state.sections.sections.find((s) => s.spaceId === '!work')?.closed).toBe(false);
+    expect(state.sections.sections.find((s) => s.spaceId === '!work')?.listedRoomIds).toEqual([
+      '!planning',
+    ]);
+    expect(state.sections.sections.find((s) => s.spaceId === '!design')?.closed).toBe(true);
+    expect(state.sections.shortcutRoomIds).toEqual(['!notes', '!planning']);
 
     // Unmount and remount with a fresh store + fresh closedCategoriesAtom (simulating reload).
     act(() => renderer?.unmount());
     renderer = undefined;
     const reloadedStore = makeStore(joined, parents, ['!dm']);
     const reloaded = mount(client, reloadedStore, makeClosedNavCategoriesAtom(ME));
-    expect(reloaded.state.sections.sections.find((s) => s.spaceId === '!work')?.closed).toBe(true);
+    expect(reloaded.state.sections.sections.find((s) => s.spaceId === '!work')?.closed).toBe(false);
+    expect(reloaded.state.sections.sections.find((s) => s.spaceId === '!design')?.closed).toBe(
+      true
+    );
     expect(reloaded.state.sections.sections.find((s) => s.spaceId === '!garden')?.closed).toBe(
-      false
+      true
     );
     // Space sidebar's own category key (!work|room) remains untouched.
     expect(reloaded.closedAtom).toBeDefined();
@@ -268,6 +286,12 @@ describe('useHomeRoomSections', () => {
     const { state } = mount(client, store);
     const sectionOf = (spaceId: string) =>
       state.sections.sections.find((section) => section.spaceId === spaceId)!;
+
+    // Single-space all-spaced Home (0 unspaced rooms, 1 top-level space) opens expanded by default.
+    expect(state.sections.sectionTree.map((node) => node.section.spaceId)).toEqual(['!work']);
+    expect(sectionOf('!work').closed).toBe(false);
+    expect(sectionOf('!design').closed).toBe(false);
+    expect(state.sections.shortcutRoomIds).toEqual(['!alpha', '!zebra', '!beta', '!yankee']);
 
     // Top-level space has no sort.inherit; sub-space inherits from Work.
     expect(sectionOf('!work').sort?.inherit).toBeUndefined();
@@ -355,6 +379,15 @@ describe('useHomeRoomSections', () => {
     const { state } = mount(client, store);
     const design = state.sections.sections.find((section) => section.spaceId === '!design')!;
     const sketches = state.sections.sections.find((section) => section.spaceId === '!sketches')!;
+
+    // Multi-space all-spaced Home (0 unspaced rooms, 2 top-level spaces) starts spaces collapsed.
+    expect(state.sections.unspaced).toEqual([]);
+    expect(state.sections.sectionTree.map((node) => node.section.spaceId)).toEqual([
+      '!work',
+      '!garden',
+    ]);
+    expect(state.sections.sections.every((section) => section.closed)).toBe(true);
+    expect(state.sections.shortcutRoomIds).toEqual([]);
 
     // Design Team and its descendant Sketches are rendered under Work (default A to Z), so neither
     // may inherit Garden's Recent mode.

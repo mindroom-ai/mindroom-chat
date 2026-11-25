@@ -23,20 +23,7 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
       type="button"
       aria-expanded={!closed}
       className={classNames(CategoryButton, className)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        background: 'none',
-        border: 0,
-        padding: '4px',
-        color: 'inherit',
-        cursor: 'pointer',
-        textAlign: 'start',
-        flexGrow: 1,
-        minWidth: 0,
-        ...style,
-      }}
+      style={style}
       {...props}
       ref={ref}
     >

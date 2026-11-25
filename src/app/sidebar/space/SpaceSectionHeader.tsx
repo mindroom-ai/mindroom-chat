@@ -39,6 +39,8 @@ import { type CollapsedSectionUnread, getCollapsedSectionUnread } from './spaceR
 import * as css from './SpaceSectionHeader.css';
 
 const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
+// Clears NavCategoryHeader's inline 32px minHeight so css.Header controls compact desktop/touch heights.
+const COMPACT_HEADER_STYLE = { minHeight: undefined };
 
 type SectionHeaderButtonProps = {
   buttonRef?: Ref<HTMLButtonElement>;
@@ -48,6 +50,7 @@ type SectionHeaderButtonProps = {
   closed: boolean;
   shownRoomIds: readonly string[];
   selectedRoomId: string | undefined;
+  quietUnread?: boolean;
   onClick: MouseEventHandler<HTMLElement>;
 };
 
@@ -63,6 +66,7 @@ function SectionHeaderButton({
   closed,
   shownRoomIds,
   selectedRoomId,
+  quietUnread = false,
   onClick,
 }: SectionHeaderButtonProps) {
   const { t } = useTranslation();
@@ -85,17 +89,27 @@ function SectionHeaderButton({
   return (
     <RoomNavCategoryButton
       ref={buttonRef}
+      className={css.HeaderButton}
       closed={closed}
       ownDirection={ownDirection}
       data-category-id={categoryId}
       aria-label={unread ? t('featureUi.spaceNav.subspaceUnread', { name: label }) : undefined}
       after={
         unread && (
-          <UnreadBadgeCenter>
-            <span data-unread>
-              <UnreadBadge count={0} highlight={unread.highlight} />
-            </span>
-          </UnreadBadgeCenter>
+          <span className={css.UnreadSlot}>
+            <UnreadBadgeCenter>
+              <span data-unread data-highlight={unread.highlight ? 'true' : undefined}>
+                {quietUnread ? (
+                  <span
+                    className={unread.highlight ? css.QuietHighlightDot : css.QuietUnreadDot}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <UnreadBadge count={0} highlight={unread.highlight} />
+                )}
+              </span>
+            </UnreadBadgeCenter>
+          </span>
         )
       }
       onClick={onClick}
@@ -191,6 +205,10 @@ export type SpaceSectionHeaderProps = {
   pinMode?: SpaceMenuGroupsProps['pinMode'];
   /** Include a `Space overview` entry navigating directly to the space lobby. */
   showOverview?: boolean;
+  /** Use calm quiet dots for collapsed unread state (Home sidebar). */
+  quietUnread?: boolean;
+  /** Heading level (`aria-level`) for nested space trees (defaults to `3`). */
+  headingLevel?: number;
 };
 
 /**
@@ -210,6 +228,8 @@ export function SpaceSectionHeader({
   sort,
   pinMode,
   showOverview = false,
+  quietUnread = false,
+  headingLevel = 3,
 }: SpaceSectionHeaderProps) {
   const { t } = useTranslation();
   const spaceName = revealDirectionControls(useRoomName(space));
@@ -234,7 +254,8 @@ export function SpaceSectionHeader({
 
   const canOpenContextMenu = !isRoot || permissions.canAdd;
   const contextKind: SectionMenuKind = isRoot ? 'add' : 'context';
-  const hasActions = permissions.canAdd || !isRoot;
+  const actionCount = (permissions.canAdd ? 1 : 0) + (!isRoot ? 1 : 0);
+  const hasActions = actionCount > 0;
 
   const openMenu = (next: OpenSectionMenu, focusBackTo: HTMLElement | null) => {
     refocusOnCloseRef.current = false;
@@ -297,7 +318,11 @@ export function SpaceSectionHeader({
     <>
       <NavCategoryHeader
         ref={headerRef}
+        aria-level={headingLevel}
         className={css.Header}
+        style={COMPACT_HEADER_STYLE}
+        data-actions-count={hasActions ? actionCount : undefined}
+        data-empty-add={isEmpty && permissions.canAdd ? 'true' : undefined}
         data-menu-open={menu ? 'true' : undefined}
         {...longPress}
         onContextMenu={canOpenContextMenu ? handleContextMenu : undefined}
@@ -310,6 +335,7 @@ export function SpaceSectionHeader({
           closed={closed}
           shownRoomIds={shownRoomIds}
           selectedRoomId={selectedRoomId}
+          quietUnread={quietUnread}
           onClick={onCategoryClick}
         />
         {hasActions && (
