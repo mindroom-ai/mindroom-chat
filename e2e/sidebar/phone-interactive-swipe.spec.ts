@@ -534,6 +534,126 @@ for (const engine of ENGINES) {
         await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
         await expect(page.locator('[data-swiping]')).toHaveCount(0);
         await expectDrawer(page, false, 'drawer remains closed after exiting new thread');
+
+        // Repeat from a short keyboard height (room area <= 240px, hiding the floating room header
+        // and setting inline --room-header-height: 0px): swiping back at full height must refresh
+        // the cloned header inset so the visible header never overlaps the filter bar.
+        await expect(composer).toBeVisible();
+        await composer.tap();
+        await expect(composer).toBeFocused();
+        const shortAreaThreadText = 'Short landscape keyboard thread preview check?';
+        await page.keyboard.type(shortAreaThreadText);
+
+        await page.waitForTimeout(120);
+        await page.evaluate(() => {
+          document.documentElement.style.setProperty('--app-height', '280px');
+        });
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage shrinks to short keyboard height').toBe(280);
+        await expect
+          .poll(
+            () =>
+              page.evaluate(() => {
+                const header = document.querySelector<HTMLElement>('[data-room-header="true"]');
+                const area = header?.parentElement;
+                return {
+                  headerHeight: header?.offsetHeight ?? -1,
+                  inlineHeaderInset:
+                    area?.style.getPropertyValue('--room-header-height').trim() ?? '',
+                };
+              }),
+            { message: 'short room area hides header and sets --room-header-height: 0px' }
+          )
+          .toEqual({ headerHeight: 0, inlineHeaderInset: '0px' });
+        const shortAreaHeight = await page.evaluate(() => {
+          const area = document.querySelector<HTMLElement>(
+            '[data-room-header="true"]'
+          )?.parentElement;
+          return area ? Math.round(area.getBoundingClientRect().height) : -1;
+        });
+        expect(shortAreaHeight, 'room area height is <= 240px').toBeGreaterThan(0);
+        expect(shortAreaHeight, 'room area height is <= 240px').toBeLessThanOrEqual(240);
+
+        const shortSendButton = page.getByRole('button', { name: 'Send message', exact: true });
+        await expect(shortSendButton).toBeVisible();
+        await shortSendButton.tap();
+
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText(shortAreaThreadText, { exact: true }).first()).toBeVisible();
+        await expect
+          .poll(() => place(page).thread, {
+            message: 'short-area new thread URL confirms to a $... event ID',
+            timeout: 20_000,
+          })
+          .toMatch(/^\$/);
+
+        await page.evaluate(() => {
+          document.documentElement.style.removeProperty('--app-height');
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage returns to full phone height after short send').toBe(
+          844
+        );
+
+        const shortBackDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await shortBackDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          const preview = page.locator('[data-swipe-preview="under"]');
+          await expect(
+            preview,
+            'short-area retained room preview is visible behind the newly created thread'
+          ).toBeVisible();
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback after short-area capture'
+          ).toHaveCount(0);
+
+          const previewLayout = await preview.evaluate((copy) => {
+            const header = copy.querySelector<HTMLElement>('[data-room-header="true"]');
+            const area = header?.parentElement;
+            const overview = copy.querySelector<HTMLElement>('[data-room-thread-overview="true"]');
+            const headerRect = header?.getBoundingClientRect();
+            const overviewRect = overview?.getBoundingClientRect();
+            return {
+              headerOffsetHeight: header?.offsetHeight ?? 0,
+              inlineHeaderInset: area?.style.getPropertyValue('--room-header-height').trim() ?? '',
+              headerBottom: headerRect?.bottom ?? -1,
+              overviewTop: overviewRect?.top ?? -1,
+              overviewHeight: overviewRect?.height ?? 0,
+            };
+          });
+          expect(
+            previewLayout.headerOffsetHeight,
+            'cloned room header becomes visible at full height'
+          ).toBeGreaterThan(0);
+          expect(
+            previewLayout.inlineHeaderInset,
+            'cloned --room-header-height refreshes to match the visible header'
+          ).toBe(`${previewLayout.headerOffsetHeight}px`);
+          expect(previewLayout.overviewHeight, 'cloned filter bar is visible').toBeGreaterThan(0);
+          expect(
+            previewLayout.headerBottom,
+            'visible cloned room header does not overlap the thread filter bar'
+          ).toBeLessThanOrEqual(previewLayout.overviewTop + 0.5);
+
+          await shortBackDrag.moveTo(240, { steps: 6, stepMs: 16 });
+        } finally {
+          await shortBackDrag.release();
+        }
+
+        await expectAt(
+          page,
+          inRoom(garden),
+          'committed back swipe from short-area new thread returns to Garden Club'
+        );
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectDrawer(page, false, 'drawer remains closed after exiting short-area thread');
       } finally {
         await context.close();
       }

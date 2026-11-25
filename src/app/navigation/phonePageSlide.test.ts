@@ -1617,6 +1617,85 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     }
   });
 
+  it('refreshes inline --room-header-height on mounted previews before restoring scroll offsets', () => {
+    const { stage, page, scroller } = makeStage('Short Area Room', 120);
+    const area = document.createElement('div');
+    area.setAttribute('data-test-area', 'with-inset');
+    area.style.setProperty('--room-header-height', '0px');
+    const header = document.createElement('div');
+    header.setAttribute('data-room-header', 'true');
+    area.append(header, scroller);
+
+    const plainParent = document.createElement('div');
+    plainParent.setAttribute('data-test-area', 'without-inset');
+    const plainHeader = document.createElement('div');
+    plainHeader.setAttribute('data-room-header', 'true');
+    plainParent.append(plainHeader);
+
+    page.append(area, plainParent);
+
+    let clonedHeaderHeight = 0;
+    const offsetHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.getAttribute('data-room-header') === 'true' ? clonedHeaderHeight : 0;
+      });
+    const origScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    const headerHeightAtScrollRestore: string[] = [];
+    const scrollTopSpy = vi
+      .spyOn(Element.prototype, 'scrollTop', 'set')
+      .mockImplementation(function (this: Element, value: number) {
+        if (this.classList.contains('scroller') && this.closest('[data-page-slide-copy]')) {
+          const clonedArea = this.closest<HTMLElement>('[data-test-area="with-inset"]');
+          headerHeightAtScrollRestore.push(
+            clonedArea?.style.getPropertyValue('--room-header-height') ?? ''
+          );
+        }
+        origScrollTop.set!.call(this, value);
+      });
+
+    try {
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+      page.textContent = 'Thread View';
+
+      // Mounted at full height: cloned header becomes visible (48px), updating the inset before
+      // scroll restoration while leaving headers without an inline inset untouched.
+      clonedHeaderHeight = 48;
+      const tallScene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey: 'k-tall',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const underTall = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      const tallArea = underTall?.querySelector<HTMLElement>('[data-test-area="with-inset"]');
+      const tallPlain = underTall?.querySelector<HTMLElement>('[data-test-area="without-inset"]');
+      expect(tallArea?.style.getPropertyValue('--room-header-height')).toBe('48px');
+      expect(tallPlain?.style.getPropertyValue('--room-header-height')).toBe('');
+      expect(underTall?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(120);
+      expect(headerHeightAtScrollRestore).toEqual(['48px']);
+      tallScene!.cleanup(false);
+
+      // Mounted again at a short height: cloned header collapses back to 0px before scroll restore.
+      clonedHeaderHeight = 0;
+      const shortScene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey: 'k-short',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const underShort = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      const shortArea = underShort?.querySelector<HTMLElement>('[data-test-area="with-inset"]');
+      expect(shortArea?.style.getPropertyValue('--room-header-height')).toBe('0px');
+      expect(underShort?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(120);
+      expect(headerHeightAtScrollRestore).toEqual(['48px', '0px']);
+      shortScene!.cleanup(false);
+    } finally {
+      scrollTopSpy.mockRestore();
+      offsetHeightSpy.mockRestore();
+    }
+  });
+
   it('rekeys a retained preview from local-echo threadId to confirmed threadId and ignores mismatches', () => {
     const { stage, page } = makeStage('Room Before Send', 60);
     const localId = `~${ROOM}:txn1`;

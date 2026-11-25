@@ -85,6 +85,7 @@ it('draws the header, timeline, dock and footer of the room', () => {
   );
 
   expect(headerRef?.current).toBe(screen.getByTestId('header').parentElement);
+  expect(headerRef?.current?.getAttribute('data-room-header')).toBe('true');
   expect(screen.getByTestId('timeline')).toBeTruthy();
   expect(seen.jobs).toContain(null);
   expect(screen.queryByTestId('approval-queue')).toBeNull();
@@ -164,6 +165,7 @@ it('shows only its children while collapsed', () => {
   expect(screen.getByTestId('cover')).toBeTruthy();
   expect(screen.queryByTestId('header')).toBeNull();
   expect(screen.queryByTestId('timeline')).toBeNull();
+  expect(document.querySelector('[data-room-header="true"]')).toBeNull();
   expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
   expect(areaRef.current?.style.flex).toBe('0 0 0px');
   expect(areaRef.current?.style.getPropertyValue('content-visibility')).toBe('hidden');

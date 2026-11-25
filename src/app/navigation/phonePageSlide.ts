@@ -131,8 +131,23 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
       !child.hasAttribute(SWIPE_HOLD_SHIELD)
   );
 
+/**
+ * Refreshes inline `--room-header-height` on cloned conversation areas after mounting `copy`.
+ * A preview captured in a short room area (`<= 240px`, where `HeaderInShortArea` hides the
+ * floating header) stores `--room-header-height: 0px`; once mounted at a taller height, the
+ * cloned header becomes visible again and its parent's inset must match before scroll restoration.
+ */
+const syncMountedOverlayInsets = (copy: HTMLElement): void => {
+  copy.querySelectorAll<HTMLElement>('[data-room-header="true"]').forEach((header) => {
+    const area = header.parentElement;
+    if (!area || !area.style.getPropertyValue('--room-header-height').trim()) return;
+    area.style.setProperty('--room-header-height', `${header.offsetHeight}px`);
+  });
+};
+
 const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
   over.append(snapshot.copy);
+  syncMountedOverlayInsets(snapshot.copy);
   snapshot.scrolled.forEach(([element, scrollTop, scrollLeft]) =>
     Object.assign(element, { scrollTop, scrollLeft })
   );
