@@ -114,9 +114,18 @@ const toError = <T>(error: unknown): DesktopResult<T> =>
 
 export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAccessHandle => {
   const platform = options.platform ?? process.platform;
-  const storagePath = options.storagePath ?? path.join(os.homedir(), '.mindroom', 'mindroom_data');
-  const configPath = options.configPath ?? path.join(os.homedir(), '.mindroom', 'config.yaml');
   const isTestHelper = Boolean(options.isTestHelper);
+  const testBridgeDir = path.join(options.userDataDir, 'desktop-bridge-test');
+  const storagePath =
+    options.storagePath ??
+    (isTestHelper
+      ? path.join(testBridgeDir, 'mindroom_data')
+      : path.join(os.homedir(), '.mindroom', 'mindroom_data'));
+  const configPath =
+    options.configPath ??
+    (isTestHelper
+      ? path.join(testBridgeDir, 'config.yaml')
+      : path.join(os.homedir(), '.mindroom', 'config.yaml'));
   const enableLoginItem = options.enableLoginItem ?? false;
   const now = options.now ?? Date.now;
   const checkAx =

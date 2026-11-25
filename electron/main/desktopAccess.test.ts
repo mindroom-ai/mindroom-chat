@@ -1418,12 +1418,14 @@ describe('desktopAccess', () => {
 
     // Simulate helper refusing remove_controller while leaving the controller persisted in status.
     const originalRequest = fake.client.request;
-    fake.client.request = vi.fn(async (action: string, parameters: Record<string, unknown> = {}) => {
-      if (action === 'remove_controller') {
-        throw new DesktopHelperError('config_write_failed', 'Cannot persist native_config.json');
+    fake.client.request = vi.fn(
+      async (action: string, parameters: Record<string, unknown> = {}) => {
+        if (action === 'remove_controller') {
+          throw new DesktopHelperError('config_write_failed', 'Cannot persist native_config.json');
+        }
+        return originalRequest(action, parameters);
       }
-      return originalRequest(action, parameters);
-    }) as DesktopBridgeClient['request'];
+    ) as DesktopBridgeClient['request'];
 
     access.noteGesture();
     const revoked = await access.revokeAll();
@@ -1436,6 +1438,46 @@ describe('desktopAccess', () => {
     expect(loadConsent(userDataDir).controllers).toEqual({});
     expect(fake.currentStatus().bridge.state).toBe('stopped');
     expect(fake.currentStatus().config.controllers).toHaveLength(1);
+    await access.stop();
+  });
+
+  it('isolates configPath and storagePath inside userDataDir when isTestHelper is enabled', async () => {
+    const userDataDir = makeTempDir();
+    const fakeHelperBin = path.resolve(process.cwd(), 'e2e/helpers/fakeDesktopHelper.mjs');
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'linux',
+      arch: 'x64',
+      userDataDir,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: fakeHelperBin },
+      isTestHelper: true,
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    access.noteGesture();
+    const loginRes = await access.login({
+      homeserver: 'https://example.test',
+      userId: '@demo_user:example.test',
+      method: 'auto',
+      loginToken: 'demo_token',
+    });
+    expect(loginRes.ok).toBe(true);
+
+    const expectedSessionFile = path.join(
+      userDataDir,
+      'desktop-bridge-test',
+      'mindroom_data',
+      'desktop_bridge',
+      'matrix_session.json'
+    );
+    expect(fs.existsSync(expectedSessionFile)).toBe(true);
     await access.stop();
   });
 });

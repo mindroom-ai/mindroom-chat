@@ -130,6 +130,7 @@ void app.whenReady().then(() => {
     isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
   );
 
+  const desktopUserDataDir = app.getPath('userData');
   const desktopHelperOverride = unpackaged ? process.env.MINDROOM_DESKTOP_HELPER_BIN : undefined;
   const desktopHelperResolution = resolveDesktopHelperBinary({
     platform: process.platform,
@@ -139,18 +140,26 @@ void app.whenReady().then(() => {
     unpackagedRoot: path.resolve(__dirname, '../..'),
     envOverride: desktopHelperOverride,
   });
+  const testBridgeDir =
+    isTest || desktopHelperOverride
+      ? path.join(desktopUserDataDir, 'desktop-bridge-test')
+      : undefined;
   desktopAccess = createDesktopAccess({
     platform: process.platform,
     arch: process.arch,
-    userDataDir: app.getPath('userData'),
+    userDataDir: desktopUserDataDir,
     configPath:
       unpackaged && process.env.MINDROOM_DESKTOP_CONFIG_PATH
         ? path.resolve(process.env.MINDROOM_DESKTOP_CONFIG_PATH)
-        : undefined,
+        : testBridgeDir
+          ? path.join(testBridgeDir, 'config.yaml')
+          : undefined,
     storagePath:
       unpackaged && process.env.MINDROOM_DESKTOP_STORAGE_PATH
         ? path.resolve(process.env.MINDROOM_DESKTOP_STORAGE_PATH)
-        : undefined,
+        : testBridgeDir
+          ? path.join(testBridgeDir, 'mindroom_data')
+          : undefined,
     preload: path.join(__dirname, 'preload.cjs'),
     isQuitting,
     getMainWindow,
