@@ -375,29 +375,23 @@ export function DesktopAccessModal({
 
     if (showLimits) {
       return (
-        <div className={css.ModalBody}>
-          {error && (
-            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-              {error}
-            </Text>
-          )}
-          <ChooseLimitsForm
-            agentName={selectedAgent.displayName}
-            snapshot={snapshot}
-            controllerKey={pairedController?.controller_key}
-            busy={busy}
-            submitLabel={
-              pairedController
-                ? dt('featureUi.desktopAccess.limits.saveChanges', 'Save limits')
-                : dt('featureUi.desktopAccess.limits.save', 'Allow with limits')
-            }
-            onSave={handleSaveLimits}
-            onCancel={() => {
-              setShowLimits(false);
-              setError(null);
-            }}
-          />
-        </div>
+        <ChooseLimitsForm
+          agentName={selectedAgent.displayName}
+          snapshot={snapshot}
+          controllerKey={pairedController?.controller_key}
+          busy={busy}
+          error={error}
+          submitLabel={
+            pairedController
+              ? dt('featureUi.desktopAccess.limits.saveChanges', 'Save limits')
+              : dt('featureUi.desktopAccess.limits.save', 'Allow with limits')
+          }
+          onSave={handleSaveLimits}
+          onCancel={() => {
+            setShowLimits(false);
+            setError(null);
+          }}
+        />
       );
     }
 
@@ -697,7 +691,12 @@ export function DesktopAccessModalDialog() {
 
   return (
     <>
-      <Modal500 requestClose={close} fitContent narrow={!limitsOpen} className={css.ModalDialog}>
+      <Modal500
+        requestClose={close}
+        fitContent
+        narrow={!limitsOpen}
+        className={classNames(css.ModalDialog, limitsOpen && css.ModalDialogLimits)}
+      >
         <DesktopAccessModal
           key={modalKey}
           mx={mx}

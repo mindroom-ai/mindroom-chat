@@ -234,17 +234,17 @@ export function IncomingPairInviteModalDialog({ onDismiss }: { onDismiss: () => 
         </div>
 
         {showLimits ? (
-          <div className={css.ModalBody}>
-            <ChooseLimitsForm
-              agentName={agentName}
-              snapshot={liveSnapshot}
-              busy={busy}
-              onSave={(result: ChooseLimitsResult) =>
-                void handleApprove(result.mode, result.limits)
-              }
-              onCancel={() => setShowLimits(false)}
-            />
-          </div>
+          <ChooseLimitsForm
+            agentName={agentName}
+            snapshot={liveSnapshot}
+            busy={busy}
+            error={error}
+            onSave={(result: ChooseLimitsResult) => void handleApprove(result.mode, result.limits)}
+            onCancel={() => {
+              setShowLimits(false);
+              setError(null);
+            }}
+          />
         ) : (
           <>
             <div className={css.ModalBody}>
@@ -297,7 +297,10 @@ export function IncomingPairInviteModalDialog({ onDismiss }: { onDismiss: () => 
                 variant="Secondary"
                 fill="Soft"
                 disabled={busy}
-                onClick={() => setShowLimits(true)}
+                onClick={() => {
+                  setShowLimits(true);
+                  setError(null);
+                }}
               >
                 <Text size="B400">
                   {dt('featureUi.desktopAccess.actions.chooseLimits', 'Choose limits...')}
@@ -330,7 +333,7 @@ export function IncomingPairInviteModalDialog({ onDismiss }: { onDismiss: () => 
         requestClose={handleClose}
         fitContent
         narrow={!showLimits}
-        className={css.ModalDialog}
+        className={classNames(css.ModalDialog, showLimits && css.ModalDialogLimits)}
       >
         {renderContent()}
       </Modal500>

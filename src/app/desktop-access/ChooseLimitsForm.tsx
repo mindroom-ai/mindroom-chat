@@ -29,6 +29,7 @@ type ChooseLimitsFormProps = {
   snapshot: DesktopAccessSnapshot | null;
   controllerKey?: string;
   busy?: boolean;
+  error?: string | null;
   submitLabel?: string;
   onSave: (result: ChooseLimitsResult) => void;
   onCancel: () => void;
@@ -113,20 +114,22 @@ function ChoiceGroup<V extends string>({
   value,
   options,
   disabled,
+  hint,
   onChange,
 }: {
   label: string;
   value: V;
   options: Array<{ value: V; label: string }>;
   disabled: boolean;
+  hint?: string;
   onChange: (value: V) => void;
 }) {
   return (
-    <Box direction="Column" gap="100">
-      <Text size="T200" priority="300">
+    <div className={css.LimitsSubsection}>
+      <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
         {label}
       </Text>
-      <Box direction="Column" gap="100" role="radiogroup" aria-label={label}>
+      <div className={css.LimitsChoiceGrid} role="radiogroup" aria-label={label}>
         {options.map((option) => {
           const selected = option.value === value;
           return (
@@ -139,13 +142,20 @@ function ChoiceGroup<V extends string>({
               className={classNames(css.LimitsOptionButton, selected && css.LimitsOptionSelected)}
               onClick={() => onChange(option.value)}
             >
-              <Text size="T300">{option.label}</Text>
+              <Text as="span" size="T300">
+                {option.label}
+              </Text>
               {selected && <Icon size="100" src={Icons.Check} />}
             </button>
           );
         })}
-      </Box>
-    </Box>
+      </div>
+      {hint && (
+        <Text size="T200" priority="300">
+          {hint}
+        </Text>
+      )}
+    </div>
   );
 }
 
@@ -155,6 +165,7 @@ export function ChooseLimitsForm({
   snapshot,
   controllerKey,
   busy = false,
+  error = null,
   submitLabel,
   onSave,
   onCancel,
@@ -162,6 +173,7 @@ export function ChooseLimitsForm({
   const dt = useDesktopT();
   const fullScreenLabelId = useId();
   const shellEnabledLabelId = useId();
+  const appIdPrefix = useId();
   const config = snapshot?.status?.config;
   const savedApps = config?.allowed_app_ids ?? [];
   const otherHasFullAccess = Object.keys(snapshot?.consent ?? {}).some(
@@ -311,203 +323,226 @@ export function ChooseLimitsForm({
     selectedAppIds.length > 0 ||
     fileRoots.length > 0 ||
     shellEnabled;
+  const hasStatusBanner = Boolean(error || pickerError || !hasCapability);
 
   return (
-    <Box direction="Column" gap="400">
-      <div className={css.LimitsSection} data-testid="limits-per-agent-section">
-        <Text size="L400" style={{ fontWeight: 600 }}>
-          {dt(
-            'featureUi.desktopAccess.limits.perAgentHeading',
-            'Control & shell approval for {{agent}} (per-agent)',
-            { agent: agentName }
-          )}
-        </Text>
-        <ChoiceGroup
-          label={dt('featureUi.desktopAccess.limits.guiLabel', 'Screen & input control')}
-          value={guiChoice}
-          options={guiOptions}
-          disabled={busy}
-          onChange={handleGuiChange}
-        />
-        {guiChoice === 'full' && (
-          <Text size="T200" priority="300">
-            {dt(
-              'featureUi.desktopAccess.limits.fullNote',
-              'Full Access until revoked enables full-screen control and auto-approved shell until revoked.'
-            )}
-          </Text>
-        )}
-        <ChoiceGroup
-          label={dt('featureUi.desktopAccess.limits.shellApprovalLabel', 'Shell approval')}
-          value={shellApproval}
-          options={shellApprovalOptions}
-          disabled={busy || !shellEnabled}
-          onChange={handleShellApprovalChange}
-        />
-        {!shellEnabled && (
-          <Text size="T200" priority="300">
-            {dt(
-              'featureUi.desktopAccess.limits.shellDisabledHint',
-              'Turn on "Allow shell commands on this Mac" below to configure shell approval.'
-            )}
-          </Text>
-        )}
-      </div>
-
-      <div className={css.LimitsSection} data-testid="limits-shared-section">
-        <Box direction="Column" gap="100">
+    <>
+      <div className={css.ModalBody}>
+        <div className={css.LimitsSection} data-testid="limits-per-agent-section">
           <Text size="L400" style={{ fontWeight: 600 }}>
             {dt(
-              'featureUi.desktopAccess.limits.sharedHeading',
-              'Shared apps, folders & shell on this Mac (applies to all paired agents)'
+              'featureUi.desktopAccess.limits.perAgentHeading',
+              'Control & shell approval for {{agent}} (per-agent)',
+              { agent: agentName }
             )}
           </Text>
-          {otherHasFullAccess && (
+          <ChoiceGroup
+            label={dt('featureUi.desktopAccess.limits.guiLabel', 'Screen & input control')}
+            value={guiChoice}
+            options={guiOptions}
+            disabled={busy}
+            hint={
+              guiChoice === 'full'
+                ? dt(
+                    'featureUi.desktopAccess.limits.fullNote',
+                    'Full Access until revoked enables full-screen control and auto-approved shell until revoked.'
+                  )
+                : undefined
+            }
+            onChange={handleGuiChange}
+          />
+          <ChoiceGroup
+            label={dt('featureUi.desktopAccess.limits.shellApprovalLabel', 'Shell approval')}
+            value={shellApproval}
+            options={shellApprovalOptions}
+            disabled={busy || !shellEnabled}
+            hint={
+              !shellEnabled
+                ? dt(
+                    'featureUi.desktopAccess.limits.shellDisabledHint',
+                    'Turn on "Allow shell commands on this Mac" below to configure shell approval.'
+                  )
+                : undefined
+            }
+            onChange={handleShellApprovalChange}
+          />
+        </div>
+
+        <div className={css.LimitsSection} data-testid="limits-shared-section">
+          <Box direction="Column" gap="100">
+            <Text size="L400" style={{ fontWeight: 600 }}>
+              {dt(
+                'featureUi.desktopAccess.limits.sharedHeading',
+                'Shared apps, folders & shell on this Mac (applies to all paired agents)'
+              )}
+            </Text>
+            {otherHasFullAccess && (
+              <Text size="T200" priority="300">
+                {dt(
+                  'featureUi.desktopAccess.limits.sharedWithOthersHint',
+                  'Shared with other paired agents on this Mac'
+                )}
+              </Text>
+            )}
+          </Box>
+
+          <div className={css.LimitsToggleGroup}>
+            <div className={css.LimitsToggleRow}>
+              <Text id={shellEnabledLabelId} size="T300">
+                {dt(
+                  'featureUi.desktopAccess.limits.allowShellOnMac',
+                  'Allow shell commands on this Mac'
+                )}
+              </Text>
+              <Switch
+                variant="Primary"
+                aria-labelledby={shellEnabledLabelId}
+                value={shellEnabled}
+                disabled={busy}
+                onChange={handleShellEnabledChange}
+              />
+            </div>
+
+            <div className={css.LimitsToggleRow}>
+              <Text id={fullScreenLabelId} size="T300">
+                {dt('featureUi.desktopAccess.limits.fullScreen', 'Full screen (primary-screen)')}
+              </Text>
+              <Switch
+                variant="Primary"
+                aria-labelledby={fullScreenLabelId}
+                value={fullScreen}
+                disabled={busy}
+                onChange={handleFullScreenChange}
+              />
+            </div>
+          </div>
+
+          <div className={css.LimitsSubsection}>
+            <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
+              {dt('featureUi.desktopAccess.limits.installedApps', 'Allowed Mac apps')}
+            </Text>
+            {loadingApps ? (
+              <Box alignItems="Center" gap="200">
+                <Spinner size="100" />
+                <Text size="T200" priority="300">
+                  {dt('featureUi.desktopAccess.limits.loadingApps', 'Loading installed apps...')}
+                </Text>
+              </Box>
+            ) : appEntries.length === 0 ? (
+              <Text size="T200" priority="300">
+                {dt('featureUi.desktopAccess.limits.noAppsFound', 'No installed Mac apps found.')}
+              </Text>
+            ) : (
+              <div className={css.ChecklistBox}>
+                {appEntries.map((app, index) => {
+                  const checkboxId = `${appIdPrefix}-app-${index}`;
+                  return (
+                    <label
+                      key={app.bundleId}
+                      htmlFor={checkboxId}
+                      className={css.ChecklistRow}
+                      data-disabled={busy || undefined}
+                    >
+                      <Checkbox
+                        id={checkboxId}
+                        variant="Primary"
+                        size="200"
+                        checked={selectedAppIds.includes(app.bundleId)}
+                        aria-label={app.name}
+                        readOnly
+                        disabled={busy}
+                        onClick={() => toggleApp(app.bundleId)}
+                      />
+                      <span className={css.ChecklistRowText}>
+                        <Text as="span" size="T300" truncate>
+                          {app.name}
+                        </Text>
+                        <Text as="span" size="T200" priority="300" truncate>
+                          {app.bundleId}
+                        </Text>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className={css.LimitsSubsection}>
+            <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+              <Text size="T200" priority="300" className={css.LimitsSubsectionTitle}>
+                {dt('featureUi.desktopAccess.limits.foldersLabel', 'Read-only folders')}
+              </Text>
+              <Button
+                type="button"
+                size="300"
+                radii="300"
+                variant="Secondary"
+                fill="Soft"
+                disabled={busy}
+                onClick={() => void addFolder()}
+              >
+                <Text size="B300">
+                  {dt('featureUi.desktopAccess.limits.addFolder', 'Add folder...')}
+                </Text>
+              </Button>
+            </Box>
+            {fileRoots.length === 0 ? (
+              <Text size="T200" priority="300">
+                {dt('featureUi.desktopAccess.limits.noFolders', 'No read-only folders added.')}
+              </Text>
+            ) : (
+              <Box direction="Column" gap="100">
+                {fileRoots.map((folder) => (
+                  <div key={folder} className={css.FolderRow}>
+                    <Text size="T200" className={classNames(css.MonospaceText, css.FolderPath)}>
+                      {folder}
+                    </Text>
+                    <Button
+                      type="button"
+                      size="300"
+                      radii="300"
+                      variant="Secondary"
+                      fill="None"
+                      disabled={busy}
+                      onClick={() => setFileRoots((prev) => prev.filter((item) => item !== folder))}
+                    >
+                      <Text size="B300">
+                        {dt('featureUi.desktopAccess.limits.removeFolder', 'Remove')}
+                      </Text>
+                    </Button>
+                  </div>
+                ))}
+              </Box>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {hasStatusBanner && (
+        <div className={css.ModalStatusBar}>
+          {error && (
+            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+              {error}
+            </Text>
+          )}
+          {pickerError && (
+            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+              {pickerError}
+            </Text>
+          )}
+          {!hasCapability && (
             <Text size="T200" priority="300">
               {dt(
-                'featureUi.desktopAccess.limits.sharedWithOthersHint',
-                'Shared with other paired agents on this Mac'
+                'featureUi.desktopAccess.limits.needCapability',
+                'Enable full screen, at least one app, a folder, or shell commands.'
               )}
             </Text>
           )}
-        </Box>
-
-        <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-          <Text id={shellEnabledLabelId} size="T300">
-            {dt(
-              'featureUi.desktopAccess.limits.allowShellOnMac',
-              'Allow shell commands on this Mac'
-            )}
-          </Text>
-          <Switch
-            variant="Primary"
-            aria-labelledby={shellEnabledLabelId}
-            value={shellEnabled}
-            disabled={busy}
-            onChange={handleShellEnabledChange}
-          />
-        </Box>
-
-        <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-          <Text id={fullScreenLabelId} size="T300">
-            {dt('featureUi.desktopAccess.limits.fullScreen', 'Full screen (primary-screen)')}
-          </Text>
-          <Switch
-            variant="Primary"
-            aria-labelledby={fullScreenLabelId}
-            value={fullScreen}
-            disabled={busy}
-            onChange={handleFullScreenChange}
-          />
-        </Box>
-
-        <Box direction="Column" gap="100">
-          <Text size="T200" priority="300">
-            {dt('featureUi.desktopAccess.limits.installedApps', 'Allowed Mac apps')}
-          </Text>
-          {loadingApps ? (
-            <Box alignItems="Center" gap="200">
-              <Spinner size="100" />
-              <Text size="T200" priority="300">
-                {dt('featureUi.desktopAccess.limits.loadingApps', 'Loading installed apps...')}
-              </Text>
-            </Box>
-          ) : appEntries.length === 0 ? (
-            <Text size="T200" priority="300">
-              {dt('featureUi.desktopAccess.limits.noAppsFound', 'No installed Mac apps found.')}
-            </Text>
-          ) : (
-            <div className={css.ChecklistBox}>
-              {appEntries.map((app) => (
-                <Box as="label" key={app.bundleId} className={css.ChecklistRow}>
-                  <Checkbox
-                    variant="Primary"
-                    size="200"
-                    checked={selectedAppIds.includes(app.bundleId)}
-                    aria-label={app.name}
-                    readOnly
-                    disabled={busy}
-                    onClick={() => toggleApp(app.bundleId)}
-                  />
-                  <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
-                    <Text size="T300" truncate>
-                      {app.name}
-                    </Text>
-                    <Text size="T200" priority="300" truncate>
-                      {app.bundleId}
-                    </Text>
-                  </Box>
-                </Box>
-              ))}
-            </div>
-          )}
-        </Box>
-
-        <Box direction="Column" gap="100">
-          <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-            <Text size="T200" priority="300">
-              {dt('featureUi.desktopAccess.limits.foldersLabel', 'Read-only folders')}
-            </Text>
-            <Button
-              type="button"
-              size="300"
-              radii="300"
-              variant="Secondary"
-              fill="Soft"
-              disabled={busy}
-              onClick={() => void addFolder()}
-            >
-              <Text size="B300">
-                {dt('featureUi.desktopAccess.limits.addFolder', 'Add folder...')}
-              </Text>
-            </Button>
-          </Box>
-          {fileRoots.length === 0 ? (
-            <Text size="T200" priority="300">
-              {dt('featureUi.desktopAccess.limits.noFolders', 'No read-only folders added.')}
-            </Text>
-          ) : (
-            <Box direction="Column" gap="100">
-              {fileRoots.map((folder) => (
-                <div key={folder} className={css.FolderRow}>
-                  <Text size="T200" className={css.MonospaceText}>
-                    {folder}
-                  </Text>
-                  <Button
-                    type="button"
-                    size="300"
-                    radii="300"
-                    variant="Secondary"
-                    fill="None"
-                    disabled={busy}
-                    onClick={() => setFileRoots((prev) => prev.filter((item) => item !== folder))}
-                  >
-                    <Text size="B300">
-                      {dt('featureUi.desktopAccess.limits.removeFolder', 'Remove')}
-                    </Text>
-                  </Button>
-                </div>
-              ))}
-            </Box>
-          )}
-        </Box>
-      </div>
-
-      {pickerError && (
-        <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {pickerError}
-        </Text>
-      )}
-      {!hasCapability && (
-        <Text size="T200" priority="300">
-          {dt(
-            'featureUi.desktopAccess.limits.needCapability',
-            'Enable full screen, at least one app, a folder, or shell commands.'
-          )}
-        </Text>
+        </div>
       )}
 
-      <Box justifyContent="End" gap="200">
+      <div className={css.ModalFooter}>
         <Button
           type="button"
           size="400"
@@ -545,7 +580,7 @@ export function ChooseLimitsForm({
             {submitLabel ?? dt('featureUi.desktopAccess.limits.save', 'Allow with limits')}
           </Text>
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </>
   );
 }

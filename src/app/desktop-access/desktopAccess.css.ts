@@ -1,10 +1,18 @@
-import { style, styleVariants } from '@vanilla-extract/css';
+import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 export const ModalDialog = style({
   selectors: {
     '&&': {
       maxHeight: `min(85dvh, calc(100% - 2 * ${config.space.S400}))`,
+    },
+  },
+});
+
+export const ModalDialogLimits = style({
+  selectors: {
+    '&&': {
+      maxWidth: `min(${toRem(600)}, calc(100% - 2 * ${config.space.S400}))`,
     },
   },
 });
@@ -30,6 +38,21 @@ export const ModalBody = style({
   overflowY: 'auto',
   flex: '1 1 auto',
   minHeight: 0,
+});
+
+globalStyle(`${ModalBody} > *`, {
+  flexShrink: 0,
+});
+
+export const ModalStatusBar = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  width: '100%',
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S400,
+  borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  flexShrink: 0,
 });
 
 export const ModalFooter = style({
@@ -197,11 +220,56 @@ export const AgentPickerButton = style({
 export const LimitsSection = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: config.space.S200,
-  padding: config.space.S300,
+  gap: config.space.S400,
+  padding: config.space.S400,
   borderRadius: config.radii.R400,
   backgroundColor: color.SurfaceVariant.Container,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  flexShrink: 0,
+});
+
+export const LimitsSubsection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S200,
+});
+
+export const LimitsSubsectionTitle = style({
+  fontWeight: 600,
+});
+
+export const LimitsChoiceGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: config.space.S200,
+  '@media': {
+    '(max-width: 520px)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
+});
+
+export const LimitsToggleGroup = style({
+  display: 'flex',
+  flexDirection: 'column',
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Surface.Container,
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  overflow: 'hidden',
+});
+
+export const LimitsToggleRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: config.space.S200,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  selectors: {
+    '& + &': {
+      borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+    },
+  },
 });
 
 export const LimitsOptionButton = style({
@@ -210,6 +278,7 @@ export const LimitsOptionButton = style({
   justifyContent: 'space-between',
   gap: config.space.S200,
   width: '100%',
+  minHeight: toRem(40),
   paddingBlock: config.space.S200,
   paddingInline: config.space.S300,
   textAlign: 'start',
@@ -220,6 +289,13 @@ export const LimitsOptionButton = style({
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   backgroundColor: color.Surface.Container,
   selectors: {
+    '&:hover:not(:disabled)': {
+      backgroundColor: color.Surface.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: toRem(2),
+    },
     '&:disabled': {
       opacity: 0.6,
       cursor: 'default',
@@ -227,19 +303,28 @@ export const LimitsOptionButton = style({
   },
 });
 
+globalStyle(`${LimitsOptionButton} svg`, {
+  flexShrink: 0,
+});
+
 export const LimitsOptionSelected = style({
   borderColor: color.Primary.Main,
   backgroundColor: color.Primary.Container,
   color: color.Primary.OnContainer,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      backgroundColor: color.Primary.ContainerHover,
+    },
+  },
 });
 
 export const ChecklistBox = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: config.space.S100,
-  maxHeight: toRem(180),
+  gap: toRem(2),
+  maxHeight: toRem(220),
   overflowY: 'auto',
-  padding: config.space.S200,
+  padding: config.space.S100,
   borderRadius: config.radii.R300,
   backgroundColor: color.Surface.Container,
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
@@ -249,10 +334,32 @@ export const ChecklistRow = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S200,
-  paddingBlock: config.space.S100,
-  paddingInline: config.space.S100,
+  flexShrink: 0,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S200,
   borderRadius: config.radii.R300,
   cursor: 'pointer',
+  selectors: {
+    '&:hover:not([data-disabled="true"])': {
+      backgroundColor: color.Surface.ContainerHover,
+    },
+    '&[data-disabled="true"]': {
+      cursor: 'default',
+      opacity: 0.6,
+    },
+    '&:has(input:focus-visible)': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: toRem(-2),
+    },
+  },
+});
+
+export const ChecklistRowText = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: toRem(2),
+  flex: '1 1 auto',
+  minWidth: 0,
 });
 
 export const FolderRow = style({
@@ -265,6 +372,15 @@ export const FolderRow = style({
   borderRadius: config.radii.R300,
   backgroundColor: color.Surface.Container,
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+});
+
+export const FolderPath = style({
+  flex: '1 1 auto',
+  minWidth: 0,
+});
+
+globalStyle(`${FolderRow} button`, {
+  flexShrink: 0,
 });
 
 export const CodeCopyBox = style({

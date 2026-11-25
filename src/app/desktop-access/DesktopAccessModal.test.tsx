@@ -86,6 +86,7 @@ import { findPairedController, resolveRoomAgents } from './desktopAccessHelpers'
 import { DesktopAccessModalRenderer } from './DesktopAccessModal';
 import { IncomingPairInviteModal } from './IncomingPairInviteModal';
 import { incomingPairInviteAtom } from './macPairInvite';
+import * as css from './desktopAccess.css';
 
 type SnapshotOverrides = {
   accessibility?: 'granted' | 'missing' | 'unknown';
@@ -989,6 +990,73 @@ describe('DesktopAccessModal', () => {
       },
     ]);
   });
+
+  it('renders Edit limits with a separate scrollable body, pinned footer, plain label app rows, and status bar errors', async () => {
+    const paired = makeSnapshot({
+      controllers: [
+        {
+          controller_key: 'ctrl:code',
+          user_id: '@mindroom_code:example.org',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:example.org'],
+          allowed_agent_names: ['code'],
+        },
+      ],
+    });
+    const access = makeDesktopAccessMock(paired);
+    vi.mocked(access.updateLimits).mockResolvedValueOnce({
+      ok: false,
+      code: 'helper_error',
+      message: 'Helper rejected limits',
+    });
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      agentUserId: '@mindroom_code:example.org',
+      agentName: 'code',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+    await within(sharedSection).findByRole('checkbox', { name: 'Safari' });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.classList.contains(css.ModalDialogLimits)).toBe(true);
+
+    const bodies = Array.from(dialog.getElementsByClassName(css.ModalBody));
+    const footers = Array.from(dialog.getElementsByClassName(css.ModalFooter));
+    expect(bodies).toHaveLength(1);
+    expect(footers).toHaveLength(1);
+
+    const body = bodies[0] as HTMLElement;
+    const footer = footers[0] as HTMLElement;
+    expect(body.contains(perAgentSection)).toBe(true);
+    expect(body.contains(sharedSection)).toBe(true);
+    expect(body.contains(footer)).toBe(false);
+    expect(within(body).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(body).queryByRole('button', { name: 'Save limits' })).toBeNull();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Save limits' })).toBeTruthy();
+
+    const appRows = Array.from(sharedSection.querySelectorAll('label'));
+    expect(appRows.length).toBeGreaterThanOrEqual(2);
+    for (const row of appRows) {
+      expect(row.tagName).toBe('LABEL');
+      expect(row.className).toBe(css.ChecklistRow);
+    }
+
+    fireEvent.click(within(footer).getByRole('button', { name: 'Save limits' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Helper rejected limits');
+    const statusBars = Array.from(dialog.getElementsByClassName(css.ModalStatusBar));
+    expect(statusBars).toHaveLength(1);
+    expect(statusBars[0]?.contains(alert)).toBe(true);
+    expect(body.contains(alert)).toBe(false);
+  });
 });
 
 describe('IncomingPairInviteModal', () => {
@@ -1061,5 +1129,44 @@ describe('IncomingPairInviteModal', () => {
     expect(
       await screen.findByText('Shell ready - Waiting for macOS screen & input permissions')
     ).toBeTruthy();
+  });
+
+  it('renders Choose limits with a separate scrollable body, pinned footer, and plain label app rows', async () => {
+    makeDesktopAccessMock(makeSnapshot());
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(incomingPairInviteAtom, sampleIncoming);
+    renderWithStore(<IncomingPairInviteModal />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+    await within(sharedSection).findByRole('checkbox', { name: 'Safari' });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.classList.contains(css.ModalDialogLimits)).toBe(true);
+
+    const bodies = Array.from(dialog.getElementsByClassName(css.ModalBody));
+    const footers = Array.from(dialog.getElementsByClassName(css.ModalFooter));
+    expect(bodies).toHaveLength(1);
+    expect(footers).toHaveLength(1);
+
+    const body = bodies[0] as HTMLElement;
+    const footer = footers[0] as HTMLElement;
+    expect(body.contains(perAgentSection)).toBe(true);
+    expect(body.contains(sharedSection)).toBe(true);
+    expect(body.contains(footer)).toBe(false);
+    expect(within(body).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(body).queryByRole('button', { name: 'Allow with limits' })).toBeNull();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Allow with limits' })).toBeTruthy();
+
+    const appRows = Array.from(sharedSection.querySelectorAll('label'));
+    expect(appRows.length).toBeGreaterThanOrEqual(2);
+    for (const row of appRows) {
+      expect(row.tagName).toBe('LABEL');
+      expect(row.className).toBe(css.ChecklistRow);
+    }
   });
 });
