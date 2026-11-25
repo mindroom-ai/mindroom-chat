@@ -13,10 +13,14 @@ import { LINKIFY_OPTS, getReactCustomHtmlParser } from './react-custom-html-pars
 
 const mocks = vi.hoisted(() => ({
   loadImageOriginal: vi.fn(),
+  hydrateCachedLongText: vi.fn(),
 }));
 
 vi.mock('../content/imageOriginal', () => ({
   loadImageOriginal: mocks.loadImageOriginal,
+}));
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  hydrateCachedLongText: mocks.hydrateCachedLongText,
 }));
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   InlineImage: 'InlineImage',
@@ -59,6 +63,7 @@ describe('encrypted inline message images', () => {
 
   beforeEach(() => {
     mocks.loadImageOriginal.mockReset();
+    mocks.hydrateCachedLongText.mockReset();
     revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
   });
 
@@ -301,6 +306,68 @@ describe('encrypted inline message images', () => {
       expect.objectContaining({
         url: 'mxc://ex/v2',
         encInfo: expect.objectContaining({ iv: 'iv-2', hashes: { sha256: 'h-2' } }),
+      })
+    );
+  });
+
+  it('uses io.mindroom.inline_media from hydrated v2 long-text sidecar content', async () => {
+    const sidecarEntry = encEntry('mxc://ex/sidecar-img', 'iv-sc', 'h-sc');
+    mocks.hydrateCachedLongText.mockResolvedValueOnce({
+      msgtype: 'm.text',
+      body: 'Full ![diagram](mxc://ex/sidecar-img)',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Full <img src="mxc://ex/sidecar-img" alt="diagram"></p>',
+      [INLINE_MEDIA_CONTENT_KEY]: { 'mxc://ex/sidecar-img': sidecarEntry },
+    });
+    mocks.loadImageOriginal.mockResolvedValueOnce({ src: 'blob:sidecar-img' });
+
+    const previewContent: IContent = {
+      msgtype: 'm.text',
+      body: 'Preview...',
+      file: encEntry('mxc://ex/sidecar-json', 'iv-json', 'h-json'),
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    const mEvent = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: '!r:ex',
+      event_id: '$long1',
+      sender: '@mindroom_helper:matrix.example',
+      origin_server_ts: 300,
+      content: previewContent,
+    });
+    const parserOptions = getReactCustomHtmlParser(mx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
+
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <ClientConfigProvider value={{}}>
+            <RenderMessageContent
+              mEvent={mEvent}
+              displayName="Helper"
+              msgType="m.text"
+              ts={300}
+              getContent={(() => previewContent) as never}
+              urlPreview={false}
+              hydrateLongText
+              htmlReactParserOptions={parserOptions}
+              linkifyOpts={LINKIFY_OPTS}
+            />
+          </ClientConfigProvider>
+        </MatrixClientProvider>
+      );
+    });
+    await flush();
+    await flush();
+
+    expect(renderer!.root.findByType('img').props).toMatchObject({
+      src: 'blob:sidecar-img',
+      alt: 'diagram',
+    });
+    expect(mocks.loadImageOriginal).toHaveBeenCalledWith(
+      mx,
+      expect.objectContaining({
+        url: 'mxc://ex/sidecar-img',
+        encInfo: expect.objectContaining({ iv: 'iv-sc', hashes: { sha256: 'h-sc' } }),
       })
     );
   });
