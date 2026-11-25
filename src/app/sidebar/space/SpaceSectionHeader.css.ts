@@ -75,6 +75,7 @@ export const QuietHighlightDot = style({
  * so stacked 28px collapsed rows do not overlap.
  */
 export const HeaderButton = style({
+  alignSelf: 'stretch',
   vars: { [actionsEndPad]: toRem(4) },
   selectors: {
     // Higher specificity beats CategoryButton's `padding: 4px` regardless of CSS chunk order.
