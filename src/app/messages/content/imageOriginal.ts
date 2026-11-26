@@ -134,14 +134,15 @@ export const loadImageOriginal = async (
         }
         throw error;
       })
-    : downloadCachedAttachment(mx, source));
+    : downloadCachedAttachment(mx, source, signal ? { signal } : undefined));
   if (!heic && !isHeicMimeType(blob.type)) return { src: URL.createObjectURL(blob) };
   if (blob.size > MAX_HEIC_BYTES) {
     throw new HeicDecodeError(`HEIC image exceeds ${MAX_HEIC_BYTES} byte decode limit`, blob);
   }
   if (await canDecodeNatively(blob)) return { src: URL.createObjectURL(blob) };
   try {
-    const key = `${url}|${encInfo?.hashes?.sha256 ?? ''}`;
+    // An encrypted file's key and IV are part of the cache key, so a wrong key never reuses another event's pixels.
+    const key = `${url}|${encInfo?.hashes?.sha256 ?? ''}|${encInfo?.key?.k ?? ''}|${encInfo?.iv ?? ''}`;
     return {
       src: URL.createObjectURL(await convertHeicForDisplay(blob, key, signal)),
       downloadBlob: blob,

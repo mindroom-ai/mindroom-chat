@@ -4,6 +4,7 @@ import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
 import { THREAD_MODEL_KEY } from './threadModel';
+import { INLINE_MEDIA_CONTENT_KEY } from './metadata';
 import { hasToolPositions } from './toolPositions';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
@@ -276,7 +277,7 @@ const normalizeHydratedContent = (
 
   Object.entries(hydratedContent).forEach(([key, value]) => {
     if (normalizedContent[key] !== undefined) return;
-    if (key === TOOL_TRACE_TAG && fallbackPositions) return;
+    if ((key === TOOL_TRACE_TAG && fallbackPositions) || key === INLINE_MEDIA_CONTENT_KEY) return;
     if (key === 'm.mentions' || key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.')) {
       normalizedContent[key] = value;
     }

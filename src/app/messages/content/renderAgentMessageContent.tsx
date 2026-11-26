@@ -8,6 +8,7 @@ import {
 } from '../../rich-text/htmlReactParserOptions';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import { INLINE_MEDIA_CONTENT_KEY, readInlineMedia } from '../../matrix/protocol/inlineMedia';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
@@ -146,6 +147,7 @@ type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactPa
   metadataStatus?: ToolMetadataStatus;
   /** Whether a tool marker draws a row: only an agent's does. */
   toolRows: boolean;
+  mEvent?: MatrixEvent;
   /** Whether the HTML contains service-restart seam sentinels to replace. */
   restartSeams?: boolean;
 };
@@ -156,9 +158,15 @@ function AgentRenderBody({
   markerContent,
   metadataStatus,
   toolRows,
+  mEvent,
   restartSeams = false,
   ...props
 }: AgentRenderBodyProps) {
+  const rawInlineMedia = markerContent[INLINE_MEDIA_CONTENT_KEY];
+  const inlineMedia = useMemo(() => {
+    const entries = readInlineMedia(rawInlineMedia);
+    return entries ? { entries, owner: getEventAttachmentOwner(mEvent) } : undefined;
+  }, [rawInlineMedia, mEvent]);
   const toolOptions = useToolTraceMarkerParserOptions(
     htmlReactParserOptions,
     markerContent,
@@ -180,7 +188,7 @@ function AgentRenderBody({
     };
   }, [restartSeams, toolOptions]);
 
-  return <RenderBody {...props} htmlReactParserOptions={parserOptions} />;
+  return <RenderBody {...props} inlineMedia={inlineMedia} htmlReactParserOptions={parserOptions} />;
 }
 
 type AgentWorkBodyProps = {
@@ -464,6 +472,7 @@ export const renderAgentMessageContent = ({
             htmlReactParserOptions={htmlReactParserOptions}
             markerContent={renderableContent}
             toolRows={toolRows}
+            mEvent={mEvent}
             restartSeams={restartSeams}
             linkifyOpts={linkifyOpts}
           />
@@ -553,6 +562,7 @@ export const renderAgentMessageContent = ({
             markerContent={resolvedContent}
             metadataStatus={metadataStatus}
             toolRows={toolRows}
+            mEvent={mEvent}
             restartSeams={restartSeams}
             linkifyOpts={linkifyOpts}
           />

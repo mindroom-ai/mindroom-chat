@@ -42,11 +42,9 @@ describe('copyResolvedEditMetadata', () => {
     });
   });
 
-  it('does not carry a long-text marker into a later edit', () => {
-    // The marker means "this event's file holds the message"; it is true only beside that file.
-    const shortEdit: Record<string, unknown> = { msgtype: 'm.text', body: 'Short now' };
-
-    copyResolvedEditMetadata(shortEdit, [
+  it.each<[string, Record<string, unknown>]>([
+    [
+      'a long-text marker',
       {
         'm.new_content': {
           msgtype: 'm.file',
@@ -55,18 +53,20 @@ describe('copyResolvedEditMetadata', () => {
           'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
         },
       },
-    ]);
-
-    expect(shortEdit).toEqual({ msgtype: 'm.text', body: 'Short now' });
-  });
-
-  it('never copies the time a borrowed stream status was sent without its status', () => {
-    const latest: Record<string, unknown> = { body: 'Edited by hand' };
-
-    copyResolvedEditMetadata(latest, [
-      { 'm.new_content': { 'io.mindroom.stream_status_ts': 2000 } },
-    ]);
-
-    expect(latest).toEqual({ body: 'Edited by hand' });
+    ],
+    ['a borrowed stream_status_ts', { 'm.new_content': { 'io.mindroom.stream_status_ts': 2000 } }],
+    [
+      'io.mindroom.inline_media from an edit or outer fallback',
+      {
+        'm.new_content': {
+          'io.mindroom.inline_media': { 'mxc://example.org/a': { url: 'mxc://example.org/a' } },
+        },
+        'io.mindroom.inline_media': { 'mxc://example.org/b': { url: 'mxc://example.org/b' } },
+      },
+    ],
+  ])('never carries %s into a later edit', (_label, source) => {
+    const latest: Record<string, unknown> = { msgtype: 'm.text', body: 'Short now' };
+    copyResolvedEditMetadata(latest, [source]);
+    expect(latest).toEqual({ msgtype: 'm.text', body: 'Short now' });
   });
 });

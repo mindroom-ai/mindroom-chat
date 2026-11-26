@@ -198,7 +198,8 @@ describe('ImageContent', () => {
 
     expect(mocks.downloadCachedAttachment).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ mimeType: blobType })
+      expect.objectContaining({ mimeType: blobType }),
+      { signal: expect.any(AbortSignal) }
     );
   });
 

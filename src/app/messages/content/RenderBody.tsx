@@ -10,6 +10,7 @@ import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
+import { InlineMediaContext, type InlineMediaContextValue } from '../html/InlineImage';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
   HtmlReactParserOptionsSource,
@@ -77,6 +78,7 @@ interface RenderBodyProps {
   htmlReactParserOptions: HtmlReactParserOptionsSource;
   highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
+  inlineMedia?: InlineMediaContextValue;
 }
 
 /**
@@ -90,6 +92,7 @@ export const RenderBody = memo(function RenderBody({
   highlightRegex,
   linkifyOpts,
   htmlReactParserOptions,
+  inlineMedia,
 }: RenderBodyProps) {
   const clientConfig = useClientConfig();
   // Site icons come from a third party, so links show them only where the deployment allows it.
@@ -105,15 +108,12 @@ export const RenderBody = memo(function RenderBody({
   }, [customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
 
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
+  const content =
+    customContent ?? renderTextWithLatex(body, { linkify: true, linkifyOpts, highlightRegex });
   return (
     <FootnoteScopeProvider>
       <LinkFaviconContext value={linkFavicons}>
-        {customContent ??
-          renderTextWithLatex(body, {
-            linkify: true,
-            linkifyOpts,
-            highlightRegex,
-          })}
+        <InlineMediaContext value={inlineMedia}>{content}</InlineMediaContext>
       </LinkFaviconContext>
     </FootnoteScopeProvider>
   );
