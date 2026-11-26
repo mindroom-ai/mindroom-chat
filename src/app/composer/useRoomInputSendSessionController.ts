@@ -20,7 +20,7 @@ import {
 import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { TUploadItem, Upload } from '../matrix/state/upload';
+import { isUploadItemReady, TUploadItem, Upload } from '../matrix/state/upload';
 import { hasPasteMarkerInText, type RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
@@ -965,7 +965,7 @@ export const useRoomInputSendSessionController = ({
         ...(batch ? [] : enrolled.map((item) => item.file)),
       ]);
       const sendItems = (batch?.fileItems ?? staged).filter(
-        (fileItem) => !fileItem.prepError && !heldFiles.has(fileItem.file)
+        (fileItem) => isUploadItemReady(fileItem) && !heldFiles.has(fileItem.file)
       );
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {

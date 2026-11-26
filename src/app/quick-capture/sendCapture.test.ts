@@ -19,10 +19,15 @@ vi.mock('../matrix/send/msgContent', async (importOriginal) => ({
   })),
 }));
 
+vi.mock('../lib/media/compressImage', () => ({
+  compressImage: vi.fn(),
+}));
+
 vi.mock('../matrix/send/longTextSidecarUpload', () => ({
   uploadLongTextSidecar: vi.fn(async () => ({ msgtype: 'm.file', body: 'sidecar preview' })),
 }));
 
+import { compressImage } from '../lib/media/compressImage';
 import { encryptFile } from '../matrix/matrix';
 import { buildLongTextPreview } from '../matrix/protocol/longText';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
@@ -372,6 +377,111 @@ describe('sendCapture', () => {
       msgtype: 'm.file',
       body: 'sidecar preview',
     });
+  });
+
+  it('compresses images before encryption and upload when mediaCompression is balanced or small', async () => {
+    const compressed = new File(['small'], 'a.webp', { type: 'image/webp' });
+    vi.mocked(compressImage).mockResolvedValueOnce({
+      file: compressed,
+      originalSize: 100_000,
+      compressedSize: compressed.size,
+    });
+    const mx = client();
+    const raw = png('a.png');
+
+    await sendCapture(
+      mx as never,
+      encryptedRoom as never,
+      { text: 'Check this', images: [raw] },
+      { markdown: true, mediaCompression: 'balanced' }
+    );
+
+    expect(compressImage).toHaveBeenCalledWith(raw, { maxLongEdge: 2048, quality: 0.84 });
+    expect(encryptFile).toHaveBeenCalledWith(compressed);
+    expect(mx.uploadContent).toHaveBeenCalledWith(expect.any(File), {
+      name: 'a.webp',
+      type: 'application/octet-stream',
+      includeFilename: false,
+    });
+
+    vi.mocked(compressImage).mockResolvedValueOnce(undefined);
+    await sendCapture(
+      mx as never,
+      plainRoom as never,
+      { text: '', images: [raw] },
+      { markdown: true, mediaCompression: 'small' }
+    );
+    expect(compressImage).toHaveBeenLastCalledWith(raw, { maxLongEdge: 1280, quality: 0.72 });
+  });
+
+  it('skips image compression when mediaCompression is off', async () => {
+    const mx = client();
+    const raw = png('lossless.png');
+
+    await sendCapture(
+      mx as never,
+      plainRoom as never,
+      { text: '', images: [raw] },
+      { markdown: true, mediaCompression: 'off' }
+    );
+
+    expect(compressImage).not.toHaveBeenCalled();
+    expect(mx.uploadContent).toHaveBeenCalledWith(raw, {
+      name: 'lossless.png',
+      type: 'image/png',
+      includeFilename: true,
+    });
+  });
+
+  it('bounds image compression concurrency to 2 while keeping order and falling back on error', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const resolvers: Array<() => void> = [];
+
+    vi.mocked(compressImage).mockImplementation(async (file) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise<void>((resolve) => {
+        resolvers.push(resolve);
+      });
+      inFlight -= 1;
+      if (file.name === 'b.png') throw new Error('decode failed');
+      if (file.name === 'c.png') return undefined;
+      const webp = new File(['ok'], file.name.replace('.png', '.webp'), { type: 'image/webp' });
+      return { file: webp, originalSize: 50_000, compressedSize: webp.size };
+    });
+
+    const mx = client();
+    const pending = sendCapture(
+      mx as never,
+      plainRoom as never,
+      { text: '', images: [png('a.png'), png('b.png'), png('c.png'), png('d.png')] },
+      { markdown: true, mediaCompression: 'balanced' }
+    );
+
+    // Wait for the first two workers to start.
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    expect(maxInFlight).toBe(2);
+
+    // Finish second image before first to prove order preservation.
+    resolvers[1]?.();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(3));
+    expect(maxInFlight).toBe(2);
+
+    resolvers[0]?.();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(4));
+    expect(maxInFlight).toBe(2);
+
+    resolvers[3]?.();
+    resolvers[2]?.();
+    await pending;
+
+    expect(mx.sendMessage.mock.calls.map(([, content]) => content.body)).toEqual([
+      'a.webp',
+      'b.png',
+      'c.png',
+      'd.webp',
+    ]);
   });
 
   it('fails as send-failed when the long-text sidecar cannot be uploaded', async () => {

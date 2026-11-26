@@ -124,6 +124,8 @@ import { useThreadStreamingState } from '../event-store/threads/useThreadStreami
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
+import { listSessions } from '../matrix/session/sessions';
+import { captureAccountGuard } from './capture/liveCapture';
 
 export type RoomInputProps = {
   editor: Editor;
@@ -393,6 +395,7 @@ export function RoomInput({
     createUploadItems,
     stagedListKey: ask ? textKey : undefined,
     deferUpload: !!ask,
+    sendingDeferred: !!ask && submitPending,
     inlineUploadBoard: !!ask,
   });
   const { settlePastes, dismissLostPastes } = attachments;
@@ -634,6 +637,7 @@ export function RoomInput({
     ) => {
       const voiceOnly = options?.voiceOnly === true;
       if (voiceActive && voice.blocksSubmit()) return;
+      if (attachments.isPreparingNow()) return;
       const mode = explicitMode ?? midTurnSend;
       const liveDictation = voiceOnly ? 'idle' : dictation.getLiveStatus();
       if (liveDictation === 'blocked') return;
@@ -735,11 +739,21 @@ export function RoomInput({
       ) {
         return;
       }
+      const sameAccount = captureAccountGuard(store);
       setSubmitPending(true);
       ask?.onSendingChange?.(true);
       let releaseInitialLeases: (() => void) | undefined;
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
+      const restorePendingFallback = () => {
+        if (!pendingFallback) return;
+        const fragment = pendingFallback;
+        pendingFallback = undefined;
+        if (sameAccount()) sessions.restoreText({ roomId, threadId: draftThreadId }, fragment);
+        else if (userId && listSessions().some((s) => s.userId === userId)) {
+          restoreTextToDraft(store, textKey, fragment);
+        }
+      };
       try {
         if (ask && attachments.hasSendableFiles) {
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
@@ -748,25 +762,26 @@ export function RoomInput({
             composer.resetText();
             sendTypingStatus(false);
           }
-          const { uploadedItems, missingPasteMarker } = await prepareAndUploadDeferredAttachments({
-            room,
-            batchItems: initialSnapshot!.staged,
-            textContent,
-            prepareForSend: attachments.prepareForSend,
-            uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
-            onPrepared: (prepared) => {
-              releasePreparedLeases = attachments.access.protectPasteItems(prepared);
-            },
-          });
+          const { aborted, uploadedItems, missingPasteMarker } =
+            await prepareAndUploadDeferredAttachments({
+              room,
+              batchItems: initialSnapshot!.staged,
+              textContent,
+              prepareForSend: attachments.prepareForSend,
+              uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
+              onPrepared: (prepared) => {
+                releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+              },
+              isAborted: () => !sameAccount(),
+            });
           if (
+            aborted ||
+            !sameAccount() ||
             !ask.canSend(room) ||
             missingPasteMarker ||
             (!textContent && uploadedItems.length === 0)
           ) {
-            if (pendingFallback) {
-              sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-              pendingFallback = undefined;
-            }
+            restorePendingFallback();
             return;
           }
           const fallbackForSession = pendingFallback;
@@ -779,8 +794,12 @@ export function RoomInput({
             completeWithinCall: uploadedItems.length > 0,
             composerFallback: fallbackForSession,
             composerAlreadyReset: Boolean(textContent),
-            beforeSend: (sentTo) => ask.canSend(sentTo),
-            onLocalEchoCreated: ask.onLocalEcho,
+            beforeSend: (sentTo) => sameAccount() && ask.canSend(sentTo),
+            onLocalEchoCreated:
+              ask.onLocalEcho &&
+              ((id, sent) => {
+                if (sameAccount()) ask.onLocalEcho?.(id, sent);
+              }),
           });
           sendTypingStatus(false);
           try {
@@ -799,22 +818,26 @@ export function RoomInput({
           explicitMidTurnMode: explicitMode !== undefined,
           batch: ask ? { fileItems: [] } : undefined,
           // Home's question is asked about, and told of, as it was at this press.
-          beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
-          onLocalEchoCreated: ask?.onLocalEcho,
+          beforeSend: ask && ((sentTo) => sameAccount() && ask.canSend(sentTo)),
+          onLocalEchoCreated:
+            ask?.onLocalEcho &&
+            ((id, sent) => {
+              if (sameAccount()) ask.onLocalEcho?.(id, sent);
+            }),
         });
         // The composer is free again once the send session owns the text.
         sendTypingStatus(false);
         await sending;
       } catch (error) {
-        if (pendingFallback) {
-          sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-        }
+        restorePendingFallback();
         throw error;
       } finally {
         releasePreparedLeases?.();
         releaseInitialLeases?.();
-        ask?.onSendingChange?.(false);
-        if (mountedRef.current) setSubmitPending(false);
+        if (sameAccount()) {
+          ask?.onSendingChange?.(false);
+          if (mountedRef.current) setSubmitPending(false);
+        }
       }
     },
     [
@@ -842,7 +865,9 @@ export function RoomInput({
       draftThreadId,
       room,
       roomId,
+      textKey,
       transport,
+      userId,
       voice,
       voiceActive,
     ]
@@ -1039,7 +1064,12 @@ export function RoomInput({
     : t('composer.sendMessage');
   const emojiLabel = t('composer.emoji');
   const boardOpen = emojiAnchor !== undefined;
-  const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice && !dictationCanSend;
+  const composerEmpty =
+    noText &&
+    !attachments.hasSendableFiles &&
+    !attachments.isPreparing &&
+    !hasVoice &&
+    !dictationCanSend;
   const showPhoneEmptyVoice =
     phone && !ask && dictation.available && !forkFrom && !dictation.active && composerEmpty;
 
@@ -1272,7 +1302,7 @@ export function RoomInput({
                 }
                 empty={composerEmpty}
                 defaultMode={midTurnSend}
-                disabled={askBlocked || dictation.blocksSubmit}
+                disabled={askBlocked || dictation.blocksSubmit || attachments.isPreparing}
                 onSend={handleSend}
               />
             )}

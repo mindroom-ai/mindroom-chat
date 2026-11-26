@@ -49,7 +49,7 @@ vi.mock('./sendCapture', async (importOriginal) => ({
 
 const USER_ID = '@me:x';
 const HOMESERVER = 'https://x.org';
-const OPTIONS = { markdown: true, linkSchemes: ['obsidian'] };
+const OPTIONS = { markdown: true, linkSchemes: ['obsidian'], mediaCompression: 'balanced' };
 
 const makeRoom = (roomId: string, name: string, lastActiveTs: number, space = false): Room =>
   ({
@@ -406,6 +406,23 @@ describe('QuickCaptureHost', () => {
     expect(
       await request({ kind: 'resolve', roomId: '!a', threadId: '$t1', resolved: false })
     ).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('passes the current mediaCompression setting into sendCapture', async () => {
+    const { hello, request, mx, store } = setup();
+    act(() => store.set(settingsAtom, { ...store.get(settingsAtom), mediaCompression: 'small' }));
+    vi.mocked(sendCapture).mockResolvedValueOnce({ threadId: '$new' });
+    hello();
+
+    expect(
+      await request({ kind: 'send', roomId: '!a', text: 'Note', images: [], open: false })
+    ).toEqual({ ok: true, threadId: '$new' });
+    expect(sendCapture).toHaveBeenCalledWith(
+      mx,
+      roomA,
+      { text: 'Note', images: [] },
+      { ...OPTIONS, mediaCompression: 'small' }
+    );
   });
 
   it('marks a thread read as the hideActivity setting says, and answers a failure', async () => {

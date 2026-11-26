@@ -64,13 +64,33 @@ type UploadPayload = {
   encInfo: EncryptedAttachmentInfo | undefined;
 };
 
+export type UploadCompression =
+  | {
+      status: 'compressing';
+      progressAtom: Atom<number>;
+      cancel: () => void;
+      useOriginal: () => void;
+    }
+  | {
+      status: 'compressed';
+      sourceFile: File;
+      originalSize: number;
+    }
+  | { status: 'original' };
+
 /** A file staged in the composer: what the user chose, what is uploaded for it, and how. */
 export type TUploadItem = UploadPayload & {
   originalFile: TUploadContent;
   metadata: TUploadMetadata;
   /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
   prepError?: MatrixError;
+  /** Client-side media compression state for staged images and videos. */
+  compression?: UploadCompression;
 };
+
+/** Whether a staged upload item is ready to enroll in a send session or voice bundle. */
+export const isUploadItemReady = (item: TUploadItem): boolean =>
+  !item.prepError && item.compression?.status !== 'compressing';
 
 export const createUploadAtom = (file: TUploadContent): TUploadAtom => {
   const uploadAtom = atom<Upload>({ file, status: UploadStatus.Idle });

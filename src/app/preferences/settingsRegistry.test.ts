@@ -197,6 +197,33 @@ describe('settings registry', () => {
     expect(found({ ...WEB, nativeUpdate: true }, 'upgrade')).toEqual(['appUpdates']);
   });
 
+  it('lists Media compression on Chats as an account setting and finds it by media search keywords', () => {
+    const found = (query: string) =>
+      searchSettings(query, getShownSettings(WEB), (key, values) => translateFromEn(key, values));
+    const [match] = found('media compression');
+    expect(match?.setting).toMatchObject({
+      id: 'mediaCompression',
+      page: 'chats',
+      scope: 'account',
+    });
+    expect(match?.label).toBe('Media compression');
+    expect(match?.location).toEqual(['Chats', 'Editor']);
+
+    for (const query of [
+      'screenshots',
+      'screen recordings',
+      'images',
+      'videos',
+      'compression',
+      'upload size',
+    ]) {
+      expect(
+        found(query).map(({ setting }) => setting.id),
+        query
+      ).toContain('mediaCompression');
+    }
+  });
+
   it('labels the roaming settings with the account and keeps every other app setting on the device', () => {
     const scopeOf = (id: string) => SETTINGS.find((setting) => setting.id === id)?.scope;
     Object.keys(ROAMING_SETTINGS).forEach((id) => expect(scopeOf(id), id).toBe('account'));

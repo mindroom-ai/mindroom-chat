@@ -115,4 +115,37 @@ describe('UploadBoardHeader', () => {
     expect(classes()).toEqual(['UploadBoardBase', 'UploadBoardContainer', 'UploadBoard']);
     expect(classes(true)).toEqual(['UploadBoard UploadBoardInline']);
   });
+
+  it('shows activity spinner when compressingCount > 0 even while board is collapsed and uploads are idle', async () => {
+    const file = createFile('clip.mov');
+    const uploadFamilyObserverAtom = atom([
+      { file, status: UploadStatus.Idle },
+    ]) as TUploadFamilyObserverAtom;
+
+    const renderHeader = async (compressingCount: number) => {
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            Provider,
+            { store: createStore() },
+            React.createElement(UploadBoardHeader, {
+              open: false,
+              onToggle: vi.fn(),
+              uploadFamilyObserverAtom,
+              compressingCount,
+              onCancel: vi.fn(),
+            })
+          )
+        );
+      });
+      return renderer.root.findAll(
+        (node) =>
+          node.type === 'span' && node.props.variant === 'Secondary' && node.props.size === '100'
+      );
+    };
+
+    expect(await renderHeader(0)).toHaveLength(0);
+    expect(await renderHeader(1)).toHaveLength(1);
+  });
 });
