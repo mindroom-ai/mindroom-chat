@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow, clipboard, Menu, screen } from 'electron';
 import { APP_ORIGIN } from './bundleProtocol';
@@ -82,20 +83,27 @@ export const showMainWindow = (): BrowserWindow => {
     screen.getAllDisplays().map((display) => display.workArea)
   );
 
+  const isDarwin = process.platform === 'darwin';
+  const iconPath = path.join(__dirname, 'icon.png');
   const win = new BrowserWindow({
     ...(restored
       ? { x: restored.x, y: restored.y, width: restored.width, height: restored.height }
       : { width: 1200, height: 800 }),
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 12, y: 8 },
+    ...(isDarwin
+      ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 8 } }
+      : {
+          autoHideMenuBar: true,
+          ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
+        }),
     backgroundColor: '#1A1A1A',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       additionalArguments: [
         screenShareEnabled ? '--mindroom-screen-share=1' : '--mindroom-screen-share=0',
+        ...(isDarwin ? ['--mindroom-custom-titlebar=1'] : []),
         ...(updaterEnabled ? ['--mindroom-updater=1'] : []),
         ...(desktopAccessEnabled ? ['--mindroom-desktop-access=1'] : []),
       ],
@@ -235,6 +243,9 @@ export const showMainWindow = (): BrowserWindow => {
     if (activeFlushWindowState === flush) activeFlushWindowState = undefined;
     hideAfterFullScreen = false;
     if (mainWindow === win) mainWindow = undefined;
+    // On Linux, hidden auxiliary windows (e.g. Quick Capture) must not keep the process alive once
+    // the main window has closed. Running here (after `close`) preserves `will-prevent-unload`.
+    if (process.platform !== 'darwin' && !quitting) app.quit();
   });
 
   void win.loadURL(`${APP_ORIGIN}/`);

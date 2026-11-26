@@ -5,6 +5,7 @@ import { copyToClipboard } from '../lib/dom';
 import type { StoredSession } from '../matrix/session/sessions';
 import {
   captureScreenshot,
+  hasQuickCaptureVibrancy,
   hideQuickCapture,
   isNativeQuickCaptureAvailable,
   isNativeScreenshotAvailable,
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({ session: undefined as StoredSession | undefine
 vi.mock('../matrix/session/useSessionStore', () => ({ useActiveSession: () => mocks.session }));
 vi.mock('../native/nativeQuickCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../native/nativeQuickCapture')>()),
+  hasQuickCaptureVibrancy: vi.fn(),
   isNativeQuickCaptureAvailable: vi.fn(),
   isNativeScreenshotAvailable: vi.fn(),
   hideQuickCapture: vi.fn(),
@@ -169,6 +171,7 @@ const setPageVisibility = (state: DocumentVisibilityState) => {
 
 beforeEach(() => {
   mocks.session = undefined;
+  vi.mocked(hasQuickCaptureVibrancy).mockReturnValue(false);
   vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(false);
   vi.mocked(isNativeScreenshotAvailable).mockReturnValue(false);
   vi.mocked(hideQuickCapture).mockResolvedValue(undefined);
@@ -726,8 +729,23 @@ describe('QuickCapturePage attachments', () => {
     vi.mocked(isNativeScreenshotAvailable).mockReturnValue(false);
     setup();
     expect(document.querySelector('[data-native]')).not.toBeNull();
+    expect(document.querySelector('[data-vibrancy]')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Screenshot of the front window' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Screenshot of the whole screen' })).toBeNull();
+  });
+
+  it('sets data-vibrancy only when native quick capture reports vibrancy', () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(hasQuickCaptureVibrancy).mockReturnValue(false);
+    setup();
+    expect(document.querySelector('[data-native]')).not.toBeNull();
+    expect(document.querySelector('[data-vibrancy]')).toBeNull();
+
+    cleanup();
+    vi.mocked(hasQuickCaptureVibrancy).mockReturnValue(true);
+    setup();
+    expect(document.querySelector('[data-native]')).not.toBeNull();
+    expect(document.querySelector('[data-vibrancy]')).not.toBeNull();
   });
 
   it('attaches a screenshot of the window or the screen with the native plugin', async () => {

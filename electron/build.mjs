@@ -37,6 +37,11 @@ await esbuild.build({
   sourcemap: true,
 });
 
+fs.copyFileSync(
+  path.join(root, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png'),
+  path.join(root, 'build/electron/icon.png')
+);
+
 if (!fs.existsSync(distDir)) {
   throw new Error(`Missing built web bundle at ${distDir}: run \`npm run build:ios\` first`);
 }

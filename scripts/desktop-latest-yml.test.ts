@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { buildDesktopLatestYml } from './desktop-latest-yml.mjs';
+import { buildDesktopLatestYml, buildLinuxLatestYml } from './desktop-latest-yml.mjs';
 
 const tempDirs: string[] = [];
 afterEach(() => {
@@ -13,6 +14,14 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+type ParsedManifest = {
+  version: string;
+  files: Array<{ url: string; sha512: string; size: number; blockMapSize?: number }>;
+  path: string;
+  sha512: string;
+  releaseDate: string;
+};
 
 function makeZipFixtures(arm64Content: Buffer, x64Content: Buffer) {
   const dir = mkdtempSync(join(tmpdir(), 'desktop-latest-yml-'));
@@ -22,6 +31,28 @@ function makeZipFixtures(arm64Content: Buffer, x64Content: Buffer) {
   writeFileSync(arm64, arm64Content);
   writeFileSync(x64, x64Content);
   return { dir, arm64, x64 };
+}
+
+function makeAppImageBytes(
+  prefix: string,
+  blockMap: unknown = {
+    version: '2',
+    files: [{ name: 'file', offset: 0, checksums: ['a'], sizes: [1] }],
+  }
+) {
+  const body = Buffer.from(prefix);
+  const compressed = deflateRawSync(Buffer.from(JSON.stringify(blockMap), 'utf8'));
+  const trailer = Buffer.alloc(4);
+  trailer.writeUInt32BE(compressed.length, 0);
+  return { bytes: Buffer.concat([body, compressed, trailer]), blockMapSize: compressed.length };
+}
+
+function makeAppImageFixture(filename: string, content: Buffer) {
+  const dir = mkdtempSync(join(tmpdir(), 'desktop-latest-linux-'));
+  tempDirs.push(dir);
+  const file = join(dir, filename);
+  writeFileSync(file, content);
+  return { dir, file };
 }
 
 function sha512(buf: Buffer): string {
@@ -43,13 +74,7 @@ describe('scripts/desktop-latest-yml.mjs', () => {
       files: [x64, arm64],
     });
 
-    const parsed = parse(yml) as {
-      version: string;
-      files: Array<{ url: string; sha512: string; size: number }>;
-      path: string;
-      sha512: string;
-      releaseDate: string;
-    };
+    const parsed = parse(yml) as ParsedManifest;
 
     const arm64Url =
       'https://github.com/mindroom-ai/mindroom-chat/releases/download/v2026.11.42/MindRoom-Chat-arm64-mac.zip';
@@ -157,13 +182,7 @@ describe('scripts/desktop-latest-yml.mjs', () => {
     );
 
     expect(result.status, result.stderr).toBe(0);
-    const parsed = parse(readFileSync(out, 'utf8')) as {
-      version: string;
-      files: Array<{ url: string; sha512: string; size: number }>;
-      path: string;
-      sha512: string;
-      releaseDate: string;
-    };
+    const parsed = parse(readFileSync(out, 'utf8')) as ParsedManifest;
     expect(parsed.version).toBe('2026.11.7');
     expect(parsed.releaseDate).toBe(releaseDate);
     expect(parsed.files[0]?.url).toContain(
@@ -174,5 +193,196 @@ describe('scripts/desktop-latest-yml.mjs', () => {
     );
     expect(parsed.path).toBe(parsed.files[0]?.url);
     expect(parsed.sha512).toBe(sha512(arm64Bytes));
+  });
+
+  it.each([
+    ['x64', 'MindRoom-Chat-x86_64.AppImage', 'latest-linux.yml'],
+    ['arm64', 'MindRoom-Chat-arm64.AppImage', 'latest-linux-arm64.yml'],
+  ] as const)(
+    'generates Linux manifest for %s via API and --platform linux CLI (%s)',
+    (arch, filename, outName) => {
+      const { bytes: payload, blockMapSize } = makeAppImageBytes(`linux-${arch}-appimage-payload`);
+      const { dir, file } = makeAppImageFixture(filename, payload);
+      const releaseDate = '2026-11-25T18:00:00.000Z';
+      const expectedUrl = `https://github.com/mindroom-ai/mindroom-chat/releases/download/v2026.11.42/${filename}`;
+      const expected = {
+        version: '2026.11.42',
+        files: [{ url: expectedUrl, sha512: sha512(payload), size: payload.length, blockMapSize }],
+        path: expectedUrl,
+        sha512: sha512(payload),
+        releaseDate,
+      };
+
+      const yml = buildLinuxLatestYml({
+        version: '2026.11.42',
+        releaseDate,
+        repository: 'mindroom-ai/mindroom-chat',
+        arch,
+        file,
+      });
+      expect(parse(yml) as ParsedManifest).toEqual(expected);
+
+      const out = join(dir, 'out', outName);
+      const cli = spawnSync(
+        process.execPath,
+        [
+          resolve('scripts/desktop-latest-yml.mjs'),
+          '--platform',
+          'linux',
+          '--version',
+          '2026.11.42',
+          '--repo',
+          'mindroom-ai/mindroom-chat',
+          '--arch',
+          arch,
+          '--file',
+          file,
+          '--out',
+          out,
+          '--release-date',
+          releaseDate,
+        ],
+        { encoding: 'utf8' }
+      );
+      expect(cli.status, cli.stderr).toBe(0);
+      expect(parse(readFileSync(out, 'utf8')) as ParsedManifest).toEqual(expected);
+    }
+  );
+
+  const validAppImageBytes = makeAppImageBytes('valid-appimage').bytes;
+  const corruptBlockMapTrailer = Buffer.alloc(4);
+  corruptBlockMapTrailer.writeUInt32BE(8, 0);
+  const corruptBlockMapBytes = Buffer.concat([
+    Buffer.from('not-deflate-data'),
+    corruptBlockMapTrailer,
+  ]);
+
+  it.each([
+    [
+      'invalid arch',
+      '2026.11.1',
+      'ia32',
+      'MindRoom-Chat-x86_64.AppImage',
+      validAppImageBytes,
+      /Invalid Linux arch/,
+    ],
+    [
+      'mismatched filename',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-arm64.AppImage',
+      validAppImageBytes,
+      /Unexpected AppImage filename/,
+    ],
+    [
+      'leading-v version',
+      'v2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      validAppImageBytes,
+      /Invalid version/,
+    ],
+    [
+      'empty file',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      Buffer.alloc(0),
+      /Release archive is empty/,
+    ],
+    [
+      'too-small AppImage missing embedded blockmap',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      Buffer.from('tiny'),
+      /Invalid or missing embedded blockmap/,
+    ],
+    [
+      'zero blockMapSize trailer',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      Buffer.concat([Buffer.from('payload'), Buffer.alloc(4)]),
+      /Invalid or missing embedded blockmap/,
+    ],
+    [
+      'out-of-range blockMapSize trailer',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      Buffer.from('payload-without-embedded-blockmap'),
+      /Invalid or missing embedded blockmap/,
+    ],
+    [
+      'corrupt embedded blockmap stream',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      corruptBlockMapBytes,
+      /Invalid or missing embedded blockmap/,
+    ],
+    [
+      'embedded blockmap JSON with empty files array',
+      '2026.11.1',
+      'x64',
+      'MindRoom-Chat-x86_64.AppImage',
+      makeAppImageBytes('empty-files', { version: '2', files: [] }).bytes,
+      /Invalid or missing embedded blockmap/,
+    ],
+  ])('buildLinuxLatestYml rejects %s', (_label, version, arch, filename, content, pattern) => {
+    const { file } = makeAppImageFixture(filename, content);
+    expect(() =>
+      buildLinuxLatestYml({
+        version,
+        repository: 'mindroom-ai/mindroom-chat',
+        arch: arch as 'x64',
+        file,
+      })
+    ).toThrow(pattern);
+  });
+
+  it('CLI rejects invalid --platform and mismatched Linux filename', () => {
+    const { dir, file } = makeAppImageFixture('MindRoom-Chat-x86_64.AppImage', validAppImageBytes);
+    const out = join(dir, 'latest-linux.yml');
+    const badPlatform = spawnSync(
+      process.execPath,
+      [
+        resolve('scripts/desktop-latest-yml.mjs'),
+        '--platform',
+        'win32',
+        '--version',
+        '2026.11.8',
+        '--repo',
+        'mindroom-ai/mindroom-chat',
+        '--out',
+        out,
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(badPlatform.status).not.toBe(0);
+    expect(badPlatform.stderr).toContain("Invalid platform 'win32'");
+
+    const badArch = spawnSync(
+      process.execPath,
+      [
+        resolve('scripts/desktop-latest-yml.mjs'),
+        '--platform',
+        'linux',
+        '--version',
+        '2026.11.8',
+        '--repo',
+        'mindroom-ai/mindroom-chat',
+        '--arch',
+        'arm64',
+        '--file',
+        file,
+        '--out',
+        out,
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(badArch.status).not.toBe(0);
+    expect(badArch.stderr).toContain('Unexpected AppImage filename');
   });
 });
