@@ -1403,6 +1403,43 @@
       "stopReply": {
         "label": "Yanıtı durdur",
         "stopping": "Durduruluyor…"
+      },
+      "runError": {
+        "cardLabel": "Çalıştırma hatası",
+        "actions": {
+          "continue": "Devam et",
+          "retry": "Tekrar dene",
+          "compact": "Sıkıştır"
+        },
+        "chips": {
+          "streamStalled": "Akış durdu",
+          "providerUnavailable": "Kullanılamıyor",
+          "rateLimited": "Hız sınırı",
+          "timeout": "Zaman aşımı",
+          "contextWindow": "Bağlam sınırı",
+          "tokensPerMinute": "Token sınırı",
+          "safeguardRefusal": "Reddedildi",
+          "quotaExhausted": "Kota doldu",
+          "missingApiKey": "API anahtarı",
+          "authenticationFailed": "Kimlik doğrulama",
+          "runtimeError": "Hata"
+        },
+        "technicalDetails": "Teknik ayrıntılar",
+        "details": {
+          "model": "Model",
+          "provider": "Sağlayıcı",
+          "code": "Kod",
+          "detail": "Ayrıntı",
+          "error": "Hata"
+        },
+        "receipt": {
+          "continue": "Devam edildi",
+          "retry": "Tekrar denendi",
+          "compact": "Sıkıştırıldı"
+        },
+        "sendFailed": "Mesaj gönderilemedi. Tekrar deneyin.",
+        "restartSeam": "Hizmet yeniden başlatıldı · bağlam korundu",
+        "restartSeamRepeated": "Hizmet yeniden başlatıldı ({{times}}×) · bağlam korundu"
       }
     },
     "message-search": {

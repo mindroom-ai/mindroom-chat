@@ -1403,6 +1403,43 @@
       "stopReply": {
         "label": "উত্তর থামান",
         "stopping": "থামানো হচ্ছে…"
+      },
+      "runError": {
+        "cardLabel": "রান ত্রুটি",
+        "actions": {
+          "continue": "চালিয়ে যান",
+          "retry": "আবার চেষ্টা করুন",
+          "compact": "সংক্ষিপ্ত করুন"
+        },
+        "chips": {
+          "streamStalled": "স্ট্রিম থেমে গেছে",
+          "providerUnavailable": "উপলব্ধ নয়",
+          "rateLimited": "রেট সীমা",
+          "timeout": "সময় শেষ",
+          "contextWindow": "প্রসঙ্গ সীমা",
+          "tokensPerMinute": "টোকেন সীমা",
+          "safeguardRefusal": "প্রত্যাখ্যাত",
+          "quotaExhausted": "কোটা শেষ",
+          "missingApiKey": "API কী",
+          "authenticationFailed": "প্রমাণীকরণ",
+          "runtimeError": "ত্রুটি"
+        },
+        "technicalDetails": "প্রযুক্তিগত বিবরণ",
+        "details": {
+          "model": "মডেল",
+          "provider": "প্রোভাইডার",
+          "code": "কোড",
+          "detail": "বিবরণ",
+          "error": "ত্রুটি"
+        },
+        "receipt": {
+          "continue": "পুনরায় শুরু হয়েছে",
+          "retry": "আবার চেষ্টা করা হয়েছে",
+          "compact": "সংক্ষিপ্ত করা হয়েছে"
+        },
+        "sendFailed": "বার্তা পাঠানো যায়নি। আবার চেষ্টা করুন।",
+        "restartSeam": "পরিষেবা পুনরায় চালু হয়েছে · প্রসঙ্গ সংরক্ষিত",
+        "restartSeamRepeated": "পরিষেবা পুনরায় চালু হয়েছে ({{times}}×) · প্রসঙ্গ সংরক্ষিত"
       }
     },
     "message-search": {
