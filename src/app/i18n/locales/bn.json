@@ -1454,7 +1454,7 @@
         "configuredModel": "কনফিগার করা মডেল",
         "runId": "রান ID",
         "sessionId": "অধিবেশন ID",
-        "newInput": "নতুন ইনপুট",
+        "newInput": "ক্যাশবিহীন ইনপুট",
         "replyCount_one": "{{count}}টি উত্তর",
         "replyCount_other": "{{count}}টি উত্তর",
         "loadedReplyCount_one": "লোড হওয়া {{count}}টি উত্তর",

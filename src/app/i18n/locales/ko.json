@@ -2713,7 +2713,7 @@
         "configuredModel": "구성된 모델",
         "runId": "실행 ID",
         "sessionId": "세션 ID",
-        "newInput": "새 입력",
+        "newInput": "캐시되지 않은 입력",
         "replyCount_one": "답장 {{count}}개",
         "replyCount_other": "답장 {{count}}개",
         "loadedReplyCount_one": "불러온 답장 {{count}}개",

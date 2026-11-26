@@ -59,7 +59,7 @@ const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
   cacheWrite: ['mindroomUi.messages.mindroomReplyDetails.writtenToCache', 'Written to cache'],
   notCached: ['mindroomUi.messages.mindroomReplyDetails.notCached', 'Not cached'],
-  newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
+  newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'Uncached input'],
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
 } as const;

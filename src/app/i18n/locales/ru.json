@@ -2836,7 +2836,7 @@
         "configuredModel": "Настроенная модель",
         "runId": "ID запуска",
         "sessionId": "ID сеанса",
-        "newInput": "Новый ввод",
+        "newInput": "Ввод без кеша",
         "replyCount_one": "{{count}} ответ",
         "replyCount_other": "{{count}} ответа",
         "replyCount_few": "{{count}} ответа",

@@ -2781,7 +2781,7 @@
         "configuredModel": "Modèle configuré",
         "runId": "ID d’exécution",
         "sessionId": "ID de session",
-        "newInput": "Nouvelle entrée",
+        "newInput": "Entrée hors cache",
         "replyCount_one": "{{count}} réponse",
         "replyCount_other": "{{count}} réponses",
         "replyCount_many": "{{count}} réponses",

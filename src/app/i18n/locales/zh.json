@@ -2713,7 +2713,7 @@
         "configuredModel": "配置的模型",
         "runId": "运行 ID",
         "sessionId": "会话 ID",
-        "newInput": "新输入",
+        "newInput": "未缓存输入",
         "replyCount_one": "{{count}} 条回复",
         "replyCount_other": "{{count}} 条回复",
         "loadedReplyCount_one": "已加载 {{count}} 条回复",

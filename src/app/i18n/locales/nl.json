@@ -2726,7 +2726,7 @@
         "configuredModel": "Geconfigureerd model",
         "runId": "Run-ID",
         "sessionId": "Sessie-ID",
-        "newInput": "Nieuwe invoer",
+        "newInput": "Niet-gecachte invoer",
         "replyCount_one": "{{count}} antwoord",
         "replyCount_other": "{{count}} antwoorden",
         "loadedReplyCount_one": "{{count}} geladen antwoord",

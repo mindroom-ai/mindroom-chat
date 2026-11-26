@@ -2946,7 +2946,7 @@
         "configuredModel": "النموذج المُعدّ",
         "runId": "معرّف التشغيل",
         "sessionId": "معرّف الجلسة",
-        "newInput": "مدخلات جديدة",
+        "newInput": "مدخلات غير مخزنة مؤقتًا",
         "replyCount_one": "⁨{{count}}⁩ رد",
         "replyCount_other": "⁨{{count}}⁩ رد",
         "replyCount_few": "⁨{{count}}⁩ ردود",

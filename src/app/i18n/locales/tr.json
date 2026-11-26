@@ -2726,7 +2726,7 @@
         "configuredModel": "Yapılandırılmış model",
         "runId": "Çalıştırma kimliği",
         "sessionId": "Oturum kimliği",
-        "newInput": "Yeni girdi",
+        "newInput": "Önbelleksiz girdi",
         "replyCount_one": "{{count}} yanıt",
         "replyCount_other": "{{count}} yanıt",
         "loadedReplyCount_one": "yüklenen {{count}} yanıt",

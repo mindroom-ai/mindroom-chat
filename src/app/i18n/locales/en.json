@@ -2726,7 +2726,7 @@
         "configuredModel": "Configured model",
         "runId": "Run ID",
         "sessionId": "Session ID",
-        "newInput": "New input",
+        "newInput": "Uncached input",
         "replyCount_one": "{{count}} reply",
         "replyCount_other": "{{count}} replies",
         "loadedReplyCount_one": "{{count}} loaded reply",

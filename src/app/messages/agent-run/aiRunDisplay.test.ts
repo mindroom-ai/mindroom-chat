@@ -136,7 +136,7 @@ describe('getAiRunContextBarSegments', () => {
       },
       {
         key: 'newInput',
-        label: 'New input',
+        label: 'Uncached input',
         tokens: 45,
         percentage: 45,
       },
@@ -170,7 +170,7 @@ describe('getAiRunContextBarSegments', () => {
       }),
       expect.objectContaining({
         key: 'newInput',
-        label: 'New input',
+        label: 'Uncached input',
         tokens: 0,
         percentage: 0,
       }),
@@ -257,7 +257,7 @@ describe('getAiRunTokenParts', () => {
     expect(tokens?.total).toBe(1705);
     expect(tokens?.parts.map(({ key, label, tokens: count }) => [key, label, count])).toEqual([
       ['cacheRead', 'From cache', 1408],
-      ['newInput', 'New input', 266],
+      ['newInput', 'Uncached input', 266],
       ['output', 'Output', 31],
     ]);
     expect(tokens?.parts[0]!.percentage).toBeCloseTo((1408 / 1705) * 100);
