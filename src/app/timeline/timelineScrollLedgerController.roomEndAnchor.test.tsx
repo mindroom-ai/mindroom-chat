@@ -220,7 +220,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
               data-index={item.index}
               data-key={String(item.key)}
               ref={(node) => {
-                if (node) {
+                if (node && !Object.prototype.hasOwnProperty.call(node, 'offsetHeight')) {
                   Object.defineProperty(node, 'offsetHeight', {
                     value: item.key === ROOM_INTRO_KEY ? 160 : ROW_HEIGHT,
                     configurable: true,
@@ -443,5 +443,35 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(landedAtEnd).toBeGreaterThan(2500);
     vi.advanceTimersByTime(300);
     expect(scrollElement.scrollTop).toBe(landedAtEnd);
+  });
+
+  it('preserves a pre-wheel clamped adjustment shortfall on desktop WebKit wheel flush', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
+    const { scrollElement, getVirtualizer, getTileTop } = await mountRoom({
+      initialScrollTop: 3400,
+    });
+    vi.advanceTimersByTime(200);
+    const v = getVirtualizer();
+    const row24 = scrollElement.querySelector<HTMLElement>('[data-index="24"]')!;
+    const visualBefore = getTileTop('$ev-34')! - scrollElement.scrollTop;
+
+    Object.defineProperty(row24, 'offsetHeight', { value: ROW_HEIGHT + 50, configurable: true });
+    v.measureElement(row24);
+    expect(scrollElement.scrollTop).toBe(3400);
+    expect((v as unknown as { _clampedAdjustment: unknown })._clampedAdjustment).toEqual({
+      target: 3450,
+      maxAtWrite: 3400,
+    });
+
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    await Promise.resolve();
+    v.resizeItem(0, ROW_HEIGHT + 50);
+    expect(readVirtualizerHoldOffset(v)).toBe(50);
+
+    vi.advanceTimersByTime(200);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(3500);
+    expect(getTileTop('$ev-34')! - scrollElement.scrollTop).toBe(visualBefore);
   });
 });
