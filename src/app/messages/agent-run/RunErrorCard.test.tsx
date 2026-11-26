@@ -14,13 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiRunErrorInfo } from '../../matrix/protocol/aiRun';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { LINKIFY_OPTS } from '../html/react-custom-html-parser';
-import {
-  RestartSeam,
-  RunErrorCard,
-  type RunErrorCardProps,
-  formatRunErrorCode,
-  getRunErrorTone,
-} from './RunErrorCard';
+import { formatRunErrorCode } from './aiRunDisplay';
+import { RestartSeam, RunErrorCard, type RunErrorCardProps, getRunErrorTone } from './RunErrorCard';
 
 const discardFailedLocalEcho = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/protocol/pendingLocalEcho', () => ({ discardFailedLocalEcho }));

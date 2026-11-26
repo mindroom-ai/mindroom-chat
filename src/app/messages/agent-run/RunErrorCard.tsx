@@ -14,6 +14,7 @@ import { discardFailedLocalEcho } from '../../matrix/protocol/pendingLocalEcho';
 import { getMessageRelation } from '../../matrix/send/composeMessageRelation';
 import { sanitizeText } from '../../rich-text/sanitize';
 import { ownDirectionLine } from '../../ui/directional';
+import { formatRunErrorCode } from './aiRunDisplay';
 import * as css from './RunErrorCard.css';
 
 export type RunErrorTone = 'warning' | 'danger';
@@ -96,13 +97,6 @@ export const getRunErrorChip = (error: AiRunErrorInfo, t: TFunction): string | u
     return t(CHIP_LABEL_KEYS[error.kind as KnownChipKind]);
   }
   return error.statusCode !== undefined ? String(error.statusCode) : undefined;
-};
-
-export const formatRunErrorCode = (error: AiRunErrorInfo): string | undefined => {
-  const parts: string[] = [];
-  if (error.statusCode !== undefined) parts.push(String(error.statusCode));
-  if (error.code) parts.push(error.code);
-  return parts.length > 0 ? parts.join(' · ') : undefined;
 };
 
 export const sendRunErrorAction = async (

@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import {
   AI_RUN_TOKEN_KINDS,
   getAiRunTokenCounts,
+  type AiRunErrorInfo,
   type AiRunInfo,
   type AiRunTokenCounts,
   type AiRunTokenKind,
@@ -193,4 +194,12 @@ export const hasRenderableAiRunDetails = (info: AiRunInfo): boolean => {
     info.sessionId ||
     info.error
   );
+};
+
+/** Formats an `io.mindroom.ai_run.error` status code and machine code as `504 · stream_stalled`. */
+export const formatRunErrorCode = (error: AiRunErrorInfo): string | undefined => {
+  const parts: string[] = [];
+  if (error.statusCode !== undefined) parts.push(String(error.statusCode));
+  if (error.code) parts.push(error.code);
+  return parts.length > 0 ? parts.join(' · ') : undefined;
 };

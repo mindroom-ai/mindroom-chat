@@ -13,6 +13,7 @@ import {
   formatAiRunPercentage,
   formatAiRunTimeToFirstToken,
   formatCostUsd,
+  formatRunErrorCode,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
   getAiRunTokenCountParts,
@@ -20,7 +21,6 @@ import {
   isFlaggedAiRunStatus,
 } from '../agent-run/aiRunDisplay';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
-import { formatRunErrorCode } from '../agent-run/RunErrorCard';
 import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ReplyDetails.css';
 
