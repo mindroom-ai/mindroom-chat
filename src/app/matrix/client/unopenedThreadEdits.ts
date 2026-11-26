@@ -1,5 +1,4 @@
 import {
-  ClientEvent,
   MatrixEventEvent,
   RelationType,
   ThreadEvent,
@@ -9,15 +8,8 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
-import {
-  isKnownRedactedEventId,
-  recordKnownRedactedEventId,
-  stripRedactedRelationsFromRawEvent,
-} from '../eventRevision';
-import {
-  isAnchoredSecretRequestEvent,
-  isFoldedSecretRequestEvent,
-} from '../protocol/secretRequestPreview';
+import { isKnownRedactedEventId, stripRedactedRelationsFromRawEvent } from '../eventRevision';
+import { isFoldedSecretRequestEvent } from '../protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
@@ -37,8 +29,6 @@ import { watchRoomThreads } from '../watchRoomThreads';
 
 /** The reply each unopened thread last summarized; the watcher drops it once the thread opens. */
 const summarizedReplies = new WeakMap<object, MatrixEvent>();
-/** The anchored secret request an unopened thread last summarized; dropped once the thread opens. */
-const summarizedSecretRequests = new WeakMap<object, MatrixEvent>();
 
 type SummarizedThread = {
   id?: string;
@@ -47,77 +37,26 @@ type SummarizedThread = {
   replayEvents?: MatrixEvent[] | null;
 };
 
-/** Whether `room` took a redaction of `eventId` (eventRevision.ts). */
-const isKnownRedacted = (room: Room | undefined, eventId: string | undefined): boolean =>
-  !!room && !!eventId && isKnownRedactedEventId(room, eventId);
+/** Whether `room` took a redaction of the edit `editId` (eventRevision.ts). */
+const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
+  !!room && !!editId && isKnownRedactedEventId(room, editId);
 
-const isRedactedEvent = (room: Room | undefined, event: MatrixEvent | null | undefined): boolean =>
-  !!event && (event.isRedacted() || isKnownRedacted(room, event.getId()));
-
-const getRedactedEventId = (event: MatrixEvent): string | undefined => {
-  const associated = event.getAssociatedId();
-  if (associated) return associated;
-  const contentRedacts: unknown = event.getContent().redacts;
-  return typeof contentRedacts === 'string' ? contentRedacts : undefined;
-};
-
-const serverOf = (userId: string | undefined): string | undefined => {
-  const colon = userId?.indexOf(':') ?? -1;
-  return colon >= 0 ? userId?.slice(colon + 1) : undefined;
-};
-
-const mayRedactEvent = (room: Room, redaction: MatrixEvent, target: MatrixEvent): boolean => {
-  const sender = redaction.getSender();
-  if (!sender) return false;
-  const senderServer = serverOf(sender);
-  if (senderServer && senderServer === serverOf(target.getSender())) return true;
-  return room.currentState.maySendRedactionForEvent(target, sender);
-};
-
-const viewerIdOf = (thread: SummarizedThread): string | undefined =>
-  thread.room?.myUserId || undefined;
-
-const isThreadReply = (
+/** A reply the thread's summary may name: not its root, title notice, or a folded secret request. */
+const isSummarizedReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
 ): event is MatrixEvent =>
   !!event &&
   event.getId() !== thread.id &&
-  !isRedactedEvent(thread.room, event) &&
-  !isThreadSummaryEvent(event);
+  !isThreadSummaryEvent(event) &&
+  !isFoldedSecretRequestEvent(event, thread.room?.myUserId || undefined);
 
-/**
- * A reply to retain across later non-conversational summaries: not the root, title notice, or an
- * anchored secret request (which stays pending briefly and then folds back into its reply).
- */
-const isRetainableSummaryReply = (
-  thread: SummarizedThread,
-  event: MatrixEvent | null | undefined
-): event is MatrixEvent =>
-  isThreadReply(thread, event) && !isAnchoredSecretRequestEvent(event, viewerIdOf(thread));
-
-/** A reply the thread's summary may name: not its root, title notice, or folded secret request. */
-const isSummarizedReply = (
-  thread: SummarizedThread,
-  event: MatrixEvent | null | undefined
-): event is MatrixEvent =>
-  isThreadReply(thread, event) && !isFoldedSecretRequestEvent(event, viewerIdOf(thread));
-
-const refreshRetainedReply = (
-  thread: SummarizedThread,
-  store: WeakMap<object, MatrixEvent>
-): MatrixEvent | undefined => {
-  const retained = store.get(thread);
-  if (!retained) return undefined;
-  if (isRedactedEvent(thread.room, retained)) {
-    store.delete(thread);
-    return undefined;
-  }
+const refreshRetainedEdit = (thread: SummarizedThread, retained: MatrixEvent): MatrixEvent => {
   // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
   // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
   // from replacingEventId().
   const editId = retained.replacingEventId();
-  if (editId && isKnownRedacted(thread.room, editId)) {
+  if (editId && isKnownRedactedEdit(thread.room, editId)) {
     const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
     retained.setUnsigned(unsigned ?? {});
     showNewestEdit(thread, retained);
@@ -135,22 +74,20 @@ export const getThreadSummaryReply = (
   if (!thread) return undefined;
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
-  const retained = refreshRetainedReply(thread, summarizedReplies);
-  if (isSummarizedReply(thread, retained)) return retained;
-  return isRedactedEvent(thread.room, summarized) ? undefined : summarized;
+  const retained = summarizedReplies.get(thread);
+  if (!retained) return summarized;
+  refreshRetainedEdit(thread, retained);
+  return isSummarizedReply(thread, retained) ? retained : summarized;
 };
 
 /** The reply retained by the unopened-thread watcher, even if it has since folded. */
 export const getRetainedThreadSummaryReply = (
   thread: SummarizedThread | null | undefined
-): MatrixEvent | undefined =>
-  thread ? refreshRetainedReply(thread, summarizedReplies) : undefined;
-
-/** The anchored secret request last seen in an unopened thread's summary, even after a later title. */
-export const getRetainedThreadSecretRequest = (
-  thread: SummarizedThread | null | undefined
-): MatrixEvent | undefined =>
-  thread ? refreshRetainedReply(thread, summarizedSecretRequests) : undefined;
+): MatrixEvent | undefined => {
+  if (!thread) return undefined;
+  const retained = summarizedReplies.get(thread);
+  return retained ? refreshRetainedEdit(thread, retained) : undefined;
+};
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
   const newContent = edit.getContent()['m.new_content'];
@@ -170,15 +107,9 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
 export const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
   const fromTimeline = thread.findEventById(eventId);
   if (fromTimeline) return fromTimeline;
-  if (
-    thread.replyToEvent?.getId() === eventId &&
-    !isRedactedEvent(thread.room, thread.replyToEvent)
-  )
-    return thread.replyToEvent;
-  const retained = refreshRetainedReply(thread, summarizedReplies);
-  if (retained?.getId() === eventId) return retained;
-  const secret = refreshRetainedReply(thread, summarizedSecretRequests);
-  return secret?.getId() === eventId ? secret : undefined;
+  if (thread.replyToEvent?.getId() === eventId) return thread.replyToEvent;
+  const retained = summarizedReplies.get(thread);
+  return retained?.getId() === eventId ? retained : undefined;
 };
 
 /** The edits waiting in an unopened thread for the given reply. */
@@ -194,12 +125,12 @@ const waitingEditsFor = (thread: SummarizedThread, targetId: string): MatrixEven
  */
 const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean => {
   const targetId = target.getId();
-  if (!targetId || isRedactedEvent(thread.room, target) || target.isState()) return false;
+  if (!targetId || target.isRedacted() || target.isState()) return false;
   const shown = target.replacingEvent();
   const waiting = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
   const candidates = [shown ?? undefined, ...waiting].filter(
     (edit): edit is MatrixEvent =>
-      !!edit && !edit.isRedacted() && !isKnownRedacted(thread.room, edit.getId())
+      !!edit && !edit.isRedacted() && !isKnownRedactedEdit(thread.room, edit.getId())
   );
   const newest = getLatestEdit(target, candidates);
   if (newest === shown || (!newest && !shown)) return false;
@@ -210,8 +141,6 @@ const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean 
 type EditWatcher = {
   /** Shows the waiting edits of one thread; returns whether a reply changed. */
   showThreadEdits: (thread: Thread) => boolean;
-  /** Drops detached summary replies targeted by an authorized live redaction. */
-  handleRedaction: (mx: MatrixClient, event: MatrixEvent) => void;
   /** Removes the listeners the watcher put on edits. */
   stop: () => void;
 };
@@ -272,53 +201,13 @@ const createEditWatcher = (): EditWatcher => {
     listening.add(stopListening);
   };
 
-  const handleRedaction = (mx: MatrixClient, event: MatrixEvent) => {
-    if (!event.isRedaction() || event.status !== null) return;
-    const targetId = getRedactedEventId(event);
-    const roomId = event.getRoomId();
-    const room = targetId && roomId ? mx.getRoom(roomId) : null;
-    if (!targetId || !room) return;
-    room.getThreads().forEach((thread) => {
-      if (thread.initialEventsFetched) return;
-      const retained = summarizedReplies.get(thread);
-      const secret = summarizedSecretRequests.get(thread);
-      const summarized = thread.replyToEvent ?? undefined;
-      const target =
-        (retained?.getId() === targetId ? retained : undefined) ??
-        (secret?.getId() === targetId ? secret : undefined) ??
-        (summarized?.getId() === targetId ? summarized : undefined);
-      if (!target) return;
-      const alreadyRedacted = isRedactedEvent(room, target);
-      if (!alreadyRedacted && !mayRedactEvent(room, event, target)) return;
-      const removedRetained = retained?.getId() === targetId && summarizedReplies.delete(thread);
-      const removedSecret = secret?.getId() === targetId && summarizedSecretRequests.delete(thread);
-      if (!alreadyRedacted) recordKnownRedactedEventId(room, targetId);
-      if (!alreadyRedacted || removedRetained || removedSecret) notify(thread);
-    });
-  };
-
   const showThreadEdits = (thread: Thread): boolean => {
     if (thread.initialEventsFetched) {
       summarizedReplies.delete(thread);
-      summarizedSecretRequests.delete(thread);
       return false;
     }
-    const existingRetained = refreshRetainedReply(thread, summarizedReplies);
-    refreshRetainedReply(thread, summarizedSecretRequests);
-    if (
-      thread.replyToEvent &&
-      !isRedactedEvent(thread.room, thread.replyToEvent) &&
-      isAnchoredSecretRequestEvent(thread.replyToEvent, viewerIdOf(thread))
-    ) {
-      summarizedSecretRequests.set(thread, thread.replyToEvent);
-    }
-    if (
-      isRetainableSummaryReply(thread, thread.replyToEvent) ||
-      (!isRetainableSummaryReply(thread, existingRetained) &&
-        isThreadReply(thread, thread.replyToEvent))
-    ) {
+    if (isSummarizedReply(thread, thread.replyToEvent))
       summarizedReplies.set(thread, thread.replyToEvent);
-    }
     let changed = false;
     const targets = new Set<MatrixEvent>();
     (thread.replayEvents ?? []).forEach((edit) => {
@@ -345,7 +234,7 @@ const createEditWatcher = (): EditWatcher => {
     [...listening].forEach((stopListening) => stopListening());
   };
 
-  return { showThreadEdits, handleRedaction, stop };
+  return { showThreadEdits, stop };
 };
 
 /**
@@ -354,10 +243,6 @@ const createEditWatcher = (): EditWatcher => {
  */
 export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => {
   const watcher = createEditWatcher();
-  const onEvent = (event: MatrixEvent) => {
-    watcher.handleRedaction(mx, event);
-  };
-  mx.on(ClientEvent.Event, onEvent);
   // The SDK updates a thread after each batch it adds, also one that only brings edits. The
   // listeners that rebuild the thread cards come later in the same update, so they see the edit.
   const stopRooms = watchRoomThreads(mx, {
@@ -367,7 +252,6 @@ export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => 
   });
 
   return () => {
-    mx.removeListener(ClientEvent.Event, onEvent);
     stopRooms();
     watcher.stop();
   };

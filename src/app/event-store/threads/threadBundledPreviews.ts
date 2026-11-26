@@ -46,7 +46,7 @@ export const getBundledThreadPreviews = (
       raw.content.msgtype === 'm.notice' && !!raw.content['io.mindroom.thread_summary'];
     if (marked !== title) return undefined;
     const known = room.getThread(rootId)?.findEventById(raw.event_id);
-    if (known?.isRedacted() || isKnownRedactedEventId(room, raw.event_id)) return undefined;
+    if (known?.isRedacted()) return undefined;
     const event = new MatrixEvent({ ...raw, room_id: room.roomId });
     if (event.isRedacted()) return undefined;
     const replacement: unknown = event.getUnsigned()['m.relations']?.['m.replace'];

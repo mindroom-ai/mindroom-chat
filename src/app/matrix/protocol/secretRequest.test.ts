@@ -7,7 +7,7 @@ import {
   secretRequestPath,
   type SecretRequest,
 } from './secretRequest';
-import { isAnchoredSecretRequestEvent, isFoldedSecretRequestEvent } from './secretRequestPreview';
+import { isFoldedSecretRequestEvent } from './secretRequestPreview';
 import { secretRequestEditContent, secretRequestPayload } from './secretRequest.test.shared';
 
 const inner = (overrides: Record<string, unknown> = {}) => ({
@@ -376,7 +376,7 @@ describe('secretRequestPath', () => {
   });
 });
 
-describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
+describe('isFoldedSecretRequestEvent', () => {
   const VIEWER = '@reader:example.org';
   const AGENT = '@mindroom_helper:example.org';
   const makeNotice = (overrides: Record<string, unknown> = {}, sender = AGENT): MatrixEvent =>
@@ -403,18 +403,16 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
     });
 
   it.each(['saved', 'declined', 'expired'] as const)(
-    'treats an anchored %s secret request as both anchored and folded',
+    'treats an anchored %s secret request as folded',
     (status) => {
       const event = makeNotice();
       event.makeReplaced(makeEdit('$secret', status));
-      expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(true);
       expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(true);
     }
   );
 
-  it('keeps a pending anchored request anchored but not folded, even past expires_at', () => {
+  it('does not fold a pending anchored request, even past expires_at', () => {
     const event = makeNotice({ expires_at: 1 });
-    expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(true);
     expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
   });
 
@@ -465,7 +463,6 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
     ],
   ])('rejects %s events', (_label, makeEvent, viewer) => {
     const event = makeEvent();
-    expect(isAnchoredSecretRequestEvent(event, viewer)).toBe(false);
     expect(isFoldedSecretRequestEvent(event, viewer)).toBe(false);
   });
 
@@ -476,7 +473,6 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
     ['non-string tool_call_id', { status: 'saved', tool_call_id: 42 }],
   ])('rejects invalid preview metadata (%s)', (_label, overrides) => {
     const event = makeNotice(overrides);
-    expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(false);
     expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
   });
 
@@ -494,20 +490,17 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
     const newContentEdit = makeMock(() => ({
       getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
     }));
-    expect(isAnchoredSecretRequestEvent(newContentEdit, VIEWER)).toBe(true);
     expect(isFoldedSecretRequestEvent(newContentEdit, VIEWER)).toBe(true);
 
     const directEdit = makeMock(() => ({
       getContent: () => content(secretRequestPayload({ status: 'declined' })),
     }));
-    expect(isAnchoredSecretRequestEvent(directEdit, VIEWER)).toBe(true);
     expect(isFoldedSecretRequestEvent(directEdit, VIEWER)).toBe(true);
 
     const foreignSenderEdit = makeMock(() => ({
       getSender: () => VIEWER,
       getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
     }));
-    expect(isAnchoredSecretRequestEvent(foreignSenderEdit, VIEWER)).toBe(true);
     expect(isFoldedSecretRequestEvent(foreignSenderEdit, VIEWER)).toBe(false);
 
     const decryptionFailureEdit = makeMock(() => ({
@@ -515,7 +508,6 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
       isDecryptionFailure: () => true,
       getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
     }));
-    expect(isAnchoredSecretRequestEvent(decryptionFailureEdit, VIEWER)).toBe(true);
     expect(isFoldedSecretRequestEvent(decryptionFailureEdit, VIEWER)).toBe(false);
   });
 });

@@ -15,7 +15,6 @@ import {
 import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { getMemberDisplayName } from '../../matrix/room';
 import {
-  getRetainedThreadSecretRequest,
   getRetainedThreadSummaryReply,
   getThreadSummaryReply,
 } from '../../matrix/client/unopenedThreadEdits';
@@ -133,7 +132,6 @@ export const resolveThreadPresentationSnapshot = ({
     ...replyEvents,
     thread?.replyToEvent,
     getRetainedThreadSummaryReply(thread),
-    getRetainedThreadSecretRequest(thread),
   ];
   // A root fetched earlier keeps the server's previews of that moment. Once this device knows a
   // newer thread event, or a newer revision of the bundle's latest one, its reply is out of date.

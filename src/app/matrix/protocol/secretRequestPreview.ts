@@ -61,36 +61,6 @@ const getEffectiveSecretRequestContent = (
   return original;
 };
 
-const readAnchoredSecretRequestStatus = (
-  event: SecretRequestEventLike | null | undefined,
-  viewerUserId?: string
-): SecretRequestStatus | null => {
-  if (!event || event.getType?.() !== 'm.room.message') return null;
-  if (event.isRedacted?.() || event.isRedaction?.()) return null;
-  const sender = event.getSender?.();
-  if (!isMindroomAgentUserIdForViewer(sender, viewerUserId)) return null;
-  const original = event.getOriginalContent?.() ?? event.getContent?.();
-  if (!isRecord(original) || !isRecord(original[MINDROOM_SECRET_REQUEST_KEY])) return null;
-  const effective = getEffectiveSecretRequestContent(event, sender, original);
-  const req = effective?.[MINDROOM_SECRET_REQUEST_KEY];
-  if (!isRecord(req)) return null;
-  const { status, response_event_id: responseEventId, tool_call_id: toolCallId } = req;
-  if (
-    (status !== 'pending' && status !== 'saved' && status !== 'declined' && status !== 'expired') ||
-    !isAnchorId(responseEventId) ||
-    !isAnchorId(toolCallId)
-  ) {
-    return null;
-  }
-  return status;
-};
-
-/** Whether `event` is a trusted MindRoom agent's anchored secret-request notice. */
-export const isAnchoredSecretRequestEvent = (
-  event: SecretRequestEventLike | null | undefined,
-  viewerUserId?: string
-): boolean => readAnchoredSecretRequestStatus(event, viewerUserId) !== null;
-
 /**
  * Whether `event` is an anchored secret-request notice with a terminal edited status (`saved`,
  * `declined`, or `expired`) that folds into its anchored reply.
@@ -99,6 +69,19 @@ export const isFoldedSecretRequestEvent = (
   event: SecretRequestEventLike | null | undefined,
   viewerUserId?: string
 ): boolean => {
-  const status = readAnchoredSecretRequestStatus(event, viewerUserId);
-  return status !== null && status !== 'pending';
+  if (!event || event.getType?.() !== 'm.room.message') return false;
+  if (event.isRedacted?.() || event.isRedaction?.()) return false;
+  const sender = event.getSender?.();
+  if (!isMindroomAgentUserIdForViewer(sender, viewerUserId)) return false;
+  const original = event.getOriginalContent?.() ?? event.getContent?.();
+  if (!isRecord(original) || !isRecord(original[MINDROOM_SECRET_REQUEST_KEY])) return false;
+  const effective = getEffectiveSecretRequestContent(event, sender, original);
+  const req = effective?.[MINDROOM_SECRET_REQUEST_KEY];
+  if (!isRecord(req)) return false;
+  const { status, response_event_id: responseEventId, tool_call_id: toolCallId } = req;
+  return (
+    (status === 'saved' || status === 'declined' || status === 'expired') &&
+    isAnchorId(responseEventId) &&
+    isAnchorId(toolCallId)
+  );
 };
