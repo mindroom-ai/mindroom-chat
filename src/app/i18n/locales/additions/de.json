@@ -1408,6 +1408,43 @@
       "stopReply": {
         "label": "Antwort stoppen",
         "stopping": "Wird gestoppt…"
+      },
+      "runError": {
+        "cardLabel": "Ausführungsfehler",
+        "actions": {
+          "continue": "Fortsetzen",
+          "retry": "Erneut versuchen",
+          "compact": "Komprimieren"
+        },
+        "chips": {
+          "streamStalled": "Stream unterbrochen",
+          "providerUnavailable": "Nicht verfügbar",
+          "rateLimited": "Ratenlimit",
+          "timeout": "Zeitüberschreitung",
+          "contextWindow": "Kontextlimit",
+          "tokensPerMinute": "Token-Limit",
+          "safeguardRefusal": "Abgelehnt",
+          "quotaExhausted": "Kontingent",
+          "missingApiKey": "API-Schlüssel",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Fehler"
+        },
+        "technicalDetails": "Technische Details",
+        "details": {
+          "model": "Modell",
+          "provider": "Anbieter",
+          "code": "Code",
+          "detail": "Details",
+          "error": "Fehler"
+        },
+        "receipt": {
+          "continue": "Fortgesetzt",
+          "retry": "Erneut versucht",
+          "compact": "Komprimiert"
+        },
+        "sendFailed": "Nachricht konnte nicht gesendet werden. Erneut versuchen.",
+        "restartSeam": "Dienst neu gestartet · Kontext erhalten",
+        "restartSeamRepeated": "Dienst neu gestartet ({{times}}×) · Kontext erhalten"
       }
     },
     "message-search": {

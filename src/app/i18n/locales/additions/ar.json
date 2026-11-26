@@ -1552,6 +1552,43 @@
       "stopReply": {
         "label": "إيقاف الرد",
         "stopping": "جارٍ الإيقاف…"
+      },
+      "runError": {
+        "cardLabel": "خطأ في التشغيل",
+        "actions": {
+          "continue": "متابعة",
+          "retry": "إعادة المحاولة",
+          "compact": "ضغط السياق"
+        },
+        "chips": {
+          "streamStalled": "توقّف البث",
+          "providerUnavailable": "غير متاح",
+          "rateLimited": "حد المعدل",
+          "timeout": "انتهت المهلة",
+          "contextWindow": "حد السياق",
+          "tokensPerMinute": "حد الرموز",
+          "safeguardRefusal": "مرفوض",
+          "quotaExhausted": "نفدت الحصة",
+          "missingApiKey": "مفتاح API",
+          "authenticationFailed": "فشل المصادقة",
+          "runtimeError": "خطأ"
+        },
+        "technicalDetails": "التفاصيل التقنية",
+        "details": {
+          "model": "النموذج",
+          "provider": "المزوّد",
+          "code": "الرمز",
+          "detail": "التفاصيل",
+          "error": "الخطأ"
+        },
+        "receipt": {
+          "continue": "تم الاستئناف",
+          "retry": "تمت إعادة المحاولة",
+          "compact": "تم ضغط السياق"
+        },
+        "sendFailed": "تعذر إرسال الرسالة. حاول مرة أخرى.",
+        "restartSeam": "أعيد تشغيل الخدمة · تم حفظ السياق",
+        "restartSeamRepeated": "أعيد تشغيل الخدمة (⁨{{times}}⁩×) · تم حفظ السياق"
       }
     },
     "message-search": {

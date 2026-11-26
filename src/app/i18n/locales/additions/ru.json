@@ -1480,6 +1480,43 @@
       "stopReply": {
         "label": "Остановить ответ",
         "stopping": "Остановка…"
+      },
+      "runError": {
+        "cardLabel": "Ошибка выполнения",
+        "actions": {
+          "continue": "Продолжить",
+          "retry": "Повторить",
+          "compact": "Сжать контекст"
+        },
+        "chips": {
+          "streamStalled": "Поток прерван",
+          "providerUnavailable": "Недоступен",
+          "rateLimited": "Лимит запросов",
+          "timeout": "Тайм-аут",
+          "contextWindow": "Лимит контекста",
+          "tokensPerMinute": "Лимит токенов",
+          "safeguardRefusal": "Отклонено",
+          "quotaExhausted": "Квота исчерпана",
+          "missingApiKey": "Ключ API",
+          "authenticationFailed": "Авторизация",
+          "runtimeError": "Ошибка"
+        },
+        "technicalDetails": "Технические детали",
+        "details": {
+          "model": "Модель",
+          "provider": "Провайдер",
+          "code": "Код",
+          "detail": "Подробности",
+          "error": "Ошибка"
+        },
+        "receipt": {
+          "continue": "Возобновлено",
+          "retry": "Повторено",
+          "compact": "Сжато"
+        },
+        "sendFailed": "Не удалось отправить сообщение. Попробуйте снова.",
+        "restartSeam": "Сервис перезапущен · контекст сохранён",
+        "restartSeamRepeated": "Сервис перезапущен ({{times}}×) · контекст сохранён"
       }
     },
     "message-search": {

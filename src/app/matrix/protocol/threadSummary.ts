@@ -18,6 +18,8 @@ export type ThreadSummaryInfo = {
   eventTs?: number;
   /** Accepted Matrix event carrying the summary, so its redaction can clear cached copies. */
   eventId?: string;
+  /** Accepted m.replace edit currently providing the summary text (in-memory only). */
+  replacingEventId?: string;
   generatedTs?: number;
   messageCount?: number;
 };
@@ -225,7 +227,12 @@ type ThreadSummaryEventLike = {
   getContent(): Record<string, unknown>;
   getTs?(): number | undefined;
   replacingEventDate?(): Date | undefined;
-  replacingEvent?(): { status?: string | null } | null;
+  replacingEventId?(): string | undefined;
+  replacingEvent?(): {
+    status?: string | null;
+    getId?(): string | undefined;
+    getTs?(): number | undefined;
+  } | null;
 };
 
 /** A thread title's content: MindRoom's `m.notice` carrying thread-summary metadata. */
@@ -263,6 +270,7 @@ type SummaryEventCacheEntry = {
   model: unknown;
   eventTs: number | undefined;
   eventId: string | undefined;
+  replacingEventId: string | undefined;
   info: ThreadSummaryInfo | undefined;
 };
 
@@ -274,17 +282,25 @@ export const getThreadSummaryEventInfo = (
   const content = event.getContent();
   const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   const metadata = getThreadSummaryMetadata(content);
+  const replacing = event.replacingEvent?.();
   // The SDK's accepted local echo still has its send-start timestamp.
   // Only a remote event supplies server chronology, including accepted edits.
-  const timestamp = event.replacingEventDate?.()?.getTime() ?? event.getTs?.();
+  // Prefer the applied replacingEvent() over replacingEventDate()/replacingEventId(),
+  // which read a stale bundled m.replace ahead of a newer live edit.
+  const timestamp =
+    replacing?.getTs?.() ?? event.replacingEventDate?.()?.getTime() ?? event.getTs?.();
   const eventTs =
     event.status == null &&
-    event.replacingEvent?.()?.status == null &&
+    replacing?.status == null &&
     timestamp !== undefined &&
     isSupportedThreadSummaryTimestamp(timestamp)
       ? timestamp
       : undefined;
   const eventId = eventTs !== undefined ? event.getId?.() : undefined;
+  const replacingEventId =
+    eventTs !== undefined && replacing
+      ? (replacing.getId?.() ?? event.replacingEventId?.())
+      : undefined;
   const cached = summaryEventCache.get(event);
   // Inspect values, not just object identity: SDK edits, decryption and cached
   // event enrichment can change existing objects between overview refreshes.
@@ -299,7 +315,8 @@ export const getThreadSummaryEventInfo = (
     cached.messageCount === metadata?.message_count &&
     cached.model === metadata?.model &&
     cached.eventTs === eventTs &&
-    cached.eventId === eventId
+    cached.eventId === eventId &&
+    cached.replacingEventId === replacingEventId
   ) {
     return cached.info;
   }
@@ -309,7 +326,12 @@ export const getThreadSummaryEventInfo = (
   const summary = info ?? (text ? { summaryText: text } : undefined);
   const result =
     summary && eventTs !== undefined
-      ? { ...summary, eventTs, ...(eventId ? { eventId } : {}) }
+      ? {
+          ...summary,
+          eventTs,
+          ...(eventId ? { eventId } : {}),
+          ...(replacingEventId ? { replacingEventId } : {}),
+        }
       : summary;
   summaryEventCache.set(event, {
     hasMetadata: !!metadata,
@@ -322,6 +344,7 @@ export const getThreadSummaryEventInfo = (
     model: metadata?.model,
     eventTs,
     eventId,
+    replacingEventId,
     info: result,
   });
   return result;
