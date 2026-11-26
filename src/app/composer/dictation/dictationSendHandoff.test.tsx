@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { useRef } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider, createStore } from 'jotai';
+import { Provider, atom, createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { createEditor, Node, Transforms, type Descendant, type Editor } from 'slate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1630,5 +1630,90 @@ describe('dictationSendHandoff', () => {
     );
     expect(editor.children.map((n) => Node.string(n)).join('\n')).toBe('Must survive failed send');
     view.unmount();
+  });
+
+  it('never enrolls or uploads compressing placeholders as defense-in-depth', async () => {
+    const store = createStore();
+    const room = makeRoom('!video-room:example.org', 'Video Room', true);
+    const rawVideo = new File(['raw'], 'clip.mov', { type: 'video/quicktime' });
+    const readyShot = new File(['enc'], 'shot.png', { type: 'application/octet-stream' });
+    const placeholder: TUploadItem = {
+      file: rawVideo,
+      originalFile: rawVideo,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.4),
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+      },
+    };
+    const readyItem: TUploadItem = {
+      file: readyShot,
+      originalFile: new File(['img'], 'shot.png', { type: 'image/png' }),
+      encInfo: { v: 'v2' } as never,
+      metadata: { markedAsSpoiler: false },
+    };
+    const staged: TUploadItem[] = [placeholder, readyItem];
+    let enrolled: TUploadItem[] = [];
+    const attachments: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged,
+        enrolled: [...enrolled],
+        uploads: staged.map((i) => ({ file: i.file, status: UploadStatus.Idle })),
+      }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn((items) => {
+        enrolled = [...enrolled, ...items];
+      }),
+      clearEnrollment: vi.fn((files) => {
+        enrolled = enrolled.filter((i) => !files.includes(i.file));
+      }),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+
+    const uploadItem = vi.fn(async () => 'mxc://example.org/shot');
+    const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
+      async () => undefined
+    );
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    const s = makeMockSession();
+
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room,
+        session: s.session,
+        ownerKey: getRoomInputDraftKey('@alice:example.org', room.roomId),
+        attachments,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      }),
+      editor,
+      room,
+      roomId: room.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: () => undefined,
+      uploadItem,
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+
+    expect(enrolled).toEqual([readyItem]);
+    expect(uploadItem).toHaveBeenCalledTimes(1);
+    expect(uploadItem).toHaveBeenCalledWith(readyItem);
+
+    await act(async () => {
+      s.resolveFinish({ status: 'completed', text: 'Check the screenshot' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
+    expect(startSendSession.mock.calls[0]?.[0]?.batch?.fileItems).toEqual([readyItem]);
   });
 });

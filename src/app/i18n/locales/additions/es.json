@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} archivos",
       "fileCount_other": "{{count}} archivos"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimiendo...",
+      "useOriginal": "Usar original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Mostrar contraseña",
       "hide": "Ocultar contraseña"
@@ -543,7 +548,8 @@
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
         "plugins": "complementos, plugins, extensiones, integraciones",
-        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar"
+        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar",
+        "mediaCompression": "capturas de pantalla, grabaciones de pantalla, imágenes, vídeos, compresión, tamaño de subida"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -565,6 +571,13 @@
         "updateReady": "La versión {{version}} está lista para instalar.",
         "restartToUpdate": "Reiniciar para actualizar",
         "updateInstallFailed": "No se pudo reiniciar para instalar la actualización. Inténtalo de nuevo."
+      },
+      "mediaCompression": {
+        "title": "Compresión multimedia",
+        "description": "Comprime fotos, capturas de pantalla y vídeos adjuntos antes de subirlos. Aún puedes usar el original para cualquier archivo adjunto.",
+        "off": "Desactivada",
+        "balanced": "Equilibrada",
+        "small": "Pequeña"
       }
     },
     "createChat": {

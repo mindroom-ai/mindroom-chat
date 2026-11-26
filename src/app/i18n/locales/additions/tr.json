@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} dosya",
       "fileCount_other": "{{count}} dosya"
     },
+    "uploadCardRenderer": {
+      "compressing": "Sıkıştırılıyor...",
+      "useOriginal": "Orijinali kullan",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Parolayı göster",
       "hide": "Parolayı gizle"
@@ -530,7 +535,8 @@
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
-        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat"
+        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat",
+        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -552,6 +558,13 @@
         "updateReady": "{{version}} sürümü yüklenmeye hazır.",
         "restartToUpdate": "Güncellemek için yeniden başlat",
         "updateInstallFailed": "Güncellemeyi yüklemek için yeniden başlatılamadı. Tekrar deneyin."
+      },
+      "mediaCompression": {
+        "title": "Medya sıkıştırma",
+        "description": "Yüklemeden önce ekli fotoğrafları, ekran görüntülerini ve videoları sıkıştırın. Herhangi bir ek için yine de orijinal dosyayı kullanabilirsiniz.",
+        "off": "Kapalı",
+        "balanced": "Dengeli",
+        "small": "Küçük"
       }
     },
     "createChat": {

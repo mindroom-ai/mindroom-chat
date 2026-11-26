@@ -20,6 +20,7 @@ import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
+import { abortAllMediaCompressions } from './mediaCompressionJobs';
 import {
   captureDiscardsInFlightAtom,
   endLiveCapturesOfAccount,
@@ -608,6 +609,7 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
  * microphone is released at once, and neither writes anything under the next account.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
+  abortAllMediaCompressions();
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);

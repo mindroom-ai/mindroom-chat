@@ -70,6 +70,12 @@ noVNC
   Workshop, Inc., Copyright (C) 1996 Jef Poskanzer) and vendor/pako (pako,
   MIT License, Copyright (C) 2014-2016 Vitaly Puzrin).
 
+Mediabunny
+  mediabunny 1.66.4, Copyright (c) 2026-present, Vanilagy and contributors,
+  Mozilla Public License 2.0. The web bundle includes mediabunny unmodified.
+  Source: https://github.com/Vanilagy/mediabunny, also published as the npm
+  package mediabunny@1.66.4. The license text is in THIRD_PARTY_NOTICES.txt.
+
 folds
   folds 2.7.1, by Ajay Bura, Apache License 2.0 (https://www.npmjs.com/package/folds;
   the license text ships in the package as LICENSE). It is the design system

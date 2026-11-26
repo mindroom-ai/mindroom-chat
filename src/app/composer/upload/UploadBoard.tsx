@@ -49,6 +49,8 @@ type UploadBoardHeaderProps = {
   onToggle: VoidFunction;
   /** The staged uploads, read for the counts and handed to `onCancel`. */
   uploadFamilyObserverAtom: TUploadFamilyObserverAtom;
+  /** Number of staged attachments currently compressing before upload. */
+  compressingCount?: number;
   onCancel: (uploads: Upload[]) => void;
 };
 
@@ -57,7 +59,7 @@ type UploadBoardHeaderProps = {
  * the card list and Remove All. Sending happens from the composer, so there is no Send here.
  */
 export function UploadBoardHeader(props: UploadBoardHeaderProps) {
-  const { open, onToggle, uploadFamilyObserverAtom, onCancel } = props;
+  const { open, onToggle, uploadFamilyObserverAtom, compressingCount = 0, onCancel } = props;
   const uploads = useAtomValue(uploadFamilyObserverAtom);
   const { t } = useTranslation();
   const loading = uploads.filter((upload) => upload.status === UploadStatus.Loading).length;
@@ -84,7 +86,7 @@ export function UploadBoardHeader(props: UploadBoardHeaderProps) {
           <Text as="span" size="H6">
             {t('sharedUi.uploadBoard.fileCount', { count: uploads.length })}
           </Text>
-          {loading > 0 && <Spinner size="100" variant="Secondary" />}
+          {loading + compressingCount > 0 && <Spinner size="100" variant="Secondary" />}
           {failed > 0 && (
             <Badge
               variant="Critical"

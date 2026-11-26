@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "파일 {{count}}개"
     },
+    "uploadCardRenderer": {
+      "compressing": "압축 중...",
+      "useOriginal": "원본 사용",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "비밀번호 표시",
       "hide": "비밀번호 숨기기"
@@ -517,7 +522,8 @@
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
         "plugins": "플러그인, 확장 기능, 애드온, 연동",
-        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작"
+        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작",
+        "mediaCompression": "스크린샷, 화면 녹화, 이미지, 동영상, 압축, 업로드 크기"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -539,6 +545,13 @@
         "updateReady": "버전 {{version}}을(를) 설치할 준비가 되었습니다.",
         "restartToUpdate": "다시 시작하여 업데이트",
         "updateInstallFailed": "업데이트를 설치하기 위해 다시 시작하지 못했습니다. 다시 시도하세요."
+      },
+      "mediaCompression": {
+        "title": "미디어 압축",
+        "description": "업로드하기 전에 첨부한 사진, 스크린샷, 동영상을 압축합니다. 어떤 첨부 파일이든 원본을 그대로 사용할 수 있습니다.",
+        "off": "끄기",
+        "balanced": "균형",
+        "small": "작게"
       }
     },
     "createChat": {

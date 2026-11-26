@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pauseAllMediaElements, selectFile } from './dom';
+import {
+  pauseAllMediaElements,
+  resetWebpEncodeSupportForTest,
+  selectFile,
+  supportsWebpEncode,
+} from './dom';
 
 describe('dom', () => {
   afterEach(() => {
@@ -433,5 +438,83 @@ describe('selectFile', () => {
     } finally {
       env.restore();
     }
+  });
+});
+
+describe('supportsWebpEncode', () => {
+  afterEach(() => {
+    resetWebpEncodeSupportForTest();
+    vi.restoreAllMocks();
+  });
+
+  const withDocument = (doc: unknown, run: () => void) => {
+    const originalDocument = globalThis.document;
+    if (doc === undefined) {
+      Reflect.deleteProperty(globalThis, 'document');
+    } else {
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: doc,
+      });
+    }
+    try {
+      run();
+    } finally {
+      if (originalDocument === undefined) {
+        Reflect.deleteProperty(globalThis, 'document');
+      } else {
+        Object.defineProperty(globalThis, 'document', {
+          configurable: true,
+          value: originalDocument,
+        });
+      }
+    }
+  };
+
+  it('caches a positive probe from a 1x1 canvas', () => {
+    const createElement = vi.fn(() => ({
+      width: 0,
+      height: 0,
+      toDataURL: vi.fn((type: string) =>
+        type === 'image/webp' ? 'data:image/webp;base64,AA==' : 'data:image/png;base64,AA=='
+      ),
+    }));
+
+    withDocument({ createElement }, () => {
+      expect(supportsWebpEncode()).toBe(true);
+      expect(supportsWebpEncode()).toBe(true);
+      expect(createElement).toHaveBeenCalledTimes(1);
+
+      resetWebpEncodeSupportForTest();
+      expect(supportsWebpEncode()).toBe(true);
+      expect(createElement).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('returns false when canvas falls back to PNG, document is absent, or probing throws', () => {
+    withDocument(undefined, () => {
+      expect(supportsWebpEncode()).toBe(false);
+    });
+
+    const pngFallback = vi.fn(() => ({
+      width: 0,
+      height: 0,
+      toDataURL: vi.fn(() => 'data:image/png;base64,AA=='),
+    }));
+    withDocument({ createElement: pngFallback }, () => {
+      expect(supportsWebpEncode()).toBe(false);
+    });
+
+    resetWebpEncodeSupportForTest();
+    const throwing = vi.fn(() => ({
+      width: 0,
+      height: 0,
+      toDataURL: vi.fn(() => {
+        throw new Error('blocked');
+      }),
+    }));
+    withDocument({ createElement: throwing }, () => {
+      expect(supportsWebpEncode()).toBe(false);
+    });
   });
 });

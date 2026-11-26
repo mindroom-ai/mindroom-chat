@@ -1,5 +1,5 @@
 import React, { createRef } from 'react';
-import { Provider, createStore } from 'jotai';
+import { Provider, atom, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createEditor, Transforms } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +24,16 @@ import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
 const diagnostics = vi.hoisted(() => ({ buildDiagnosticsExport: vi.fn() }));
+const mediaCompressMocks = vi.hoisted(() => ({
+  compressImage: vi.fn(),
+  compressVideo: vi.fn(),
+}));
+vi.mock('../lib/media/compressImage', () => ({
+  compressImage: (...args: unknown[]) => mediaCompressMocks.compressImage(...args),
+}));
+vi.mock('../lib/media/compressVideo', () => ({
+  compressVideo: (...args: unknown[]) => mediaCompressMocks.compressVideo(...args),
+}));
 vi.mock('../diagnostics/diagnosticsExport', () => diagnostics);
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
@@ -79,16 +89,31 @@ afterEach(() => {
 });
 
 const makeTestRoom = (roomId: string, encrypted = false) =>
-  ({ roomId, name: roomId, hasEncryptionStateEvent: () => encrypted }) as Room;
+  ({
+    roomId,
+    name: roomId,
+    hasEncryptionStateEvent: () => encrypted,
+    getMembers: () => [],
+  }) as unknown as Room;
 
 const renderHarness = (
   prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
-  options?: { stagedListKey?: string; deferUpload?: boolean; view?: string; draftKey?: string }
+  options?: {
+    stagedListKey?: string;
+    deferUpload?: boolean;
+    sendingDeferred?: boolean;
+    view?: string;
+    draftKey?: string;
+    uploadContent?: ReturnType<typeof vi.fn>;
+  }
 ) => {
   const store = createStore();
   const editor = createEditor();
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
-  const mx = { cancelUpload: vi.fn() };
+  const mx = {
+    cancelUpload: vi.fn(),
+    ...(options?.uploadContent ? { uploadContent: options.uploadContent } : {}),
+  };
   const initialRoom = makeTestRoom(ROOM_ID);
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   let saveDraft!: () => void;
@@ -96,10 +121,12 @@ const renderHarness = (
     threadId,
     roomId = ROOM_ID,
     room = initialRoom,
+    sendingDeferred = options?.sendingDeferred,
   }: {
     threadId?: string;
     roomId?: string;
     room?: Room;
+    sendingDeferred?: boolean;
   }) => {
     saveDraft = useRoomInputDraft(
       editor,
@@ -119,10 +146,13 @@ const renderHarness = (
       createUploadItems: prepare,
       stagedListKey: options?.stagedListKey,
       deferUpload: options?.deferUpload,
+      sendingDeferred,
     });
     return feature.board;
   };
-  const wrap = (props: { threadId?: string; roomId?: string; room?: Room } = {}) =>
+  const wrap = (
+    props: { threadId?: string; roomId?: string; room?: Room; sendingDeferred?: boolean } = {}
+  ) =>
     React.createElement(
       Provider,
       { store },
@@ -150,6 +180,8 @@ const renderHarness = (
     changeThread: (threadId: string) => act(() => renderer.update(wrap({ threadId }))),
     changeRoom: (roomId: string, room?: Room) =>
       act(() => renderer.update(wrap({ roomId, room: room ?? initialRoom }))),
+    setSendingDeferred: (sendingDeferred: boolean) =>
+      act(() => renderer.update(wrap({ sendingDeferred }))),
     onEditorChange: () => {
       saveDraft();
       feature.onEditorChange();
@@ -677,5 +709,296 @@ describe('attachment staging ownership', () => {
     } finally {
       prepSpy.mockRestore();
     }
+  });
+
+  it('compresses images inline, tracks isPreparing and ready-only hasSendableFiles, skips compressing items in prepareForSend, cancels on remove, and updates canUseOriginal reactively', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+    mediaCompressMocks.compressImage.mockReset();
+    mediaCompressMocks.compressVideo.mockReset();
+
+    const makeSized = (name: string, type: string, size: number) => {
+      const f = new File(['x'], name, { type });
+      Object.defineProperty(f, 'size', { value: size });
+      return f;
+    };
+
+    try {
+      // 1. Inline image compression sets isPreparing / isPreparingNow until staging completes.
+      const rawImg = makeSized('shot.png', 'image/png', 200 * 1024);
+      const compressedImg = makeSized('shot.webp', 'image/webp', 40 * 1024);
+      let resolveImg!: (val: unknown) => void;
+      mediaCompressMocks.compressImage.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveImg = resolve;
+          })
+      );
+
+      const harness = renderHarness(async () => [], {
+        stagedListKey: 'home-ask-key',
+        deferUpload: true,
+      });
+      act(() => {
+        harness.feature.onPaste({
+          clipboardData: { files: [rawImg], items: [], getData: () => '' },
+          preventDefault: vi.fn(),
+        } as never);
+      });
+      expect(harness.feature.isPreparingNow()).toBe(true);
+      expect(harness.feature.isPreparing).toBe(true);
+      expect(harness.feature.hasSendableFiles).toBe(false);
+
+      await vi.waitFor(() => expect(resolveImg).toBeTypeOf('function'));
+      await act(async () => {
+        resolveImg({
+          file: compressedImg,
+          originalSize: rawImg.size,
+          compressedSize: compressedImg.size,
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(harness.feature.isPreparingNow()).toBe(false);
+      expect(harness.feature.isPreparing).toBe(false);
+      expect(harness.feature.hasSendableFiles).toBe(true);
+      const stagedImg = harness.feature.access.snapshot().staged[0];
+      expect(stagedImg).toMatchObject({
+        file: compressedImg,
+        originalFile: compressedImg,
+        compression: {
+          status: 'compressed',
+          sourceFile: rawImg,
+          originalSize: rawImg.size,
+        },
+      });
+
+      // Reactive canUseOriginal updates when enrolled changes.
+      const cardBefore = harness.renderer.root.findByType(UploadCardRenderer);
+      expect(cardBefore.props.canUseOriginal).toBe(true);
+      act(() => harness.feature.access.enroll([stagedImg!]));
+      expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(false);
+      act(() => harness.feature.access.clearEnrollment([stagedImg!.file]));
+      expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
+      act(() => harness.feature.access.remove(ROOM_ID, [stagedImg!.file]));
+
+      // 2. Async video compression keeps isPreparing true, hasSendableFiles false, and prepareForSend skips unready placeholders.
+      const rawVideo = makeSized('screen.mov', 'video/quicktime', 4 * 1024 * 1024);
+      const compressedVideo = makeSized('screen.mp4', 'video/mp4', 700 * 1024);
+      const encVideo = makeSized('screen.mp4', 'application/octet-stream', 700 * 1024);
+      let resolveVideo!: (val: unknown) => void;
+      mediaCompressMocks.compressVideo.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveVideo = resolve;
+          })
+      );
+
+      await act(async () => {
+        harness.feature.onPaste({
+          clipboardData: { files: [rawVideo], items: [], getData: () => '' },
+          preventDefault: vi.fn(),
+        } as never);
+        await Promise.resolve();
+      });
+
+      expect(harness.feature.access.snapshot().staged[0]?.compression?.status).toBe('compressing');
+      expect(harness.feature.isPreparing).toBe(true);
+      expect(harness.feature.isPreparingNow()).toBe(true);
+      expect(harness.feature.hasSendableFiles).toBe(false);
+      expect(harness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(1);
+
+      const encRoom = makeTestRoom('!enc-home:example.org', true);
+      expect(await harness.feature.prepareForSend(encRoom)).toEqual([]);
+
+      const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
+        {
+          file: encVideo,
+          originalFile: compressedVideo,
+          encInfo: { v: 'v2' } as never,
+          metadata: { markedAsSpoiler: false },
+        },
+      ]);
+      await act(async () => {
+        resolveVideo({
+          file: compressedVideo,
+          originalSize: rawVideo.size,
+          compressedSize: compressedVideo.size,
+        });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      await vi.waitFor(() => expect(harness.feature.isPreparing).toBe(false));
+      expect(harness.feature.isPreparingNow()).toBe(false);
+      expect(harness.feature.hasSendableFiles).toBe(true);
+      expect(harness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(0);
+
+      let prepared!: TUploadItem[];
+      await act(async () => {
+        prepared = await harness.feature.prepareForSend(encRoom);
+      });
+      expect(prepared).toEqual([
+        expect.objectContaining({
+          file: encVideo,
+          originalFile: compressedVideo,
+          encInfo: { v: 'v2' },
+          compression: {
+            status: 'compressed',
+            sourceFile: rawVideo,
+            originalSize: rawVideo.size,
+          },
+        }),
+      ]);
+      prepSpy.mockRestore();
+
+      // 3. Removing a compressing placeholder cancels compression and evicts its roomUploadAtomFamily key.
+      const cancelSpy = vi.fn();
+      const pendingFile = makeSized('cancel.mov', 'video/quicktime', 2 * 1024 * 1024);
+      const placeholder: TUploadItem = {
+        file: pendingFile,
+        originalFile: pendingFile,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+        compression: {
+          status: 'compressing',
+          progressAtom: atom(0.2),
+          cancel: cancelSpy,
+          useOriginal: vi.fn(),
+        },
+      };
+      const removeAtomSpy = vi.spyOn(roomUploadAtomFamily, 'remove');
+      act(() => {
+        harness.feature.access.append(ROOM_ID, [placeholder]);
+        harness.store.set(roomUploadAtomFamily(pendingFile), { status: UploadStatus.Idle });
+        harness.feature.access.remove(ROOM_ID, [pendingFile]);
+      });
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+      expect(removeAtomSpy).toHaveBeenCalledWith(pendingFile);
+      removeAtomSpy.mockRestore();
+      harness.renderer.unmount();
+
+      // 4. Collapsed board survival: video keeps compressing when cards unmount and auto-uploads when ready.
+      const uploadContent = vi.fn(() => new Promise<{ content_uri: string }>(() => {}));
+      const normalHarness = renderHarness(async () => [], {
+        deferUpload: false,
+        uploadContent,
+      });
+      const collapsedVideo = makeSized('collapsed.mov', 'video/quicktime', 3 * 1024 * 1024);
+      const compressedCollapsed = makeSized('collapsed.mp4', 'video/mp4', 500 * 1024);
+      let resolveCollapsed!: (val: unknown) => void;
+      mediaCompressMocks.compressVideo.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCollapsed = resolve;
+          })
+      );
+      const prepCollapsedSpy = vi
+        .spyOn(uploadPreparation, 'createRoomUploadItems')
+        .mockResolvedValueOnce([
+          {
+            file: compressedCollapsed,
+            originalFile: compressedCollapsed,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+          },
+        ]);
+
+      await act(async () => {
+        normalHarness.feature.onPaste({
+          clipboardData: { files: [collapsedVideo], items: [], getData: () => '' },
+          preventDefault: vi.fn(),
+        } as never);
+        await Promise.resolve();
+      });
+      expect(normalHarness.feature.isPreparing).toBe(true);
+      // Collapse the board so UploadCardRenderer unmounts while compression is active.
+      act(() => {
+        normalHarness.renderer.root.findByType(UploadBoardHeader).props.onToggle();
+      });
+      expect(normalHarness.renderer.root.findAllByType(UploadCardRenderer)).toHaveLength(0);
+      expect(normalHarness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(
+        1
+      );
+      expect(uploadContent).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveCollapsed({
+          file: compressedCollapsed,
+          originalSize: collapsedVideo.size,
+          compressedSize: compressedCollapsed.size,
+        });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      await vi.waitFor(() => expect(normalHarness.feature.isPreparing).toBe(false));
+      expect(normalHarness.feature.hasSendableFiles).toBe(true);
+      expect(uploadContent).toHaveBeenCalledTimes(1);
+      expect(uploadContent).toHaveBeenCalledWith(compressedCollapsed, expect.anything());
+      prepCollapsedSpy.mockRestore();
+      normalHarness.renderer.unmount();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('disables Use original while sendingDeferred is true while keeping explicit Remove separate', async () => {
+    mediaCompressMocks.compressImage.mockReset();
+    const rawImg = new File(['raw'], 'shot.png', { type: 'image/png' });
+    Object.defineProperty(rawImg, 'size', { value: 120 * 1024 });
+    const compressedImg = new File(['cmp'], 'shot.webp', { type: 'image/webp' });
+    Object.defineProperty(compressedImg, 'size', { value: 24 * 1024 });
+    mediaCompressMocks.compressImage.mockResolvedValueOnce({
+      file: compressedImg,
+      originalSize: rawImg.size,
+      compressedSize: compressedImg.size,
+    });
+
+    const homeKey = 'home-sending-deferred';
+    const harness = renderHarness(async () => [], {
+      stagedListKey: homeKey,
+      deferUpload: true,
+      sendingDeferred: false,
+      view: HOME_ASK_VIEW,
+      draftKey: homeKey,
+    });
+
+    await act(async () => {
+      harness.feature.onPaste({
+        clipboardData: { files: [rawImg], items: [], getData: () => '' },
+        preventDefault: vi.fn(),
+      } as never);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cardBefore = harness.renderer.root.findByType(UploadCardRenderer);
+    expect(cardBefore.props.canUseOriginal).toBe(true);
+
+    // Once deferred send starts, Use original is hidden and calling onUseOriginal is ignored.
+    harness.setSendingDeferred(true);
+    const cardDuring = harness.renderer.root.findByType(UploadCardRenderer);
+    expect(cardDuring.props.canUseOriginal).toBe(false);
+    await act(async () => {
+      cardDuring.props.onUseOriginal(harness.feature.access.snapshot().staged[0]);
+      await Promise.resolve();
+    });
+    expect(harness.feature.access.snapshot().staged[0]?.file).toBe(compressedImg);
+
+    // Explicit Remove still works independently while sendingDeferred is true.
+    act(() => {
+      cardDuring.props.onRemove(compressedImg);
+    });
+    expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+
+    // Re-enabling after deferred send finishes/fails restores canUseOriginal.
+    harness.setSendingDeferred(false);
+    const stagedAgain: TUploadItem = {
+      file: compressedImg,
+      originalFile: compressedImg,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: { status: 'compressed', sourceFile: rawImg, originalSize: rawImg.size },
+    };
+    act(() => harness.feature.access.append(ROOM_ID, [stagedAgain]));
+    expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
   });
 });

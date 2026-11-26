@@ -25,6 +25,7 @@
 import { atom } from 'jotai';
 import type { Settings } from './settings';
 import { isMidTurnMode } from './midTurnModes';
+import { isMediaCompressionPreset } from './mediaCompression';
 import { isRecord } from '../lib/isRecord';
 import {
   getSafeLocalStorage,
@@ -59,6 +60,7 @@ export const ROAMING_SETTINGS = {
   hour24Clock: 'hour24Clock',
   dateFormat: 'dateFormatString',
   midTurnSend: 'midTurnSend',
+  mediaCompression: 'mediaCompression',
 } as const satisfies Record<string, keyof Settings>;
 
 type RoamingKey = (typeof ROAMING_SETTINGS)[keyof typeof ROAMING_SETTINGS];
@@ -72,6 +74,7 @@ const isRoamingValue = (key: RoamingKey, value: unknown): boolean => {
     return typeof value === 'string' && value !== '' && value.length <= DATE_FORMAT_MAX_LENGTH;
   }
   if (key === 'midTurnSend') return isMidTurnMode(value);
+  if (key === 'mediaCompression') return isMediaCompressionPreset(value);
   return typeof value === 'boolean';
 };
 
