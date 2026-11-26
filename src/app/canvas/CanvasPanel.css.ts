@@ -1,11 +1,13 @@
-import { createContainer, style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
-import { HeaderPill } from '../ui/panels/PanelFrame.css';
+import { createContainer, globalStyle, style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
 export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
 
 const canvasPanel = createContainer();
+// Wrap the version row before SidePanel.Header would push PanelHeaderControls onto row 2 (which
+// would strand VersionSeparator at the end of row 1); expressed in rem so it scales with pageZoom.
+const narrowPanel = `${canvasPanel} (max-width: 26rem)`;
 
 export const Panel = style([
   SidePanelPanel,
@@ -63,18 +65,42 @@ export const Footer = style({
 export const VersionRow = style({
   display: 'inline-flex',
   alignItems: 'center',
+  gap: config.space.S200,
   flexShrink: 0,
   '@container': {
-    [`${canvasPanel} (max-width: 380px)`]: {
+    [narrowPanel]: {
       order: 1,
       flex: '1 0 100%',
     },
   },
 });
 
-export const VersionPill = HeaderPill;
+export const VersionPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(2),
+});
+
+globalStyle(`${VersionPill} button`, {
+  minInlineSize: toRem(32),
+  minBlockSize: toRem(32),
+});
+
+export const VersionSeparator = style({
+  inlineSize: config.borderWidth.B300,
+  blockSize: toRem(16),
+  flexShrink: 0,
+  backgroundColor: color.Surface.ContainerLine,
+  selectors: {
+    [`${VersionRow}:last-child &`]: { display: 'none' },
+  },
+  '@container': {
+    [narrowPanel]: { display: 'none' },
+  },
+});
 
 export const Version = style({
   whiteSpace: 'nowrap',
-  paddingInline: config.space.S100,
+  paddingInline: toRem(2),
+  fontVariantNumeric: 'tabular-nums',
 });

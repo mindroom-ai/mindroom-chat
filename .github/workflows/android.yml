@@ -1,0 +1,286 @@
+# The Android app (MindRoom, com.mindroom_ai.app):
+# - pull_request and workflow_dispatch (with empty tag): builds the debug APK, checks that it
+#   declares package com.mindroom_ai.app, and uploads it as a workflow artifact;
+# - workflow_call (from release.yml) and workflow_dispatch (with a vYYYY.M.N tag): verifies the
+#   published GitHub release and signing secrets, builds the signed release AAB with the calver
+#   versionCode/versionName from scripts/android-ci-version.mjs, verifies its signature, uploads
+#   the AAB artifact, and publishes it to the requested Google Play track.
+name: Android
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag (vYYYY.M.N) to build and publish.
+        type: string
+        required: true
+      track:
+        description: The Google Play track to publish to (internal or alpha).
+        type: string
+        required: false
+        default: internal
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vYYYY.M.N) to publish to Google Play; leave empty for a debug APK build check.
+        type: string
+        required: false
+        default: ''
+      track:
+        description: Google Play track (used when tag is set).
+        type: choice
+        options:
+          - internal
+          - alpha
+        required: false
+        default: internal
+  pull_request:
+    paths:
+      - android/**
+      - capacitor.config.ts
+      - config/mindroom.json
+      - config/mindroom.ios.json
+      - bundled-plugins.txt
+      - scripts/build.sh
+      - scripts/bundled-plugins.mjs
+      - scripts/ios-client-config.mjs
+      - scripts/android-ci-version.mjs
+      - package.json
+      - package-lock.json
+      - patches/**
+      - .github/workflows/android.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug:
+    name: Build Android debug APK
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.tag == '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: android-debug-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Build web bundle
+        run: npm run build:android
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+      - name: Verify synced web assets
+        run: test -s android/app/src/main/assets/public/config.json
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Verify debug APK
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk")
+          if ! grep -Fq "package: name='com.mindroom_ai.app'" <<< "$badging"; then
+            echo '::error::Debug APK does not declare applicationId com.mindroom_ai.app'
+            exit 1
+          fi
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: mindroom-chat-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Build signed AAB and publish to Google Play
+    # When release.yml calls this workflow via workflow_call, github.event_name is the caller's
+    # event (workflow_run), never workflow_call.
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.tag != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    concurrency:
+      group: android-release-${{ inputs.tag || github.ref }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      PLAY_TRACK: ${{ inputs.track || 'internal' }}
+    steps:
+      - name: Validate release, track, and signing secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if ! [[ ${RELEASE_TAG:-} =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'${RELEASE_TAG:-}' is not a release tag vYYYY.M.N"
+            exit 1
+          fi
+          if [[ ${PLAY_TRACK:-} != internal && ${PLAY_TRACK:-} != alpha ]]; then
+            echo "::error::PLAY_TRACK must be 'internal' or 'alpha', got '${PLAY_TRACK:-}'"
+            exit 1
+          fi
+          if ! kind=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq 'if .draft or .prerelease then "unpublished" else "published" end'); then
+            echo "::error::GitHub release '$RELEASE_TAG' does not exist or is not published"
+            exit 1
+          fi
+          if [[ $kind != published ]]; then
+            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
+            exit 1
+          fi
+          missing=()
+          for secret_name in \
+            ANDROID_UPLOAD_KEYSTORE_BASE64 \
+            ANDROID_UPLOAD_KEYSTORE_PASSWORD \
+            ANDROID_UPLOAD_KEY_ALIAS \
+            ANDROID_UPLOAD_KEY_PASSWORD \
+            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
+            if [[ -z ${!secret_name:-} ]]; then
+              missing+=("$secret_name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required Android release secret(s): ${missing[*]}"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      - name: Compute Android version metadata
+        id: version
+        run: node scripts/android-ci-version.mjs "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Build web bundle
+        env:
+          MINDROOM_BUILD_VERSION: ${{ inputs.tag }}
+          MINDROOM_RELEASE_VERSION: ${{ inputs.tag }}
+        run: npm run build:android
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+      - name: Verify synced web assets
+        run: test -s android/app/src/main/assets/public/config.json
+      - name: Configure Android upload keystore
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.android"
+          keystore="$HOME/.android/mindroom-upload-keystore.jks"
+          props="$HOME/.android/mindroom-upload-keystore.properties"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$keystore"
+          test -s "$keystore"
+          chmod 600 "$keystore"
+          KEYSTORE_PATH="$keystore" PROPS_PATH="$props" node -e '
+            const fs = require("node:fs");
+            const esc = (v) => v
+              .replace(/\\/g, "\\\\")
+              .replace(/\r/g, "\\r")
+              .replace(/\n/g, "\\n")
+              .replace(/\t/g, "\\t")
+              .replace(/^ /, "\\ ")
+              .replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+            const lines = [
+              `storeFile=${esc(process.env.KEYSTORE_PATH)}`,
+              `storePassword=${esc(process.env.ANDROID_UPLOAD_KEYSTORE_PASSWORD)}`,
+              `keyAlias=${esc(process.env.ANDROID_UPLOAD_KEY_ALIAS)}`,
+              `keyPassword=${esc(process.env.ANDROID_UPLOAD_KEY_PASSWORD)}`,
+            ];
+            fs.writeFileSync(process.env.PROPS_PATH, `${lines.join("\n")}\n`, { mode: 0o600 });
+          '
+          chmod 600 "$props"
+      - name: Build signed release AAB
+        working-directory: android
+        env:
+          MINDROOM_ANDROID_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          MINDROOM_ANDROID_VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: ./gradlew --no-daemon :app:bundleRelease
+      - name: Verify release AAB signature
+        run: |
+          set -euo pipefail
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$aab"
+          output=$(jarsigner -verify "$aab")
+          echo "$output"
+          if ! grep -Fq 'jar verified.' <<< "$output"; then
+            echo '::error::Release AAB is not signed with a valid upload key'
+            exit 1
+          fi
+      - name: Write Play release notes
+        run: |
+          set -euo pipefail
+          mkdir -p distribution/whatsnew
+          printf 'MindRoom Chat %s\n\nSee the GitHub release for full notes:\nhttps://github.com/%s/releases/tag/%s\n' \
+            "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$RELEASE_TAG" > distribution/whatsnew/whatsnew-en-US
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v7
+        with:
+          name: mindroom-android-release-aab-${{ inputs.tag }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish to Google Play
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.mindroom_ai.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: ${{ env.PLAY_TRACK }}
+          status: completed
+          releaseName: ${{ inputs.tag }}
+          whatsNewDirectory: distribution/whatsnew
+      - name: Clean up upload keystore
+        if: always()
+        run: rm -f "$HOME/.android/mindroom-upload-keystore.jks" "$HOME/.android/mindroom-upload-keystore.properties"

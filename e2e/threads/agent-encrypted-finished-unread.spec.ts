@@ -7,6 +7,7 @@ import {
   expect,
   mentionHelper,
   openNewSession,
+  scrollHomeToRoom,
   sendFromComposer,
   serverUnreadCounts,
   test,
@@ -59,6 +60,7 @@ const expectBadgeShowsUnread = async (
   fits: (shown: number, server: number) => boolean,
   expected: string
 ): Promise<void> => {
+  await scrollHomeToRoom(page, roomId);
   let held = 0;
   await expect
     .poll(
@@ -194,7 +196,13 @@ const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], r
   await mentionHelper(page, stack, request);
 
   // The client follows the reply's thread; the reader reads the start, then leaves for the lobby.
-  await expect(page.getByText(/\bword3\b/).first()).toBeVisible({ timeout: 60_000 });
+  const streamingReply = page
+    .locator('[data-message-id]')
+    .filter({ hasText: /\bword3\b/ })
+    .first();
+  await expect(streamingReply).toBeVisible({ timeout: 60_000 });
+  const replyMessageId = await streamingReply.getAttribute('data-message-id');
+  expect(replyMessageId).toBeTruthy();
   await page.evaluate(
     (url) => {
       window.history.pushState(null, '', url);
@@ -202,7 +210,11 @@ const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], r
     },
     `/home/${encodeURIComponent(stack.rooms.lobby)}`
   );
-  await expect(page.getByText(/\bword3\b/)).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator(`[data-message-id="${replyMessageId}"]`)).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect(composer(page)).toBeVisible({ timeout: 30_000 });
 
   // The finished reply counts as unread on the server.
   await expect
@@ -339,6 +351,7 @@ const goHome = async (page: Page, roomId: string): Promise<void> => {
     window.history.pushState(null, '', '/home/');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
+  await scrollHomeToRoom(page, roomId);
   await expect(page.locator(`[data-room-id="${roomId}"]`).first()).toBeVisible({
     timeout: 30_000,
   });

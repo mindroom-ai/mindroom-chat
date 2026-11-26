@@ -236,6 +236,9 @@ export const TERMINAL_STREAM_STATUSES = new Set([
   'interrupted',
 ]);
 
+/** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
+export const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
+
 /** The terminal stream statuses of a reply that finished on its own. */
 export const SUCCESSFUL_STREAM_STATUSES = new Set(['complete', 'completed', 'done']);
 
@@ -317,6 +320,17 @@ export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
   if (endsOrPausesStream(streamStatus)) return false;
   if (streamStatus) return ACTIVE_STREAM_STATUSES.has(streamStatus);
   return !!metadata;
+};
+
+/**
+ * Whether a reply finished its own run cleanly (completed or cached), without a conflicting
+ * non-successful stream status (e.g. a regenerated reply streaming over a prior completed answer).
+ */
+export const isFinishedAgentReply = (content: Record<string, unknown>): boolean => {
+  const status = getAiRunInfo(content)?.status?.toLowerCase();
+  if (!status || !FINISHED_AI_RUN_STATUSES.has(status)) return false;
+  const streamStatus = readStreamStatus(content);
+  return !streamStatus || SUCCESSFUL_STREAM_STATUSES.has(streamStatus);
 };
 
 export { AI_RUN_METADATA_KEY };

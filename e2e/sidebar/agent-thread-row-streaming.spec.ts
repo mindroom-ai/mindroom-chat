@@ -27,7 +27,10 @@ const rowAnimations = (row: Locator): Promise<number> =>
 const rowStreamsWhileAgentStreams = async (page: Page, stack: AgentStack, engine: string) => {
   await openLobby(page, stack);
   // The lobby is in the stack's space, whose sidebar lists its threads.
-  await page.getByRole('button', { name: /^MindRoom(,|$)/ }).click();
+  await page
+    .getByRole('group', { name: 'Spaces' })
+    .getByRole('button', { name: /^MindRoom(,|$)/ })
+    .click();
   await openThreadsCategory(page);
   const word = uniqueWord('rowstream');
   // 400 words, one every quarter second: long enough to look while it streams on a loaded machine.

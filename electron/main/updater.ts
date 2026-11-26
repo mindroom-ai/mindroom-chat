@@ -1,4 +1,33 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 export type UpdaterCheckOutcome = 'none' | 'found' | 'error';
+
+export type UpdaterSupportOptions = {
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  appImageEnv?: string;
+  resourcesPath?: string;
+  existsSync?: (target: string) => boolean;
+};
+
+/**
+ * Returns whether electron-updater is supported in the current runtime.
+ * macOS supports packaged updates; Linux supports AppImage only and explicitly rejects `.deb`
+ * installs (identified by `resources/package-type`, even when `APPIMAGE` is inherited).
+ */
+export function isUpdaterSupported(options: UpdaterSupportOptions): boolean {
+  if (!options.isPackaged) return false;
+  if (options.platform === 'darwin') return true;
+  if (options.platform === 'linux') {
+    if (!options.appImageEnv?.trim()) return false;
+    const resourcesPath = options.resourcesPath?.trim();
+    if (!resourcesPath) return false;
+    const exists = options.existsSync ?? fs.existsSync;
+    return !exists(path.join(resourcesPath, 'package-type'));
+  }
+  return false;
+}
 
 type EventMethod = ((
   event: 'update-downloaded',

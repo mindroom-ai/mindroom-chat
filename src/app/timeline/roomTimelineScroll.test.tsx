@@ -11,12 +11,12 @@ import {
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
-  useLatestRowPin,
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   type RoomRowsPlace,
 } from './roomTimelineScroll';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
@@ -120,7 +120,7 @@ function OpenThread({
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
   });
-  useLatestRowPin({
+  useTimelineLiveEnd({
     surface: followsLatest && readerScrolledRef.current.value ? 'thread' : undefined,
     itemCount: rows,
     virtualizer: { scrollToIndex: ignoreRowIndex, cancelScroll: ignoreRowIndex },
@@ -316,7 +316,7 @@ function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: 
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
   });
-  useLatestRowPin({
+  useTimelineLiveEnd({
     surface: 'room',
     itemCount: rows,
     virtualizer: { scrollToIndex, cancelScroll: () => undefined },
@@ -420,7 +420,7 @@ describe('useLatestRowPin and the virtual list', () => {
       },
     };
     function Pin() {
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: 'room',
         itemCount: 20,
         virtualizer: list,
@@ -506,7 +506,7 @@ describe('useLatestRowPin and the virtual list', () => {
       cancelScroll: () => undefined,
     };
     function Pin() {
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: 'room',
         itemCount: 20,
         virtualizer: list,

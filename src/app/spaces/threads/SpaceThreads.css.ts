@@ -116,14 +116,6 @@ export const ThreadListScroll = style([
   },
 ]);
 
-export const ThreadListContent = style({
-  display: 'flex',
-  flexDirection: 'column',
-  rowGap: config.space.S200,
-  flexShrink: 0,
-  minInlineSize: 0,
-});
-
 export const RoomBadge = style([
   OutlinedPill,
   {

@@ -10,8 +10,8 @@ import {
 } from '../helpers/disposableAccounts';
 
 // The Settings dialog keeps one inset. Every box of the menu column (the search field, the rows,
-// the search results and Logout) stays that far from the dialog's edges and from the divider, and
-// the close button stays that far from the top and the end edge. The icons and the group headings
+// the search results and Logout) stays that far from the menu column's edges, and the close button
+// stays that far from the top and the end edge. The icons and the group headings
 // start one step further in, the same distance from the column's edge, and the page's breadcrumb
 // starts where the page's text does. The field, the breadcrumb and the close button share one
 // line. On wider screens the dialog is tall enough for the whole menu, Local MindRoom included,
@@ -416,7 +416,7 @@ const near = (actual: number, expected: number, what: string) =>
     .soft(Math.abs(actual - expected), `${what}: ${actual} against ${expected}`)
     .toBeLessThanOrEqual(1);
 
-/** The checks every measurement must pass; `phone` has no divider and no title bar beside the menu. */
+/** The checks every measurement must pass; `phone` has no title bar beside the menu. */
 const checkMeasures = ({ state, measures }: Record_, viewport: Viewport) => {
   const { menu, header, page } = measures;
   const phone = viewport.width < 600;

@@ -17,6 +17,14 @@ export const Rule = style({
   background: color.SurfaceVariant.ContainerLine,
 });
 
+export const DividerForking = style([Divider, { color: color.Warning.OnContainer }]);
+
+export const RuleForking = style({
+  height: 0,
+  background: 'none',
+  borderTop: `1px dashed ${color.Warning.Main}`,
+});
+
 // The label's own line: the icon and the text, as the link shows them.
 export const Label = style({
   display: 'inline-flex',

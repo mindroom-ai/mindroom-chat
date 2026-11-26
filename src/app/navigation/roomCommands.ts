@@ -18,17 +18,21 @@ type CommandsRef = { current: readonly RoomCommand[] };
 const NONE: readonly RoomCommand[] = [];
 const offered: CommandsRef[] = [];
 
-/** Offers `commands` while the calling component is mounted; the one mounted last is the one read. */
-export const useRoomCommands = (commands: readonly RoomCommand[]): void => {
+/**
+ * Offers `commands` while the calling component is mounted and `enabled`; the one mounted last is
+ * the one read.
+ */
+export const useRoomCommands = (commands: readonly RoomCommand[], enabled = true): void => {
   const ref = useRef(commands);
   ref.current = commands;
   useEffect(() => {
+    if (!enabled) return undefined;
     offered.push(ref);
     return () => {
       const index = offered.indexOf(ref);
       if (index >= 0) offered.splice(index, 1);
     };
-  }, []);
+  }, [enabled]);
 };
 
 /** The commands of the room header on screen now; none without one. */

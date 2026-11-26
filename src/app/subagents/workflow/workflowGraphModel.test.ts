@@ -13,7 +13,9 @@ import {
   isCollapsiblePlumbingItem,
   itemPrecedesItem,
   layoutWorkflowRunGraph,
+  messageEndpointName,
   nodeResultPreview,
+  routeEndpointName,
   shortNodeError,
   type WorkflowGraphItem,
 } from './workflowGraphModel';
@@ -28,6 +30,7 @@ const emptyOmitted = {
   groups: 0,
   phases: 0,
   log: 0,
+  messages: 0,
 };
 
 const makeNode = (id: string, overrides: Partial<WorkflowRunNode> = {}): WorkflowRunNode => ({
@@ -64,6 +67,7 @@ const makeGraph = (overrides: Partial<WorkflowRunGraph> = {}): WorkflowRunGraph 
   groups: [],
   nodes: [],
   edges: [],
+  messages: [],
   log: [],
   omitted: emptyOmitted,
   ...overrides,
@@ -190,23 +194,118 @@ describe('workflowGraphModel', () => {
     expect(layout.stepCount).toBe(3);
   });
 
-  it('groups standalone session turns under their session node and keeps orphaned turns', () => {
+  it('keeps multi-turn spawn() turns in their own execution phase and omits redundant 0s session nodes', () => {
     const layout = layoutWorkflowRunGraph(
       makeGraph({
-        phases: ['Review'],
+        phases: ['Plan', 'Build', 'Review', 'Polish'],
+        groups: [makeGroup('g3', { kind: 'parallel', phase: 2, total: 2, done: 2 })],
         nodes: [
-          makeNode('n8', { kind: 'turn', phase: 0, session: 'n2', turns: 2 }),
-          makeNode('n5', { kind: 'turn', phase: 0, session: 'n2', turns: 1 }),
-          makeNode('n2', { kind: 'session', phase: 0, turns: 2 }),
-          makeNode('n9', { kind: 'turn', phase: 0, session: 'n99', turns: 1 }),
+          makeNode('n10', {
+            kind: 'session',
+            label: 'designer',
+            name: 'designer',
+            phase: 2,
+            status: 'completed',
+            turns: 2,
+            startedAt: 100,
+            endedAt: 100,
+          }),
+          makeNode('n12', {
+            kind: 'turn',
+            label: 'Draft UI',
+            phase: 2,
+            group: 'g3',
+            session: 'n10',
+          }),
+          makeNode('n13', {
+            kind: 'agent',
+            label: 'Audit API',
+            phase: 2,
+            group: 'g3',
+          }),
+          makeNode('n15', {
+            kind: 'turn',
+            label: 'Refine copy',
+            phase: 3,
+            group: null,
+            session: 'n10',
+          }),
+          makeNode('n16', {
+            kind: 'session',
+            label: 'Broken session',
+            phase: 3,
+            status: 'failed',
+            error: 'Spawn failed',
+            turns: 0,
+          }),
+          makeNode('n17', {
+            kind: 'session',
+            label: 'Unused session',
+            phase: 3,
+            status: 'completed',
+            turns: 0,
+          }),
         ],
       })
     );
-    expect(ids(layout.bands[0]!.items)).toEqual(['n2', 'n9']);
-    const sessionItem = layout.bands[0]!.items[0];
-    expect(sessionItem?.type === 'node' ? ids(sessionItem.children ?? []) : []).toEqual([
-      'n5',
-      'n8',
+
+    // Phase 3 only has Parallel g3 (redundant 0s session n10 is omitted, not pulling n15 backward).
+    expect(ids(layout.bands[2]!.items)).toEqual(['g3']);
+    const parallel = layout.bands[2]!.items[0];
+    expect(parallel?.type === 'group' ? ids(parallel.items) : []).toEqual(['n12', 'n13']);
+    // Phase 4 keeps its standalone turn n15 plus failed/0-turn session nodes.
+    expect(ids(layout.bands[3]!.items)).toEqual(['n15', 'n16', 'n17']);
+    expect(layout.sessionsById.get('n10')?.name).toBe('designer');
+  });
+
+  it('displays send source nodes as script in routeEndpointName, messageEndpointName, and peer bridges', () => {
+    const sendNode = makeNode('n8', {
+      kind: 'send',
+      label: 'send -> designer',
+      name: null,
+      group: 'g1',
+      phase: 0,
+    });
+    const designer = makeNode('n10', {
+      kind: 'agent',
+      label: 'Design pass',
+      name: 'designer',
+      group: 'g1',
+      phase: 0,
+    });
+    const byId = new Map([
+      [sendNode.id, sendNode],
+      [designer.id, designer],
+    ]);
+
+    expect(routeEndpointName(byId, 'n8', 'from')).toBe('script');
+    expect(routeEndpointName(byId, 'n8', 'from', 'Skript')).toBe('Skript');
+    expect(routeEndpointName(byId, 'n8', 'to')).toBe('send -> designer');
+    expect(routeEndpointName(byId, 'n10', 'to')).toBe('designer');
+
+    expect(messageEndpointName(byId, 'n8', 'send -> designer', 'from', 'Skript')).toBe('Skript');
+    expect(messageEndpointName(byId, null, 'script', 'from', 'Skript')).toBe('Skript');
+    expect(messageEndpointName(byId, 'n10', 'designer', 'to', 'Skript')).toBe('designer');
+
+    const layout = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        groups: [makeGroup('g1', { kind: 'parallel', phase: 0 })],
+        nodes: [sendNode, designer],
+        edges: [{ from: 'n8', to: 'n10', count: 1 }],
+      }),
+      'script'
+    );
+    expect(layout.peerBridgesByGroup.get('g1')).toEqual([
+      {
+        key: 'n10\0n8',
+        fromId: 'n8',
+        toId: 'n10',
+        fromLabel: 'script',
+        toLabel: 'designer',
+        bidirectional: false,
+        count: 1,
+      },
     ]);
   });
 
@@ -457,15 +556,15 @@ describe('workflowGraphModel', () => {
     );
     expect(bandPrecedesBand(forward.bands[0]!, forward.bands[1]!)).toBe(true);
 
-    // Overlapping session subtree (n1 -> turns n2, n5) next to sibling agent n3 suppresses backwards arrow.
+    // Overlapping nested workflow subtree (n1 -> group n2 -> n5) next to sibling n3 suppresses backwards arrow.
     const overlapping = layoutWorkflowRunGraph(
       makeGraph({
         phases: ['Audit'],
+        groups: [makeGroup('n2', { kind: 'workflow', phase: 0, parent: 'n1' })],
         nodes: [
-          makeNode('n1', { kind: 'session', phase: 0, turns: 2 }),
-          makeNode('n2', { kind: 'turn', phase: 0, session: 'n1' }),
+          makeNode('n1', { kind: 'agent', phase: 0 }),
           makeNode('n3', { kind: 'agent', phase: 0 }),
-          makeNode('n5', { kind: 'turn', phase: 0, session: 'n1' }),
+          makeNode('n5', { kind: 'agent', phase: 0, group: 'n2' }),
         ],
       })
     );
@@ -496,6 +595,7 @@ describe('workflowGraphModel', () => {
         }),
       ],
       edges: [],
+      messages: [],
       omitted: emptyOmitted,
       log: [],
     });

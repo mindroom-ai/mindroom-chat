@@ -69,6 +69,10 @@ export const List = style([
   },
 ]);
 
+globalStyle(`li > ${List}`, {
+  marginBlock: 0,
+});
+
 const codeFont = "'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace";
 
 /** Inline code: a small tinted chip that wraps with the text around it. */

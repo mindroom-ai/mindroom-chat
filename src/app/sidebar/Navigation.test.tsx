@@ -83,7 +83,7 @@ vi.mock('./SidebarNav', () => ({
     onPageNavSelect,
   }: {
     footer?: React.ReactNode;
-    onPageNavSelect?: (selected: boolean) => boolean;
+    onPageNavSelect?: (selected: boolean, allowCollapse?: boolean) => boolean;
   }) =>
     React.createElement(
       'nav',
@@ -95,6 +95,10 @@ vi.mock('./SidebarNav', () => ({
       React.createElement('button', {
         'aria-label': 'Select current section',
         onClick: () => onPageNavSelect?.(true),
+      }),
+      React.createElement('button', {
+        'aria-label': 'Select current section sub-route',
+        onClick: () => onPageNavSelect?.(true, false),
       }),
       React.createElement(ExploreTab, { onSelect: onPageNavSelect }),
       footer
@@ -349,6 +353,26 @@ describe('MindroomNavigation', () => {
     expectNavigationState(renderer, false);
     act(() => renderer.unmount());
   });
+
+  it.each([751, 1280])(
+    'expands when collapsed but does not collapse when allowCollapse is false at %i px',
+    (width) => {
+      localStorage.setItem(storageKey, 'true');
+      const renderer = renderNavigation(width);
+      let handled: boolean | undefined;
+      act(() => {
+        handled = findButtons(renderer, 'Select current section sub-route')[0]!.props.onClick();
+      });
+      expect(handled).toBe(true);
+      expectNavigationState(renderer, false);
+      act(() => {
+        handled = findButtons(renderer, 'Select current section sub-route')[0]!.props.onClick();
+      });
+      expect(handled).toBe(false);
+      expectNavigationState(renderer, false);
+      act(() => renderer.unmount());
+    }
+  );
 
   it.each([751, 1280])('toggles active Explorer without changing its page at %i px', (width) => {
     const path = '/explore/example.org/?term=matrix#results';

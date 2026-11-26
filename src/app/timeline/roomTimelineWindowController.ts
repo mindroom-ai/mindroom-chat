@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { Timeline } from '../event-store/timeline/timelinePagination';
 import {
   getActiveTimelineRange,
   getLinkedTimelinesEventAbsoluteIndex,
+  type Timeline,
 } from '../event-store/timeline/timelinePagination';
 import type { TimelineEventEntry } from '../event-store/timeline/roomTimelineEvents';
 import { resolveOrderedRoomOverviewEvents } from '../threads/threadRoomFocus';
@@ -17,15 +17,32 @@ import {
   shouldShowThreadLoadOlderFromCoverage,
 } from '../event-store/cache/threadCacheCoverage';
 
-type RoomUnreadInfoLike = {
-  readUptoEventId?: string;
-};
-
-export type RoomTimelineWindowControllerOptions = {
+/** Whether an open thread should render its leading "Load older messages" chip. */
+export const useThreadLoadOlderMessages = (o: {
   canPaginateThreadBack: boolean;
+  lastThreadBackwardPaginationToken: string | null;
+  threadEventsLength: number;
+  threadHasMoreCachedBack: boolean;
+  threadTailLoaded: boolean;
+}): boolean =>
+  shouldShowThreadLoadOlderFromCoverage({
+    coverage: buildThreadCacheCoverage({
+      eventCount: o.threadEventsLength,
+      backwardToken: o.canPaginateThreadBack
+        ? o.lastThreadBackwardPaginationToken
+        : o.threadHasMoreCachedBack
+          ? undefined
+          : null,
+      hasMoreBackward: o.threadHasMoreCachedBack || o.canPaginateThreadBack,
+      relationSnapshotComplete: false,
+      tailLoaded: o.threadTailLoaded,
+    }),
+    sdkHasBackwardToken: o.canPaginateThreadBack,
+  });
+
+export const useRoomTimelineWindowController = (o: {
   filteredRoomThreadActive: boolean;
   filteredRoomOverviewOrderActive: boolean;
-  lastThreadBackwardPaginationToken: string | null;
   overviewRefreshCounter: number;
   overviewThreadRootIds: string[];
   renderableEventEntries: TimelineEventEntry[];
@@ -34,183 +51,105 @@ export type RoomTimelineWindowControllerOptions = {
   roomSurfaceEventEntries: TimelineEventEntry[];
   roomThreadListThreads: Thread[];
   prefetchDepth: number;
-  threadEventsLength: number;
-  threadHasMoreCachedBack: boolean;
-  threadId?: string;
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
-  threadTailLoaded: boolean;
   timeline: Timeline;
-  unreadInfo?: RoomUnreadInfoLike;
-};
-
-export type RoomTimelineWindowControllerResult = {
-  activeTimelineRange: Timeline['range'];
-  priorityThreadSeedPrewarmRoots: ReturnType<typeof collectPriorityThreadSeedPrewarmRoots>;
-  readUptoAbsoluteIndex: number | undefined;
-  showThreadLoadOlderMessages: boolean;
-  threadFilteredEventEntries: TimelineEventEntry[];
-  threadFilteredEvents: MatrixEvent[];
-  unreadScrollAnchorIndex: number | undefined;
-};
-
-export const useRoomTimelineWindowController = ({
-  canPaginateThreadBack,
-  filteredRoomThreadActive,
-  filteredRoomOverviewOrderActive,
-  lastThreadBackwardPaginationToken,
-  overviewRefreshCounter,
-  overviewThreadRootIds,
-  renderableEventEntries,
-  renderableEvents,
-  room,
-  roomSurfaceEventEntries,
-  roomThreadListThreads,
-  prefetchDepth,
-  threadEventsLength,
-  threadHasMoreCachedBack,
-  threadId,
-  threadReplyCountMap,
-  threadResolutionMap,
-  threadTailLoaded,
-  timeline,
-  unreadInfo,
-}: RoomTimelineWindowControllerOptions): RoomTimelineWindowControllerResult => {
-  const threadFilteredEvents = useMemo(() => {
-    if (threadId) return renderableEvents;
-    if (filteredRoomOverviewOrderActive) {
-      return resolveOrderedRoomOverviewEvents({
-        orderedRootIds: overviewThreadRootIds,
-        renderableEvents: roomSurfaceEventEntries.map(({ event }) => event),
-        room,
-        roomThreads: roomThreadListThreads,
-      });
-    }
-
-    return renderableEvents;
-  }, [
-    filteredRoomOverviewOrderActive,
-    overviewThreadRootIds,
-    renderableEvents,
-    room,
-    roomSurfaceEventEntries,
-    roomThreadListThreads,
-    threadId,
-  ]);
+  unreadInfo?: { readUptoEventId?: string };
+}) => {
+  const threadFilteredEvents = useMemo(
+    () =>
+      o.filteredRoomOverviewOrderActive
+        ? resolveOrderedRoomOverviewEvents({
+            orderedRootIds: o.overviewThreadRootIds,
+            renderableEvents: o.roomSurfaceEventEntries.map(({ event }) => event),
+            room: o.room,
+            roomThreads: o.roomThreadListThreads,
+          })
+        : o.renderableEvents,
+    [
+      o.filteredRoomOverviewOrderActive,
+      o.overviewThreadRootIds,
+      o.renderableEvents,
+      o.room,
+      o.roomSurfaceEventEntries,
+      o.roomThreadListThreads,
+    ]
+  );
 
   const threadFilteredEventEntries = useMemo(() => {
-    if (!filteredRoomOverviewOrderActive) {
-      return renderableEventEntries;
-    }
-
-    const entryMap = new Map<string, TimelineEventEntry>();
-    roomSurfaceEventEntries.forEach((entry) => {
-      const entryEventId = entry.event.getId();
-      if (entryEventId) entryMap.set(entryEventId, entry);
-    });
-
-    return threadFilteredEvents
-      .map((event) => {
-        const eventId = event.getId();
-        return eventId ? entryMap.get(eventId) : undefined;
+    if (!o.filteredRoomOverviewOrderActive) return o.renderableEventEntries;
+    const byId = new Map(
+      o.roomSurfaceEventEntries.flatMap((e) => {
+        const id = e.event.getId();
+        return id ? [[id, e] as const] : [];
       })
-      .filter((entry): entry is TimelineEventEntry => entry !== undefined);
+    );
+    return threadFilteredEvents.flatMap((e) => {
+      const entry = byId.get(e.getId() ?? '');
+      return entry ? [entry] : [];
+    });
   }, [
-    filteredRoomOverviewOrderActive,
-    renderableEventEntries,
-    roomSurfaceEventEntries,
+    o.filteredRoomOverviewOrderActive,
+    o.renderableEventEntries,
+    o.roomSurfaceEventEntries,
     threadFilteredEvents,
   ]);
 
-  const readUptoAbsoluteIndex = useMemo(() => {
-    if (threadId) return undefined;
-    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
-    if (!currentReadUptoEventId) return undefined;
-
-    return getLinkedTimelinesEventAbsoluteIndex(timeline.linkedTimelines, currentReadUptoEventId);
-  }, [threadId, timeline.linkedTimelines, unreadInfo?.readUptoEventId]);
+  const readUptoEventId = o.unreadInfo?.readUptoEventId;
+  const readUptoAbsoluteIndex = useMemo(
+    () =>
+      readUptoEventId
+        ? getLinkedTimelinesEventAbsoluteIndex(o.timeline.linkedTimelines, readUptoEventId)
+        : undefined,
+    [o.timeline.linkedTimelines, readUptoEventId]
+  );
 
   const unreadScrollAnchorIndex = useMemo(() => {
-    const currentReadUptoEventId = unreadInfo?.readUptoEventId;
-    if (threadId || !currentReadUptoEventId) return undefined;
+    if (!readUptoEventId) return undefined;
+    const visibleIndex = getEventEntryIndex(threadFilteredEventEntries, readUptoEventId);
+    if (visibleIndex !== -1) return visibleIndex;
+    return readUptoAbsoluteIndex === undefined
+      ? undefined
+      : getNextRenderableEntryIndex(threadFilteredEventEntries, readUptoAbsoluteIndex);
+  }, [threadFilteredEventEntries, readUptoEventId, readUptoAbsoluteIndex]);
 
-    const visibleIndex = getEventEntryIndex(threadFilteredEventEntries, currentReadUptoEventId);
-    if (visibleIndex !== -1) {
-      return visibleIndex;
-    }
-
-    if (readUptoAbsoluteIndex === undefined) return undefined;
-    return getNextRenderableEntryIndex(threadFilteredEventEntries, readUptoAbsoluteIndex);
-  }, [threadFilteredEventEntries, threadId, unreadInfo?.readUptoEventId, readUptoAbsoluteIndex]);
-
-  const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
     () =>
       getActiveTimelineRange(
-        threadId,
-        filteredRoomThreadActive,
-        timeline.range,
-        filteredLength,
-        prefetchDepth
+        undefined,
+        o.filteredRoomThreadActive,
+        o.timeline.range,
+        threadFilteredEvents.length,
+        o.prefetchDepth
       ),
-    [threadId, filteredRoomThreadActive, timeline.range, filteredLength, prefetchDepth]
+    [o.filteredRoomThreadActive, o.timeline.range, threadFilteredEvents.length, o.prefetchDepth]
   );
 
   const priorityThreadSeedPrewarmRoots = useMemo(() => {
-    // Keep refresh generation in the dependency contract so cache metadata updates can re-rank
-    // prewarm targets even when the visible event list is referentially stable.
-    void overviewRefreshCounter;
+    void o.overviewRefreshCounter;
     return collectPriorityThreadSeedPrewarmRoots({
-      room,
+      room: o.room,
       threadFilteredEventEntries,
-      threadId,
-      threadReplyCountMap,
-      threadResolutionMap,
+      threadId: undefined,
+      threadReplyCountMap: o.threadReplyCountMap,
+      threadResolutionMap: o.threadResolutionMap,
       rangeEnd: activeTimelineRange.end,
       rangeStart: activeTimelineRange.start,
     });
   }, [
     activeTimelineRange.end,
     activeTimelineRange.start,
-    overviewRefreshCounter,
-    room,
+    o.overviewRefreshCounter,
+    o.room,
     threadFilteredEventEntries,
-    threadId,
-    threadReplyCountMap,
-    threadResolutionMap,
+    o.threadReplyCountMap,
+    o.threadResolutionMap,
   ]);
-
-  const threadPaginationCoverage = useMemo(
-    () =>
-      buildThreadCacheCoverage({
-        eventCount: threadEventsLength,
-        backwardToken: canPaginateThreadBack
-          ? lastThreadBackwardPaginationToken
-          : threadHasMoreCachedBack
-            ? undefined
-            : null,
-        hasMoreBackward: threadHasMoreCachedBack || canPaginateThreadBack,
-        relationSnapshotComplete: false,
-        tailLoaded: threadTailLoaded,
-      }),
-    [
-      canPaginateThreadBack,
-      lastThreadBackwardPaginationToken,
-      threadEventsLength,
-      threadHasMoreCachedBack,
-      threadTailLoaded,
-    ]
-  );
-  const showThreadLoadOlderMessages = shouldShowThreadLoadOlderFromCoverage({
-    coverage: threadPaginationCoverage,
-    sdkHasBackwardToken: canPaginateThreadBack,
-  });
 
   return {
     activeTimelineRange,
     priorityThreadSeedPrewarmRoots,
     readUptoAbsoluteIndex,
-    showThreadLoadOlderMessages,
     threadFilteredEventEntries,
     threadFilteredEvents,
     unreadScrollAnchorIndex,

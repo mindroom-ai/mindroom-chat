@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import parity from './__fixtures__/live-markdown-parity-v1.json';
 import { loadLiveMarkdown, renderLiveMarkdown } from './liveMarkdown';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { cpuNow } from '../../../test/utils/cpuNow';
 
 describe('live reply Markdown', () => {
@@ -163,5 +164,116 @@ describe('live reply Markdown', () => {
     );
     expect(withCodeBlock).toContain('<li id="fn1" class="footnote-item"><p>Real detail.');
     expect(withCodeBlock).toContain('<code>[^1]: Not a definition.\n</code>');
+  });
+
+  it('keeps HTML comments and blocks unescaped for CommonMark parsing only when commonMarkHtml is true', () => {
+    expect(renderLiveMarkdown('<!-- note -->\n**after**')).toBe(
+      '<p>&lt;!-- note --&gt;<br>\n<strong>after</strong></p>\n'
+    );
+    expect(renderLiveMarkdown('<!-- note -->\n**after**', { commonMarkHtml: true })).toBe(
+      '<!-- note -->\n<p><strong>after</strong></p>\n'
+    );
+    expect(
+      renderLiveMarkdown('<!-- <script>alert(1)</script> -->\n**after**', {
+        commonMarkHtml: true,
+      })
+    ).toBe('<!-- <script>alert(1)</script> -->\n<p><strong>after</strong></p>\n');
+    expect(
+      renderLiveMarkdown('<!-- note --><script>alert(1)</script>', { commonMarkHtml: true })
+    ).toBe('<!-- note -->&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(
+      renderLiveMarkdown('<script>alert(1)</script>\n\n**after**', { commonMarkHtml: true })
+    ).toBe('&lt;script&gt;alert(1)&lt;/script&gt;\n<p><strong>after</strong></p>\n');
+
+    const doctype = renderLiveMarkdown('<!DOCTYPE html>\n**after**', { commonMarkHtml: true });
+    expect(doctype).toBe('<!DOCTYPE html>\n<p><strong>after</strong></p>\n');
+    expect(sanitizeCustomHtml(doctype ?? '').trim()).toBe('<p><strong>after</strong></p>');
+
+    const processingInstruction = renderLiveMarkdown('<?php echo 1; ?>\n**after**', {
+      commonMarkHtml: true,
+    });
+    expect(processingInstruction).toBe('<?php echo 1; ?>\n<p><strong>after</strong></p>\n');
+    expect(sanitizeCustomHtml(processingInstruction ?? '').trim()).toBe(
+      '<p><strong>after</strong></p>'
+    );
+  });
+
+  it('parses multiline HTML comments across disallowed tags, fenced code, and list items', () => {
+    const pictureComment = renderLiveMarkdown('<!-- <picture>\n</picture> -->\n\n## Setup', {
+      commonMarkHtml: true,
+    });
+    expect(pictureComment).toBe('<!-- <picture>\n</picture> -->\n<h2>Setup</h2>\n');
+    expect(sanitizeCustomHtml(pictureComment ?? '').trim()).toBe('<h2>Setup</h2>');
+
+    const scriptComment = renderLiveMarkdown('<!-- note\n<script>x</script>\n-->\n\n## After', {
+      commonMarkHtml: true,
+    });
+    expect(scriptComment).toBe('<!-- note\n<script>x</script>\n-->\n<h2>After</h2>\n');
+    expect(sanitizeCustomHtml(scriptComment ?? '').trim()).toBe('<h2>After</h2>');
+
+    const fencedInComment = renderLiveMarkdown(
+      ['<!-- <figure>', '```sh', 'npm test', '```', '</figure> -->', '', '## Install'].join('\n'),
+      { commonMarkHtml: true }
+    );
+    expect(fencedInComment).toBe(
+      '<!-- <figure>\n```sh\nnpm test\n```\n</figure> -->\n<h2>Install</h2>\n'
+    );
+    const sanitizedFencedInComment = sanitizeCustomHtml(fencedInComment ?? '').trim();
+    expect(sanitizedFencedInComment).toBe('<h2>Install</h2>');
+    expect(sanitizedFencedInComment).not.toContain('<!--');
+
+    const listComment = renderLiveMarkdown(
+      ['- <!-- <picture>', '  </picture> -->', '', '## Setup'].join('\n'),
+      { commonMarkHtml: true }
+    );
+    expect(listComment).toBe(
+      '<ul>\n<li>\n<!-- <picture>\n</picture> -->\n</li>\n</ul>\n<h2>Setup</h2>\n'
+    );
+    const sanitizedListComment = sanitizeCustomHtml(listComment ?? '');
+    expect(sanitizedListComment).toContain('<h2>Setup</h2>');
+    expect(sanitizedListComment).not.toContain('<!--');
+    expect(sanitizedListComment).not.toContain('picture');
+
+    const afterPictureComment = renderLiveMarkdown(
+      '<!-- <picture>\n</picture> -->\n<picture>after</picture>',
+      { commonMarkHtml: true }
+    );
+    expect(afterPictureComment).toBe(
+      '<!-- <picture>\n</picture> -->\n<p><picture>after</picture></p>\n'
+    );
+    expect(sanitizeCustomHtml(afterPictureComment ?? '').trim()).toBe('<p>after</p>');
+
+    expect(renderLiveMarkdown('<!-->\n**after**', { commonMarkHtml: true })).toBe(
+      '<!-->\n<p><strong>after</strong></p>\n'
+    );
+    expect(renderLiveMarkdown('<!--->\n**after**', { commonMarkHtml: true })).toBe(
+      '<!--->\n<p><strong>after</strong></p>\n'
+    );
+  });
+
+  it.each([
+    ['fenced code', '```\n<!-- slot -->\n```', '<pre><code>&lt;!-- slot --&gt;\n</code></pre>\n'],
+    [
+      'list-indented fences',
+      '- Example:\n    ~~~html\n    <!-- slot -->\n    ~~~',
+      '<ul>\n<li>Example:<pre><code class="language-html">&lt;!-- slot --&gt;\n</code></pre>\n</li>\n</ul>\n',
+    ],
+    [
+      'list-marker fences',
+      '- ```html\n  <!-- slot -->\n  ```',
+      '<ul>\n<li>\n<pre><code class="language-html">&lt;!-- slot --&gt;\n</code></pre>\n</li>\n</ul>\n',
+    ],
+    [
+      'blockquote indented code',
+      '>     <!-- slot -->',
+      '<blockquote>\n<pre><code>&lt;!-- slot --&gt;\n</code></pre>\n</blockquote>\n',
+    ],
+    [
+      'inline code spans',
+      'Use `<!-- slot -->` here',
+      '<p>Use <code>&lt;!-- slot --&gt;</code> here</p>\n',
+    ],
+  ])('preserves comments inside %s when commonMarkHtml is true', (_name, md, html) => {
+    expect(renderLiveMarkdown(md, { commonMarkHtml: true })).toBe(html);
   });
 });

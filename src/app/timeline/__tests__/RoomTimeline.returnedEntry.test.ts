@@ -15,19 +15,21 @@ import {
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import type { OpenRoomEventHandler } from '../roomEventOpenController';
 
-// The minimap's row select is the timeline's own "open this event", as a tapped quote is.
+// Captures the timeline's own "open this event" handler, as a tapped quote invokes it.
 const opener = vi.hoisted(() => ({ open: undefined as OpenRoomEventHandler | undefined }));
-vi.mock('../useRoomTimelineMinimap', () => ({
-  useRoomTimelineMinimap: ({ handleOpenEvent }: { handleOpenEvent: OpenRoomEventHandler }) => {
-    opener.open = handleOpenEvent;
-    return {
-      minimapStripMap: new Map(),
-      minimapItems: [],
-      handleMinimapSelect: () => undefined,
-      handleMinimapScrub: () => undefined,
-    };
-  },
-}));
+vi.mock('../roomEventOpenController', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../roomEventOpenController')>();
+  return {
+    ...actual,
+    useRoomEventOpenController: (
+      options: Parameters<typeof actual.useRoomEventOpenController>[0]
+    ) => {
+      const result = actual.useRoomEventOpenController(options);
+      opener.open = result.handleOpenEvent;
+      return result;
+    },
+  };
+});
 
 importBeforeTests(() => import('../RoomTimeline'));
 

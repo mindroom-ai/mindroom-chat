@@ -68,7 +68,6 @@ import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
 import * as css from './SpaceThreads.css';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
-const EMPTY_ROOMS: readonly Room[] = [];
 const EMPTY_PINNED_KEYS: readonly string[] = [];
 
 function SpaceThreadsPageContent({ space }: { space: Room }) {
@@ -116,9 +115,9 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
   const sectionsEnabled = hasMindroomAgents && compactSections.on;
-  const pinnedByRoom = usePinnedEventIdsByRoom(sectionsEnabled ? spaceRooms : EMPTY_ROOMS);
+  const pinnedByRoom = usePinnedEventIdsByRoom(spaceRooms);
   const pinnedKeys = useMemo(() => {
-    if (pinnedByRoom.size === 0) return EMPTY_PINNED_KEYS;
+    if (!sectionsEnabled || pinnedByRoom.size === 0) return EMPTY_PINNED_KEYS;
     const keys: string[] = [];
     pinnedByRoom.forEach((ids, roomId) => {
       for (let i = ids.length - 1; i >= 0; i -= 1) {
@@ -126,7 +125,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       }
     });
     return keys;
-  }, [pinnedByRoom]);
+  }, [pinnedByRoom, sectionsEnabled]);
   const [quietClock, setQuietClock] = useState(() => ({
     enabled: sectionsEnabled,
     now: Date.now(),
@@ -437,6 +436,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           singleBucketTab={singleBucketTab}
           onToggleSectionFold={(id) => updateCompactSections({ type: 'TOGGLE_FOLD', id })}
           roomsById={roomsById}
+          pinnedByRoom={pinnedByRoom}
           showRoomBadge={activeRoomIds.length > 1}
           snoozeNow={snoozeNow}
           metaVersion={metaVersion}

@@ -86,7 +86,7 @@ type ReadReceiptControllerOptions = {
   ) => void | Promise<void>;
   hideActivity: boolean;
   mx: MatrixClient;
-  readUptoEventIdRef: MutableRefObject<string | undefined>;
+  readUptoEventIdRef?: MutableRefObject<string | undefined>;
   /**
    * Whether reaching the bottom, or coming back to the window there, reads the room's main
    * timeline. Compact never does, also while a room without a thread shows its timeline. Default
@@ -100,36 +100,21 @@ type ReadReceiptControllerOptions = {
    * room reads the threads of those replies too.
    */
   classicRows?: () => MatrixEvent[];
-  threadEventsLength: number;
+  threadEventsLength?: number;
   threadId?: string;
-  threadInitialRenderMode: ThreadInitialRenderMode;
+  threadInitialRenderMode?: ThreadInitialRenderMode;
   /**
    * The events the open thread renders: reading it at its bottom reaches its newest reply there.
    * The thread model may know newer replies that are not rendered yet.
    */
-  threadEvents: readonly MatrixEvent[];
-  threadTailLoaded: boolean;
+  threadEvents?: readonly MatrixEvent[];
+  threadTailLoaded?: boolean;
   timelineAtLiveEnd: boolean;
   unreadInfo?: { inLiveTimeline: boolean; readUptoEventId: string };
 };
 
-/** The values a read decision takes from the newest render. */
-type ReadContext = Pick<
-  ReadReceiptControllerOptions,
-  | 'getScrollElement'
-  | 'handleOpenEvent'
-  | 'hideActivity'
-  | 'mx'
-  | 'readsMainTimeline'
-  | 'room'
-  | 'classicRows'
-  | 'threadEventsLength'
-  | 'threadId'
-  | 'threadInitialRenderMode'
-  | 'threadEvents'
-  | 'threadTailLoaded'
-  | 'unreadInfo'
->;
+const EMPTY_EVENTS: readonly MatrixEvent[] = [];
+type ReadContext = ReadReceiptControllerOptions;
 
 /**
  * Whether the reader has seen the newest rows of the room: they have no read marker yet, or the
@@ -161,7 +146,8 @@ const readRoomOnNextFrame = (
   stillReading: StillReading
 ): void => {
   const { hideActivity, mx, room } = context;
-  if (!context.readsMainTimeline || !markerReachesLiveTimeline(room, markerEventId)) return;
+  if (context.readsMainTimeline === false || !markerReachesLiveTimeline(room, markerEventId))
+    return;
   const { roomId } = room;
   requestAnimationFrame(() => {
     if (!stillReading(roomId, undefined)) return;
@@ -178,10 +164,11 @@ const readRoomOnNextFrame = (
  * renders last (`threadEvents`): the tail can count as loaded while only the root is rendered.
  */
 const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading): void => {
-  const { hideActivity, mx, room, threadEvents, threadId } = context;
+  const { hideActivity, mx, room, threadId } = context;
   if (!threadId || !context.threadTailLoaded) return;
-  if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
+  if (context.threadInitialRenderMode === 'loading' || !context.threadEventsLength) return;
   const { roomId } = room;
+  const threadEvents = context.threadEvents ?? EMPTY_EVENTS;
   const read = () => {
     requestAnimationFrame(() => {
       if (!stillReading(roomId, threadId)) return;
@@ -213,44 +200,28 @@ const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading):
  * the window, and while an open thread loads or grows at its bottom), and gives the timeline its
  * Mark as Read action.
  */
-export const useTimelineReadReceiptController = ({
-  atBottom,
-  atBottomAnchorRef,
-  atBottomRef,
-  atLiveEndRef,
-  getScrollElement,
-  latestAtTop = false,
-  handleOpenEvent,
-  hideActivity,
-  mx,
-  readUptoEventIdRef,
-  readsMainTimeline = true,
-  room,
-  setAtBottom,
-  classicRows,
-  threadEventsLength,
-  threadId,
-  threadEvents,
-  threadInitialRenderMode,
-  threadTailLoaded,
-  timelineAtLiveEnd,
-  unreadInfo,
-}: ReadReceiptControllerOptions): { handleMarkAsRead: () => void } => {
-  const contextRef = useLatestRef<ReadContext>({
+export const useTimelineReadReceiptController = (
+  options: ReadReceiptControllerOptions
+): { handleMarkAsRead: () => void } => {
+  const {
+    atBottom,
+    atBottomAnchorRef,
+    atBottomRef,
+    atLiveEndRef,
     getScrollElement,
-    handleOpenEvent,
+    latestAtTop = false,
     hideActivity,
     mx,
-    readsMainTimeline,
+    readUptoEventIdRef,
     room,
-    classicRows,
-    threadEventsLength,
+    setAtBottom,
+    threadEventsLength = 0,
     threadId,
-    threadEvents,
-    threadInitialRenderMode,
-    threadTailLoaded,
-    unreadInfo,
-  });
+    threadInitialRenderMode = 'live',
+    threadTailLoaded = false,
+    timelineAtLiveEnd,
+  } = options;
+  const contextRef = useLatestRef<ReadContext>(options);
 
   // Out of sight (`useConversationOutOfSightAtom`), the timeline is hidden as a window without the
   // focus is; once it shows again, the reader sees it again.
@@ -315,7 +286,7 @@ export const useTimelineReadReceiptController = ({
     if (!readerSees()) return;
     const context = contextRef.current;
     if (context.threadId) readThreadOnceLanded(context, stillReading);
-    else readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
+    else readRoomOnNextFrame(context, readUptoEventIdRef?.current, stillReading);
   };
   const observer = useIntersectionObserver(handleAnchorReports, getObserverOptions, getAnchor);
 
@@ -338,10 +309,10 @@ export const useTimelineReadReceiptController = ({
         if (atLiveEndRef.current) readThreadOnceLanded(context, stillReading);
         return;
       }
-      if (!context.readsMainTimeline) return;
+      if (context.readsMainTimeline === false) return;
       const marker = context.unreadInfo;
       if (!marker?.inLiveTimeline) {
-        readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
+        readRoomOnNextFrame(context, readUptoEventIdRef?.current, stillReading);
         return;
       }
       // Go to the read marker, without a highlight. When it was already in view nothing moved,
@@ -350,7 +321,7 @@ export const useTimelineReadReceiptController = ({
       // jump moves it): the newest rows are seen when they are still within reach, and read by
       // the observer once the reader scrolls down to them when they are not.
       const read = () =>
-        readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current, stillReading);
+        readRoomOnNextFrame(contextRef.current, readUptoEventIdRef?.current, stillReading);
       const readOnceLanded = (rests: number) => {
         void waitForScrollQuiescence(getScrollElement() ?? null).then(() => {
           if (rowShown(getScrollElement(), marker.readUptoEventId)) read();

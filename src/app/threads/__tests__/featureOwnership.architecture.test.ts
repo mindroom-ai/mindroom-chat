@@ -13,7 +13,18 @@ import {
   walkProductionSources,
 } from '../../../test/architecture';
 
-const TIMELINE = appFile('timeline/RoomTimeline.tsx');
+const THREAD_TIMELINE = appFile('timeline/ThreadTimeline.tsx');
+const ROOM_SURFACE = appFile('timeline/RoomSurface.tsx');
+const TIMELINE_SURFACES = [
+  appFile('timeline/RoomTimeline.tsx'),
+  THREAD_TIMELINE,
+  ROOM_SURFACE,
+  appFile('timeline/CompactRoomSurface.tsx'),
+  appFile('timeline/RoomRowsTimeline.tsx'),
+  appFile('timeline/TimelineViewport.tsx'),
+  appFile('timeline/timelineLiveEnd.ts'),
+  appFile('timeline/timelineListShrink.ts'),
+];
 const THREAD_SESSION = appFile('threads/open/useThreadSession.ts');
 const THREAD_PAGINATION = appFile('threads/open/useThreadPagination.ts');
 const THREAD_VIEWPORT = appFile('timeline/useThreadPrependViewport.ts');
@@ -68,16 +79,20 @@ describe('feature ownership architecture', () => {
     ];
     expect(owners.filter((path) => !pathExists(path))).toEqual([]);
 
-    const timelineDependencies = resolvedDependencies(TIMELINE, { includeTypeOnly: false });
-    expect([...timelineDependencies]).toEqual(
+    const threadTimelineDependencies = resolvedDependencies(THREAD_TIMELINE, {
+      includeTypeOnly: false,
+    });
+    expect([...threadTimelineDependencies]).toEqual(
       expect.arrayContaining([
         THREAD_SESSION,
         THREAD_PAGINATION,
         THREAD_VIEWPORT,
         THREAD_BACK_CONTROLLER,
         THREAD_LIFECYCLE_INSTALLER,
-        THREAD_SEED_SCHEDULER,
       ])
+    );
+    expect([...resolvedDependencies(ROOM_SURFACE, { includeTypeOnly: false })]).toContain(
+      THREAD_SEED_SCHEDULER
     );
   });
 
@@ -108,14 +123,16 @@ describe('feature ownership architecture', () => {
       appFile('threads/open/threadOpenSeedController.ts'),
       THREAD_SDK_OWNER,
     ]);
-    expect(
-      [...resolvedDependencies(TIMELINE, { includeTypeOnly: false })].filter((dependency) =>
-        forbiddenParentDependencies.has(dependency)
-      )
-    ).toEqual([]);
+    for (const surface of TIMELINE_SURFACES) {
+      expect(
+        [...resolvedDependencies(surface, { includeTypeOnly: false })].filter((dependency) =>
+          forbiddenParentDependencies.has(dependency)
+        )
+      ).toEqual([]);
+    }
 
     const forbiddenSessionDependencies = new Set(
-      walkProductionSources(appFile('timeline/message-rendering')).concat(TIMELINE)
+      walkProductionSources(appFile('timeline/message-rendering')).concat(TIMELINE_SURFACES)
     );
     expect(dependencyViolations(THREAD_SESSION, forbiddenSessionDependencies)).toEqual([]);
     expect(dependencyViolations(THREAD_PAGINATION, forbiddenSessionDependencies)).toEqual([]);

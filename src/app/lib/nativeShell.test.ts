@@ -5,6 +5,7 @@ import type { DesktopBridge, DesktopShellEvent } from './desktopBridge';
 import {
   desktopBridge,
   externalOpenProps,
+  hasCustomTitlebar,
   isAppWindowFocused,
   isBundledApp,
   isCapacitorApp,
@@ -72,6 +73,7 @@ describe('nativeShell', () => {
   afterEach(() => {
     setDesktopBridge(undefined);
     delete document.documentElement.dataset.shell;
+    document.documentElement.removeAttribute('data-custom-titlebar');
     document.documentElement.removeAttribute('data-fullscreen');
     vi.mocked(Capacitor.isNativePlatform).mockReset();
   });
@@ -213,5 +215,27 @@ describe('nativeShell', () => {
       desktopAccess: {} as NonNullable<DesktopBridge['desktopAccess']>,
     });
     expect(isDesktopAccessAvailable()).toBe(true);
+  });
+
+  it('reports hasCustomTitlebar and toggles data-custom-titlebar in markDesktopShell', () => {
+    expect(hasCustomTitlebar()).toBe(false);
+
+    const linux = makeBridge();
+    setDesktopBridge(linux.bridge);
+    expect(hasCustomTitlebar()).toBe(false);
+    markDesktopShell();
+    expect(document.documentElement.dataset.shell).toBe('desktop');
+    expect(document.documentElement.hasAttribute('data-custom-titlebar')).toBe(false);
+
+    const mac = makeBridge();
+    setDesktopBridge({ ...mac.bridge, customTitlebar: true });
+    expect(hasCustomTitlebar()).toBe(true);
+    markDesktopShell();
+    expect(document.documentElement.hasAttribute('data-custom-titlebar')).toBe(true);
+
+    setDesktopBridge({ ...linux.bridge, customTitlebar: false });
+    expect(hasCustomTitlebar()).toBe(false);
+    markDesktopShell();
+    expect(document.documentElement.hasAttribute('data-custom-titlebar')).toBe(false);
   });
 });

@@ -1,233 +1,272 @@
-import { useMemo } from 'react';
-import { Box, Text } from 'folds';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { dateTimeFormat } from '../lib/time';
-import type { ProviderUsageSnapshot } from './providerUsageProtocol';
-import { accountChartColor, accountDisplayTitle, formatWholePercent } from './QuotaBar';
+import type { ProviderUsageSnapshot, TokenMix } from './providerUsageProtocol';
+import { formatWholePercent } from './QuotaBar';
+import {
+  CALENDAR_DAYS,
+  type CalendarDaySlot,
+  computeSpendTrend3d,
+  dayTotalTokens,
+  formatCompactTokens,
+  formatDay,
+  formatShortUsd,
+  formatSignedPercent,
+  formatUsd,
+  snapshotTotals,
+  tokenMixTotal,
+} from './usageCalendar';
 import * as css from './UsagePage.css';
 
-const UNATTRIBUTED_COLOR = '#94a3b8';
+export { formatCompactTokens, formatShortUsd, formatUsd } from './usageCalendar';
 
-export const formatCompactTokens = (tokens: number, language: string): string =>
-  new Intl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1 }).format(tokens);
+const MIX_COLORS = ['#22c58b', '#f0a53a', '#7c6af7', '#ec4899'] as const;
 
-export const formatUsd = (amount: number, language: string): string =>
-  new Intl.NumberFormat(language, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-
-const formatDay = (isoDay: string, language: string): string => {
-  const parsed = Date.parse(`${isoDay}T00:00:00Z`);
-  if (!Number.isFinite(parsed)) return isoDay;
-  return dateTimeFormat(language, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(
-    parsed
+export function ModelChips({ keys, max = 6 }: { keys: readonly string[]; max?: number }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  if (keys.length === 0) return null;
+  const hidden = keys.slice(max);
+  const shown = expanded ? keys : keys.slice(0, max);
+  return (
+    <div className={css.ChipRow}>
+      {shown.map((key) => (
+        <span key={key} className={css.ModelChip}>
+          {key}
+        </span>
+      ))}
+      {hidden.length > 0 && (
+        <button
+          type="button"
+          className={css.ModelChipButton}
+          data-model-chips-toggle=""
+          aria-expanded={expanded}
+          title={expanded ? t('mindroomUi.usage.hide') : hidden.join(', ')}
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? t('mindroomUi.usage.hide') : `+${hidden.length}`}
+        </button>
+      )}
+    </div>
   );
-};
+}
 
-export function UsageTokensView({
-  snapshot,
+export function TokenMixBar({
+  mix,
+  compact = false,
   language,
 }: {
-  snapshot: ProviderUsageSnapshot;
+  mix: TokenMix;
+  compact?: boolean;
   language: string;
 }) {
   const { t } = useTranslation();
-  const colors = useMemo(() => {
-    const usedColors = new Set<string>();
-    return new Map(
-      snapshot.accounts.map((account, index) => [
-        account.id,
-        accountChartColor(account, index, usedColors),
-      ])
-    );
-  }, [snapshot.accounts]);
+  const total = tokenMixTotal(mix);
+  if (total <= 0) return null;
 
-  const totalTokens =
-    snapshot.accounts.reduce((sum, account) => sum + account.tokens_7d, 0) +
-    snapshot.unattributed_tokens_7d;
-  const knownCosts = [
-    ...snapshot.accounts.map((account) => account.cost_usd_7d),
-    snapshot.unattributed_cost_usd_7d,
-  ].filter((cost): cost is number => cost !== null);
-  const totalCost = knownCosts.length > 0 ? knownCosts.reduce((sum, v) => sum + v, 0) : null;
-  const dayTotals = snapshot.daily_7d.map(
-    (day) => Object.values(day.by_account).reduce((sum, v) => sum + v, 0) + day.unattributed_tokens
-  );
-  const maxDayTotal = Math.max(1, ...dayTotals);
-  const showUnattributed = snapshot.unattributed_tokens_7d > 0;
-  const formatShare = (tokens: number): string =>
-    formatWholePercent(totalTokens > 0 ? (tokens / totalTokens) * 100 : 0, language);
+  const parts = [
+    {
+      key: 'cr',
+      tokens: mix.cache_read_tokens,
+      color: MIX_COLORS[0],
+      label: t('mindroomUi.usage.cacheRead'),
+    },
+    {
+      key: 'cw',
+      tokens: mix.cache_write_tokens,
+      color: MIX_COLORS[1],
+      label: t('mindroomUi.usage.cacheWrite'),
+    },
+    {
+      key: 'in',
+      tokens: mix.input_tokens,
+      color: MIX_COLORS[2],
+      label: t(compact ? 'mindroomUi.usage.inputShort' : 'mindroomUi.usage.inputTokens'),
+    },
+    {
+      key: 'out',
+      tokens: mix.output_tokens,
+      color: MIX_COLORS[3],
+      label: t(compact ? 'mindroomUi.usage.outputShort' : 'mindroomUi.usage.outputTokens'),
+    },
+  ].map((p) => ({ ...p, pct: (p.tokens / total) * 100 }));
+
+  const ariaLabel = t('mindroomUi.usage.tokenMixAria', {
+    cacheRead: formatWholePercent(parts[0]!.pct, language),
+    cacheWrite: formatWholePercent(parts[1]!.pct, language),
+    input: formatWholePercent(parts[2]!.pct, language),
+    output: formatWholePercent(parts[3]!.pct, language),
+  });
 
   return (
-    <div data-testid="usage-tokens-view">
-      <div className={css.SummaryRow}>
-        <div className={css.MetricCard}>
-          <span className={css.MutedText}>{t('mindroomUi.usage.totalTokens7d')}</span>
-          <span className={css.MetricValue} data-testid="total-tokens-7d">
-            {formatCompactTokens(totalTokens, language)}
-          </span>
-        </div>
-        {totalCost !== null && (
-          <div className={css.MetricCard}>
-            <span className={css.MutedText}>{t('mindroomUi.usage.totalCost7d')}</span>
-            <span className={css.MetricValue}>{formatUsd(totalCost, language)}</span>
-          </div>
+    <>
+      <div
+        className={css.MixBar}
+        data-compact={compact || undefined}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {parts.map((p) =>
+          p.tokens > 0 ? (
+            <span
+              key={p.key}
+              className={css.MixSegment}
+              style={{ inlineSize: `${p.pct}%`, backgroundColor: p.color }}
+            />
+          ) : null
         )}
       </div>
+      <div className={css.MixLegend}>
+        {parts.map((p) => (
+          <span key={p.key} className={css.RowInline}>
+            <span
+              className={css.ColorDot}
+              style={{ backgroundColor: p.color }}
+              aria-hidden="true"
+            />
+            <span className={css.MutedText}>{p.label}</span>
+            <strong>{formatWholePercent(p.pct, language)}</strong>
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
 
-      <section className={css.SectionCard}>
-        <Text size="L400" as="h2">
-          {t('mindroomUi.usage.dailyChartTitle')}
-        </Text>
-        {snapshot.daily_7d.length === 0 ? (
-          <Text size="T200" priority="300">
-            {t('mindroomUi.usage.noDailyData')}
-          </Text>
-        ) : (
-          <>
-            <div className={css.ChartBars} data-testid="daily-usage-chart">
-              {snapshot.daily_7d.map((day, dayIndex) => {
-                const dayTotal = dayTotals[dayIndex] ?? 0;
-                const label = formatDay(day.day, language);
-                return (
-                  <div key={day.day} className={css.DayColumn}>
-                    <div
-                      className={css.BarTrack}
-                      role="img"
-                      aria-label={t('mindroomUi.usage.dailyBarAria', {
-                        day: label,
-                        tokens: formatCompactTokens(dayTotal, language),
-                      })}
-                    >
-                      {snapshot.accounts.map((account) => {
-                        const tokens = day.by_account[account.id] ?? 0;
-                        if (tokens <= 0) return null;
-                        return (
-                          <div
-                            key={account.id}
-                            className={css.BarSegment}
-                            style={{
-                              blockSize: `${(tokens / maxDayTotal) * 100}%`,
-                              backgroundColor: colors.get(account.id),
-                            }}
-                          />
-                        );
-                      })}
-                      {day.unattributed_tokens > 0 && (
-                        <div
-                          className={css.BarSegment}
-                          style={{
-                            blockSize: `${(day.unattributed_tokens / maxDayTotal) * 100}%`,
-                            backgroundColor: UNATTRIBUTED_COLOR,
-                          }}
-                        />
-                      )}
-                    </div>
-                    <span className={css.DayLabel}>{label}</span>
-                  </div>
-                );
+export function Sparkline({
+  values,
+  stroke,
+  ariaLabel,
+}: {
+  values: readonly number[];
+  stroke: string;
+  ariaLabel?: string;
+}) {
+  if (values.length < 2 || !values.some((v) => v > 0)) return null;
+  const max = Math.max(1, ...values);
+  const points = values
+    .map(
+      (v, i) =>
+        `${((i / (values.length - 1)) * 64 + 2).toFixed(1)},${(18 - (v / max) * 16).toFixed(1)}`
+    )
+    .join(' ');
+  return (
+    <svg
+      width={68}
+      height={20}
+      viewBox="0 0 68 20"
+      role={ariaLabel ? 'img' : undefined}
+      aria-label={ariaLabel || undefined}
+      aria-hidden={ariaLabel ? undefined : true}
+      data-sparkline=""
+    >
+      <polyline
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+      />
+    </svg>
+  );
+}
+
+export function UsageOverviewSection({
+  snapshot,
+  calendar,
+  language,
+}: {
+  snapshot: ProviderUsageSnapshot;
+  calendar: readonly CalendarDaySlot[];
+  language: string;
+}) {
+  const { t } = useTranslation();
+  const { totalTokens, totalCost } = snapshotTotals(snapshot);
+  const trendRatio = computeSpendTrend3d(snapshot, calendar);
+  const roundedTrendPct = trendRatio !== undefined ? Math.round(trendRatio * 100) : undefined;
+  const trendLabel =
+    trendRatio !== undefined ? formatSignedPercent(trendRatio, language) : undefined;
+
+  let peakDay: { day: string; tokens: number } | undefined;
+  for (const slot of calendar) {
+    const tokens = dayTotalTokens(slot);
+    if (tokens > (peakDay?.tokens ?? 0)) peakDay = { day: slot.day, tokens };
+  }
+  const cacheSavings = snapshot.cache_savings_usd_7d;
+
+  return (
+    <>
+      <div
+        className={css.KpiGrid}
+        data-testid="usage-kpi-row"
+        data-single={totalCost === null || undefined}
+      >
+        {totalCost !== null && (
+          <div className={css.KpiCard}>
+            <div className={css.RowBetween}>
+              <span className={css.MutedText}>{t('mindroomUi.usage.kpiSpend7d')}</span>
+              {trendLabel !== undefined && roundedTrendPct !== undefined && (
+                <span
+                  className={css.PillBadge}
+                  data-testid="spend-trend-badge"
+                  data-tone={roundedTrendPct > 0 ? 'warn' : roundedTrendPct < 0 ? 'ok' : undefined}
+                  title={t('mindroomUi.usage.trendVsPrior3d', { delta: trendLabel })}
+                >
+                  {trendLabel}
+                </span>
+              )}
+            </div>
+            <span className={css.KpiValue} data-testid="total-cost-7d">
+              {formatUsd(totalCost, language)}
+            </span>
+            <span className={css.MutedText}>
+              {t('mindroomUi.usage.perDayAvg', {
+                value: formatShortUsd(totalCost / CALENDAR_DAYS, language),
               })}
-            </div>
-            <div className={css.Legend}>
-              {snapshot.accounts.map((account) => (
-                <span key={account.id} className={css.LegendItem} data-legend-account={account.id}>
-                  <span
-                    className={css.ProviderDot}
-                    style={{ backgroundColor: colors.get(account.id) }}
-                    aria-hidden="true"
-                  />
-                  {accountDisplayTitle(account, snapshot.accounts)}
-                </span>
-              ))}
-              {showUnattributed && (
-                <span className={css.LegendItem}>
-                  <span
-                    className={css.ProviderDot}
-                    style={{ backgroundColor: UNATTRIBUTED_COLOR }}
-                    aria-hidden="true"
-                  />
-                  {t('mindroomUi.usage.unattributed')}
-                </span>
-              )}
-            </div>
-          </>
+            </span>
+          </div>
         )}
-      </section>
 
-      <section className={css.SectionCard}>
-        <Text size="L400" as="h2">
-          {t('mindroomUi.usage.breakdownTitle')}
-        </Text>
-        <div className={css.TableWrap}>
-          <table className={css.Table}>
-            <thead>
-              <tr>
-                <th>{t('mindroomUi.usage.colAccount')}</th>
-                <th className={css.NumericCell}>{t('mindroomUi.usage.colTokens')}</th>
-                <th className={css.NumericCell}>{t('mindroomUi.usage.colShare')}</th>
-                <th className={css.NumericCell}>{t('mindroomUi.usage.colSpend')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.accounts.map((account) => (
-                <tr key={account.id}>
-                  <td>
-                    <Box alignItems="Center" gap="200">
-                      <span
-                        className={css.ProviderDot}
-                        style={{ backgroundColor: colors.get(account.id) }}
-                        aria-hidden="true"
-                      />
-                      <span>{accountDisplayTitle(account, snapshot.accounts)}</span>
-                    </Box>
-                  </td>
-                  <td className={css.NumericCell}>
-                    {formatCompactTokens(account.tokens_7d, language)}
-                  </td>
-                  <td className={css.NumericCell}>{formatShare(account.tokens_7d)}</td>
-                  <td className={css.NumericCell}>
-                    {account.cost_usd_7d === null
-                      ? '—'
-                      : account.cost_estimated
-                        ? t('mindroomUi.usage.estimatedCost', {
-                            cost: formatUsd(account.cost_usd_7d, language),
-                          })
-                        : formatUsd(account.cost_usd_7d, language)}
-                  </td>
-                </tr>
-              ))}
-              {showUnattributed && (
-                <tr data-testid="unattributed-row">
-                  <td>
-                    <Box alignItems="Center" gap="200">
-                      <span
-                        className={css.ProviderDot}
-                        style={{ backgroundColor: UNATTRIBUTED_COLOR }}
-                        aria-hidden="true"
-                      />
-                      <span>{t('mindroomUi.usage.unattributed')}</span>
-                    </Box>
-                  </td>
-                  <td className={css.NumericCell}>
-                    {formatCompactTokens(snapshot.unattributed_tokens_7d, language)}
-                  </td>
-                  <td className={css.NumericCell}>
-                    {formatShare(snapshot.unattributed_tokens_7d)}
-                  </td>
-                  <td className={css.NumericCell}>
-                    {snapshot.unattributed_cost_usd_7d === null
-                      ? '—'
-                      : formatUsd(snapshot.unattributed_cost_usd_7d, language)}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className={css.KpiCard}>
+          <span className={css.MutedText}>{t('mindroomUi.usage.kpiTokens7d')}</span>
+          <span className={css.KpiValue} data-testid="total-tokens-7d">
+            {formatCompactTokens(totalTokens, language)}
+          </span>
+          {peakDay ? (
+            <span className={css.MutedText}>
+              {t('mindroomUi.usage.peakAndAvg', {
+                day: formatDay(peakDay.day, language, 'short'),
+                tokens: formatCompactTokens(peakDay.tokens, language),
+                avg: formatCompactTokens(totalTokens / CALENDAR_DAYS, language),
+              })}
+            </span>
+          ) : (
+            totalTokens > 0 && (
+              <span className={css.MutedText}>
+                {t('mindroomUi.usage.perDayAvg', {
+                  value: formatCompactTokens(totalTokens / CALENDAR_DAYS, language),
+                })}
+              </span>
+            )
+          )}
         </div>
-      </section>
-    </div>
+      </div>
+
+      {tokenMixTotal(snapshot.token_mix_7d) > 0 && snapshot.token_mix_7d && (
+        <section className={css.MixCard} data-testid="token-mix-card">
+          <div className={css.RowBetween}>
+            <h2 className={css.SectionHeading}>{t('mindroomUi.usage.tokenMixTitle')}</h2>
+            {typeof cacheSavings === 'number' && cacheSavings > 0 && (
+              <span className={css.PillBadge} data-tone="ok" data-testid="cache-savings-badge">
+                {t('mindroomUi.usage.savedViaCache', {
+                  cost: formatShortUsd(cacheSavings, language),
+                })}
+              </span>
+            )}
+          </div>
+          <TokenMixBar mix={snapshot.token_mix_7d} language={language} />
+        </section>
+      )}
+    </>
   );
 }

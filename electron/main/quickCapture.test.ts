@@ -158,6 +158,41 @@ describe('createQuickCapture', () => {
       qc.hide();
       expect(panel.getBounds).toHaveBeenCalledTimes(2);
       expect(electronMocks.app.hide).toHaveBeenCalledTimes(1);
+      expect(ctorOptions?.transparent).toBe(true);
+      expect(ctorOptions?.type).toBe('panel');
+      expect(ctorOptions?.vibrancy).toBe('popover');
+      expect(ctorOptions?.webPreferences?.additionalArguments).toEqual([
+        '--mindroom-quick-capture=1',
+        '--mindroom-quick-capture-vibrancy=1',
+      ]);
+    });
+  });
+
+  it('uses an opaque non-vibrant window without macOS panel options on Linux', () => {
+    withPlatform('linux', () => {
+      const dir = makeTempDir();
+      let ctorOptions: Electron.BrowserWindowConstructorOptions | undefined;
+      const panel = makeFakePanel();
+      electronMocks.BrowserWindow.mockImplementation(function (
+        opts: Electron.BrowserWindowConstructorOptions
+      ) {
+        ctorOptions = opts;
+        return panel;
+      });
+
+      const qc = createQuickCapture({
+        url: `${APP_ORIGIN}/quick-capture/`,
+        preload: '/tmp/preload.cjs',
+        userDataDir: dir,
+        isQuitting: () => false,
+        isMainWindowVisible: () => false,
+      });
+
+      qc.toggle();
+      expect(ctorOptions?.transparent).toBe(false);
+      expect(ctorOptions?.backgroundColor).toBe('#1A1A1A');
+      expect(ctorOptions?.type).toBeUndefined();
+      expect(ctorOptions?.vibrancy).toBeUndefined();
       expect(ctorOptions?.webPreferences?.additionalArguments).toEqual([
         '--mindroom-quick-capture=1',
       ]);
@@ -218,6 +253,7 @@ describe('createQuickCapture', () => {
 
     expect(ctorOptions?.webPreferences?.additionalArguments).toEqual([
       '--mindroom-quick-capture=1',
+      ...(process.platform === 'darwin' ? ['--mindroom-quick-capture-vibrancy=1'] : []),
       '--mindroom-screenshot-helper=1',
     ]);
     expect(qc.frontTarget()).toEqual({ pid: 4242, windowId: 9001 });

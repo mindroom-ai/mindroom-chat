@@ -21,20 +21,23 @@ export const getActiveThreadSummaryInfo = ({
     ? getLatestThreadSummaryInfoFromEventSources(threadEvents, thread?.events, thread?.timeline)
     : undefined;
 
+const EMPTY_EVENTS: MatrixEvent[] = [];
+const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
+
 export const useThreadSummaryPublishController = ({
   onStoreThreadSummary,
   room,
-  thread,
-  threadEvents,
+  thread = null,
+  threadEvents = EMPTY_EVENTS,
   threadId,
-  threadSummaryInfoMap,
+  threadSummaryInfoMap = EMPTY_SUMMARY_MAP,
 }: {
   onStoreThreadSummary: ThreadSummaryWriter;
   room: Pick<Room, 'getThread'>;
-  thread: Pick<Thread, 'events' | 'timeline'> | null;
-  threadEvents: MatrixEvent[];
-  threadId: string | undefined;
-  threadSummaryInfoMap: Map<string, ThreadSummaryInfo>;
+  thread?: Pick<Thread, 'events' | 'timeline'> | null;
+  threadEvents?: MatrixEvent[];
+  threadId?: string;
+  threadSummaryInfoMap?: Map<string, ThreadSummaryInfo>;
 }) => {
   const activeThreadSummaryInfo = useMemo(
     () =>

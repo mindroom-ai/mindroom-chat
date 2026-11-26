@@ -135,6 +135,7 @@ and `IconTooltip`, an icon button's tooltip, placed so too.
 For text, such as an agent's, that a plugin shows as the app does, `ui` also has `useMarkdownHtml(markdown)`, the HTML of `markdown` as the app renders an agent's reply while it streams: sanitized, with the link schemes `messageRendering.additionalAllowedUriSchemes` in `config.json` adds;
 undefined until the app's Markdown renderer has loaded, which it starts loading, and rendered again once it has;
 its images keep only `mxc://` sources unless the plugin passes `useMarkdownHtml(markdown, { imageSource })`, whose mapping decides which other images load and from where: it gets an image's source and returns the absolute `https:` URL without a username or password to load it from, or undefined, and an image without such a URL is dropped;
+with `{ commonMarkHtml: true }` (since version 71), line-start raw HTML follows CommonMark before sanitization: HTML comments (`<!-- ... -->`), declarations, processing instructions and disallowed tags are parsed as HTML and stripped or discarded by the sanitizer rather than escaped as literal text (while raw HTML inside fenced, indented or inline code stays literal), and an unclosed HTML comment or line-start tag block runs per CommonMark rules;
 `sanitizeHtml(html)`, `html` with only what the app keeps of a message's HTML, under the app's default policy, which a plugin cannot loosen: no script, event handler or `javascript:` link, and images only from `mxc://` sources, which `mxcUrlToHttp` turns into ones a browser loads;
 and `replaceMatrixUserIdsWithDisplayNames(room, text)`, `text` with the Matrix user ID of each member of `room` replaced by the name the app shows for them there, also before trailing punctuation, as thread previews show an agent's message, which names people by their IDs;
 other IDs stay.
@@ -189,7 +190,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 70), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 71), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -263,6 +264,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 68 thread details' `onClose`
 - version 69 side panels' `placement: 'none'`
 - version 70 side panels' `frameControls: 'own'` and `PanelFrame`'s localized `fillLabel`/`foldLabel`
+- version 71 `useMarkdownHtml`'s `commonMarkHtml`
 
 ## Page zoom
 
@@ -353,7 +355,7 @@ The panel opens in the room it was opened in, as wide as the call panel and resi
 
 ### The frame
 
-Like the computer, a canvas and the call, it has the room's frame (`src/app/ui/panels/PanelFrame.tsx`, drawn by `ResizablePanel`), with no code of its own: beside the conversation or across the room, Fill and Fold sit in the floating control pill at the end of the panel's header beside Close; folded, a 40 px tab with its `label` stays at the room's edge beside the conversation at full width until the tab brings it back.
+Like the computer, a canvas and the call, it has the room's frame (`src/app/ui/panels/PanelFrame.tsx`, drawn by `ResizablePanel`), with no code of its own: beside the conversation or across the room, Fill and Fold sit at the end of the panel's header beside Close; folded, a 40 px tab with its `label` stays at the room's edge beside the conversation at full width until the tab brings it back.
 While the room's page shows, each room keeps the layout of each of its panels as long as the panel stays open; a panel opens beside the conversation, and one asked for again while it fills the room stays so; each canvas shown, though, opens beside the conversation, or across the room from the Canvases page.
 Filling the room, or covering the conversation on a phone, a panel keeps the conversation under it as it was (its draft, a voice message being recorded, the reader's place), out of reach and out of sight as under a conversation cover (below): it takes no focus, sends no read receipt or typing notice, a message that arrives notifies as for a room not on screen, the composer's popovers (emoji board, autocomplete, model picker, menu) close, and neither an edge swipe nor the room's shortcuts for Members and resolving the thread act on it.
 Phones show no frame, as a panel there covers the conversation already, and the members have none: their header button shows and hides them.

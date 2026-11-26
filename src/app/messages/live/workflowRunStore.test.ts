@@ -12,6 +12,7 @@ import {
 } from './workflowRunStore';
 
 const firstFrame = frames[0]!;
+const secondFrame = frames[1]!;
 const thirdFrame = frames[2]!;
 const fourthFrame = frames[3]!;
 const ROOM = '!room:example.org';
@@ -436,5 +437,59 @@ describe('WorkflowRunStore', () => {
     unpin();
     vi.advanceTimersByTime(WORKFLOW_RUN_KEPT_MS);
     expect(store.getView(ROOM, cPinned.run)).toBeUndefined();
+  });
+
+  it('merges messages_append across live deltas, deduplicating by seq and bounding at 50', () => {
+    const store = new WorkflowRunStore();
+    const initial = Array.from({ length: 48 }, (_, i) => ({
+      seq: i + 1,
+      from: 'n2',
+      from_name: 'a',
+      to: 'n3',
+      to_name: 'b',
+      text: `m-${i + 1}`,
+      sent_at: 1795389740 + i,
+    }));
+    store.ingest(
+      ROOM,
+      AGENT,
+      parse({ ...firstFrame, snapshot: { ...firstFrame.snapshot, messages: initial } }),
+      10
+    );
+    store.ingest(
+      ROOM,
+      AGENT,
+      parse({
+        ...secondFrame,
+        delta: {
+          messages_append: [
+            { seq: 48, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'm-48-dedup' },
+            { seq: 49, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'm-49' },
+            { seq: 50, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'm-50' },
+          ],
+        },
+      }),
+      20
+    );
+    store.ingest(
+      ROOM,
+      AGENT,
+      parse({
+        ...thirdFrame,
+        delta: {
+          messages_append: [
+            { seq: 51, from: null, from_name: 'script', to: 'n2', to_name: 'a', text: 'm-51' },
+            { seq: 52, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'm-52' },
+          ],
+        },
+      }),
+      30
+    );
+    const msgs = store.getView(ROOM, RUN)?.graph?.messages ?? [];
+    expect(msgs).toHaveLength(50);
+    expect(msgs[0]?.seq).toBe(3);
+    expect(msgs.find((m) => m.seq === 48)?.text).toBe('m-48-dedup');
+    expect(msgs[48]).toMatchObject({ seq: 51, from: null, fromName: 'script', text: 'm-51' });
+    expect(msgs[49]?.seq).toBe(52);
   });
 });

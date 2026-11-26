@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { appFile, pathExists, resolvedDependencies } from '../../../test/architecture';
 
-const TIMELINE_FILE = appFile('timeline/RoomTimeline.tsx');
+const THREAD_TIMELINE_FILE = appFile('timeline/ThreadTimeline.tsx');
+const TIMELINE_SURFACE_FILES = [
+  appFile('timeline/RoomTimeline.tsx'),
+  THREAD_TIMELINE_FILE,
+  appFile('timeline/RoomSurface.tsx'),
+  appFile('timeline/CompactRoomSurface.tsx'),
+  appFile('timeline/RoomRowsTimeline.tsx'),
+  appFile('timeline/TimelineViewport.tsx'),
+  appFile('timeline/timelineLiveEnd.ts'),
+  appFile('timeline/timelineListShrink.ts'),
+] as const;
 
 const FORBIDDEN_LOW_LEVEL_DEPENDENCIES = [
   'event-store/cache/db/index.ts',
@@ -26,11 +36,11 @@ describe('RoomTimeline dependency boundary', () => {
     const viewport = appFile('timeline/useThreadPrependViewport.ts');
     expect(pathExists(pagination)).toBe(true);
     expect(pathExists(viewport)).toBe(true);
-    expect(resolvedDependencies(TIMELINE_FILE)).toContain(pagination);
-    expect(resolvedDependencies(TIMELINE_FILE)).toContain(viewport);
+    expect(resolvedDependencies(THREAD_TIMELINE_FILE)).toContain(pagination);
+    expect(resolvedDependencies(THREAD_TIMELINE_FILE)).toContain(viewport);
     const dependencies = resolvedDependencies(pagination);
     for (const forbidden of [
-      TIMELINE_FILE,
+      ...TIMELINE_SURFACE_FILES,
       viewport,
       appFile('timeline/threadBackPaginationController.ts'),
       appFile('event-store/timeline/timelineScrollUtils.ts'),
@@ -40,13 +50,15 @@ describe('RoomTimeline dependency boundary', () => {
     }
   });
   it('does not bypass adapters to import low-level cache or policy modules', () => {
-    const dependencies = resolvedDependencies(TIMELINE_FILE, { includeTypeOnly: false });
+    for (const surfaceFile of TIMELINE_SURFACE_FILES) {
+      const dependencies = resolvedDependencies(surfaceFile, { includeTypeOnly: false });
 
-    for (const dependency of FORBIDDEN_LOW_LEVEL_DEPENDENCIES) {
-      expect(pathExists(appFile(dependency)), `missing guarded owner ${dependency}`).toBe(true);
-      expect(dependencies, `timeline bypasses its adapter via ${dependency}`).not.toContain(
-        appFile(dependency)
-      );
+      for (const dependency of FORBIDDEN_LOW_LEVEL_DEPENDENCIES) {
+        expect(pathExists(appFile(dependency)), `missing guarded owner ${dependency}`).toBe(true);
+        expect(dependencies, `${surfaceFile} bypasses its adapter via ${dependency}`).not.toContain(
+          appFile(dependency)
+        );
+      }
     }
   });
 });

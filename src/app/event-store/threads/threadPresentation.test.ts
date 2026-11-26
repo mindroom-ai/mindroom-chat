@@ -181,4 +181,49 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(presentation.messageCount).toBe(0);
     expect(getThreadPrimarySummaryText(presentation)).toBe('Voice message');
   });
+
+  it('shows the post-tool answer preview for a finished agent reply whose edit carries outer-only ai_run', () => {
+    const rootEvent = makeRootEvent('$root', 'Check status');
+    const reply = new MatrixEvent({
+      event_id: '$agent-reply',
+      room_id: '!room:example.org',
+      sender: '@mindroom_code:example.org',
+      origin_server_ts: 2,
+      type: 'm.room.message',
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'm.relates_to': { event_id: '$root', rel_type: RelationType.Thread },
+      },
+    });
+    const finalEdit = new MatrixEvent({
+      event_id: '$agent-reply-edit',
+      room_id: '!room:example.org',
+      sender: '@mindroom_code:example.org',
+      origin_server_ts: 3,
+      type: 'm.room.message',
+      content: {
+        msgtype: 'm.text',
+        body: '* fallback',
+        'io.mindroom.ai_run': { version: 1, status: 'completed' },
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'Inspecting logs.\n\n🔧 `read_file` [1]\n\nService is healthy.',
+        },
+        'm.relates_to': { event_id: '$agent-reply', rel_type: RelationType.Replace },
+      },
+    });
+    reply.makeReplaced(finalEdit);
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: { events: [reply], timeline: [reply] },
+      rootEvent,
+    });
+
+    expect(presentation.latestReplyPreviewText).toBe('Service is healthy.');
+    expect(presentation.latestReplyPreviewLocalization).toBeUndefined();
+  });
 });

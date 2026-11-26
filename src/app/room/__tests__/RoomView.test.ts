@@ -408,6 +408,7 @@ vi.mock('../../threads/tags/useRoomThreadTags', () => ({
     canToggle: false,
     setResolved: vi.fn(),
     updating: false,
+    updatingThreadRootIds: new Set(),
     error: undefined,
   }),
 }));

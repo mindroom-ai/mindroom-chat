@@ -468,7 +468,9 @@ describe('CompactRoomView', () => {
     expect(
       renderer.root.findAll(
         (node) =>
-          typeof node.props.className === 'string' && node.props.className.includes('CardsEmpty')
+          typeof node.type === 'string' &&
+          typeof node.props.className === 'string' &&
+          node.props.className.includes('CardsEmpty')
       )
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(0);

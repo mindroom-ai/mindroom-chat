@@ -70,7 +70,7 @@ export function WorkflowRunCard({
       <Button
         type="button"
         size="300"
-        variant="Secondary"
+        variant="Primary"
         fill="Soft"
         onClick={() => {
           getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, cardObservedAt, threadId);

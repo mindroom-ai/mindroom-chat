@@ -14,8 +14,8 @@ export const Panel = style({
   color: color.Surface.OnContainer,
 });
 
-// Title at the start, floating control pill pushed to the end edge; wraps onto a second row on
-// narrow 200 px desktop panels so titles stay readable and Close is never clipped.
+// Title at the start, header controls pushed to the end edge; wraps onto a second row on narrow
+// 200 px desktop panels so titles stay readable and Close is never clipped.
 export const Header = style({
   flex: '0 0 auto',
   display: 'flex',
@@ -26,7 +26,7 @@ export const Header = style({
   justifyContent: 'space-between',
   minHeight: toRem(54),
   paddingBlock: config.space.S100,
-  paddingInline: `${config.space.S400} ${config.space.S300}`,
+  paddingInline: `${config.space.S400} ${config.space.S200}`,
 });
 
 export { Header as SidePanelHeader, Panel as SidePanelPanel };

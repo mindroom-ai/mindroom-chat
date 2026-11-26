@@ -179,6 +179,13 @@ vi.mock('../../rich-text/matrixMath.css', () => ({
 }));
 
 vi.mock('../../rich-text/Footnote.css', () => ({}));
+vi.mock('../../rich-text/TaskList.css', () => ({
+  TaskList: 'TaskList',
+  TaskListItem: 'TaskListItem',
+  TaskItemBody: 'TaskItemBody',
+  TaskCheckbox: 'TaskCheckbox',
+  TaskCheckboxHighlighted: 'TaskCheckboxHighlighted',
+}));
 vi.mock('../../rich-text/Callout.css', () => ({
   Callout: ({ tone }: { tone?: string } = {}) => `Callout-${tone ?? ''}`,
   Header: ({ tone }: { tone?: string } = {}) => `CalloutHeader-${tone ?? ''}`,
