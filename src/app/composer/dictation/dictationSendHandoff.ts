@@ -13,7 +13,7 @@ import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
 import { listSessions } from '../../matrix/session/sessions';
-import { isTooLargeError, type TUploadContent } from '../../matrix/matrix';
+import type { TUploadContent } from '../../matrix/matrix';
 import { isUploadItemReady, UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
@@ -283,8 +283,11 @@ export const startDetachedDictationSend = (
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
   const { roomId, replyDraft } = sendContext;
   const sameAccount = captureAccountGuard(store);
+  const isHomeSend = Boolean(ask || input.prepareAttachmentsForSend);
   let currentStaged = input.stagedSnapshot;
   const enrolledFileRefs = new Set(currentStaged.map((item) => item.file));
+  const sentCompanionFiles = new Set<TUploadContent>();
+  let createdThreadId: string | undefined;
   let aborted = false;
   let accountRestored = false;
   const journalId = session.getJournalId();
@@ -292,14 +295,23 @@ export const startDetachedDictationSend = (
   const deleteJournal = () => {
     if (journalId) void deleteCapture(journalId).catch(() => undefined);
   };
+  const isUnsentCompanion = (item: TUploadItem): boolean =>
+    !sentCompanionFiles.has(item.file) && !sentCompanionFiles.has(item.originalFile);
 
   const getActiveStaged = (): TUploadItem[] => {
     if (currentStaged.length === 0) return [];
-    if (!input.tracksEnrollment) return currentStaged.filter(isUploadItemReady);
-    const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
+    if (!input.tracksEnrollment) {
+      return currentStaged.filter((item) => isUploadItemReady(item) && isUnsentCompanion(item));
+    }
+    const snap = attachments.snapshot(roomId);
+    const enrolledByFile = new Map(snap.enrolled.map((i) => [i.file, i]));
+    const stagedByFile = isHomeSend ? new Map(snap.staged.map((i) => [i.file, i])) : undefined;
     return currentStaged
-      .map((item) => enrolledByFile.get(item.file))
-      .filter((item): item is TUploadItem => item !== undefined && isUploadItemReady(item));
+      .map((item) => enrolledByFile.get(item.file) ?? stagedByFile?.get(item.file))
+      .filter(
+        (item): item is TUploadItem =>
+          item !== undefined && isUploadItemReady(item) && isUnsentCompanion(item)
+      );
   };
 
   const clearEnrollments = () => {
@@ -430,37 +442,48 @@ export const startDetachedDictationSend = (
       : undefined;
   };
 
-  const buildSendSessionBase = (liveRoom: Room, textContent: IContent | undefined) => ({
+  const buildSendSessionBase = (
+    liveRoom: Room,
+    textContent: IContent | undefined,
+    onThreadCreated?: (eventId: string) => void
+  ) => ({
     textContent,
     midTurnMode: input.midTurnMode,
     explicitMidTurnMode: input.explicitMidTurnMode,
     context: {
       ...sendContext,
+      threadId: createdThreadId ?? sendContext.threadId,
       room: liveRoom,
       signalBridgedRoom: isSignalBridgeRoom(liveRoom),
     },
     composerContext,
     composerAlreadyReset: true,
     beforeSend: (sentTo: Room) => sameAccount() && (!ask || ask.canSend(sentTo)),
-    onLocalEchoCreated: ask?.onLocalEcho
-      ? (eventId: string, sentRoom: Room) => {
-          if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
-        }
-      : undefined,
+    onLocalEchoCreated:
+      ask?.onLocalEcho || onThreadCreated
+        ? (eventId: string, sentRoom: Room) => {
+            if (!sameAccount()) return;
+            onThreadCreated?.(eventId);
+            ask?.onLocalEcho?.(eventId, sentRoom);
+          }
+        : undefined,
   });
 
   const prepareCompanionStaged = async (
     liveRoom: Room,
     activeStaged: TUploadItem[],
     textContent: IContent | undefined,
-    awaitReadyUploads = false
+    requireAllStaged = false
   ): Promise<
     | { status: 'aborted' }
     | { status: 'missingPaste' }
     | { status: 'failedUpload' }
     | { status: 'ready'; items: TUploadItem[] }
   > => {
-    if (activeStaged.length > 0 && input.prepareAttachmentsForSend) {
+    if (!input.prepareAttachmentsForSend) {
+      return { status: 'ready', items: activeStaged };
+    }
+    if (activeStaged.length > 0) {
       let failedUpload = false;
       const prepResult = await prepareAndUploadDeferredAttachments({
         room: liveRoom,
@@ -487,16 +510,31 @@ export const startDetachedDictationSend = (
               )
           : undefined,
         onPrepared: (prepared) => {
-          currentStaged = prepared;
+          // Merge replacements by originalFile while keeping still-staged unprepared items so
+          // retrying Send as voice never silently drops an oversized/failed Home attachment.
+          const liveStaged = attachments.snapshot(roomId).staged;
+          const liveByOrig = new Map(liveStaged.map((entry) => [entry.originalFile, entry]));
+          const preparedByOrig = new Map(prepared.map((item) => [item.originalFile, item]));
+          const merged = currentStaged
+            .map(
+              (prev) => preparedByOrig.get(prev.originalFile) ?? liveByOrig.get(prev.originalFile)
+            )
+            .filter((item): item is TUploadItem => item !== undefined);
+          const seenOrig = new Set(merged.map((item) => item.originalFile));
+          for (const item of prepared) {
+            if (!seenOrig.has(item.originalFile)) merged.push(item);
+          }
+          currentStaged = merged;
           prepared.forEach((item) => enrolledFileRefs.add(item.file));
         },
         isAborted: () => aborted || !sameAccount(),
       });
       if (prepResult.aborted) return { status: 'aborted' };
       if (prepResult.missingPasteMarker) return { status: 'missingPaste' };
-      if (awaitReadyUploads) {
+      if (requireAllStaged) {
         const stillStaged = attachments.snapshot(roomId).staged;
         const stillStagedFiles = new Set(stillStaged.map((entry) => entry.file));
+        const stillStagedOrigs = new Set(stillStaged.map((entry) => entry.originalFile));
         const uploadedOrigFiles = new Set(
           prepResult.uploadedItems.map((entry) => entry.originalFile)
         );
@@ -504,8 +542,11 @@ export const startDetachedDictationSend = (
           prepResult.prepared.some(
             (item) => Boolean(item.prepError) && stillStagedFiles.has(item.file)
           ) ||
-          activeStaged.some(
-            (item) => stillStagedFiles.has(item.file) && !uploadedOrigFiles.has(item.originalFile)
+          currentStaged.some(
+            (item) =>
+              isUnsentCompanion(item) &&
+              stillStagedOrigs.has(item.originalFile) &&
+              !uploadedOrigFiles.has(item.originalFile)
           );
         if (failedUpload || failedPrep) return { status: 'failedUpload' };
       }
@@ -514,47 +555,19 @@ export const startDetachedDictationSend = (
       if (dropped.length > 0) attachments.clearEnrollment(dropped);
       return { status: 'ready', items: prepResult.uploadedItems };
     }
-    if (activeStaged.length > 0 && awaitReadyUploads) {
-      const roomEncrypted = liveRoom.hasEncryptionStateEvent();
-      const outcomes = await Promise.all(
-        activeStaged.map(async (item): Promise<{ item: TUploadItem; ok: boolean }> => {
-          if (roomEncrypted && !item.encInfo) return { item, ok: false };
-          const upload = store.get(roomUploadAtomFamily(item.file));
-          if (upload.status === UploadStatus.Success) return { item, ok: true };
-          if (upload.status === UploadStatus.Error && isTooLargeError(upload.error)) {
-            return { item, ok: false };
-          }
-          if (!input.uploadItem) return { item, ok: true };
-          try {
-            await input.uploadItem(item);
-            return { item, ok: true };
-          } catch {
-            return { item, ok: false };
-          }
-        })
-      );
-      if (aborted || !sameAccount()) return { status: 'aborted' };
-      const stillActive = new Set(getActiveStaged().map((item) => item.file));
-      const uploadedItems = outcomes
-        .filter((outcome) => outcome.ok && stillActive.has(outcome.item.file))
-        .map((outcome) => outcome.item);
-      const stagedForPaste = [...activeStaged, ...attachments.snapshot(roomId).staged];
-      if (hasMissingPasteAttachmentForText(textContent, stagedForPaste, uploadedItems)) {
-        return { status: 'missingPaste' };
-      }
-      if (outcomes.some((outcome) => !outcome.ok && stillActive.has(outcome.item.file))) {
-        return { status: 'failedUpload' };
-      }
-      const sendSet = new Set(uploadedItems.map((item) => item.file));
-      const dropped = activeStaged.map((item) => item.file).filter((file) => !sendSet.has(file));
-      if (dropped.length > 0) attachments.clearEnrollment(dropped);
-      return { status: 'ready', items: uploadedItems };
+    const stillStaged = attachments.snapshot(roomId).staged;
+    if (hasMissingPasteAttachmentForText(textContent, stillStaged, [])) {
+      return { status: 'missingPaste' };
     }
     if (
-      (input.prepareAttachmentsForSend || awaitReadyUploads) &&
-      hasMissingPasteAttachmentForText(textContent, attachments.snapshot(roomId).staged, [])
+      requireAllStaged &&
+      currentStaged.some(
+        (item) =>
+          isUnsentCompanion(item) &&
+          stillStaged.some((entry) => entry.originalFile === item.originalFile)
+      )
     ) {
-      return { status: 'missingPaste' };
+      return { status: 'failedUpload' };
     }
     return { status: 'ready', items: activeStaged };
   };
@@ -628,8 +641,7 @@ export const startDetachedDictationSend = (
       return;
     }
     if (
-      preparedStaged.status === 'missingPaste' ||
-      preparedStaged.status === 'failedUpload' ||
+      preparedStaged.status !== 'ready' ||
       (!textContent && preparedStaged.items.length === 0)
     ) {
       restoreDraftAndCleanup(
@@ -716,14 +728,17 @@ export const startDetachedDictationSend = (
       if (blockedCommand.kind === 'unknown') {
         getMountedOwner(store, ownerKey)?.onCommandProblem(blockedCommand.command);
         return markFailed(
-          `Unknown command "/${blockedCommand.command}". Discard or edit before sending as voice.`
+          `Unknown command "/${blockedCommand.command}". Discard to edit the draft.`
         );
       }
-      return markFailed('Slash commands cannot be sent with a voice message.');
+      return markFailed(
+        'Slash commands cannot be sent with a voice message. Discard to edit the draft.'
+      );
     }
     const textContent = composeDetachedTextContent(scratch);
 
     let voiceItem: TUploadItem | undefined;
+    let handedOffToAttachments = false;
     try {
       try {
         const [first] = await createVoiceUploadItems(
@@ -736,13 +751,7 @@ export const startDetachedDictationSend = (
           throw first?.prepError ?? new Error('Could not prepare voice message.');
         }
         voiceItem = first;
-      } catch (error) {
         if (aborted || !sameAccount()) return abortDetachedSend();
-        return markFailed(describeVoiceFallbackError(error));
-      }
-      if (aborted || !sameAccount()) return abortDetachedSend();
-
-      try {
         await uploadItem(voiceItem);
       } catch (error) {
         if (aborted || !sameAccount()) return abortDetachedSend();
@@ -750,81 +759,108 @@ export const startDetachedDictationSend = (
       }
       if (aborted || !sameAccount()) return abortDetachedSend();
 
-      const preparedStaged = await prepareCompanionStaged(
-        liveRoom,
-        getActiveStaged(),
-        textContent,
-        true
-      );
-      if (preparedStaged.status === 'aborted') return abortDetachedSend();
-      if (preparedStaged.status === 'missingPaste') {
-        return markFailed('Could not upload pasted attachment.');
-      }
-      if (preparedStaged.status === 'failedUpload') {
-        return markFailed('Could not upload attachment.');
-      }
-      const sendStaged = preparedStaged.items;
       const readyVoiceItem = voiceItem;
+      let sendStaged: TUploadItem[];
+      if (isHomeSend) {
+        const preparedStaged = await prepareCompanionStaged(
+          liveRoom,
+          getActiveStaged(),
+          textContent,
+          true
+        );
+        if (preparedStaged.status === 'aborted') return abortDetachedSend();
+        if (preparedStaged.status !== 'ready') {
+          return markFailed(
+            preparedStaged.status === 'missingPaste'
+              ? 'Could not upload pasted attachment.'
+              : 'Could not upload attachment.'
+          );
+        }
+        sendStaged = preparedStaged.items;
+      } else {
+        // Normal rooms hand readyVoiceItem to the composer board + real send controller so it
+        // natively handles companion uploads, retries, thread-root continuity, and queuing.
+        sendStaged = getActiveStaged();
+        attachments.append(roomId, [readyVoiceItem]);
+        handedOffToAttachments = true;
+      }
+
       let voiceSent = false;
-      let journalSettled = false;
-      const settleVoiceJournal = () => {
-        if (journalSettled) return;
-        journalSettled = true;
+      let journalDeleted = false;
+      let targetJournalId = journalId;
+      const detachAndClearSession = () => {
         removeEntry();
         clearMatchingError();
         if (textContent) input.dismissLostNotices?.();
-        const completed = session.completeVoiceFallback();
-        const targetJournalId = completed.journalId ?? journalId;
+        targetJournalId = session.completeVoiceFallback().journalId ?? targetJournalId;
+      };
+      const settleVoiceJournal = () => {
+        if (journalDeleted) return;
+        journalDeleted = true;
+        if (isHomeSend) detachAndClearSession();
         if (!targetJournalId) return;
         if (sameAccount() && !aborted) void deleteCapture(targetJournalId).catch(() => undefined);
         else releaseCapture(targetJournalId);
       };
+      const recordCreatedThread = (eventId: string) => {
+        if (!sendContext.threadId && !createdThreadId) createdThreadId = eventId;
+      };
+      const restoreMergedText = () => {
+        const owner = getMountedOwner(store, ownerKey);
+        if (owner) owner.restoreText(mergedFallback);
+        else input.sessions.restoreText(composerContext, mergedFallback);
+      };
+
+      if (!isHomeSend) detachAndClearSession();
 
       let keepFailedOnError = false;
       try {
         await input.sessions.startSendSession({
-          ...buildSendSessionBase(liveRoom, textContent),
-          rootModel: input.rootModel ?? null,
+          ...buildSendSessionBase(
+            liveRoom,
+            textContent,
+            isHomeSend ? recordCreatedThread : undefined
+          ),
+          rootModel: createdThreadId ? null : (input.rootModel ?? null),
           batch: { fileItems: [...sendStaged, readyVoiceItem] },
-          completeWithinCall: true,
-          composerFallback: [],
-          onUploadSent: (sentFile: TUploadContent) => {
+          completeWithinCall: isHomeSend,
+          composerFallback: isHomeSend ? [] : mergedFallback,
+          onUploadSent: (sentFile: TUploadContent, rootEventId?: string) => {
+            if (isHomeSend && rootEventId) recordCreatedThread(rootEventId);
             if (sentFile === readyVoiceItem.file) {
               voiceSent = true;
               settleVoiceJournal();
+            } else if (isHomeSend) {
+              sentCompanionFiles.add(sentFile);
+              const match = currentStaged.find((item) => item.file === sentFile);
+              if (match) sentCompanionFiles.add(match.originalFile);
             }
           },
         });
-        if (!voiceSent) {
+        if (isHomeSend && !voiceSent) {
           throw new Error('Could not send voice message.');
         }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[dictation-send] could not send dictation as voice message', error);
         if (!voiceSent) {
-          if (sameAccount() && !aborted) {
-            if (input.tracksEnrollment && sendStaged.length > 0) {
-              const stagedFiles = new Set(
-                attachments.snapshot(roomId).staged.map((item) => item.file)
-              );
-              const unsentCompanions = sendStaged.filter((item) => stagedFiles.has(item.file));
-              if (unsentCompanions.length > 0) attachments.enroll(unsentCompanions);
-            }
+          if (!isHomeSend) {
+            if (textContent && sameAccount() && !aborted) restoreMergedText();
+            if (targetJournalId) releaseCapture(targetJournalId);
+          } else if (sameAccount() && !aborted) {
             keepFailedOnError = true;
             markFailed(describeVoiceFallbackError(error));
           } else {
             abortDetachedSend();
           }
-        } else if (textContent && sameAccount() && !aborted) {
-          const owner = getMountedOwner(store, ownerKey);
-          if (owner) owner.restoreText(mergedFallback);
-          else input.sessions.restoreText(composerContext, mergedFallback);
+        } else if (isHomeSend && textContent && sameAccount() && !aborted) {
+          restoreMergedText();
         }
       } finally {
         if (sameAccount() && !keepFailedOnError) ask?.onSendingChange?.(false);
       }
     } finally {
-      if (voiceItem) roomUploadAtomFamily.remove(voiceItem.file);
+      if (voiceItem && !handedOffToAttachments) roomUploadAtomFamily.remove(voiceItem.file);
     }
   };
 

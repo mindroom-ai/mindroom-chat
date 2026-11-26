@@ -70,7 +70,7 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   beforeSend?: StartRoomInputSendSessionOptions['beforeSend'];
   onLocalEchoCreated?: StartRoomInputSendSessionOptions['onLocalEchoCreated'];
   onTextConsumed?: () => void;
@@ -214,7 +214,7 @@ export type StartRoomInputSendSessionOptions = {
   composerFallback?: Descendant[];
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   /**
    * Asked for this send, with the room it goes to, just before its text message goes out, after
    * anything it waited for (its long-text upload): false sends nothing, and the text returns to
@@ -698,7 +698,7 @@ export const useRoomInputSendSessionController = ({
             ? relation.event_id
             : response.event_id;
       }
-      session.onUploadSent?.(file);
+      session.onUploadSent?.(file, session.rootEventId);
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
