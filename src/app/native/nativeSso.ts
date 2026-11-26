@@ -84,6 +84,9 @@ const getPathFromHostlessNativeUrl = (pathname: string): string | undefined => {
 export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
+export const isNativeAndroid = (): boolean =>
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
 export const isNativeApp = (): boolean =>
   isDesktopApp() ||
   (Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform()));

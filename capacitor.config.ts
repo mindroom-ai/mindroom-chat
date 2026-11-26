@@ -16,6 +16,10 @@ const capacitorConfig: CapacitorConfig = {
       // The default app background, so the bar does not stand out before the theme loads.
       backgroundColor: '#1A1A1A',
     },
+    SystemBars: {
+      // Matches `<meta name="viewport" ... viewport-fit=cover>` to avoid initial Android inset shift.
+      initialViewportFitValueHint: 'cover',
+    },
   },
 };
 

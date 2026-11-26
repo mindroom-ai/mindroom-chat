@@ -6,11 +6,15 @@ import type { SettingsContext } from '../preferences/settingsRegistry';
 import { useSettingsContext } from './useSettingsContext';
 
 const mocks = vi.hoisted(() => ({
+  isNativeApp: vi.fn(() => false),
   isNativeIOS: vi.fn(() => false),
   getDebugModeEnabled: vi.fn(() => false),
 }));
 
-vi.mock('../native/nativeSso', () => ({ isNativeIOS: mocks.isNativeIOS }));
+vi.mock('../native/nativeSso', () => ({
+  isNativeApp: mocks.isNativeApp,
+  isNativeIOS: mocks.isNativeIOS,
+}));
 vi.mock('../diagnostics/debugMode', () => ({ getDebugModeEnabled: mocks.getDebugModeEnabled }));
 vi.mock('../local-mindroom/useShowLocalMindroom', () => ({ useShowLocalMindroom: () => false }));
 vi.mock('../native/macApp', () => ({ useOffersMacApp: () => false }));
@@ -42,6 +46,7 @@ describe('useSettingsContext', () => {
   };
 
   beforeEach(() => {
+    mocks.isNativeApp.mockReturnValue(false);
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.getDebugModeEnabled.mockReturnValue(false);
     Reflect.deleteProperty(window, 'mindroomDesktop');
@@ -83,5 +88,15 @@ describe('useSettingsContext', () => {
       value: { desktopAccess: { status: vi.fn() } },
     });
     expect(read()).toMatchObject({ native: true, desktopAccess: true });
+  });
+
+  it('enables diagnostics on native Android while keeping nativeIOS false', () => {
+    mocks.isNativeApp.mockReturnValue(true);
+    mocks.isNativeIOS.mockReturnValue(false);
+
+    expect(read()).toMatchObject({
+      nativeIOS: false,
+      diagnostics: true,
+    });
   });
 });

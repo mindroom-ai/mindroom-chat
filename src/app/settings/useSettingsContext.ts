@@ -2,7 +2,7 @@ import { isBundledApp, isDesktopAccessAvailable, isDesktopApp } from '../lib/nat
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
-import { isNativeIOS } from '../native/nativeSso';
+import { isNativeApp, isNativeIOS } from '../native/nativeSso';
 import { isNativeUpdateAvailable } from '../native/nativeUpdate';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
@@ -32,7 +32,7 @@ export const useSettingsContext = (): SettingsContext => {
   return {
     native: isBundledApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeIOS() || isDesktopApp() || getDebugModeEnabled(),
+    diagnostics: isNativeApp() || isDesktopApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

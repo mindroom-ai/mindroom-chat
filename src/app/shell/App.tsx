@@ -20,6 +20,7 @@ import {
 } from '../theme/useTheme';
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
+import { isNativeAndroid } from '../native/nativeSso';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
 import { watchDesktopQueryFocus, watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
 import {
@@ -127,6 +128,21 @@ function App() {
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.
   useEffect(() => installStatusBarTapScroll(window), []);
+  // Android hardware and gesture back closes overlays, Settings, drawer, panels, or navigates back.
+  useEffect(() => {
+    if (!isNativeAndroid()) return undefined;
+    let cancelled = false;
+    let stop: (() => void) | undefined;
+    void import('./androidBackDelegates')
+      .then(({ installAppAndroidBackButton }) => {
+        if (!cancelled) stop = installAppAndroidBackButton(appJotaiStore);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  }, []);
   return (
     <JotaiProvider store={appJotaiStore}>
       {hasCustomTitlebar() && <div data-titlebar-drag="" aria-hidden="true" />}

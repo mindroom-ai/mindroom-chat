@@ -143,6 +143,7 @@ describe('application bootstrap', () => {
     vi.clearAllMocks();
     document.body.innerHTML = '<div id="root"></div>';
     mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeApp.mockReturnValue(false);
     mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
     mocks.getActiveSession.mockReturnValue(undefined);
@@ -161,11 +162,11 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['native iOS', true, false, 1],
+    ['native app (iOS or Android)', true, false, 1],
     ['another platform', false, false, 0],
     ['another platform with debug mode on', false, true, 1],
-  ])('installs the flight recorder on %s', async (_platform, nativeIOS, debugMode, installs) => {
-    mocks.isNativeIOS.mockReturnValue(nativeIOS);
+  ])('installs the flight recorder on %s', async (_platform, nativeApp, debugMode, installs) => {
+    mocks.isNativeApp.mockReturnValue(nativeApp);
     if (debugMode) window.localStorage.setItem(DEBUG_MODE_KEY, '1');
 
     await import('./index');
@@ -199,12 +200,12 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['native iOS', true, false],
+    ['native app', true, false],
     ['desktop app', false, true],
   ])(
     "leaves the recorders to the main web view in the quick capture widget's (%s)",
-    async (_label, nativeIOS, desktop) => {
-      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+    async (_label, nativeApp, desktop) => {
+      mocks.isNativeApp.mockReturnValue(nativeApp);
       if (desktop) {
         Object.defineProperty(window, 'mindroomDesktop', {
           configurable: true,
@@ -229,7 +230,7 @@ describe('application bootstrap', () => {
   );
 
   it('continues boot when recorder route classification throws', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.installFlightRecorder.mockImplementationOnce(() => {
       throw new TypeError('route classification failed');
     });
@@ -242,7 +243,7 @@ describe('application bootstrap', () => {
   });
 
   it('continues boot when opt-in tracing setup throws', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.initializeDeepTraceRecorder.mockImplementationOnce(() => {
       throw new TypeError('indexeddb setup failed');
     });
@@ -255,9 +256,9 @@ describe('application bootstrap', () => {
   });
 
   it.each([true, false])(
-    'watches for IndexedDB server loss (native iOS: %s)',
-    async (nativeIOS) => {
-      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+    'watches for IndexedDB server loss (native app: %s)',
+    async (nativeApp) => {
+      mocks.isNativeApp.mockReturnValue(nativeApp);
 
       await import('./index');
 
@@ -267,7 +268,7 @@ describe('application bootstrap', () => {
   );
 
   it('records a recovery reload after the deep trace recorder starts', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.readRecoveryReloadAge.mockReturnValueOnce(1_500);
 
     await import('./index');
@@ -321,7 +322,7 @@ describe('application bootstrap', () => {
         configurable: true,
         value: { persist },
       });
-      mocks.isNativeApp.mockReturnValueOnce(true);
+      mocks.isNativeApp.mockReturnValue(true);
       try {
         await import('./index');
         expect(document.documentElement.dataset.shell).toBe('desktop');
