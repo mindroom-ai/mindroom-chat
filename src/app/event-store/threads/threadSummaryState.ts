@@ -2,6 +2,10 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { loadCachedThreadSummaries, saveCachedThreadSummary } from '../cache/db';
 import {
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+} from '../cache/db/cacheStoreDb';
+import {
   buildPreferredThreadSummaryMap,
   selectThreadSummaryUpdate,
 } from './threadSummarySelection';
@@ -19,6 +23,7 @@ type RoomThreadSummaryState = {
   loadPromise?: Promise<void>;
   hasLoaded?: boolean;
   incomingDuringLoad?: Map<string, Array<ThreadSummaryInfo | undefined>>;
+  redactedDuringLoad?: Set<string>;
 };
 
 const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
@@ -38,6 +43,14 @@ const getOrCreateState = (sessionId: string, roomId: string): RoomThreadSummaryS
   roomThreadSummaryStates.set(stateKey, nextState);
   return nextState;
 };
+
+const isRedactedSummary = (
+  info: ThreadSummaryInfo | undefined,
+  redactedEventIds: ReadonlySet<string>
+): boolean =>
+  !!info &&
+  ((!!info.eventId && redactedEventIds.has(info.eventId)) ||
+    (!!info.replacingEventId && redactedEventIds.has(info.replacingEventId)));
 
 const notifyStateListeners = (state: RoomThreadSummaryState) => {
   state.listeners.forEach((listener) => listener());
@@ -105,19 +118,35 @@ export const getThreadSummaryStateSnapshot = (
 export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: string) => {
   const state = getOrCreateState(sessionId, roomId);
   if (state.loadPromise) return state.loadPromise;
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
   // Preserve the full evidence while a disk read is pending. Reducing live
   // batches before this merge could resurrect a legacy record with a skewed
   // metadata clock after its newer replacement has already been published.
   const incomingDuringLoad =
     state.incomingDuringLoad ?? new Map<string, Array<ThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
+  const redactedDuringLoad = state.redactedDuringLoad ?? new Set<string>();
+  state.redactedDuringLoad = redactedDuringLoad;
   state.hasLoaded = false;
 
   state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
-      if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
+      if (
+        roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state ||
+        !isCacheStoreWriteLeaseCurrent(lease)
+      ) {
+        return;
+      }
+      const filteredCachedSummaryMap =
+        redactedDuringLoad.size === 0
+          ? cachedSummaryMap
+          : new Map(
+              [...cachedSummaryMap].filter(
+                ([, info]) => !isRedactedSummary(info, redactedDuringLoad)
+              )
+            );
       const nextSummaryMap = buildPreferredThreadSummaryMap(
-        cachedSummaryMap,
+        filteredCachedSummaryMap,
         state.summaryMap,
         incomingDuringLoad
       );
@@ -131,8 +160,14 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     .catch(() => {})
     .finally(() => {
       state.loadPromise = undefined;
+      if (!isCacheStoreWriteLeaseCurrent(lease)) {
+        state.incomingDuringLoad = undefined;
+        state.redactedDuringLoad = undefined;
+        return;
+      }
       if (!state.hasLoaded) return;
       state.incomingDuringLoad = undefined;
+      state.redactedDuringLoad = undefined;
       if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
       incomingDuringLoad.forEach((_candidates, threadRootId) => {
         const info = state.summaryMap.get(threadRootId);
@@ -186,8 +221,18 @@ export const forgetRedactedThreadSummaries = (
 ) => {
   const state = roomThreadSummaryStates.get(getStateKey(sessionId, roomId));
   if (!state || redactedEventIds.size === 0) return;
+  if (state.redactedDuringLoad) {
+    redactedEventIds.forEach((eventId) => state.redactedDuringLoad?.add(eventId));
+  }
+  if (state.incomingDuringLoad) {
+    state.incomingDuringLoad.forEach((candidates, threadRootId) => {
+      const kept = candidates.filter((info) => !isRedactedSummary(info, redactedEventIds));
+      if (kept.length === 0) state.incomingDuringLoad?.delete(threadRootId);
+      else if (kept.length !== candidates.length) state.incomingDuringLoad?.set(threadRootId, kept);
+    });
+  }
   const nextSummaryMap = new Map(
-    [...state.summaryMap].filter(([, info]) => !info.eventId || !redactedEventIds.has(info.eventId))
+    [...state.summaryMap].filter(([, info]) => !isRedactedSummary(info, redactedEventIds))
   );
   if (nextSummaryMap.size === state.summaryMap.size) return;
   state.summaryMap = nextSummaryMap;

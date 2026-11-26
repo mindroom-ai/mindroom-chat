@@ -560,6 +560,7 @@ export const useRoomInputAttachments = ({
     compressInlineImages,
     createPendingVideo,
     useOriginal: restoreOriginal,
+    compressToZip,
   } = useMediaCompression({
     mx,
     store,
@@ -1012,6 +1013,7 @@ export const useRoomInputAttachments = ({
                 }
                 onRemove={(file) => access.remove(current.current.roomId, [file])}
                 onUseOriginal={(fileItem) => void restoreOriginal(fileItem)}
+                onCompressToZip={(fileItem) => void compressToZip(fileItem)}
                 canUseOriginal={!sendingDeferred && !enrolledFiles.has(item.file)}
               />
             ))}

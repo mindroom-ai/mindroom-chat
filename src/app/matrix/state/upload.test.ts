@@ -76,5 +76,11 @@ describe('isUploadItemReady', () => {
         },
       })
     ).toBe(false);
+    expect(
+      isUploadItemReady({
+        ...base,
+        compression: { status: 'zipFailed', reason: 'too-large' },
+      })
+    ).toBe(false);
   });
 });

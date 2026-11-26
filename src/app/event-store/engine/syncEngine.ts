@@ -384,7 +384,8 @@ export const createSyncEngine = ({
     // The cache keeps no text it read out of an encrypted room's events.
     forgetEncryptedRoomCheck = registerEncryptedRoomCheck(
       sessionId,
-      (roomId) => !!mx.getRoom(roomId)?.hasEncryptionStateEvent()
+      (roomId) => !!mx.getRoom(roomId)?.hasEncryptionStateEvent(),
+      (event) => mx.decryptEventIfNeeded(event)
     );
 
     // Prime liveMode against the current sync state so an engine that
