@@ -16,7 +16,12 @@ export const Preview = style({
 });
 
 export const StatusNote = style({
-  paddingInline: config.space.S200,
+  inlineSize: '100%',
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
+  paddingInline: config.space.S100,
+  paddingBlockStart: config.space.S100,
+  borderBlockStart: `${config.borderWidth.B300} solid color-mix(in srgb, ${color.SurfaceVariant.ContainerLine} 60%, transparent)`,
   color: color.SurfaceVariant.OnContainer,
   opacity: 0.85,
 });

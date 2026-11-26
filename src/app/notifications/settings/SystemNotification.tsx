@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Box, Button, Spinner, Switch, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';
@@ -177,7 +178,7 @@ export function SystemNotification() {
         gap="400"
         direction="Column"
       >
-        <DesktopNotificationTile permission={permission} />
+        {!Capacitor.isNativePlatform() && <DesktopNotificationTile permission={permission} />}
         <NotificationSoundTile />
         <IOSPushNotification />
         <EmailNotification />

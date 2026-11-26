@@ -541,7 +541,8 @@
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
         "plugins": "plug-ins, plugins, extensies, add-ons, integraties",
         "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten",
-        "mediaCompression": "schermafbeeldingen, schermopnamen, afbeeldingen, video’s, compressie, uploadgrootte"
+        "mediaCompression": "schermafbeeldingen, schermopnamen, afbeeldingen, video’s, compressie, uploadgrootte",
+        "autoZipLargeFiles": "zip, archief, comprimeren, json, csv, log, grote bestanden, uploadgrootte"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -570,6 +571,10 @@
         "off": "Uit",
         "balanced": "Gebalanceerd",
         "small": "Klein"
+      },
+      "autoZipLargeFiles": {
+        "title": "Grote bestanden comprimeren (.zip)",
+        "description": "Comprimeer comprimeerbare bestanden groter dan 1 MB automatisch als .zip voordat je ze uploadt. Je kunt voor elke bijlage nog steeds het origineel gebruiken."
       }
     },
     "createChat": {
@@ -1939,6 +1944,7 @@
     "newThreadWith": "Nieuwe thread met {{name}}…",
     "dictation": {
       "label": "Dicteren",
+      "temporarilyUnavailable": "Dicteren niet beschikbaar — opnieuw verbinden",
       "cancel": "Dicteren annuleren",
       "pause": "Dicteren pauzeren",
       "resume": "Dicteren hervatten",
@@ -1960,6 +1966,7 @@
       "noSpeech": "Geen spraak gedetecteerd.",
       "noSpeechOffThread": "Geen spraak gedetecteerd in {{room}}.",
       "sendFailedOffThread": "Kan gedicteerd bericht in {{room}} niet voltooien. Open de ruimte om opnieuw te proberen.",
+      "sendFailedOffTarget": "Kan gedicteerd bericht in {{room}} niet voltooien. Kies {{room}} opnieuw om opnieuw te proberen.",
       "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
       "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
       "capReached": "Limiet van 5:00 bereikt",

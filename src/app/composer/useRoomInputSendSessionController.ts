@@ -79,11 +79,11 @@ type SendSession = RoomInputSendSessionState & {
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
   openedThreadId?: string;
   /**
-   * Whether it started in a conversation view's composer. A thread's view may take over a send the
-   * room's composer started, but only while mounted: as it goes, the send parks for the room's
-   * composer again, which holds its files' board.
+   * Parking key computed at send creation: a staged-draft key, or the originating composer's
+   * `voiceComposerKey` (so a thread view taking over a room composer's send parks it back for
+   * the room's composer when the view closes).
    */
-  originThreadView?: boolean;
+  originParkKey?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -261,6 +261,8 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
+  /** Key for parking/adopting sends of a staged-draft composer apart from target rooms. */
+  stagedDraftKey?: string;
 };
 
 export const hasFailedPasteMarkerInText = (
@@ -500,6 +502,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
+  stagedDraftKey,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -521,7 +524,8 @@ export const useRoomInputSendSessionController = ({
     () => (forkFrom ? { ref: forkFrom } : undefined),
     [forkFrom]
   );
-  const composerKey = voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
+  const composerKey =
+    stagedDraftKey ?? voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
   const composerKeyRef = useLatestRef(composerKey);
   const composerContextRef = useRef({ roomId, threadId: composerThreadId });
   composerContextRef.current = { roomId, threadId: composerThreadId };
@@ -790,12 +794,7 @@ export const useRoomInputSendSessionController = ({
     (target: SendSlot, notifyAlways: boolean) => {
       target.unpark?.();
       const { session: held } = target;
-      let key = held
-        ? voiceComposerKey({
-            ...held.composerContext,
-            threadView: held.originThreadView ?? threadView,
-          })
-        : composerKeyRef.current;
+      let key = held?.originParkKey ?? composerKeyRef.current;
       // A send whose root opened its thread goes on with a view of that thread that is there
       // (one that mounts as this composer goes has listed itself already); else with the room's.
       const threadKey =
@@ -821,7 +820,7 @@ export const useRoomInputSendSessionController = ({
         parkListenersOf(mx).forEach((listener) => listener());
       }
     },
-    [composerKeyRef, mx, store, threadView]
+    [composerKeyRef, mx, store]
   );
 
   const startSendSession = useCallback(
@@ -884,9 +883,15 @@ export const useRoomInputSendSessionController = ({
         activeSlot = createSendSlot();
         activeSlot.repark = () => parkSlot(activeSlot, true);
       }
+      const restoreResetFallback = () => {
+        if (!composerAlreadyReset || !composerFallback) return;
+        restoreText(targetComposerContext, composerFallback);
+        onTextConsumed?.();
+      };
       const existingSession = activeSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
+          restoreResetFallback();
           throw new Error(
             'Cannot start a lifecycle-complete send while another session is active.'
           );
@@ -908,10 +913,7 @@ export const useRoomInputSendSessionController = ({
           return;
         }
         if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
-          if (composerAlreadyReset && composerFallback) {
-            restoreText(targetComposerContext, composerFallback);
-            onTextConsumed?.();
-          }
+          restoreResetFallback();
           return;
         }
         // The composer takes the message now, as it does any message; the reply draft the earlier
@@ -1014,10 +1016,7 @@ export const useRoomInputSendSessionController = ({
         return;
       }
       if (hasFailedPasteMarkerInText(textContent, staged)) {
-        if (composerAlreadyReset && composerFallback) {
-          restoreText(targetComposerContext, composerFallback);
-          onTextConsumed?.();
-        }
+        restoreResetFallback();
         return;
       }
       attachments.enroll(sendItems);
@@ -1047,7 +1046,8 @@ export const useRoomInputSendSessionController = ({
         onTextConsumed,
         composer,
       });
-      session.originThreadView = threadView;
+      session.originParkKey =
+        stagedDraftKey ?? voiceComposerKey({ ...targetComposerContext, threadView });
       activeSlot.session = session;
       busySlotsOf(mx).add(activeSlot);
       // The session wakes on its own uploads, with or without its composer.
@@ -1095,6 +1095,7 @@ export const useRoomInputSendSessionController = ({
       threadId,
       composerThreadId,
       forkStart,
+      stagedDraftKey,
       takeRootModelDraft,
       replyDraft,
       threadingEnabled,

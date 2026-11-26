@@ -28,11 +28,20 @@ describe('readRoamingSettings', () => {
         version: ROAMING_SETTINGS_VERSION,
         isMarkdown: false,
         hour24Clock: true,
+        autoZipLargeFiles: true,
         hideActivity: 'true',
         urlPreview: 0,
         dateFormatString: 'YYYY-MM-DD',
       })
-    ).toEqual({ isMarkdown: false, hour24Clock: true, dateFormatString: 'YYYY-MM-DD' });
+    ).toEqual({
+      isMarkdown: false,
+      hour24Clock: true,
+      autoZipLargeFiles: true,
+      dateFormatString: 'YYYY-MM-DD',
+    });
+    expect(
+      readRoamingSettings({ version: ROAMING_SETTINGS_VERSION, autoZipLargeFiles: 'true' })
+    ).toEqual({});
   });
 
   it('takes a date format only when it is a non-empty string within the cap', () => {
@@ -220,6 +229,7 @@ describe('roamingMigration', () => {
     expect(patch.urlPreview).toBe(false);
     expect(patch.midTurnSend).toBe('queue');
     expect(patch.mediaCompression).toBe('small');
+    expect(patch.autoZipLargeFiles).toBe(true);
     ROAMING_KEYS.forEach((key) => expect(patch[key], key).not.toBe(DEFAULT_SETTINGS[key]));
     expect(roamingMigration({}, device(), DEFAULT_SETTINGS)).toEqual({});
   });

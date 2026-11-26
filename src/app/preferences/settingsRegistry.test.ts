@@ -16,6 +16,7 @@ import { searchSettings } from '../settings/settingsSearchIndex';
 
 const WEB: SettingsContext = {
   native: false,
+  capacitor: false,
   nativeIOS: false,
   diagnostics: false,
   localMindroom: true,
@@ -89,7 +90,7 @@ describe('settings registry', () => {
   });
 
   it('leaves out the pages and settings this account or app lacks', () => {
-    const app = { ...WEB, native: true, nativeIOS: true, localMindroom: false };
+    const app = { ...WEB, native: true, capacitor: true, nativeIOS: true, localMindroom: false };
     const webPages = getShownSettingsPages(WEB).map((page) => page.id);
     const appPages = getShownSettingsPages(app).map((page) => page.id);
     expect(webPages).toContain('mindroom');
@@ -121,6 +122,20 @@ describe('settings registry', () => {
     expect(appSettings).not.toContain('connectedAccounts');
     expect(webSettings).not.toContain('pushNotifications');
     expect(appSettings).toContain('pushNotifications');
+    // Desktop Notifications is offered on web & Electron, hidden on Capacitor iOS & Android.
+    const electronSettings = getShownSettings({ ...WEB, native: true, capacitor: false }).map(
+      (setting) => setting.id
+    );
+    const androidSettings = getShownSettings({
+      ...WEB,
+      native: true,
+      capacitor: true,
+      nativeIOS: false,
+    }).map((setting) => setting.id);
+    expect(webSettings).toContain('desktopNotifications');
+    expect(electronSettings).toContain('desktopNotifications');
+    expect(appSettings).not.toContain('desktopNotifications');
+    expect(androidSettings).not.toContain('desktopNotifications');
     expect(webSettings).toContain('sidebarThreads');
     expect(webSettings).not.toContain('sidebarSearch');
     expect(webSettings).toEqual(expect.arrayContaining(['lightTheme', 'darkTheme']));
@@ -221,6 +236,26 @@ describe('settings registry', () => {
         found(query).map(({ setting }) => setting.id),
         query
       ).toContain('mediaCompression');
+    }
+  });
+
+  it('lists Compress large files (.zip) on Chats as an account setting and finds it by search keywords', () => {
+    const found = (query: string) =>
+      searchSettings(query, getShownSettings(WEB), (key, values) => translateFromEn(key, values));
+    const [match] = found('compress large files');
+    expect(match?.setting).toMatchObject({
+      id: 'autoZipLargeFiles',
+      page: 'chats',
+      scope: 'account',
+    });
+    expect(match?.label).toBe('Compress large files (.zip)');
+    expect(match?.location).toEqual(['Chats', 'Editor']);
+
+    for (const query of ['zip', 'archive', 'json', 'csv', 'log', 'large files', 'upload size']) {
+      expect(
+        found(query).map(({ setting }) => setting.id),
+        query
+      ).toContain('autoZipLargeFiles');
     }
   });
 

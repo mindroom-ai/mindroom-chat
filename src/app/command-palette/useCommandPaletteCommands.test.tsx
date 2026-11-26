@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 const CONTEXT: SettingsContext = {
   native: false,
+  capacitor: false,
   nativeIOS: false,
   diagnostics: false,
   localMindroom: true,

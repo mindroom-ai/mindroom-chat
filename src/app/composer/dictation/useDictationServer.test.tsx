@@ -159,7 +159,49 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
+const setDocumentVisibility = (visibilityState: DocumentVisibilityState) => {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visibilityState,
+  });
+  document.dispatchEvent(new Event('visibilitychange'));
+};
+
+const status503 = () => new Response('restarting', { status: 503 });
+const statusOk = () =>
+  Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 });
+
+const setupPersistedOutageRoom = async (
+  responses: Array<Response | Promise<Response>>,
+  opts: { persisted?: boolean; fakeTimers?: boolean } = {}
+) => {
+  if (opts.fakeTimers ?? true) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+  }
+  const key = dictationAvailabilityStorageKey(VIEWER);
+  if (opts.persisted ?? true) {
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+  }
+  const mx = createTestClient();
+  await addRoom(mx, {
+    roomId: '!room:example.org',
+    members: [VIEWER, AGENT],
+    serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+  });
+  for (const response of responses) {
+    state.send.mockReturnValueOnce(Promise.resolve(response));
+  }
+  const mount = (roomId = '!room:example.org') =>
+    renderServerHook(mx, { roomId, computers: { apiUrl: 'https://mr.example' } });
+  return { mx, key, mount };
+};
+
 afterEach(() => {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   vi.useRealTimers();
   cleanup();
   vi.restoreAllMocks();
@@ -561,27 +603,175 @@ describe('useDictationServer', () => {
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!dm:example.org']).toBe(false);
   });
 
-  it('reflects false during a transient 503 without poisoning persisted true', async () => {
-    const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
-    state.send = vi.fn(async () => new Response('restarting', { status: 503 }));
-    const mx = createTestClient();
+  it('keeps persisted room temporarilyUnavailable during a transient 503 while hiding unpersisted rooms', async () => {
+    const { mx, key, mount } = await setupPersistedOutageRoom([status503(), status503()], {
+      fakeTimers: false,
+    });
     await addRoom(mx, {
-      roomId: '!room:example.org',
+      roomId: '!fresh:example.org',
       members: [VIEWER, AGENT],
       serverOrigins: [{ apiOrigin: 'https://mr.example' }],
     });
 
-    const { result } = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
-    expect(result.current.available).toBe(true);
+    const persistedHook = mount();
+    expect(persistedHook.result.current.available).toBe(true);
+    expect(persistedHook.result.current.temporarilyUnavailable).toBe(false);
 
     await flushEffects();
+    expect(persistedHook.result.current.available).toBe(true);
+    expect(persistedHook.result.current.confirmed).toBe(false);
+    expect(persistedHook.result.current.temporarilyUnavailable).toBe(true);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
+    persistedHook.unmount();
+
+    const freshHook = mount('!fresh:example.org');
+    await flushEffects();
+    expect(freshHook.result.current.available).toBe(false);
+    expect(freshHook.result.current.confirmed).toBe(false);
+    expect(freshHook.result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('retries with exponential backoff across an outage longer than 30 s until recovery', async () => {
+    const { mount } = await setupPersistedOutageRoom([
+      status503(),
+      status503(),
+      status503(),
+      statusOk(),
+    ]);
+    const { result } = mount();
+    await flushEffects();
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(false);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Retry 1 after 30 s -> 503 (next backoff: 60 s).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(2);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    // Not yet retried at +30 s into the 60 s backoff; retries at +60 s -> 503 (next backoff: 120 s).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(state.send).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(3);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    // Retry 3 after 120 s -> 200 OK.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(4);
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('pauses retry timers while hidden, resumes on visibilitychange, and recovers immediately on online', async () => {
+    const { mount } = await setupPersistedOutageRoom(
+      [status503(), status503(), status503(), statusOk()],
+      { persisted: false }
+    );
+    const { result } = mount();
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Hide the tab: advancing past 30 s must not trigger a background probe.
+    act(() => {
+      setDocumentVisibility('hidden');
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+    });
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Returning to the tab probes immediately because the deadline already passed.
+    act(() => {
+      setDocumentVisibility('visible');
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+
+    // Now in 60 s backoff: firing `online` while hidden defers probing until the tab is visible.
+    act(() => {
+      setDocumentVisibility('hidden');
+      window.dispatchEvent(new Event('online'));
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      setDocumentVisibility('visible');
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(3);
+
+    // Firing `online` while visible expires the cache and recovers immediately.
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(4);
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('keeps temporarilyUnavailable: true across remount after the 30 s deadline while retry probe is pending', async () => {
+    let resolveRetry!: (response: Response) => void;
+    const retryPromise = new Promise<Response>((resolve) => {
+      resolveRetry = resolve;
+    });
+    const { mount } = await setupPersistedOutageRoom([status503(), retryPromise]);
+
+    const firstMount = mount();
+    await flushEffects();
+    expect(firstMount.result.current.temporarilyUnavailable).toBe(true);
+    firstMount.unmount();
+
+    // Advance past the 30 s transient TTL, then remount while the retry probe stays in flight.
+    vi.setSystemTime(new Date('2026-11-23T12:00:35Z'));
+    const reopened = mount();
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(false);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(true);
+
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(false);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(true);
+
+    resolveRetry(statusOk());
+    await flushEffects();
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(true);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('clears persisted true and hides button when a transient 503 transitions to a permanent 403', async () => {
+    const { key, mount } = await setupPersistedOutageRoom([
+      status503(),
+      new Response('forbidden', { status: 403 }),
+    ]);
+    const { result } = mount();
+    await flushEffects();
+    expect(result.current.available).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
     expect(result.current.available).toBe(false);
     expect(result.current.confirmed).toBe(false);
-    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(false);
   });
 
   it('never seeds true when unsupported and caps persisted room entries at 128', async () => {

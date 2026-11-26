@@ -541,7 +541,8 @@
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
         "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen",
         "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart",
-        "mediaCompression": "Screenshots, Bildschirmaufnahmen, Bilder, Videos, Komprimierung, Upload-Größe"
+        "mediaCompression": "Screenshots, Bildschirmaufnahmen, Bilder, Videos, Komprimierung, Upload-Größe",
+        "autoZipLargeFiles": "zip, Archiv, komprimieren, json, csv, Log, große Dateien, Upload-Größe"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -570,6 +571,10 @@
         "off": "Aus",
         "balanced": "Ausgewogen",
         "small": "Klein"
+      },
+      "autoZipLargeFiles": {
+        "title": "Große Dateien komprimieren (.zip)",
+        "description": "Komprimiere komprimierbare Dateien über 1 MB vor dem Hochladen automatisch als .zip. Für jeden Anhang kannst du weiterhin das Original verwenden."
       }
     },
     "createChat": {
@@ -1939,6 +1944,7 @@
     "newThreadWith": "Neuer Thread mit {{name}}…",
     "dictation": {
       "label": "Diktieren",
+      "temporarilyUnavailable": "Diktat nicht verfügbar — Verbindung wird wiederhergestellt",
       "cancel": "Diktat abbrechen",
       "pause": "Diktat pausieren",
       "resume": "Diktat fortsetzen",
@@ -1960,6 +1966,7 @@
       "noSpeech": "Keine Sprache erkannt.",
       "noSpeechOffThread": "Keine Sprache in {{room}} erkannt.",
       "sendFailedOffThread": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Öffne den Raum, um es erneut zu versuchen.",
+      "sendFailedOffTarget": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Wähle {{room}} erneut aus, um es erneut zu versuchen.",
       "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
       "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
       "capReached": "Limit von 5:00 erreicht",

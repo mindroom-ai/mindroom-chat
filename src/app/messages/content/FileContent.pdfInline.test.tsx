@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Capacitor } from '@capacitor/core';
 import { FileContent } from './FileContent';
 
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
@@ -85,5 +86,19 @@ describe('FileContent PDF open action', () => {
     browserReports(false);
 
     expect(actionsOf(renderActions('text/plain'))).toEqual(['open-text', 'download']);
+  });
+
+  it('offers Open PDF on native Android when MindRoomFileSave can open files externally', () => {
+    browserReports(false);
+    const isNativeSpy = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const platformSpy = vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    const pluginSpy = vi.spyOn(Capacitor, 'isPluginAvailable').mockReturnValue(true);
+    try {
+      expect(actionsOf(renderActions('application/pdf'))).toEqual(['open-pdf', 'download']);
+    } finally {
+      isNativeSpy.mockRestore();
+      platformSpy.mockRestore();
+      pluginSpy.mockRestore();
+    }
   });
 });

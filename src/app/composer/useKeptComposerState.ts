@@ -3,6 +3,7 @@ import { useAtomValue, useStore } from 'jotai';
 import { useInConversationView } from '../navigation/conversationView';
 import { isPasteFileName } from '../matrix/protocol/pasteAttachmentMarker';
 import {
+  getRoomInputDraftKey,
   keepReplyDraft,
   keepStagedFileNames,
   readKeptFileNames,
@@ -24,31 +25,41 @@ type KeptComposerState = {
  * text alone without noticing. Large pastes are not among them: their text is kept with the draft
  * (`keptPastes.ts`), and the composer's attachments put them back.
  */
-export const useKeptComposerState = (ownUserId: string, roomId: string): KeptComposerState => {
+export const useKeptComposerState = (
+  ownUserId: string,
+  roomId: string,
+  stagedDraftKey?: string
+): KeptComposerState => {
   const store = useStore();
-  // Another view of the room (a plugin's thread view) keeps nothing; the room's page does.
+  // Another view of the room (a plugin's thread view, Home Ask) keeps nothing; the room's page
+  // and Space's All threads composer do.
   const userId = useInConversationView() ? '' : ownUserId;
-  const itemsAtom = roomIdToUploadItemsAtomFamily(roomId);
+  const fileScope = stagedDraftKey ?? roomId;
+  const keptFilesKey = userId
+    ? (stagedDraftKey ?? getRoomInputDraftKey(userId, roomId))
+    : undefined;
+  const itemsAtom = roomIdToUploadItemsAtomFamily(fileScope);
   // Pastes the composer puts back do not answer the notice of the other files.
   const stagedCount = useAtomValue(itemsAtom).filter(
     (item) => !isPasteFileName(item.originalFile.name)
   ).length;
 
   // Before the first paint, so the reply bar shows with the restored text.
+  // Staged-draft composers take no target-room reply draft.
   useLayoutEffect(() => {
-    if (!userId) return undefined;
+    if (!userId || stagedDraftKey !== undefined) return undefined;
     restoreKeptReplyDraft(store, userId, roomId);
     const replyAtom = roomIdToReplyDraftAtomFamily(roomId);
     return store.sub(replyAtom, () => keepReplyDraft(userId, roomId, store.get(replyAtom)));
-  }, [roomId, store, userId]);
+  }, [roomId, stagedDraftKey, store, userId]);
 
-  const [lost, setLost] = useState<{ roomId: string; names: string[] }>();
+  const [lost, setLost] = useState<{ scope: string; names: string[] }>();
   // Names kept while nothing is staged here are files the page before had.
   useLayoutEffect(() => {
-    const staged = store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0;
-    const kept = userId && !staged ? readKeptFileNames(userId, roomId) : [];
-    setLost({ roomId, names: kept.filter((name) => !isPasteFileName(name)) });
-  }, [roomId, store, userId]);
+    const staged = store.get(roomIdToUploadItemsAtomFamily(fileScope)).length > 0;
+    const kept = keptFilesKey && !staged ? readKeptFileNames(keptFilesKey) : [];
+    setLost({ scope: fileScope, names: kept.filter((name) => !isPasteFileName(name)) });
+  }, [fileScope, keptFilesKey, store]);
   // Attaching files again answers the notice.
   useEffect(() => {
     if (stagedCount > 0) setLost(undefined);
@@ -56,11 +67,11 @@ export const useKeptComposerState = (ownUserId: string, roomId: string): KeptCom
 
   const dismissLostFiles = useCallback(() => {
     setLost(undefined);
-    if (userId && store.get(roomIdToUploadItemsAtomFamily(roomId)).length === 0) {
-      keepStagedFileNames(userId, roomId, []);
+    if (keptFilesKey && store.get(roomIdToUploadItemsAtomFamily(fileScope)).length === 0) {
+      keepStagedFileNames(keptFilesKey, [], store);
     }
-  }, [roomId, store, userId]);
+  }, [fileScope, keptFilesKey, store]);
 
-  const lostFileNames = lost?.roomId === roomId ? lost.names : [];
+  const lostFileNames = lost?.scope === fileScope ? lost.names : [];
   return { lostFileNames, dismissLostFiles };
 };

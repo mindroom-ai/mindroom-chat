@@ -171,7 +171,7 @@ const resolveUniversalLinkBaseRoute = (
   return undefined;
 };
 
-export const getAppPathFromUniversalLink = (incomingUrl: string): string | undefined => {
+const parseTrustedUniversalLinkUrl = (incomingUrl: string): URL | undefined => {
   if (incomingUrl.split(/[?#]/, 1)[0]?.includes('\\')) return undefined;
   let url: URL;
   try {
@@ -188,15 +188,44 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
   ) {
     return undefined;
   }
+  return url;
+};
+
+const decodeUniversalLinkSegments = (pathname: string): string[] | undefined => {
+  const rawSegments = pathname.replace(/\/$/, '').slice(1).split('/');
+  if (rawSegments.length < 1 || rawSegments.length > 3) return undefined;
+  const segments = rawSegments.map(decodeSegment);
+  if (segments.some((segment) => !segment)) return undefined;
+  return segments as string[];
+};
+
+/**
+ * Returns the canonical HTTPS URL when `incomingUrl` is a trusted same-origin Universal Link
+ * intentionally left on web (space search routes `/!space/search` and `/#space/search`, which iOS
+ * excludes via AASA but Android App Links intent filters cannot exclude).
+ */
+export const getWebOnlyUniversalLinkUrl = (incomingUrl: string): string | undefined => {
+  const url = parseTrustedUniversalLinkUrl(incomingUrl);
+  if (!url) return undefined;
+  const segments = decodeUniversalLinkSegments(url.pathname);
+  if (!segments || segments.length !== 2) return undefined;
+  const [first, second] = segments;
+  if (!first || !second || !isRoomOrAlias(first) || second.toLowerCase() !== 'search') {
+    return undefined;
+  }
+  return url.href;
+};
+
+export const getAppPathFromUniversalLink = (incomingUrl: string): string | undefined => {
+  const url = parseTrustedUniversalLinkUrl(incomingUrl);
+  if (!url) return undefined;
   if (url.pathname === '/connect' || url.pathname === '/connect/') {
     return getConnectPath(url.searchParams.get('code') ?? undefined);
   }
 
-  const rawSegments = url.pathname.replace(/\/$/, '').slice(1).split('/');
-  if (rawSegments.length < 1 || rawSegments.length > 3) return undefined;
-  const segments = rawSegments.map(decodeSegment);
-  if (segments.some((segment) => !segment)) return undefined;
-  const route = resolveUniversalLinkBaseRoute(segments as string[]);
+  const segments = decodeUniversalLinkSegments(url.pathname);
+  if (!segments) return undefined;
+  const route = resolveUniversalLinkBaseRoute(segments);
   if (!route) return undefined;
 
   const viaServers = readSafeViaServers(url.searchParams);

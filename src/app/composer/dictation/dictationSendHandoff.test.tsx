@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   dictationServer: {
     available: true,
     confirmed: true,
+    temporarilyUnavailable: false,
     apiUrl: 'https://mr.test',
     sessions: {
       baseUrl: 'https://mr.test',

@@ -1,7 +1,7 @@
 import { useMemo, useRef, type RefObject } from 'react';
 import { atom, type createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import type { TUploadContent } from '../matrix/matrix';
+import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import {
   isUploadItemReady,
@@ -9,9 +9,11 @@ import {
   type TUploadMetadata,
   type UploadCompression,
   UploadStatus,
+  type ZipFailureReason,
 } from '../matrix/state/upload';
 import { canZipUploadItem } from './roomInputAttachmentAccess';
 import {
+  isEligibleFileForAutoZip,
   isEligibleImageForCompression,
   isEligibleVideoForCompression,
 } from '../lib/media/mediaCompressionEligibility';
@@ -31,7 +33,7 @@ export type CompressedInlineFile = {
   compression?: Extract<UploadCompression, { status: 'compressed' }>;
 };
 
-export type PendingVideoCompression = {
+export type PendingBackgroundCompression = {
   placeholder: TUploadItem;
   start: () => void;
   cancel: () => void;
@@ -84,12 +86,14 @@ const replaceStagedItem = (
     if (owners.current.delete(liveItem.file)) owners.current.set(replacement.file, owner);
   }
   const nextUploadAtom = roomUploadAtomFamily(replacement.file);
+  const { status } = store.get(nextUploadAtom);
   if (replacement.prepError) {
     store.set(nextUploadAtom, { error: replacement.prepError });
-  } else if (
-    isUploadItemReady(replacement) &&
-    store.get(nextUploadAtom).status === UploadStatus.Error
-  ) {
+  } else if (replacement.compression?.status === 'zipFailed' && status !== UploadStatus.Error) {
+    store.set(nextUploadAtom, {
+      error: toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload'),
+    });
+  } else if (isUploadItemReady(replacement) && status === UploadStatus.Error) {
     store.set(nextUploadAtom, { status: UploadStatus.Idle });
   }
   store.set(targetAtom, { type: 'REPLACE', item: liveItem, replacement });
@@ -226,65 +230,150 @@ const runInlineImageCompression = async (
   return entries;
 };
 
+type BackgroundCompressionOutcome =
+  | { kind: 'compressed'; file: File; originalSize: number }
+  | { kind: 'fallback' }
+  | { kind: 'zipFailed'; reason: ZipFailureReason };
+
+const runZipFile = (
+  rawFile: File,
+  options: { maxOutputBytes?: number; signal: AbortSignal; onProgress: (p: number) => void }
+) =>
+  options.signal.aborted
+    ? Promise.resolve({ status: 'aborted' as const })
+    : import('../lib/media/zipFile')
+        .then(({ zipFile }) => zipFile(rawFile, options))
+        .catch((error: unknown) => {
+          if (!options.signal.aborted) {
+            // eslint-disable-next-line no-console
+            console.warn('[composer] could not load or run zip compression', error);
+          }
+          return { status: options.signal.aborted ? ('aborted' as const) : ('error' as const) };
+        });
+
+const createPendingBackgroundCompression = (
+  optsRef: OptsRef,
+  rawFile: File,
+  targetRoom: Room,
+  roomId: string,
+  allowUseOriginal: boolean,
+  compress: (job: {
+    signal: AbortSignal;
+    setProgress: (p: number) => void;
+  }) => Promise<BackgroundCompressionOutcome>
+): PendingBackgroundCompression => {
+  const targetAtom = optsRef.current.getTargetAtom(roomId);
+  const job = createPendingJob(optsRef, rawFile, roomId, targetAtom, 0, allowUseOriginal);
+  return {
+    placeholder: job.placeholder,
+    cancel: job.cancel,
+    start: () => {
+      void job.run(async () => {
+        const outcome = await compress(job);
+        if (!job.findLive()) return;
+        if (!job.wantsOriginal() && outcome.kind === 'zipFailed') {
+          // Never read or encrypt an oversized file that failed zipping and cannot be uploaded.
+          job.commit(
+            { file: rawFile, originalFile: rawFile, encInfo: undefined, metadata: DEFAULT_META },
+            { status: 'zipFailed', reason: outcome.reason }
+          );
+          return;
+        }
+        if (!job.wantsOriginal() && outcome.kind === 'compressed') {
+          const prepared = await prepareItemFile(optsRef.current, outcome.file, roomId, targetRoom);
+          if (!job.wantsOriginal()) {
+            job.commit(prepared, {
+              status: 'compressed',
+              originalSize: outcome.originalSize,
+              ...(allowUseOriginal ? { sourceFile: rawFile } : {}),
+            });
+            return;
+          }
+          // Re-prepare rawFile if "Use original" was clicked while encrypting the compressed file.
+          if (!job.findLive()) return;
+        }
+        const prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
+        job.commit(prepared, job.wantsOriginal() ? { status: 'original' } : undefined);
+      });
+    },
+  };
+};
+
 const createPendingVideo = (
   optsRef: OptsRef,
   rawFile: File,
   preset: MediaCompressionPreset,
   targetRoom: Room,
   roomId: string
-): PendingVideoCompression | undefined => {
+): PendingBackgroundCompression | undefined => {
   const spec = getVideoCompressionSpec(preset);
   if (!spec || !isEligibleVideoForCompression(rawFile, optsRef.current.maxUploadSize)) {
     return undefined;
   }
-  const targetAtom = optsRef.current.getTargetAtom(roomId);
-  const job = createPendingJob(optsRef, rawFile, roomId, targetAtom, 0, true);
-  return {
-    placeholder: job.placeholder,
-    cancel: job.cancel,
-    start: () => {
-      void job.run(async () => {
-        // Keep video compressor behind a dynamic import so mediabunny contributes 0 bytes to initial.
-        const result = job.signal.aborted
-          ? undefined
-          : await import('../lib/media/compressVideo')
-              .then(({ compressVideo }) =>
-                compressVideo(rawFile, {
-                  ...spec,
-                  maxUploadSize: optsRef.current.maxUploadSize,
-                  signal: job.signal,
-                  onProgress: job.setProgress,
-                })
-              )
-              .catch((error: unknown) => {
-                if (!job.signal.aborted) {
-                  // eslint-disable-next-line no-console
-                  console.warn('[composer] could not load or run video compression', error);
-                }
-                return undefined;
-              });
-        if (!job.findLive()) return;
-        let usedCompressed = !job.wantsOriginal() && result !== undefined;
-        let prepared = await prepareItemFile(
-          optsRef.current,
-          usedCompressed ? result!.file : rawFile,
-          roomId,
-          targetRoom
-        );
-        // If "Use original" was clicked while encrypting the compressed file, re-prepare rawFile.
-        if (usedCompressed && job.wantsOriginal() && job.findLive()) {
-          usedCompressed = false;
-          prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
-        }
-        const nextCompression: UploadCompression | undefined = job.wantsOriginal()
-          ? { status: 'original' }
-          : usedCompressed
-            ? { status: 'compressed', sourceFile: rawFile, originalSize: result!.originalSize }
-            : undefined;
-        job.commit(prepared, nextCompression);
+  return createPendingBackgroundCompression(
+    optsRef,
+    rawFile,
+    targetRoom,
+    roomId,
+    true,
+    async (job) => {
+      // Keep video compressor behind a dynamic import so mediabunny contributes 0 bytes to initial.
+      const result = job.signal.aborted
+        ? undefined
+        : await import('../lib/media/compressVideo')
+            .then(({ compressVideo }) =>
+              compressVideo(rawFile, {
+                ...spec,
+                maxUploadSize: optsRef.current.maxUploadSize,
+                signal: job.signal,
+                onProgress: job.setProgress,
+              })
+            )
+            .catch((error: unknown) => {
+              if (!job.signal.aborted) {
+                // eslint-disable-next-line no-console
+                console.warn('[composer] could not load or run video compression', error);
+              }
+              return undefined;
+            });
+      return result
+        ? { kind: 'compressed', file: result.file, originalSize: result.originalSize }
+        : { kind: 'fallback' };
+    }
+  );
+};
+
+const createPendingAutoZip = (
+  optsRef: OptsRef,
+  rawFile: File,
+  targetRoom: Room,
+  roomId: string
+): PendingBackgroundCompression | undefined => {
+  if (!isEligibleFileForAutoZip(rawFile)) return undefined;
+  const isOversized =
+    optsRef.current.maxUploadSize !== undefined && rawFile.size > optsRef.current.maxUploadSize;
+  return createPendingBackgroundCompression(
+    optsRef,
+    rawFile,
+    targetRoom,
+    roomId,
+    !isOversized,
+    async (job) => {
+      // Keep ZIP writer behind a dynamic import so it contributes 0 bytes to the initial bundle.
+      const result = await runZipFile(rawFile, {
+        maxOutputBytes: isOversized ? optsRef.current.maxUploadSize : undefined,
+        signal: job.signal,
+        onProgress: job.setProgress,
       });
-    },
-  };
+      if (result.status === 'ok') {
+        return { kind: 'compressed', file: result.file, originalSize: result.originalSize };
+      }
+      if (isOversized && result.status !== 'aborted') {
+        return { kind: 'zipFailed', reason: result.status };
+      }
+      return { kind: 'fallback' };
+    }
+  );
 };
 
 const restoreOriginalItem = async (optsRef: OptsRef, item: TUploadItem): Promise<void> => {
@@ -360,23 +449,11 @@ const compressItemToZip = async (optsRef: OptsRef, item: TUploadItem): Promise<v
 
   await job.run(async () => {
     // Keep ZIP writer behind a dynamic import so it contributes 0 bytes to the initial bundle.
-    const result = job.signal.aborted
-      ? ({ status: 'aborted' } as const)
-      : await import('../lib/media/zipFile')
-          .then(({ zipFile }) =>
-            zipFile(rawFile, {
-              maxOutputBytes,
-              signal: job.signal,
-              onProgress: job.setProgress,
-            })
-          )
-          .catch((error: unknown) => {
-            if (!job.signal.aborted) {
-              // eslint-disable-next-line no-console
-              console.warn('[composer] could not load or run zip compression', error);
-            }
-            return { status: job.signal.aborted ? ('aborted' as const) : ('error' as const) };
-          });
+    const result = await runZipFile(rawFile, {
+      maxOutputBytes,
+      signal: job.signal,
+      onProgress: job.setProgress,
+    });
 
     if (result.status === 'aborted' || !job.findLive()) return;
 
@@ -411,6 +488,8 @@ export const useMediaCompression = (options: UseMediaCompressionOptions) => {
         runInlineImageCompression(optsRef, files, preset),
       createPendingVideo: (file: File, preset: MediaCompressionPreset, room: Room, id: string) =>
         createPendingVideo(optsRef, file, preset, room, id),
+      createPendingAutoZip: (file: File, room: Room, id: string) =>
+        createPendingAutoZip(optsRef, file, room, id),
       useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, item),
       compressToZip: (item: TUploadItem) => compressItemToZip(optsRef, item),
     }),

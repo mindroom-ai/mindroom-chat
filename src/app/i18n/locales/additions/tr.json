@@ -541,7 +541,8 @@
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
         "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat",
-        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu"
+        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu",
+        "autoZipLargeFiles": "zip, arşiv, sıkıştır, json, csv, günlük, log, büyük dosyalar, yükleme boyutu"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -570,6 +571,10 @@
         "off": "Kapalı",
         "balanced": "Dengeli",
         "small": "Küçük"
+      },
+      "autoZipLargeFiles": {
+        "title": "Büyük dosyaları sıkıştır (.zip)",
+        "description": "Yüklemeden önce 1 MB üzerindeki sıkıştırılabilir dosyaları otomatik olarak .zip ile sıkıştırın. Herhangi bir ek için yine de orijinal dosyayı kullanabilirsiniz."
       }
     },
     "createChat": {
@@ -1939,6 +1944,7 @@
     "newThreadWith": "{{name}} ile yeni konu…",
     "dictation": {
       "label": "Dikte et",
+      "temporarilyUnavailable": "Dikte kullanılamıyor — yeniden bağlanıyor",
       "cancel": "Dikteyi iptal et",
       "pause": "Dikteyi duraklat",
       "resume": "Dikteyi sürdür",
@@ -1960,6 +1966,7 @@
       "noSpeech": "Konuşma algılanmadı.",
       "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
       "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
+      "sendFailedOffTarget": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için {{room}} odasını tekrar seçin.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
       "capReached": "5:00 sınırına ulaşıldı",

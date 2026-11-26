@@ -458,18 +458,14 @@ export function SubagentRunView({
           size="300"
           radii="300"
           variant="Surface"
+          fill="None"
+          className={css.HeaderBack}
           aria-label={t('mindroomUi.subagents.back')}
           onClick={onBack}
         >
-          <Icon size="200" src={Icons.ArrowLeft} />
+          <Icon size="200" src={Icons.ArrowLeft} data-directional />
         </IconButton>
-        <RunLogo
-          model={meta.model}
-          agent={agent}
-          kind="agent"
-          state={runLogoState(meta)}
-          className={css.HeaderLogo}
-        />
+        <RunLogo model={meta.model} agent={agent} kind="agent" state={runLogoState(meta)} />
         <div className={css.Heading}>
           <Text
             ref={heading}

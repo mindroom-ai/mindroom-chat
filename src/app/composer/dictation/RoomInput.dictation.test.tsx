@@ -273,6 +273,7 @@ const renderInput = (
     screenSize?: ScreenSize;
     text?: string;
     forkFrom?: { threadId: string; eventId: string };
+    stagedDraftKey?: string;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
   } = {}
 ) => {
@@ -288,6 +289,7 @@ const renderInput = (
           roomId={room.roomId}
           room={room}
           forkFrom={opts.forkFrom}
+          stagedDraftKey={opts.stagedDraftKey}
           ask={opts.ask}
         />
       </ScreenSizeProvider>
@@ -346,6 +348,7 @@ describe('RoomInput dictation layout and submit guard', () => {
         attachments: {} as never,
         transport: {} as never,
         sessions: {} as never,
+        stagedList: {} as never,
         recover: false,
       });
       return <>{voice.microphone}</>;
@@ -580,6 +583,7 @@ describe('RoomInput dictation layout and submit guard', () => {
     // Deferred Home ask builds an unencrypted voice item without invoking room transport prep.
     layoutState.createVoiceUploadItems.mockClear();
     const home = renderInput({
+      stagedDraftKey: '["@alice:example.org"]',
       ask: {
         agentUserId: '@mindroom_assistant:example.org',
         placeholder: 'Ask',
@@ -602,5 +606,26 @@ describe('RoomInput dictation layout and submit guard', () => {
       },
     ]);
     home.unmount();
+
+    // Deferred Space All-threads composer (stagedDraftKey without ask) also builds an unencrypted voice item.
+    layoutState.createVoiceUploadItems.mockClear();
+    const space = renderInput({
+      stagedDraftKey: '["@alice:example.org",null,"space-threads","!space:example.org"]',
+    });
+    const spaceItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
+      file,
+      1_800,
+      waveform
+    );
+    expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
+    expect(spaceItems).toEqual([
+      {
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+      },
+    ]);
+    space.unmount();
   });
 });

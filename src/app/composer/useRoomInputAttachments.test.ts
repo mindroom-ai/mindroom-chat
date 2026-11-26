@@ -100,7 +100,6 @@ const renderHarness = (
   prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
   options?: {
     stagedListKey?: string;
-    deferUpload?: boolean;
     sendingDeferred?: boolean;
     view?: string;
     draftKey?: string;
@@ -145,7 +144,6 @@ const renderHarness = (
       fileDropContainerRef: createRef<HTMLElement>(),
       createUploadItems: prepare,
       stagedListKey: options?.stagedListKey,
-      deferUpload: options?.deferUpload,
       sendingDeferred,
     });
     return feature.board;
@@ -434,6 +432,27 @@ describe('attachment staging ownership', () => {
     );
   });
 
+  it('drops >= 1 MiB app logs when autoZipLargeFiles is enabled and the conversation changed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { DEFAULT_SETTINGS, settingsAtom } = await import('../preferences/settings');
+    let finishExport!: (built: { fileName: string; blob: Blob }) => void;
+    diagnostics.buildDiagnosticsExport.mockReturnValue(new Promise((r) => (finishExport = r)));
+    const harness = renderHarness();
+    harness.store.set(settingsAtom, { ...DEFAULT_SETTINGS, autoZipLargeFiles: true });
+    harness.changeThread('$asked');
+    act(() => harness.feature.attachAppLogs());
+    harness.changeThread('$other');
+    await act(async () => {
+      finishExport({
+        fileName: 'mindroom-diagnostics-large.json',
+        blob: new Blob(['{"a":1}\n'.repeat(160_000)], { type: 'application/json' }),
+      });
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+    expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+    warn.mockRestore();
+  });
+
   it('stages nothing when the app logs cannot be built', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     diagnostics.buildDiagnosticsExport.mockRejectedValue(new Error('storage gone'));
@@ -639,7 +658,6 @@ describe('attachment staging ownership', () => {
     const homeKey = 'home-draft';
     const harness = renderHarness(createSpy, {
       stagedListKey: homeKey,
-      deferUpload: true,
       view: HOME_ASK_VIEW,
       draftKey: homeKey,
     });
@@ -737,7 +755,6 @@ describe('attachment staging ownership', () => {
 
       const harness = renderHarness(async () => [], {
         stagedListKey: 'home-ask-key',
-        deferUpload: true,
       });
       act(() => {
         harness.feature.onPaste({
@@ -880,7 +897,6 @@ describe('attachment staging ownership', () => {
       // 4. Collapsed board survival: video keeps compressing when cards unmount and auto-uploads when ready.
       const uploadContent = vi.fn(() => new Promise<{ content_uri: string }>(() => {}));
       const normalHarness = renderHarness(async () => [], {
-        deferUpload: false,
         uploadContent,
       });
       const collapsedVideo = makeSized('collapsed.mov', 'video/quicktime', 3 * 1024 * 1024);
@@ -955,7 +971,6 @@ describe('attachment staging ownership', () => {
     const homeKey = 'home-sending-deferred';
     const harness = renderHarness(async () => [], {
       stagedListKey: homeKey,
-      deferUpload: true,
       sendingDeferred: false,
       view: HOME_ASK_VIEW,
       draftKey: homeKey,

@@ -18,7 +18,6 @@ import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
   type StagedList,
-  composerUploadItemsAtom,
   getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
   restoreTextToDraft,
@@ -56,7 +55,11 @@ import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDr
 import { releaseCapture } from './capture/captureJournal';
 import { hasFailedPasteMarkerInText, skipsRootModel } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
-import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
+import {
+  hasMissingPasteAttachmentForText,
+  prepareAndUploadDeferredAttachments,
+  type RoomInputAttachmentAccess,
+} from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
@@ -97,6 +100,12 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
   /** False in a composer that takes no recording: it brings none back from disk either. */
   recover?: boolean;
+  /** The upload list atom holding staged companions (differs from roomId for staged drafts). */
+  stagedList: StagedList;
+  /** Fixed draft key for fallback text restore when not tied to a single room draft. */
+  stagedDraftKey?: string;
+  /** Prepares/encrypts deferred staged companion files for the target room at Send. */
+  prepareAttachmentsForSend?: (room: Room, items?: TUploadItem[]) => Promise<TUploadItem[]>;
 };
 
 type VoiceFeature = {
@@ -146,6 +155,9 @@ export const useRoomInputVoice = ({
   takeRootModelDraft,
   onRoomMessageSent,
   recover = true,
+  stagedList,
+  stagedDraftKey,
+  prepareAttachmentsForSend,
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
   const store = useStore();
@@ -308,7 +320,7 @@ export const useRoomInputVoice = ({
         // typed under, never in the next account's composer.
         restoreTextToDraft(
           store,
-          getRoomInputDraftKey(userId, bundle.roomId, bundle.composerThreadId),
+          stagedDraftKey ?? getRoomInputDraftKey(userId, bundle.roomId, bundle.composerThreadId),
           bundle.composerFallback
         );
       }
@@ -319,7 +331,7 @@ export const useRoomInputVoice = ({
     voiceAutoSendInFlightRef.current = false;
     voiceAutoSendClaimedRef.current = undefined;
     if (sameAccount) store.set(voiceAutoSendPendingAtom, false);
-  }, [mx, restoreText, store]);
+  }, [mx, restoreText, stagedDraftKey, store]);
 
   const handleVoiceSend = useCallback(
     async (
@@ -415,6 +427,35 @@ export const useRoomInputVoice = ({
             'create'
           );
         }
+        if (
+          composerBundle &&
+          composerBundle.companionItems.length > 0 &&
+          prepareAttachmentsForSend
+        ) {
+          const { prepared, missingPasteMarker } = await prepareAndUploadDeferredAttachments({
+            room: liveContext.room,
+            items: composerBundle.companionItems,
+            batchItems: composerBundle.companionItems,
+            textContent: composerBundle.textContent,
+            prepareForSend: prepareAttachmentsForSend,
+            onPrepared: (preparedCompanions) => {
+              const releasePrepared = attachmentAccess.protectPasteItems(preparedCompanions);
+              const prevRelease = composerBundle.releasePasteProtection;
+              composerBundle.releasePasteProtection = () => {
+                releasePrepared();
+                prevRelease();
+              };
+            },
+          });
+          ensureSameAccount();
+          if (missingPasteMarker) {
+            return logAndThrowUploadError(
+              new Error('A pasted attachment could not be prepared for this room.'),
+              'create'
+            );
+          }
+          composerBundle.companionItems = prepared;
+        }
         const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
         // A file removed from the composer before it goes is left out.
         const stillStaged = (item: TUploadItem): boolean =>
@@ -469,12 +510,22 @@ export const useRoomInputVoice = ({
           const companionUploadResults = await companionUploadResultsPromise;
           ensureSameAccount();
 
-          const readyItems = [
-            ...companionUploadResults
-              .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
-              .filter((item): item is TUploadItem => item !== undefined && stillStaged(item)),
-            fileItem,
-          ];
+          const uploadedCompanions = companionUploadResults
+            .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
+            .filter((item): item is TUploadItem => item !== undefined && stillStaged(item));
+          if (
+            hasMissingPasteAttachmentForText(
+              composerBundle.textContent,
+              eligibleCompanionItems,
+              uploadedCompanions
+            )
+          ) {
+            return logAndThrowUploadError(
+              new Error('A pasted attachment could not be uploaded for this room.'),
+              'upload'
+            );
+          }
+          const readyItems = [...uploadedCompanions, fileItem];
           try {
             if (composerBundle) {
               composerBundle.handedOff = true;
@@ -553,6 +604,7 @@ export const useRoomInputVoice = ({
       createVoiceUploadItems,
       hasActiveSendSession,
       mx,
+      prepareAttachmentsForSend,
       releaseVoiceAutoSend,
       sendVoiceItem,
       store,
@@ -602,7 +654,7 @@ export const useRoomInputVoice = ({
         midTurnMode,
         composerFallback: content ? snapshotText() : undefined,
         companionItems: staged.filter(isUploadItemReady),
-        stagedList: composerUploadItemsAtom(context.roomId, view),
+        stagedList,
         releasePasteProtection: attachmentAccess.protectPasteItems(
           staged.filter(isUploadItemReady)
         ),
@@ -632,8 +684,8 @@ export const useRoomInputVoice = ({
       getContext,
       ownsPendingVoiceDraft,
       snapshotText,
+      stagedList,
       store,
-      view,
     ]
   );
 

@@ -263,7 +263,8 @@ export const useRoomInputDictation = ({
   const mx = useOptionalMatrixClient();
   const userId = mx?.getUserId() ?? undefined;
   const sessionId = getDictationSessionId(mx);
-  const { available, confirmed, apiUrl, sessions } = useDictationServer(roomId);
+  const { available, confirmed, temporarilyUnavailable, apiUrl, sessions } =
+    useDictationServer(roomId);
   const detachedSends = useAtomValue(detachedDictationSendsAtom);
   const detachedEntry = detachedSends.get(sendKey);
   const liveCapture = useAtomValue(liveCaptureAtom);
@@ -853,10 +854,13 @@ export const useRoomInputDictation = ({
     liveCapture !== undefined ||
     voiceAutoSendPending ||
     restoresPending();
-  const label = t('composer.dictation.label');
+  const label = temporarilyUnavailable
+    ? t('composer.dictation.temporarilyUnavailable')
+    : t('composer.dictation.label');
+  const shortcut = temporarilyUnavailable ? undefined : ('dictate' as const);
 
   const button = available ? (
-    <IconTooltip label={label} position="Top" shortcut="dictate">
+    <IconTooltip label={label} position="Top" shortcut={shortcut}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
@@ -881,7 +885,7 @@ export const useRoomInputDictation = ({
           disabled={disabled}
           aria-label={label}
           aria-pressed={active}
-          {...shortcutAttributes('dictate')}
+          {...shortcutAttributes(shortcut)}
           className={ComposerIconButton}
         >
           <Icon src={Icons.Mic} />
@@ -890,13 +894,20 @@ export const useRoomInputDictation = ({
     </IconTooltip>
   ) : null;
 
+  const detachedTargetMismatch = detachedEntry !== undefined && detachedEntry.roomId !== roomId;
   const capsuleSnapshot: DictationSnapshot = detachedEntry
     ? {
         ...displaySnapshot,
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
-        ...(detachedEntry.errorMessage !== undefined
-          ? { errorMessage: detachedEntry.errorMessage }
-          : {}),
+        ...(detachedEntry.status === 'failed' && detachedTargetMismatch
+          ? {
+              errorMessage: t('composer.dictation.sendFailedOffTarget', {
+                room: detachedEntry.roomName,
+              }),
+            }
+          : detachedEntry.errorMessage !== undefined
+            ? { errorMessage: detachedEntry.errorMessage }
+            : {}),
       }
     : voiceFallbackError && displaySnapshot.phase === 'failed'
       ? { ...displaySnapshot, errorMessage: voiceFallbackError }
@@ -922,10 +933,18 @@ export const useRoomInputDictation = ({
             onPause={handlePause}
             onResume={handleResume}
             onFinish={handleFinish}
-            onRetry={detachedEntry ? detachedEntry.retryAndSend : handleRetry}
+            onRetry={
+              detachedEntry
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.retryAndSend
+                : handleRetry
+            }
             onVoiceFallback={
               detachedEntry
-                ? detachedEntry.sendAsVoice
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.sendAsVoice
                 : prepareVoiceUploadItems && appendAttachments
                   ? () => {
                       void handleAttachAsVoice();

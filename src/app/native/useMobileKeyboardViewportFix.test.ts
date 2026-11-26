@@ -414,6 +414,76 @@ describe('useMobileKeyboardViewportFix', () => {
     });
   });
 
+  it('does not pin shrunk Android layout height during keyboardWillHide while IME padding is active', async () => {
+    const env = installViewportTestEnv({
+      isNativePlatform: true,
+      keyboardAvailable: true,
+      platform: 'android',
+    });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setInnerHeight(500);
+    env.setVisualViewportHeight(500);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+
+    // Android keyboardWillHide fires at animation start while SystemBars still applies IME padding.
+    await act(async () => {
+      env.emitKeyboard('keyboardWillHide');
+    });
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+
+    // Once the hide animation completes and SystemBars restores layout height, keyboardDidHide applies it.
+    env.setInnerHeight(800);
+    await act(async () => {
+      env.emitKeyboard('keyboardDidHide');
+    });
+    expect(env.styleValues.get('--app-height')).toBe('800px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('forces full layout height immediately on iOS keyboardWillHide', async () => {
+    const env = installViewportTestEnv({
+      isNativePlatform: true,
+      keyboardAvailable: true,
+      platform: 'ios',
+    });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setInnerHeight(800);
+    env.setVisualViewportHeight(500);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-height')).toBe('500px');
+
+    await act(async () => {
+      env.emitKeyboard('keyboardWillHide');
+    });
+    expect(env.styleValues.get('--app-height')).toBe('800px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
   it.each(['orientationchange', 'pageshow'])(
     'uses native layout height after %s when visualViewport is stale',
     async (eventName) => {

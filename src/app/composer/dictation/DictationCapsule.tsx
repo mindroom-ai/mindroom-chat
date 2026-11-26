@@ -19,7 +19,7 @@ export type DictationCapsuleProps = {
   onPause: () => void;
   onResume: () => void;
   onFinish: () => void;
-  onRetry: () => void;
+  onRetry?: () => void;
   onVoiceFallback?: () => void;
   voiceFallbackPending?: boolean;
   onInsertPartial: () => void;
@@ -141,17 +141,19 @@ export function DictationCapsule({
               {detail}
             </Text>
             <div className={css.RecoveryActions}>
-              <Button
-                size="300"
-                radii="300"
-                variant="Primary"
-                className={css.RecoveryButton}
-                onClick={onRetry}
-              >
-                <Text size="B300">
-                  {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
-                </Text>
-              </Button>
+              {onRetry && (
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Primary"
+                  className={css.RecoveryButton}
+                  onClick={onRetry}
+                >
+                  <Text size="B300">
+                    {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
+                  </Text>
+                </Button>
+              )}
               {hasVoiceAudio && onVoiceFallback && (
                 <Button
                   size="300"
@@ -260,14 +262,16 @@ export function DictationCapsule({
             )}
           </CapsuleControlButton>
         }
+        bottom={
+          subtleStatus ? (
+            <Text size="T200" className={css.StatusNote}>
+              {subtleStatus}
+            </Text>
+          ) : null
+        }
         statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending, recovered))}
         statusRole="status"
       />
-      {subtleStatus && (
-        <Text size="T200" className={css.StatusNote}>
-          {subtleStatus}
-        </Text>
-      )}
     </div>
   );
 }

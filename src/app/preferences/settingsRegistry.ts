@@ -22,8 +22,10 @@ export const SETTING_SCOPE_LABEL_KEYS = {
 
 /** What decides whether a page or setting is offered right now. */
 export type SettingsContext = {
-  /** Inside the iOS or Android app. */
+  /** Inside a bundled app shell (Capacitor iOS/Android or Electron desktop). */
   native: boolean;
+  /** Inside a Capacitor native shell (iOS or Android, not Electron desktop). */
+  capacitor: boolean;
   nativeIOS: boolean;
   /** The diagnostics record: always in the iOS app, elsewhere with debug mode on. */
   diagnostics: boolean;
@@ -251,6 +253,7 @@ export const SETTINGS = [
     descriptionKey: `${NOTIFY}.systemNotification.showDesktopNotificationsWhenMessageArrive`,
     keywordsKey: `${KEYWORDS}.alerts`,
     scope: 'device',
+    hidden: (context) => context.capacitor,
   },
   {
     id: 'notificationSound',
@@ -551,6 +554,15 @@ export const SETTINGS = [
     labelKey: 'featureUi.settings.mediaCompression.title',
     descriptionKey: 'featureUi.settings.mediaCompression.description',
     keywordsKey: `${KEYWORDS}.mediaCompression`,
+    scope: 'account',
+  },
+  {
+    id: 'autoZipLargeFiles',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'featureUi.settings.autoZipLargeFiles.title',
+    descriptionKey: 'featureUi.settings.autoZipLargeFiles.description',
+    keywordsKey: `${KEYWORDS}.autoZipLargeFiles`,
     scope: 'account',
   },
   {

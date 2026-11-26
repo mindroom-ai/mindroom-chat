@@ -211,7 +211,6 @@ describe('large pastes in a draft restored after a reload', () => {
         roomId: ROOM_ID,
         draftKey: homeDraftKey,
         stagedListKey: homeDraftKey,
-        deferUpload: true,
         editor,
         isMarkdown: true,
         fileDropContainerRef: createRef<HTMLElement>(),

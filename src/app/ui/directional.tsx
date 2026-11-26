@@ -122,7 +122,7 @@ export const PopOut = function DirectionalPopOut({
 }: Placement & Record<string, unknown>) {
   const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
   const Base = FoldsPopOut as React.ElementType;
-  return <Base {...props} {...placement} />;
+  return <Base data-popout="" {...props} {...placement} />;
 } as unknown as typeof FoldsPopOut;
 
 /** Whether the last press was a touch, with no mouse moved since. */

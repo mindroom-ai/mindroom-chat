@@ -26,8 +26,7 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import type { DesktopUpdateCheckOutcome } from '../../lib/desktopBridge';
-import { isDesktopApp } from '../../lib/nativeShell';
-import { isNativeIOS } from '../../native/nativeSso';
+import { isNativeApp } from '../../native/nativeSso';
 import { checkNativeUpdate, isNativeUpdateAvailable } from '../../native/nativeUpdate';
 import { MacAppIcon } from '../../native/MacAppIcon';
 import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
@@ -678,12 +677,12 @@ function AppIdentity() {
 }
 
 /**
- * App version, debug mode, diagnostics tools (always in the iOS and desktop apps, behind debug
+ * App version, debug mode, diagnostics tools (always in the native and desktop apps, behind debug
  * mode elsewhere), error reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
-  const nativeDiagnostics = isNativeIOS() || isDesktopApp();
+  const nativeDiagnostics = isNativeApp();
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;

@@ -528,7 +528,8 @@
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
         "plugins": "プラグイン, 拡張機能, アドオン, 連携",
         "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動",
-        "mediaCompression": "スクリーンショット, 画面録画, 画像, 動画, 圧縮, アップロードサイズ"
+        "mediaCompression": "スクリーンショット, 画面録画, 画像, 動画, 圧縮, アップロードサイズ",
+        "autoZipLargeFiles": "zip, アーカイブ, 圧縮, json, csv, ログ, 大きなファイル, アップロードサイズ"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -557,6 +558,10 @@
         "off": "オフ",
         "balanced": "バランス",
         "small": "小"
+      },
+      "autoZipLargeFiles": {
+        "title": "大きなファイルを圧縮 (.zip)",
+        "description": "アップロード前に 1 MB を超える圧縮可能なファイルを自動で .zip に圧縮します。どの添付ファイルでも元のファイルを使用できます。"
       }
     },
     "createChat": {
@@ -1874,6 +1879,7 @@
     "newThreadWith": "{{name}} との新しいスレッド…",
     "dictation": {
       "label": "音声入力",
+      "temporarilyUnavailable": "音声入力を利用できません — 再接続中",
       "cancel": "音声入力をキャンセル",
       "pause": "音声入力を一時停止",
       "resume": "音声入力を再開",
@@ -1895,6 +1901,7 @@
       "noSpeech": "音声が検出されませんでした。",
       "noSpeechOffThread": "{{room}} で音声が検出されませんでした。",
       "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
+      "sendFailedOffTarget": "{{room}} の音声入力メッセージを完了できませんでした。再試行するには {{room}} をもう一度選択してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",

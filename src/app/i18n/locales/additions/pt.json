@@ -554,7 +554,8 @@
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
         "plugins": "plugins, extensões, complementos, integrações",
         "appUpdates": "atualização, atualizações, versão, atualizar, reiniciar",
-        "mediaCompression": "capturas de tela, gravações de tela, imagens, vídeos, compressão, tamanho do envio"
+        "mediaCompression": "capturas de tela, gravações de tela, imagens, vídeos, compressão, tamanho do envio",
+        "autoZipLargeFiles": "zip, arquivo, compactar, json, csv, log, arquivos grandes, tamanho do envio"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -583,6 +584,10 @@
         "off": "Desativada",
         "balanced": "Equilibrada",
         "small": "Pequena"
+      },
+      "autoZipLargeFiles": {
+        "title": "Compactar arquivos grandes (.zip)",
+        "description": "Compacte automaticamente em .zip arquivos compactáveis maiores que 1 MB antes de enviar. Você ainda pode usar o original para qualquer anexo."
       }
     },
     "createChat": {
@@ -2004,6 +2009,7 @@
     "newThreadWith": "Novo tópico com {{name}}…",
     "dictation": {
       "label": "Ditar",
+      "temporarilyUnavailable": "Ditado indisponível — a restabelecer a ligação",
       "cancel": "Cancelar ditado",
       "pause": "Pausar ditado",
       "resume": "Retomar ditado",
@@ -2025,6 +2031,7 @@
       "noSpeech": "Nenhuma fala detectada.",
       "noSpeechOffThread": "Nenhuma fala detectada em {{room}}.",
       "sendFailedOffThread": "Não foi possível concluir a mensagem ditada em {{room}}. Abra para tentar novamente.",
+      "sendFailedOffTarget": "Não foi possível concluir a mensagem ditada em {{room}}. Escolha {{room}} novamente para tentar novamente.",
       "statusPendingRetry_one": "{{count}} segmento aguardando nova tentativa",
       "statusPendingRetry_many": "{{count}} segmentos aguardando nova tentativa",
       "statusPendingRetry_other": "{{count}} segmentos aguardando nova tentativa",

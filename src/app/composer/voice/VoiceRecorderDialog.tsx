@@ -168,7 +168,12 @@ export function VoiceRecorderComposer({
                 non-forwardRef function component (folds Dialog supports
                 refs in production but the test mock doesn't). */}
             <div>
-              <Dialog variant="Surface">
+              <Dialog
+                variant="Surface"
+                role="dialog"
+                aria-modal="true"
+                aria-label={t('mindroomUi.voice.voiceRecorderDialog.voiceSendFailed')}
+              >
                 <Box
                   direction="Column"
                   gap="300"

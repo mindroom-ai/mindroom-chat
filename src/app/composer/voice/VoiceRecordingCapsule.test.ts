@@ -2,10 +2,11 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { Icons } from 'folds';
 import { describe, expect, it, vi } from 'vitest';
 import { createFallbackWaveform } from '../../lib/audioWaveform';
 import { VoiceWaveform } from '../../messages/content/voice/VoiceWaveform';
-import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
+import { RecordingCapsule, VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 
 vi.mock('folds', () => {
   const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -277,6 +278,38 @@ describe('VoiceRecordingCapsule', () => {
 
     expect(onDiscard).toHaveBeenCalledOnce();
     expect(onPause).not.toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
+  it('renders optional bottom slot inside CapsuleStacked after ControlsRow and before HiddenStatus', () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RecordingCapsule, {
+          top: React.createElement('div', { 'data-slot': 'top' }, 'Top content'),
+          bottom: React.createElement('div', { 'data-slot': 'bottom' }, 'Bottom status'),
+          dismissIcon: Icons.Cross,
+          dismissLabel: 'Cancel',
+          onDismiss: vi.fn(),
+          waveform: createFallbackWaveform(),
+          timerText: '0:05',
+          paused: false,
+          pauseLabel: 'Pause',
+          onTogglePause: vi.fn(),
+          statusText: 'Listening',
+          statusRole: 'status',
+        })
+      );
+    });
+
+    const capsule = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'CapsuleStacked'
+    );
+    const slots = capsule.children.map((child) =>
+      typeof child === 'string' ? child : (child.props['data-slot'] ?? child.props.className)
+    );
+    expect(slots).toEqual(['top', 'ControlsRow', 'bottom', 'HiddenStatus']);
 
     renderer.unmount();
   });

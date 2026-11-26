@@ -4,6 +4,7 @@ import {
   DICTATION_STATUS_CACHE_TTL_MS,
   DictationApiError,
   DictationClient,
+  expireTransientDictationCache,
   probeDictationAvailability,
   readCachedDictationAvailability,
   readCachedDictationRetryAt,
@@ -147,14 +148,79 @@ describe('probeDictationAvailability cache', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('marks 503/network failures as transient with a 30 s retryAt deadline', async () => {
+  it('marks 503/network failures as transient with bounded exponential backoff and resets on recovery', async () => {
+    let clock = 100_000;
+    const now = () => clock;
     const send = vi.fn(async () => new Response('unavailable', { status: 503 }));
     const sessions = makeSessions(send);
-    const now = () => 100_000;
 
+    for (const expectedDelay of [30_000, 60_000, 120_000, 240_000, 300_000, 300_000]) {
+      expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(false);
+      const retryAt = clock + expectedDelay;
+      expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(retryAt);
+      expect(readCachedDictationAvailability(sessions, '!r:ex', retryAt - 1)).toBe(false);
+      clock = retryAt + 1;
+      expect(readCachedDictationAvailability(sessions, '!r:ex', clock)).toBeUndefined();
+    }
+
+    // Success clears transient state and backoff counter; a later 503 starts back at 30 s.
+    send.mockResolvedValueOnce(
+      Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+    );
+    expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(true);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBeUndefined();
+
+    clock += DICTATION_STATUS_CACHE_TTL_MS + 1;
     expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(false);
-    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(130_000);
-    expect(readCachedDictationAvailability(sessions, '!r:ex', 129_999)).toBe(false);
-    expect(readCachedDictationAvailability(sessions, '!r:ex', 130_001)).toBeUndefined();
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(clock + 30_000);
+
+    // Permanent 403 also clears transient state and caches for the full TTL.
+    clock += 30_001;
+    send.mockResolvedValueOnce(new Response('forbidden', { status: 403 }));
+    expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(false);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBeUndefined();
+    expect(readCachedDictationAvailability(sessions, '!r:ex', clock + 60_000)).toBe(false);
+  });
+
+  it('preserves transient state across in-flight re-probes and resets backoff on expireTransientDictationCache', async () => {
+    let clock = 10_000;
+    const now = () => clock;
+    const send = vi.fn<() => Promise<Response>>();
+    send.mockResolvedValueOnce(new Response('unavailable', { status: 503 }));
+    send.mockResolvedValueOnce(new Response('unavailable', { status: 503 }));
+    const sessions = makeSessions(send);
+
+    await probeDictationAvailability(sessions, '!r:ex', undefined, now);
+    clock += 30_001;
+    await probeDictationAvailability(sessions, '!r:ex', undefined, now);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(clock + 60_000);
+
+    // Expiring transient cache marks it immediately stale, keeps transient flag, and resets backoff to 30 s.
+    expireTransientDictationCache(sessions, '!r:ex');
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(0);
+    expect(readCachedDictationAvailability(sessions, '!r:ex', clock)).toBeUndefined();
+
+    let resolveInFlight!: (res: Response) => void;
+    send.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveInFlight = resolve;
+        })
+    );
+    const pending = probeDictationAvailability(sessions, '!r:ex', undefined, now);
+    // Transient flag stays set while the re-probe is in flight (no UI flicker).
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(0);
+    resolveInFlight(new Response('unavailable', { status: 503 }));
+    expect(await pending).toBe(false);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(clock + 30_000);
+
+    // No-op for non-transient entries.
+    send.mockResolvedValueOnce(
+      Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+    );
+    clock += 30_001;
+    expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(true);
+    expireTransientDictationCache(sessions, '!r:ex');
+    expect(readCachedDictationAvailability(sessions, '!r:ex', clock)).toBe(true);
   });
 });

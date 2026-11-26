@@ -64,7 +64,7 @@ import {
 } from './RoomInputExtensions';
 import { settingsAtom } from '../preferences/settings';
 import { getMediaCompressionGeneration } from './mediaCompressionJobs';
-import { useMediaCompression, type PendingVideoCompression } from './useMediaCompression';
+import { useMediaCompression, type PendingBackgroundCompression } from './useMediaCompression';
 
 type CreateRoomInputUploadItems = (
   files: File[],
@@ -83,14 +83,10 @@ type UseRoomInputAttachmentsOptions = {
   isMarkdown: boolean;
   fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
-  /** Overrides the room key used for staged files (e.g. Home's single account-wide list). */
+  /** Fixed staged-file key across target switches; also defers upload/encryption and renders the board inline. */
   stagedListKey?: string;
-  /** Keeps staged files local and unencrypted until `prepareForSend` commits them at Send. */
-  deferUpload?: boolean;
-  /** True while a deferred send (Home Ask) is in flight; disables per-card "Use original" swaps. */
+  /** True while a deferred send is in flight; disables per-card "Use original" swaps. */
   sendingDeferred?: boolean;
-  /** Renders the upload board in normal flow above the composer instead of floating. */
-  inlineUploadBoard?: boolean;
 };
 
 type RoomInputAttachments = {
@@ -167,11 +163,10 @@ export const useRoomInputAttachments = ({
   fileDropContainerRef,
   createUploadItems,
   stagedListKey,
-  deferUpload = false,
   sendingDeferred = false,
-  inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
+  const deferUpload = stagedListKey !== undefined;
   const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
   // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
   const view = useContext(ConversationViewContext);
@@ -233,17 +228,18 @@ export const useRoomInputAttachments = ({
     });
   }, []);
 
-  // The names of a room's staged files follow every change, so a reload can say what it lost.
+  // The names of a composer's staged files follow every change, so a reload can say what it lost.
   const keepNames = useCallback(
     (targetRoomId: string) => {
-      if (!userId || view !== undefined || stagedListKey !== undefined) return;
+      if (!userId || view !== undefined) return;
+      const key = listKey(targetRoomId);
       keepStagedFileNames(
-        userId,
-        targetRoomId,
-        store.get(roomIdToUploadItemsAtomFamily(targetRoomId))
+        stagedListKey ?? getRoomInputDraftKey(userId, targetRoomId),
+        store.get(roomIdToUploadItemsAtomFamily(key)),
+        store
       );
     },
-    [stagedListKey, store, userId, view]
+    [listKey, stagedListKey, store, userId, view]
   );
 
   // Paste files belong to the draft they were pasted into; other files to the room's composer,
@@ -559,6 +555,7 @@ export const useRoomInputAttachments = ({
   const {
     compressInlineImages,
     createPendingVideo,
+    createPendingAutoZip,
     useOriginal: restoreOriginal,
     compressToZip,
   } = useMediaCompression({
@@ -711,26 +708,38 @@ export const useRoomInputAttachments = ({
       const targetRoom =
         (asked && typeof mx.getRoom === 'function' ? mx.getRoom(targetRoomId) : undefined) ??
         current.current.room;
-      const preset = store.get(settingsAtom).mediaCompression;
+      const { mediaCompression: preset, autoZipLargeFiles } = store.get(settingsAtom);
 
-      const videoJobs: Array<{ index: number; job: PendingVideoCompression }> = [];
+      const backgroundJobs: Array<{ index: number; job: PendingBackgroundCompression }> = [];
       const inlineFiles: Array<{ index: number; file: File }> = [];
       files.forEach((file, index) => {
-        const job = createPendingVideo(file, preset, targetRoom, targetRoomId);
-        if (job) videoJobs.push({ index, job });
+        const job =
+          createPendingVideo(file, preset, targetRoom, targetRoomId) ??
+          (autoZipLargeFiles ? createPendingAutoZip(file, targetRoom, targetRoomId) : undefined);
+        if (job) backgroundJobs.push({ index, job });
         else inlineFiles.push({ index, file });
       });
 
       const stagedItems = new Array<TUploadItem>(files.length);
-      const commit = () => {
-        videoJobs.forEach(({ index, job }) => {
+      const commit = (): boolean => {
+        if (!mounted.current) return false;
+        if (
+          asked &&
+          (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn('[composer] files not attached: the conversation changed');
+          return false;
+        }
+        backgroundJobs.forEach(({ index, job }) => {
           stagedItems[index] = job.placeholder;
         });
         access.append(targetRoomId, stagedItems);
-        videoJobs.forEach(({ job }) => job.start());
+        backgroundJobs.forEach(({ job }) => job.start());
+        return true;
       };
       if (inlineFiles.length === 0) {
-        commit();
+        if (!commit()) backgroundJobs.forEach(({ job }) => job.cancel());
         return;
       }
 
@@ -743,30 +752,22 @@ export const useRoomInputAttachments = ({
           preset
         );
         const prepared = await prepareLocalItems(compressed.map((entry) => entry.file));
-        if (!mounted.current || getMediaCompressionGeneration() !== startGen) return;
-        if (
-          asked &&
-          (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
-        ) {
-          // eslint-disable-next-line no-console
-          console.warn('[composer] files not attached: the conversation changed');
-          return;
-        }
+        if (getMediaCompressionGeneration() !== startGen) return;
         prepared.forEach((item, idx) => {
           const itemCompression = compressed[idx]?.compression;
           stagedItems[inlineFiles[idx]!.index] =
             itemCompression && !item.prepError ? { ...item, compression: itemCompression } : item;
         });
-        committed = true;
-        commit();
+        committed = commit();
       } finally {
-        if (!committed) videoJobs.forEach(({ job }) => job.cancel());
+        if (!committed) backgroundJobs.forEach(({ job }) => job.cancel());
         updatePendingStaging(targetKey, -1);
       }
     },
     [
       access,
       compressInlineImages,
+      createPendingAutoZip,
       createPendingVideo,
       listKey,
       mx,
@@ -989,7 +990,7 @@ export const useRoomInputAttachments = ({
   const board =
     visibleItems.length > 0 ? (
       <UploadBoard
-        inline={inlineUploadBoard}
+        inline={deferUpload}
         header={
           <UploadBoardHeader
             open={boardOpen}

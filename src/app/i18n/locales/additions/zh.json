@@ -528,7 +528,8 @@
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
         "plugins": "插件, 扩展, 附加组件, 集成",
         "appUpdates": "更新, 版本, 升级, 重启",
-        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小"
+        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小",
+        "autoZipLargeFiles": "zip, 归档, 压缩, json, csv, 日志, 大文件, 上传大小"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -557,6 +558,10 @@
         "off": "关闭",
         "balanced": "均衡",
         "small": "较小"
+      },
+      "autoZipLargeFiles": {
+        "title": "压缩大文件 (.zip)",
+        "description": "在上传前自动将超过 1 MB 的可压缩文件压缩为 .zip。您仍然可以为任意附件选择原文件。"
       }
     },
     "createChat": {
@@ -1874,6 +1879,7 @@
     "newThreadWith": "与 {{name}} 新建讨论串…",
     "dictation": {
       "label": "听写",
+      "temporarilyUnavailable": "听写不可用 — 正在重新连接",
       "cancel": "取消听写",
       "pause": "暂停听写",
       "resume": "继续听写",
@@ -1895,6 +1901,7 @@
       "noSpeech": "未检测到语音。",
       "noSpeechOffThread": "在 {{room}} 中未检测到语音。",
       "sendFailedOffThread": "无法完成 {{room}} 中的听写消息。请打开并重试。",
+      "sendFailedOffTarget": "无法完成 {{room}} 中的听写消息。请再次选择 {{room}} 以重试。",
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",

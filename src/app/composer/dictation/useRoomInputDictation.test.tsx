@@ -47,14 +47,22 @@ const serverMock = vi.hoisted(
   (): {
     available: boolean;
     confirmed: boolean;
+    temporarilyUnavailable: boolean;
     apiUrl: string;
     byRoom: Map<
       string,
-      { available: boolean; confirmed: boolean; apiUrl?: string; sessions?: ClientSessions }
+      {
+        available: boolean;
+        confirmed: boolean;
+        temporarilyUnavailable?: boolean;
+        apiUrl?: string;
+        sessions?: ClientSessions;
+      }
     >;
     overlay: 'none' | 'help' | 'other';
     defaultSessions: ClientSessions;
     sessions: ClientSessions | undefined;
+    lastTooltipProps: { label?: string; shortcut?: string } | undefined;
     deleteCapture: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
     releaseCapture: ReturnType<typeof vi.fn<(id: string) => void>>;
   } => {
@@ -62,11 +70,13 @@ const serverMock = vi.hoisted(
     return {
       available: true,
       confirmed: true,
+      temporarilyUnavailable: false,
       apiUrl: 'https://mr.example',
       byRoom: new Map(),
       overlay: 'none',
       defaultSessions,
       sessions: defaultSessions,
+      lastTooltipProps: undefined,
       deleteCapture: vi.fn(async () => undefined),
       releaseCapture: vi.fn(() => undefined),
     };
@@ -90,6 +100,7 @@ vi.mock('./useDictationServer', () => ({
       return {
         available: override.available,
         confirmed: override.available && override.confirmed,
+        temporarilyUnavailable: override.temporarilyUnavailable ?? false,
         apiUrl: override.apiUrl,
         roomId,
         sessions: override.sessions,
@@ -98,6 +109,7 @@ vi.mock('./useDictationServer', () => ({
     return {
       available: serverMock.available,
       confirmed: serverMock.available && serverMock.confirmed,
+      temporarilyUnavailable: serverMock.temporarilyUnavailable,
       apiUrl: serverMock.available && serverMock.sessions ? serverMock.apiUrl : undefined,
       roomId: roomId ?? '!room:example.org',
       sessions: serverMock.available ? serverMock.sessions : undefined,
@@ -118,8 +130,18 @@ vi.mock('../../messages/content/voice/VoiceWaveform', () => ({
 }));
 
 vi.mock('../../ui/IconTooltip', () => ({
-  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
-    children(() => undefined),
+  IconTooltip: ({
+    label,
+    shortcut,
+    children,
+  }: {
+    label: string;
+    shortcut?: string;
+    children: (ref: () => void) => React.ReactNode;
+  }) => {
+    serverMock.lastTooltipProps = { label, shortcut };
+    return children(() => undefined);
+  },
 }));
 
 const makeSlateEditor = (initialText = '') => {
@@ -278,6 +300,8 @@ class TestPointerEvent extends MouseEvent {
 beforeEach(() => {
   serverMock.available = true;
   serverMock.confirmed = true;
+  serverMock.temporarilyUnavailable = false;
+  serverMock.lastTooltipProps = undefined;
   serverMock.apiUrl = 'https://mr.example';
   serverMock.byRoom.clear();
   serverMock.sessions = serverMock.defaultSessions;
@@ -537,6 +561,38 @@ describe('useRoomInputDictation', () => {
       expect(getFeature().start()).toBe(true);
     });
     expect(session.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the mic button visible and disabled with reconnecting label and no shortcut when temporarilyUnavailable', () => {
+    serverMock.available = true;
+    serverMock.confirmed = false;
+    serverMock.temporarilyUnavailable = true;
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    const { getFeature, forceRerender } = renderHarness(editor, store, session);
+    const btn = screen.getByLabelText<HTMLButtonElement>(
+      'composer.dictation.temporarilyUnavailable'
+    );
+    expect(btn.disabled).toBe(true);
+    expect(btn.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(serverMock.lastTooltipProps).toEqual({
+      label: 'composer.dictation.temporarilyUnavailable',
+      shortcut: undefined,
+    });
+    expect(getFeature().start()).toBe(false);
+    expect(session.start).not.toHaveBeenCalled();
+
+    serverMock.temporarilyUnavailable = false;
+    serverMock.confirmed = true;
+    forceRerender();
+    const recoveredBtn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
+    expect(recoveredBtn.disabled).toBe(false);
+    expect(serverMock.lastTooltipProps).toEqual({
+      label: 'composer.dictation.label',
+      shortcut: 'dictate',
+    });
   });
 
   it('enforces mutual exclusion through shared liveCaptureAtom', async () => {
@@ -2192,5 +2248,86 @@ describe('useRoomInputDictation', () => {
     expect(mock.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
     expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-attach-fail');
     expect(store.get(liveCaptureAtom)).toBeUndefined();
+  });
+
+  it('omits Retry and send and Send as voice and names the original room when a staged composer targets a different room', () => {
+    const store = createStore();
+    const spaceKey = 'space-key';
+    const retryAndSend = vi.fn();
+    const sendAsVoice = vi.fn();
+    const { session } = createMockSession({
+      initial: {
+        phase: 'failed',
+        failedSegments: 1,
+        hasVoiceAudio: true,
+        errorMessage: 'network error',
+      },
+    });
+    store.set(
+      detachedDictationSendsAtom,
+      new Map([
+        [
+          spaceKey,
+          {
+            ownerKey: spaceKey,
+            roomId: '!eng:example.org',
+            roomName: 'Engineering',
+            status: 'failed',
+            session,
+            retryAndSend,
+            sendAsVoice,
+            insertPartial: vi.fn(),
+            discard: vi.fn(async () => undefined),
+            abort: vi.fn(),
+          },
+        ],
+      ])
+    );
+    const editor = createEditor();
+    const mx = {
+      baseUrl: 'https://hs.example.org',
+      getHomeserverUrl: () => 'https://hs.example.org',
+      getUserId: () => '@alice:example.org',
+      getRoom: () => null,
+    } as unknown as MatrixClient;
+    function StagedComposer({ roomId }: { roomId: string }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      return (
+        <div ref={rootRef}>
+          {
+            useRoomInputDictation({
+              editor,
+              roomId,
+              ownerKey: spaceKey,
+              sendKey: spaceKey,
+              draftKey: spaceKey,
+              rootRef,
+            }).capsule
+          }
+        </div>
+      );
+    }
+    const wrap = (roomId: string) => (
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <StagedComposer roomId={roomId} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    const view = render(wrap('!des:example.org'));
+    expect(screen.queryByText('composer.dictation.retryAndSend')).toBeNull();
+    expect(screen.queryByText('composer.dictation.sendAsVoice')).toBeNull();
+    expect(screen.getByText('composer.dictation.discard')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'composer.dictation.sendFailedOffTarget'
+    );
+
+    view.rerender(wrap('!eng:example.org'));
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+    expect(retryAndSend).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('composer.dictation.sendAsVoice'));
+    expect(sendAsVoice).toHaveBeenCalledTimes(1);
+    view.unmount();
   });
 });

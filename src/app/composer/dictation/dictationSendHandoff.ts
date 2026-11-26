@@ -664,7 +664,7 @@ export const startDetachedDictationSend = (
         ...buildSendSessionBase(liveRoom, textContent),
         rootModel: effectiveRootModel ?? null,
         batch: { fileItems: sendStaged },
-        completeWithinCall: Boolean(ask && sendStaged.length > 0),
+        completeWithinCall: Boolean(input.prepareAttachmentsForSend && sendStaged.length > 0),
         composerFallback: mergedFallback,
         onTextConsumed,
       });

@@ -2,6 +2,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { IconButton } from 'folds';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
@@ -15,7 +16,9 @@ import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { getSettings, settingsAtom } from '../preferences/settings';
+import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { SubagentsPanel } from './SubagentsPanel';
+import { HeaderBack, RunHeader } from './subagentsPanel.css';
 import { keepCancelsOf } from '../matrix/state/sentCancels';
 import { showToolCalls } from '../../test/utils/showToolCalls';
 import { showUsageDetails } from '../../test/utils/showUsageDetails';
@@ -1380,6 +1383,30 @@ describe('SubagentsPanel', () => {
       );
       // The run is in the thread on screen, so it has no button to that thread.
       expect(container.querySelector('header [aria-label="Open thread"]')).toBeNull();
+    });
+
+    it('aligns the open run header and back button with the panel header controls', () => {
+      const sample = document.createElement('div');
+      const sampleRoot = createRoot(sample);
+      act(() => {
+        sampleRoot.render(<IconButton size="300" radii="300" variant="Surface" fill="None" />);
+      });
+      const surfaceNoneTokens = Array.from(sample.querySelector('button')?.classList ?? []);
+      act(() => sampleRoot.unmount());
+      expect(surfaceNoneTokens.length).toBeGreaterThan(0);
+
+      ingest('lead', meta('running', { task: 'Review deployment checklist' }), docs('Checking.'));
+      render(ScreenSize.Desktop, '$thread:example.org');
+      open('lead');
+
+      const header = container.querySelector('header');
+      expect(header?.classList.contains(SidePanelHeader)).toBe(true);
+      expect(header?.classList.contains(RunHeader)).toBe(true);
+
+      const back = button(container, 'Back');
+      expect(back.classList.contains(HeaderBack)).toBe(true);
+      expect(Array.from(back.classList)).toEqual(expect.arrayContaining(surfaceNoneTokens));
+      expect(back.querySelector('svg')?.hasAttribute('data-directional')).toBe(true);
     });
 
     it("names the newest turn's Stop for that turn, cancels its job, and gives focus to the title", async () => {
