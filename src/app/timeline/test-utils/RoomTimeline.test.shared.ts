@@ -1021,6 +1021,13 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     }
     return 0;
   },
+  getEventPreviewContent: (
+    event:
+      | {
+          getContent?: () => Record<string, unknown> | undefined;
+        }
+      | undefined
+  ) => event?.getContent?.(),
   getVisibleThreadEventBodyPreviewText: (
     event:
       | {

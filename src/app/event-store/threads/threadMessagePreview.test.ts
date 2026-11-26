@@ -120,6 +120,13 @@ describe('stripPreviewMarkdown', () => {
     expect(stripPreviewMarkdown('pick a | b')).toBe('pick a | b');
     expect(stripPreviewMarkdown('```\n| a | b |\n```')).toContain('| a | b |');
   });
+
+  it('strips prose thematic breaks without mangling spaced rules or fenced code', () => {
+    expect(stripPreviewMarkdown('Before\n\n* * *\n\n- - -\n\n---\n\nAfter')).toBe(
+      'Before\n\n \n\n \n\n \n\nAfter'
+    );
+    expect(stripPreviewMarkdown('```\n---\n* * *\n```')).toContain('---\n* * *');
+  });
 });
 
 describe('getThreadMessagePreviewText', () => {
@@ -317,5 +324,146 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent('['.repeat(60_000)))).toBeDefined();
     expect(getThreadMessagePreviewText(textContent(' **a'.repeat(15_000)))).toBeDefined();
     expect(cpuNow() - start).toBeLessThan(500);
+  });
+});
+
+describe('folded-work post-tool answer previews', () => {
+  const finishedContent = (
+    body: string,
+    aiStatus = 'completed',
+    streamStatus?: string
+  ): Record<string, unknown> => ({
+    msgtype: 'm.text',
+    body,
+    'io.mindroom.ai_run': { version: 1, status: aiStatus },
+    ...(streamStatus !== undefined ? { 'io.mindroom.stream_status': streamStatus } : {}),
+  });
+
+  const sampleBody = 'Checking logs first.\n\n🔧 `read_file` [1]\n\n**All checks passed.**';
+
+  it.each([
+    ['completed', undefined],
+    ['COMPLETED', 'completed'],
+    ['completed', 'complete'],
+    ['cached', 'done'],
+  ])(
+    'shows only the post-tool answer without a tool badge for finished (%s, %s) replies',
+    (aiStatus, streamStatus) => {
+      const content = finishedContent(sampleBody, aiStatus, streamStatus);
+      const preview = getThreadMessagePreviewText(content);
+      expect(preview).toBe('All checks passed.');
+      expect(getThreadPreviewLocalization(content, preview)).toBeUndefined();
+    }
+  );
+
+  it.each([
+    ['streaming ai_run', finishedContent(sampleBody, 'streaming', 'streaming')],
+    ['pending ai_run', finishedContent(sampleBody, 'pending', 'pending')],
+    ['failed ai_run', finishedContent(sampleBody, 'error', 'failed')],
+    ['stopped stream', finishedContent(sampleBody, 'completed', 'stopped')],
+    ['cancelled ai_run', finishedContent(sampleBody, 'cancelled', 'cancelled')],
+    ['regenerated streaming', finishedContent(sampleBody, 'completed', 'streaming')],
+    ['non-agent', textContent(sampleBody)],
+  ])('keeps the full badged preview for %s replies', (_label, content) => {
+    const preview = getThreadMessagePreviewText(content);
+    expect(preview).toBe('🔧 1 tool · Checking logs first. All checks passed.');
+    expect(getThreadPreviewLocalization(content, preview)).toEqual({
+      kind: 'tools',
+      count: 1,
+      prose: 'Checking logs first. All checks passed.',
+    });
+  });
+
+  it('extracts the post-tool answer even after >2000 chars of pre-tool work', () => {
+    const longWork = 'w'.repeat(2_600);
+    const body = `${longWork}\n\n🔧 \`search\` [1]\n\nFinal summary ready.`;
+    expect(getThreadMessagePreviewText(finishedContent(body))).toBe('Final summary ready.');
+  });
+
+  it.each([
+    ['empty tail', 'Running the build:\n\n🔧 `build` [1]', '🔧 1 tool · Running the build'],
+    [
+      'whitespace tail',
+      'Running the build:\n\n🔧 `build` [1]\n   \n',
+      '🔧 1 tool · Running the build',
+    ],
+    [
+      'rule-only tail',
+      'Running the build:\n\n🔧 `build` [1]\n\n---',
+      '🔧 1 tool · Running the build',
+    ],
+    [
+      'spaced asterisk rule tail',
+      'Running the build:\n\n🔧 `build` [1]\n\n* * *',
+      '🔧 1 tool · Running the build',
+    ],
+    [
+      'spaced hyphen rule tail',
+      'Running the build:\n\n🔧 `build` [1]\n\n- - -',
+      '🔧 1 tool · Running the build',
+    ],
+    ['pending hourglass tail', '🔧 `build` [1]\n\n⏳', '🔧 1 tool'],
+    ['zero-width tail', '🔧 `build` [1]\n\n\u200B\uFEFF\uFE0F', '🔧 1 tool'],
+  ])(
+    'falls back to the full preview when post-tool content is non-visible (%s)',
+    (_label, body, expected) => {
+      const content = finishedContent(body);
+      const preview = getThreadMessagePreviewText(content);
+      expect(preview).toBe(expected);
+      expect(getThreadPreviewLocalization(content, preview)?.kind).toBe('tools');
+    }
+  );
+
+  it('treats an emoji-only post-tool answer as visible', () => {
+    const content = finishedContent('Checking status.\n\n🔧 `check` [1]\n\n✅');
+    expect(getThreadMessagePreviewText(content)).toBe('✅');
+    expect(getThreadPreviewLocalization(content, '✅')).toBeUndefined();
+  });
+
+  it('does not split on fenced or indented tool markers', () => {
+    const fencedOnly = 'Before.\n\n```\n🔧 `demo` [1]\n```\n\nAfter.';
+    expect(getThreadMessagePreviewText(finishedContent(fencedOnly))).toBe(
+      'Before. 🔧 demo [1] After.'
+    );
+    const indentedOnly = 'Before.\n    🔧 `demo` [1]\nAfter.';
+    expect(getThreadMessagePreviewText(finishedContent(indentedOnly))).toBe(
+      'Before. 🔧 demo [1] After.'
+    );
+    const fencedAfterReal = 'Step 1.\n\n🔧 `run` [1]\n\nUse:\n```\n🔧 `demo` [2]\n```';
+    expect(getThreadMessagePreviewText(finishedContent(fencedAfterReal))).toBe('Use: 🔧 demo [2]');
+  });
+
+  it('does not re-cut an unresolved io.mindroom.long_text sidecar excerpt', () => {
+    const sidecar = {
+      ...finishedContent('Checking files.\n\n🔧 `read_file` [1]\n\nExcerpt only...'),
+      msgtype: 'm.file',
+      url: 'mxc://example.org/sidecar',
+      'io.mindroom.long_text': { version: 2, encoding: 'json' },
+    };
+    expect(getThreadMessagePreviewText(sidecar)).toBe(
+      '🔧 1 tool · Checking files. Excerpt only...'
+    );
+  });
+
+  it('reads outer-only ai_run and stream_status on m.new_content edit wrappers', () => {
+    const wrapper = {
+      msgtype: 'm.text',
+      body: '* old fallback',
+      'io.mindroom.ai_run': { version: 1, status: 'completed' },
+      'io.mindroom.stream_status': 'completed',
+      'm.new_content': { msgtype: 'm.text', body: sampleBody },
+    };
+    expect(getThreadMessagePreviewText(wrapper)).toBe('All checks passed.');
+    expect(getThreadPreviewLocalization(wrapper, 'All checks passed.')).toBeUndefined();
+  });
+
+  it('preserves leading punctuation like ::1 in extracted post-tool answers', () => {
+    const content = finishedContent(
+      'Checking interfaces.\n\n🔧 `shell` [1]\n\n::1 is the IPv6 loopback address.'
+    );
+    expect(getThreadMessagePreviewText(content)).toBe('::1 is the IPv6 loopback address.');
+    expect(
+      getThreadPreviewLocalization(content, '::1 is the IPv6 loopback address.')
+    ).toBeUndefined();
   });
 });

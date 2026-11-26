@@ -3,7 +3,9 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { TFunction } from 'i18next';
 import { getMemberDisplayName, trimReplyFromBody } from '../../matrix/room';
 import { isVoiceMessageContent } from '../../matrix/protocol/voiceMessage';
+import { isFinishedAgentReply } from '../../matrix/protocol/aiRun';
 import { readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { revealDirectionControls } from '../../ui/directional';
 import { stripPreviewMath } from './previewMath';
@@ -20,10 +22,10 @@ const TOOL_CALL_MARKER_REGEX = /^🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*
 
 const mapPreviewLines = (
   body: string,
-  mapLine: (line: string, context: 'prose' | 'code' | 'fence') => string
+  mapLine: (line: string, context: 'prose' | 'code' | 'fence', lineIndex: number) => string
 ): string => {
   let fence: string | undefined;
-  const lines = body.split(/\r?\n/).map((line) => {
+  const lines = body.split(/\r?\n/).map((line, lineIndex) => {
     const match = fence
       ? (/^(`{3,})( *)$/.exec(line) ?? /^ {0,3}(~{3,})([ \t]*)$/.exec(line))
       : (/^(`{3,})(?!`)(\S*)$/.exec(line) ?? /^ {0,3}(~{3,})(.*)$/.exec(line));
@@ -36,29 +38,38 @@ const mapPreviewLines = (
         (fence[0] === '`' ? match[1] === fence : match[1]!.length >= fence.length)
       ) {
         fence = undefined;
-        return mapLine(line, 'fence');
+        return mapLine(line, 'fence', lineIndex);
       }
-      return mapLine(line, 'code');
+      return mapLine(line, 'code', lineIndex);
     }
     if (match) {
       // The message parser accepts backticks in info strings. Keep examples
       // protected here too, including conservative unmatched-fence handling.
       fence = match[1];
-      return mapLine(line, 'fence');
+      return mapLine(line, 'fence', lineIndex);
     }
-    return mapLine(line, 'prose');
+    return mapLine(line, 'prose', lineIndex);
   });
   return lines.join('\n');
 };
 
-const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
+const extractPreviewTools = (
+  body: string
+): { body: string; toolCallCount: number; lastToolLineIndex: number; afterLastTool: string } => {
   let toolCallCount = 0;
-  const text = mapPreviewLines(body, (line, context) => {
-    if (context !== 'prose' || !TOOL_CALL_MARKER_REGEX.test(line)) return line;
-    toolCallCount += 1;
-    return ' ';
+  let lastToolLineIndex = -1;
+  let afterLines: string[] = [];
+  const text = mapPreviewLines(body, (line, context, lineIndex) => {
+    if (context === 'prose' && TOOL_CALL_MARKER_REGEX.test(line)) {
+      toolCallCount += 1;
+      lastToolLineIndex = lineIndex;
+      afterLines = [];
+      return ' ';
+    }
+    if (lastToolLineIndex >= 0) afterLines.push(line);
+    return line;
   });
-  return { body: text, toolCallCount };
+  return { body: text, toolCallCount, lastToolLineIndex, afterLastTool: afterLines.join('\n') };
 };
 
 // Bound the text fed to the regex pipeline below: previews render as a single
@@ -68,6 +79,14 @@ const extractPreviewTools = (body: string): { body: string; toolCallCount: numbe
 const PREVIEW_SOURCE_MAX_LENGTH = 2000;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
+// Matching finishedWorkSplit.ts: pending tool mark and characters that show nothing.
+const INVISIBLE_PREVIEW_TEXT_REGEX = /[\s⏳\u200B-\u200D\u2060\uFEFF]|\uFE0F/gu;
+
+const boundPreviewSource = (source: string): string =>
+  source.length > PREVIEW_SOURCE_MAX_LENGTH
+    ? // Drop a split-off lone high surrogate at the cut point.
+      source.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
+    : source;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -77,14 +96,34 @@ const formatToolCallSummary = (count: number): string =>
 
 // A GFM table's delimiter row carries no text, and its rows read as cells set
 // apart by a middle dot. Only rows fenced by pipes count, so prose such as
-// "a | b" stays as written. Fence lines drop out, as for any code block.
+// "a | b" stays as written. Fence lines and standalone thematic breaks drop out
+// in prose, while fenced code blocks keep their literal lines.
 const TABLE_DELIMITER_ROW_REGEX = /^\|(?:\s*:?-+:?\s*\|)+$/;
 const TABLE_ROW_REGEX = /^\|.*\|$/;
+const THEMATIC_BREAK_REGEX = /^\s*(?:[-*_]\s*){3,}$/;
+
+const stripProseBlockPrefix = (line: string): string => {
+  const withoutHeadingAndQuote = line.replace(/^#{1,6}\s+/, '').replace(/^\s*(?:>\s?)+/, '');
+  // Keep standalone thematic breaks intact until previewLineText strips them in
+  // prose context, so list-prefix removal never turns "* * *" or "- - -" into
+  // leftover punctuation ("* *" / "- -").
+  if (THEMATIC_BREAK_REGEX.test(withoutHeadingAndQuote)) {
+    return withoutHeadingAndQuote.trimStart();
+  }
+  return withoutHeadingAndQuote
+    .replace(/^\s*[-*+]\s+/, '')
+    .replace(/^\s*\d{1,3}[.)]\s+/, '')
+    .trimStart();
+};
 
 const previewLineText = (): ((line: string, context: 'prose' | 'code' | 'fence') => string) => {
   let inTable = false;
   return (line, context) => {
     const row = line.trim();
+    if (context === 'prose' && THEMATIC_BREAK_REGEX.test(row)) {
+      inTable = false;
+      return ' ';
+    }
     if (context !== 'prose' || !TABLE_ROW_REGEX.test(row)) {
       inTable = false;
       return context === 'fence' ? ' ' : line;
@@ -108,16 +147,12 @@ const previewLineText = (): ((line: string, context: 'prose' | 'code' | 'fence')
 // snake_case or __init__ than emphasis, and LLM output uses asterisks.
 export const stripPreviewMarkdown = (value: string): string =>
   mapPreviewLines(
-    value
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/^\s*(?:>\s?)+/gm, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
-      .replace(/^\s*\d{1,3}[.)]\s+/gm, '')
-      // Indentation is presentation-only in this single-line result. Normalize
-      // it after counting tools so nested code boundaries can also be stripped.
-      .split('\n')
-      .map((line) => line.trimStart())
-      .join('\n'),
+    // Normalize prose block prefixes and indentation in a first pass so nested
+    // code boundaries (e.g. inside blockquotes or list items) can be recognized
+    // and stripped without altering lines inside top-level fenced code blocks.
+    mapPreviewLines(value, (line, context) =>
+      context === 'prose' ? stripProseBlockPrefix(line) : line
+    ),
     previewLineText()
   )
     // Destinations may contain one level of balanced parens, e.g.
@@ -132,8 +167,7 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])?)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
+    .replace(/`([^`\n]+)`/g, '$1');
 
 export type ThreadPreviewLocalization =
   | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' | 'encrypted' }
@@ -164,16 +198,32 @@ const toTidyLines = (text: string): string =>
 
 const computeBodyPreview = (
   body: string,
-  tidy: (text: string) => string = toOneLine
+  tidy: (text: string) => string = toOneLine,
+  preferPostToolAnswer = false
 ): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
-  const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
-  const boundedSource =
-    withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
-      ? // Drop a split-off lone high surrogate at the cut point.
-        withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
-      : withoutToolMarkers;
-  const prose = tidy(stripPreviewMath(boundedSource, stripPreviewMarkdown));
+  const {
+    body: withoutToolMarkers,
+    toolCallCount,
+    lastToolLineIndex,
+    afterLastTool,
+  } = extractPreviewTools(withoutReply);
+
+  if (preferPostToolAnswer && toolCallCount > 0 && lastToolLineIndex >= 0 && afterLastTool) {
+    const cleanedAnswer = tidy(
+      stripPreviewMath(boundPreviewSource(afterLastTool), stripPreviewMarkdown)
+    );
+    if (
+      cleanedAnswer.replace(INVISIBLE_PREVIEW_TEXT_REGEX, '').length > 0 &&
+      !hasLikelyIncompleteStreamingBody(cleanedAnswer)
+    ) {
+      return { text: cleanedAnswer, localization: undefined };
+    }
+  }
+
+  const prose = tidy(
+    stripPreviewMath(boundPreviewSource(withoutToolMarkers), stripPreviewMarkdown)
+  );
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
@@ -196,27 +246,29 @@ const computeBodyPreview = (
 };
 
 // Thread records, cross-room index entries and the minimap preview the root
-// and latest replies of every thread on each rebuild. The analysis depends
-// only on the body, so a least-recently-used cache sized above one large
-// room's working set (523 threads) reuses it across rebuilds. The character
-// budget bounds the strings it can keep alive.
+// and latest replies of every thread on each rebuild. The analysis depends on
+// the body and whether a finished reply prefers its post-tool answer, so a
+// least-recently-used cache sized above one large room's working set (523
+// threads) reuses it across rebuilds. The character budget bounds the strings
+// it can keep alive.
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
-const analyzeBodyPreview = (body: string): ThreadPreview => {
-  const cached = bodyPreviewCache.get(body);
+const analyzeBodyPreview = (body: string, preferPostToolAnswer = false): ThreadPreview => {
+  const cacheKey = `${preferPostToolAnswer ? '1' : '0'}\0${body}`;
+  const cached = bodyPreviewCache.get(cacheKey);
   if (cached) {
     // Map iteration follows insertion order, so re-inserting marks it recent.
-    bodyPreviewCache.delete(body);
-    bodyPreviewCache.set(body, cached);
+    bodyPreviewCache.delete(cacheKey);
+    bodyPreviewCache.set(cacheKey, cached);
     return cached;
   }
 
-  const analysis = computeBodyPreview(body);
-  bodyPreviewCache.set(body, analysis);
-  bodyPreviewCacheChars += body.length;
+  const analysis = computeBodyPreview(body, toOneLine, preferPostToolAnswer);
+  bodyPreviewCache.set(cacheKey, analysis);
+  bodyPreviewCacheChars += cacheKey.length;
   for (const oldest of bodyPreviewCache.keys()) {
     if (
       bodyPreviewCache.size <= BODY_PREVIEW_CACHE_MAX_ENTRIES &&
@@ -268,8 +320,12 @@ const resolveThreadPreview = (
   const canvasTitle = readCanvasNoticeTitle(previewContent);
   if (canvasTitle) return { text: canvasTitle, localization: undefined };
 
+  const preferPostToolAnswer =
+    isFinishedAgentReply(content) && !hasLongTextMetadata(previewContent);
   const bodyPreview =
-    typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
+    typeof previewContent.body === 'string'
+      ? analyzeBodyPreview(previewContent.body, preferPostToolAnswer)
+      : undefined;
   if (bodyPreview?.text) return bodyPreview;
 
   return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;

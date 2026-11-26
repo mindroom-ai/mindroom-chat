@@ -83,4 +83,28 @@ describe('thread message preview analysis reuse', () => {
     getThreadMessagePreviewText(textContent(bodies[0]!));
     expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
   });
+
+  it('separates cache entries when the same body transitions from streaming to finished', () => {
+    const body = 'Checking cache.\n\n🔧 `read_file` [1]\n\nDone.';
+    const streaming = {
+      ...textContent(body),
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      'io.mindroom.stream_status': 'streaming',
+    };
+    const finished = {
+      ...textContent(body),
+      'io.mindroom.ai_run': { version: 1, status: 'completed' },
+      'io.mindroom.stream_status': 'completed',
+    };
+
+    expect(getThreadMessagePreviewText(streaming)).toBe('🔧 1 tool · Checking cache. Done.');
+    expect(getThreadMessagePreviewText(finished)).toBe('Done.');
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
+
+    expect(getLocalizedThreadMessagePreviewText(finished, t)).toBe('Done.');
+    expect(getLocalizedThreadMessagePreviewText(streaming, t)).toBe(
+      '🔧 sharedUi.threadPreviews.tools:1 · Checking cache. Done.'
+    );
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
+  });
 });
