@@ -275,5 +275,18 @@ describe('folded secret-request notices as thread reply previews', () => {
     expect(
       presentBundled({ reply: pending, latest: { id: '$secret', ts: 2000 } }).latestReplyPreviewText
     ).toBeUndefined();
+
+    // Pending secret bundle with a newer title as latest_event (ts = 2200) is superseded once the
+    // loaded timeline holds the folded copy of that same $secret, so the loaded answer wins.
+    const openThread = { room, events: [answer, folded], timeline: [answer, folded] };
+    expect(
+      resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: ROOT,
+        rootEvent: root,
+        thread: openThread,
+        bundledPreviews: { reply: pending, latest: { id: '$title', ts: 2200 } },
+      }).latestReplyPreviewText
+    ).toBe('Release deployed successfully.');
   });
 });

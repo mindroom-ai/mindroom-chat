@@ -145,7 +145,15 @@ export const resolveThreadPresentationSnapshot = ({
           ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
           : event.getTs() > bundleLatest.ts)
     );
-  const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
+  const bundledReplyFolded =
+    !!bundle.reply &&
+    knownReplies.some(
+      (event) => !!event && event.getId() === bundle.reply?.getId() && isFolded(event)
+    );
+  const bundled = {
+    title: bundle.title,
+    reply: outgrown || bundledReplyFolded ? undefined : bundle.reply,
+  };
   const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents, viewerUserId);
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count. Like the server's
