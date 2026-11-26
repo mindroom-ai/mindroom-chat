@@ -18,7 +18,6 @@ import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
   type StagedList,
-  composerUploadItemsAtom,
   getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
   restoreTextToDraft,
@@ -101,7 +100,7 @@ type UseRoomInputVoiceOptions = {
   /** False in a composer that takes no recording: it brings none back from disk either. */
   recover?: boolean;
   /** The upload list atom holding staged companions (differs from roomId for staged drafts). */
-  stagedList?: StagedList;
+  stagedList: StagedList;
   /** Fixed draft key for fallback text restore when not tied to a single room draft. */
   stagedDraftKey?: string;
   /** Prepares/encrypts deferred staged companion files for the target room at Send. */
@@ -646,7 +645,7 @@ export const useRoomInputVoice = ({
         midTurnMode,
         composerFallback: content ? snapshotText() : undefined,
         companionItems: staged.filter(isUploadItemReady),
-        stagedList: stagedList ?? composerUploadItemsAtom(context.roomId, view),
+        stagedList,
         releasePasteProtection: attachmentAccess.protectPasteItems(
           staged.filter(isUploadItemReady)
         ),
@@ -678,7 +677,6 @@ export const useRoomInputVoice = ({
       snapshotText,
       stagedList,
       store,
-      view,
     ]
   );
 

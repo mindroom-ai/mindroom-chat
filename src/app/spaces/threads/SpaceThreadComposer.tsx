@@ -221,6 +221,7 @@ export function SpaceThreadComposer({
         roomId={targetRoom.room.roomId}
         room={targetRoom.room}
         stagedDraftKey={draftKey}
+        onRestoreDestination={setChosenTargetRoomId}
         onRoomMessageSent={onRoomMessageSent}
       />
     </div>

@@ -96,7 +96,7 @@ export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([us
 export const getSpaceThreadsDraftKey = (userId: string, spaceId: string): string =>
   JSON.stringify([userId, null, 'space-threads', spaceId]);
 
-export const isSpaceThreadsDraftKey = (draftKey: string): boolean => {
+const isSpaceThreadsDraftKey = (draftKey: string): boolean => {
   const parsed = parseDraftKey(draftKey);
   return (
     parsed.length === 4 &&

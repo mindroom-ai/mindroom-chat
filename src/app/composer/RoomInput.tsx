@@ -56,12 +56,10 @@ import { useSetting } from '../preferences/useSetting';
 import {
   getRoomInputDraftKey,
   homeAskDestinationAtomFamily,
-  isSpaceThreadsDraftKey,
   type IReplyDraft,
   keepReplyDraft,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
-  spaceThreadsDestinationAtomFamily,
   composerReplyDraftAtom,
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
@@ -154,16 +152,18 @@ export type RoomInputProps = {
    * defers attachment encryption and upload until Send.
    */
   stagedDraftKey?: string;
+  /** Restores the picker owner's destination room when a failed send falls back off-room. */
+  onRestoreDestination?: (roomId: string) => void;
   /**
-   * Home's ask field: text and attachments, kept under the account's Home draft whichever room it goes to.
-   * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
-   * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
-   * and again for the question on its way, with the room it goes to (`sentTo`), just before its
-   * message goes out, when that room or the agent may have changed. `onSendingChange` hears
-   * while a send is on its way, to its end, and `onLocalEcho` of the message the client made for
-   * it and the room that is in, both also after the composer has gone. A send keeps the three as
-   * they were at its press, whatever the field shows by then. `isDirect` says the room was picked
-   * as the agent's direct chat, which a question returned to Home's draft keeps.
+   * Home's ask field: each message starts a thread addressed to `agentUserId`, paired with
+   * `stagedDraftKey` for the account's Home draft. `pickers` (who answers, and where) take the
+   * row's controls' place. Nothing sends while `canSend` says no: asked at the press, and again
+   * for the question on its way, with the room it goes to (`sentTo`), just before its message
+   * goes out, when that room or the agent may have changed. `onSendingChange` hears while a send
+   * is on its way, to its end, and `onLocalEcho` of the message the client made for it and the
+   * room that is in, both also after the composer has gone. A send keeps the three as they were
+   * at its press, whatever the field shows by then. `isDirect` says the room was picked as the
+   * agent's direct chat, which a question returned to Home's draft keeps.
    */
   ask?: {
     agentUserId: string;
@@ -268,6 +268,7 @@ export function RoomInput({
   onRoomMessageSent,
   forkFrom,
   stagedDraftKey,
+  onRestoreDestination,
   ask,
   ref,
 }: RoomInputProps) {
@@ -380,7 +381,7 @@ export function RoomInput({
   });
   const saveDraft = useRoomInputDraft(editor, textKey);
   const { lostFileNames, dismissLostFiles } = useKeptComposerState(
-    ask ? '' : userId,
+    userId,
     roomId,
     stagedDraftKey
   );
@@ -413,9 +414,7 @@ export function RoomInput({
     fileDropContainerRef,
     createUploadItems,
     stagedListKey: stagedDraftKey,
-    deferUpload: deferredDraft,
     sendingDeferred: deferredDraft && submitPending,
-    inlineUploadBoard: deferredDraft,
   });
   const { settlePastes, dismissLostPastes } = attachments;
   const transport = useRoomInputUploadTransport(mx, store, room);
@@ -473,8 +472,8 @@ export function RoomInput({
           roomId: fallbackRoomId,
           ...(askedDirect ? { isDirect: true } : {}),
         });
-      } else if (stagedDraftKey !== undefined && isSpaceThreadsDraftKey(stagedDraftKey)) {
-        store.set(spaceThreadsDestinationAtomFamily(stagedDraftKey), fallbackRoomId);
+      } else {
+        onRestoreDestination?.(fallbackRoomId);
       }
       // After any text typed there since: a failed caption is never dropped.
       restoreTextToDraft(
@@ -483,7 +482,7 @@ export function RoomInput({
         fragment
       );
     },
-    [askedAgent, askedDirect, stagedDraftKey, store, userId]
+    [askedAgent, askedDirect, onRestoreDestination, stagedDraftKey, store, userId]
   );
 
   const rootModelContext = useLatestRef({ roomId, newThread });
@@ -576,6 +575,7 @@ export function RoomInput({
   // Home's ask field neither shows nor sends a voice recording either. Neither
   // brings one back from disk: it would hold it from a tab that can show it.
   const voiceActive = !forkFrom && !ask;
+  const prepareAttachmentsForSend = deferredDraft ? attachments.prepareForSend : undefined;
   const voice = useRoomInputVoice({
     mx,
     composer,
@@ -587,7 +587,7 @@ export function RoomInput({
     recover: voiceActive,
     stagedList: attachments.itemsAtom,
     stagedDraftKey,
-    prepareAttachmentsForSend: deferredDraft ? attachments.prepareForSend : undefined,
+    prepareAttachmentsForSend,
   });
 
   // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -697,7 +697,7 @@ export function RoomInput({
           restoreRootModelDraft: (target, content) =>
             getModelController(mx).restoreRootModelDraft(target, content),
           uploadItem: transport.uploadItem,
-          prepareAttachmentsForSend: live.deferredDraft ? attachments.prepareForSend : undefined,
+          prepareAttachmentsForSend,
           clearReplyDraft,
           resetComposer: composer.resetText,
           stopTyping: () => sendTypingStatus(false),
@@ -897,6 +897,7 @@ export function RoomInput({
       holdForRoot,
       midTurnSend,
       mx,
+      prepareAttachmentsForSend,
       runActingCommand,
       sendTypingStatus,
       sessions,

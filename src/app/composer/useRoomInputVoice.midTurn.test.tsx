@@ -145,7 +145,7 @@ const setup = (
         sendVoiceItem,
       },
       sessions: { hasActiveSendSession: () => false, startSendSession },
-      stagedList: extra?.stagedList,
+      stagedList: extra?.stagedList ?? composerUploadItemsAtom(ROOM_ID, undefined),
       prepareAttachmentsForSend: extra?.prepareAttachmentsForSend,
     });
     return <>{voice.renderRecorder(() => void voice.sendAtPress(() => undefined, false))}</>;

@@ -1025,6 +1025,7 @@ const createRoomInputTree = (
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
     stagedDraftKey?: string;
+    onRestoreDestination?: (roomId: string) => void;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
     view?: string;
     fileDropContainerRef?: React.RefObject<HTMLElement | null>;
@@ -1043,6 +1044,7 @@ const createRoomInputTree = (
     stagedDraftKey:
       props?.stagedDraftKey ??
       (props?.ask ? getHomeAskDraftKey(mxState.getUserId() ?? '') : undefined),
+    onRestoreDestination: props?.onRestoreDestination,
     ask: props?.ask,
   });
   return React.createElement(
@@ -5794,10 +5796,13 @@ describe("RoomInput as Home's ask field", () => {
       const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
       const spaceUploads = composerUploadItemsAtom(spaceKey, undefined);
       const store = createStore();
+      const onRestoreDestination = (id: string) =>
+        store.set(spaceThreadsDestinationAtomFamily(spaceKey), id);
       const { renderer } = await renderRoomInput(store, {
         roomId: ROOM_ID,
         encryptedRoom: false,
         stagedDraftKey: spaceKey,
+        onRestoreDestination,
       });
 
       await act(async () => {
@@ -5844,6 +5849,7 @@ describe("RoomInput as Home's ask field", () => {
         roomId: OTHER_ROOM_ID,
         encryptedRoom: true,
         stagedDraftKey: spaceKey,
+        onRestoreDestination,
       });
       await act(async () => {
         plainSend.reject(new Error('plain send failed'));

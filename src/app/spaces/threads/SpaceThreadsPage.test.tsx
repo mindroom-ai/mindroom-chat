@@ -80,6 +80,7 @@ vi.mock('../../composer/RoomInput', () => ({
   RoomInput: (props: {
     roomId: string;
     stagedDraftKey?: string;
+    onRestoreDestination?: (roomId: string) => void;
     onRoomMessageSent?: (id: string) => boolean | void;
   }) => (
     <div
@@ -100,6 +101,13 @@ vi.mock('../../composer/RoomInput', () => ({
         onClick={() => props.onRoomMessageSent?.('~local-root')}
       >
         Send local echo
+      </button>
+      <button
+        type="button"
+        data-testid="mock-restore-eng"
+        onClick={() => props.onRestoreDestination?.(ROOM_ENG)}
+      >
+        Restore eng
       </button>
     </div>
   ),
@@ -609,6 +617,11 @@ describe('SpaceThreadsPage', () => {
     first.unmount();
     const remounted = renderSpaceThreads({ rooms, entries: [], store });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    fireEvent.click(screen.getByTestId('mock-restore-eng'));
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    fireEvent.click(
+      remounted.container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!
+    );
     remounted.unmount();
 
     // Temporarily non-sendable target displays fallback without overwriting stored Design.

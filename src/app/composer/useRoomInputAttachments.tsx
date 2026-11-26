@@ -83,14 +83,10 @@ type UseRoomInputAttachmentsOptions = {
   isMarkdown: boolean;
   fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
-  /** Overrides the room key used for staged files (e.g. Home's single account-wide list). */
+  /** Fixed staged-file key across target switches; also defers upload/encryption and renders the board inline. */
   stagedListKey?: string;
-  /** Keeps staged files local and unencrypted until `prepareForSend` commits them at Send. */
-  deferUpload?: boolean;
-  /** True while a deferred send (Home Ask) is in flight; disables per-card "Use original" swaps. */
+  /** True while a deferred send is in flight; disables per-card "Use original" swaps. */
   sendingDeferred?: boolean;
-  /** Renders the upload board in normal flow above the composer instead of floating. */
-  inlineUploadBoard?: boolean;
 };
 
 type RoomInputAttachments = {
@@ -167,11 +163,10 @@ export const useRoomInputAttachments = ({
   fileDropContainerRef,
   createUploadItems,
   stagedListKey,
-  deferUpload = false,
   sendingDeferred = false,
-  inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
+  const deferUpload = stagedListKey !== undefined;
   const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
   // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
   const view = useContext(ConversationViewContext);
@@ -989,7 +984,7 @@ export const useRoomInputAttachments = ({
   const board =
     visibleItems.length > 0 ? (
       <UploadBoard
-        inline={inlineUploadBoard}
+        inline={deferUpload}
         header={
           <UploadBoardHeader
             open={boardOpen}

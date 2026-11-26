@@ -45,6 +45,7 @@ function Composer() {
     attachments: {} as never,
     transport: {} as never,
     sessions: {} as never,
+    stagedList: {} as never,
   });
   return (
     <>

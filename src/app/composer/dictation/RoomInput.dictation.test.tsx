@@ -320,6 +320,7 @@ describe('RoomInput dictation layout and submit guard', () => {
         attachments: {} as never,
         transport: {} as never,
         sessions: {} as never,
+        stagedList: {} as never,
         recover: false,
       });
       return <>{voice.microphone}</>;
