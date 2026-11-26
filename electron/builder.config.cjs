@@ -22,6 +22,12 @@ module.exports = {
   directories: {
     output: 'build/desktop-dist',
   },
+  // Use the static-pie AppImage runtime (1.0.3) instead of the legacy FUSE2 runtime (0.0.0),
+  // whose arm64 binary links against unversioned libz.so (absent on Ubuntu 24.04 without zlib1g-dev)
+  // and requires libfuse2.
+  toolsets: {
+    appimage: '1.0.3',
+  },
   // Main and preload are self-contained esbuild bundles with only 'electron' external,
   // so no node_modules need to be packed into app.asar.
   files: [

@@ -116,6 +116,7 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         version: '2026.11.9',
       },
       directories: { output: 'build/desktop-dist' },
+      toolsets: { appimage: '1.0.3' },
       files: expect.arrayContaining([
         '!build/electron/mindroom-screenshot-helper',
         '!build/electron/mindroom-trackpad-swipe.node',
