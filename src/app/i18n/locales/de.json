@@ -2726,7 +2726,7 @@
         "configuredModel": "Konfiguriertes Modell",
         "runId": "Lauf-ID",
         "sessionId": "Sitzungs-ID",
-        "newInput": "Neue Eingabe",
+        "newInput": "Nicht gecachte Eingabe",
         "replyCount_one": "{{count}} Antwort",
         "replyCount_other": "{{count}} Antworten",
         "loadedReplyCount_one": "{{count}} geladene Antwort",

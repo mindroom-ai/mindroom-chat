@@ -2713,7 +2713,7 @@
         "configuredModel": "設定済みモデル",
         "runId": "実行 ID",
         "sessionId": "セッション ID",
-        "newInput": "新しい入力",
+        "newInput": "未キャッシュの入力",
         "replyCount_one": "{{count}} 件の返信",
         "replyCount_other": "{{count}} 件の返信",
         "loadedReplyCount_one": "読み込み済みの返信 {{count}} 件",

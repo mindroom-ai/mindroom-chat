@@ -2713,7 +2713,7 @@
         "configuredModel": "設定的模型",
         "runId": "執行 ID",
         "sessionId": "工作階段 ID",
-        "newInput": "新輸入",
+        "newInput": "未快取輸入",
         "replyCount_one": "{{count}} 則回覆",
         "replyCount_other": "{{count}} 則回覆",
         "loadedReplyCount_one": "已載入 {{count}} 則回覆",

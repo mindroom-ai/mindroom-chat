@@ -230,7 +230,7 @@ test('reply details show what a reply and the conversation so far cost', async (
     'From cache 2.8K',
     'Written to cache 250',
     'Not cached 16',
-    'New input 266',
+    'Uncached input 266',
     'Input 1.7K',
     'Output 93',
   ]);
