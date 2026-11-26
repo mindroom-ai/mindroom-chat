@@ -17,6 +17,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <intent-filter>
@@ -32,6 +33,35 @@
                     android:scheme="mindroom"
                     android:host="auth"
                     android:pathPrefix="/login" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="chat.mindroom.chat" />
+                <data android:path="/connect" />
+                <data android:path="/connect/" />
+                <data android:pathPrefix="/home/!" />
+                <data android:pathPrefix="/home/#" />
+                <data android:pathPrefix="/home/%21" />
+                <data android:pathPrefix="/home/%23" />
+                <data android:pathPrefix="/direct/!" />
+                <data android:pathPrefix="/direct/#" />
+                <data android:pathPrefix="/direct/%21" />
+                <data android:pathPrefix="/direct/%23" />
+                <data android:pathPrefix="/threads/!" />
+                <data android:pathPrefix="/threads/#" />
+                <data android:pathPrefix="/threads/%21" />
+                <data android:pathPrefix="/threads/%23" />
+                <data android:pathPrefix="/activity/!" />
+                <data android:pathPrefix="/activity/#" />
+                <data android:pathPrefix="/activity/%21" />
+                <data android:pathPrefix="/activity/%23" />
+                <data android:pathPrefix="/!" />
+                <data android:pathPrefix="/#" />
+                <data android:pathPrefix="/%21" />
+                <data android:pathPrefix="/%23" />
             </intent-filter>
 
         </activity>
@@ -50,6 +80,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
