@@ -1419,7 +1419,11 @@
           "detail": "Ayrıntı",
           "error": "Hata"
         },
-        "resumed": "Devam edildi",
+        "receipt": {
+          "continue": "Devam edildi",
+          "retry": "Tekrar denendi",
+          "compact": "Sıkıştırıldı"
+        },
         "sendFailed": "Mesaj gönderilemedi. Tekrar deneyin.",
         "restartSeam": "Hizmet yeniden başlatıldı · bağlam korundu",
         "restartSeamRepeated": "Hizmet yeniden başlatıldı ({{times}}×) · bağlam korundu"

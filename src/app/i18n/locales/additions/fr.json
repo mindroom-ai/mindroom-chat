@@ -1455,7 +1455,11 @@
           "detail": "Détail",
           "error": "Erreur"
         },
-        "resumed": "Repris",
+        "receipt": {
+          "continue": "Repris",
+          "retry": "Réessayé",
+          "compact": "Compacté"
+        },
         "sendFailed": "Impossible d’envoyer le message. Réessayez.",
         "restartSeam": "Service redémarré · contexte conservé",
         "restartSeamRepeated": "Service redémarré ({{times}}×) · contexte conservé"

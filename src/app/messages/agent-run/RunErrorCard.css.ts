@@ -127,7 +127,6 @@ export const Summary = style({
   fontSize: toRem(13),
   lineHeight: 1.45,
   color: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.P300,
 });
 
 export const Footer = style({
@@ -190,18 +189,17 @@ export const DetailsToggle = style([
     alignItems: 'center',
     gap: toRem(4),
     paddingBlock: toRem(3),
-    paddingInline: toRem(4),
+    paddingInline: toRem(6),
     borderRadius: toRem(6),
     backgroundColor: 'transparent',
     color: color.SurfaceVariant.OnContainer,
-    opacity: config.opacity.P300,
     fontSize: toRem(12),
     fontWeight: config.fontWeight.W500,
     lineHeight: 1.35,
     cursor: 'pointer',
     selectors: {
       '&:hover, &:focus-visible': {
-        opacity: config.opacity.P500,
+        backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.OnContainer} 8%, transparent)`,
       },
       '&:focus-visible': {
         outline: `${toRem(2)} solid ${color.Primary.Main}`,
@@ -234,7 +232,7 @@ export const TechBox = style({
 });
 
 export const TechKey = style({
-  opacity: config.opacity.P300,
+  fontWeight: config.fontWeight.W500,
   whiteSpace: 'nowrap',
 });
 
@@ -245,7 +243,7 @@ export const TechValue = style({
 
 export const ErrorAlert = style({
   paddingInlineStart: toRem(31),
-  color: color.Critical.Main,
+  color: color.Critical.OnContainer,
   fontSize: toRem(12),
 });
 
@@ -357,6 +355,6 @@ export const RestartRuleEnd = style({
 });
 
 export const RestartLabel = style({
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
   overflowWrap: 'anywhere',
 });

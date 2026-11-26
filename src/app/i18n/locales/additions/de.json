@@ -1419,7 +1419,11 @@
           "detail": "Details",
           "error": "Fehler"
         },
-        "resumed": "Fortgesetzt",
+        "receipt": {
+          "continue": "Fortgesetzt",
+          "retry": "Erneut versucht",
+          "compact": "Komprimiert"
+        },
         "sendFailed": "Nachricht konnte nicht gesendet werden. Erneut versuchen.",
         "restartSeam": "Dienst neu gestartet · Kontext erhalten",
         "restartSeamRepeated": "Dienst neu gestartet ({{times}}×) · Kontext erhalten"

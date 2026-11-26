@@ -1419,7 +1419,11 @@
           "detail": "Detail",
           "error": "Error"
         },
-        "resumed": "Resumed",
+        "receipt": {
+          "continue": "Resumed",
+          "retry": "Retried",
+          "compact": "Compacted"
+        },
         "sendFailed": "Could not send message. Try again.",
         "restartSeam": "Service restarted · context preserved",
         "restartSeamRepeated": "Service restarted ({{times}}×) · context preserved"

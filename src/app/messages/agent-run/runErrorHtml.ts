@@ -1,18 +1,21 @@
 import { isText, type ChildNode } from 'domhandler';
 import type { DOMNode } from 'html-react-parser';
-import type { AiRunErrorInfo } from '../../matrix/protocol/aiRun';
+import type { AiRunErrorInfo, AiRunInfo } from '../../matrix/protocol/aiRun';
 import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { serializeHtmlNode } from './finishedWorkSplit';
 import { isDomElementNode } from './toolRefDom';
 
 const RESTART_SEAM_SENTINEL_REG = /^\uE000restart-seam:([1-9]\d*)\uE000$/;
 
+const RESTART_MARKER_PREFIX = '[Response interrupted';
+
 const RESTART_MARKER_TEXTS = new Set([
   '[Response interrupted by service restart]',
   '[Response interrupted: agent restarted to apply a config change]',
 ]);
 
-const FALLBACK_PREFIX_REG = /^(?:⚠️|⚠|❌|🔑|⏰|\[[^\]]+\]\s+)/u;
+const AGENT_PREFIX_REG = /^\[[^\]]+\]\s+/u;
+const ERROR_ICON_PREFIX_REG = /^(?:⚠\uFE0F?|❌|🔑|⏰\uFE0F?|⏱\uFE0F?|💳)\s+/u;
 
 const INLINE_TAGS = new Set([
   'a',
@@ -37,6 +40,15 @@ const BLOCK_TAGS = new Set(
 );
 
 const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim();
+
+const stripSimpleMarkdown = (text: string): string =>
+  text
+    .replace(/\*\*(\S(?:.*?\S)?)\*\*/g, '$1')
+    .replace(/(^|[^\w])__(\S(?:.*?\S)?)__(?=$|[^\w])/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1');
+
+const normalizeComparable = (text: string): string =>
+  normalize(stripSimpleMarkdown(normalize(text)));
 
 const isBlank = (node: ChildNode | undefined): boolean =>
   !!node && isText(node) && node.data.trim() === '';
@@ -95,11 +107,30 @@ const partsOf = (all: ChildNode[]): Part[] => {
 };
 
 export const isFallbackRunErrorParagraph = (text: string, error: AiRunErrorInfo): boolean => {
-  const normalizedText = normalize(text);
-  const normalizedSummary = normalize(error.summary);
+  const normalizedText = normalizeComparable(text);
+  const normalizedSummary = normalizeComparable(error.summary);
   if (!normalizedText || !normalizedSummary) return false;
   if (normalizedText === normalizedSummary) return true;
-  return normalizedText.includes(normalizedSummary) && FALLBACK_PREFIX_REG.test(normalizedText);
+
+  let candidate = normalizedText;
+  let hasPrefix = false;
+  if (AGENT_PREFIX_REG.test(candidate)) {
+    candidate = candidate.replace(AGENT_PREFIX_REG, '');
+    hasPrefix = true;
+  }
+  if (ERROR_ICON_PREFIX_REG.test(candidate)) {
+    candidate = candidate.replace(ERROR_ICON_PREFIX_REG, '');
+    hasPrefix = true;
+  }
+  if (!hasPrefix) return false;
+  if (candidate === normalizedSummary) return true;
+
+  const normalizedTitle = normalizeComparable(error.title);
+  if (!normalizedTitle) return false;
+  return (
+    candidate === `${normalizedTitle} — ${normalizedSummary}` ||
+    candidate === `${normalizedTitle}: ${normalizedSummary}`
+  );
 };
 
 /**
@@ -164,6 +195,7 @@ const restartSeamHtml = (count: number): string => `<p>\uE000restart-seam:${coun
 export const collapseRestartMarkersHtml = (
   html: string
 ): { html: string; hasRestartSeam: boolean } => {
+  if (!html.includes(RESTART_MARKER_PREFIX)) return { html, hasRestartSeam: false };
   const all = parseHtmlToDom(html) as ChildNode[];
   const parts = partsOf(all);
   let hasRestartSeam = false;
@@ -203,6 +235,79 @@ export const collapseRestartMarkersHtml = (
   if (!hasRestartSeam) return { html, hasRestartSeam: false };
   output += all.slice(cursor).map(serializeHtmlNode).join('');
   return { html: output, hasRestartSeam: true };
+};
+
+export type PreparedRunErrorBody = {
+  body: string | undefined;
+  html: string | undefined;
+  bodyEmpty: boolean;
+  hasRestartSeam: boolean;
+  aiRun: AiRunInfo | undefined;
+  runError: AiRunErrorInfo | undefined;
+};
+
+/**
+ * Prepares an agent reply's plain/HTML body for RunErrorCard and RestartSeam rendering:
+ * strips duplicated trailing fallback error text, collapses restart interruption lines,
+ * and skips all transforms when disabled (non-agent messages or search-highlighted hits).
+ */
+export const prepareRunErrorBody = ({
+  enabled,
+  body,
+  html,
+  aiRun,
+}: {
+  enabled: boolean;
+  body?: string;
+  html: string | undefined;
+  aiRun: AiRunInfo | undefined;
+}): PreparedRunErrorBody => {
+  if (!enabled) {
+    return {
+      body,
+      html,
+      bodyEmpty: false,
+      hasRestartSeam: false,
+      aiRun: undefined,
+      runError: undefined,
+    };
+  }
+
+  const runError = aiRun?.error;
+  if (html === undefined) {
+    if (!runError || body === undefined) {
+      return { body, html, bodyEmpty: false, hasRestartSeam: false, aiRun, runError };
+    }
+    const stripped = stripTrailingRunErrorText(body, runError);
+    return {
+      body: stripped.body,
+      html: undefined,
+      bodyEmpty: stripped.stripped && stripped.body === '',
+      hasRestartSeam: false,
+      aiRun,
+      runError,
+    };
+  }
+
+  let processedHtml: string | undefined = html;
+  let bodyEmpty = false;
+  if (runError) {
+    const stripped = stripTrailingRunErrorHtml(processedHtml, runError);
+    processedHtml = stripped.html;
+    if (stripped.stripped && processedHtml.trim() === '') {
+      bodyEmpty = true;
+      processedHtml = undefined;
+    }
+  }
+
+  let hasRestartSeam = false;
+  if (!bodyEmpty && processedHtml !== undefined) {
+    const collapsed = collapseRestartMarkersHtml(processedHtml);
+    processedHtml = collapsed.html;
+    hasRestartSeam = collapsed.hasRestartSeam;
+  }
+
+  return { body, html: processedHtml, bodyEmpty, hasRestartSeam, aiRun, runError };
 };
 
 /** Reads the restart count from a sentinel paragraph emitted by `collapseRestartMarkersHtml`. */

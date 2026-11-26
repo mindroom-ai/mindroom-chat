@@ -1383,7 +1383,11 @@
           "detail": "詳情",
           "error": "錯誤"
         },
-        "resumed": "已恢復",
+        "receipt": {
+          "continue": "已恢復",
+          "retry": "已重試",
+          "compact": "已壓縮"
+        },
         "sendFailed": "無法傳送訊息，請重試。",
         "restartSeam": "服務已重啟 · 上下文已保留",
         "restartSeamRepeated": "服務已重啟（{{times}}×）· 上下文已保留"

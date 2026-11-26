@@ -1,20 +1,9 @@
-import { Fragment, useEffect, useReducer, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Icon, Icons, Text } from 'folds';
 import { IconFold } from '@tabler/icons-react';
-import {
-  EventStatus,
-  EventType,
-  MsgType,
-  RelationType,
-  RoomEvent,
-  ThreadEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-  type Thread,
-} from 'matrix-js-sdk';
+import { EventType, MsgType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { AiRunErrorAction, AiRunErrorInfo, AiRunInfo } from '../../matrix/protocol/aiRun';
 import { useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../../matrix/matrix';
@@ -22,7 +11,6 @@ import { getMemberRawDisplayName } from '../../matrix/room';
 import { discardFailedLocalEcho } from '../../matrix/protocol/pendingLocalEcho';
 import { getMessageRelation } from '../../matrix/send/composeMessageRelation';
 import { sanitizeText } from '../../rich-text/sanitize';
-import { matchesEnum } from '../../lib/matchesEnum';
 import { ownDirectionLine } from '../../ui/directional';
 import * as css from './RunErrorCard.css';
 
@@ -76,10 +64,21 @@ const ACTION_LABEL_KEYS = {
   compact: 'mindroomUi.messages.runError.actions.compact',
 } as const satisfies Record<AiRunErrorAction, string>;
 
+const RECEIPT_STATUS_KEYS = {
+  continue: 'mindroomUi.messages.runError.receipt.continue',
+  retry: 'mindroomUi.messages.runError.receipt.retry',
+  compact: 'mindroomUi.messages.runError.receipt.compact',
+} as const satisfies Record<AiRunErrorAction, string>;
+
 const ACTION_PROMPTS: Record<Exclude<AiRunErrorAction, 'compact'>, string> = {
   continue: 'Continue.',
   retry: 'Please try again.',
 };
+
+type ActionState = { status: 'idle' } | { status: 'sending' | 'done'; action: AiRunErrorAction };
+
+const hasFocusWithin = (element: HTMLElement | null): boolean =>
+  document.activeElement instanceof Node && Boolean(element?.contains(document.activeElement));
 
 export const getRunErrorTone = (error: AiRunErrorInfo): RunErrorTone => {
   if (WARNING_ERROR_KINDS.has(error.kind)) return 'warning';
@@ -148,65 +147,6 @@ export const sendRunErrorAction = async (
   }
 };
 
-const isLaterFollowUpEvent = (event: MatrixEvent, threadId: string | undefined): boolean =>
-  !event.isRedacted() &&
-  matchesEnum(event.getType(), EventType.RoomMessage) &&
-  !event.isRelation(RelationType.Replace) &&
-  event.status !== EventStatus.NOT_SENT &&
-  event.status !== EventStatus.CANCELLED &&
-  (threadId !== undefined || !event.isRelation(RelationType.Thread));
-
-/** True when a non-redacted follow-up message exists after `mEvent` in its thread or timeline. */
-export const hasLaterTimelineMessage = (
-  room: Room | null,
-  mEvent: MatrixEvent | undefined,
-  threadId: string | undefined
-): boolean => {
-  if (!room || !mEvent) return false;
-  const eventId = mEvent.getId();
-  if (!eventId) return false;
-  const events = threadId
-    ? (room.getThread(threadId)?.events ?? [])
-    : room.getLiveTimeline().getEvents();
-  const index = events.findIndex((event) => event.getId() === eventId);
-  if (index < 0) return false;
-  for (let i = index + 1; i < events.length; i += 1) {
-    const candidate = events[i];
-    if (candidate && isLaterFollowUpEvent(candidate, threadId)) return true;
-  }
-  return false;
-};
-
-const useHasLaterMessage = (
-  room: Room | null,
-  mEvent: MatrixEvent | undefined,
-  threadId: string | undefined,
-  skip: boolean
-): boolean => {
-  const [, refresh] = useReducer((count: number) => count + 1, 0);
-  const hasLater = skip ? false : hasLaterTimelineMessage(room, mEvent, threadId);
-
-  useEffect(() => {
-    if (skip || hasLater || !room || !mEvent) return undefined;
-    const onTimeline = (event: MatrixEvent) => {
-      if (matchesEnum(event.getType(), EventType.RoomMessage)) refresh();
-    };
-    const onThreadUpdate = (thread: Thread) => {
-      if (!threadId || thread.id === threadId) refresh();
-    };
-    room.on(RoomEvent.Timeline, onTimeline);
-    room.on(ThreadEvent.Update, onThreadUpdate);
-    room.on(ThreadEvent.NewReply, onThreadUpdate);
-    return () => {
-      room.off(RoomEvent.Timeline, onTimeline);
-      room.off(ThreadEvent.Update, onThreadUpdate);
-      room.off(ThreadEvent.NewReply, onThreadUpdate);
-    };
-  }, [skip, hasLater, room, mEvent, threadId]);
-
-  return hasLater;
-};
-
 type TechRow = readonly [label: string, value: string];
 
 function TechDetailsList({ rows }: { rows: readonly TechRow[] }) {
@@ -240,7 +180,7 @@ export type RunErrorCardProps = {
 /**
  * Quiet Callout Card for failed MindRoom agent/team runs: clear title + chip + summary,
  * optional one-click Continue/Retry/Compact action, collapsible monospace technical details,
- * and a 1-line expandable receipt once resumed.
+ * and a 1-line expandable receipt once the user triggers its recovery action.
  */
 export function RunErrorCard({
   error,
@@ -257,13 +197,27 @@ export function RunErrorCard({
   const senderId = mEvent?.getSender() ?? undefined;
   const targetThreadId = threadId ?? mEvent?.threadRootId;
 
-  const [actionState, setActionState] = useState<'idle' | 'sending' | 'resumed'>('idle');
+  const [actionState, setActionState] = useState<ActionState>({ status: 'idle' });
   const [sendFailed, setSendFailed] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
-  const hasLaterMessage = useHasLaterMessage(room, mEvent, targetThreadId, actionState !== 'idle');
-  const isResumed = actionState !== 'idle' || hasLaterMessage;
+  const cardRef = useRef<HTMLElement>(null);
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const receiptButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingFocusRef = useRef<'receipt' | 'action' | null>(null);
+
+  useLayoutEffect(() => {
+    const target = pendingFocusRef.current;
+    if (!target) return;
+    if (target === 'receipt' && actionState.status !== 'idle') {
+      pendingFocusRef.current = null;
+      receiptButtonRef.current?.focus({ preventScroll: true });
+    } else if (target === 'action' && actionState.status === 'idle') {
+      pendingFocusRef.current = null;
+      actionButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [actionState]);
 
   const tone = getRunErrorTone(error);
   const chip = getRunErrorChip(error, t);
@@ -295,29 +249,37 @@ export function RunErrorCard({
   if (codeValue) techRows.push([t('mindroomUi.messages.runError.details.code'), codeValue]);
   if (error.detail) techRows.push([t('mindroomUi.messages.runError.details.detail'), error.detail]);
 
-  const handleAction = () => {
-    if (!error.action || !mx || !room || actionState !== 'idle') return;
+  const handleAction = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!error.action || !mx || !room || actionState.status !== 'idle') return;
+    const clickedAction = error.action;
+    const viaKeyboard = event.detail === 0;
     setSendFailed(false);
-    setActionState('sending');
-    void sendRunErrorAction(mx, room, targetThreadId, error.action, senderId)
+    pendingFocusRef.current = viaKeyboard ? 'receipt' : null;
+    setActionState({ status: 'sending', action: clickedAction });
+    void sendRunErrorAction(mx, room, targetThreadId, clickedAction, senderId)
       .then(() => {
-        setActionState('resumed');
+        setActionState({ status: 'done', action: clickedAction });
       })
       .catch(() => {
-        setActionState('idle');
+        const shouldRestoreFocus = viaKeyboard && hasFocusWithin(cardRef.current);
+        pendingFocusRef.current = shouldRestoreFocus ? 'action' : null;
+        setReceiptOpen(false);
+        setActionState({ status: 'idle' });
         setSendFailed(true);
       });
   };
 
-  if (isResumed) {
+  if (actionState.status !== 'idle') {
     return (
       <section
+        ref={cardRef}
         className={css.Receipt}
         aria-label={t('mindroomUi.messages.runError.cardLabel')}
         data-run-error-card="resumed"
         data-tone={tone}
       >
         <button
+          ref={receiptButtonRef}
           type="button"
           className={css.ReceiptButton}
           aria-expanded={receiptOpen}
@@ -326,7 +288,7 @@ export function RunErrorCard({
           <span className={css.ReceiptCheck} aria-hidden>
             <Icon size="50" src={Icons.Check} />
           </span>
-          <span className={css.ReceiptStatus}>{t('mindroomUi.messages.runError.resumed')}</span>
+          <span className={css.ReceiptStatus}>{t(RECEIPT_STATUS_KEYS[actionState.action])}</span>
           <span className={css.ReceiptSep} aria-hidden>
             ·
           </span>
@@ -354,6 +316,7 @@ export function RunErrorCard({
 
   return (
     <section
+      ref={cardRef}
       className={css.Card[tone]}
       aria-label={t('mindroomUi.messages.runError.cardLabel')}
       data-run-error-card="open"
@@ -379,7 +342,12 @@ export function RunErrorCard({
       {showFooter && (
         <div className={css.Footer}>
           {action && (
-            <button type="button" className={css.ActionButton} onClick={handleAction}>
+            <button
+              ref={actionButtonRef}
+              type="button"
+              className={css.ActionButton}
+              onClick={handleAction}
+            >
               <ActionIcon action={action} />
               <span>{t(ACTION_LABEL_KEYS[action])}</span>
             </button>

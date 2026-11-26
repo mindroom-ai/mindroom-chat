@@ -32,12 +32,7 @@ import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { RestartSeam, RunErrorCard } from '../agent-run/RunErrorCard';
-import {
-  collapseRestartMarkersHtml,
-  parseRestartSeamNode,
-  stripTrailingRunErrorHtml,
-  stripTrailingRunErrorText,
-} from '../agent-run/runErrorHtml';
+import { parseRestartSeamNode, prepareRunErrorBody } from '../agent-run/runErrorHtml';
 import {
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
@@ -372,42 +367,35 @@ export const renderAgentMessageContent = ({
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
 
+  // Search results pass highlightRegex: keep matched text intact and avoid rendering actionable
+  // error cards on search hits (which may come from m.replace events lacking threadId).
+  const showRunErrorUi = fromMindroomAgent && highlightRegex === undefined;
+
   /** The reply's reasoning and body, folded work, question card, restart seam, and run error card. */
   const wrapAgentBody = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
-    renderHtml: (customBody: string | undefined, restartSeams: boolean) => ReactNode,
+    renderHtml: (
+      customBody: string | undefined,
+      restartSeams: boolean,
+      effectiveBody: string | undefined
+    ) => ReactNode,
     canFold = true,
-    plainBodyEmpty = false
+    plainBody?: string
   ) => {
-    const aiRun = fromMindroomAgent ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined;
-    const runError = aiRun?.error;
-    let processedHtml = html;
-    let bodyEmpty = plainBodyEmpty;
-    let hasRestartSeam = false;
-
-    if (fromMindroomAgent && processedHtml !== undefined) {
-      if (runError) {
-        const stripped = stripTrailingRunErrorHtml(processedHtml, runError);
-        processedHtml = stripped.html;
-        if (stripped.stripped && processedHtml.trim() === '') {
-          bodyEmpty = true;
-          processedHtml = undefined;
-        }
-      }
-      if (!bodyEmpty && processedHtml !== undefined) {
-        const collapsed = collapseRestartMarkersHtml(processedHtml);
-        processedHtml = collapsed.html;
-        hasRestartSeam = collapsed.hasRestartSeam;
-      }
-    }
+    const prepared = prepareRunErrorBody({
+      enabled: showRunErrorUi,
+      body: plainBody,
+      html,
+      aiRun: showRunErrorUi ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined,
+    });
 
     const renderEffectiveHtml = (customBody: string | undefined): ReactNode =>
-      bodyEmpty ? null : renderHtml(customBody, hasRestartSeam);
+      prepared.bodyEmpty ? null : renderHtml(customBody, prepared.hasRestartSeam, prepared.body);
 
     const wrap = (
       render: (customBody: string | undefined) => ReactNode,
-      bodyHtml: string | undefined = processedHtml
+      bodyHtml: string | undefined = prepared.html
     ) => {
       if (!foldsWork || foldEventId === undefined) {
         return wrapWithReasoning(bodyContent, bodyHtml, render(bodyHtml));
@@ -430,7 +418,7 @@ export const renderAgentMessageContent = ({
         wrap(renderEffectiveHtml)
       ) : (
         <QuestionReply
-          html={processedHtml}
+          html={prepared.html}
           question={question}
           renderCard={renderQuestionCard}
           renderHtml={renderEffectiveHtml}
@@ -438,13 +426,13 @@ export const renderAgentMessageContent = ({
         />
       );
 
-    if (!runError) return wrappedBody;
+    if (!prepared.runError) return wrappedBody;
     return (
       <>
         {wrappedBody}
         <RunErrorCard
-          error={runError}
-          aiRun={aiRun}
+          error={prepared.runError}
+          aiRun={prepared.aiRun}
           mEvent={mEvent}
           roomId={roomId ?? mEvent?.getRoomId()}
           threadId={threadId}
@@ -466,23 +454,13 @@ export const renderAgentMessageContent = ({
         (typeof renderableContent.formatted_body === 'string'
           ? renderableContent.formatted_body
           : undefined);
-      const runError = fromMindroomAgent
-        ? (getAiRunInfo(renderableContent) ?? outerAiRun)?.error
-        : undefined;
-      const strippedPlain =
-        customBody === undefined && runError
-          ? stripTrailingRunErrorText(body, runError)
-          : undefined;
-      const effectiveBody = strippedPlain ? strippedPlain.body : body;
-      const plainBodyEmpty = Boolean(strippedPlain?.stripped && effectiveBody === '');
-
       return wrapAgentBody(
         renderableContent,
         customBody,
-        (html, restartSeams) => (
+        (html, restartSeams, effectiveBody) => (
           <AgentRenderBody
             {...props}
-            body={effectiveBody}
+            body={effectiveBody ?? body}
             customBody={html}
             highlightRegex={highlightRegex}
             htmlReactParserOptions={htmlReactParserOptions}
@@ -493,7 +471,7 @@ export const renderAgentMessageContent = ({
           />
         ),
         true,
-        plainBodyEmpty
+        body
       );
     };
 
@@ -554,15 +532,6 @@ export const renderAgentMessageContent = ({
     // or mocked callers.
     const resolvedContent = transformLongTextContent(downloadedContent);
     const mergedContent = withLiveWrapperContent(resolvedContent, content);
-    const runError = fromMindroomAgent
-      ? (getAiRunInfo(mergedContent) ?? outerAiRun)?.error
-      : undefined;
-    const strippedPlain =
-      props.customBody === undefined && runError
-        ? stripTrailingRunErrorText(props.body, runError)
-        : undefined;
-    const effectiveBody = strippedPlain ? strippedPlain.body : props.body;
-    const plainBodyEmpty = Boolean(strippedPlain?.stripped && effectiveBody === '');
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -570,10 +539,10 @@ export const renderAgentMessageContent = ({
         // sidecar.
         mergedContent,
         props.customBody,
-        (html, restartSeams) => (
+        (html, restartSeams, effectiveBody) => (
           <AgentRenderBody
             {...props}
-            body={effectiveBody}
+            body={effectiveBody ?? props.body}
             customBody={html}
             highlightRegex={highlightRegex}
             htmlReactParserOptions={htmlReactParserOptions}
@@ -587,7 +556,7 @@ export const renderAgentMessageContent = ({
         // The preview stops partway, also when the sidecar could not be read; only the whole
         // reply from the sidecar folds.
         !hasLongTextMetadata(resolvedContent),
-        plainBodyEmpty
+        props.body
       )
     );
   };

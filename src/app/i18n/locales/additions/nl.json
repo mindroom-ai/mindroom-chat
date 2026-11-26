@@ -1419,7 +1419,11 @@
           "detail": "Detail",
           "error": "Fout"
         },
-        "resumed": "Hervat",
+        "receipt": {
+          "continue": "Hervat",
+          "retry": "Opnieuw geprobeerd",
+          "compact": "Gecomprimeerd"
+        },
         "sendFailed": "Kon bericht niet verzenden. Probeer opnieuw.",
         "restartSeam": "Service herstart · context behouden",
         "restartSeamRepeated": "Service herstart ({{times}}×) · context behouden"

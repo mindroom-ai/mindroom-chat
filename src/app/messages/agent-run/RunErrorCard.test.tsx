@@ -1,28 +1,19 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { EventEmitter } from 'events';
 import {
   EventStatus,
   EventType,
   MatrixEvent,
   MsgType,
   RelationType,
-  RoomEvent,
-  ThreadEvent,
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiRunErrorInfo, AiRunInfo } from '../../matrix/protocol/aiRun';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import {
-  RestartSeam,
-  RunErrorCard,
-  formatRunErrorCode,
-  getRunErrorTone,
-  hasLaterTimelineMessage,
-} from './RunErrorCard';
+import { RestartSeam, RunErrorCard, formatRunErrorCode, getRunErrorTone } from './RunErrorCard';
 
 const discardFailedLocalEcho = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/protocol/pendingLocalEcho', () => ({ discardFailedLocalEcho }));
@@ -39,14 +30,12 @@ const makeEvent = (
     threadId = THREAD_ID,
     type = EventType.RoomMessage,
     content = { msgtype: MsgType.Text, body: 'text' },
-    redacted = false,
     status = EventStatus.SENT,
   }: {
     sender?: string;
     threadId?: string | null;
     type?: string;
     content?: Record<string, unknown>;
-    redacted?: boolean;
     status?: EventStatus | null;
   } = {}
 ): MatrixEvent => {
@@ -71,18 +60,6 @@ const makeEvent = (
     content: fullContent,
   });
   event.status = status;
-  if (redacted) {
-    event.makeRedacted(
-      new MatrixEvent({
-        event_id: `$redact-${eventId}`,
-        room_id: ROOM_ID,
-        sender,
-        type: EventType.RoomRedaction,
-        content: {},
-      }),
-      {} as Room
-    );
-  }
   return event;
 };
 
@@ -103,8 +80,7 @@ const createMockRoom = ({
   memberDisplayName = 'DevAgent',
   pendingEcho,
 }: MockRoomOptions = {}) => {
-  const emitter = new EventEmitter();
-  const room = Object.assign(emitter, {
+  const room = {
     roomId: ROOM_ID,
     getMyMembership: () => membership,
     currentState: {
@@ -116,8 +92,8 @@ const createMockRoom = ({
       id === THREAD_ID ? { id: THREAD_ID, events: threadEvents } : undefined,
     getLiveTimeline: () => ({ getEvents: () => timelineEvents }),
     getEventForTxnId: () => pendingEcho,
-  });
-  return room as unknown as Room & EventEmitter;
+  };
+  return room as unknown as Room;
 };
 
 const createMockClient = (
@@ -131,6 +107,16 @@ const createMockClient = (
     sendMessage,
   } as unknown as MatrixClient;
   return { mx, sendMessage };
+};
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 };
 
 const STALLED_ERROR: AiRunErrorInfo = {
@@ -216,30 +202,6 @@ describe('RunErrorCard helpers', () => {
     expect(
       formatRunErrorCode({ kind: 'timeout', title: 'T', summary: 'S', retryable: true })
     ).toBeUndefined();
-  });
-
-  it('detects later non-redacted follow-up messages while ignoring edits, redactions, and failed sends', () => {
-    const failedEvent = makeEvent('$failed');
-    const redactedFollowUp = makeEvent('$redacted', { redacted: true });
-    const editEvent = makeEvent('$edit', {
-      content: {
-        msgtype: MsgType.Text,
-        body: '* edited',
-        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$failed' },
-      },
-    });
-    const unsentEvent = makeEvent('$unsent', { status: EventStatus.NOT_SENT });
-    const realReply = makeEvent('$reply', { sender: VIEWER });
-
-    const roomWithoutFollowUp = createMockRoom({
-      threadEvents: [failedEvent, redactedFollowUp, editEvent, unsentEvent],
-    });
-    expect(hasLaterTimelineMessage(roomWithoutFollowUp, failedEvent, THREAD_ID)).toBe(false);
-
-    const roomWithFollowUp = createMockRoom({
-      threadEvents: [failedEvent, redactedFollowUp, realReply],
-    });
-    expect(hasLaterTimelineMessage(roomWithFollowUp, failedEvent, THREAD_ID)).toBe(true);
   });
 });
 
@@ -345,7 +307,7 @@ describe('RunErrorCard', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
-  it('sends threaded Continue mention with m.mentions and folds to a 1-line expandable receipt', async () => {
+  it('sends threaded Continue mention with m.mentions and folds to an expandable Resumed receipt', async () => {
     const failedEvent = makeEvent('$failed');
     const room = createMockRoom({ threadEvents: [failedEvent] });
     const { mx, sendMessage } = createMockClient(room);
@@ -404,7 +366,7 @@ describe('RunErrorCard', () => {
     expect(receipt?.querySelector('dl')).not.toBeNull();
   });
 
-  it('sends room-level Retry with m.mentions and no thread relation, and Compact as /compact', async () => {
+  it('uses Retried for Retry and Compacted for Compact receipts', async () => {
     const roomFailedEvent = makeEvent('$failed-room', { threadId: null });
     const room = createMockRoom({ timelineEvents: [roomFailedEvent] });
     const { mx, sendMessage } = createMockClient(room);
@@ -446,6 +408,9 @@ describe('RunErrorCard', () => {
       },
       'txn-1'
     );
+    const retryReceipt = container.querySelector('[data-run-error-card="resumed"]');
+    expect(retryReceipt?.textContent).toContain('Retried');
+    expect(retryReceipt?.textContent).toContain('Rate limit reached');
 
     sendMessage.mockClear();
     const threadFailedEvent = makeEvent('$failed-compact');
@@ -489,6 +454,9 @@ describe('RunErrorCard', () => {
       },
       'txn-1'
     );
+    const compactReceipt = container.querySelector('[data-run-error-card="resumed"]');
+    expect(compactReceipt?.textContent).toContain('Compacted');
+    expect(compactReceipt?.textContent).toContain('Context window full');
   });
 
   it('recovers cleanly when Matrix send fails: unfolds card, discards echo, shows inline alert, and allows retry', async () => {
@@ -535,6 +503,131 @@ describe('RunErrorCard', () => {
     expect(container.querySelector('[data-run-error-card="resumed"]')).not.toBeNull();
   });
 
+  it('keeps the card open and actionable even when later messages or thread-summary notices exist in the thread', () => {
+    const failedEvent = makeEvent('$failed');
+    const threadSummaryNotice = makeEvent('$summary-notice', {
+      content: {
+        msgtype: MsgType.Notice,
+        body: 'Thread summary updated',
+        'io.mindroom.thread_summary': { version: 1 },
+      },
+    });
+    const concurrentUserMessage = makeEvent('$user-note', {
+      sender: VIEWER,
+      content: { msgtype: MsgType.Text, body: 'Also check the staging logs please' },
+    });
+    const room = createMockRoom({
+      threadEvents: [failedEvent, threadSummaryNotice, concurrentUserMessage],
+      timelineEvents: [failedEvent, threadSummaryNotice, concurrentUserMessage],
+    });
+    const { mx } = createMockClient(room);
+
+    renderCard(
+      {
+        error: STALLED_ERROR,
+        mEvent: failedEvent,
+        roomId: ROOM_ID,
+        threadId: THREAD_ID,
+      },
+      mx
+    );
+
+    expect(container.querySelector('[data-run-error-card="open"]')).not.toBeNull();
+    expect(container.querySelector('[data-run-error-card="resumed"]')).toBeNull();
+    expect(
+      [...container.querySelectorAll('button')].some((btn) => btn.textContent?.includes('Continue'))
+    ).toBe(true);
+  });
+
+  it('moves keyboard focus to the receipt toggle on activation and restores it to the action button on send failure', async () => {
+    const failedEvent = makeEvent('$failed');
+    const room = createMockRoom({ threadEvents: [failedEvent] });
+    const firstSend = createDeferred<{ event_id: string }>();
+    const secondSend = createDeferred<{ event_id: string }>();
+    const thirdSend = createDeferred<{ event_id: string }>();
+    const sendMessage = vi
+      .fn()
+      .mockReturnValueOnce(firstSend.promise)
+      .mockReturnValueOnce(secondSend.promise)
+      .mockReturnValueOnce(thirdSend.promise);
+    const { mx } = createMockClient(room, sendMessage);
+
+    const externalBtn = document.createElement('button');
+    externalBtn.textContent = 'External control';
+    document.body.append(externalBtn);
+
+    try {
+      renderCard(
+        {
+          error: STALLED_ERROR,
+          mEvent: failedEvent,
+          roomId: ROOM_ID,
+          threadId: THREAD_ID,
+        },
+        mx
+      );
+
+      const getContinueBtn = () =>
+        [...container.querySelectorAll('button')].find((btn) =>
+          btn.textContent?.includes('Continue')
+        );
+      const getReceiptBtn = () =>
+        container.querySelector<HTMLButtonElement>(
+          '[data-run-error-card="resumed"] button[aria-expanded]'
+        );
+
+      // 1. Keyboard activation (detail: 0) moves focus to the folded receipt toggle.
+      const continueBtn = getContinueBtn()!;
+      act(() => {
+        continueBtn.focus();
+        continueBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+      });
+      const receiptBtn = getReceiptBtn();
+      expect(receiptBtn).not.toBeNull();
+      expect(document.activeElement).toBe(receiptBtn);
+
+      // 2. Send failure while focus is still on the receipt restores focus to the action button.
+      await act(async () => {
+        firstSend.reject(new Error('network down'));
+        await Promise.resolve();
+      });
+      const restoredContinueBtn = getContinueBtn();
+      expect(restoredContinueBtn).not.toBeNull();
+      expect(document.activeElement).toBe(restoredContinueBtn);
+
+      // 3. If the user moves focus elsewhere before send fails, focus is not stolen.
+      act(() => {
+        restoredContinueBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+      });
+      expect(document.activeElement).toBe(getReceiptBtn());
+      act(() => {
+        externalBtn.focus();
+      });
+      await act(async () => {
+        secondSend.reject(new Error('still down'));
+        await Promise.resolve();
+      });
+      expect(getContinueBtn()).not.toBeNull();
+      expect(document.activeElement).toBe(externalBtn);
+
+      // 4. Pointer activation (detail: 1) does not move focus to receipt or action button.
+      act(() => {
+        externalBtn.focus();
+        getContinueBtn()!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+      });
+      expect(getReceiptBtn()).not.toBeNull();
+      expect(document.activeElement).toBe(externalBtn);
+      await act(async () => {
+        thirdSend.reject(new Error('pointer send failed'));
+        await Promise.resolve();
+      });
+      expect(getContinueBtn()).not.toBeNull();
+      expect(document.activeElement).toBe(externalBtn);
+    } finally {
+      externalBtn.remove();
+    }
+  });
+
   it('hides action button when user cannot send or card is readOnly', () => {
     const failedEvent = makeEvent('$failed');
     const readOnlyRoom = createMockRoom({ canSend: false, threadEvents: [failedEvent] });
@@ -570,33 +663,6 @@ describe('RunErrorCard', () => {
     expect(
       [...container.querySelectorAll('button')].some((btn) => btn.textContent?.includes('Continue'))
     ).toBe(false);
-  });
-
-  it('folds automatically when a later message already exists or arrives in the thread timeline', () => {
-    const failedEvent = makeEvent('$failed');
-    const threadEvents: MatrixEvent[] = [failedEvent];
-    const room = createMockRoom({ threadEvents });
-    const { mx } = createMockClient(room);
-
-    renderCard(
-      {
-        error: STALLED_ERROR,
-        mEvent: failedEvent,
-        roomId: ROOM_ID,
-        threadId: THREAD_ID,
-      },
-      mx
-    );
-    expect(container.querySelector('[data-run-error-card="open"]')).not.toBeNull();
-
-    const followUp = makeEvent('$next-reply', { sender: VIEWER });
-    threadEvents.push(followUp);
-    act(() => {
-      room.emit(ThreadEvent.NewReply, { id: THREAD_ID }, followUp);
-      room.emit(RoomEvent.Timeline, followUp);
-    });
-
-    expect(container.querySelector('[data-run-error-card="resumed"]')).not.toBeNull();
   });
 
   it('renders RestartSeam for single and repeated restarts', () => {

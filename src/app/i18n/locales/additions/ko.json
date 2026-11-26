@@ -1383,7 +1383,11 @@
           "detail": "세부 정보",
           "error": "오류"
         },
-        "resumed": "재개됨",
+        "receipt": {
+          "continue": "재개됨",
+          "retry": "다시 시도됨",
+          "compact": "압축됨"
+        },
         "sendFailed": "메시지를 보낼 수 없습니다. 다시 시도하세요.",
         "restartSeam": "서비스 재시작됨 · 컨텍스트 유지됨",
         "restartSeamRepeated": "서비스 재시작됨 ({{times}}×) · 컨텍스트 유지됨"

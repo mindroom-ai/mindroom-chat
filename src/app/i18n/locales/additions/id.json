@@ -1383,7 +1383,11 @@
           "detail": "Detail",
           "error": "Kesalahan"
         },
-        "resumed": "Dilanjutkan",
+        "receipt": {
+          "continue": "Dilanjutkan",
+          "retry": "Dicoba lagi",
+          "compact": "Diringkas"
+        },
         "sendFailed": "Tidak dapat mengirim pesan. Coba lagi.",
         "restartSeam": "Layanan dimulai ulang · konteks dipertahankan",
         "restartSeamRepeated": "Layanan dimulai ulang ({{times}}×) · konteks dipertahankan"

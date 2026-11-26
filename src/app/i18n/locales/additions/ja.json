@@ -1383,7 +1383,11 @@
           "detail": "詳細",
           "error": "エラー"
         },
-        "resumed": "再開済み",
+        "receipt": {
+          "continue": "再開済み",
+          "retry": "再試行済み",
+          "compact": "圧縮済み"
+        },
         "sendFailed": "メッセージを送信できませんでした。もう一度お試しください。",
         "restartSeam": "サービス再起動 · コンテキスト保持",
         "restartSeamRepeated": "サービス再起動（{{times}}×）· コンテキスト保持"
