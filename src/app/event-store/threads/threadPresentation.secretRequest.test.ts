@@ -185,6 +185,20 @@ describe('folded secret-request notices as thread reply previews', () => {
     expect(unopenedFoldedOnly.lastSenderId).toBeUndefined();
     expect(unopenedFoldedOnly.rootPreviewText).toBe('Deploy the release');
 
+    // A cached answer from before the request existed (t=2 < 3) is NOT the stale prompt and is kept.
+    const olderCachedAnswer = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: ROOT,
+      thread: { events: [], timeline: [], replyToEvent: folded },
+      rootEvent: root,
+      fallbackLatestReplyPreviewText: 'The release is ready.',
+      fallbackLatestReplyTs: 2,
+      fallbackLastSenderId: AGENT,
+    });
+    expect(olderCachedAnswer.latestReplyPreviewText).toBe('The release is ready.');
+    expect(olderCachedAnswer.latestReplyTs).toBe(2);
+    expect(olderCachedAnswer.lastSenderId).toBe(AGENT);
+
     // A genuinely newer reply cached after the secret folded (t=10 > 4) is still preserved.
     const newerCached = resolveThreadPresentationSnapshot({
       room,

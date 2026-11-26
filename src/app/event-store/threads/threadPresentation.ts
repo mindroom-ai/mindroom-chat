@@ -145,13 +145,15 @@ export const resolveThreadPresentationSnapshot = ({
   // bundled reply, it replaces a cached copy of the reply older than its newest revision.
   const bundledReply = bundled.reply ?? summaryReply;
   // A cached prompt from a secret request that has since folded must not outlive its folding edit
-  // and shadow an older agent reply; a genuinely newer reply cached after the fold still wins.
+  // and shadow an older agent reply; cached answers predating the request (< event.getTs()) or
+  // genuinely newer replies cached after the fold (> revisionTs) still win.
   const cachedSupersededByFoldedSecret =
     cachedReplyTs !== undefined &&
     [...replyEvents, thread?.replyToEvent].some(
       (event) =>
         !!event &&
         isFoldedSecretRequestEvent(event, viewerUserId) &&
+        cachedReplyTs >= event.getTs() &&
         getThreadPreviewRevisionTs(event) >= cachedReplyTs
     );
   const usableFallbackPreviewText = cachedSupersededByFoldedSecret
