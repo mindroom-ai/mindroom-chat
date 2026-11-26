@@ -91,6 +91,23 @@ const MEDIA_EXTENSIONS = new Set([
   'flac',
   'aac',
   'weba',
+  'aiff',
+  'aif',
+  'mxf',
+]);
+
+const AUTO_ZIP_EXCLUDED_MEDIA_MIME_TYPES = new Set(['application/mxf', 'application/ogg']);
+
+const ALREADY_COMPRESSED_CONTAINER_EXTENSIONS = new Set([
+  'docx',
+  'xlsx',
+  'pptx',
+  'odt',
+  'ods',
+  'odp',
+  'epub',
+  'jar',
+  'apk',
 ]);
 
 /** Whether an oversized `file` is eligible for client-side lossless `.zip` compression. */
@@ -105,11 +122,18 @@ export const canZipOversizedFile = (file: File): boolean => {
 export const isEligibleFileForAutoZip = (file: File): boolean => {
   if (!canZipOversizedFile(file) || file.size < MIN_AUTO_ZIP_FILE_BYTES) return false;
   const mime = getMimeTypeBase(file.type);
-  if (mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/')) {
+  if (
+    mime.startsWith('image/') ||
+    mime.startsWith('video/') ||
+    mime.startsWith('audio/') ||
+    AUTO_ZIP_EXCLUDED_MEDIA_MIME_TYPES.has(mime)
+  ) {
     return false;
   }
+  const ext = getFileNameExt(file.name).toLowerCase();
+  if (ALREADY_COMPRESSED_CONTAINER_EXTENSIONS.has(ext)) return false;
   if (mime === '' || mime === FALLBACK_MIMETYPE) {
-    return !MEDIA_EXTENSIONS.has(getFileNameExt(file.name).toLowerCase());
+    return !MEDIA_EXTENSIONS.has(ext);
   }
   return true;
 };

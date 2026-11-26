@@ -190,10 +190,10 @@ export const UploadCardRenderer = ({
   // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
   const unencryptedError = useMemo(
     () =>
-      !isCompressing && isEncrypted && !encInfo
+      !isCompressing && !isZipFailed && isEncrypted && !encInfo
         ? toMatrixUploadError(new Error('The file was not encrypted.'), 'create')
         : undefined,
-    [isCompressing, isEncrypted, encInfo]
+    [isCompressing, isZipFailed, isEncrypted, encInfo]
   );
   const tooLargeError = useMemo(
     () => (isCompressing ? undefined : getTooLargeError(file.size, maxUploadSize)),

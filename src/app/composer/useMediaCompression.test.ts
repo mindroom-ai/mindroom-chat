@@ -943,21 +943,29 @@ describe('useMediaCompression', () => {
     );
     expect(ok.current().originalFile).toBe(zippedJson);
 
-    // 2. Oversized incompressible file commits zipFailed and stays non-sendable.
+    // 2. Oversized incompressible file in an encrypted room skips encryption and commits zipFailed.
+    const encRoom = makeRoom(ROOM_ID, true);
+    const encHarness = renderHook({ room: encRoom, maxUploadSize: limit });
+    const prepareSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems');
     const bigBin = makeSizedFile('random.bin', 'application/octet-stream', 20 * 1024 * 1024);
     mockZipFile.mockResolvedValueOnce({ status: 'too-large' });
-    const fail = runAutoZip(h, bigBin, room);
+    const fail = runAutoZip(encHarness, bigBin, encRoom);
     await vi.waitFor(() =>
       expect(fail.current().compression).toEqual({ status: 'zipFailed', reason: 'too-large' })
     );
+    expect(prepareSpy).not.toHaveBeenCalled();
+    expect(fail.current()).toMatchObject({
+      file: bigBin,
+      originalFile: bigBin,
+      encInfo: undefined,
+    });
     expect(isUploadItemReady(fail.current())).toBe(false);
+    encHarness.unmount();
 
     // 3. Deferred Home Ask preserves .zip without encrypting until Send.
-    const encRoom = makeRoom(ROOM_ID, true);
     const deferred = renderHook({ room: encRoom, deferUpload: true, maxUploadSize: limit });
     const homeJson = makeSizedFile('logs.json', 'application/json', 2 * 1024 * 1024);
     const homeZip = makeSizedFile('logs.json.zip', 'application/zip', 150 * 1024);
-    const prepareSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems');
     mockZipFile.mockResolvedValueOnce(zipOk(homeJson, homeZip));
     const home = runAutoZip(deferred, homeJson, encRoom);
     await vi.waitFor(() => expect(home.current().compression?.status).toBe('compressed'));

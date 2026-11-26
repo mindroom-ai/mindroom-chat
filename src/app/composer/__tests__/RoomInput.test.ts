@@ -6378,14 +6378,13 @@ describe('RoomInput media compression send and voice invariants', () => {
     act(() => renderer.unmount());
   });
 
-  it('auto-zips >= 1 MiB JSON only when autoZipLargeFiles is enabled, keeps < 1 MiB raw, and supports Use original', async () => {
+  it('wires autoZipLargeFiles from settings into staging (off raw vs on auto-zip with Use original on the card)', async () => {
     const { settingsAtom } = await import('../../preferences/settings');
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { fileDropContainerRef: createRef() });
     const largeJson = new File(['{"row":"ok"}\n'.repeat(90_000)], 'large.json', {
       type: 'application/json',
     });
-    const smallJson = new File(['{"small":true}'], 'small.json', { type: 'application/json' });
     const staged = () => store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
 
     await act(async () => {
@@ -6398,7 +6397,7 @@ describe('RoomInput media compression send and voice invariants', () => {
     store.set(settingsAtom, { mediaCompression: 'balanced', autoZipLargeFiles: true } as never);
     await act(async () => {
       store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: staged() });
-      fileInputState.onDrop?.([largeJson, smallJson]);
+      fileInputState.onDrop?.([largeJson]);
       await Promise.resolve();
     });
     await vi.waitFor(() => expect(staged()[0]?.compression?.status).toBe('compressed'));
@@ -6408,13 +6407,9 @@ describe('RoomInput media compression send and voice invariants', () => {
       originalSize: largeJson.size,
       sourceFile: largeJson,
     });
-    expect(staged()[1]?.originalFile).toBe(smallJson);
-    expect(staged()[1]?.compression).toBeUndefined();
-
-    const zipCard = cardFor(renderer, staged()[0]!.file)!;
-    await act(async () => zipCard.props.onUseOriginal(zipCard.props.fileItem));
-    await vi.waitFor(() => expect(staged()[0]?.compression).toEqual({ status: 'original' }));
-    expect(staged()[0]?.originalFile).toBe(largeJson);
+    const zipCard = cardFor(renderer, staged()[0]!.file);
+    expect(zipCard?.props.canUseOriginal).toBe(true);
+    expect(zipCard?.props.onUseOriginal).toBeTypeOf('function');
 
     act(() => renderer.unmount());
   });

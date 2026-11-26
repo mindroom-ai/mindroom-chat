@@ -227,6 +227,13 @@ describe('isEligibleFileForAutoZip', () => {
       sized('PHOTO.HEIC', ''),
       sized('clip.MOV', 'application/octet-stream'),
       sized('track.MP3', ''),
+      sized('master.AIFF', ''),
+      sized('reel.mxf', 'application/mxf'),
+      sized('stream.ogx', 'application/ogg'),
+      sized(
+        'report.docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ),
       sized('bundle.zip', 'application/zip'),
       sized('logs.tar.gz', 'application/octet-stream'),
     ]) {

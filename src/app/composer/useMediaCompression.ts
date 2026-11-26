@@ -9,6 +9,7 @@ import {
   type TUploadMetadata,
   type UploadCompression,
   UploadStatus,
+  type ZipFailureReason,
 } from '../matrix/state/upload';
 import { canZipUploadItem } from './roomInputAttachmentAccess';
 import {
@@ -37,8 +38,6 @@ export type PendingBackgroundCompression = {
   start: () => void;
   cancel: () => void;
 };
-
-export type PendingVideoCompression = PendingBackgroundCompression;
 
 export type UseMediaCompressionOptions = {
   mx: MatrixClient;
@@ -231,8 +230,8 @@ const runInlineImageCompression = async (
 
 type BackgroundCompressionOutcome =
   | { kind: 'compressed'; file: File; originalSize: number }
-  | { kind: 'fallback'; compression?: UploadCompression }
-  | { kind: 'abort' };
+  | { kind: 'fallback' }
+  | { kind: 'zipFailed'; reason: ZipFailureReason };
 
 const runZipFile = (
   rawFile: File,
@@ -275,15 +274,22 @@ const createPendingBackgroundCompression = (
           job.commit(prepared, { status: 'original' });
           return;
         }
-        if (outcome.kind === 'abort') return;
+        if (outcome.kind === 'zipFailed') {
+          // Never read or encrypt an oversized file that failed zipping and cannot be uploaded.
+          job.commit(
+            { file: rawFile, originalFile: rawFile, encInfo: undefined, metadata: DEFAULT_META },
+            { status: 'zipFailed', reason: outcome.reason }
+          );
+          return;
+        }
         if (outcome.kind === 'fallback') {
           const prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
-          job.commit(prepared, job.wantsOriginal() ? { status: 'original' } : outcome.compression);
+          job.commit(prepared, job.wantsOriginal() ? { status: 'original' } : undefined);
           return;
         }
         let prepared = await prepareItemFile(optsRef.current, outcome.file, roomId, targetRoom);
         // If "Use original" was clicked while encrypting the compressed file, re-prepare rawFile.
-        if (allowUseOriginal && job.wantsOriginal() && job.findLive()) {
+        if (job.wantsOriginal() && job.findLive()) {
           prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
           job.commit(prepared, { status: 'original' });
           return;
@@ -367,11 +373,10 @@ const createPendingAutoZip = (
       if (result.status === 'ok') {
         return { kind: 'compressed', file: result.file, originalSize: result.originalSize };
       }
-      if (result.status === 'aborted') return { kind: 'abort' };
-      return {
-        kind: 'fallback',
-        compression: isOversized ? { status: 'zipFailed', reason: result.status } : undefined,
-      };
+      if (isOversized && result.status !== 'aborted') {
+        return { kind: 'zipFailed', reason: result.status };
+      }
+      return { kind: 'fallback' };
     }
   );
 };
