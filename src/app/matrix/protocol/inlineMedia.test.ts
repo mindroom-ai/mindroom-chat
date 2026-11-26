@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INLINE_MEDIA_CONTENT_KEY, MAX_INLINE_MEDIA_ENTRIES, readInlineMedia } from './inlineMedia';
+import { MAX_INLINE_MEDIA_ENTRIES, readInlineMedia } from './inlineMedia';
 
 const validFile = (url: string, extra: Record<string, unknown> = {}) => ({
   url,
@@ -16,20 +16,16 @@ describe('readInlineMedia', () => {
   it('returns undefined when absent, empty, or non-mxc', () => {
     expect(readInlineMedia(undefined)).toBeUndefined();
     expect(readInlineMedia({})).toBeUndefined();
-    expect(readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: [] })).toBeUndefined();
-    expect(
-      readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: { 'https://ex/a': validFile('mxc://a/b') } })
-    ).toBeUndefined();
+    expect(readInlineMedia([])).toBeUndefined();
+    expect(readInlineMedia({ 'https://ex/a': validFile('mxc://a/b') })).toBeUndefined();
   });
 
   it('validates v2 entries, rejects mismatched or malformed ones as null, and caps count', () => {
     const map = readInlineMedia({
-      [INLINE_MEDIA_CONTENT_KEY]: {
-        'mxc://ex/ok': validFile('mxc://ex/ok'),
-        'mxc://ex/mismatch': validFile('mxc://ex/other'),
-        'mxc://ex/bad-v': validFile('mxc://ex/bad-v', { v: 'v1' }),
-        'mxc://ex/bad-shape': 'nope',
-      },
+      'mxc://ex/ok': validFile('mxc://ex/ok'),
+      'mxc://ex/mismatch': validFile('mxc://ex/other'),
+      'mxc://ex/bad-v': validFile('mxc://ex/bad-v', { v: 'v1' }),
+      'mxc://ex/bad-shape': 'nope',
     });
     expect(map?.get('mxc://ex/ok')).toMatchObject({
       file: { url: 'mxc://ex/ok', v: 'v2', iv: 'iv-base64', hashes: { sha256: 'hash-base64' } },
@@ -44,7 +40,7 @@ describe('readInlineMedia', () => {
     for (let i = 0; i < MAX_INLINE_MEDIA_ENTRIES + 5; i += 1) {
       many[`mxc://ex/${i}`] = validFile(`mxc://ex/${i}`);
     }
-    const capped = readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: many })!;
+    const capped = readInlineMedia(many)!;
     expect([...capped.values()].filter(Boolean)).toHaveLength(MAX_INLINE_MEDIA_ENTRIES);
     expect(capped.get(`mxc://ex/${MAX_INLINE_MEDIA_ENTRIES}`)).toBeNull();
   });

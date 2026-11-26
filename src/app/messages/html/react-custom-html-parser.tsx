@@ -5,7 +5,6 @@ import React, {
   ReactElement,
   ReactNode,
   SyntheticEvent,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -28,12 +27,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
 import * as taskListCss from '../../rich-text/TaskList.css';
-import { ImageOverlay } from '../content/ImageOverlay';
-import { loadImageOriginal, type LoadedImageOriginal } from '../content/imageOriginal';
-import { InlineMediaContext, type InlineMediaEntry } from '../../matrix/protocol/inlineMedia';
-import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { revokeBlobUrl } from '../../lib/hooks/useBlobUrlCleanup';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
+import { InlineImage } from './InlineImage';
 import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
@@ -60,9 +55,6 @@ import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
-import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
-import type { AvatarMediaClient } from '../../avatars/avatarMedia';
-import { useAvatarImage, useSyncReconnectCount } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
@@ -78,213 +70,6 @@ import {
 // Renders `org.matrix.custom.html` message bodies as React: html-react-parser options that
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
-
-type InlineImageKind = 'standalone' | 'linked' | 'emoticon';
-
-function InlineImageButton(props: {
-  alt: string;
-  open: boolean;
-  onToggle: (open: boolean) => void;
-  viewerSrc: string | undefined;
-  downloadBlob?: Blob;
-  children: ReactNode;
-}) {
-  const { t } = useTranslation();
-  const label = props.alt || t('sharedUi.imageContent.view');
-  return (
-    <>
-      <button
-        type="button"
-        className={css.InlineImageButton}
-        aria-label={revealDirectionControls(label)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          props.onToggle(true);
-        }}
-      >
-        {props.children}
-      </button>
-      {props.open && (
-        <ImageOverlay
-          src={props.viewerSrc}
-          downloadBlob={props.downloadBlob}
-          alt={label}
-          requestClose={() => props.onToggle(false)}
-        />
-      )}
-    </>
-  );
-}
-
-function EncryptedInlineImage({
-  alt = '',
-  client,
-  entry,
-  owner,
-  kind,
-  onError,
-  src: _plainSrc,
-  ...props
-}: ComponentPropsWithoutRef<'img'> & {
-  client: MatrixClient;
-  entry: InlineMediaEntry;
-  owner?: EventAttachmentOwner;
-  kind: InlineImageKind;
-}) {
-  const [viewerSrc, setViewerSrc] = useState<string>();
-  const [retryCount, setRetryCount] = useState(0);
-  const [result, setResult] = useState<{
-    key: string;
-    loaded?: LoadedImageOriginal;
-    failedAt?: number;
-  }>();
-  const reconnectCount = useSyncReconnectCount(client);
-  const latestRef = useRef({ entry, owner, reconnectCount });
-  latestRef.current = { entry, owner, reconnectCount };
-  const { file, mimeType } = entry;
-  const entryKey = `${file.url}|${file.iv}|${file.hashes.sha256}|${file.key.k}|${mimeType ?? ''}`;
-
-  if (
-    result?.key === entryKey &&
-    result.failedAt !== undefined &&
-    result.failedAt < reconnectCount
-  ) {
-    setResult(undefined);
-    setRetryCount((n) => n + 1);
-  }
-
-  useEffect(() => {
-    const { entry: cur, owner: curOwner } = latestRef.current;
-    const controller = new AbortController();
-    let createdUrl: string | undefined;
-    loadImageOriginal(client, {
-      url: cur.file.url,
-      mimeType: cur.mimeType,
-      encInfo: cur.file,
-      owner: curOwner,
-      signal: controller.signal,
-    }).then(
-      (loaded) => {
-        if (controller.signal.aborted) revokeBlobUrl(loaded.src);
-        else {
-          createdUrl = loaded.src;
-          setResult({ key: entryKey, loaded });
-        }
-      },
-      () =>
-        !controller.signal.aborted &&
-        setResult({ key: entryKey, failedAt: latestRef.current.reconnectCount })
-    );
-    return () => {
-      controller.abort();
-      if (createdUrl) revokeBlobUrl(createdUrl);
-    };
-  }, [client, entryKey, retryCount]);
-
-  const current = result?.key === entryKey ? result : undefined;
-  const loaded = current?.loaded;
-  const shownAlt = kind === 'emoticon' ? alt : revealDirectionControls(alt);
-  if (!loaded) return current || kind === 'linked' ? <>{shownAlt}</> : null;
-  const img = (
-    <img
-      {...props}
-      src={loaded.src}
-      alt={shownAlt}
-      className={kind === 'emoticon' ? css.Emoticon() : css.InlineImage}
-      loading="lazy"
-      onError={(event) => {
-        setResult({ key: entryKey });
-        onError?.(event);
-      }}
-    />
-  );
-  if (kind !== 'standalone') return img;
-  return (
-    <InlineImageButton
-      alt={alt}
-      open={viewerSrc === loaded.src}
-      onToggle={(open) => setViewerSrc(open ? loaded.src : undefined)}
-      viewerSrc={loaded.src}
-      downloadBlob={loaded.downloadBlob}
-    >
-      {img}
-    </InlineImageButton>
-  );
-}
-
-function PlainInlineImage({
-  alt = '',
-  client,
-  src,
-  ...props
-}: ComponentPropsWithoutRef<'img'> & { client?: AvatarMediaClient }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-  // Resolve a live URL on open so an inline image whose cached blob was evicted still opens.
-  const viewer = useAvatarImage(viewerOpen ? src : undefined, client);
-  return (
-    <InlineImageButton
-      alt={alt}
-      open={viewerOpen}
-      onToggle={setViewerOpen}
-      viewerSrc={viewer.imageSrc}
-    >
-      <AuthenticatedImage
-        {...props}
-        client={client}
-        src={src}
-        alt={revealDirectionControls(alt)}
-        fallback={alt ? revealDirectionControls(alt) : null}
-        className={css.InlineImage}
-        loading="lazy"
-      />
-    </InlineImageButton>
-  );
-}
-
-/** An inline homeserver image opens the same full-size viewer as link preview pictures. */
-function InlineImage({
-  mxcUri,
-  client,
-  alt = '',
-  kind = 'standalone',
-  ...props
-}: ComponentPropsWithoutRef<'img'> & {
-  client: MatrixClient;
-  mxcUri: string;
-  kind?: InlineImageKind;
-}) {
-  const inlineMedia = useContext(InlineMediaContext);
-  const shownAlt = kind === 'emoticon' ? alt : revealDirectionControls(alt);
-  const entry = inlineMedia?.entries.get(mxcUri);
-  if (entry === null) return <>{shownAlt}</>;
-  if (entry) {
-    return (
-      <EncryptedInlineImage
-        {...props}
-        client={client}
-        entry={entry}
-        owner={inlineMedia?.owner}
-        alt={alt}
-        kind={kind}
-      />
-    );
-  }
-  if (kind !== 'standalone') {
-    return (
-      <AuthenticatedImage
-        {...props}
-        client={client}
-        alt={shownAlt}
-        fallback={shownAlt}
-        showFallbackWhileLoading={kind === 'linked'}
-        className={kind === 'emoticon' ? css.Emoticon() : css.InlineImage}
-        loading="lazy"
-      />
-    );
-  }
-  return <PlainInlineImage {...props} client={client} alt={alt} />;
-}
 
 /** Links that leave the app open in a new tab and do not hand it their opener. */
 const NEW_TAB_LINK = { rel: 'noreferrer noopener', target: '_blank' } as const;

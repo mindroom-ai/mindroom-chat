@@ -523,7 +523,7 @@ describe('hydrateLongTextSource', () => {
     }
   );
 
-  it('preserves wrapper com.mindroom.* metadata when hydrated m.new_content omits it', async () => {
+  it('preserves wrapper com.mindroom.* metadata (but not io.mindroom.inline_media) when hydrated m.new_content omits it', async () => {
     const source = expectDefined(
       getLongTextSource({
         msgtype: 'm.file',
@@ -543,6 +543,7 @@ describe('hydrateLongTextSource', () => {
           msgtype: 'm.text',
           body: '* fallback edit body',
           'com.mindroom.skip_mentions': true,
+          'io.mindroom.inline_media': { 'mxc://server/a': { url: 'mxc://server/a' } },
           'm.new_content': {
             msgtype: 'm.text',
             body: 'final edited body',
@@ -555,6 +556,7 @@ describe('hydrateLongTextSource', () => {
     expect(resolved.body).toBe('final edited body');
     expect(resolved.formatted_body).toBe('<p>final edited body</p>');
     expect(resolved['com.mindroom.skip_mentions']).toBe(true);
+    expect(resolved['io.mindroom.inline_media']).toBeUndefined();
   });
 
   it('falls back to wrapper body when m.new_content body is missing', async () => {
@@ -952,21 +954,5 @@ describe('subscribeLongTextHydration', () => {
     );
     expect(listener).not.toHaveBeenCalled();
     stop();
-  });
-
-  it('does not inherit io.mindroom.inline_media from the outer fallback into m.new_content', async () => {
-    const hydrated = await hydrateLongTextSource(
-      makeSource('mxc://server/sidecar-edit'),
-      async () =>
-        JSON.stringify({
-          msgtype: 'm.text',
-          body: 'fallback',
-          'io.mindroom.inline_media': { 'mxc://server/a': { url: 'mxc://server/a' } },
-          'm.new_content': { msgtype: 'm.text', body: 'replacement without inline media' },
-        }),
-      {}
-    );
-
-    expect(hydrated).toEqual({ msgtype: 'm.text', body: 'replacement without inline media' });
   });
 });

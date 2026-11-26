@@ -10,10 +10,7 @@ import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
-import {
-  InlineMediaContext,
-  type InlineMediaContextValue,
-} from '../../matrix/protocol/inlineMedia';
+import { InlineMediaContext, type InlineMediaContextValue } from '../html/InlineImage';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
   HtmlReactParserOptionsSource,

@@ -153,9 +153,7 @@ function AgentRenderBody({
 }: AgentRenderBodyProps) {
   const rawInlineMedia = markerContent[INLINE_MEDIA_CONTENT_KEY];
   const inlineMedia = useMemo(() => {
-    const entries = rawInlineMedia
-      ? readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: rawInlineMedia })
-      : undefined;
+    const entries = readInlineMedia(rawInlineMedia);
     return entries ? { entries, owner: getEventAttachmentOwner(mEvent) } : undefined;
   }, [rawInlineMedia, mEvent]);
   return (

@@ -2,7 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { describeMatrixEventRevision } from '../eventRevision';
 import type { IEncryptedFile } from '../types/common';
 import { getLongTextSource } from './longText';
-import { readInlineMedia } from './inlineMedia';
+import { INLINE_MEDIA_CONTENT_KEY, readInlineMedia } from './inlineMedia';
 
 export const ESSENTIAL_BODY_MAX_BYTES = 32 * 1024 * 1024;
 export const AUTO_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
@@ -152,7 +152,7 @@ export const collectEventAttachments = (
       add(content.url, content.file, record(content.info));
     const info = record(content.info);
     add(info.thumbnail_url, info.thumbnail_file, record(info.thumbnail_info));
-    readInlineMedia(content)?.forEach((entry) => {
+    readInlineMedia(content[INLINE_MEDIA_CONTENT_KEY])?.forEach((entry) => {
       if (entry) add(entry.file.url, entry.file, { mimetype: entry.mimeType, size: entry.size });
     });
     messages.set(key, { ...owner, attachments });

@@ -1,36 +1,20 @@
-import { createContext } from 'react';
+import { isRecord } from '../../lib/isRecord';
 import type { IEncryptedFile } from '../types/common';
 import { readEncryptedFile } from './encryptedFile';
-import type { EventAttachmentOwner } from './eventAttachments';
-import { INLINE_MEDIA_CONTENT_KEY } from './metadata';
 
-export { INLINE_MEDIA_CONTENT_KEY };
+export { INLINE_MEDIA_CONTENT_KEY } from './metadata';
 export const MAX_INLINE_MEDIA_ENTRIES = 64;
 
 export type InlineMediaEntry = { file: IEncryptedFile; mimeType?: string; size?: number };
 /** `null` marks a malformed `mxc://` entry so renderers show alt text instead of fetching plaintext. */
 export type InlineMediaMap = ReadonlyMap<string, InlineMediaEntry | null>;
-export type InlineMediaContextValue = { entries: InlineMediaMap; owner?: EventAttachmentOwner };
 
-export const InlineMediaContext = createContext<InlineMediaContextValue | undefined>(undefined);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-export const readInlineMedia = (content: unknown): InlineMediaMap | undefined => {
-  if (!isRecord(content)) return undefined;
-  const raw = content[INLINE_MEDIA_CONTENT_KEY];
+export const readInlineMedia = (raw: unknown): InlineMediaMap | undefined => {
   if (!isRecord(raw)) return undefined;
   const map = new Map<string, InlineMediaEntry | null>();
-  let checked = 0;
   for (const [key, value] of Object.entries(raw)) {
     if (!key.startsWith('mxc://')) continue;
-    if (checked >= MAX_INLINE_MEDIA_ENTRIES) {
-      map.set(key, null);
-      continue;
-    }
-    checked += 1;
-    const file = readEncryptedFile(value);
+    const file = map.size < MAX_INLINE_MEDIA_ENTRIES ? readEncryptedFile(value) : undefined;
     if (!file || file.url !== key) {
       map.set(key, null);
       continue;

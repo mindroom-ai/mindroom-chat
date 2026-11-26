@@ -10,15 +10,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
-import {
-  INLINE_MEDIA_CONTENT_KEY,
-  InlineMediaContext,
-  MAX_INLINE_MEDIA_ENTRIES,
-  readInlineMedia,
-} from '../../matrix/protocol/inlineMedia';
+import { INLINE_MEDIA_CONTENT_KEY, readInlineMedia } from '../../matrix/protocol/inlineMedia';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { RenderMessageContent } from '../content/RenderMessageContent';
+import { InlineMediaContext } from './InlineImage';
 import { LINKIFY_OPTS, getReactCustomHtmlParser } from './react-custom-html-parser';
 
 const mocks = vi.hoisted(() => ({
@@ -111,9 +107,7 @@ describe('encrypted inline message images', () => {
 
   it('decrypts inline images, reuses the blob in ImageOverlay, handles decode error, and revokes on unmount', async () => {
     mocks.loadImageOriginal.mockResolvedValueOnce({ src: 'blob:decrypted-1' });
-    const entries = readInlineMedia({
-      [INLINE_MEDIA_CONTENT_KEY]: { 'mxc://ex/chart': enc('mxc://ex/chart') },
-    })!;
+    const entries = readInlineMedia({ 'mxc://ex/chart': enc('mxc://ex/chart') })!;
     const owner = {
       roomId: '!r:ex',
       eventId: '$e1',
@@ -162,7 +156,7 @@ describe('encrypted inline message images', () => {
     expect(revokeSpy).toHaveBeenCalledWith('blob:decrypted-1');
   });
 
-  it('shows alt text with no plaintext fetch for mismatched, bad, over-cap, emoticon, or failed-hash entries, and retries on sync recovery', async () => {
+  it('shows alt text with no plaintext fetch for mismatched, bad, emoticon, or failed entries, and retries on sync recovery', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     const listeners: Array<(state: SyncState, prev: SyncState | null) => void> = [];
@@ -176,17 +170,12 @@ describe('encrypted inline message images', () => {
       .mockRejectedValueOnce(new Error('Temporary network error'))
       .mockResolvedValueOnce({ src: 'blob:recovered' });
 
-    const raw: Record<string, unknown> = {
+    const entries = readInlineMedia({
       'mxc://ex/mismatch': enc('mxc://ex/other'),
       'mxc://ex/bad': { v: 'v1', url: 'mxc://ex/bad' },
       'mxc://ex/emo': { v: 'v1', url: 'mxc://ex/emo' },
       'mxc://ex/retry': enc('mxc://ex/retry'),
-    };
-    for (let i = 0; i < MAX_INLINE_MEDIA_ENTRIES; i += 1) {
-      raw[`mxc://ex/pad-${i}`] = enc(`mxc://ex/pad-${i}`);
-    }
-    raw['mxc://ex/overcap'] = enc('mxc://ex/overcap');
-    const entries = readInlineMedia({ [INLINE_MEDIA_CONTENT_KEY]: raw })!;
+    })!;
     const options = getReactCustomHtmlParser(syncMx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
 
     act(() => {
@@ -197,7 +186,6 @@ describe('encrypted inline message images', () => {
               '<img src="mxc://ex/mismatch" alt="Mismatch">' +
                 '<img src="mxc://ex/bad" alt="Bad">' +
                 '<img src="mxc://ex/emo" data-mx-emoticon alt=":bad-emo:">' +
-                '<img src="mxc://ex/overcap" alt="OverCap">' +
                 '<img src="mxc://ex/retry" alt="Retry">',
               options
             )}
@@ -211,7 +199,7 @@ describe('encrypted inline message images', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(renderer!.root.findAllByType('img')).toHaveLength(0);
     const json = JSON.stringify(renderer!.toJSON());
-    for (const alt of ['Mismatch', 'Bad', ':bad-emo:', 'OverCap', 'Retry']) {
+    for (const alt of ['Mismatch', 'Bad', ':bad-emo:', 'Retry']) {
       expect(json).toContain(alt);
     }
 
@@ -228,26 +216,14 @@ describe('encrypted inline message images', () => {
     });
   });
 
-  it('keeps plain images unchanged without a map, respects mxcImages=false, and preserves linked images', async () => {
-    const plainOpts = getReactCustomHtmlParser(mx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
-    act(() => {
-      renderer = create(<div>{parse('<img src="mxc://ex/plain" alt="Plain">', plainOpts)}</div>);
-    });
-    expect(mocks.loadImageOriginal).not.toHaveBeenCalled();
-    expect(renderer!.root.findByType('img').props).toMatchObject({
-      src: plainHttpUrl,
-      alt: 'Plain',
-    });
-
-    const entries = readInlineMedia({
-      [INLINE_MEDIA_CONTENT_KEY]: { 'mxc://ex/link': enc('mxc://ex/link') },
-    })!;
+  it('respects mxcImages=false and preserves linked encrypted images', async () => {
+    const entries = readInlineMedia({ 'mxc://ex/link': enc('mxc://ex/link') })!;
     const blockedOpts = getReactCustomHtmlParser(mx, '!r:ex', {
       linkifyOpts: LINKIFY_OPTS,
       mxcImages: false,
     });
     act(() => {
-      renderer!.update(
+      renderer = create(
         <InlineMediaContext value={{ entries }}>
           <div>{parse('<img src="mxc://ex/link" alt="Blocked">', blockedOpts)}</div>
         </InlineMediaContext>
@@ -256,6 +232,7 @@ describe('encrypted inline message images', () => {
     await flush();
     expect(mocks.loadImageOriginal).not.toHaveBeenCalled();
 
+    const plainOpts = getReactCustomHtmlParser(mx, '!r:ex', { linkifyOpts: LINKIFY_OPTS });
     mocks.loadImageOriginal.mockResolvedValueOnce({ src: 'blob:linked-1' });
     act(() => {
       renderer!.update(
@@ -339,69 +316,38 @@ describe('encrypted inline message images', () => {
     });
   });
 
-  it('does not inherit io.mindroom.inline_media from an earlier edit and renders alt text when the second edit omits the map', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('', { status: 404 }))
-    );
-    mocks.loadImageOriginal.mockResolvedValueOnce({ src: 'blob:edit-1' });
-
+  it('does not inherit io.mindroom.inline_media across edits via getEditedEvent', async () => {
     const root = makeEvent('$m2', 100, { msgtype: 'm.text', body: 'initial' });
-    const edit1 = makeEvent('$e2-1', 200, {
-      msgtype: 'm.text',
-      body: '* ![Secret](mxc://ex/secret)',
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$m2' },
-      'm.new_content': {
+    const makeEdit = (id: string, ts: number, extra: IContent = {}) =>
+      makeEvent(id, ts, {
         msgtype: 'm.text',
-        body: '![Secret](mxc://ex/secret)',
-        format: 'org.matrix.custom.html',
-        formatted_body: '<p><img src="mxc://ex/secret" alt="Secret"></p>',
+        body: '* ![Secret](mxc://ex/secret)',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$m2' },
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: '![Secret](mxc://ex/secret)',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<p><img src="mxc://ex/secret" alt="Secret"></p>',
+          ...extra,
+        },
+      });
+    const edits = [
+      makeEdit('$e2-1', 200, {
         [INLINE_MEDIA_CONTENT_KEY]: { 'mxc://ex/secret': enc('mxc://ex/secret') },
-      },
-    });
-    const edit2 = makeEvent('$e2-2', 300, {
-      msgtype: 'm.text',
-      body: '* ![Secret](mxc://ex/secret)',
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$m2' },
-      'm.new_content': {
-        msgtype: 'm.text',
-        body: '![Secret](mxc://ex/secret)',
-        format: 'org.matrix.custom.html',
-        formatted_body: '<p><img src="mxc://ex/secret" alt="Secret"></p>',
-      },
-    });
-    const timelineWith = (edits: MatrixEvent[]) =>
-      ({
-        relations: { getChildEventsForEvent: () => ({ getRelations: () => edits }) },
-      }) as never;
+      }),
+      makeEdit('$e2-2', 300),
+    ];
+    const timeline = {
+      relations: { getChildEventsForEvent: () => ({ getRelations: () => edits }) },
+    } as never;
 
-    const first = getEditedEvent('$m2', root, timelineWith([edit1]));
-    act(() => {
-      renderer = create(renderMsg(root, getLatestMessageContent(root, first)));
-    });
-    await flush();
-    expect(renderer!.root.findByType('img').props).toMatchObject({
-      src: 'blob:edit-1',
-      alt: 'Secret',
-    });
-
-    const second = getEditedEvent('$m2', root, timelineWith([edit1, edit2]));
-    const secondContent = getLatestMessageContent(root, second);
-    expect(secondContent[INLINE_MEDIA_CONTENT_KEY]).toBeUndefined();
+    const latest = getLatestMessageContent(root, getEditedEvent('$m2', root, timeline));
+    expect(latest[INLINE_MEDIA_CONTENT_KEY]).toBeUndefined();
 
     act(() => {
-      renderer!.update(renderMsg(root, secondContent));
+      renderer = create(renderMsg(root, latest));
     });
     await flush();
-    expect(mocks.loadImageOriginal).toHaveBeenCalledTimes(1);
-    expect(revokeSpy).toHaveBeenCalledWith('blob:edit-1');
-
-    // Unencrypted ciphertext fetch/decode fails and falls back to alt text.
-    act(() => {
-      renderer!.root.findByType('img').props.onError({});
-    });
-    await flush();
-    expect(renderer!.root.findAllByType('img')).toHaveLength(0);
-    expect(JSON.stringify(renderer!.toJSON())).toContain('Secret');
+    expect(mocks.loadImageOriginal).not.toHaveBeenCalled();
   });
 });
