@@ -7,7 +7,7 @@ import { previousHistoryPathname } from '../routes/historyStack';
 import { isNativeAndroid } from './nativeSso';
 
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
-const DISMISSIBLE_OVERLAY_SELECTOR = `${OVERLAY_SELECTOR}, [data-popout], [data-conversation-cover]`;
+const DISMISSIBLE_OVERLAY_SELECTOR = `${OVERLAY_SELECTOR}, [data-popout], [data-modal-layer], [data-conversation-cover]`;
 
 export type AndroidBackButtonDelegates = {
   isCommandPaletteOpen: () => boolean;
@@ -31,13 +31,13 @@ const getOpenOverlays = (): Element[] => {
   const matched = Array.from(document.querySelectorAll(DISMISSIBLE_OVERLAY_SELECTOR)).filter(
     isActiveLayer
   );
-  // Drop a `[data-popout]` wrapper when it already contains a more specific matched overlay
-  // (such as `role="menu"` or `role="dialog"`), so Escape targets the inner overlay directly
-  // and never dispatches twice for the same popover.
+  // Drop a `[data-popout]` or `[data-modal-layer]` wrapper when it already contains a more
+  // specific matched overlay (such as `role="menu"` or `role="dialog"`), so Escape targets the
+  // inner overlay directly and never dispatches twice for the same layer.
   const overlays = matched.filter(
     (element) =>
       !(
-        element.matches('[data-popout]') &&
+        element.matches('[data-popout], [data-modal-layer]') &&
         matched.some((other) => other !== element && element.contains(other))
       )
   );

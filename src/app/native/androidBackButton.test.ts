@@ -14,6 +14,7 @@ import { SWIPE_PRIORITY, useInteractiveSwipe } from '../navigation/interactiveSw
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { registerSettingsStepBack, settingsModalAtom } from '../navigation/settingsModal';
 import { createAndroidBackButtonDelegates } from '../shell/androidBackDelegates';
+import { ModalLayer } from '../ui/ModalLayer';
 import { PopOut } from '../ui/directional';
 import { handleAndroidBackButton, installAndroidBackButton } from './androidBackButton';
 
@@ -616,6 +617,51 @@ describe('androidBackButton', () => {
       expect(historyBackSpy).not.toHaveBeenCalled();
     } finally {
       unmount();
+    }
+  });
+
+  it('dismisses a real ModalLayer dialog on Back without navigating or minimizing', () => {
+    const store = createStore();
+    const delegates = createAndroidBackButtonDelegates(store);
+    const onClose = vi.fn();
+    const rectsSpy = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(
+      () =>
+        ({
+          length: 1,
+          0: new DOMRect(0, 0, 40, 20),
+          item: () => new DOMRect(0, 0, 40, 20),
+          [Symbol.iterator]: function* rects() {
+            yield new DOMRect(0, 0, 40, 20);
+          },
+        }) as unknown as DOMRectList
+    );
+
+    function ModalLayerHarness() {
+      const [open, setOpen] = React.useState(true);
+      return React.createElement(
+        ModalLayer,
+        {
+          open,
+          onClose: () => {
+            onClose();
+            setOpen(false);
+          },
+        },
+        React.createElement('div', null, React.createElement('button', { type: 'button' }, 'OK'))
+      );
+    }
+
+    const { unmount } = render(React.createElement(ModalLayerHarness));
+    try {
+      expect(document.querySelector('[data-modal-layer]')).not.toBeNull();
+      handleAndroidBackButton({ canGoBack: false }, delegates);
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(document.querySelector('[data-modal-layer]')).toBeNull();
+      expect(historyBackSpy).not.toHaveBeenCalled();
+      expect(App.minimizeApp).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      rectsSpy.mockRestore();
     }
   });
 });
