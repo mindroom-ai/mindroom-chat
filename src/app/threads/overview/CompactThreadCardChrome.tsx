@@ -1,10 +1,12 @@
 import {
+  Component,
   useCallback,
   useRef,
   type ComponentPropsWithoutRef,
   type MouseEvent,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +14,9 @@ import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useCompactCardSwipeList } from './CompactCardSwipe';
 import { SwipeList } from './CompactCardSwipe.css';
+import { isKeyboardFocus, navigationIn } from './compactCardKeys';
 import * as css from './CompactRoomView.css';
+import type { CompactBlockRow } from './useCompactBlocks';
 
 export type CompactCardListProps = ComponentPropsWithoutRef<'div'> & {
   ref?: Ref<HTMLDivElement>;
@@ -38,6 +42,58 @@ export function CompactCardList({ ref, className, ...props }: CompactCardListPro
       gap="100"
       shrink="No"
       {...props}
+    />
+  );
+}
+
+type CompactHeightGuardProps = {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  contentRef: RefObject<HTMLDivElement | null>;
+  liveIds: readonly string[];
+};
+
+/** Pins list height across React mutations on WebKit so replacing blocks does not clamp scrollTop. */
+export class CompactHeightGuard extends Component<CompactHeightGuardProps> {
+  override getSnapshotBeforeUpdate(prev: CompactHeightGuardProps): boolean {
+    const [view, content] = [this.props.scrollRef.current, this.props.contentRef.current];
+    if (!view?.scrollTop || !content || prev.liveIds === this.props.liveIds) return false;
+    if (globalThis.CSS?.supports?.('overflow-anchor', 'auto')) return false;
+    const height = content.getBoundingClientRect?.().height ?? 0;
+    if (height <= 0) return false;
+    content.style.minHeight = `${height}px`;
+    content.getBoundingClientRect();
+    return true;
+  }
+
+  override componentDidUpdate(_prev: CompactHeightGuardProps, _state: unknown, pinned: boolean) {
+    if (pinned && this.props.contentRef.current) this.props.contentRef.current.style.minHeight = '';
+  }
+
+  override render = () => null;
+}
+
+export type CompactBlockSpacerProps = {
+  row: Exclude<CompactBlockRow, string>;
+  scrollRef: RefObject<HTMLElement | null>;
+};
+
+/** Accessible Tab stop and height placeholder for offscreen virtualized compact card blocks. */
+export function CompactBlockSpacer({ row, scrollRef }: CompactBlockSpacerProps) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      aria-label={t('threadNav.moreThreads', { count: row.ids.length })}
+      data-compact-spacer={row.key}
+      className={css.Spacer}
+      style={{ height: row.height }}
+      onClick={() => navigationIn(scrollRef.current)?.focus(row.ids[0])}
+      onFocus={({ currentTarget: spacer, relatedTarget: from }) => {
+        const below =
+          from && spacer.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING;
+        if (isKeyboardFocus(spacer))
+          navigationIn(scrollRef.current)?.focus(row.ids.at(below ? -1 : 0), !!below);
+      }}
     />
   );
 }

@@ -93,6 +93,8 @@ test('grouped sections stack flat with 4px card gap, zero overlap, and interacti
   page.on('pageerror', (err) => pageErrors.push(err));
   await page.goto('/e2e/fixtures/space-threads-sections.html');
   await expect(page.locator('body')).toHaveAttribute('data-fixture-ready', 'true');
+  const list = page.locator('[data-space-threads-list="true"]');
+  await expect(list).not.toHaveAttribute('data-cards-pending');
   const topMetrics = await measureList(page);
 
   const shotsDir = process.env.SPACE_THREADS_SECTIONS_SHOTS;
@@ -165,19 +167,25 @@ test('ungrouped flat mode uses 4px card gap and scrolls with zero overlapping ca
 }) => {
   await page.goto('/e2e/fixtures/space-threads-sections.html?flat=1');
   await expect(page.locator('body')).toHaveAttribute('data-fixture-ready', 'true');
+  const list = page.locator('[data-space-threads-list="true"]');
+  await expect(list).toHaveAttribute('data-compact-card-count', '32');
+  await expect(list).not.toHaveAttribute('data-cards-pending');
   await expect(page.locator('[data-compact-section]')).toHaveCount(0);
-  await expect(page.locator('[data-thread-root-id]')).toHaveCount(32);
+  const mountedCount = await page.locator('[data-thread-root-id]').count();
+  expect(mountedCount).toBeGreaterThan(0);
+  expect(mountedCount).toBeLessThan(32);
 
   const topMetrics = await measureList(page);
   expect(topMetrics.overlapCount).toBe(0);
   expect(topMetrics.uniqueParentCount).toBe(1);
-  expect(topMetrics.adjacentCardGaps).toHaveLength(31);
+  expect(topMetrics.adjacentCardGaps.length).toBeGreaterThan(0);
   for (const gap of topMetrics.adjacentCardGaps) {
     expect(gap).toBeCloseTo(4, 1);
   }
   expect(topMetrics.scrollHeight).toBeGreaterThan(topMetrics.clientHeight);
 
   await scrollToBottom(page);
+  await expect(page.locator('[data-thread-root-id="$quiet-1"]')).toBeVisible();
   const bottomMetrics = await measureList(page);
   expect(bottomMetrics.overlapCount).toBe(0);
   expect(bottomMetrics.scrollTop).toBeGreaterThan(0);

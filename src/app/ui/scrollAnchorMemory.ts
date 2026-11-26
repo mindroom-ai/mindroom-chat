@@ -21,11 +21,14 @@ export type ScrollAnchorMemory = Map<string, ScrollAnchorSnapshot>;
 const getAnchorKey = (row: Element): string | null => row.getAttribute(SCROLL_ANCHOR_ATTRIBUTE);
 
 // Rows render top to bottom, so the rows in view end at the first one below it.
-const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
+const captureScrollAnchors = (
+  view: HTMLElement,
+  getRowKey: (row: Element) => string | null
+): ScrollAnchorSnapshot => {
   const { top, bottom } = view.getBoundingClientRect();
   const anchors: ScrollAnchor[] = [];
   for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {
-    const key = getAnchorKey(row);
+    const key = getRowKey(row);
     const rect = row.getBoundingClientRect();
     if (rect.top >= bottom) break;
     if (key !== null && rect.bottom > top) anchors.push({ key, offset: rect.top - top });
@@ -47,7 +50,8 @@ type RowPlacement = {
 const placeRows = (
   view: HTMLElement,
   snapshot: ScrollAnchorSnapshot,
-  placedRows: string[]
+  placedRows: string[],
+  getRowKey: (row: Element) => string | null
 ): RowPlacement | undefined => {
   const fallback = { scrollTop: snapshot.scrollTop, rows: [] };
   if (snapshot.anchors.length === 0) return fallback;
@@ -56,7 +60,7 @@ const placeRows = (
   const viewTop = view.getBoundingClientRect().top;
   const candidates: RowPlacement[] = [];
   view.querySelectorAll(SCROLL_ANCHOR_SELECTOR).forEach((row) => {
-    const key = getAnchorKey(row);
+    const key = getRowKey(row);
     const offset = key === null ? undefined : offsets.get(key);
     if (key === null || offset === undefined) return;
     const scrollTop = view.scrollTop + row.getBoundingClientRect().top - viewTop - offset;
@@ -80,8 +84,8 @@ const placeRows = (
   );
 };
 
-const getRowKeys = (view: HTMLElement): string[] =>
-  Array.from(view.querySelectorAll(SCROLL_ANCHOR_SELECTOR), getAnchorKey).filter(
+const getRowKeys = (view: HTMLElement, getRowKey: (row: Element) => string | null): string[] =>
+  Array.from(view.querySelectorAll(SCROLL_ANCHOR_SELECTOR), getRowKey).filter(
     (key): key is string => key !== null
   );
 
@@ -117,6 +121,8 @@ type ScrollAnchorMemoryOptions = {
   ready: boolean;
   /** Optional handoff for a window that waits for the first write. */
   progress?: { placed?: boolean; left?: boolean; onWrite?: () => void };
+  /** Custom key extractor when `data-scroll-anchor` alone is not unique across rooms. */
+  getRowKey?: (row: Element) => string | null;
 };
 
 /**
@@ -135,6 +141,7 @@ export function useScrollAnchorMemory({
   contentRef,
   ready,
   progress,
+  getRowKey = getAnchorKey,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>(undefined);
   const [restarts, setRestarts] = useState(0);
@@ -170,8 +177,8 @@ export function useScrollAnchorMemory({
     const restore = () => {
       const { snapshot } = state;
       if (!snapshot) return;
-      const placement = placeRows(view, snapshot, state.placedRows);
-      const rowOrder = getRowKeys(view);
+      const placement = placeRows(view, snapshot, state.placedRows, getRowKey);
+      const rowOrder = getRowKeys(view, getRowKey);
       // A reader who left at the top stays at the top, where rows that moved
       // up show; one who scrolled since the last write keeps their place.
       // Late layout moves the placed rows together (the header padding
@@ -205,7 +212,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, progress, ready, restarts, scrollRef]);
+  }, [contentRef, getRowKey, memory, memoryKey, progress, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -213,10 +220,10 @@ export function useScrollAnchorMemory({
       // A list without its rows, before they render or after they all went,
       // keeps the position saved before it.
       if (view && readyRef.current) {
-        memory.set(memoryKey, captureScrollAnchors(view));
+        memory.set(memoryKey, captureScrollAnchors(view, getRowKey));
       }
     };
-  }, [memory, memoryKey, scrollRef]);
+  }, [getRowKey, memory, memoryKey, scrollRef]);
 
   return useCallback(
     (place: ScrollAnchorSnapshot) => {

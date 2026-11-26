@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
-import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 
 const BLOCK_CARDS = 12;
@@ -8,8 +7,14 @@ const BUFFER_BLOCKS = 1;
 const WIDTH_SETTLE_MS = 80;
 const SHELL = '[data-scroll-anchor]';
 const HEARD = 'pointerdown pointerup pointercancel dragstart dragend blur wheel keydown'.split(' ');
-const cardId = (element?: Element | null) =>
-  element?.closest<HTMLElement>(SHELL)?.dataset.scrollAnchor;
+const defaultRowId = (row: HTMLElement) => row.dataset.scrollAnchor;
+const cardId = (
+  element: Element | null | undefined,
+  getRowId: (row: HTMLElement) => string | undefined
+) => {
+  const shell = element?.closest<HTMLElement>(SHELL);
+  return shell ? getRowId(shell) : undefined;
+};
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
 type Geometry = {
   heights: Map<string, number>;
@@ -28,13 +33,15 @@ type Options = {
   roomId: string;
   target?: string;
   protectedId?: string;
-  records?: ReadonlyMap<string, ThreadRecord>;
+  records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
+  /** Custom row ID extractor when `data-scroll-anchor` alone is not unique across rooms. */
+  getRowId?: (row: HTMLElement) => string | undefined;
 };
 
 export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
-  const { target, protectedId, records, indexPending } = options;
+  const { target, protectedId, records, indexPending, getRowId = defaultRowId } = options;
   const state = useMemo(() => {
     const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
     return {
@@ -129,7 +136,7 @@ export function useCompactBlocks(options: Options) {
     missing >= 0 || reader[0]! > 0
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
-  const focused = cardId(contentRef.current?.querySelector?.(':focus'));
+  const focused = cardId(contentRef.current?.querySelector?.(':focus'), getRowId);
   const retained = new Set([focused, protectedId, state.gesture?.id, ...held]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
@@ -236,7 +243,8 @@ export function useCompactBlocks(options: Options) {
       if (/down|wheel/.test(type)) state.input += 1; // What the reader scrolls with.
       const pointer = (event as Partial<PointerEvent>).pointerId;
       if (type === 'pointerdown' || type === 'dragstart') {
-        const id = target instanceof Element && content.contains(target) && cardId(target);
+        const id =
+          target instanceof Element && content.contains(target) && cardId(target, getRowId);
         if (id) state.gesture = { id, pointer };
       } else if (
         type === 'dragend' ||
@@ -257,7 +265,7 @@ export function useCompactBlocks(options: Options) {
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
     };
-  }, [contentRef, geometry, memory, roomId, scrollRef, state]);
+  }, [contentRef, geometry, getRowId, memory, roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;
@@ -290,7 +298,7 @@ export function useCompactBlocks(options: Options) {
       const rowsNow = `${SHELL}:not([inert]), [data-compact-spacer]`;
       for (const row of content.querySelectorAll<HTMLElement>(rowsNow)) {
         const { top: y, height, bottom: end } = row.getBoundingClientRect();
-        const id = row.dataset.scrollAnchor;
+        const id = row.hasAttribute('data-scroll-anchor') ? getRowId(row) : undefined;
         if (id !== undefined) {
           // A mounted card's height is in no spacer: only a discovered one changes the rows.
           if (!heights.has(id)) changed = true;
