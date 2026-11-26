@@ -61,6 +61,7 @@ export const ROAMING_SETTINGS = {
   dateFormat: 'dateFormatString',
   midTurnSend: 'midTurnSend',
   mediaCompression: 'mediaCompression',
+  autoZipLargeFiles: 'autoZipLargeFiles',
 } as const satisfies Record<string, keyof Settings>;
 
 type RoamingKey = (typeof ROAMING_SETTINGS)[keyof typeof ROAMING_SETTINGS];

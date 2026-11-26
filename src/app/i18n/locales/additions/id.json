@@ -528,7 +528,8 @@
         "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
         "plugins": "plugin, ekstensi, pengaya, integrasi",
         "appUpdates": "pembaruan, update, versi, tingkatkan, mulai ulang, restart",
-        "mediaCompression": "tangkapan layar, rekaman layar, gambar, video, kompresi, ukuran unggahan"
+        "mediaCompression": "tangkapan layar, rekaman layar, gambar, video, kompresi, ukuran unggahan",
+        "autoZipLargeFiles": "zip, arsip, kompres, json, csv, log, file besar, ukuran unggahan"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -557,6 +558,10 @@
         "off": "Nonaktif",
         "balanced": "Seimbang",
         "small": "Kecil"
+      },
+      "autoZipLargeFiles": {
+        "title": "Kompres file besar (.zip)",
+        "description": "Otomatis kompres file yang dapat dikompres di atas 1 MB ke .zip sebelum diunggah. Anda tetap dapat menggunakan file asli untuk lampiran apa pun."
       }
     },
     "createChat": {

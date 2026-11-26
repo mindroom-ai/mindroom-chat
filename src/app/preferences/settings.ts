@@ -59,6 +59,7 @@ const BOOLEAN_SETTING_KEYS = [
   // Composer
   'isMarkdown', // Parse Markdown in sent messages.
   'enterForNewline', // Enter inserts a line break and Ctrl+Enter sends, instead of the reverse.
+  'autoZipLargeFiles', // Automatically zip compressible files >= 1 MiB before uploading.
   // Privacy
   'hideActivity', // Send read receipts and typing notices privately.
   // Layout

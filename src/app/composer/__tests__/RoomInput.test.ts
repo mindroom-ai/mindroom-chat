@@ -555,7 +555,7 @@ vi.mock('../../preferences/useSetting', () => ({
 vi.mock('../../preferences/settings', async () => {
   const { atom: createAtom } = await import('jotai');
   return {
-    settingsAtom: createAtom({ mediaCompression: 'balanced' }),
+    settingsAtom: createAtom({ mediaCompression: 'balanced', autoZipLargeFiles: false }),
   };
 });
 
@@ -6374,6 +6374,47 @@ describe('RoomInput media compression send and voice invariants', () => {
     });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
     expect(cardFor(renderer, paste2.file)?.props.canUseOriginal).toBe(false);
+
+    act(() => renderer.unmount());
+  });
+
+  it('auto-zips >= 1 MiB JSON only when autoZipLargeFiles is enabled, keeps < 1 MiB raw, and supports Use original', async () => {
+    const { settingsAtom } = await import('../../preferences/settings');
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: createRef() });
+    const largeJson = new File(['{"row":"ok"}\n'.repeat(90_000)], 'large.json', {
+      type: 'application/json',
+    });
+    const smallJson = new File(['{"small":true}'], 'small.json', { type: 'application/json' });
+    const staged = () => store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+
+    await act(async () => {
+      fileInputState.onDrop?.([largeJson]);
+      await Promise.resolve();
+    });
+    expect(staged()[0]?.originalFile).toBe(largeJson);
+    expect(staged()[0]?.compression).toBeUndefined();
+
+    store.set(settingsAtom, { mediaCompression: 'balanced', autoZipLargeFiles: true } as never);
+    await act(async () => {
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: staged() });
+      fileInputState.onDrop?.([largeJson, smallJson]);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(staged()[0]?.compression?.status).toBe('compressed'));
+    expect(staged()[0]?.originalFile.name).toBe('large.json.zip');
+    expect(staged()[0]?.compression).toEqual({
+      status: 'compressed',
+      originalSize: largeJson.size,
+      sourceFile: largeJson,
+    });
+    expect(staged()[1]?.originalFile).toBe(smallJson);
+    expect(staged()[1]?.compression).toBeUndefined();
+
+    const zipCard = cardFor(renderer, staged()[0]!.file)!;
+    await act(async () => zipCard.props.onUseOriginal(zipCard.props.fileItem));
+    await vi.waitFor(() => expect(staged()[0]?.compression).toEqual({ status: 'original' }));
+    expect(staged()[0]?.originalFile).toBe(largeJson);
 
     act(() => renderer.unmount());
   });

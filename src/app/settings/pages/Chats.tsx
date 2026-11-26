@@ -84,6 +84,12 @@ export function Chats({ requestClose }: SettingsPageProps) {
           title={t('settings.general.editor.markdownFormatting')}
         />
         <MediaCompressionTile />
+        <SettingSwitchTile
+          focusId="autoZipLargeFiles"
+          setting="autoZipLargeFiles"
+          title={t('featureUi.settings.autoZipLargeFiles.title')}
+          description={t('featureUi.settings.autoZipLargeFiles.description')}
+        />
       </SettingsSection>
       <SettingsSection title={t('settings.general.messages.sectionTitle')}>
         <SettingSwitchTile

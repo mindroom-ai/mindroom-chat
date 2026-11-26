@@ -528,7 +528,8 @@
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
         "plugins": "插件, 扩展, 附加组件, 集成",
         "appUpdates": "更新, 版本, 升级, 重启",
-        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小"
+        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小",
+        "autoZipLargeFiles": "zip, 归档, 压缩, json, csv, 日志, 大文件, 上传大小"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -557,6 +558,10 @@
         "off": "关闭",
         "balanced": "均衡",
         "small": "较小"
+      },
+      "autoZipLargeFiles": {
+        "title": "压缩大文件 (.zip)",
+        "description": "在上传前自动将超过 1 MB 的可压缩文件压缩为 .zip。您仍然可以为任意附件选择原文件。"
       }
     },
     "createChat": {

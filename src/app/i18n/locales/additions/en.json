@@ -541,7 +541,8 @@
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
         "plugins": "plugins, extensions, add-ons, integrations",
         "appUpdates": "update, updates, version, upgrade, restart",
-        "mediaCompression": "screenshots, screen recordings, images, videos, compression, upload size"
+        "mediaCompression": "screenshots, screen recordings, images, videos, compression, upload size",
+        "autoZipLargeFiles": "zip, archive, compress, json, csv, log, large files, upload size"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -570,6 +571,10 @@
         "off": "Off",
         "balanced": "Balanced",
         "small": "Small"
+      },
+      "autoZipLargeFiles": {
+        "title": "Compress large files (.zip)",
+        "description": "Automatically zip compressible files over 1 MB before uploading. You can still use the original for any attachment."
       }
     },
     "createChat": {

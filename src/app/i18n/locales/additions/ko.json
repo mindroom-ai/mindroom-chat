@@ -528,7 +528,8 @@
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
         "plugins": "플러그인, 확장 기능, 애드온, 연동",
         "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작",
-        "mediaCompression": "스크린샷, 화면 녹화, 이미지, 동영상, 압축, 업로드 크기"
+        "mediaCompression": "스크린샷, 화면 녹화, 이미지, 동영상, 압축, 업로드 크기",
+        "autoZipLargeFiles": "zip, 아카이브, 압축, json, csv, 로그, 대용량 파일, 업로드 크기"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -557,6 +558,10 @@
         "off": "끄기",
         "balanced": "균형",
         "small": "작게"
+      },
+      "autoZipLargeFiles": {
+        "title": "대용량 파일 압축 (.zip)",
+        "description": "업로드하기 전에 1 MB를 초과하는 압축 가능한 파일을 자동으로 .zip으로 압축합니다. 어떤 첨부 파일이든 원본을 그대로 사용할 수 있습니다."
       }
     },
     "createChat": {

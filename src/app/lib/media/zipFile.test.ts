@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canZipOversizedFile, MAX_ZIP32_FILE_BYTES } from './mediaCompressionEligibility';
+import {
+  canZipOversizedFile,
+  isEligibleFileForAutoZip,
+  MAX_ZIP32_FILE_BYTES,
+  MIN_AUTO_ZIP_FILE_BYTES,
+} from './mediaCompressionEligibility';
 import { zipFile, type ZipFileResult } from './zipFile';
 
 const withSize = (file: File, size: number): File => {
@@ -193,5 +198,42 @@ describe('canZipOversizedFile', () => {
 
     vi.stubGlobal('CompressionStream', undefined);
     expect(canZipOversizedFile(sized('app.log', 'text/plain'))).toBe(false);
+  });
+});
+
+describe('isEligibleFileForAutoZip', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('requires >= 1 MiB, skips media and archives, and accepts compressible files', () => {
+    const sized = (name: string, type: string, size = MIN_AUTO_ZIP_FILE_BYTES) =>
+      withSize(new File(['x'], name, { type }), size);
+
+    for (const f of [
+      sized('diag.json', 'application/json'),
+      sized('export.csv', 'text/csv', 2 * 1024 * 1024),
+      sized('server.log', 'text/plain'),
+      sized('notes.txt', ''),
+      sized('dump.dat', 'application/octet-stream'),
+    ]) {
+      expect(isEligibleFileForAutoZip(f), f.name).toBe(true);
+    }
+    for (const f of [
+      sized('small.json', 'application/json', MIN_AUTO_ZIP_FILE_BYTES - 1),
+      sized('huge.json', 'application/json', MAX_ZIP32_FILE_BYTES),
+      sized('photo.png', 'image/png'),
+      sized('icon.svg', 'image/svg+xml'),
+      sized('clip.mp4', 'video/mp4'),
+      sized('voice.wav', 'audio/wav'),
+      sized('PHOTO.HEIC', ''),
+      sized('clip.MOV', 'application/octet-stream'),
+      sized('track.MP3', ''),
+      sized('bundle.zip', 'application/zip'),
+      sized('logs.tar.gz', 'application/octet-stream'),
+    ]) {
+      expect(isEligibleFileForAutoZip(f), f.name).toBe(false);
+    }
+    expect(canZipOversizedFile(sized('bitmap.bmp', 'image/bmp'))).toBe(true);
+    vi.stubGlobal('CompressionStream', undefined);
+    expect(isEligibleFileForAutoZip(sized('diag.json', 'application/json'))).toBe(false);
   });
 });

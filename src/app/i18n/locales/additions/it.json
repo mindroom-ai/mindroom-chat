@@ -554,7 +554,8 @@
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
         "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni",
         "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia",
-        "mediaCompression": "screenshot, registrazioni dello schermo, immagini, video, compressione, dimensione di caricamento"
+        "mediaCompression": "screenshot, registrazioni dello schermo, immagini, video, compressione, dimensione di caricamento",
+        "autoZipLargeFiles": "zip, archivio, comprimi, json, csv, log, file grandi, dimensione di caricamento"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -583,6 +584,10 @@
         "off": "Disattivata",
         "balanced": "Bilanciata",
         "small": "Piccola"
+      },
+      "autoZipLargeFiles": {
+        "title": "Comprimi file grandi (.zip)",
+        "description": "Comprimi automaticamente in .zip i file comprimibili superiori a 1 MB prima del caricamento. Puoi comunque usare il file originale per qualsiasi allegato."
       }
     },
     "createChat": {

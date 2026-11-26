@@ -44,11 +44,27 @@ describe('getSettings', () => {
     expect(getSettings().voiceHoldShortcut).toBe(true);
   });
 
-  it.each(['showToolCalls', 'showUsageDetails'] as const)('defaults %s to false', async (key) => {
-    const { getSettings } = await import('./settings');
-    storageValue = null;
+  it.each(['showToolCalls', 'showUsageDetails', 'autoZipLargeFiles'] as const)(
+    'defaults %s to false',
+    async (key) => {
+      const { getSettings } = await import('./settings');
+      storageValue = null;
 
-    expect(getSettings()[key]).toBe(false);
+      expect(getSettings()[key]).toBe(false);
+    }
+  );
+
+  it('persists autoZipLargeFiles as a boolean', async () => {
+    const { getSettings } = await import('./settings');
+    for (const [raw, expected] of [
+      [true, true],
+      [false, false],
+      [0, false],
+    ] as const) {
+      storageValue = JSON.stringify({ autoZipLargeFiles: raw });
+      expect(getSettings().autoZipLargeFiles).toBe(expected);
+    }
+    storageValue = null;
   });
 
   it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {
