@@ -23,11 +23,12 @@ import { registerNativeAppUrlCallbacks } from './nativeSso';
 import {
   createRouterAppPathNavigator,
   getAppPathFromUniversalLink,
+  getWebOnlyUniversalLinkUrl,
   moveWaitingUniversalLinkAfterHash,
   setNativeAppPathNavigator,
 } from './nativeUniversalLinks';
 
-vi.mock('@capacitor/browser', () => ({ Browser: { close: vi.fn() } }));
+vi.mock('@capacitor/browser', () => ({ Browser: { close: vi.fn(), open: vi.fn() } }));
 
 type AasaComp = {
   '/'?: string;
@@ -452,5 +453,61 @@ describe('native Universal Links', () => {
       expect(matchesAasa(components!, U(path)), path).toBe(false);
       expect(getAppPathFromUniversalLink(U(path)), path).toBeUndefined();
     }
+  });
+
+  it('opens web-only excluded space search App Links in Custom Tabs on Android only', async () => {
+    const isNativeSpy = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const platformSpy = vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    const searchUrls = [
+      U(`/${S}/search`),
+      U(`/${S}/Search/?q=hello`),
+      U(`/${S}/%73earch/`),
+      U('/%23space:example.org/se%61rch/'),
+    ];
+
+    // Cold launch + immediate Capacitor replay opens Custom Tabs once.
+    await register(searchUrls[0]);
+    expect(Browser.open).toHaveBeenCalledTimes(1);
+    expect(Browser.open).toHaveBeenCalledWith({ url: searchUrls[0] });
+    openUrl({ url: searchUrls[0] });
+    expect(Browser.open).toHaveBeenCalledTimes(1);
+
+    // Warm excluded search links open in Custom Tabs without navigating in-app or warning.
+    for (const url of searchUrls.slice(1)) {
+      expect(getAppPathFromUniversalLink(url), url).toBeUndefined();
+      expect(getWebOnlyUniversalLinkUrl(url), url).toBe(url);
+      openUrl({ url });
+      expect(Browser.open).toHaveBeenLastCalledWith({ url });
+    }
+    expect(Browser.open).toHaveBeenCalledTimes(searchUrls.length);
+    expect(window.location.pathname).toBe('/home');
+    expect(warn).not.toHaveBeenCalled();
+
+    // Untrusted or non-excluded URLs stay ignored even on Android.
+    vi.mocked(Browser.open).mockClear();
+    const rejectedOnAndroid = [
+      `http://chat.mindroom.chat/${S}/search/`,
+      `https://other.example/${S}/search/`,
+      `https://user:pass@chat.mindroom.chat/${S}/search/`,
+      U(`/${S}/search/extra`),
+      U(`/${S}/unknown`),
+      U('/%23missing-server/search'),
+    ];
+    for (const url of rejectedOnAndroid) {
+      expect(getWebOnlyUniversalLinkUrl(url), url).toBeUndefined();
+      openUrl({ url });
+    }
+    expect(Browser.open).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(rejectedOnAndroid.length);
+
+    // iOS behavior stays unchanged (excluded routes are filtered by AASA, not opened in Browser).
+    warn.mockClear();
+    platformSpy.mockReturnValue('ios');
+    openUrl({ url: searchUrls[0] });
+    expect(Browser.open).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    isNativeSpy.mockRestore();
+    platformSpy.mockRestore();
   });
 });

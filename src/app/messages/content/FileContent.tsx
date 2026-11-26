@@ -22,6 +22,7 @@ import { bytesToSize } from '../../lib/common';
 import { getFileNameExt, getMimeTypeBase } from '../../lib/mimeTypes';
 import { stopPropagation } from '../../lib/keyboard';
 import type { IFileInfo } from '../../matrix/types/common';
+import { isNativeFileOpenAvailable } from '../../native/nativeFileSave';
 import {
   type AttachmentActionStatus,
   useAttachmentAction,
@@ -410,7 +411,8 @@ export function FileContent({
   children,
 }: FileActionsProps) {
   const opensAsText = isTextFileMimeType(mimeType);
-  const opensAsPdf = isPdfFileMimeType(mimeType) && browserShowsPdfInline();
+  const opensAsPdf =
+    isPdfFileMimeType(mimeType) && (browserShowsPdfInline() || isNativeFileOpenAvailable());
   return (
     <Box alignItems="Center" gap="100" shrink="No" data-file-actions="">
       {opensAsText && renderAsTextFile()}

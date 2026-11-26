@@ -14,7 +14,7 @@ import {
 import { About } from './About';
 
 const mocks = vi.hoisted(() => ({
-  isNativeIOS: vi.fn(),
+  isNativeApp: vi.fn(),
   getFlightRecorderStatus: vi.fn(),
   buildDiagnosticsExport: vi.fn(),
   getDeepTraceEnabled: vi.fn(),
@@ -150,8 +150,7 @@ vi.mock('../../ui/branding/clientBranding', () => ({
 }));
 
 vi.mock('../../native/nativeSso', () => ({
-  isNativeIOS: mocks.isNativeIOS,
-  isNativeApp: () => false,
+  isNativeApp: mocks.isNativeApp,
 }));
 
 vi.mock('../../native/nativeUpdate', () => ({
@@ -224,7 +223,7 @@ describe('About diagnostics export', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.getFlightRecorderStatus.mockReturnValue('none');
     deepTracePreference = false;
     deepTraceRuntimeStatus = 'disabled';
@@ -312,8 +311,8 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('outside native iOS, shows the diagnostics only while debug mode is on', async () => {
-    mocks.isNativeIOS.mockReturnValue(false);
+  it('outside native apps, shows the diagnostics only while debug mode is on', async () => {
+    mocks.isNativeApp.mockReturnValue(false);
     let debugMode = false;
     mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
     mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
@@ -347,7 +346,9 @@ describe('About diagnostics export', () => {
   });
 
   it('always shows diagnostics and keeps recorders in the Electron desktop app', async () => {
-    mocks.isNativeIOS.mockReturnValue(false);
+    const { isNativeApp: realIsNativeApp } =
+      await vi.importActual<typeof import('../../native/nativeSso')>('../../native/nativeSso');
+    mocks.isNativeApp.mockImplementation(realIsNativeApp);
     let debugMode = false;
     mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
     mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
@@ -796,7 +797,7 @@ describe('About tour', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeApp.mockReturnValue(false);
   });
 
   it('shows the Tour section above the credits, its tile with a button for each level', () => {
@@ -865,7 +866,7 @@ describe('About Mac app', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeApp.mockReturnValue(false);
     mocks.config = { macApp: { offer: true } };
     resetMacAppDownloadUrlForTests();
     // GitHub's list of releases never answers here: the download stays on the releases page.
@@ -978,7 +979,7 @@ describe('About app updates', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeApp.mockReturnValue(false);
     mocks.isNativeUpdateAvailable.mockReturnValue(false);
     readyVersion = undefined;
     listeners = new Set();

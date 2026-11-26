@@ -114,7 +114,7 @@ export function LiveCaptureIndicator() {
     <>
       {/* A modal layer, so OK answers over a bottom sheet or the command palette too. */}
       <ModalLayer open={error !== undefined} onClose={() => setError(undefined)}>
-        <Dialog variant="Surface">
+        <Dialog variant="Surface" role="dialog" aria-modal="true" aria-label={errorTitle}>
           <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
             <Text size="H5">{errorTitle}</Text>
             <Text size="T300">{localizeVoiceErrorMessage(t, error?.message)}</Text>

@@ -1,8 +1,8 @@
-import { isBundledApp, isDesktopAccessAvailable, isDesktopApp } from '../lib/nativeShell';
+import { isBundledApp, isCapacitorApp, isDesktopAccessAvailable } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
-import { isNativeIOS } from '../native/nativeSso';
+import { isNativeApp, isNativeIOS } from '../native/nativeSso';
 import { isNativeUpdateAvailable } from '../native/nativeUpdate';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
@@ -31,8 +31,9 @@ export const useSettingsContext = (): SettingsContext => {
   const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
     native: isBundledApp(),
+    capacitor: isCapacitorApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeIOS() || isDesktopApp() || getDebugModeEnabled(),
+    diagnostics: isNativeApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

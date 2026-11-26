@@ -204,7 +204,11 @@ export function useMobileKeyboardViewportFix(): void {
     if (nativePlatform && Capacitor.isPluginAvailable('Keyboard')) {
       addKeyboardListener(Keyboard.addListener('keyboardWillShow', startNativeKeyboardShow));
       addKeyboardListener(Keyboard.addListener('keyboardDidShow', startNativeKeyboardShow));
-      addKeyboardListener(Keyboard.addListener('keyboardWillHide', forceNativeLayoutHeight));
+      // Android SystemBars still applies IME bottom padding during keyboardWillHide (animation
+      // start), so forcing layout height there would pin --app-height to the shrunk IME height.
+      if (Capacitor.getPlatform() === 'ios') {
+        addKeyboardListener(Keyboard.addListener('keyboardWillHide', forceNativeLayoutHeight));
+      }
       addKeyboardListener(Keyboard.addListener('keyboardDidHide', forceNativeLayoutHeight));
     }
 

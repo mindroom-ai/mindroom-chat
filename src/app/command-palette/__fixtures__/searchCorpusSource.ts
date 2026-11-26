@@ -65,6 +65,7 @@ const translator =
 // What a signed-in account on the web sees.
 const SETTINGS_CONTEXT: SettingsContext = {
   native: false,
+  capacitor: false,
   nativeIOS: false,
   diagnostics: false,
   localMindroom: true,

@@ -94,9 +94,9 @@ jobs:
         run: npx cap sync android
       - name: Verify synced web assets
         run: test -s android/app/src/main/assets/public/config.json
-      - name: Build debug APK
+      - name: Run Android unit tests and build debug APK
         working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
       - name: Verify debug APK
         run: |
           set -euo pipefail

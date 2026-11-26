@@ -10,4 +10,8 @@ describe('Capacitor status bar config', () => {
   it('matches the native status bar background to the default app background', () => {
     expect(capacitorConfig.plugins?.StatusBar?.backgroundColor).toBe('#1A1A1A');
   });
+
+  it('hints viewport-fit=cover for Android SystemBars to prevent initial inset shift', () => {
+    expect(capacitorConfig.plugins?.SystemBars?.initialViewportFitValueHint).toBe('cover');
+  });
 });

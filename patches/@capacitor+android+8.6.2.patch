@@ -43,3 +43,34 @@ index 46bc174..dfb0840 100644
          super.load();
      }
  
+diff --git a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/WebViewLocalServer.java b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/WebViewLocalServer.java
+--- a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/WebViewLocalServer.java
++++ b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/WebViewLocalServer.java
+@@ -467,7 +467,17 @@
+ 
+         int periodIndex = path.lastIndexOf(".");
+         if (periodIndex >= 0) {
+-            String ext = path.substring(path.lastIndexOf("."));
++            String resolvedPath = path;
++            RouteProcessor routeProcessor = bridge.getRouteProcessor();
++            if (routeProcessor != null) {
++                ProcessedRoute processedRoute = routeProcessor.process("", path);
++                if (processedRoute != null && processedRoute.getPath() != null) {
++                    resolvedPath = processedRoute.getPath();
++                }
++            }
++
++            int resolvedPeriodIndex = resolvedPath.lastIndexOf(".");
++            String ext = resolvedPeriodIndex >= 0 ? resolvedPath.substring(resolvedPeriodIndex) : "";
+ 
+             InputStream responseStream = new LollipopLazyInputStream(handler, request);
+ 
+@@ -476,7 +486,7 @@
+                 responseStream = jsInjector.getInjectedStream(responseStream);
+             }
+ 
+-            String mimeType = getMimeType(path, responseStream);
++            String mimeType = getMimeType(resolvedPath, responseStream);
+             int statusCode = getStatusCode(responseStream, handler.getStatusCode());
+             return new WebResourceResponse(
+                 mimeType,

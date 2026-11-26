@@ -27,6 +27,7 @@ import { SettingsTargetContext, type SettingsTarget } from '../preferences/setti
 import { revealSetting } from './revealSetting';
 import { SettingsSearch } from './SettingsSearch';
 import { useSettingsSearchValues } from './useSettingsSearchValues';
+import { registerSettingsStepBack } from '../navigation/settingsModal';
 import type { SettingsPage } from '../navigation/settingsPages';
 import { useClientConfig } from '../config/useClientConfig';
 import { isPluginEnabled } from '../plugins/pluginConfig';
@@ -309,6 +310,11 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
     () => (isMobile ? setActivePage(undefined) : requestClose()),
     [isMobile, requestClose]
   );
+
+  useEffect(() => {
+    if (!isMobile || activePage === undefined) return undefined;
+    return registerSettingsStepBack(() => setActivePage(undefined));
+  }, [activePage, isMobile]);
 
   // The dialog is named by its title: in each page's title bar on wider screens, and on a phone
   // in the menu's own title bar, which also holds the close button over the search field. Pages

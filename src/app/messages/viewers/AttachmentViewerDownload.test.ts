@@ -33,6 +33,8 @@ vi.mock('folds', async () => {
       ChevronLeft: 'ChevronLeft',
       ChevronRight: 'ChevronRight',
       Download: 'Download',
+      Eye: 'Eye',
+      File: 'File',
       Minus: 'Minus',
       Plus: 'Plus',
       Warning: 'Warning',
@@ -76,6 +78,8 @@ vi.mock('./ImageViewer.css', () => ({
 vi.mock('./PdfViewer.css', () => ({
   PdfViewer: 'PdfViewer',
   PdfViewerContent: 'PdfViewerContent',
+  PdfViewerFallback: 'PdfViewerFallback',
+  PdfViewerFallbackCard: 'PdfViewerFallbackCard',
   PdfViewerHeader: 'PdfViewerHeader',
 }));
 
@@ -125,6 +129,8 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../native/nativeFileSave', () => ({
+  isNativeFileOpenAvailable: () => false,
+  openNativeFile: vi.fn(async () => false),
   saveFile: saveFileMock,
 }));
 

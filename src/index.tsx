@@ -12,7 +12,7 @@ import './app/i18n/i18n';
 import './app/plugins/registry';
 import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
-import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
+import { isNativeApp, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
 import { getDebugModeEnabled, startFlightRecorder } from './app/diagnostics/debugMode';
 import { startMemorySampler } from './app/diagnostics/memorySampler';
@@ -67,12 +67,12 @@ const runSafely = (label: string, step: () => void): void => {
 };
 
 const startDiagnostics = (): void => {
-  // The flight recorder and deep tracing exist for the iOS and desktop apps, where crashes leave
+  // The flight recorder and deep tracing exist for the native and desktop apps, where crashes leave
   // no console, and for a browser that has debug mode on. They record the main web view: the quick
   // capture widget's, beside it on the Mac, shares their storage and would take its live session
   // for one that ended unexpectedly.
   if (
-    (isNativeIOS() || isDesktopApp() || getDebugModeEnabled()) &&
+    (isNativeApp() || getDebugModeEnabled()) &&
     !isAuxiliaryWindowPath(window.location.pathname)
   ) {
     runSafely('flight recorder', startFlightRecorder);
