@@ -9,6 +9,11 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../../matrix/protocol/secretRequest';
+import {
+  secretRequestEditContent,
+  secretRequestPayload,
+} from '../../matrix/protocol/secretRequest.test.shared';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { buildThreadHeaderViewModelFromRecord } from '../../threads/threadHeaderViewModel';
@@ -91,7 +96,7 @@ const presentation = (room: Room, root: MatrixEvent, events: MatrixEvent[] = [])
     room,
     threadRootId: rootId,
     rootEvent: root,
-    thread: { rootEvent: root, events },
+    thread: { room, rootEvent: root, events },
   });
 
 describe('fresh-device bundled thread presentation', () => {
@@ -481,5 +486,85 @@ describe('the time of a reply’s newest revision', () => {
 
     expect(getThreadPreviewRevisionTs(event)).toBe(3000);
     expect(getThreadPreviewRevisionTs(streamed())).toBe(1000);
+  });
+});
+
+describe('bundled secret-request previews', () => {
+  const agent = '@mindroom_helper:example.org';
+  const savedEdit = (ts: number, status: 'pending' | 'saved' = 'saved'): IEvent => ({
+    ...reply('$secret-edit', '* 🔑 Secret received.', ts),
+    sender: agent,
+    content: secretRequestEditContent('$secret', { status }),
+  });
+  const secretEvent = (status: 'pending' | 'saved', ts: number, editedAt?: number): IEvent => {
+    const body = status === 'pending' ? 'API token needed' : '🔑 Secret received.';
+    return {
+      ...reply('$secret', body, ts),
+      sender: agent,
+      content: {
+        msgtype: 'm.notice',
+        body,
+        [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload({
+          status: editedAt ? 'pending' : status,
+        }),
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+      ...(editedAt
+        ? { unsigned: { 'm.relations': { 'm.replace': savedEdit(editedAt, status) } } }
+        : {}),
+    };
+  };
+  const bundleFixture = (event: IEvent) => {
+    const shape = summaryShape();
+    shape.latest_event = event;
+    shape['io.mindroom.latest_reply'] = event;
+    return fixture(shape);
+  };
+
+  it('ignores a folded bundled io.mindroom.latest_reply while keeping a pending one', () => {
+    const folded = bundleFixture(secretEvent('saved', 3000, 4000));
+    expect(getBundledThreadPreviews(folded.room, folded.root).reply).toBeUndefined();
+    expect(presentation(folded.room, folded.root).latestReplyPreviewText).toBeUndefined();
+
+    const pending = bundleFixture(secretEvent('pending', 3000));
+    expect(presentation(pending.room, pending.root).latestReplyPreviewText).toBe(
+      'API token needed'
+    );
+  });
+
+  it('keeps a server-bundled answer paired with a folded secret, and outgrows older or pending bundles', () => {
+    const rawFolded = secretEvent('saved', 5000);
+    const newerFolded = new MatrixEvent({ ...rawFolded, room_id: roomId });
+
+    // Server bundled io.mindroom.latest_reply = $reply alongside latest_event = folded $secret.
+    const freshShape = summaryShape();
+    freshShape.latest_event = rawFolded;
+    const fresh = fixture(freshShape);
+    expect(presentation(fresh.room, fresh.root, [newerFolded]).latestReplyPreviewText).toBe(
+      'Final answer with dates'
+    );
+
+    // An older root whose latest_event predates $secret is outgrown once $secret arrives.
+    const staleShape = summaryShape();
+    staleShape.latest_event = staleShape['io.mindroom.latest_reply'];
+    const stale = fixture(staleShape);
+    expect(
+      presentation(stale.room, stale.root, [newerFolded]).latestReplyPreviewText
+    ).toBeUndefined();
+
+    // A pending secret bundle is outgrown once the secret folds via a newer edit.
+    const pending = secretEvent('pending', 3000);
+    const pendingFixture = bundleFixture(pending);
+    const loadedReply = new MatrixEvent({
+      ...reply('$reply', 'Final answer with dates', 2000),
+      sender: agent,
+      room_id: roomId,
+    });
+    const editedSecret = new MatrixEvent({ ...pending, room_id: roomId });
+    editedSecret.makeReplaced(new MatrixEvent({ ...savedEdit(4000), room_id: roomId }));
+    expect(
+      presentation(pendingFixture.room, pendingFixture.root, [loadedReply, editedSecret])
+        .latestReplyPreviewText
+    ).toBe('Final answer with dates');
   });
 });

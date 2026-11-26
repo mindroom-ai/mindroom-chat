@@ -22,9 +22,18 @@ import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { ORIGINAL_SENDER_KEY } from '../protocol/originalSender';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../protocol/secretRequest';
+import {
+  secretRequestEditContent,
+  secretRequestPayload,
+} from '../protocol/secretRequest.test.shared';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
 import { getReleasableEdits } from '../room';
-import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import {
+  getRetainedThreadSummaryReply,
+  getThreadSummaryReply,
+  keepUnopenedThreadEditsShown,
+} from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
 const roomId = '!room:example.org';
@@ -161,6 +170,10 @@ const fixture = (serverThread: () => IEvent[]) => {
       }
       if (path.endsWith('/messages')) return json({ chunk: [], start: 'start', end: 'end' });
       if (path.endsWith(`/event/${rootId}`)) return json(withSummary(reply()));
+      const event = serverThread().find((candidate) =>
+        path.endsWith(`/event/${candidate.event_id}`)
+      );
+      if (event) return json(event);
       if (path.includes(`/relations/${rootId}`)) return json({ chunk: serverThread() });
       throw new Error(`Unexpected request ${path}`);
     },
@@ -199,13 +212,14 @@ const fixture = (serverThread: () => IEvent[]) => {
   const room = (): Room => mx.getRoom(roomId)!;
   const thread = (): Thread => room().getThread(rootId)!;
   /** What the thread's Compact card shows: its latest reply's preview and whether it streams. */
-  const card = (cached?: { text: string; ts: number }) => {
+  const card = (cached?: { text: string; ts: number; sender?: string }) => {
     const record = buildThreadRecord({
       room: room(),
       threadRootId: rootId,
       // What the overview's cache read last: a saved copy of the reply, at its revision's time.
       fallbackLatestReplyPreviewText: cached?.text,
       fallbackLatestReplyTs: cached?.ts,
+      fallbackLastSenderId: cached?.sender,
     });
     return {
       preview: record.presentation.latestReplyPreviewText,
@@ -547,5 +561,208 @@ describe('edits of unopened threads', () => {
     } finally {
       setReplacementRetentionPolicy(undefined);
     }
+  });
+
+  const helper = '@mindroom_helper:example.org';
+  const pendingSecret = (): IEvent =>
+    message(
+      '$secret',
+      120,
+      {
+        msgtype: 'm.notice',
+        body: 'API token needed',
+        [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload({ requester_id: otherId }),
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+      helper
+    );
+  const savedSecretEdit = (ts = 160): IEvent =>
+    message(
+      `$secret-edit-${ts}`,
+      ts,
+      secretRequestEditContent('$secret', { requester_id: otherId }),
+      helper
+    );
+
+  it('replaces an earlier summary reply on a pending secret and falls back cleanly on fold without resurrecting a redacted reply', async () => {
+    const answer = (): IEvent => ({
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        ...reply().content,
+        body: 'Sensitive answer to delete',
+      },
+    });
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    await f.deliver([withSummary(answer())]);
+    expect(f.card().preview).toBe('Sensitive answer to delete');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$answer');
+
+    // A pending secret request replaces the earlier summary reply, matching main.
+    await f.deliver([pendingSecret()]);
+    expect(f.card().preview).toBe('API token needed');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+
+    // Redacting the earlier off-timeline reply while pending can never resurrect it when folded.
+    await f.deliver([redaction('$answer', 155)]);
+    await f.deliver([savedSecretEdit(160)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+    expect(f.card().preview).toBeUndefined();
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('replaces an earlier detached reply when an already-folded secret request arrives', async () => {
+    const answer = (): IEvent => ({
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        ...reply().content,
+        body: 'Sensitive answer to delete',
+      },
+    });
+    const foldedSecret = (): IEvent =>
+      message(
+        '$secret',
+        120,
+        {
+          msgtype: 'm.notice',
+          body: '🔑 Secret received.',
+          [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload({
+            requester_id: otherId,
+            status: 'saved',
+          }),
+          'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+        },
+        helper
+      );
+    const f = fixture(() => [answer(), foldedSecret()]);
+    await f.start();
+    await f.deliver([withSummary(answer())]);
+    expect(f.card().preview).toBe('Sensitive answer to delete');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$answer');
+
+    // An already-folded secret request replaces $answer in summarizedReplies, matching main.
+    await f.deliver([foldedSecret()]);
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+    expect(f.card().preview).toBeUndefined();
+
+    // Redacting the earlier detached $answer can never resurrect it, and a title notice keeps
+    // $secret retained for folded-cache suppression.
+    await f.deliver([redaction('$answer', 155)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+    expect(f.card().preview).toBeUndefined();
+
+    await f.deliver([title(180)]);
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    expect(f.card().preview).toBeUndefined();
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('outgrows a stale bundled draft or redacted bundled answer when a newer secret request folds', async () => {
+    const draftAnswer = (): IEvent => ({
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        ...reply().content,
+        body: 'Thinking about it.',
+      },
+    });
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    // Stale older root bundled $answer as both latest_event and io.mindroom.latest_reply.
+    await f.deliver([withSummary(draftAnswer(), draftAnswer())]);
+    expect(f.card().preview).toBe('Thinking about it.');
+
+    // A newer secret request arrives, $answer is redacted off-timeline, and the secret folds.
+    await f.deliver([pendingSecret()]);
+    expect(f.card().preview).toBe('API token needed');
+    await f.deliver([redaction('$answer', 155), savedSecretEdit(160)]);
+    expect(f.card().preview).toBeUndefined();
+    expect(f.loadedThread()).toBe(false);
+
+    // By contrast, a fresh root whose latest_event is the folded secret paired with
+    // io.mindroom.latest_reply = $answer keeps and displays $answer.
+    const finalAnswer: IEvent = {
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        msgtype: 'm.text',
+        body: 'Release deployed successfully.',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+    };
+    const foldedSecretWithEdit: IEvent = {
+      ...pendingSecret(),
+      unsigned: { 'm.relations': { 'm.replace': savedSecretEdit(160) } },
+    };
+    const fresh = fixture(() => [finalAnswer, foldedSecretWithEdit]);
+    await fresh.start();
+    await fresh.deliver([withSummary(foldedSecretWithEdit, finalAnswer)]);
+    expect(fresh.card().preview).toBe('Release deployed successfully.');
+    expect(fresh.card({ text: 'API token needed', ts: 120, sender: helper }).preview).toBe(
+      'Release deployed successfully.'
+    );
+    expect(fresh.loadedThread()).toBe(false);
+  });
+
+  it('retains a summary-only pending secret request across a title notice and drops it once folded', async () => {
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    await f.deliver([withSummary(pendingSecret())]);
+    expect(f.card().preview).toBe('API token needed');
+
+    await f.deliver([title(150)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    expect(f.card().preview).toBe('API token needed');
+
+    await f.deliver([savedSecretEdit(160)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$title-150');
+    expect(f.card().preview).toBeUndefined();
+
+    // A later real answer overwrites the folded secret and stays retained across another title.
+    await f.deliver([{ ...reply(), event_id: '$later', origin_server_ts: 170, sender: helper }]);
+    await f.deliver([title(180)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$later');
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('keeps a cached pending prompt cleared when a title notice arrives after a live save', async () => {
+    const cached = { text: 'API token needed', ts: 120, sender: helper };
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    await f.deliver([withSummary(pendingSecret())]);
+    expect(f.card(cached).preview).toBe('API token needed');
+
+    const presentCached = () =>
+      buildThreadRecord({
+        room: f.room(),
+        threadRootId: rootId,
+        fallbackLatestReplyPreviewText: cached.text,
+        fallbackLatestReplyTs: cached.ts,
+        fallbackLastSenderId: cached.sender,
+      }).presentation;
+
+    await f.deliver([savedSecretEdit(160)]);
+    expect(presentCached()).toMatchObject({
+      latestReplyPreviewText: undefined,
+      latestReplyTs: undefined,
+      lastSenderId: undefined,
+    });
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+
+    await f.deliver([title(180)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$title-180');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    const afterTitle = presentCached();
+    expect(afterTitle.latestReplyPreviewText).toBeUndefined();
+    expect(afterTitle.latestReplyTs).toBeUndefined();
+    expect(afterTitle.lastSenderId).not.toBe(helper);
+    expect(f.loadedThread()).toBe(false);
   });
 });
