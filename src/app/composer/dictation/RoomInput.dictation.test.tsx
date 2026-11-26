@@ -30,6 +30,17 @@ const layoutState = vi.hoisted(
     editorKeyDown: ((event: React.KeyboardEvent<HTMLDivElement>) => void) | undefined;
     startSendSession: ReturnType<typeof vi.fn>;
     handoffMock: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
+    createVoiceUploadItems: ReturnType<typeof vi.fn<(...args: unknown[]) => Promise<unknown[]>>>;
+    dictationOptions:
+      | {
+          prepareVoiceUploadItems?: (
+            file: File,
+            duration: number,
+            waveform: number[] | undefined
+          ) => Promise<unknown[]>;
+          appendAttachments?: unknown;
+        }
+      | undefined;
     detachForSend: ReturnType<
       typeof vi.fn<() => { session: { finish: ReturnType<typeof vi.fn> }; savedSelection: null }>
     >;
@@ -51,6 +62,15 @@ const layoutState = vi.hoisted(
     editorKeyDown: undefined,
     startSendSession: vi.fn(async () => undefined),
     handoffMock: vi.fn(),
+    createVoiceUploadItems: vi.fn(async (file: unknown, duration: unknown, waveform: unknown) => [
+      {
+        file,
+        originalFile: file,
+        encInfo: { iv: 'enc' },
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+      },
+    ]),
+    dictationOptions: undefined,
     detachForSend: vi.fn(() => ({ session: { finish: vi.fn() }, savedSelection: null })),
   })
 );
@@ -64,29 +84,32 @@ vi.mock('../dictation/dictationSendHandoff', () => ({
 }));
 
 vi.mock('../dictation/useRoomInputDictation', () => ({
-  useRoomInputDictation: () => ({
-    available: layoutState.dictationAvailable,
-    blocksSubmit: layoutState.dictationBlocksSubmit,
-    canSend: layoutState.dictationCanSend,
-    active: layoutState.dictationBlocksSubmit || layoutState.dictationCanSend,
-    disabled: false,
-    label: 'Dictate',
-    button: layoutState.dictationAvailable ? (
-      <button type="button" aria-label="Dictate" data-testid="dictate-btn" />
-    ) : null,
-    capsule:
-      layoutState.dictationBlocksSubmit || layoutState.dictationCanSend ? (
-        <div data-testid="dictation-capsule" />
+  useRoomInputDictation: (opts: typeof layoutState.dictationOptions) => {
+    layoutState.dictationOptions = opts;
+    return {
+      available: layoutState.dictationAvailable,
+      blocksSubmit: layoutState.dictationBlocksSubmit,
+      canSend: layoutState.dictationCanSend,
+      active: layoutState.dictationBlocksSubmit || layoutState.dictationCanSend,
+      disabled: false,
+      label: 'Dictate',
+      button: layoutState.dictationAvailable ? (
+        <button type="button" aria-label="Dictate" data-testid="dictate-btn" />
       ) : null,
-    start: () => true,
-    getLiveStatus: () =>
-      layoutState.dictationBlocksSubmit
-        ? 'blocked'
-        : layoutState.dictationCanSend
-          ? 'sendable'
-          : 'idle',
-    detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
-  }),
+      capsule:
+        layoutState.dictationBlocksSubmit || layoutState.dictationCanSend ? (
+          <div data-testid="dictation-capsule" />
+        ) : null,
+      start: () => true,
+      getLiveStatus: () =>
+        layoutState.dictationBlocksSubmit
+          ? 'blocked'
+          : layoutState.dictationCanSend
+            ? 'sendable'
+            : 'idle',
+      detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
+    };
+  },
 }));
 
 vi.mock('../useRoomInputVoice', () => ({
@@ -229,7 +252,10 @@ vi.mock('../useRoomInputAttachments', () => ({
 vi.mock('../useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));
 vi.mock('../useRoomInputUploadTransport', () => ({
   getVoiceMessageContentOptions: () => ({}),
-  useRoomInputUploadTransport: () => ({}),
+  useRoomInputUploadTransport: () => ({
+    createVoiceUploadItems: layoutState.createVoiceUploadItems,
+    uploadItem: vi.fn(),
+  }),
 }));
 vi.mock('../../ui/IconTooltip', () => ({
   IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
@@ -521,5 +547,60 @@ describe('RoomInput dictation layout and submit guard', () => {
     expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(false);
     fireEvent.click(screen.getByTestId('send-btn'));
     expect(layoutState.handoffMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('wires voice fallback preparation for normal rooms (transport) and deferred Home ask (unencrypted local item)', async () => {
+    const file = new File([new Uint8Array(48)], 'voice.wav', { type: 'audio/wav' });
+    const waveform = Array.from({ length: 48 }, () => 200);
+
+    // Normal room delegates to transport.createVoiceUploadItems(..., room) and passes it to handoff.
+    layoutState.dictationCanSend = true;
+    layoutState.createVoiceUploadItems.mockClear();
+    layoutState.handoffMock.mockClear();
+    const normal = renderInput({ screenSize: ScreenSize.Desktop });
+    const normalItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
+      file,
+      1_800,
+      waveform
+    );
+    expect(layoutState.createVoiceUploadItems).toHaveBeenCalledWith(file, 1_800, waveform, room);
+    expect(normalItems).toEqual([
+      expect.objectContaining({
+        file,
+        encInfo: { iv: 'enc' },
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+      }),
+    ]);
+    fireEvent.click(screen.getByTestId('send-btn'));
+    expect(layoutState.handoffMock).toHaveBeenCalledWith(
+      expect.objectContaining({ createVoiceUploadItems: layoutState.createVoiceUploadItems })
+    );
+    normal.unmount();
+
+    // Deferred Home ask builds an unencrypted voice item without invoking room transport prep.
+    layoutState.createVoiceUploadItems.mockClear();
+    const home = renderInput({
+      ask: {
+        agentUserId: '@mindroom_assistant:example.org',
+        placeholder: 'Ask',
+        pickers: <div />,
+        canSend: () => true,
+      },
+    });
+    const askItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
+      file,
+      1_800,
+      waveform
+    );
+    expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
+    expect(askItems).toEqual([
+      {
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+      },
+    ]);
+    home.unmount();
   });
 });

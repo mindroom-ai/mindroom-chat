@@ -1881,6 +1881,8 @@
       "finishAndSend": "Selesaikan dan kirim",
       "retry": "Coba lagi",
       "retryAndSend": "Coba lagi dan kirim",
+      "sendAsVoice": "Kirim sebagai suara",
+      "attachAsVoice": "Lampirkan sebagai suara",
       "insertPartial": "Sisipkan teks sebagian",
       "discard": "Buang",
       "dismissError": "Tutup kesalahan dikte",

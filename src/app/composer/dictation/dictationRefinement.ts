@@ -19,7 +19,7 @@ export const REFINEMENT_MAX_AUDIO_SECONDS_PER_MINUTE = 150;
 export const REFINEMENT_RATE_WINDOW_MS = 60_000;
 
 const FRAME_BYTES = DICTATION_FRAME_SAMPLES * 2;
-const MIN_INTERNAL_GAP_FRAMES =
+export const MIN_INTERNAL_GAP_FRAMES =
   REFINEMENT_INTERNAL_TRAILING_QUIET_FRAMES + REFINEMENT_INTERNAL_LEADING_QUIET_FRAMES;
 
 export type SegmentSlicePosition = 'first' | 'middle' | 'last' | 'only';
@@ -232,7 +232,7 @@ export const canAffordRefinement = (
   return usedSeconds + audioSeconds <= REFINEMENT_MAX_AUDIO_SECONDS_PER_MINUTE;
 };
 
-const groupCoveredEnd = (group: RefinementGroup): number => {
+export const getRefinementGroupCoveredEnd = (group: RefinementGroup): number => {
   if (!group.refinedText) return group.startIndex - 1;
   const end = group.refinedEndIndex ?? (group.state === 'refined' ? group.endIndex : undefined);
   return end !== undefined ? Math.min(end, group.endIndex) : group.startIndex - 1;
@@ -242,7 +242,7 @@ const groupNeedsLiveRefinement = (group: RefinementGroup): boolean =>
   group.state === 'open' &&
   group.uploadingEndIndex === undefined &&
   group.endIndex > group.startIndex &&
-  groupCoveredEnd(group) < group.endIndex &&
+  getRefinementGroupCoveredEnd(group) < group.endIndex &&
   (group.liveFailedEndIndex ?? -1) < group.endIndex;
 
 const sliceSegments = (
@@ -269,34 +269,10 @@ export const buildGroupMergedWav = (
   return segments ? buildMergedGroupWav(segments) : null;
 };
 
-/**
- * Releases WAV blobs for locked segments while retaining uncovered queued/uploading/failed WAVs.
- * Returns the exact segment indices whose `.wav` was newly cleared so callers can prune matching
- * journal rows atomically.
- */
-export const releaseGroupWavs = (
-  group: RefinementGroup,
-  records: readonly Pick<RefinementSegmentRecord, 'wav' | 'status'>[]
-): number[] => {
-  if (group.state !== 'refined' && group.state !== 'fallback') return [];
-  const pruned: number[] = [];
-  const coveredEnd = groupCoveredEnd(group);
-  for (let i = group.startIndex; i <= group.endIndex; i += 1) {
-    const record = records[i];
-    if (!record || record.wav === undefined) continue;
-    if (group.state === 'refined' || record.status === 'completed' || i <= coveredEnd) {
-      record.wav = undefined;
-      pruned.push(i);
-    }
-  }
-  return pruned;
-};
-
 /** Seals an open refinement group into uploading, refined, queued (merged WAV), or fallback. */
 export const sealRefinementGroup = (
   group: RefinementGroup,
-  records: readonly RefinementSegmentRecord[],
-  prunedOut?: number[]
+  records: readonly RefinementSegmentRecord[]
 ): boolean => {
   if (group.state !== 'open') return false;
   if (group.uploadingEndIndex !== undefined) {
@@ -307,15 +283,11 @@ export const sealRefinementGroup = (
     group.mergedWav = undefined;
     group.mergedSeconds = undefined;
     group.state = 'refined';
-    const pruned = releaseGroupWavs(group, records);
-    if (prunedOut && pruned.length > 0) prunedOut.push(...pruned);
     return true;
   }
   const merged = buildGroupMergedWav(records, group.startIndex, group.endIndex);
   if (!merged) {
     group.state = 'fallback';
-    const pruned = releaseGroupWavs(group, records);
-    if (prunedOut && pruned.length > 0) prunedOut.push(...pruned);
     return true;
   }
   group.mergedWav = merged.wav;
@@ -327,8 +299,7 @@ export const sealRefinementGroup = (
 /** Appends the newest record (at `records.length - 1`) into `groups`, sealing on cap or cut bounds. */
 export const appendSegmentToGroups = (
   groups: RefinementGroup[],
-  records: readonly RefinementSegmentRecord[],
-  prunedOut?: number[]
+  records: readonly RefinementSegmentRecord[]
 ): void => {
   const idx = records.length - 1;
   const record = records[idx];
@@ -352,13 +323,13 @@ export const appendSegmentToGroups = (
   }
 
   if (!appended) {
-    if (open) sealRefinementGroup(open, records, prunedOut);
+    if (open) sealRefinementGroup(open, records);
     groups.push({ startIndex: idx, endIndex: idx, state: 'open' });
   }
 
   if (record.segment.cutReason === 'hard') {
     const current = groups[groups.length - 1];
-    if (current) sealRefinementGroup(current, records, prunedOut);
+    if (current) sealRefinementGroup(current, records);
   }
 };
 
@@ -366,7 +337,8 @@ export const appendSegmentToGroups = (
 export const isRecordCoveredByRefinement = (
   groups: readonly RefinementGroup[],
   index: number
-): boolean => groups.some((group) => index >= group.startIndex && index <= groupCoveredEnd(group));
+): boolean =>
+  groups.some((group) => index >= group.startIndex && index <= getRefinementGroupCoveredEnd(group));
 
 /** Picks the chronologically earliest queued/live refinement or uncovered primary upload. */
 export const selectNextUpload = (
@@ -386,7 +358,7 @@ export const selectNextUpload = (
     if (group.state === 'queued' || groupNeedsLiveRefinement(group)) {
       return { kind: 'refinement', group, endIndex: group.endIndex };
     }
-    const firstUncovered = Math.max(group.startIndex, groupCoveredEnd(group) + 1);
+    const firstUncovered = Math.max(group.startIndex, getRefinementGroupCoveredEnd(group) + 1);
     for (let i = firstUncovered; i <= group.endIndex; i += 1) {
       if (records[i]?.status === 'queued') return { kind: 'primary', index: i };
     }
@@ -408,7 +380,7 @@ export const stitchRefinedSegments = (
     if (group.startIndex >= capped) break;
     const end = Math.min(group.endIndex, capped - 1);
     let primaryStart = group.startIndex;
-    const coveredEnd = groupCoveredEnd(group);
+    const coveredEnd = getRefinementGroupCoveredEnd(group);
     if (group.refinedText && coveredEnd >= group.startIndex && coveredEnd < capped) {
       parts.push({
         text: group.refinedText,
@@ -440,7 +412,7 @@ export const summarizeSessionRecords = (
       completedSegments += group.endIndex - group.startIndex + 1;
       continue;
     }
-    const coveredEnd = groupCoveredEnd(group);
+    const coveredEnd = getRefinementGroupCoveredEnd(group);
     completedSegments += Math.max(0, coveredEnd - group.startIndex + 1);
 
     const refining =

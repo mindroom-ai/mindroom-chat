@@ -1881,6 +1881,8 @@
       "finishAndSend": "完了して送信",
       "retry": "再試行",
       "retryAndSend": "再試行して送信",
+      "sendAsVoice": "音声として送信",
+      "attachAsVoice": "音声として添付",
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",

@@ -1946,6 +1946,8 @@
       "finishAndSend": "Beenden und senden",
       "retry": "Erneut versuchen",
       "retryAndSend": "Erneut versuchen und senden",
+      "sendAsVoice": "Als Sprachnachricht senden",
+      "attachAsVoice": "Als Sprachnachricht anhängen",
       "insertPartial": "Teiltext einfügen",
       "discard": "Verwerfen",
       "dismissError": "Diktatfehler schließen",

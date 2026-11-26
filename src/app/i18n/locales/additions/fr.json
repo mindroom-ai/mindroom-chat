@@ -2011,6 +2011,8 @@
       "finishAndSend": "Terminer et envoyer",
       "retry": "Réessayer",
       "retryAndSend": "Réessayer et envoyer",
+      "sendAsVoice": "Envoyer en message vocal",
+      "attachAsVoice": "Joindre en message vocal",
       "insertPartial": "Insérer le texte partiel",
       "discard": "Supprimer",
       "dismissError": "Fermer l’erreur de dictée",

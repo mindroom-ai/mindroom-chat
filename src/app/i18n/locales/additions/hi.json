@@ -1946,6 +1946,8 @@
       "finishAndSend": "समाप्त करें और भेजें",
       "retry": "पुनः प्रयास करें",
       "retryAndSend": "पुनः प्रयास करें और भेजें",
+      "sendAsVoice": "वॉयस के रूप में भेजें",
+      "attachAsVoice": "वॉयस के रूप में संलग्न करें",
       "insertPartial": "आंशिक पाठ डालें",
       "discard": "छोड़ें",
       "dismissError": "डिक्टेशन त्रुटि हटाएं",

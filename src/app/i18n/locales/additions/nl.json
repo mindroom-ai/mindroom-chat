@@ -1946,6 +1946,8 @@
       "finishAndSend": "Voltooien en versturen",
       "retry": "Opnieuw proberen",
       "retryAndSend": "Opnieuw proberen en versturen",
+      "sendAsVoice": "Versturen als spraak",
+      "attachAsVoice": "Bijvoegen als spraak",
       "insertPartial": "Deeltekst invoegen",
       "discard": "Verwijderen",
       "dismissError": "Dicteerfout sluiten",

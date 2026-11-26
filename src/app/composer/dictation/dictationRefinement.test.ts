@@ -9,7 +9,6 @@ import {
   REFINEMENT_MAX_AUDIO_SECONDS_PER_MINUTE,
   REFINEMENT_MAX_REQUESTS_PER_MINUTE,
   REFINEMENT_RATE_WINDOW_MS,
-  releaseGroupWavs,
   sealRefinementGroup,
   selectNextUpload,
   stitchRefinedSegments,
@@ -183,7 +182,7 @@ describe('dictationRefinement', () => {
     expect(estimateMergedGroupSeconds([seg0, malformed])).toBe(Infinity);
   });
 
-  it('enforces 4-segment and 16 s caps, seals in-flight/already-refined groups, and releases locked WAVs', () => {
+  it('enforces 4-segment and 16 s caps, seals in-flight/already-refined groups, and retains WAVs for voice fallback', () => {
     const toRecord = (
       seg: DictationSegment,
       status: RefinementSegmentRecord['status'] = 'queued'
@@ -207,8 +206,7 @@ describe('dictationRefinement', () => {
     appendSegmentToGroups(groups, records);
     expect(groups).toHaveLength(2);
     expect(groups[0]!.state).toBe('refined');
-    expect(records.slice(0, 4).every((r) => r.wav === undefined)).toBe(true);
-    expect(records[4]!.wav).toBeDefined();
+    expect(records.every((r) => r.wav !== undefined)).toBe(true);
 
     // 16 s cap seals open group as-is (even if uploading) and opens a fresh group.
     const longRecs = [65, 65, 65].map((voiced) => toRecord(makeSegment({ voiced }), 'completed'));
@@ -222,32 +220,12 @@ describe('dictationRefinement', () => {
     expect(longRecs[0]!.wav).toBeDefined();
     expect(longRecs[1]!.wav).toBeDefined();
 
-    // Fallback group releases covered and completed WAVs while retaining uncovered queued/failed WAVs.
-    const fbRecords: RefinementSegmentRecord[] = [
-      toRecord(makeSegment({ voiced: 5 }), 'completed'),
-      toRecord(makeSegment({ voiced: 5 }), 'queued'),
-      toRecord(makeSegment({ voiced: 5 }), 'completed'),
-      toRecord(makeSegment({ voiced: 5 }), 'failed'),
-    ];
-    const fbGroup: RefinementGroup = {
-      startIndex: 0,
-      endIndex: 3,
-      state: 'fallback',
-      refinedText: 'Zero and one',
-      refinedEndIndex: 1,
-    };
-    releaseGroupWavs(fbGroup, fbRecords);
-    expect(fbRecords[0]!.wav).toBeUndefined();
-    expect(fbRecords[1]!.wav).toBeUndefined();
-    expect(fbRecords[2]!.wav).toBeUndefined();
-    expect(fbRecords[3]!.wav).toBeDefined();
-
-    // Sealing an already-completed singleton transitions to fallback and releases its WAV.
+    // Sealing an already-completed singleton transitions to fallback while retaining its WAV.
     const singleRecs = [toRecord(makeSegment({ voiced: 5 }), 'completed')];
     const singleGroup: RefinementGroup = { startIndex: 0, endIndex: 0, state: 'open' };
     expect(sealRefinementGroup(singleGroup, singleRecs)).toBe(true);
     expect(singleGroup.state).toBe('fallback');
-    expect(singleRecs[0]!.wav).toBeUndefined();
+    expect(singleRecs[0]!.wav).toBeDefined();
   });
 
   it('enforces 24 RPM and 150 s/min rolling-window budget and prunes expired entries', () => {
@@ -397,49 +375,15 @@ describe('dictationRefinement', () => {
     });
   });
 
-  it('returns exact newly-pruned indices from releaseGroupWavs and sealRefinementGroup', () => {
+  it('retains all segment WAVs when sealing refined, queued, or fallback groups', () => {
     const mkRec = (
       index: number,
-      status: RefinementSegmentRecord['status'],
-      withWav = true
+      status: RefinementSegmentRecord['status']
     ): RefinementSegmentRecord => {
       const { wav, ...meta } = makeSegment({ voiced: 4 });
-      return { segment: { ...meta, index }, wav: withWav ? wav : undefined, status };
+      return { segment: { ...meta, index }, wav, status };
     };
 
-    // Open and queued groups prune nothing.
-    const openRecs = [mkRec(0, 'completed'), mkRec(1, 'queued')];
-    expect(releaseGroupWavs({ startIndex: 0, endIndex: 1, state: 'open' }, openRecs)).toEqual([]);
-    expect(releaseGroupWavs({ startIndex: 0, endIndex: 1, state: 'queued' }, openRecs)).toEqual([]);
-    expect(openRecs[0]?.wav).toBeDefined();
-
-    // Fallback prunes completed + covered indices, preserves uncovered failed/queued WAVs,
-    // and reports only newly cleared indices on subsequent calls.
-    const fallbackGroup: RefinementGroup = {
-      startIndex: 0,
-      endIndex: 3,
-      state: 'fallback',
-      refinedText: 'Zero and one.',
-      refinedEndIndex: 1,
-    };
-    const fallbackRecs = [
-      mkRec(0, 'completed', false), // already pruned -> must not be re-reported
-      mkRec(1, 'queued', true), // covered by refinedEndIndex -> newly pruned
-      mkRec(2, 'completed', true), // completed -> newly pruned
-      mkRec(3, 'failed', true), // uncovered failed -> retained
-    ];
-    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([1, 2]);
-    expect(fallbackRecs[1]?.wav).toBeUndefined();
-    expect(fallbackRecs[2]?.wav).toBeUndefined();
-    expect(fallbackRecs[3]?.wav).toBeDefined();
-    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([]);
-
-    // Once seg 3 completes, calling releaseGroupWavs returns only [3].
-    fallbackRecs[3]!.status = 'completed';
-    expect(releaseGroupWavs(fallbackGroup, fallbackRecs)).toEqual([3]);
-    expect(fallbackRecs[3]?.wav).toBeUndefined();
-
-    // sealRefinementGroup and appendSegmentToGroups report newly pruned indices via prunedOut.
     const sealedRecs = [mkRec(0, 'completed'), mkRec(1, 'completed')];
     const sealedGroup: RefinementGroup = {
       startIndex: 0,
@@ -448,9 +392,9 @@ describe('dictationRefinement', () => {
       refinedText: 'Zero and one.',
       refinedEndIndex: 1,
     };
-    const prunedOnSeal: number[] = [];
-    expect(sealRefinementGroup(sealedGroup, sealedRecs, prunedOnSeal)).toBe(true);
+    expect(sealRefinementGroup(sealedGroup, sealedRecs)).toBe(true);
     expect(sealedGroup.state).toBe('refined');
-    expect(prunedOnSeal).toEqual([0, 1]);
+    expect(sealedRecs[0]?.wav).toBeDefined();
+    expect(sealedRecs[1]?.wav).toBeDefined();
   });
 });

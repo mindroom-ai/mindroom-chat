@@ -2011,6 +2011,8 @@
       "finishAndSend": "Concluir e enviar",
       "retry": "Tentar novamente",
       "retryAndSend": "Tentar novamente e enviar",
+      "sendAsVoice": "Enviar como voz",
+      "attachAsVoice": "Anexar como voz",
       "insertPartial": "Inserir texto parcial",
       "discard": "Descartar",
       "dismissError": "Fechar erro de ditado",

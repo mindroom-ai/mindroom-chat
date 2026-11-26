@@ -1946,6 +1946,8 @@
       "finishAndSend": "Finish and send",
       "retry": "Retry",
       "retryAndSend": "Retry and send",
+      "sendAsVoice": "Send as voice",
+      "attachAsVoice": "Attach as voice",
       "insertPartial": "Insert partial",
       "discard": "Discard",
       "dismissError": "Dismiss dictation error",

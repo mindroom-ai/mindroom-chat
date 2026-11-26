@@ -1881,6 +1881,8 @@
       "finishAndSend": "완료하고 전송",
       "retry": "다시 시도",
       "retryAndSend": "다시 시도하고 전송",
+      "sendAsVoice": "음성으로 전송",
+      "attachAsVoice": "음성으로 첨부",
       "insertPartial": "일부 텍스트 삽입",
       "discard": "폐기",
       "dismissError": "받아쓰기 오류 닫기",

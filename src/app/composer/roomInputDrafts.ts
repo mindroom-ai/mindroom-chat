@@ -510,8 +510,10 @@ export type DetachedDictationSend = {
   readonly roomId: string;
   readonly roomName: string;
   readonly status: 'sending' | 'failed';
+  readonly errorMessage?: string;
   readonly session: DictationSession;
   readonly retryAndSend: () => void;
+  readonly sendAsVoice: () => void;
   readonly insertPartial: () => void;
   readonly discard: () => Promise<void>;
   readonly abort: () => void;
