@@ -1,5 +1,5 @@
 import { isRecord } from '../../lib/isRecord';
-import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
  * Key of the card an agent posts when it needs the person to type a secret, an `m.notice` with
@@ -366,10 +366,7 @@ const readAnchoredSecretRequest = (
   if (!event || event.getType?.() !== 'm.room.message') return null;
   if (event.isRedacted?.() || event.isRedaction?.()) return null;
   const sender = event.getSender?.();
-  const trusted = viewerUserId
-    ? isMindroomAgentUserIdForViewer(sender, viewerUserId)
-    : isMindroomAgentUserId(sender);
-  if (!trusted) return null;
+  if (!isMindroomAgentUserIdForViewer(sender, viewerUserId)) return null;
   const original = event.getOriginalContent?.() ?? event.getContent?.();
   if (!isRecord(original) || !isRecord(original[MINDROOM_SECRET_REQUEST_KEY])) return null;
   const request = parseSecretRequestContent(

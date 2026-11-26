@@ -1523,70 +1523,53 @@ final class ThreadSnapshotTests: XCTestCase {
 
     func testFoldedSecretRequestSkipsReplyPreviewAndQuestion() {
         let answer = event("$reply", 2, inThread(["msgtype": "m.text", "body": "Release deployed."]))
-        let makeSecret = { (id: String, status: String, anchored: Bool, sender: String) -> JSON in
+        let secretPayload = { (status: String, anchored: Bool) -> JSON in
             var payload: JSON = ["request_id": "req-1", "status": status]
             if anchored {
                 payload["response_event_id"] = "$reply"
                 payload["tool_call_id"] = "call_1"
             }
-            return event(id, 3, sender: sender, inThread([
-                "msgtype": "m.notice",
-                "body": status == "pending" ? "API token needed" : "🔑 Secret received.",
-                "io.mindroom.secret_request": payload,
-            ]))
+            return payload
         }
-        let makeEdit = { (targetId: String, status: String, sender: String) -> JSON in
-            event("\(targetId)-edit", 4, sender: sender, [
-                "m.new_content": [
-                    "msgtype": "m.notice",
-                    "body": "🔑 Secret received.",
-                    "io.mindroom.secret_request": [
-                        "request_id": "req-1", "status": status,
-                        "response_event_id": "$reply", "tool_call_id": "call_1",
-                    ] as JSON,
-                ] as JSON,
+        let secretContent = { (status: String, anchored: Bool) -> JSON in [
+            "msgtype": "m.notice",
+            "body": status == "pending" ? "API token needed" : "🔑 Secret received.",
+            "io.mindroom.secret_request": secretPayload(status, anchored),
+        ] }
+        let makeSecret = { (id: String, status: String, anchored: Bool, sender: String) -> JSON in
+            event(id, 3, sender: sender, inThread(secretContent(status, anchored)))
+        }
+        let makeEdit = { (targetId: String, status: String) -> JSON in
+            event("\(targetId)-edit", 4, sender: agent, [
+                "m.new_content": secretContent(status, true),
                 "m.relates_to": ["rel_type": "m.replace", "event_id": targetId] as JSON,
             ])
         }
+        let build = { (related: [JSON]) in ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: self.now) }
 
-        // Terminal edited statuses skip preview/question selection while keeping the receipt in Watch entries.
+        // Terminal edited statuses skip preview/question selection while keeping the receipt and its edit time.
         for status in ["saved", "declined", "expired"] {
-            let pending = makeSecret("$secret", "pending", true, agent)
-            let snapshot = ThreadSnapshot.build(
-                root: voiceRoot, related: [answer, pending, makeEdit("$secret", status, agent)],
-                ownUserId: me, now: now)
+            let snapshot = build([answer, makeSecret("$secret", "pending", true, agent), makeEdit("$secret", status)])
             XCTAssertEqual(snapshot.reply?.eventId, "$reply", status)
             XCTAssertEqual(snapshot.reply?.text, "Release deployed.", status)
+            XCTAssertEqual(snapshot.latestTs, 4, status)
             XCTAssertTrue(snapshot.entries.contains { $0.id == "$secret" }, status)
         }
 
         // A folded secret request does not mask an interactive question on the anchored reply.
-        let asked = ThreadSnapshot.build(
-            root: voiceRoot,
-            related: [question("$reply", 2), makeSecret("$secret", "pending", true, agent), makeEdit("$secret", "saved", agent)],
-            ownUserId: me, now: now)
+        let asked = build([question("$reply", 2), makeSecret("$secret", "pending", true, agent), makeEdit("$secret", "saved")])
         XCTAssertEqual(asked.openQuestion?.eventId, "$reply")
 
         // Pending anchored, unanchored saved, foreign-homeserver spoof, and edit-only spoof all stay visible.
-        let pending = ThreadSnapshot.build(
-            root: voiceRoot, related: [answer, makeSecret("$pending", "pending", true, agent)],
-            ownUserId: me, now: now)
-        XCTAssertEqual(pending.reply?.eventId, "$pending")
-
-        let unanchored = ThreadSnapshot.build(
-            root: voiceRoot, related: [answer, makeSecret("$unanchored", "saved", false, agent)],
-            ownUserId: me, now: now)
-        XCTAssertEqual(unanchored.reply?.eventId, "$unanchored")
-
-        let foreign = ThreadSnapshot.build(
-            root: voiceRoot, related: [answer, makeSecret("$foreign", "saved", true, "@mindroom_mind:elsewhere.example")],
-            ownUserId: me, now: now)
-        XCTAssertEqual(foreign.reply?.eventId, "$foreign")
-
         let plain = event("$plain", 3, sender: agent, inThread(["msgtype": "m.text", "body": "Ordinary message"]))
-        let spoof = ThreadSnapshot.build(
-            root: voiceRoot, related: [answer, plain, makeEdit("$plain", "saved", agent)],
-            ownUserId: me, now: now)
-        XCTAssertEqual(spoof.reply?.eventId, "$plain")
+        let visible: [(String, [JSON])] = [
+            ("$pending", [answer, makeSecret("$pending", "pending", true, agent)]),
+            ("$unanchored", [answer, makeSecret("$unanchored", "saved", false, agent)]),
+            ("$foreign", [answer, makeSecret("$foreign", "saved", true, "@mindroom_mind:elsewhere.example")]),
+            ("$plain", [answer, plain, makeEdit("$plain", "saved")]),
+        ]
+        for (expectedId, related) in visible {
+            XCTAssertEqual(build(related).reply?.eventId, expectedId, expectedId)
+        }
     }
 }

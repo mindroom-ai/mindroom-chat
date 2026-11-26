@@ -25,6 +25,7 @@ type VisibleThreadEventLike = ThreadEventLike & {
 
 export type VisibleThreadEventCollectionLike = {
   id?: string;
+  room?: Room;
   rootEvent?: MatrixEvent;
   replyToEvent?: MatrixEvent | null;
   length?: number;
@@ -117,19 +118,21 @@ export const getVisibleThreadEventBodyPreviewText = (
   event: MatrixEvent | undefined
 ): string | undefined => getThreadMessagePreviewText(getEventPreviewContent(event));
 
+export const isRenderableThreadReplyPreviewEvent = (
+  event: MatrixEvent,
+  viewerUserId?: string
+): boolean =>
+  !!getVisibleThreadEventBodyPreviewText(event) &&
+  !isThreadSummaryEvent(event) &&
+  !isFoldedSecretRequestEvent(event, viewerUserId);
+
 export const getLatestRenderableVisibleThreadReplyEvent = (
   replyEvents: MatrixEvent[],
   viewerUserId?: string
-): MatrixEvent | undefined => {
+): MatrixEvent | undefined =>
   // Title notices show on the card's title line, and answered anchored secret requests fold into
   // their reply's tool call, so neither replaces the conversational reply preview.
-  return replyEvents.findLast(
-    (event) =>
-      !!getVisibleThreadEventBodyPreviewText(event) &&
-      !isThreadSummaryEvent(event) &&
-      !isFoldedSecretRequestEvent(event, viewerUserId)
-  );
-};
+  replyEvents.findLast((event) => isRenderableThreadReplyPreviewEvent(event, viewerUserId));
 
 export const getPreferredVisibleThreadReplyEvents = (
   thread: VisibleThreadEventCollectionLike | null | undefined

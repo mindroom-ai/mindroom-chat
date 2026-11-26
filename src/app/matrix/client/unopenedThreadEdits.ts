@@ -37,7 +37,6 @@ type SummarizedThread = {
   id?: string;
   replyToEvent?: MatrixEvent | null;
   room?: Room;
-  client?: { getUserId?: () => string | null };
   replayEvents?: MatrixEvent[] | null;
 };
 
@@ -46,7 +45,12 @@ const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined)
   !!room && !!editId && isKnownRedactedEventId(room, editId);
 
 const viewerIdOf = (thread: SummarizedThread): string | undefined =>
-  thread.room?.myUserId || thread.client?.getUserId?.() || undefined;
+  thread.room?.myUserId || undefined;
+
+const isThreadReply = (
+  thread: SummarizedThread,
+  event: MatrixEvent | null | undefined
+): event is MatrixEvent => !!event && event.getId() !== thread.id && !isThreadSummaryEvent(event);
 
 /**
  * A reply to retain across later non-conversational summaries: not the root, title notice, or an
@@ -56,20 +60,14 @@ const isRetainableSummaryReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
 ): event is MatrixEvent =>
-  !!event &&
-  event.getId() !== thread.id &&
-  !isThreadSummaryEvent(event) &&
-  !isAnchoredSecretRequestEvent(event, viewerIdOf(thread));
+  isThreadReply(thread, event) && !isAnchoredSecretRequestEvent(event, viewerIdOf(thread));
 
 /** A reply the thread's summary may name: not its root, title notice, or folded secret request. */
 const isSummarizedReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
 ): event is MatrixEvent =>
-  !!event &&
-  event.getId() !== thread.id &&
-  !isThreadSummaryEvent(event) &&
-  !isFoldedSecretRequestEvent(event, viewerIdOf(thread));
+  isThreadReply(thread, event) && !isFoldedSecretRequestEvent(event, viewerIdOf(thread));
 
 /**
  * The thread's newest reply outside its timeline: the reply its summary names, or, in an unopened
@@ -92,7 +90,7 @@ export const getThreadSummaryReply = (
     retained.setUnsigned(unsigned ?? {});
     showNewestEdit(thread, retained);
   }
-  return retained;
+  return isSummarizedReply(thread, retained) ? retained : summarized;
 };
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
@@ -212,8 +210,12 @@ const createEditWatcher = (): EditWatcher => {
       summarizedReplies.delete(thread);
       return false;
     }
-    if (isRetainableSummaryReply(thread, thread.replyToEvent))
+    if (
+      isRetainableSummaryReply(thread, thread.replyToEvent) ||
+      (!summarizedReplies.has(thread) && isSummarizedReply(thread, thread.replyToEvent))
+    ) {
       summarizedReplies.set(thread, thread.replyToEvent);
+    }
     let changed = false;
     const targets = new Set<MatrixEvent>();
     (thread.replayEvents ?? []).forEach((edit) => {

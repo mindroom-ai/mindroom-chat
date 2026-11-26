@@ -1,7 +1,10 @@
-import { MatrixEvent, type Room } from 'matrix-js-sdk';
-import { RelationType } from 'matrix-js-sdk/lib/@types/event';
+import { MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { MINDROOM_SECRET_REQUEST_KEY } from '../../matrix/protocol/secretRequest';
+import {
+  secretRequestEditContent,
+  secretRequestPayload,
+} from '../../matrix/protocol/secretRequest.test.shared';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 
 const ROOM = '!room:example.org';
@@ -51,16 +54,10 @@ const secretNotice = ({
     content: {
       msgtype: 'm.notice',
       body,
-      [MINDROOM_SECRET_REQUEST_KEY]: {
-        request_id: 'req-1',
-        requester_id: VIEWER,
-        env: 'API_TOKEN',
-        keep: { memory: 900 },
-        reason: 'To push the release',
+      [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload({
         status,
-        expires_at: 1,
-        ...(anchored ? { response_event_id: '$reply', tool_call_id: 'call_1' } : {}),
-      },
+        ...(anchored ? {} : { response_event_id: undefined, tool_call_id: undefined }),
+      }),
       'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
     },
   });
@@ -75,7 +72,7 @@ const present = (events: MatrixEvent[]) =>
   resolveThreadPresentationSnapshot({
     room,
     threadRootId: ROOT,
-    thread: { events, timeline: events },
+    thread: { room, events, timeline: events },
     rootEvent: root,
   });
 
@@ -112,7 +109,7 @@ describe('folded secret-request notices as thread reply previews', () => {
     expect(onlyFolded.lastSenderId).toBeUndefined();
   });
 
-  it('replaces a cached pending prompt once the secret folds, without overriding a genuinely newer cache', () => {
+  it('replaces a cached pending prompt once the secret folds, without overriding unrelated caches', () => {
     const folded = secretNotice({ status: 'pending', body: 'API token needed' });
     folded.makeReplaced(
       new MatrixEvent({
@@ -120,97 +117,80 @@ describe('folded secret-request notices as thread reply previews', () => {
         room_id: ROOM,
         sender: AGENT,
         type: 'm.room.message',
-        origin_server_ts: 4,
-        content: {
-          msgtype: 'm.notice',
-          body: '* 🔑 Secret received.',
-          'm.new_content': {
-            msgtype: 'm.notice',
-            body: '🔑 Secret received.',
-            [MINDROOM_SECRET_REQUEST_KEY]: {
-              request_id: 'req-1',
-              requester_id: VIEWER,
-              env: 'API_TOKEN',
-              keep: { memory: 900 },
-              reason: 'To push the release',
-              status: 'saved',
-              expires_at: 1,
-              response_event_id: '$reply',
-              tool_call_id: 'call_1',
-            },
-          },
-          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$secret' },
-        },
+        origin_server_ts: 5,
+        content: secretRequestEditContent('$secret'),
       })
     );
     const bundledPreviews = { reply: replyEvent, latest: { id: '$reply', ts: 2 } };
+    const loadedThread = { room, events: [replyEvent, folded], timeline: [replyEvent, folded] };
+    const unopenedThread = { room, events: [], timeline: [], replyToEvent: folded };
+    const presentCached = (
+      overrides: Partial<Parameters<typeof resolveThreadPresentationSnapshot>[0]> = {}
+    ) =>
+      resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: ROOT,
+        rootEvent: root,
+        thread: unopenedThread,
+        fallbackLatestReplyPreviewText: 'API token needed',
+        fallbackLatestReplyTs: 3,
+        fallbackLastSenderId: AGENT,
+        ...overrides,
+      });
 
-    // Cached pending prompt (t=3) is superseded when $secret folds at t=4: both loaded and bundled-only $reply (t=2) win.
-    const withLoadedAndBundled = resolveThreadPresentationSnapshot({
-      room,
-      threadRootId: ROOT,
-      thread: { events: [replyEvent, folded], timeline: [replyEvent, folded] },
-      rootEvent: root,
-      bundledPreviews,
-      fallbackLatestReplyPreviewText: 'API token needed',
-      fallbackLatestReplyTs: 3,
-      fallbackLastSenderId: AGENT,
-    });
-    expect(withLoadedAndBundled.latestReplyPreviewText).toBe('Release deployed successfully.');
-
-    const withBundledOnly = resolveThreadPresentationSnapshot({
-      room,
-      threadRootId: ROOT,
-      thread: { events: [], timeline: [], replyToEvent: folded },
-      rootEvent: root,
-      bundledPreviews,
-      fallbackLatestReplyPreviewText: 'API token needed',
-      fallbackLatestReplyTs: 3,
-      fallbackLastSenderId: AGENT,
-    });
-    expect(withBundledOnly.latestReplyPreviewText).toBe('Release deployed successfully.');
+    // Cached pending prompt (t=3) is superseded when $secret folds at t=5: loaded and bundled $reply (t=2) win.
+    expect(presentCached({ thread: loadedThread, bundledPreviews }).latestReplyPreviewText).toBe(
+      'Release deployed successfully.'
+    );
+    expect(presentCached({ bundledPreviews }).latestReplyPreviewText).toBe(
+      'Release deployed successfully.'
+    );
 
     // Unopened folded-only case (no loaded/bundled/retained agent reply): stale cached prompt is discarded.
-    const unopenedFoldedOnly = resolveThreadPresentationSnapshot({
-      room,
-      threadRootId: ROOT,
-      thread: { events: [], timeline: [], replyToEvent: folded },
-      rootEvent: root,
-      fallbackLatestReplyPreviewText: 'API token needed',
-      fallbackLatestReplyTs: 3,
-      fallbackLastSenderId: AGENT,
+    expect(presentCached()).toMatchObject({
+      latestReplyPreviewText: undefined,
+      latestReplyTs: undefined,
+      lastSenderId: undefined,
+      rootPreviewText: 'Deploy the release',
     });
-    expect(unopenedFoldedOnly.latestReplyPreviewText).toBeUndefined();
-    expect(unopenedFoldedOnly.latestReplyTs).toBeUndefined();
-    expect(unopenedFoldedOnly.lastSenderId).toBeUndefined();
-    expect(unopenedFoldedOnly.rootPreviewText).toBe('Deploy the release');
 
-    // A cached answer from before the request existed (t=2 < 3) is NOT the stale prompt and is kept.
-    const olderCachedAnswer = resolveThreadPresentationSnapshot({
-      room,
-      threadRootId: ROOT,
-      thread: { events: [], timeline: [], replyToEvent: folded },
-      rootEvent: root,
-      fallbackLatestReplyPreviewText: 'The release is ready.',
-      fallbackLatestReplyTs: 2,
-      fallbackLastSenderId: AGENT,
+    // Cached answer predating the request (t=2 < 3) is NOT the stale prompt and is kept.
+    expect(
+      presentCached({
+        fallbackLatestReplyPreviewText: 'The release is ready.',
+        fallbackLatestReplyTs: 2,
+      })
+    ).toMatchObject({
+      latestReplyPreviewText: 'The release is ready.',
+      latestReplyTs: 2,
+      lastSenderId: AGENT,
     });
-    expect(olderCachedAnswer.latestReplyPreviewText).toBe('The release is ready.');
-    expect(olderCachedAnswer.latestReplyTs).toBe(2);
-    expect(olderCachedAnswer.lastSenderId).toBe(AGENT);
 
-    // A genuinely newer reply cached after the secret folded (t=10 > 4) is still preserved.
-    const newerCached = resolveThreadPresentationSnapshot({
-      room,
-      threadRootId: ROOT,
-      thread: { events: [replyEvent, folded], timeline: [replyEvent, folded] },
-      rootEvent: root,
-      bundledPreviews,
-      fallbackLatestReplyPreviewText: 'Follow-up after deploy',
-      fallbackLatestReplyTs: 10,
-      fallbackLastSenderId: VIEWER,
+    // Cached reply from a different sender at t=4 (between request t=3 and fold t=5) is preserved.
+    expect(
+      presentCached({
+        fallbackLatestReplyPreviewText: 'Hold on, checking logs',
+        fallbackLatestReplyTs: 4,
+        fallbackLastSenderId: VIEWER,
+      })
+    ).toMatchObject({
+      latestReplyPreviewText: 'Hold on, checking logs',
+      latestReplyTs: 4,
+      lastSenderId: VIEWER,
     });
-    expect(newerCached.latestReplyPreviewText).toBe('Follow-up after deploy');
-    expect(newerCached.lastSenderId).toBe(VIEWER);
+
+    // A genuinely newer reply cached after the secret folded (t=10 > 5) is still preserved.
+    expect(
+      presentCached({
+        thread: loadedThread,
+        bundledPreviews,
+        fallbackLatestReplyPreviewText: 'Follow-up after deploy',
+        fallbackLatestReplyTs: 10,
+        fallbackLastSenderId: VIEWER,
+      })
+    ).toMatchObject({
+      latestReplyPreviewText: 'Follow-up after deploy',
+      lastSenderId: VIEWER,
+    });
   });
 });

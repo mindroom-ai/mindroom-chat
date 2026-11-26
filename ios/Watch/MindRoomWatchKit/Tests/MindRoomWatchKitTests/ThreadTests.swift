@@ -232,21 +232,14 @@ final class ThreadListEntryTests: XCTestCase {
     }
 
     func testAFoldedSecretRequestGivesOnlyItsTime() {
+        let secretPayload = { (status: String) -> JSON in [
+            "request_id": "req-1", "status": status, "response_event_id": "$reply", "tool_call_id": "call_1",
+        ] }
         let pending = event("$secret", 30, sender: agent, [
-            "msgtype": "m.notice",
-            "body": "API token needed",
-            "io.mindroom.secret_request": [
-                "request_id": "req-1", "status": "pending",
-                "response_event_id": "$reply", "tool_call_id": "call_1",
-            ] as JSON,
+            "msgtype": "m.notice", "body": "API token needed", "io.mindroom.secret_request": secretPayload("pending"),
         ])
         let answered = bundling(edit("$secret-edit", 45, of: "$secret", sender: agent, [
-            "msgtype": "m.notice",
-            "body": "🔑 Secret received.",
-            "io.mindroom.secret_request": [
-                "request_id": "req-1", "status": "saved",
-                "response_event_id": "$reply", "tool_call_id": "call_1",
-            ] as JSON,
+            "msgtype": "m.notice", "body": "🔑 Secret received.", "io.mindroom.secret_request": secretPayload("saved"),
         ]), in: pending)
         let entry = ThreadListEntry.parse(root(thread: [
             "count": 2, "latest_event": answered, "io.mindroom.latest_reply": answered,
