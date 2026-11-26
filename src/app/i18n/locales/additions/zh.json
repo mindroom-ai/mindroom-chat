@@ -1367,6 +1367,43 @@
       "stopReply": {
         "label": "停止回复",
         "stopping": "正在停止…"
+      },
+      "runError": {
+        "cardLabel": "运行错误",
+        "actions": {
+          "continue": "继续",
+          "retry": "重试",
+          "compact": "压缩上下文"
+        },
+        "chips": {
+          "streamStalled": "流式中断",
+          "providerUnavailable": "不可用",
+          "rateLimited": "频率受限",
+          "timeout": "已超时",
+          "contextWindow": "上下文已满",
+          "tokensPerMinute": "令牌限额",
+          "safeguardRefusal": "已拒绝",
+          "quotaExhausted": "额度耗尽",
+          "missingApiKey": "缺少 API 密钥",
+          "authenticationFailed": "认证失败",
+          "runtimeError": "错误"
+        },
+        "technicalDetails": "技术详情",
+        "details": {
+          "model": "模型",
+          "provider": "提供商",
+          "code": "错误码",
+          "detail": "详情",
+          "error": "错误"
+        },
+        "receipt": {
+          "continue": "已恢复",
+          "retry": "已重试",
+          "compact": "已压缩"
+        },
+        "sendFailed": "无法发送消息，请重试。",
+        "restartSeam": "服务已重启 · 上下文已保留",
+        "restartSeamRepeated": "服务已重启（{{times}}×）· 上下文已保留"
       }
     },
     "message-search": {
