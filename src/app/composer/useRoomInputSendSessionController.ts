@@ -84,6 +84,8 @@ type SendSession = RoomInputSendSessionState & {
    * composer again, which holds its files' board.
    */
   originThreadView?: boolean;
+  /** Parked sends of a staged-draft composer file under its draft key, never the room's. */
+  stagedDraftKey?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -261,8 +263,8 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
-  /** False for staged-draft composers so they never adopt a room composer's parked send. */
-  adoptParked?: boolean;
+  /** Key for parking/adopting sends of a staged-draft composer apart from target rooms. */
+  stagedDraftKey?: string;
 };
 
 export const hasFailedPasteMarkerInText = (
@@ -474,7 +476,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
-  adoptParked = true,
+  stagedDraftKey,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -496,7 +498,8 @@ export const useRoomInputSendSessionController = ({
     () => (forkFrom ? { ref: forkFrom } : undefined),
     [forkFrom]
   );
-  const composerKey = voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
+  const composerKey =
+    stagedDraftKey ?? voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
   const composerKeyRef = useLatestRef(composerKey);
   const composerContextRef = useRef({ roomId, threadId: composerThreadId });
   composerContextRef.current = { roomId, threadId: composerThreadId };
@@ -765,10 +768,11 @@ export const useRoomInputSendSessionController = ({
       target.unpark?.();
       const { session: held } = target;
       let key = held
-        ? voiceComposerKey({
+        ? (held.stagedDraftKey ??
+          voiceComposerKey({
             ...held.composerContext,
             threadView: held.originThreadView ?? threadView,
-          })
+          }))
         : composerKeyRef.current;
       // A send whose root opened its thread goes on with a view of that thread that is there
       // (one that mounts as this composer goes has listed itself already); else with the room's.
@@ -1010,6 +1014,7 @@ export const useRoomInputSendSessionController = ({
         composer,
       });
       session.originThreadView = threadView;
+      session.stagedDraftKey = stagedDraftKey;
       activeSlot.session = session;
       busySlotsOf(mx).add(activeSlot);
       // The session wakes on its own uploads, with or without its composer.
@@ -1057,6 +1062,7 @@ export const useRoomInputSendSessionController = ({
       threadId,
       composerThreadId,
       forkStart,
+      stagedDraftKey,
       takeRootModelDraft,
       replyDraft,
       threadingEnabled,
@@ -1129,7 +1135,6 @@ export const useRoomInputSendSessionController = ({
     () => !!slot.session || slot.queued.length > 0
   );
   useEffect(() => {
-    if (!adoptParked) return;
     const own = slotRef.current;
     if (own.session || own.queued.length > 0) return;
     const parked = parkedSlotsOf(mx).get(composerKey);
@@ -1168,17 +1173,7 @@ export const useRoomInputSendSessionController = ({
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [
-    adoptParked,
-    attachments,
-    composerKey,
-    isMounted,
-    mx,
-    ownBusy,
-    parkVersion,
-    reportSent,
-    restoreText,
-  ]);
+  }, [attachments, composerKey, isMounted, mx, ownBusy, parkVersion, reportSent, restoreText]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   // Always bind repark so a post-unmount send (such as background dictation) can park too.

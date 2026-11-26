@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, type RefObject } from 'react';
 import { Icons, Text } from 'folds';
-import { atom, useAtomValue } from 'jotai';
+import { atom, useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import classNames from 'classnames';
@@ -10,6 +10,7 @@ import {
   composerUploadItemsAtom,
   getSpaceThreadsDraftKey,
   roomIdToMsgDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { useEditor } from '../../editor/Editor';
 import {
@@ -54,7 +55,10 @@ export function SpaceThreadComposer({
   const screenSize = useScreenSizeContext();
   const editor = useEditor();
   const [permissionsVersion, refreshPermissions] = useForceUpdate();
-  const [chosenTargetRoomId, setChosenTargetRoomId] = useState<string | undefined>(undefined);
+  const draftKey = getSpaceThreadsDraftKey(myUserId, spaceId);
+  const [chosenTargetRoomId, setChosenTargetRoomId] = useAtom(
+    spaceThreadsDestinationAtomFamily(draftKey)
+  );
 
   useStateEventCallback(
     mx,
@@ -82,7 +86,6 @@ export function SpaceThreadComposer({
       .map((item) => item.room.roomId);
   }, [myUserId, permissionsVersion, rooms]);
 
-  const draftKey = getSpaceThreadsDraftKey(myUserId, spaceId);
   // Returns a boolean so subsequent keystrokes do not re-render this dock.
   const hasDraft = useAtomValue(
     useMemo(
@@ -108,13 +111,15 @@ export function SpaceThreadComposer({
   );
   // Freeze destination once the composer holds a draft so later room-filter changes keep it;
   // forget a stale non-draft choice once filtering moves the target elsewhere.
-  if (hasDraft) {
-    if (targetRoomId && chosenTargetRoomId !== targetRoomId) {
-      setChosenTargetRoomId(targetRoomId);
+  useEffect(() => {
+    if (hasDraft) {
+      if (targetRoomId && chosenTargetRoomId !== targetRoomId) {
+        setChosenTargetRoomId(targetRoomId);
+      }
+    } else if (chosenTargetRoomId !== undefined && targetRoomId !== chosenTargetRoomId) {
+      setChosenTargetRoomId(undefined);
     }
-  } else if (chosenTargetRoomId !== undefined && targetRoomId !== chosenTargetRoomId) {
-    setChosenTargetRoomId(undefined);
-  }
+  }, [chosenTargetRoomId, hasDraft, setChosenTargetRoomId, targetRoomId]);
 
   const targetRoom = targetRoomId ? roomsById.get(targetRoomId) : undefined;
   const onRoomMessageSent = useCallback(

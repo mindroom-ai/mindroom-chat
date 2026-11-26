@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
+  getSpaceThreadsDraftKey,
   type IReplyDraft,
   keepStagedFileNames,
   roomIdToReplyDraftAtomFamily,
@@ -27,8 +28,16 @@ let values: Map<string, string>;
 let renderer: ReactTestRenderer | undefined;
 let kept: ReturnType<typeof useKeptComposerState> | undefined;
 
-function Probe({ userId, roomId }: { userId: string; roomId: string }) {
-  kept = useKeptComposerState(userId, roomId);
+function Probe({
+  userId,
+  roomId,
+  stagedDraftKey,
+}: {
+  userId: string;
+  roomId: string;
+  stagedDraftKey?: string;
+}) {
+  kept = useKeptComposerState(userId, roomId, stagedDraftKey);
   return null;
 }
 
@@ -36,12 +45,12 @@ function Probe({ userId, roomId }: { userId: string; roomId: string }) {
  * A composer on a new page, the room page's unless `view` names another conversation view: the
  * in-memory atoms are gone, storage stays.
  */
-const openPage = (store = createStore(), view?: string) => {
+const openPage = (store = createStore(), view?: string, stagedDraftKey?: string) => {
   act(() => {
     renderer = create(
       <Provider store={store}>
         <ConversationViewContext value={view}>
-          <Probe userId={ME} roomId={ROOM} />
+          <Probe userId={ME} roomId={ROOM} stagedDraftKey={stagedDraftKey} />
         </ConversationViewContext>
       </Provider>
     );
@@ -153,5 +162,23 @@ describe('useKeptComposerState', () => {
     expect(viewStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
     act(() => kept?.dismissLostFiles());
     expect(values).toEqual(kept0);
+  });
+
+  it('scopes staged-draft lost-file notices to stagedDraftKey without restoring room replies', () => {
+    const spaceKey = getSpaceThreadsDraftKey(ME, '!space:example.org');
+    const roomStore = openPage();
+    act(() => roomStore.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
+    keepStagedFileNames(ME, ROOM, [staged('room.png')]);
+    keepStagedFileNames(ME, spaceKey, [staged('space.pdf')]);
+    act(() => renderer?.unmount());
+    roomIdToReplyDraftAtomFamily.remove(ROOM);
+
+    const spaceStore = openPage(createStore(), undefined, spaceKey);
+    expect(kept?.lostFileNames).toEqual(['space.pdf']);
+    expect(spaceStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
+    act(() => kept?.dismissLostFiles());
+    expect(kept?.lostFileNames).toEqual([]);
+    openPage(createStore());
+    expect(kept?.lostFileNames).toEqual(['room.png']);
   });
 });

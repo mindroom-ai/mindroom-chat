@@ -54,7 +54,6 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
-  getHomeAskDraftKey,
   getRoomInputDraftKey,
   homeAskDestinationAtomFamily,
   type IReplyDraft,
@@ -273,11 +272,10 @@ export function RoomInput({
   const userId = mx.getUserId() ?? '';
   // A staged-draft composer (Home Ask, Space All threads) keeps text and files under one key
   // and defers encryption/upload until Send.
-  const deferredDraftKey = stagedDraftKey ?? (ask ? getHomeAskDraftKey(userId) : undefined);
-  const deferredDraft = deferredDraftKey !== undefined;
+  const deferredDraft = stagedDraftKey !== undefined;
   // A fork draft keeps its text under a key of its own, not its thread's.
   const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
-  const textKey = deferredDraftKey ?? getRoomInputDraftKey(userId, roomId, draftThreadId);
+  const textKey = stagedDraftKey ?? getRoomInputDraftKey(userId, roomId, draftThreadId);
   // A staged-draft composer scopes paste cleanup to its own draft key, never touching the
   // destination room's saved pastes.
   const draftKey = deferredDraft || draftThreadId ? textKey : undefined;
@@ -325,6 +323,9 @@ export function RoomInput({
     []
   );
   const [submitPending, setSubmitPending] = useState(false);
+  // Guards against a second Send claiming the same deferred files before upload/send finishes.
+  const deferredSendPendingRef = useRef(false);
+  const [deferredSendPending, setDeferredSendPending] = useState(false);
   const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
   // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
   // It changes only as it flips, so typing renders nothing more.
@@ -371,8 +372,9 @@ export function RoomInput({
   });
   const saveDraft = useRoomInputDraft(editor, textKey);
   const { lostFileNames, dismissLostFiles } = useKeptComposerState(
-    deferredDraft ? '' : userId,
-    roomId
+    ask ? '' : userId,
+    roomId,
+    stagedDraftKey
   );
   const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const commands = useCommands(room, threadingEnabled ? threadId : undefined);
@@ -402,9 +404,9 @@ export function RoomInput({
     isMarkdown,
     fileDropContainerRef,
     createUploadItems,
-    stagedListKey: deferredDraftKey,
+    stagedListKey: stagedDraftKey,
     deferUpload: deferredDraft,
-    inlineUploadBoard: !!ask,
+    inlineUploadBoard: deferredDraft,
   });
   const { settlePastes, dismissLostPastes } = attachments;
   const transport = useRoomInputUploadTransport(mx, store, room);
@@ -466,11 +468,11 @@ export function RoomInput({
       // After any text typed there since: a failed caption is never dropped.
       restoreTextToDraft(
         store,
-        deferredDraftKey ?? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+        stagedDraftKey ?? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
         fragment
       );
     },
-    [askedAgent, askedDirect, deferredDraftKey, store, userId]
+    [askedAgent, askedDirect, stagedDraftKey, store, userId]
   );
 
   const rootModelContext = useLatestRef({ roomId, newThread });
@@ -503,7 +505,7 @@ export function RoomInput({
     onRoomMessageSent,
     forkFrom,
     takeRootModelDraft,
-    adoptParked: !deferredDraft,
+    stagedDraftKey,
   });
 
   const { restoreText: restoreSentText } = sessions;
@@ -573,7 +575,7 @@ export function RoomInput({
     onRoomMessageSent,
     recover: voiceActive,
     stagedList: attachments.itemsAtom,
-    stagedDraftKey: deferredDraftKey,
+    stagedDraftKey,
     prepareAttachmentsForSend: deferredDraft ? attachments.prepareForSend : undefined,
   });
 
@@ -647,6 +649,7 @@ export function RoomInput({
       options?: { voiceOnly?: boolean }
     ) => {
       const voiceOnly = options?.voiceOnly === true;
+      if (deferredSendPendingRef.current) return;
       if (voiceActive && voice.blocksSubmit()) return;
       const mode = explicitMode ?? midTurnSend;
       const liveDictation = voiceOnly ? 'idle' : dictation.getLiveStatus();
@@ -687,7 +690,7 @@ export function RoomInput({
           resetComposer: composer.resetText,
           stopTyping: () => sendTypingStatus(false),
           dismissLostNotices: () => {
-            if (!deferredDraft) dismissLostFiles();
+            dismissLostFiles();
             dismissLostPastes();
           },
         });
@@ -716,7 +719,7 @@ export function RoomInput({
       const takeText = (resolvedMode: MidTurnMode = mode) => {
         const content = buildTextContent(resolvedMode);
         if (content) {
-          if (!deferredDraft) dismissLostFiles();
+          dismissLostFiles();
           dismissLostPastes();
         }
         return content;
@@ -754,8 +757,12 @@ export function RoomInput({
       let releaseInitialLeases: (() => void) | undefined;
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
+      let claimedDeferredSend = false;
       try {
         if (deferredDraft && attachments.hasSendableFiles) {
+          claimedDeferredSend = true;
+          deferredSendPendingRef.current = true;
+          setDeferredSendPending(true);
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
           if (textContent) {
             pendingFallback = composer.snapshotText();
@@ -825,6 +832,10 @@ export function RoomInput({
         }
         throw error;
       } finally {
+        if (claimedDeferredSend) {
+          deferredSendPendingRef.current = false;
+          if (mountedRef.current) setDeferredSendPending(false);
+        }
         releasePreparedLeases?.();
         releaseInitialLeases?.();
         ask?.onSendingChange?.(false);
@@ -1129,7 +1140,7 @@ export function RoomInput({
           {commandProblem}
         </Text>
       )}
-      {!deferredDraft && lostFileNames.length > 0 && (
+      {lostFileNames.length > 0 && (
         <LostNotice
           text={t('composer.lostFiles', {
             files: lostFileNames.map(revealDirectionControls).join(', '),
@@ -1287,7 +1298,7 @@ export function RoomInput({
                 }
                 empty={composerEmpty}
                 defaultMode={midTurnSend}
-                disabled={askBlocked || dictation.blocksSubmit}
+                disabled={askBlocked || deferredSendPending || dictation.blocksSubmit}
                 onSend={handleSend}
               />
             )}

@@ -95,6 +95,17 @@ export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([us
 export const getSpaceThreadsDraftKey = (userId: string, spaceId: string): string =>
   JSON.stringify([userId, null, 'space-threads', spaceId]);
 
+const isSpaceThreadsDraftKey = (draftKey: string): boolean => {
+  const parsed = parseDraftKey(draftKey);
+  return (
+    parsed.length === 4 &&
+    typeof parsed[0] === 'string' &&
+    parsed[1] === null &&
+    parsed[2] === 'space-threads' &&
+    typeof parsed[3] === 'string'
+  );
+};
+
 /** Where Home's ask draft goes: the agent and the room, null for a direct chat yet to start. */
 export type HomeAskDestination = {
   agentId: string;
@@ -141,20 +152,13 @@ const isHomeAskDestination = (value: unknown): value is HomeAskDestination =>
   (value.roomId === null || typeof value.roomId === 'string') &&
   (value.isDirect === undefined || typeof value.isDirect === 'boolean');
 
-/** Home's ask draft: its text and where it goes. */
-type HomeAskEntry = { draft: Descendant[]; destination: HomeAskDestination | undefined };
-
-const readHomeAskEntry = (storageKey: string): HomeAskEntry => {
-  const stored = readStoredJson(storageKey);
-  if (!isRecord(stored)) return { draft: [], destination: undefined };
-  return {
-    draft: asDraft(stored.draft),
-    destination: isHomeAskDestination(stored.destination) ? stored.destination : undefined,
-  };
-};
+/** A staged composer draft paired with where it goes (Home Ask or Space All threads). */
+type DraftEntry<TDestination> = { draft: Descendant[]; destination: TDestination | undefined };
 
 const sameDestination = (a?: HomeAskDestination, b?: HomeAskDestination): boolean =>
   a?.agentId === b?.agentId && a?.roomId === b?.roomId && !!a?.isDirect === !!b?.isDirect;
+
+const isSpaceThreadsDestination = (value: unknown): value is string => typeof value === 'string';
 
 // Clearing an account's drafts revokes the atoms it created: a component still holding one
 // can keep editing in memory but no longer writes to storage.
@@ -163,16 +167,32 @@ const getDraftGeneration = (userId: string | undefined) =>
   userId === undefined ? 0 : (draftGenerations.get(userId) ?? 0);
 
 /**
- * An account's Home ask draft: its text and where it goes, read from storage in one snapshot and
- * stored in one entry, written at once. A write from another tab so never leaves this tab's text
- * with that tab's room, neither as a tab first reads the draft nor after.
+ * A staged draft and where it goes, read from storage in one snapshot and stored in one entry,
+ * written at once. A write from another tab so never leaves this tab's text with that tab's room,
+ * neither as a tab first reads the draft nor after.
  */
-const homeAskEntryAtomFamily = atomFamily((userId: string) => {
-  const storageKey = `${DRAFT_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`;
+const createDraftEntryAtom = <TDestination>(
+  userId: string | undefined,
+  draftKey: string,
+  isDestination: (value: unknown) => value is TDestination
+): WritableAtom<DraftEntry<TDestination>, [Partial<DraftEntry<TDestination>>], void> => {
+  const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const generation = getDraftGeneration(userId);
-  const valueAtom = atom<HomeAskEntry | undefined>(undefined);
-  const entryAtom: WritableAtom<HomeAskEntry, [Partial<HomeAskEntry>], void> = atom(
-    (get) => get(valueAtom) ?? readHomeAskEntry(storageKey),
+  const valueAtom = atom<DraftEntry<TDestination> | undefined>(undefined);
+  const readEntry = (): DraftEntry<TDestination> => {
+    const stored = readStoredJson(storageKey);
+    if (!isRecord(stored)) return { draft: [], destination: undefined };
+    return {
+      draft: asDraft(stored.draft),
+      destination: isDestination(stored.destination) ? stored.destination : undefined,
+    };
+  };
+  const entryAtom: WritableAtom<
+    DraftEntry<TDestination>,
+    [Partial<DraftEntry<TDestination>>],
+    void
+  > = atom(
+    (get) => get(valueAtom) ?? readEntry(),
     (get, set, change) => {
       const entry = { ...get(entryAtom), ...change };
       set(valueAtom, entry);
@@ -184,7 +204,15 @@ const homeAskEntryAtomFamily = atomFamily((userId: string) => {
     }
   );
   return entryAtom;
-});
+};
+
+const homeAskEntryAtomFamily = atomFamily((userId: string) =>
+  createDraftEntryAtom(userId, getHomeAskDraftKey(userId), isHomeAskDestination)
+);
+
+const spaceThreadsEntryAtomFamily = atomFamily((draftKey: string) =>
+  createDraftEntryAtom(getDraftUserId(draftKey), draftKey, isSpaceThreadsDestination)
+);
 
 // Latest in-memory draft written in this store per key, kept separate from
 // `roomIdToMsgDraftAtomFamily` so read-only observers (such as sidebar draft marks) never prime an
@@ -198,6 +226,13 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
   const userId = getDraftUserId(draftKey);
   if (userId !== undefined && draftKey === getHomeAskDraftKey(userId)) {
     const entryAtom = homeAskEntryAtomFamily(userId);
+    return atom(
+      (get) => get(entryAtom).draft,
+      (_get, set, draft) => set(entryAtom, { draft })
+    );
+  }
+  if (isSpaceThreadsDraftKey(draftKey)) {
+    const entryAtom = spaceThreadsEntryAtomFamily(draftKey);
     return atom(
       (get) => get(entryAtom).draft,
       (_get, set, draft) => set(entryAtom, { draft })
@@ -258,6 +293,17 @@ export const homeAskDestinationAtomFamily = atomFamily((userId: string) => {
       if (!sameDestination(get(entryAtom).destination, destination)) {
         set(entryAtom, { destination });
       }
+    }
+  );
+});
+
+/** The target room ID paired with a space's All threads draft (`getSpaceThreadsDraftKey`). */
+export const spaceThreadsDestinationAtomFamily = atomFamily((draftKey: string) => {
+  const entryAtom = spaceThreadsEntryAtomFamily(draftKey);
+  return atom(
+    (get) => get(entryAtom).destination,
+    (get, set, destination: string | undefined) => {
+      if (get(entryAtom).destination !== destination) set(entryAtom, { destination });
     }
   );
 });
@@ -326,6 +372,14 @@ export const clearRoomInputDrafts = (userId: string): void => {
   homeAskEntryAtomFamily.remove(userId);
   homeAskDestinationAtomFamily.remove(userId);
   homeAskPendingAtomFamily.remove(userId);
+  spaceThreadsEntryAtomFamily.setShouldRemove(
+    (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
+  );
+  spaceThreadsEntryAtomFamily.setShouldRemove(null);
+  spaceThreadsDestinationAtomFamily.setShouldRemove(
+    (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
+  );
+  spaceThreadsDestinationAtomFamily.setShouldRemove(null);
 
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage).forEach((storageKey) => {
@@ -484,19 +538,22 @@ export const roomUploadAtomFamily = atomFamily((file: TUploadContent): TUploadAt
   createUploadAtom(file)
 );
 
+const stagedFilesStorageKey = (userId: string, scope: string): string =>
+  `${STAGED_FILES_STORAGE_PREFIX}${getDraftUserId(scope) === userId ? scope : getRoomInputDraftKey(userId, scope)}`;
+
 /**
- * Keeps the names of the files staged in a room, so the composer after a reload can say which
- * ones it lost; none staged forgets them.
+ * Keeps the names of the files staged in a room or staged draft, so the composer after a reload
+ * can say which ones it lost; none staged forgets them.
  */
-export const keepStagedFileNames = (userId: string, roomId: string, items: TUploadItem[]): void =>
+export const keepStagedFileNames = (userId: string, scope: string, items: TUploadItem[]): void =>
   writeStoredJson(
-    roomStorageKey(STAGED_FILES_STORAGE_PREFIX, userId, roomId),
+    stagedFilesStorageKey(userId, scope),
     items.length > 0 ? items.map((item) => item.originalFile.name) : undefined
   );
 
-/** The names of the files a room's composer had staged when they were last kept. */
-export const readKeptFileNames = (userId: string, roomId: string): string[] => {
-  const kept = readStoredJson(roomStorageKey(STAGED_FILES_STORAGE_PREFIX, userId, roomId));
+/** The names of the files a room or staged composer had staged when they were last kept. */
+export const readKeptFileNames = (userId: string, scope: string): string[] => {
+  const kept = readStoredJson(stagedFilesStorageKey(userId, scope));
   return Array.isArray(kept) ? kept.filter((name): name is string => typeof name === 'string') : [];
 };
 
@@ -615,6 +672,8 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);
+  dropEveryEntry(spaceThreadsEntryAtomFamily);
+  dropEveryEntry(spaceThreadsDestinationAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   endLiveCapturesOfAccount(store);
   store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());

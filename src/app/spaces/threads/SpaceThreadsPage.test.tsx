@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
   composerUploadItemsAtom,
+  forgetComposerStateOfSession,
   getSpaceThreadsDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../../composer/roomInputDrafts';
@@ -75,8 +76,16 @@ vi.mock('../../threads/page/useJoinedRoomThreadLists', () => ({
 }));
 
 vi.mock('../../composer/RoomInput', () => ({
-  RoomInput: (props: { roomId: string; onRoomMessageSent?: (id: string) => boolean | void }) => (
-    <div data-testid="mock-room-input" data-room-id={props.roomId}>
+  RoomInput: (props: {
+    roomId: string;
+    stagedDraftKey?: string;
+    onRoomMessageSent?: (id: string) => boolean | void;
+  }) => (
+    <div
+      data-testid="mock-room-input"
+      data-room-id={props.roomId}
+      data-staged-draft-key={props.stagedDraftKey}
+    >
       <button
         type="button"
         data-testid="mock-send-message"
@@ -568,6 +577,62 @@ describe('SpaceThreadsPage', () => {
     });
     const { container: c2 } = renderSpaceThreads({ rooms, entries, store: uploadStore });
     toggleRoomOption(c2, ROOM_DES);
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+  });
+
+  it('keeps stagedDraftKey across pill and phone dropdown switches and preserves chosen target across remount and reload', () => {
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
+    const rooms = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true }),
+    ];
+    const store = createStore();
+    const first = renderSpaceThreads({ rooms, entries: [], screenSize: ScreenSize.Mobile, store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
+      spaceDraftKey
+    );
+    fireEvent.click(
+      first.container.querySelector<HTMLButtonElement>(
+        '[data-space-composer-picker="true"] button'
+      )!
+    );
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Design' }));
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
+        { type: 'paragraph', children: [{ text: 'Saved note' }] } as never,
+      ]);
+    });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
+      spaceDraftKey
+    );
+
+    // Remount and simulated reload both keep Design paired with the Space draft.
+    first.unmount();
+    const remounted = renderSpaceThreads({ rooms, entries: [], store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    fireEvent.click(
+      remounted.container.querySelector(`[data-space-composer-target="${ROOM_ENG}"]`)!
+    );
+    fireEvent.click(
+      remounted.container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!
+    );
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
+      spaceDraftKey
+    );
+    remounted.unmount();
+
+    forgetComposerStateOfSession(store);
+    const reloaded = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    reloaded.unmount();
+
+    // If the stored target is no longer sendable, fall back cleanly to a sendable room.
+    const readOnlyDesign = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true, canSend: false }),
+    ];
+    renderSpaceThreads({ rooms: readOnlyDesign, entries: [], store: createStore() });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
   });
 

@@ -205,17 +205,14 @@ export const useRoomInputAttachments = ({
     });
   }, []);
 
-  // The names of a room's staged files follow every change, so a reload can say what it lost.
+  // The names of a composer's staged files follow every change, so a reload can say what it lost.
   const keepNames = useCallback(
     (targetRoomId: string) => {
-      if (!userId || view !== undefined || stagedListKey !== undefined) return;
-      keepStagedFileNames(
-        userId,
-        targetRoomId,
-        store.get(roomIdToUploadItemsAtomFamily(targetRoomId))
-      );
+      if (!userId || view !== undefined) return;
+      const key = listKey(targetRoomId);
+      keepStagedFileNames(userId, key, store.get(roomIdToUploadItemsAtomFamily(key)));
     },
-    [stagedListKey, store, userId, view]
+    [listKey, store, userId, view]
   );
 
   // Paste files belong to the draft they were pasted into; other files to the room's composer,
