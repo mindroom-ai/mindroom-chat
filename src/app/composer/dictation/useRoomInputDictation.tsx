@@ -630,34 +630,24 @@ export const useRoomInputDictation = ({
     const sameAccount = captureAccountGuard(store);
     const targetRoomId = roomId;
     const targetSendKey = sendKey;
+    const isStillActiveTarget = () =>
+      sameAccount() &&
+      mountedRef.current &&
+      activeSendKeyRef.current === targetSendKey &&
+      store.get(liveCaptureAtom)?.session === current &&
+      current.getSnapshot().phase === 'failed';
     try {
       const voiceAudio = await current.buildVoiceAudio();
-      if (
-        !sameAccount() ||
-        !mountedRef.current ||
-        activeSendKeyRef.current !== targetSendKey ||
-        store.get(liveCaptureAtom)?.session !== current ||
-        current.getSnapshot().phase !== 'failed'
-      ) {
-        return;
-      }
+      if (!isStillActiveTarget()) return;
       if (!voiceAudio) {
-        if (mountedRef.current) setVoiceFallbackError('Could not prepare voice message.');
+        setVoiceFallbackError('Could not prepare voice message.');
         return;
       }
       const items = await prepareItems(voiceAudio.file, voiceAudio.duration, voiceAudio.waveform);
       const failedItem = items.find((item) => item.prepError);
       if (failedItem?.prepError) throw failedItem.prepError;
       if (items.length === 0) throw new Error('Could not prepare voice message.');
-      if (
-        !sameAccount() ||
-        !mountedRef.current ||
-        activeSendKeyRef.current !== targetSendKey ||
-        store.get(liveCaptureAtom)?.session !== current ||
-        current.getSnapshot().phase !== 'failed'
-      ) {
-        return;
-      }
+      if (!isStillActiveTarget()) return;
 
       appendItems(targetRoomId, items);
       const shouldFocus = consumeRestoreFocus();
@@ -678,12 +668,7 @@ export const useRoomInputDictation = ({
       if (journalId) void deleteCapture(journalId).catch(() => undefined);
       clearLiveCapture(store, current);
     } catch (error) {
-      if (
-        mountedRef.current &&
-        sameAccount() &&
-        store.get(liveCaptureAtom)?.session === current &&
-        current.getSnapshot().phase === 'failed'
-      ) {
+      if (isStillActiveTarget()) {
         setVoiceFallbackError(
           error instanceof Error && error.message.trim()
             ? error.message.trim()

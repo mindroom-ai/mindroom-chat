@@ -13,7 +13,7 @@ import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
 import { listSessions } from '../../matrix/session/sessions';
-import type { TUploadContent } from '../../matrix/matrix';
+import { isTooLargeError, type TUploadContent } from '../../matrix/matrix';
 import { isUploadItemReady, UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
@@ -349,10 +349,17 @@ export const startDetachedDictationSend = (
     ask?.onSendingChange?.(false);
   };
 
-  const describeVoiceFallbackError = (error: unknown): string =>
-    error instanceof Error && error.message.trim()
-      ? error.message.trim()
-      : 'Could not send voice message.';
+  const describeVoiceFallbackError = (error: unknown): string => {
+    const message = error instanceof Error ? error.message.trim() : '';
+    if (
+      !message ||
+      message === 'Cannot start a lifecycle-complete send while another session is active.' ||
+      message === 'Lifecycle-complete send did not finish within the initiating call.'
+    ) {
+      return 'Could not send voice message.';
+    }
+    return message;
+  };
 
   const abortDetachedSend = () => {
     clearEnrollments();
@@ -397,6 +404,16 @@ export const startDetachedDictationSend = (
     }
   };
 
+  const detectBlockedSlashCommand = (
+    children: Descendant[]
+  ): { kind: 'unknown'; command: string } | { kind: 'acting' } | undefined => {
+    if (ask) return undefined;
+    const unknownCommand = readUnknownCommand(children, input.commandsSnapshot);
+    if (unknownCommand !== undefined) return { kind: 'unknown', command: unknownCommand };
+    if (readActingCommand(children, input.commandsSnapshot)) return { kind: 'acting' };
+    return undefined;
+  };
+
   const composeDetachedTextContent = (scratch: Editor): IContent | undefined => {
     const rawContent = composeTextMessage(
       scratch,
@@ -438,9 +455,13 @@ export const startDetachedDictationSend = (
     textContent: IContent | undefined,
     awaitReadyUploads = false
   ): Promise<
-    { status: 'aborted' } | { status: 'missingPaste' } | { status: 'ready'; items: TUploadItem[] }
+    | { status: 'aborted' }
+    | { status: 'missingPaste' }
+    | { status: 'failedUpload' }
+    | { status: 'ready'; items: TUploadItem[] }
   > => {
     if (activeStaged.length > 0 && input.prepareAttachmentsForSend) {
+      let failedUpload = false;
       const prepResult = await prepareAndUploadDeferredAttachments({
         room: liveRoom,
         items: activeStaged,
@@ -455,7 +476,14 @@ export const startDetachedDictationSend = (
                   attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
                     ? item
                     : undefined,
-                () => undefined
+                () => {
+                  if (
+                    attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
+                  ) {
+                    failedUpload = true;
+                  }
+                  return undefined;
+                }
               )
           : undefined,
         onPrepared: (prepared) => {
@@ -466,6 +494,21 @@ export const startDetachedDictationSend = (
       });
       if (prepResult.aborted) return { status: 'aborted' };
       if (prepResult.missingPasteMarker) return { status: 'missingPaste' };
+      if (awaitReadyUploads) {
+        const stillStaged = attachments.snapshot(roomId).staged;
+        const stillStagedFiles = new Set(stillStaged.map((entry) => entry.file));
+        const uploadedOrigFiles = new Set(
+          prepResult.uploadedItems.map((entry) => entry.originalFile)
+        );
+        const failedPrep =
+          prepResult.prepared.some(
+            (item) => Boolean(item.prepError) && stillStagedFiles.has(item.file)
+          ) ||
+          activeStaged.some(
+            (item) => stillStagedFiles.has(item.file) && !uploadedOrigFiles.has(item.originalFile)
+          );
+        if (failedUpload || failedPrep) return { status: 'failedUpload' };
+      }
       const sendSet = new Set(prepResult.uploadedItems.map((item) => item.file));
       const dropped = [...enrolledFileRefs].filter((file) => !sendSet.has(file));
       if (dropped.length > 0) attachments.clearEnrollment(dropped);
@@ -473,27 +516,34 @@ export const startDetachedDictationSend = (
     }
     if (activeStaged.length > 0 && awaitReadyUploads) {
       const roomEncrypted = liveRoom.hasEncryptionStateEvent();
-      const uploaded = await Promise.all(
-        activeStaged.map((item) => {
-          if (roomEncrypted && !item.encInfo) return Promise.resolve(undefined);
-          const status = store.get(roomUploadAtomFamily(item.file)).status;
-          if (status === UploadStatus.Success) return Promise.resolve(item);
-          if (status === UploadStatus.Error) return Promise.resolve(undefined);
-          if (!input.uploadItem) return Promise.resolve(item);
-          return input.uploadItem(item).then(
-            () => item,
-            () => undefined
-          );
+      const outcomes = await Promise.all(
+        activeStaged.map(async (item): Promise<{ item: TUploadItem; ok: boolean }> => {
+          if (roomEncrypted && !item.encInfo) return { item, ok: false };
+          const upload = store.get(roomUploadAtomFamily(item.file));
+          if (upload.status === UploadStatus.Success) return { item, ok: true };
+          if (upload.status === UploadStatus.Error && isTooLargeError(upload.error)) {
+            return { item, ok: false };
+          }
+          if (!input.uploadItem) return { item, ok: true };
+          try {
+            await input.uploadItem(item);
+            return { item, ok: true };
+          } catch {
+            return { item, ok: false };
+          }
         })
       );
       if (aborted || !sameAccount()) return { status: 'aborted' };
       const stillActive = new Set(getActiveStaged().map((item) => item.file));
-      const uploadedItems = uploaded.filter(
-        (item): item is TUploadItem => item !== undefined && stillActive.has(item.file)
-      );
+      const uploadedItems = outcomes
+        .filter((outcome) => outcome.ok && stillActive.has(outcome.item.file))
+        .map((outcome) => outcome.item);
       const stagedForPaste = [...activeStaged, ...attachments.snapshot(roomId).staged];
       if (hasMissingPasteAttachmentForText(textContent, stagedForPaste, uploadedItems)) {
         return { status: 'missingPaste' };
+      }
+      if (outcomes.some((outcome) => !outcome.ok && stillActive.has(outcome.item.file))) {
+        return { status: 'failedUpload' };
       }
       const sendSet = new Set(uploadedItems.map((item) => item.file));
       const dropped = activeStaged.map((item) => item.file).filter((file) => !sendSet.has(file));
@@ -534,19 +584,14 @@ export const startDetachedDictationSend = (
       input.pendingMarks
     );
     const mergedFallback = structuredClone(scratch.children);
-    if (!ask) {
-      const unknownCommand = readUnknownCommand(scratch.children, input.commandsSnapshot);
-      if (unknownCommand !== undefined) {
-        restoreDraftAndCleanup(mergedFallback);
-        deleteJournal();
-        getMountedOwner(store, ownerKey)?.onCommandProblem(unknownCommand);
-        return;
+    const blockedCommand = detectBlockedSlashCommand(scratch.children);
+    if (blockedCommand) {
+      restoreDraftAndCleanup(mergedFallback);
+      deleteJournal();
+      if (blockedCommand.kind === 'unknown') {
+        getMountedOwner(store, ownerKey)?.onCommandProblem(blockedCommand.command);
       }
-      if (readActingCommand(scratch.children, input.commandsSnapshot)) {
-        restoreDraftAndCleanup(mergedFallback);
-        deleteJournal();
-        return;
-      }
+      return;
     }
 
     const textContent = composeDetachedTextContent(scratch);
@@ -584,6 +629,7 @@ export const startDetachedDictationSend = (
     }
     if (
       preparedStaged.status === 'missingPaste' ||
+      preparedStaged.status === 'failedUpload' ||
       (!textContent && preparedStaged.items.length === 0)
     ) {
       restoreDraftAndCleanup(
@@ -658,6 +704,25 @@ export const startDetachedDictationSend = (
       return markFailed('Could not send voice message.');
     }
 
+    const scratch = mergeDictatedDoc(
+      input.docSnapshot,
+      voiceAudio.missingAudioPartialText ?? '',
+      input.savedSelection,
+      input.pendingMarks
+    );
+    const mergedFallback = structuredClone(scratch.children);
+    const blockedCommand = detectBlockedSlashCommand(scratch.children);
+    if (blockedCommand) {
+      if (blockedCommand.kind === 'unknown') {
+        getMountedOwner(store, ownerKey)?.onCommandProblem(blockedCommand.command);
+        return markFailed(
+          `Unknown command "/${blockedCommand.command}". Discard or edit before sending as voice.`
+        );
+      }
+      return markFailed('Slash commands cannot be sent with a voice message.');
+    }
+    const textContent = composeDetachedTextContent(scratch);
+
     let voiceItem: TUploadItem | undefined;
     try {
       try {
@@ -685,14 +750,6 @@ export const startDetachedDictationSend = (
       }
       if (aborted || !sameAccount()) return abortDetachedSend();
 
-      const scratch = mergeDictatedDoc(
-        input.docSnapshot,
-        voiceAudio.missingAudioPartialText ?? '',
-        input.savedSelection,
-        input.pendingMarks
-      );
-      const mergedFallback = structuredClone(scratch.children);
-      const textContent = composeDetachedTextContent(scratch);
       const preparedStaged = await prepareCompanionStaged(
         liveRoom,
         getActiveStaged(),
@@ -702,6 +759,9 @@ export const startDetachedDictationSend = (
       if (preparedStaged.status === 'aborted') return abortDetachedSend();
       if (preparedStaged.status === 'missingPaste') {
         return markFailed('Could not upload pasted attachment.');
+      }
+      if (preparedStaged.status === 'failedUpload') {
+        return markFailed('Could not upload attachment.');
       }
       const sendStaged = preparedStaged.items;
       const readyVoiceItem = voiceItem;
@@ -727,7 +787,7 @@ export const startDetachedDictationSend = (
           rootModel: input.rootModel ?? null,
           batch: { fileItems: [...sendStaged, readyVoiceItem] },
           completeWithinCall: true,
-          composerFallback: undefined,
+          composerFallback: [],
           onUploadSent: (sentFile: TUploadContent) => {
             if (sentFile === readyVoiceItem.file) {
               voiceSent = true;
@@ -735,8 +795,9 @@ export const startDetachedDictationSend = (
             }
           },
         });
-        voiceSent = true;
-        settleVoiceJournal();
+        if (!voiceSent) {
+          throw new Error('Could not send voice message.');
+        }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[dictation-send] could not send dictation as voice message', error);
