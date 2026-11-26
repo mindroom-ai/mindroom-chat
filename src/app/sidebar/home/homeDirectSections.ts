@@ -6,16 +6,19 @@ import {
 import { roomBoundRoster } from '../../matrix/protocol/agentRoomState';
 import { getDirectActiveMemberCount, getDirectPartnerId } from '../../matrix/room';
 import { getMDirectPartnerId } from '../../matrix/state/mDirectList';
-import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import type { RoomToUnread } from '../../matrix/types/room';
 import { agentNameIn, type HomeAgent } from './homeAgents';
 
-/** Category IDs in the `'mindroom'` namespace so Home space-section selectors (`home|`) stay unaffected. */
-export const HOME_DIRECT_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-direct');
-export const HOME_AGENTS_CATEGORY_ID = makeNavCategoryId('mindroom', 'home-agents');
+export {
+  HOME_AGENTS_CATEGORY_ID,
+  HOME_DIRECT_CATEGORY_ID,
+} from '../../ui/nav/homeExpandedDirectSections';
 
 /** Direct messages and Agents lists stay compact above this count, showing the first 5 plus any selected room. */
 export const HOME_DIRECT_COMPACT_LIMIT = 6;
 export const HOME_DIRECT_COMPACT_PREVIEW = 5;
+
+export type HiddenSectionUnread = { readonly total: number; readonly highlight: boolean };
 
 export type HomeSidebarAgent = {
   userId: string;
@@ -30,7 +33,7 @@ export type HomeSidebarAgent = {
 export type HomeDirectSections = {
   /** Human 1:1 DMs, group DMs (> 2 active members), self-DMs, and secondary duplicate agent DMs. */
   humanDms: Room[];
-  /** Agents from `useHomeAgents` plus any 1:1 agent DM whose agent was not listed, by recency. */
+  /** Agents from `useHomeAgents` plus any unlisted 1:1 agent DM, live DMs first by DM recency. */
   agents: HomeSidebarAgent[];
   /** Room IDs of the 1:1 agent DMs rendered in `agents`, in rendered order. */
   agentDmRoomIds: string[];
@@ -94,7 +97,8 @@ export const getOneToOneAgentPartnerId = (
 
 /**
  * Splits joined direct rooms into Home's Direct messages section and Agents section, merging in
- * `homeAgents` (which may not have a DM yet) and ordering agents by recency.
+ * `homeAgents` (which may not have a DM yet) with live 1:1 agent DMs ranked ahead of agents
+ * without a live DM.
  *
  * Conservation invariant: every room in `directRooms` appears strictly once across `humanDms` and
  * `agentDmRoomIds`. When multiple 1:1 DMs exist for the same agent, the newest attaches to the
@@ -106,57 +110,66 @@ export const splitHomeDirectSections = (
   mDirect?: Record<string, unknown>
 ): HomeDirectSections => {
   const homeAgentIds = new Set(homeAgents.map((agent) => agent.userId));
-  const primaryAgentDmByUserId = new Map<string, Room>();
+  const primaryAgentDmByUserId = new Map<string, { room: Room; lastActiveTs: number }>();
 
   for (const room of directRooms) {
     const partnerId = getOneToOneAgentPartnerId(room, homeAgentIds, mDirect);
     if (!partnerId) continue;
+    const lastActiveTs = room.getLastActiveTimestamp?.() ?? 0;
     const existing = primaryAgentDmByUserId.get(partnerId);
-    if (
-      !existing ||
-      (room.getLastActiveTimestamp?.() ?? 0) > (existing.getLastActiveTimestamp?.() ?? 0)
-    ) {
-      primaryAgentDmByUserId.set(partnerId, room);
+    if (!existing || lastActiveTs > existing.lastActiveTs) {
+      primaryAgentDmByUserId.set(partnerId, { room, lastActiveTs });
     }
   }
 
   const primaryAgentDmIds = new Set(
-    Array.from(primaryAgentDmByUserId.values(), (room) => room.roomId)
+    Array.from(primaryAgentDmByUserId.values(), ({ room }) => room.roomId)
   );
   const humanDms = directRooms.filter((room) => !primaryAgentDmIds.has(room.roomId));
 
-  const agents: HomeSidebarAgent[] = homeAgents.map((agent) => {
-    const dmRoom = primaryAgentDmByUserId.get(agent.userId);
-    const dmTs = dmRoom?.getLastActiveTimestamp?.() ?? 0;
-    return {
-      userId: agent.userId,
-      name: agent.name,
-      avatarMxc: agent.avatarMxc,
-      dmRoom,
-      directRoomId: dmRoom?.roomId ?? agent.direct?.roomId,
-      lastActivityTs: Math.max(agent.lastUsedTs, dmTs),
-    };
-  });
+  const rankedAgents: Array<{ agent: HomeSidebarAgent; dmActivityTs: number }> = homeAgents.map(
+    (agent) => {
+      const dm = primaryAgentDmByUserId.get(agent.userId);
+      const dmActivityTs = dm?.lastActiveTs ?? 0;
+      return {
+        dmActivityTs,
+        agent: {
+          userId: agent.userId,
+          name: agent.name,
+          avatarMxc: agent.avatarMxc,
+          dmRoom: dm?.room,
+          directRoomId: dm?.room.roomId ?? agent.direct?.roomId,
+          lastActivityTs: Math.max(agent.lastUsedTs, dmActivityTs),
+        },
+      };
+    }
+  );
 
-  for (const [partnerId, dmRoom] of primaryAgentDmByUserId) {
+  for (const [partnerId, { room: dmRoom, lastActiveTs: dmActivityTs }] of primaryAgentDmByUserId) {
     if (homeAgentIds.has(partnerId)) continue;
-    agents.push({
-      userId: partnerId,
-      name: agentNameIn(dmRoom, partnerId),
-      avatarMxc: dmRoom.getAvatarFallbackMember?.()?.getMxcAvatarUrl() ?? undefined,
-      dmRoom,
-      directRoomId: dmRoom.roomId,
-      lastActivityTs: dmRoom.getLastActiveTimestamp?.() ?? 0,
+    rankedAgents.push({
+      dmActivityTs,
+      agent: {
+        userId: partnerId,
+        name: agentNameIn(dmRoom, partnerId),
+        avatarMxc: dmRoom.getAvatarFallbackMember?.()?.getMxcAvatarUrl() ?? undefined,
+        dmRoom,
+        directRoomId: dmRoom.roomId,
+        lastActivityTs: dmActivityTs,
+      },
     });
   }
 
-  agents.sort(
+  rankedAgents.sort(
     (a, b) =>
-      b.lastActivityTs - a.lastActivityTs ||
-      a.name.localeCompare(b.name) ||
-      a.userId.localeCompare(b.userId)
+      Number(Boolean(b.agent.dmRoom)) - Number(Boolean(a.agent.dmRoom)) ||
+      b.dmActivityTs - a.dmActivityTs ||
+      b.agent.lastActivityTs - a.agent.lastActivityTs ||
+      a.agent.name.localeCompare(b.agent.name) ||
+      a.agent.userId.localeCompare(b.agent.userId)
   );
 
+  const agents = rankedAgents.map(({ agent }) => agent);
   const agentDmRoomIds = agents.flatMap((agent) => (agent.dmRoom ? [agent.dmRoom.roomId] : []));
   return { humanDms, agents, agentDmRoomIds };
 };
@@ -225,3 +238,21 @@ export const selectRenderedAgents = (
     limit,
     previewCount
   );
+
+/** Aggregated unread count and highlight across rooms hidden behind a section's compact cap. */
+export const getHiddenSectionUnread = (
+  hiddenRoomIds: readonly string[],
+  unreads: RoomToUnread
+): HiddenSectionUnread | undefined => {
+  let hasUnread = false;
+  let total = 0;
+  let highlight = false;
+  for (const roomId of hiddenRoomIds) {
+    const unread = unreads.get(roomId);
+    if (!unread) continue;
+    hasUnread = true;
+    total += unread.total ?? 0;
+    highlight ||= unread.highlight > 0;
+  }
+  return hasUnread ? { total, highlight } : undefined;
+};

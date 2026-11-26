@@ -57,6 +57,10 @@ export const modelCatalogStorageKey = (userId: string): string =>
 export const dictationAvailabilityStorageKey = (userId: string): string =>
   `mindroom.dictation.availability:${userId}`;
 
+/** Which compact Home sidebar sections (Direct messages, Agents) are expanded via Show all. */
+export const homeExpandedDirectSectionsStorageKey = (userId: string): string =>
+  `mindroom.home.expandedDirectSections:${userId}`;
+
 /** Every key above of one account. */
 export const accountStorageKeys = (userId: string): string[] => [
   legacySpaceOrderStorageKey(userId),
@@ -75,6 +79,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   secondThreadWidthStorageKey(userId),
   modelCatalogStorageKey(userId),
   dictationAvailabilityStorageKey(userId),
+  homeExpandedDirectSectionsStorageKey(userId),
 ];
 
 /** The starts of the account's keys that hold one value per panel or device. */
