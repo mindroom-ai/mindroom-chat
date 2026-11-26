@@ -6,8 +6,15 @@ import * as cache from './index';
 import {
   openCacheStore,
   resetCacheStoreForTesting,
+  revokeCacheStoreWrites,
   revokeRoomCacheStoreWrites,
 } from './cacheStoreDb';
+import {
+  clearThreadSummarySharedState,
+  ensureThreadSummaryStateLoaded,
+  getThreadSummaryStateSnapshot,
+  storeThreadSummaryInState,
+} from '../../threads/threadSummaryState';
 import { registerEncryptedRoomCheck } from './cacheStoreEncryptedRooms';
 import {
   EVENTS_STORE,
@@ -114,6 +121,7 @@ describe('thread titles of encrypted rooms in the offline cache', () => {
 
   afterEach(() => {
     disposers.forEach((dispose) => dispose());
+    clearThreadSummarySharedState(SESSION_ID);
     resetCacheStoreForTesting();
   });
 
@@ -252,10 +260,26 @@ describe('thread titles of encrypted rooms in the offline cache', () => {
       summaryText: 'Final cedar itinerary',
       eventTs: 2000,
       eventId: '$sum-ed',
+      replacingEventId: '$ed-ok',
     });
-    expect(loaded.get('$r-x')?.summaryText).toBe('Original maple title');
-    expect(loaded.get('$r-red')?.summaryText).toBe('Original birch title');
-    expect(loaded.get('$r-bad')?.summaryText).toBe('Original willow title');
+    expect(loaded.get('$r-x')).toMatchObject({
+      summaryText: 'Original maple title',
+      eventTs: 1000,
+      eventId: '$sum-x',
+    });
+    expect(loaded.get('$r-x')?.replacingEventId).toBeUndefined();
+    expect(loaded.get('$r-red')).toMatchObject({
+      summaryText: 'Original birch title',
+      eventTs: 1000,
+      eventId: '$sum-red',
+    });
+    expect(loaded.get('$r-red')?.replacingEventId).toBeUndefined();
+    expect(loaded.get('$r-bad')).toMatchObject({
+      summaryText: 'Original willow title',
+      eventTs: 1000,
+      eventId: '$sum-bad',
+    });
+    expect(loaded.get('$r-bad')?.replacingEventId).toBeUndefined();
   });
 
   it('omits redacted notices and skips saving pointers for known-redacted event IDs', async () => {
@@ -448,5 +472,48 @@ describe('thread titles of encrypted rooms in the offline cache', () => {
     // Whole-room eviction removes the pointer rows too.
     await cache.clearRoomCachedContent(SESSION_ID, SECURE);
     expect((await storedMeta()).some((r) => r.roomId === SECURE && r.summaryEventId)).toBe(false);
+  });
+
+  it('does not flush queued live titles in plaintext when account switch revokes the load lease', async () => {
+    const clearById = new Map<string, ClearPayload>([
+      ['$sum-slow', summaryClear('Cached encrypted title', 1000)],
+    ]);
+    let releaseDecrypt: (() => void) | undefined;
+    const baseDecrypt = makeDecryptor(clearById);
+    const forget = register(
+      (roomId) => roomId === SECURE,
+      async (event) => {
+        await new Promise<void>((resolve) => {
+          releaseDecrypt = resolve;
+        });
+        await baseDecrypt(event);
+      }
+    );
+
+    await cache.saveThreadEventsToCache(SESSION_ID, SECURE, '$r-slow', [
+      encEvent('$sum-slow', 1000, '$r-slow'),
+    ]);
+    await cache.saveCachedThreadSummary(SESSION_ID, SECURE, '$r-slow', {
+      eventId: '$sum-slow',
+    });
+
+    const pending = ensureThreadSummaryStateLoaded(SESSION_ID, SECURE);
+    await vi.waitFor(() => expect(releaseDecrypt).toBeDefined());
+
+    storeThreadSummaryInState(SESSION_ID, SECURE, '$r-live', {
+      summaryText: 'Queued encrypted live title',
+      eventId: '$sum-live',
+      eventTs: 2000,
+    });
+
+    // Simulate syncEngine.stop() on account switch: revoke session writes and drop encryption check.
+    revokeCacheStoreWrites(SESSION_ID);
+    forget();
+    releaseDecrypt!();
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(await storedTitles()).toEqual([]);
+    expect(getThreadSummaryStateSnapshot(SESSION_ID, SECURE).has('$r-slow')).toBe(false);
   });
 });

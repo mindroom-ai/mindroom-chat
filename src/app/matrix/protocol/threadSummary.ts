@@ -18,6 +18,8 @@ export type ThreadSummaryInfo = {
   eventTs?: number;
   /** Accepted Matrix event carrying the summary, so its redaction can clear cached copies. */
   eventId?: string;
+  /** Accepted m.replace edit currently providing the summary text (in-memory only). */
+  replacingEventId?: string;
   generatedTs?: number;
   messageCount?: number;
 };
@@ -225,6 +227,7 @@ type ThreadSummaryEventLike = {
   getContent(): Record<string, unknown>;
   getTs?(): number | undefined;
   replacingEventDate?(): Date | undefined;
+  replacingEventId?(): string | undefined;
   replacingEvent?(): { status?: string | null } | null;
 };
 
@@ -263,6 +266,7 @@ type SummaryEventCacheEntry = {
   model: unknown;
   eventTs: number | undefined;
   eventId: string | undefined;
+  replacingEventId: string | undefined;
   info: ThreadSummaryInfo | undefined;
 };
 
@@ -285,6 +289,8 @@ export const getThreadSummaryEventInfo = (
       ? timestamp
       : undefined;
   const eventId = eventTs !== undefined ? event.getId?.() : undefined;
+  const replacingEventId =
+    eventTs !== undefined && event.replacingEvent?.() ? event.replacingEventId?.() : undefined;
   const cached = summaryEventCache.get(event);
   // Inspect values, not just object identity: SDK edits, decryption and cached
   // event enrichment can change existing objects between overview refreshes.
@@ -299,7 +305,8 @@ export const getThreadSummaryEventInfo = (
     cached.messageCount === metadata?.message_count &&
     cached.model === metadata?.model &&
     cached.eventTs === eventTs &&
-    cached.eventId === eventId
+    cached.eventId === eventId &&
+    cached.replacingEventId === replacingEventId
   ) {
     return cached.info;
   }
@@ -309,7 +316,12 @@ export const getThreadSummaryEventInfo = (
   const summary = info ?? (text ? { summaryText: text } : undefined);
   const result =
     summary && eventTs !== undefined
-      ? { ...summary, eventTs, ...(eventId ? { eventId } : {}) }
+      ? {
+          ...summary,
+          eventTs,
+          ...(eventId ? { eventId } : {}),
+          ...(replacingEventId ? { replacingEventId } : {}),
+        }
       : summary;
   summaryEventCache.set(event, {
     hasMetadata: !!metadata,
@@ -322,6 +334,7 @@ export const getThreadSummaryEventInfo = (
     model: metadata?.model,
     eventTs,
     eventId,
+    replacingEventId,
     info: result,
   });
   return result;

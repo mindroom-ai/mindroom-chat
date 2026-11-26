@@ -94,6 +94,14 @@ describe('summary event chronology', () => {
     expect(buildThreadSummaryMap([original, newerOriginal]).get('$root')?.summaryText).toBe(
       'Edited title'
     );
+    expect(getThreadSummaryEventInfo(original)).toMatchObject({
+      eventId: '$original',
+      replacingEventId: '$edit',
+      eventTs: 1400,
+    });
+    original.makeReplaced(null);
+    expect(getThreadSummaryEventInfo(original)?.replacingEventId).toBeUndefined();
+    expect(getThreadSummaryEventInfo(original)?.eventTs).toBe(1000);
   });
 
   it('does not treat a sent local echo timestamp as server acceptance time', () => {

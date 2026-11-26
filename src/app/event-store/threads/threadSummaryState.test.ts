@@ -82,4 +82,82 @@ describe('threadSummaryState cleanup', () => {
     expect(snapshot.get('$thread-kept')?.summaryText).toBe('Retained harbor title');
     expect(saveCachedThreadSummary).not.toHaveBeenCalled();
   });
+
+  it('drops edited titles when forgetRedactedThreadSummaries receives their replacingEventId', async () => {
+    const sessionId = 'session-edit-redacted';
+    const loadedRoomId = '!loaded-room:example.org';
+    await ensureThreadSummaryStateLoaded(sessionId, loadedRoomId);
+
+    storeThreadSummaryInState(sessionId, loadedRoomId, '$thread-edited', {
+      summaryText: 'Edited withdrawn title',
+      eventId: '$base-1',
+      replacingEventId: '$edit-1',
+      eventTs: 2000,
+    });
+    storeThreadSummaryInState(sessionId, loadedRoomId, '$thread-other', {
+      summaryText: 'Other edited title',
+      eventId: '$base-2',
+      replacingEventId: '$edit-2',
+      eventTs: 2000,
+    });
+
+    forgetRedactedThreadSummaries(sessionId, loadedRoomId, new Set(['$edit-1']));
+
+    const loadedSnapshot = getThreadSummaryStateSnapshot(sessionId, loadedRoomId);
+    expect(loadedSnapshot.has('$thread-edited')).toBe(false);
+    expect(loadedSnapshot.get('$thread-other')?.summaryText).toBe('Other edited title');
+
+    vi.mocked(saveCachedThreadSummary).mockClear();
+
+    let resolveLoad!: (value: Map<string, ThreadSummaryInfo>) => void;
+    vi.mocked(loadCachedThreadSummaries).mockReturnValueOnce(
+      new Promise<Map<string, ThreadSummaryInfo>>((resolve) => {
+        resolveLoad = resolve;
+      })
+    );
+
+    const inflightRoomId = '!inflight-room:example.org';
+    const pending = ensureThreadSummaryStateLoaded(sessionId, inflightRoomId);
+    storeThreadSummaryInState(sessionId, inflightRoomId, '$thread-live-edited', {
+      summaryText: 'Live edited withdrawn title',
+      eventId: '$base-live',
+      replacingEventId: '$edit-live',
+      eventTs: 2000,
+    });
+    forgetRedactedThreadSummaries(
+      sessionId,
+      inflightRoomId,
+      new Set(['$edit-cached', '$edit-live'])
+    );
+
+    resolveLoad(
+      new Map([
+        [
+          '$thread-cached-edited',
+          {
+            summaryText: 'Cached edited withdrawn title',
+            eventId: '$base-cached',
+            replacingEventId: '$edit-cached',
+            eventTs: 1500,
+          },
+        ],
+        [
+          '$thread-kept-edited',
+          {
+            summaryText: 'Retained edited title',
+            eventId: '$base-kept',
+            replacingEventId: '$edit-kept',
+            eventTs: 1500,
+          },
+        ],
+      ])
+    );
+    await pending;
+
+    const inflightSnapshot = getThreadSummaryStateSnapshot(sessionId, inflightRoomId);
+    expect(inflightSnapshot.has('$thread-cached-edited')).toBe(false);
+    expect(inflightSnapshot.has('$thread-live-edited')).toBe(false);
+    expect(inflightSnapshot.get('$thread-kept-edited')?.summaryText).toBe('Retained edited title');
+    expect(saveCachedThreadSummary).not.toHaveBeenCalled();
+  });
 });

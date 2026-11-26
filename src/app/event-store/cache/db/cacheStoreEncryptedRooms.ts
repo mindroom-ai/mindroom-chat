@@ -136,6 +136,13 @@ const decryptCachedSummaryEvent = async (
   if ((decryptedThreadRootId ?? event.threadRootId) !== threadRootId) return undefined;
 
   const replacement = getSerializedRelationEvent(event, RelationType.Replace);
+  const unsigned = event.getUnsigned();
+  const relations = unsigned['m.relations'];
+  if (isRecord(relations) && RelationType.Replace in relations) {
+    const otherRelations = { ...relations };
+    delete otherRelations[RelationType.Replace];
+    event.setUnsigned({ ...unsigned, 'm.relations': otherRelations });
+  }
   if (
     replacement &&
     !isOtherRoomEvent(replacement.event, roomId) &&
