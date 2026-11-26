@@ -50,6 +50,13 @@
       "gatewayUrl": "https://push.mindroom.chat/_matrix/push/v1/notify",
       "appDisplayName": "MindRoom iOS",
       "format": "full"
+    },
+    "android": {
+      "enabled": true,
+      "appId": "com.mindroom_ai.app",
+      "gatewayUrl": "https://push.mindroom.chat/_matrix/push/v1/notify",
+      "appDisplayName": "MindRoom Android",
+      "format": "full"
     }
   }
 }

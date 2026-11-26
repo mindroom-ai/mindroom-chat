@@ -1910,6 +1910,16 @@
         "showInSidebar": "Show in sidebar",
         "sidebarSettings": "Sidebar settings…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Push Notifications",
+        "description": "Allow Android push notifications for background message alerts.",
+        "notConfigured": "Android push is not configured by the deployment. Add `push.android` settings in `config.json`.",
+        "disabled": "Android push is disabled for this device.",
+        "registered": "Device registered for Android push notifications.",
+        "permissionDenied": "Notification permission is denied. Enable notifications for {{appName}} in Android Settings."
+      }
     }
   },
   "composer": {

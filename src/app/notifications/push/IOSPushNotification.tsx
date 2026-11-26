@@ -13,7 +13,8 @@ import { cloudflareAccessAllowsPush } from '../../native/cloudflareAccess';
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
-  isNativeIOSPlatform,
+  isNativeAndroidPushPlatform,
+  isNativePushPlatform,
   type NativePushPermission,
   registerIOSPush,
   requestIOSPushPermission,
@@ -23,16 +24,20 @@ import {
 import { useIOSPushEnabled } from './useIOSPushEnabled';
 
 /** The explanation under the switch: what push does, the device's state, and the last failure. */
-function PushDescription({ status, failed }: { status: string; failed: boolean }) {
+function PushDescription({
+  summary,
+  status,
+  failed,
+}: {
+  summary: string;
+  status: string;
+  failed: boolean;
+}) {
   const { t } = useTranslation();
   // The tile wraps this in a paragraph, so only inline elements go inside.
   return (
     <Box as="span" direction="Column" gap="100">
-      <span>
-        {t(
-          'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
-        )}
-      </span>
+      <span>{summary}</span>
       <span>{status}</span>
       {failed && (
         <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
@@ -94,29 +99,48 @@ function IOSPushNotificationTile() {
       .finally(refreshPermission);
   };
 
+  const isAndroid = isNativeAndroidPushPlatform();
   const busy = toggleState.status === AsyncStatus.Loading;
-  let status = t('mindroomUi.native.iOSPushNotification.nativeIosPushIsDisabledForThisDevice');
+  const title = isAndroid
+    ? t('mindroomUi.native.androidPushNotification.title')
+    : t('mindroomUi.native.iOSPushNotification.iosPushNotifications');
+  const summary = isAndroid
+    ? t('mindroomUi.native.androidPushNotification.description')
+    : t(
+        'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
+      );
+  let status = isAndroid
+    ? t('mindroomUi.native.androidPushNotification.disabled')
+    : t('mindroomUi.native.iOSPushNotification.nativeIosPushIsDisabledForThisDevice');
   if (!pushConfig) {
-    status = t(
-      'mindroomUi.native.iOSPushNotification.nativeIosPushIsNotConfiguredByTheDeploymentAdd'
-    );
+    status = isAndroid
+      ? t('mindroomUi.native.androidPushNotification.notConfigured')
+      : t('mindroomUi.native.iOSPushNotification.nativeIosPushIsNotConfiguredByTheDeploymentAdd');
   } else if (permission === 'denied') {
-    status = t('mindroomUi.native.iOSPushNotification.permissionDenied', {
-      appName: MINDROOM_APP_NAME,
-    });
+    status = isAndroid
+      ? t('mindroomUi.native.androidPushNotification.permissionDenied', {
+          appName: MINDROOM_APP_NAME,
+        })
+      : t('mindroomUi.native.iOSPushNotification.permissionDenied', {
+          appName: MINDROOM_APP_NAME,
+        });
   } else if (enabled && permission === 'granted') {
-    status = t(
-      'mindroomUi.native.iOSPushNotification.deviceRegisteredForNativeIosPushNotifications'
-    );
+    status = isAndroid
+      ? t('mindroomUi.native.androidPushNotification.registered')
+      : t('mindroomUi.native.iOSPushNotification.deviceRegisteredForNativeIosPushNotifications');
   }
 
   return (
     <SettingsCard>
       <SettingTile
         focusId="pushNotifications"
-        title={t('mindroomUi.native.iOSPushNotification.iosPushNotifications')}
+        title={title}
         description={
-          <PushDescription status={status} failed={toggleState.status === AsyncStatus.Error} />
+          <PushDescription
+            summary={summary}
+            status={status}
+            failed={toggleState.status === AsyncStatus.Error}
+          />
         }
         after={
           <Switch
@@ -132,11 +156,12 @@ function IOSPushNotificationTile() {
 }
 
 /**
- * Settings → Notifications on the iOS app: the switch for push notifications through APNs.
- * Absent elsewhere, and for a homeserver whose Cloudflare Access policy keeps pushes off.
+ * Settings → Notifications on native iOS and Android apps: the switch for push notifications
+ * through APNs or FCM. Absent elsewhere, and for a homeserver whose Cloudflare Access policy
+ * keeps pushes off.
  */
 export function IOSPushNotification() {
   const mx = useMatrixClient();
-  if (!isNativeIOSPlatform() || !cloudflareAccessAllowsPush(mx.getHomeserverUrl())) return null;
+  if (!isNativePushPlatform() || !cloudflareAccessAllowsPush(mx.getHomeserverUrl())) return null;
   return <IOSPushNotificationTile />;
 }

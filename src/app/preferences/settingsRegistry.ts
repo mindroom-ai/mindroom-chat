@@ -268,10 +268,10 @@ export const SETTINGS = [
     id: 'pushNotifications',
     page: 'notifications',
     group: `${NOTIFY}.systemNotification.system`,
-    labelKey: 'mindroomUi.native.iOSPushNotification.iosPushNotifications',
+    labelKey: 'mindroomUi.native.androidPushNotification.title',
     keywordsKey: `${KEYWORDS}.alerts`,
     scope: 'device',
-    hidden: (context) => !context.nativeIOS,
+    hidden: (context) => !context.capacitor,
   },
   {
     id: 'emailNotifications',

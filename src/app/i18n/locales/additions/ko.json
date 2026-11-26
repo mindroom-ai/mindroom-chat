@@ -1845,6 +1845,16 @@
         "showInSidebar": "사이드바에 표시",
         "sidebarSettings": "사이드바 설정…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "푸시 알림",
+        "description": "백그라운드 메시지 알림을 위해 Android 푸시 알림을 허용합니다.",
+        "notConfigured": "배포에 Android 푸시가 구성되지 않았습니다. `config.json`에 `push.android` 설정을 추가하세요.",
+        "disabled": "이 기기에서 Android 푸시가 비활성화되어 있습니다.",
+        "registered": "기기가 Android 푸시 알림에 등록되었습니다.",
+        "permissionDenied": "알림 권한이 거부되었습니다. Android 설정에서 {{appName}}의 알림을 활성화하세요."
+      }
     }
   },
   "composer": {

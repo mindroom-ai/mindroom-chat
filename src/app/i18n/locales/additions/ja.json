@@ -1845,6 +1845,16 @@
         "showInSidebar": "サイドバーに表示",
         "sidebarSettings": "サイドバー設定…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "プッシュ通知",
+        "description": "バックグラウンドでのメッセージ通知に Android プッシュ通知を許可します。",
+        "notConfigured": "デプロイで Android プッシュが設定されていません。`config.json` に `push.android` 設定を追加してください。",
+        "disabled": "このデバイスでは Android プッシュが無効になっています。",
+        "registered": "Android プッシュ通知用にデバイスが登録されています。",
+        "permissionDenied": "通知の権限が拒否されています。Android の設定で {{appName}} の通知を有効にしてください。"
+      }
     }
   },
   "composer": {

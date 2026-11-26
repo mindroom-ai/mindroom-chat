@@ -28,7 +28,8 @@ import {
   getOrCreateIOSPushProfileTag,
   getStoredIOSPushProfileTag,
   IOS_PUSH_ACCOUNT_KEY,
-  isNativeIOSPlatform,
+  isNativeAndroidPushPlatform,
+  isNativePushPlatform,
   reconcileIOSPushNativeState,
   registerIOSPush,
   resolveEffectiveIOSPushFormat,
@@ -68,7 +69,10 @@ export function NativeIOSPushFeature() {
   const userId = mx.getUserId?.() ?? undefined;
   const signInRequired = useCloudflareAccessSignInRequired(homeserverUrl);
   const pushAllowed = cloudflareAccessAllowsPush(homeserverUrl);
-  const native = isNativeIOSPlatform();
+  const native = isNativePushPlatform();
+  const isAndroid = isNativeAndroidPushPlatform();
+  const logTag = isAndroid ? '[android-push]' : '[ios-push]';
+  const pushService = isAndroid ? 'FCM' : 'APNs';
   // The notification extension is part of the iPhone and iPad app only: the Mac app registers
   // for pushes as they do, but has no extension to share accounts and avatars with.
   const nativeNotificationsAvailable = isNativeNotificationsAvailable();
@@ -280,7 +284,7 @@ export function NativeIOSPushFeature() {
   // Tokens can arrive from a registration started earlier, so the listener lives as long as the client.
   useEffect(() => {
     if (!native || !stableConfig) return undefined;
-    const handle = PushNotifications.addListener('registration', ({ value }) => {
+    const registrationHandle = PushNotifications.addListener('registration', ({ value }) => {
       const state = latest.current;
       if (!state.pushAllowed) {
         disableIOSPushPusher(mx, stableConfig, sessionId).catch(() => undefined);
@@ -289,13 +293,18 @@ export function NativeIOSPushFeature() {
       if (!state.enabled || state.signInRequired) return;
       upsertIOSPushPusher(mx, stableConfig, value, sessionId).catch((error: unknown) => {
         // eslint-disable-next-line no-console
-        console.warn('[ios-push] could not register the pusher', error);
+        console.warn(`${logTag} could not register the pusher`, error);
       });
     });
+    const errorHandle = PushNotifications.addListener('registrationError', (error) => {
+      // eslint-disable-next-line no-console
+      console.warn(`${logTag} ${pushService} registration failed`, error);
+    });
     return () => {
-      handle.then((listener) => listener.remove()).catch(() => undefined);
+      registrationHandle.then((listener) => listener.remove()).catch(() => undefined);
+      errorHandle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [latest, mx, native, sessionId, stableConfig]);
+  }, [latest, logTag, mx, native, pushService, sessionId, stableConfig]);
 
   useEffect(() => {
     if (!native || !stableConfig) return;
@@ -306,18 +315,28 @@ export function NativeIOSPushFeature() {
     if (!enabled || signInRequired) return;
     let active = true;
     checkIOSPushPermission()
-      .then((permission) => {
-        if (active && permission === 'granted') return registerIOSPush();
+      .then((currentPermission) => {
+        if (active && currentPermission === 'granted') return registerIOSPush();
         return undefined;
       })
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console
-        console.warn('[ios-push] could not register with APNs', error);
+        console.warn(`${logTag} could not register with ${pushService}`, error);
       });
     return () => {
       active = false;
     };
-  }, [enabled, mx, native, pushAllowed, sessionId, signInRequired, stableConfig]);
+  }, [
+    enabled,
+    logTag,
+    mx,
+    native,
+    pushAllowed,
+    pushService,
+    sessionId,
+    signInRequired,
+    stableConfig,
+  ]);
 
   return null;
 }
@@ -333,7 +352,9 @@ const readPushTarget = (data: unknown): PushTarget | undefined => {
     mindroom_ring: ring,
   } = data as Record<string, unknown>;
   if (typeof roomId !== 'string' || !roomId.startsWith('!')) return undefined;
-  const isRing = ring !== null && typeof ring === 'object';
+  const isRing =
+    (ring !== null && typeof ring === 'object') ||
+    (typeof ring === 'string' && ring.trim().length > 0);
   return {
     roomId,
     // A tapped call ring opens the room (as the ring card's Open does) rather than jumping to the
@@ -373,7 +394,7 @@ export function NativeIOSPushOpenFeature() {
   const { hasCompletedInitialSync } = useClientStartupContext();
   const [target, setTarget] = useState<PushTarget>();
   const latest = useLatestRef({ navigate, sessionId });
-  const native = isNativeIOSPlatform();
+  const native = isNativePushPlatform();
 
   useEffect(() => {
     if (!native) return undefined;

@@ -1910,6 +1910,16 @@
         "showInSidebar": "Kenar çubuğunda göster",
         "sidebarSettings": "Kenar çubuğu ayarları…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Anlık Bildirimler",
+        "description": "Arka plan mesaj uyarıları için Android anlık bildirimlerine izin verin.",
+        "notConfigured": "Android anlık bildirimleri dağıtım tarafından yapılandırılmamış. `config.json` dosyasına `push.android` ayarlarını ekleyin.",
+        "disabled": "Bu cihaz için Android anlık bildirimleri devre dışı.",
+        "registered": "Cihaz Android anlık bildirimleri için kaydedildi.",
+        "permissionDenied": "Bildirim izni reddedildi. Android Ayarları üzerinden {{appName}} için bildirimleri etkinleştirin."
+      }
     }
   },
   "composer": {

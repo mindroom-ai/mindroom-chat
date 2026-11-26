@@ -1910,6 +1910,16 @@
         "showInSidebar": "In der Seitenleiste anzeigen",
         "sidebarSettings": "Seitenleisten-Einstellungen…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Push-Benachrichtigungen",
+        "description": "Android-Push-Benachrichtigungen für Nachrichten im Hintergrund zulassen.",
+        "notConfigured": "Android-Push ist von der Bereitstellung nicht konfiguriert. Füge `push.android`-Einstellungen in `config.json` hinzu.",
+        "disabled": "Android-Push ist für dieses Gerät deaktiviert.",
+        "registered": "Gerät für Android-Push-Benachrichtigungen registriert.",
+        "permissionDenied": "Benachrichtigungsberechtigung wurde verweigert. Aktiviere Benachrichtigungen für {{appName}} in den Android-Einstellungen."
+      }
     }
   },
   "composer": {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import {
   buildIOSPushPusherRequest,
@@ -9,10 +10,13 @@ import {
   getAllowedNativeNotificationAccountTags,
   getIOSPushEnabled,
   getStoredIOSPushToken,
+  isNativeAndroidPushPlatform,
+  isNativePushPlatform,
   migrateLegacyIOSPushEnabled,
   reconcileIOSPushNativeState,
   resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
+  resolveNativePushConfig,
   setIOSPushEnabled,
   upsertIOSPushPusher,
 } from './iosPush';
@@ -971,5 +975,117 @@ describe('upsertIOSPushPusher', () => {
       })
     );
     expect(hasCloudflareAccess).toHaveBeenCalledWith('https://private.example');
+  });
+});
+
+describe('Android FCM push support', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('detects native Android as a native push platform while keeping iOS check false', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+
+    expect(isNativeAndroidPushPlatform()).toBe(true);
+    expect(isNativePushPlatform()).toBe(true);
+  });
+
+  it('resolves push.android on native Android with Android display name defaults', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+
+    const config = resolveIOSPushConfig(
+      {
+        push: {
+          ios: {
+            enabled: true,
+            appId: 'chat.mindroom.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+          },
+          android: {
+            enabled: true,
+            appId: 'com.mindroom_ai.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+            format: 'full',
+          },
+        },
+      },
+      undefined,
+      'en'
+    );
+
+    expect(config).toMatchObject({
+      platform: 'android',
+      appId: 'com.mindroom_ai.app',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'MindRoom Android',
+      deviceDisplayName: 'MindRoom Android',
+      format: 'full',
+      append: true,
+      lang: 'en',
+    });
+  });
+
+  it('builds Android pusher requests without an iOS aps block', () => {
+    const config = resolveNativePushConfig(
+      {
+        push: {
+          android: {
+            enabled: true,
+            appId: 'com.mindroom_ai.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+            profileTag: 'android-tag',
+            format: 'event_id_only',
+          },
+        },
+      },
+      'android',
+      undefined,
+      'en'
+    );
+    expect(config).toBeDefined();
+
+    const request = buildIOSPushPusherRequest('fcm-token-123', config!, 'account-tag');
+
+    expect(request).toEqual({
+      kind: 'http',
+      app_id: 'com.mindroom_ai.app',
+      pushkey: 'fcm-token-123',
+      app_display_name: 'MindRoom Android',
+      device_display_name: 'MindRoom Android',
+      profile_tag: 'android-tag',
+      append: true,
+      lang: 'en',
+      data: {
+        url: 'https://push.example.com/_matrix/push/v1/notify',
+        format: 'event_id_only',
+        default_payload: {
+          mindroom_account: 'account-tag',
+        },
+      },
+    });
+    expect(request.data.default_payload).not.toHaveProperty('aps');
+  });
+
+  it('reports FCM when Android push registration returns an empty token', async () => {
+    const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://matrix.example' };
+    await expect(
+      upsertIOSPushPusher(
+        mx,
+        {
+          platform: 'android',
+          appId: 'com.mindroom_ai.app',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+          appDisplayName: 'MindRoom Android',
+          deviceDisplayName: 'MindRoom Android',
+          profileTag: 'profile-1',
+          append: true,
+          format: 'full',
+          lang: 'en',
+        },
+        '   '
+      )
+    ).rejects.toThrow('FCM registration returned an empty push token.');
   });
 });

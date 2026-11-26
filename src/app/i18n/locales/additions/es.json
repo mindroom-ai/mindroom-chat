@@ -1975,6 +1975,16 @@
         "showInSidebar": "Mostrar en la barra lateral",
         "sidebarSettings": "Ajustes de la barra lateral…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Notificaciones push",
+        "description": "Permitir notificaciones push de Android para alertas de mensajes en segundo plano.",
+        "notConfigured": "Las notificaciones push de Android no están configuradas en el despliegue. Añade `push.android` en `config.json`.",
+        "disabled": "Las notificaciones push de Android están desactivadas en este dispositivo.",
+        "registered": "Dispositivo registrado para notificaciones push de Android.",
+        "permissionDenied": "El permiso de notificaciones está denegado. Activa las notificaciones para {{appName}} en los ajustes de Android."
+      }
     }
   },
   "composer": {

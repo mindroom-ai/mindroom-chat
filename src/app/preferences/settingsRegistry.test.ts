@@ -136,6 +136,15 @@ describe('settings registry', () => {
     expect(electronSettings).toContain('desktopNotifications');
     expect(appSettings).not.toContain('desktopNotifications');
     expect(androidSettings).not.toContain('desktopNotifications');
+    expect(electronSettings).not.toContain('pushNotifications');
+    expect(androidSettings).toContain('pushNotifications');
+    expect(
+      searchSettings(
+        'push notifications',
+        getShownSettings({ ...WEB, native: true, capacitor: true, nativeIOS: false }),
+        (key, values) => translateFromEn(key, values)
+      ).map(({ setting }) => setting.id)
+    ).toContain('pushNotifications');
     expect(webSettings).toContain('sidebarThreads');
     expect(webSettings).not.toContain('sidebarSearch');
     expect(webSettings).toEqual(expect.arrayContaining(['lightTheme', 'darkTheme']));

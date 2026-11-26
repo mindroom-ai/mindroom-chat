@@ -2170,6 +2170,16 @@
         "showInSidebar": "إظهار في الشريط الجانبي",
         "sidebarSettings": "إعدادات الشريط الجانبي…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "إشعارات الدفع",
+        "description": "السماح بإشعارات Android لتنبيهات الرسائل في الخلفية.",
+        "notConfigured": "لم يتم إعداد إشعارات Android في هذا النشر. أضف إعدادات `push.android` في `config.json`.",
+        "disabled": "إشعارات Android معطّلة لهذا الجهاز.",
+        "registered": "تم تسجيل الجهاز لإشعارات Android.",
+        "permissionDenied": "تم رفض إذن الإشعارات. فعّل الإشعارات لتطبيق ⁨{{appName}}⁩ في إعدادات Android."
+      }
     }
   },
   "composer": {

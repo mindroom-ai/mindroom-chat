@@ -49,6 +49,7 @@ public class MainActivity extends BridgeActivity {
             }
         });
         super.onCreate(savedInstanceState);
+        MindRoomNotificationChannels.ensureCreated(this);
     }
 
     static boolean recordRenderProcessRecovery(long nowMs) {

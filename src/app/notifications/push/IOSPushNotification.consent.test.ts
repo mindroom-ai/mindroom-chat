@@ -40,7 +40,9 @@ vi.mock('./useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
 vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
   disableIOSPushPusher: vi.fn().mockResolvedValue(undefined),
+  isNativeAndroidPushPlatform: () => false,
   isNativeIOSPlatform: () => true,
+  isNativePushPlatform: () => true,
   registerIOSPush: vi.fn().mockResolvedValue(undefined),
   requestIOSPushPermission: vi.fn().mockResolvedValue('granted'),
   resolveIOSPushConfig: vi.fn(() => ({})),

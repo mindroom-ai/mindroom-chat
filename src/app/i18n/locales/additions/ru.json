@@ -2040,6 +2040,16 @@
         "showInSidebar": "Показывать на боковой панели",
         "sidebarSettings": "Настройки боковой панели…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Push-уведомления",
+        "description": "Разрешить push-уведомления Android для оповещений о сообщениях в фоне.",
+        "notConfigured": "Push-уведомления Android не настроены в развертывании. Добавьте настройки `push.android` в `config.json`.",
+        "disabled": "Push-уведомления Android отключены на этом устройстве.",
+        "registered": "Устройство зарегистрировано для push-уведомлений Android.",
+        "permissionDenied": "Разрешение на уведомления отклонено. Включите уведомления для {{appName}} в настройках Android."
+      }
     }
   },
   "composer": {
