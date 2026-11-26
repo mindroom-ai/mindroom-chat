@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..ead215c 100644
+index 186f79e..be37d32 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -194,7 +194,7 @@ index 186f79e..ead215c 100644
 -      const offset = this.getScrollOffset();
 +      // PR 2: reconcile an unseen live element scrollTop move before writing.
 +      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
-+      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !utils.approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset();
++      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !utils.approxEqual(live, this.pendingWrite.target)) ? this._toLayoutOffset(live) : this.getScrollOffset();
        this._clampedAdjustment = this._clampedBy(offset + delta);
        const write = this._scrollToOffset(offset, {
          adjustments: delta,
@@ -235,7 +235,7 @@ index 159bbd6..cce95a0 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..7d26094 100644
+index ef861e1..b48acbb 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -430,7 +430,7 @@ index ef861e1..7d26094 100644
 -      const offset = this.getScrollOffset();
 +      // PR 2: reconcile an unseen live element scrollTop move before writing.
 +      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
-+      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset();
++      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? this._toLayoutOffset(live) : this.getScrollOffset();
        this._clampedAdjustment = this._clampedBy(offset + delta);
        const write = this._scrollToOffset(offset, {
          adjustments: delta,

@@ -41,7 +41,7 @@
 ```diff
 -  const offset = this.getScrollOffset() // in applyScrollAdjustment() else-branch
 +  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
-+  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
++  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? this._toLayoutOffset(live) : this.getScrollOffset()
 -  if (this.pendingWrite === write) this.scrollOffset += delta
 -  if (this.scrollOffset < 0) this.scrollOffset = 0
 +  if (this.pendingWrite === write) this.scrollOffset = offset + delta

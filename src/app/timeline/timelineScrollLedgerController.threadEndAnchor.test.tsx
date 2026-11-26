@@ -28,6 +28,26 @@ const IPHONE_UA =
 const DESKTOP_CHROME_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
+const visualTopOf = (
+  v: ReturnType<typeof useTimelineScrollLedgerController>['virtualizer'],
+  el: HTMLElement,
+  index: number
+) => v.getVirtualItems().find((item) => item.index === index)!.start - el.scrollTop;
+
+const dragTouchTo = (el: HTMLElement, top: number) => {
+  el.dispatchEvent(new Event('touchstart'));
+  el.scrollTop = top;
+  el.dispatchEvent(new Event('scroll'));
+};
+
+const appendMeasuredRow = (el: HTMLElement, index: number, height: number) => {
+  const node = document.createElement('div');
+  node.dataset.index = String(index);
+  Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+  el.appendChild(node);
+  return node;
+};
+
 const stubUserAgent = (userAgent: string, platform: string, maxTouchPoints: number) => {
   Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
   Object.defineProperty(navigator, 'platform', { value: platform, configurable: true });
@@ -70,6 +90,7 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
       virtualizer?: ReturnType<typeof useTimelineScrollLedgerController>['virtualizer'];
     } = {};
     let renderedListHeight = 0;
+    let nextRefCommit: (() => void) | undefined;
 
     const scrollElement = document.createElement('div');
     scrollElement.scrollTop = initialScrollTop ?? 0;
@@ -194,13 +215,26 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
         onReaderGesture: gesturePins.onRoomGesture,
       });
 
-      return <div ref={controller.virtualInnerRef} style={{ height: renderedListHeight }} />;
+      return (
+        <div
+          ref={(node) => {
+            controller.virtualInnerRef.current = node;
+            if (node && nextRefCommit) {
+              const fn = nextRefCommit;
+              nextRefCommit = undefined;
+              fn();
+            }
+          }}
+          style={{ height: renderedListHeight }}
+        />
+      );
     }
 
     let tick = 0;
     let currentKeys = initialKeys;
-    const render = (keys = currentKeys, openPending = false) => {
+    const render = (keys = currentKeys, openPending = false, onRefCommit?: () => void) => {
       currentKeys = keys;
+      nextRefCommit = onRefCommit;
       tick += 1;
       flushSync(() =>
         root.render(<ThreadHarness keys={keys} openPending={openPending} tick={tick} />)
@@ -231,6 +265,13 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
         return mounted.virtualizer;
       },
     };
+  };
+
+  const mountIOSThread = async (initialScrollTop: number) => {
+    stubUserAgent(IPHONE_UA, 'iPhone', 5);
+    const mountedThread = await mountThread(initialScrollTop);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    return mountedThread;
   };
 
   it('does not pull a reader 120px above the real bottom when the last reply grows by 200px', async () => {
@@ -327,147 +368,100 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
   });
 
   it('keeps iOS _holdOffset open while fling moves scrollTop without scroll events, then flushes from live', async () => {
-    stubUserAgent(IPHONE_UA, 'iPhone', 5);
-    const { scrollElement, getVirtualizer } = await mountThread(2000);
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { scrollElement, getVirtualizer } = await mountIOSThread(2000);
     const v = getVirtualizer();
-
-    scrollElement.dispatchEvent(new Event('touchstart'));
-    scrollElement.scrollTop = 1900;
-    scrollElement.dispatchEvent(new Event('scroll'));
+    dragTouchTo(scrollElement, 1900);
     v.resizeItem(5, ROW_HEIGHT + 200);
     expect(readVirtualizerHoldOffset(v)).toBe(200);
     // Let observeOffset debounce settle while finger is down so only the touchend tail timer runs.
     vi.advanceTimersByTime(160);
     scrollElement.dispatchEvent(new Event('touchend'));
-
     // Fling advances upward by 20px with no scroll event; visual offset of row 20 is now 120px.
     scrollElement.scrollTop = 1880;
-    const row20VisualBeforeFlush =
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop;
-
+    const row20VisualBeforeFlush = visualTopOf(v, scrollElement, 20);
     // Tail must stay open rather than flushing mid-fling.
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(200);
     expect(scrollElement.scrollTop).toBe(1880);
-
     // Once scrollTop settles for 150ms, hold flushes from live (1880 + 200 = 2080, not stale 2100).
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(2080);
-    expect(
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop
-    ).toBe(row20VisualBeforeFlush);
+    expect(visualTopOf(v, scrollElement, 20)).toBe(row20VisualBeforeFlush);
   });
 
   it('keeps iOS _holdOffset open after a post-touchend momentum scroll even when observeOffset idle debounce fires first', async () => {
-    stubUserAgent(IPHONE_UA, 'iPhone', 5);
-    const { scrollElement, getVirtualizer } = await mountThread(2000);
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { scrollElement, getVirtualizer } = await mountIOSThread(2000);
     const v = getVirtualizer();
-
-    scrollElement.dispatchEvent(new Event('touchstart'));
-    scrollElement.scrollTop = 1900;
-    scrollElement.dispatchEvent(new Event('scroll'));
+    dragTouchTo(scrollElement, 1900);
     v.resizeItem(5, ROW_HEIGHT + 200);
     expect(readVirtualizerHoldOffset(v)).toBe(200);
     scrollElement.dispatchEvent(new Event('touchend'));
-
     // Post-touchend momentum scroll fires at 1880 (scheduling observeOffset debounce before _openTail).
     scrollElement.scrollTop = 1880;
     scrollElement.dispatchEvent(new Event('scroll'));
-
     // Fling keeps moving to 1860 without another scroll event.
     scrollElement.scrollTop = 1860;
-    const row20VisualBeforeFlush =
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop;
-
+    const row20VisualBeforeFlush = visualTopOf(v, scrollElement, 20);
     // observeOffset idle debounce fires right before the tail timer at 150ms; tail must stay open.
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(200);
     expect(scrollElement.scrollTop).toBe(1860);
-
     // Once scrollTop stays steady at 1860 for another 150ms, hold flushes cleanly to 2060.
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(2060);
-    expect(
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop
-    ).toBe(row20VisualBeforeFlush);
+    expect(visualTopOf(v, scrollElement, 20)).toBe(row20VisualBeforeFlush);
   });
 
   it('rebases cleanly from live on quiet iOS tail close and preserves pre-touch clamped shortfall', async () => {
-    stubUserAgent(IPHONE_UA, 'iPhone', 5);
-    const { scrollElement, getVirtualizer, render } = await mountThread(2000);
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { scrollElement, getVirtualizer, render } = await mountIOSThread(2000);
     const v = getVirtualizer();
-
     // Part 1: sub-1px quiet-tail drift without a scroll event rebases from live on tail close.
-    scrollElement.dispatchEvent(new Event('touchstart'));
-    scrollElement.scrollTop = 1900;
-    scrollElement.dispatchEvent(new Event('scroll'));
+    dragTouchTo(scrollElement, 1900);
     v.resizeItem(5, ROW_HEIGHT + 200);
     expect(readVirtualizerHoldOffset(v)).toBe(200);
     vi.advanceTimersByTime(160);
     scrollElement.dispatchEvent(new Event('touchend'));
-
     scrollElement.scrollTop = 1899.5;
-    const row20VisualBeforeFlush =
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop;
+    const row20VisualBeforeFlush = visualTopOf(v, scrollElement, 20);
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(2099.5);
-    expect(
-      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop
-    ).toBe(row20VisualBeforeFlush);
-
+    expect(visualTopOf(v, scrollElement, 20)).toBe(row20VisualBeforeFlush);
     // Part 2: pre-touch clamped adjustment shortfall at maxScroll survives the iOS live rebase.
     const maxAtBottom = scrollElement.scrollHeight - scrollElement.clientHeight;
     scrollElement.scrollTop = maxAtBottom;
     scrollElement.dispatchEvent(new Event('scroll'));
     render();
     vi.advanceTimersByTime(200);
-
-    const rowNode = document.createElement('div');
-    rowNode.dataset.index = '10';
-    Object.defineProperty(rowNode, 'offsetHeight', { value: ROW_HEIGHT + 50, configurable: true });
-    scrollElement.appendChild(rowNode);
-    v.measureElement(rowNode);
+    v.measureElement(appendMeasuredRow(scrollElement, 10, ROW_HEIGHT + 50));
     expect(scrollElement.scrollTop).toBe(maxAtBottom);
     expect((v as unknown as { _clampedAdjustment: unknown })._clampedAdjustment).toEqual({
       target: maxAtBottom + 50,
       maxAtWrite: maxAtBottom,
     });
-
     scrollElement.dispatchEvent(new Event('touchstart'));
     v.resizeItem(4, ROW_HEIGHT + 50);
     expect(readVirtualizerHoldOffset(v)).toBe(50);
     scrollElement.dispatchEvent(new Event('touchend'));
-
     vi.advanceTimersByTime(150);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(maxAtBottom + 100);
   });
 
   it('reconciles an unseen live scrollTop move during iOS lateFling before applyScrollAdjustment', async () => {
-    stubUserAgent(IPHONE_UA, 'iPhone', 5);
-    const { scrollElement, getVirtualizer } = await mountThread(1100);
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { scrollElement, getVirtualizer } = await mountIOSThread(1100);
     const v = getVirtualizer();
-
-    scrollElement.dispatchEvent(new Event('touchstart'));
-    scrollElement.scrollTop = 1000;
-    scrollElement.dispatchEvent(new Event('scroll'));
+    dragTouchTo(scrollElement, 1000);
     scrollElement.dispatchEvent(new Event('touchend'));
     vi.advanceTimersByTime(150);
-
     const gesture = (
       v as unknown as { _iosGesture: { touch: { phase: string } | null; inMotion: () => boolean } }
     )._iosGesture;
     expect(gesture.touch?.phase).toBe('lateFling');
     expect(gesture.inMotion()).toBe(false);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
-
     scrollElement.scrollTop = 960;
     v.resizeItem(2, ROW_HEIGHT + 80);
     expect(scrollElement.scrollTop).toBe(1040);
@@ -477,9 +471,22 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     stubUserAgent(DESKTOP_CHROME_UA, 'MacIntel', 0);
     const { scrollElement, getVirtualizer } = await mountThread(1000);
     const v = getVirtualizer();
-
     scrollElement.scrollTop += 200;
     v.resizeItem(2, ROW_HEIGHT - 20);
     expect(scrollElement.scrollTop).toBe(1180);
+  });
+
+  it('preserves pendingScrollAnchor delta when reconciling an unseen live move before _willUpdate', async () => {
+    const { scrollElement, initialKeys, getVirtualizer, render } = await mountIOSThread(400);
+    const v = getVirtualizer();
+    dragTouchTo(scrollElement, 300);
+    scrollElement.dispatchEvent(new Event('touchend'));
+    vi.advanceTimersByTime(150);
+    // Unseen lateFling move (300 -> 280), prepend +1000px, and measure a newly mounted row +50px during ref commit before _willUpdate.
+    scrollElement.scrollTop = 280;
+    const rowNode = appendMeasuredRow(scrollElement, 2, ROW_HEIGHT + 50);
+    const prepended = [...Array.from({ length: 10 }, (_, i) => `$older-${i}`), ...initialKeys];
+    render(prepended, false, () => v.measureElement(rowNode));
+    expect(scrollElement.scrollTop).toBe(1330);
   });
 });
