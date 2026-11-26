@@ -8,7 +8,7 @@ import { ComposerMenuButton, ComposerRadioMenuEntry } from '../../composer/Compo
 import { RoomInput } from '../../composer/RoomInput';
 import {
   composerUploadItemsAtom,
-  getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { useEditor } from '../../editor/Editor';
@@ -32,6 +32,7 @@ import * as css from './SpaceThreads.css';
 const MAX_INLINE_PILLS = 4;
 
 export type SpaceThreadComposerProps = {
+  spaceId: string;
   rooms: readonly SpaceRoomItem[];
   roomsById: ReadonlyMap<string, SpaceRoomItem>;
   activeRoomIds: readonly string[];
@@ -40,6 +41,7 @@ export type SpaceThreadComposerProps = {
 };
 
 export function SpaceThreadComposer({
+  spaceId,
   rooms,
   roomsById,
   activeRoomIds,
@@ -80,39 +82,17 @@ export function SpaceThreadComposer({
       .map((item) => item.room.roomId);
   }, [myUserId, permissionsVersion, rooms]);
 
-  const unpinnedTargetRoomId = useMemo(
-    () =>
-      resolveComposerTargetRoom({
-        activeRoomIds,
-        sendableRoomIds,
-        currentTargetRoomId: chosenTargetRoomId,
-        hasDraft: false,
-      }).targetRoomId,
-    [activeRoomIds, chosenTargetRoomId, sendableRoomIds]
-  );
-
-  // Observe only the remembered/default candidate room(s); returns a primitive room ID or undefined
-  // so subsequent keystrokes do not re-render this dock.
-  const rememberedCandidate =
-    chosenTargetRoomId && sendableRoomIds.includes(chosenTargetRoomId)
-      ? chosenTargetRoomId
-      : undefined;
-  const fallbackCandidate =
-    unpinnedTargetRoomId && unpinnedTargetRoomId !== rememberedCandidate
-      ? unpinnedTargetRoomId
-      : undefined;
-  const pinnedDraftRoomId = useAtomValue(
+  const draftKey = getSpaceThreadsDraftKey(myUserId, spaceId);
+  // Returns a boolean so subsequent keystrokes do not re-render this dock.
+  const hasDraft = useAtomValue(
     useMemo(
       () =>
-        atom((get) => {
-          const hasDraftIn = (roomId: string) =>
-            get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, roomId))).length > 0 ||
-            get(composerUploadItemsAtom(roomId, undefined)).length > 0;
-          if (rememberedCandidate && hasDraftIn(rememberedCandidate)) return rememberedCandidate;
-          if (fallbackCandidate && hasDraftIn(fallbackCandidate)) return fallbackCandidate;
-          return undefined;
-        }),
-      [fallbackCandidate, myUserId, rememberedCandidate]
+        atom(
+          (get) =>
+            get(roomIdToMsgDraftAtomFamily(draftKey)).length > 0 ||
+            get(composerUploadItemsAtom(draftKey, undefined)).length > 0
+        ),
+      [draftKey]
     )
   );
 
@@ -122,14 +102,18 @@ export function SpaceThreadComposer({
         activeRoomIds,
         sendableRoomIds,
         currentTargetRoomId: chosenTargetRoomId,
-        hasDraft: Boolean(chosenTargetRoomId && pinnedDraftRoomId === chosenTargetRoomId),
+        hasDraft,
       }),
-    [activeRoomIds, chosenTargetRoomId, pinnedDraftRoomId, sendableRoomIds]
+    [activeRoomIds, chosenTargetRoomId, hasDraft, sendableRoomIds]
   );
-  const targetHasDraft = Boolean(targetRoomId && pinnedDraftRoomId === targetRoomId);
-  // Freeze destination once the active target holds a draft so later room-filter changes keep it.
-  if (targetHasDraft && targetRoomId && chosenTargetRoomId !== targetRoomId) {
-    setChosenTargetRoomId(targetRoomId);
+  // Freeze destination once the composer holds a draft so later room-filter changes keep it;
+  // forget a stale non-draft choice once filtering moves the target elsewhere.
+  if (hasDraft) {
+    if (targetRoomId && chosenTargetRoomId !== targetRoomId) {
+      setChosenTargetRoomId(targetRoomId);
+    }
+  } else if (chosenTargetRoomId !== undefined && targetRoomId !== chosenTargetRoomId) {
+    setChosenTargetRoomId(undefined);
   }
 
   const targetRoom = targetRoomId ? roomsById.get(targetRoomId) : undefined;
@@ -157,8 +141,7 @@ export function SpaceThreadComposer({
   const eligibleRooms = destinationRoomIds
     .map((id) => roomsById.get(id))
     .filter((item): item is SpaceRoomItem => Boolean(item));
-  const draftPinnedOutsideFilter =
-    targetHasDraft && !activeRoomIds.includes(targetRoom.room.roomId);
+  const draftPinnedOutsideFilter = hasDraft && !activeRoomIds.includes(targetRoom.room.roomId);
   const useDropdown = screenSize === ScreenSize.Mobile || eligibleRooms.length > MAX_INLINE_PILLS;
   const postToRoomLabel = t('spaceThreads.composer.postToRoom', { room: targetRoom.name });
 
@@ -243,6 +226,7 @@ export function SpaceThreadComposer({
         fileDropContainerRef={fileDropContainerRef}
         roomId={targetRoom.room.roomId}
         room={targetRoom.room}
+        stagedDraftKey={draftKey}
         onRoomMessageSent={onRoomMessageSent}
       />
     </div>

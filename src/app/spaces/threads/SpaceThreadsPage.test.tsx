@@ -16,8 +16,9 @@ import {
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearRoomInputDrafts,
   composerUploadItemsAtom,
-  getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
@@ -390,6 +391,7 @@ afterEach(() => {
   mocks.threadCardBadgesCalls.length = 0;
   clearCompactRoomSectionsStore(ME);
   clearRoomThreadFiltersStore(ME);
+  clearRoomInputDrafts(ME);
   localStorage.clear();
 });
 
@@ -542,8 +544,9 @@ describe('SpaceThreadsPage', () => {
       makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
       makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
     ];
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
     const store = createStore();
-    store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(ME, ROOM_ENG)), [
+    store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
       { type: 'paragraph', children: [{ text: 'WIP deploy note' }] } as never,
     ]);
 
@@ -557,8 +560,9 @@ describe('SpaceThreadsPage', () => {
 
     cleanup();
     clearRoomThreadFiltersStore(ME);
+    clearRoomInputDrafts(ME);
     const uploadStore = createStore();
-    uploadStore.set(composerUploadItemsAtom(ROOM_ENG, undefined), {
+    uploadStore.set(composerUploadItemsAtom(spaceDraftKey, undefined), {
       type: 'PUT',
       item: { file: {} as File, originalFile: { name: 'spec.png' } as File, metadata: {} } as never,
     });
