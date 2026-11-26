@@ -1,6 +1,12 @@
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { startUpdater, UPDATE_CHECK_INTERVAL_MS, type AutoUpdaterLike } from './updater';
+import {
+  isUpdaterSupported,
+  startUpdater,
+  UPDATE_CHECK_INTERVAL_MS,
+  type AutoUpdaterLike,
+} from './updater';
 
 class FakeAutoUpdater extends EventEmitter implements AutoUpdaterLike {
   autoDownload = false;
@@ -155,5 +161,80 @@ describe('startUpdater', () => {
     expect(fake.checkForUpdates).toHaveBeenCalledTimes(2);
     fake.emit('update-downloaded', { version: '2026.11.11' });
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('isUpdaterSupported', () => {
+  it('returns false when unpackaged on every platform', () => {
+    expect(isUpdaterSupported({ isPackaged: false, platform: 'darwin' })).toBe(false);
+    expect(
+      isUpdaterSupported({
+        isPackaged: false,
+        platform: 'linux',
+        appImageEnv: '/tmp/MindRoom-Chat.AppImage',
+        resourcesPath: '/tmp/resources',
+        existsSync: () => false,
+      })
+    ).toBe(false);
+    expect(isUpdaterSupported({ isPackaged: false, platform: 'win32' })).toBe(false);
+  });
+
+  it('supports packaged macOS and Linux AppImage only, rejecting .deb with APPIMAGE', () => {
+    expect(isUpdaterSupported({ isPackaged: true, platform: 'darwin' })).toBe(true);
+    expect(isUpdaterSupported({ isPackaged: true, platform: 'win32' })).toBe(false);
+
+    const existsAppImage = vi.fn(() => false);
+    expect(
+      isUpdaterSupported({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/home/user/MindRoom-Chat-x86_64.AppImage',
+        resourcesPath: '/tmp/.mount_MindRoom/resources',
+        existsSync: existsAppImage,
+      })
+    ).toBe(true);
+    expect(existsAppImage).toHaveBeenCalledWith(
+      path.join('/tmp/.mount_MindRoom/resources', 'package-type')
+    );
+
+    // A .deb install creates resources/package-type; stay disabled even if APPIMAGE is inherited.
+    const existsDeb = vi.fn(() => true);
+    expect(
+      isUpdaterSupported({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/home/user/other.AppImage',
+        resourcesPath: '/opt/MindRoom Chat/resources',
+        existsSync: existsDeb,
+      })
+    ).toBe(false);
+
+    // Missing or blank APPIMAGE or resourcesPath fails closed on Linux.
+    expect(
+      isUpdaterSupported({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '   ',
+        resourcesPath: '/tmp/resources',
+        existsSync: () => false,
+      })
+    ).toBe(false);
+    expect(
+      isUpdaterSupported({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/home/user/MindRoom-Chat-x86_64.AppImage',
+        existsSync: () => false,
+      })
+    ).toBe(false);
+    expect(
+      isUpdaterSupported({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/home/user/MindRoom-Chat-x86_64.AppImage',
+        resourcesPath: '  ',
+        existsSync: () => false,
+      })
+    ).toBe(false);
   });
 });

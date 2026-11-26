@@ -3,7 +3,7 @@
 # release, when package.json says "autoRelease": true. With false the job still runs, logs
 # that automatic releases are off and stops. scripts/calver.mjs does the work; docs/ios-release.md
 # describes the scheme and how Xcode Cloud builds the tags. A new release then gets its container
-# image (image.yml), its Mac DMG (desktop.yml), and, when enabled, its Google Play upload (android.yml).
+# image (image.yml), its desktop apps for macOS and Linux (desktop.yml), and, when enabled, its Google Play upload (android.yml).
 name: Release
 
 on:
@@ -61,7 +61,7 @@ jobs:
       tag: ${{ needs.release.outputs.tag }}
 
   macos:
-    name: Publish the Mac app
+    name: Publish desktop apps (macOS and Linux)
     needs: release
     if: needs.release.outputs.tag != ''
     permissions:

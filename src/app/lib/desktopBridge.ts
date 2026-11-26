@@ -24,6 +24,7 @@ export type DesktopUpdateBridge = {
 export type DesktopQuickCaptureBridge = {
   hide: () => Promise<void>;
   openScreenRecordingSettings: () => Promise<void>;
+  vibrancy?: boolean;
   captureScreenshot?: (
     target: 'window' | 'screen'
   ) => Promise<DesktopResult<{ bytes: Uint8Array; name: string }>>;
@@ -271,6 +272,7 @@ export type DesktopBridge = {
   setBadge: (count: number) => void;
   isWindowFocused: () => boolean;
   screenShare: boolean;
+  customTitlebar?: boolean;
   appUrl: AppUrlPlugin;
   update?: DesktopUpdateBridge;
   quickCapture?: DesktopQuickCaptureBridge;

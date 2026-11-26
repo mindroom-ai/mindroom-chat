@@ -9,7 +9,7 @@
 [![CI](https://github.com/mindroom-ai/mindroom-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/mindroom-ai/mindroom-chat/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Built on Matrix](https://img.shields.io/badge/built%20on-Matrix-000000?logo=matrix&logoColor=white)](https://matrix.org)
-[![Platforms](https://img.shields.io/badge/platforms-web%20%7C%20iOS%20%7C%20macOS%20%7C%20Android-6f42c1)](#native-apps)
+[![Platforms](https://img.shields.io/badge/platforms-web%20%7C%20iOS%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-6f42c1)](#native-apps)
 
 [Website](https://mindroom.chat) · [Docs](https://docs.mindroom.chat/) · [MindRoom backend](https://github.com/mindroom-ai/mindroom) · [Run it](#quick-start) · [Self-host](#self-host)
 
@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/41209d0e-f78b-438e-9ee1-248a492388a3
 
 [MindRoom](https://github.com/mindroom-ai/mindroom) runs AI agents as ordinary users on a [Matrix](https://matrix.org) homeserver, so people and agents share the same rooms. Any Matrix client can talk to them. This one is built for them: every conversation is a thread you can title, tag, pin and resolve; agent replies stream in live with their tool calls, model and usage; and a tool call that your MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules hold back waits until you approve it.
 
-It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, iPadOS and Android apps built with Capacitor and a macOS desktop app built with Electron from the same code.
+It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, iPadOS and Android apps built with Capacitor and macOS and Linux desktop apps built with Electron from the same code.
 
 ## Highlights
 
@@ -100,11 +100,11 @@ cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: f
 
 ## Native apps
 
-The iOS, iPadOS and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`), and the macOS app wraps it with [Electron](https://www.electronjs.org) (`electron/`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store and Mac DMG.
+The iOS, iPadOS and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`), and the macOS and Linux desktop apps (macOS DMG, Linux `AppImage` and `.deb` for `x64` and `arm64`) wrap it with [Electron](https://www.electronjs.org) (`electron/`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store, Mac DMG and Linux packages.
 
 On the Apple Watch, MindRoom records a voice message into a room you pick with one tap, from the app, a complication or Siri, shows that room's threads with their answers, and lets you approve an agent's tool call or answer its question from your wrist, in end-to-end encrypted rooms too. Connect it from the iPhone app: Settings, Apple Watch. It needs watchOS 27 or newer.
 
-On the Mac, Control+Option+Space opens Quick Capture over any app: a small window that posts a note or a question, with a screenshot if you like, as a new thread in a room you pick, and lists that room's threads with their answers.
+On macOS and Linux, Control+Option+Space (Ctrl+Alt+Space on Linux, or Window > Quick Capture) opens Quick Capture: a small window that posts a note or a question (with a screenshot on macOS) as a new thread in a room you pick, and lists that room's threads with their answers.
 
 ## Development
 

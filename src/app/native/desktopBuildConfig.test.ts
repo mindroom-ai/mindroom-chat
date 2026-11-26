@@ -101,6 +101,8 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     });
     const unsigned = loadBuilderConfig({ MARKETING_VERSION: '', MINDROOM_DESKTOP_SIGN: '0' });
 
+    expect(signed.extraResources).toBeUndefined();
+    expect(signed.publish).toBeUndefined();
     expect(signed).toMatchObject({
       appId: 'chat.mindroom.app',
       productName: 'MindRoom Chat',
@@ -108,21 +110,17 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       asar: true,
       npmRebuild: false,
       buildVersion: '2026.11.9',
-      publish: {
-        provider: 'generic',
-        url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
-        useMultipleRangeRequest: false,
+      extraMetadata: {
+        productName: 'MindRoom Chat',
+        desktopName: 'mindroom-chat.desktop',
+        version: '2026.11.9',
       },
-      extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
+      toolsets: { appimage: '1.0.3' },
       files: expect.arrayContaining([
         '!build/electron/mindroom-screenshot-helper',
         '!build/electron/mindroom-trackpad-swipe.node',
       ]),
-      extraResources: [
-        { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
-        { from: 'build/electron/mindroom-trackpad-swipe.node', to: 'mindroom-trackpad-swipe.node' },
-      ],
       mac: {
         artifactName: 'MindRoom-Chat-${arch}-mac.${ext}',
         bundleShortVersion: '2026.11.9',
@@ -134,6 +132,13 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         entitlements: 'electron/entitlements.mac.plist',
         entitlementsInherit: 'electron/entitlements.helper.plist',
         signIgnore: ['Contents/Helpers/MindRoom Desktop Helper\\.app(/|$)'],
+        extraResources: [
+          { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+          {
+            from: 'build/electron/mindroom-trackpad-swipe.node',
+            to: 'mindroom-trackpad-swipe.node',
+          },
+        ],
         extendInfo: expect.objectContaining({
           NSAppleEventsUsageDescription:
             'MindRoom controls only the applications you explicitly allow.',
@@ -142,8 +147,36 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
           { target: 'dmg', arch: ['universal'] },
           { target: 'zip', arch: ['arm64', 'x64'] },
         ],
+        publish: {
+          provider: 'generic',
+          url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
+          useMultipleRangeRequest: false,
+        },
       },
       dmg: { artifactName: 'MindRoom-Chat.dmg', title: 'MindRoom Chat', writeUpdateInfo: false },
+      linux: {
+        executableName: 'mindroom-chat',
+        icon: 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png',
+        category: 'Network',
+        maintainer: 'MindRoom <support@mindroom.chat>',
+        vendor: 'MindRoom',
+        desktop: {
+          entry: {
+            Name: 'MindRoom Chat',
+            Comment: 'Open-source Matrix client for MindRoom',
+            Categories: 'Network;InstantMessaging;Chat;',
+            StartupWMClass: 'mindroom-chat',
+          },
+        },
+        target: ['AppImage', 'deb'],
+        publish: {
+          provider: 'generic',
+          url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/linux-feed',
+          useMultipleRangeRequest: false,
+        },
+      },
+      appImage: { artifactName: 'MindRoom-Chat-${arch}.AppImage', executableArgs: [] },
+      deb: { packageName: 'mindroom-chat', artifactName: 'MindRoom-Chat-${arch}.deb' },
     });
 
     expect(signed.files).toContain('!build/electron/MindRoom Desktop Helper.app/**');
@@ -174,10 +207,17 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     };
     expect(signed.electronFuses).toEqual({ ...baseFuses, resetAdHocDarwinSignature: false });
     expect(unsigned.electronFuses).toEqual({ ...baseFuses, resetAdHocDarwinSignature: true });
-    expect(unsigned.extraMetadata).toEqual({ productName: 'MindRoom Chat' });
+    expect(unsigned.extraMetadata).toEqual({
+      productName: 'MindRoom Chat',
+      desktopName: 'mindroom-chat.desktop',
+    });
     expect(unsigned.mac).toMatchObject({ notarize: false, forceCodeSigning: false });
     expect(rawConfig).not.toContain('CFBundleURLTypes');
+    expect(rawConfig).not.toContain('MimeType');
     expect(rawConfig).not.toContain('provisioningProfile');
+    expect((JSON.parse(read('package.json')) as { homepage?: string }).homepage).toBe(
+      'https://github.com/mindroom-ai/mindroom-chat'
+    );
 
     const expectedEntitlements: Record<string, [string, string][]> = {
       'electron/entitlements.mac.plist': [
@@ -1042,10 +1082,23 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
     name?: string;
     run?: string;
     uses?: string;
+    env?: Record<string, string>;
     with?: Record<string, unknown>;
   };
 
-  it('wires release.yml -> desktop.yml and pins desktop.yml release + feed guards', () => {
+  type WorkflowJob = {
+    name?: string;
+    needs?: string;
+    if?: string;
+    'runs-on'?: string;
+    permissions?: Record<string, string>;
+    outputs?: Record<string, string>;
+    concurrency?: { group: string; queue?: string; 'cancel-in-progress'?: boolean };
+    strategy?: { 'fail-fast'?: boolean; matrix?: { include?: Array<Record<string, string>> } };
+    steps: Step[];
+  };
+
+  it('wires release.yml -> desktop.yml and pins macOS + Linux release and feed guards', () => {
     const releaseText = read('.github/workflows/release.yml');
     const desktopText = read('.github/workflows/desktop.yml');
 
@@ -1057,22 +1110,27 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
     expect(releaseText).not.toContain('macos.yml');
 
     const desktop = parse(desktopText) as {
-      on: { pull_request: { paths: string[] } };
-      jobs: {
-        e2e: { steps: Step[] };
-        release: { if?: string; permissions?: Record<string, string>; steps: Step[] };
-        feed: {
-          needs?: string;
-          if?: string;
-          'runs-on'?: string;
-          permissions?: Record<string, string>;
-          concurrency?: { group: string; queue: string };
-          steps: Step[];
+      on: {
+        pull_request: { paths: string[] };
+        workflow_dispatch: {
+          inputs: {
+            platform: { type: string; options: string[]; default: string };
+          };
         };
+      };
+      jobs: {
+        e2e: WorkflowJob;
+        'e2e-linux': WorkflowJob;
+        release: WorkflowJob;
+        feed: WorkflowJob;
+        'build-linux': WorkflowJob;
+        'release-linux': WorkflowJob;
+        'feed-linux': WorkflowJob;
       };
     };
     expect(desktop.on.pull_request.paths).toEqual(
       expect.arrayContaining([
+        'scripts/build-linux-desktop.sh',
         'scripts/macos-publish-appcast.sh',
         'scripts/build-trackpad-swipe-addon.sh',
         'scripts/desktop-helper-pin.json',
@@ -1083,10 +1141,41 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
         'src/app/navigation/desktopHistorySwipe*',
       ])
     );
+    expect(desktop.on.workflow_dispatch.inputs.platform).toMatchObject({
+      type: 'choice',
+      options: ['all', 'mac', 'linux'],
+      default: 'all',
+    });
+
+    // macOS PR e2e, release, and feed
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });
+    expect(desktop.jobs.release.outputs).toEqual({
+      skipped: '${{ steps.release.outputs.skipped }}',
+    });
     expect(desktop.jobs.release.if).toBe(
-      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"
+      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'linux')"
     );
+    const macReleaseCheck = desktop.jobs.release.steps[0];
+    expect(macReleaseCheck?.id).toBe('release');
+    expect(macReleaseCheck?.env?.['EVENT_NAME']).toBe('${{ github.event_name }}');
+    for (const asset of [
+      'MindRoom-Chat.dmg',
+      'MindRoom-Chat-arm64-mac.zip',
+      'MindRoom-Chat-x64-mac.zip',
+      'MindRoom-Chat-arm64-mac.zip.blockmap',
+      'MindRoom-Chat-x64-mac.zip.blockmap',
+      'latest-mac.yml',
+    ]) {
+      expect(macReleaseCheck?.run).toContain(asset);
+    }
+    expect(macReleaseCheck?.run).toContain('workflow_dispatch');
+    expect(macReleaseCheck?.run).toContain('skipped=true');
+    expect(macReleaseCheck?.run).toContain('skipped=false');
+    expect(
+      desktop.jobs.release.steps
+        .slice(1)
+        .every((s) => s.if === "steps.release.outputs.skipped != 'true'")
+    ).toBe(true);
     expect(
       desktop.jobs.e2e.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.[
         'persist-credentials'
@@ -1113,6 +1202,7 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
       concurrency: { group: 'mac-desktop-feed', queue: 'max' },
     });
     expect(desktop.jobs.feed.if).toContain("needs.release.result == 'success'");
+    expect(desktop.jobs.feed.if).toContain("needs.release.outputs.skipped != 'true'");
     expect(
       desktop.jobs.feed.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with
     ).toEqual({
@@ -1127,6 +1217,138 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
         "steps.feed.outputs.published == 'true' && steps.newest.outputs.newest == 'true'"
       );
     }
+
+    // Linux PR e2e + packaging verification
+    const e2eLinux = desktop.jobs['e2e-linux'];
+    expect(e2eLinux).toMatchObject({
+      name: 'Electron shell e2e (Linux)',
+      if: "github.event_name == 'pull_request'",
+      'runs-on': 'ubuntu-24.04',
+    });
+    expect(
+      e2eLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.[
+        'persist-credentials'
+      ]
+    ).toBe(false);
+    const linuxE2eStep = e2eLinux.steps.find((s) => s.name === 'Run offline desktop e2e');
+    expect(linuxE2eStep?.env?.['MINDROOM_E2E_NO_SANDBOX']).toBe('1');
+    expect(linuxE2eStep?.run).toContain('xvfb-run');
+    expect(linuxE2eStep?.run).toContain('npm run e2e:desktop -- --grep-invert @homeserver');
+    const linuxPkgStep = e2eLinux.steps.find((s) =>
+      s.run?.includes('scripts/build-linux-desktop.sh')
+    );
+    expect(linuxPkgStep?.env?.['MINDROOM_LINUX_REQUIRE_SMOKE']).toBe('1');
+    expect(linuxPkgStep?.run).toContain('--arch x64 --skip-web-build');
+
+    // Independent Linux release track (build-linux -> release-linux -> feed-linux)
+    const linuxReleaseAssets = [
+      'MindRoom-Chat-x86_64.AppImage',
+      'MindRoom-Chat-amd64.deb',
+      'MindRoom-Chat-arm64.AppImage',
+      'MindRoom-Chat-arm64.deb',
+      'latest-linux.yml',
+      'latest-linux-arm64.yml',
+    ];
+    const buildLinux = desktop.jobs['build-linux'];
+    expect(buildLinux.permissions).toEqual({ contents: 'read' });
+    expect(buildLinux.if).toBe(
+      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'mac')"
+    );
+    expect(buildLinux.strategy?.matrix?.include).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ arch: 'x64', runner: 'ubuntu-24.04' }),
+        expect.objectContaining({ arch: 'arm64', runner: 'ubuntu-24.04-arm' }),
+      ])
+    );
+    const buildLinuxCheck = buildLinux.steps[0];
+    expect(buildLinuxCheck?.id).toBe('release');
+    expect(buildLinuxCheck?.env?.['EVENT_NAME']).toBe('${{ github.event_name }}');
+    for (const asset of linuxReleaseAssets) {
+      expect(buildLinuxCheck?.run).toContain(asset);
+    }
+    expect(buildLinuxCheck?.run).toContain('workflow_dispatch');
+    expect(buildLinuxCheck?.run).toContain('skipped=true');
+    expect(buildLinuxCheck?.run).toContain('skipped=false');
+    expect(
+      buildLinux.steps.slice(1).every((s) => s.if === "steps.release.outputs.skipped != 'true'")
+    ).toBe(true);
+    expect(buildLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+    const linuxBuildStep = buildLinux.steps.find((s) => s.name === 'Build and verify Linux app');
+    expect(linuxBuildStep?.env?.['MINDROOM_LINUX_REQUIRE_SMOKE']).toBe('1');
+    expect(linuxBuildStep?.run).toBe('scripts/build-linux-desktop.sh --arch ${{ matrix.arch }}');
+    expect(
+      buildLinux.steps.find((s) => s.run?.includes('scripts/desktop-latest-yml.mjs'))?.run
+    ).toContain('--platform linux');
+    const linuxArtifactUpload = buildLinux.steps.find((s) =>
+      s.uses?.startsWith('actions/upload-artifact')
+    );
+    expect(linuxArtifactUpload?.with?.['if-no-files-found']).toBe('error');
+    expect(String(linuxArtifactUpload?.with?.['path'] ?? '')).not.toContain('.AppImage.blockmap');
+
+    const releaseLinux = desktop.jobs['release-linux'];
+    expect(releaseLinux).toMatchObject({
+      needs: 'build-linux',
+      'runs-on': 'ubuntu-24.04',
+      permissions: { contents: 'write' },
+      outputs: { skipped: '${{ steps.release.outputs.skipped }}' },
+    });
+    expect(releaseLinux.if).toContain("needs.build-linux.result == 'success'");
+    const releaseLinuxCheck = releaseLinux.steps[0];
+    expect(releaseLinuxCheck?.id).toBe('release');
+    expect(releaseLinuxCheck?.env?.['EVENT_NAME']).toBe('${{ github.event_name }}');
+    for (const asset of linuxReleaseAssets) {
+      expect(releaseLinuxCheck?.run).toContain(asset);
+    }
+    expect(releaseLinuxCheck?.run).toContain('workflow_dispatch');
+    expect(releaseLinuxCheck?.run).toContain('skipped=true');
+    expect(releaseLinuxCheck?.run).toContain('skipped=false');
+    expect(
+      releaseLinux.steps.slice(1).every((s) => s.if === "steps.release.outputs.skipped != 'true'")
+    ).toBe(true);
+    expect(
+      releaseLinux.steps
+        .filter((s) => s.uses?.startsWith('actions/download-artifact'))
+        .map((s) => s.with?.['name'])
+    ).toEqual(['linux-desktop-x64', 'linux-desktop-arm64']);
+    const linuxUpload =
+      releaseLinux.steps.find((s) => s.name === 'Attach verified Linux artifacts to the release')
+        ?.run ?? '';
+    for (const asset of [
+      'build/desktop-dist/MindRoom-Chat-x86_64.AppImage',
+      'build/desktop-dist/MindRoom-Chat-amd64.deb',
+      'build/desktop-dist/latest-linux.yml',
+      'build/desktop-dist/MindRoom-Chat-arm64.AppImage',
+      'build/desktop-dist/MindRoom-Chat-arm64.deb',
+      'build/desktop-dist/latest-linux-arm64.yml',
+    ]) {
+      expect(linuxUpload).toContain(asset);
+    }
+    expect(linuxUpload).not.toContain('.AppImage.blockmap');
+    expect(linuxUpload).not.toContain('--clobber');
+    expect(releaseLinux.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
+
+    const feedLinux = desktop.jobs['feed-linux'];
+    expect(feedLinux).toMatchObject({
+      needs: 'release-linux',
+      'runs-on': 'ubuntu-24.04',
+      permissions: { contents: 'write' },
+      concurrency: { group: 'linux-desktop-feed', queue: 'max' },
+    });
+    expect(feedLinux.if).toContain("needs.release-linux.result == 'success'");
+    expect(feedLinux.if).toContain("needs.release-linux.outputs.skipped != 'true'");
+    expect(feedLinux.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+    expect(feedLinux.steps.find((s) => s.id === 'feed')?.run).toBe(
+      'scripts/macos-publish-appcast.sh --linux "$RELEASE_TAG"'
+    );
+    expect(feedLinux.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
+
+    expect(desktopText).not.toContain('.AppImage.blockmap');
     expect(desktopText).not.toContain('PROVISIONING_PROFILE');
     expect(desktopText).not.toContain('provisionprofile');
     expect(existsSync(resolve('.github/workflows/macos.yml'))).toBe(false);

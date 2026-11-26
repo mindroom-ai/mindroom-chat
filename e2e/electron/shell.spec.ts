@@ -420,7 +420,8 @@ test.describe('Electron desktop shell', () => {
     }
   });
 
-  test('applies 28px titlebar inset, 0 in fullscreen, and keeps real Dialog and PopOut overlays no-drag and clickable', async () => {
+  test('applies platform titlebar inset, tracks fullscreen, and keeps real Dialog and PopOut overlays clickable', async () => {
+    const isDarwin = process.platform === 'darwin';
     const probe = await startProbeServer();
     const session = await launchDesktop();
     try {
@@ -431,15 +432,40 @@ test.describe('Electron desktop shell', () => {
         const root = document.getElementById('root');
         const drag = document.querySelector('[data-titlebar-drag]');
         return {
+          shell: document.documentElement.dataset.shell ?? null,
+          customTitlebar: document.documentElement.hasAttribute('data-custom-titlebar'),
           paddingTop: root ? getComputedStyle(root).paddingTop : null,
+          dragPresent: drag !== null,
           dragHeight: drag ? getComputedStyle(drag).height : null,
           dragRegion: drag ? getComputedStyle(drag).getPropertyValue('-webkit-app-region') : null,
         };
       });
-      expect(layout).toEqual({ paddingTop: '28px', dragHeight: '28px', dragRegion: 'drag' });
+      if (isDarwin) {
+        expect(layout).toEqual({
+          shell: 'desktop',
+          customTitlebar: true,
+          paddingTop: '28px',
+          dragPresent: true,
+          dragHeight: '28px',
+          dragRegion: 'drag',
+        });
+      } else {
+        expect(layout).toEqual({
+          shell: 'desktop',
+          customTitlebar: false,
+          paddingTop: '0px',
+          dragPresent: false,
+          dragHeight: null,
+          dragRegion: null,
+        });
+      }
 
-      const clickInsideStrip = async (target: ReturnType<typeof page.getByRole>) => {
+      const clickOverlay = async (target: ReturnType<typeof page.getByRole>) => {
         await expect(target).toBeVisible();
+        if (!isDarwin) {
+          await target.click();
+          return;
+        }
         await target.evaluate((el) => {
           const rect = el.getBoundingClientRect();
           const container =
@@ -476,7 +502,7 @@ test.describe('Electron desktop shell', () => {
       await page.getByRole('button', { name: /apple/i }).click();
       const dialog = page.getByRole('alertdialog');
       await expect(dialog).toBeVisible();
-      await clickInsideStrip(dialog.getByRole('button', { name: /cancel/i }));
+      await clickOverlay(dialog.getByRole('button', { name: /cancel/i }));
       await expect(dialog).toHaveCount(0);
 
       // Real PopOut Menu: seed a session against the local stub so ClientRoot renders StartupRecoveryMenu.
@@ -506,10 +532,23 @@ test.describe('Electron desktop shell', () => {
       await expect(recoveryTrigger).toBeVisible();
       await recoveryTrigger.click();
 
-      await clickInsideStrip(page.getByRole('menuitem', { name: /remove account/i }));
+      const reloaded = page.waitForEvent('load');
+      await clickOverlay(page.getByRole('menuitem', { name: /remove account/i }));
+      await reloaded;
       await expect(page.locator('input[name="serverInput"]')).toBeVisible();
 
-      // Fullscreen toggles --app-inset-top to 0px via enter-full-screen / leave-full-screen.
+      const readFullscreenState = () =>
+        page
+          .evaluate(() => {
+            const root = document.getElementById('root');
+            return {
+              fullscreen: document.documentElement.hasAttribute('data-fullscreen'),
+              paddingTop: root ? getComputedStyle(root).paddingTop : null,
+            };
+          })
+          .catch(() => null);
+
+      // Fullscreen toggles data-fullscreen and sets --app-inset-top to 0px on macOS.
       await app.evaluate(({ BrowserWindow }) => {
         const win = BrowserWindow.getAllWindows()[0];
         if (!win) return;
@@ -517,17 +556,7 @@ test.describe('Electron desktop shell', () => {
         // Headless Linux without a full window manager may not emit enter-full-screen on setFullScreen.
         if (process.platform === 'linux') win.emit('enter-full-screen');
       });
-      await expect
-        .poll(() =>
-          page
-            .evaluate(() => {
-              const root = document.getElementById('root');
-              return root ? getComputedStyle(root).paddingTop : null;
-            })
-            // Removing the account may still be reloading the page: ask again after it.
-            .catch(() => null)
-        )
-        .toBe('0px');
+      await expect.poll(readFullscreenState).toEqual({ fullscreen: true, paddingTop: '0px' });
 
       await app.evaluate(({ BrowserWindow }) => {
         const win = BrowserWindow.getAllWindows()[0];
@@ -536,15 +565,8 @@ test.describe('Electron desktop shell', () => {
         if (process.platform === 'linux') win.emit('leave-full-screen');
       });
       await expect
-        .poll(() =>
-          page
-            .evaluate(() => {
-              const root = document.getElementById('root');
-              return root ? getComputedStyle(root).paddingTop : null;
-            })
-            .catch(() => null)
-        )
-        .toBe('28px');
+        .poll(readFullscreenState)
+        .toEqual({ fullscreen: false, paddingTop: isDarwin ? '28px' : '0px' });
     } finally {
       await session.close();
       await probe.close();

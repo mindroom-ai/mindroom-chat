@@ -73,13 +73,14 @@ vi.mock('../ui/SearchField.css', () => ({
   SearchPlaceholder: 'placeholder',
   ShortcutHint: 'shortcut-hint',
 }));
-vi.mock('folds', async () => {
+vi.mock('folds', async (importOriginal) => {
   const reactModule = await import('react');
   const element =
     (tag: string) =>
     ({ as, children, ...rest }: { as?: string; children?: React.ReactNode }) =>
       reactModule.createElement(as ?? tag, rest, children);
   return {
+    ...(await importOriginal<typeof import('folds')>()),
     Badge: element('span'),
     Button: element('button'),
     Icon: element('i'),

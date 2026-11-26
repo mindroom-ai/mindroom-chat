@@ -33,7 +33,7 @@ import { NoticeLayout } from '../notifications/notices/NoticeBanners';
 import { NewVersionNotice } from './NewVersionNotice';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { installOverlayFocus } from '../lib/overlayFocus';
-import { isDesktopApp } from '../lib/nativeShell';
+import { hasCustomTitlebar, isDesktopApp } from '../lib/nativeShell';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
@@ -129,7 +129,7 @@ function App() {
   useEffect(() => installStatusBarTapScroll(window), []);
   return (
     <JotaiProvider store={appJotaiStore}>
-      {isDesktopApp() && <div data-titlebar-drag="" aria-hidden="true" />}
+      {hasCustomTitlebar() && <div data-titlebar-drag="" aria-hidden="true" />}
       <AppTheme>
         <QueryClientProvider client={queryClient}>
           {/* One particle renderer for the sign-in pages and every splash in turn: a new one per

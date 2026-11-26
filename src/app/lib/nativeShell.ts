@@ -8,6 +8,9 @@ export const desktopBridge = (): DesktopBridge | undefined =>
 /** Whether the page runs inside the Electron desktop shell. */
 export const isDesktopApp = (): boolean => desktopBridge() !== undefined;
 
+/** Whether the Electron desktop window uses a custom hidden title bar (macOS). */
+export const hasCustomTitlebar = (): boolean => Boolean(desktopBridge()?.customTitlebar);
+
 /** Whether native Mac Computer Access is exposed by the Electron desktop shell. */
 export const isDesktopAccessAvailable = (): boolean => Boolean(desktopBridge()?.desktopAccess);
 
@@ -47,14 +50,17 @@ let subscribedBridge: DesktopBridge | undefined;
 let stopShellEvents: (() => void) | undefined;
 
 /**
- * Marks `<html>` with `data-shell="desktop"` and toggles `data-fullscreen` from shell events.
- * Idempotent for the active bridge; no-op outside the Electron desktop app.
+ * Marks `<html>` with `data-shell="desktop"`, toggles `data-custom-titlebar`, and tracks
+ * `data-fullscreen` from shell events. Idempotent for the active bridge; no-op outside the
+ * Electron desktop app.
  */
 export const markDesktopShell = (): void => {
   const bridge = desktopBridge();
   if (!bridge || typeof document === 'undefined') return;
   const root = document.documentElement;
   root.dataset.shell = 'desktop';
+  if (bridge.customTitlebar) root.setAttribute('data-custom-titlebar', '');
+  else root.removeAttribute('data-custom-titlebar');
   if (subscribedBridge === bridge) return;
   stopShellEvents?.();
   subscribedBridge = bridge;
