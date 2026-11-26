@@ -81,6 +81,11 @@ type BoardGroup = {
   icon?: IconSrc;
   avatarMxc?: string;
   items: BoardItem[];
+  /**
+   * The group continues the one before it: another pack of the same room with the same name, as
+   * the client opens one when a pack is full. It has no sidebar button or label of its own.
+   */
+  continued?: boolean;
 };
 
 const toUnicodeItem = (emoji: IEmoji): BoardItem => ({
@@ -96,6 +101,33 @@ const toImageItem = (image: PackImageReader, type: EmojiType): BoardItem => ({
   shortcode: image.shortcode,
   label: image.body || image.shortcode,
 });
+
+/** Packs of one room that share a name read as one pack; others stand alone. */
+const packSetKey = (pack: ImagePack): string =>
+  pack.address && pack.meta.name !== undefined
+    ? JSON.stringify([pack.address.roomId, pack.meta.name])
+    : `pack:${pack.id}`;
+
+/** Orders a room's packs by state key, the way new packs are numbered: "", then 2, 3, and so on. */
+const compareStateKeys = (a: ImagePack, b: ImagePack): number =>
+  (a.address?.stateKey ?? '').localeCompare(b.address?.stateKey ?? '', undefined, {
+    numeric: true,
+  });
+
+/**
+ * Collects the packs into sets of same-named packs of one room, each at its first pack's place and
+ * in state key order, since the room's state lists them in the order the client first saw them.
+ */
+const groupPackSets = (packs: ImagePack[]): ImagePack[][] => {
+  const sets = new Map<string, ImagePack[]>();
+  packs.forEach((pack) => {
+    const key = packSetKey(pack);
+    const set = sets.get(key);
+    if (set) set.push(pack);
+    else sets.set(key, [pack]);
+  });
+  return [...sets.values()].map((set) => set.sort(compareStateKeys));
+};
 
 const matchesQuery = (item: BoardItem, query: string): boolean => {
   const needle = query.toLocaleLowerCase();
@@ -223,18 +255,19 @@ export function EmojiBoard(props: EmojiBoardProps) {
 
   const groups = useMemo<BoardGroup[]>(() => {
     const imageType = stickerTab ? EmojiType.Sticker : EmojiType.CustomEmoji;
-    const packGroups: BoardGroup[] = packs.map((pack) => {
-      const images = pack.getImages(usage);
-      return {
+    const packGroups: BoardGroup[] = groupPackSets(packs).flatMap((set) => {
+      const avatarMxc = set[0]?.meta.avatar ?? set[0]?.getImages(usage)[0]?.url;
+      return set.map((pack, index) => ({
         id: `pack-${pack.id}`,
         label:
           pack.meta.name ??
           (pack.address
             ? t('sharedUi.emojiBoard.unknownPack')
             : t('sharedUi.emojiBoard.personalPack')),
-        avatarMxc: pack.meta.avatar ?? images[0]?.url,
-        items: images.map((image) => toImageItem(image, imageType)),
-      };
+        avatarMxc,
+        items: pack.getImages(usage).map((image) => toImageItem(image, imageType)),
+        continued: index > 0,
+      }));
     });
     if (stickerTab) return packGroups;
 
@@ -261,13 +294,16 @@ export function EmojiBoard(props: EmojiBoardProps) {
       items: group.emojis.map((emoji) => toUnicodeItem(withSkinTone(emoji, tone))),
     }));
 
-    return [...recentGroups, ...packGroups, ...unicodeGroups];
+    // Custom packs follow the Unicode groups, so large packs leave the standard emoji in reach.
+    return [...recentGroups, ...unicodeGroups, ...packGroups];
   }, [packs, usage, stickerTab, recentEmoji, tone, t]);
 
   const visibleGroups = useMemo<BoardGroup[]>(() => {
     const trimmed = query.trim();
     if (!trimmed) return groups;
-    const results = groups
+    // Custom emoji lead the results, as when packs came before the Unicode groups.
+    const isPack = (group: BoardGroup) => group.id.startsWith('pack-');
+    const results = [...groups.filter(isPack), ...groups.filter((group) => !isPack(group))]
       .filter((group) => group.id !== 'recent')
       .flatMap((group) => group.items.filter((item) => matchesQuery(item, trimmed)));
     return [{ id: 'search', label: t('sharedUi.emojiBoard.searchResults'), items: results }];
@@ -285,11 +321,13 @@ export function EmojiBoard(props: EmojiBoardProps) {
       return group ? groupKey(group) : index;
     },
     estimateSize: (index) => {
-      const items = visibleGroups[index]?.items ?? [];
-      // Stickers take four 88 px cells to a row, emoji eight 44 px ones.
+      const group = visibleGroups[index];
+      const items = group?.items ?? [];
+      // A label takes 40 px; stickers take four 88 px cells to a row, emoji eight 44 px ones.
+      const label = group?.continued ? 0 : 40;
       return stickerTab
-        ? 40 + Math.ceil(items.length / 4) * 88
-        : 40 + Math.ceil(items.length / 8) * 44;
+        ? label + Math.ceil(items.length / 4) * 88
+        : label + Math.ceil(items.length / 8) * 44;
     },
     overscan: 2,
   });
@@ -435,9 +473,11 @@ export function EmojiBoard(props: EmojiBoardProps) {
                   ref={virtualizer.measureElement}
                 >
                   <div className={css.EmojiGroup} id={`emoji-board-${group.id}`}>
-                    <Text className={css.EmojiGroupLabel} size="O400">
-                      {group.label}
-                    </Text>
+                    {!group.continued && (
+                      <Text className={css.EmojiGroupLabel} size="O400">
+                        {group.label}
+                      </Text>
+                    )}
                     <div className={css.EmojiGroupContent}>
                       {group.items.length === 0 ? (
                         <Text size="T300" priority="300" style={{ padding: config.space.S200 }}>
@@ -504,33 +544,35 @@ export function EmojiBoard(props: EmojiBoardProps) {
         <Box className={css.Sidebar}>
           <div className={css.SidebarContent}>
             <div className={css.SidebarStack}>
-              {groups.map((group, index) => (
-                <IconButton
-                  key={group.id}
-                  type="button"
-                  size="300"
-                  radii="300"
-                  variant="SurfaceVariant"
-                  aria-label={group.label}
-                  title={group.label}
-                  onClick={() => {
-                    setQuery('');
-                    setAddFile(undefined);
-                    virtualizer.scrollToIndex(index, { align: 'start' });
-                  }}
-                >
-                  {group.avatarMxc ? (
-                    <AuthenticatedImage
-                      client={client}
-                      className={css.SidebarBtnImg}
-                      src={imageSrc(client, group.avatarMxc, authMedia, 48)}
-                      alt=""
-                    />
-                  ) : (
-                    <Icon size="100" src={group.icon ?? Icons.Smile} />
-                  )}
-                </IconButton>
-              ))}
+              {groups.map((group, index) =>
+                group.continued ? null : (
+                  <IconButton
+                    key={group.id}
+                    type="button"
+                    size="300"
+                    radii="300"
+                    variant="SurfaceVariant"
+                    aria-label={group.label}
+                    title={group.label}
+                    onClick={() => {
+                      setQuery('');
+                      setAddFile(undefined);
+                      virtualizer.scrollToIndex(index, { align: 'start' });
+                    }}
+                  >
+                    {group.avatarMxc ? (
+                      <AuthenticatedImage
+                        client={client}
+                        className={css.SidebarBtnImg}
+                        src={imageSrc(client, group.avatarMxc, authMedia, 48)}
+                        alt=""
+                      />
+                    ) : (
+                      <Icon size="100" src={group.icon ?? Icons.Smile} />
+                    )}
+                  </IconButton>
+                )
+              )}
             </div>
           </div>
           {!stickerTab && (
