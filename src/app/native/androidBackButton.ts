@@ -1,12 +1,12 @@
-import { useEffect } from 'react';
 import { App } from '@capacitor/app';
-import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import type { PluginListenerHandle } from '@capacitor/core';
 import { OVERLAY_SELECTOR } from '../lib/openOverlay';
 import { modalSheetOpen, portalContainer } from '../lib/portalOverlay';
 import { previousHistoryPathname } from '../routes/historyStack';
+import { isNativeAndroid } from './nativeSso';
 
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
-const DISMISSIBLE_OVERLAY_SELECTOR = `${OVERLAY_SELECTOR}, [data-conversation-cover]`;
+const DISMISSIBLE_OVERLAY_SELECTOR = `${OVERLAY_SELECTOR}, [data-popout], [data-conversation-cover]`;
 
 export type AndroidBackButtonDelegates = {
   isCommandPaletteOpen: () => boolean;
@@ -22,16 +22,23 @@ export type AndroidBackButtonDelegates = {
   exitRootPage: () => boolean;
 };
 
-const isAndroidNative = (): boolean =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
-
 const isActiveLayer = (element: Element): boolean =>
-  !element.closest('[inert], [aria-hidden="true"]');
+  !element.closest('[inert], [aria-hidden="true"]') && !element.matches('[data-incoming-call]');
 
 const getOpenOverlays = (): Element[] => {
   if (typeof document === 'undefined') return [];
-  const overlays = Array.from(document.querySelectorAll(DISMISSIBLE_OVERLAY_SELECTOR)).filter(
+  const matched = Array.from(document.querySelectorAll(DISMISSIBLE_OVERLAY_SELECTOR)).filter(
     isActiveLayer
+  );
+  // Drop a `[data-popout]` wrapper when it already contains a more specific matched overlay
+  // (such as `role="menu"` or `role="dialog"`), so Escape targets the inner overlay directly
+  // and never dispatches twice for the same popover.
+  const overlays = matched.filter(
+    (element) =>
+      !(
+        element.matches('[data-popout]') &&
+        matched.some((other) => other !== element && element.contains(other))
+      )
   );
   const portal = portalContainer ?? document.getElementById('portalContainer');
   if (portal) {
@@ -44,27 +51,71 @@ const getOpenOverlays = (): Element[] => {
         overlays.push(child);
       }
     }
-    overlays.sort((a, b) =>
-      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
-    );
   }
+  overlays.sort((a, b) =>
+    a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
+  );
   return overlays;
 };
 
-const dispatchEscape = (target: EventTarget): void => {
-  target.dispatchEvent(
-    new KeyboardEvent('keydown', {
-      key: 'Escape',
-      code: 'Escape',
-      bubbles: true,
-      cancelable: true,
-    })
-  );
+/**
+ * Dispatches a synthetic Escape keydown and returns `true` only when a layer actually handled it
+ * (`preventDefault` or `stopPropagation`). Unless `allowWindow` is set (for window-level overlays
+ * like QuickAccountMenu), stops propagation on `document` before reaching `window` so room-level
+ * Escape shortcuts (like `ShortcutRoot`'s focus-composer) never fire for a non-Escape overlay.
+ */
+const dispatchEscape = (target: EventTarget, allowWindow = false): boolean => {
+  let handled = false;
+  let reachedDocument = false;
+  let reachedWindow = false;
+
+  const onDocumentKeyDown = (event: KeyboardEvent) => {
+    reachedDocument = true;
+    if (event.defaultPrevented || event.cancelBubble) {
+      handled = true;
+    }
+    if (!allowWindow) {
+      event.stopPropagation();
+    }
+  };
+  const onWindowKeyDown = (event: KeyboardEvent) => {
+    reachedWindow = true;
+    if (event.defaultPrevented || event.cancelBubble) {
+      handled = true;
+    }
+  };
+
+  document.addEventListener('keydown', onDocumentKeyDown);
+  if (allowWindow) {
+    window.addEventListener('keydown', onWindowKeyDown);
+  }
+
+  const event = new KeyboardEvent('keydown', {
+    key: 'Escape',
+    code: 'Escape',
+    bubbles: true,
+    cancelable: true,
+  });
+
+  try {
+    target.dispatchEvent(event);
+  } finally {
+    document.removeEventListener('keydown', onDocumentKeyDown);
+    if (allowWindow) {
+      window.removeEventListener('keydown', onWindowKeyDown);
+    }
+  }
+
+  if (event.defaultPrevented) return true;
+  if (allowWindow) return handled || !reachedWindow;
+  return handled || !reachedDocument;
 };
 
-const dismissOverlay = (overlay: Element): void => {
+const dismissOverlay = (overlay: Element): boolean => {
   const active = document.activeElement;
-  dispatchEscape(active && overlay.contains(active) ? active : overlay);
+  const target = active && overlay.contains(active) ? active : overlay;
+  const allowWindow = overlay.matches('[data-quick-account-menu]');
+  return dispatchEscape(target, allowWindow) || !overlay.isConnected;
 };
 
 const hasImageViewerHistoryMarker = (): boolean => {
@@ -103,24 +154,26 @@ export const handleAndroidBackButton = (
 ): void => {
   const settingsOpen = delegates.isSettingsOpen();
 
-  // 1. Topmost dismissible overlay / dialog / menu / sheet / viewer.
-  //    If Settings' own dialog is the topmost layer (nothing sits above it),
-  //    defer to step 2 so mobile Settings subpages can step back to the menu.
+  // 1. Topmost dismissible overlay / dialog / menu / popover / sheet / viewer.
+  //    If Settings' own dialog is the topmost remaining layer, defer to step 2 so
+  //    mobile Settings subpages can step back to the menu. Overlays that ignore Escape
+  //    (such as non-modal IncomingCalls cards or non-closable covers) are skipped rather
+  //    than swallowing Back.
   const overlays = getOpenOverlays();
-  const topOverlay = overlays[overlays.length - 1];
-  const topIsSettingsOwnModal =
-    topOverlay !== undefined &&
-    settingsOpen &&
-    topOverlay.querySelector('[data-settings-modal]') !== null;
-
-  if (topOverlay && !topIsSettingsOwnModal) {
-    dismissOverlay(topOverlay);
-    return;
+  for (let i = overlays.length - 1; i >= 0; i -= 1) {
+    const overlay = overlays[i]!;
+    if (settingsOpen && overlay.querySelector('[data-settings-modal]') !== null) {
+      break;
+    }
+    if (dismissOverlay(overlay)) {
+      return;
+    }
   }
 
   if (modalSheetOpen()) {
-    if (typeof document !== 'undefined') dispatchEscape(document.activeElement ?? document);
-    return;
+    if (typeof document !== 'undefined' && dispatchEscape(document.activeElement ?? document)) {
+      return;
+    }
   }
 
   if (delegates.isCommandPaletteOpen()) {
@@ -172,7 +225,7 @@ export const handleAndroidBackButton = (
 
 /** Installs the Android back button listener and returns its cleanup function. */
 export const installAndroidBackButton = (delegates: AndroidBackButtonDelegates): (() => void) => {
-  if (!isAndroidNative()) return () => undefined;
+  if (!isNativeAndroid()) return () => undefined;
 
   let disposed = false;
   let listenerHandle: PluginListenerHandle | undefined;
@@ -196,8 +249,3 @@ export const installAndroidBackButton = (delegates: AndroidBackButtonDelegates):
     void handle?.remove();
   };
 };
-
-/** React hook mounting Android hardware/gesture back button handling while mounted. */
-export function useAndroidBackButton(delegates: AndroidBackButtonDelegates): void {
-  useEffect(() => installAndroidBackButton(delegates), [delegates]);
-}

@@ -4,6 +4,7 @@ import React from 'react';
 import { App } from '@capacitor/app';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { createStore } from 'jotai';
+import { cleanup, render } from '@testing-library/react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
@@ -13,11 +14,8 @@ import { SWIPE_PRIORITY, useInteractiveSwipe } from '../navigation/interactiveSw
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { registerSettingsStepBack, settingsModalAtom } from '../navigation/settingsModal';
 import { createAndroidBackButtonDelegates } from '../shell/androidBackDelegates';
-import {
-  handleAndroidBackButton,
-  installAndroidBackButton,
-  useAndroidBackButton,
-} from './androidBackButton';
+import { PopOut } from '../ui/directional';
+import { handleAndroidBackButton, installAndroidBackButton } from './androidBackButton';
 
 const previousHistoryPathnameMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 
@@ -26,6 +24,7 @@ vi.mock('@capacitor/core', () => ({
     getPlatform: vi.fn(() => 'android'),
     isNativePlatform: vi.fn(() => true),
   },
+  registerPlugin: vi.fn(),
 }));
 
 vi.mock('@capacitor/app', () => ({
@@ -64,6 +63,7 @@ describe('androidBackButton', () => {
   });
 
   afterEach(() => {
+    cleanup();
     historyBackSpy.mockRestore();
     document.body.innerHTML = '';
   });
@@ -80,18 +80,11 @@ describe('androidBackButton', () => {
     stop();
   });
 
-  it('registers the backButton listener on Android and removes it on unmount', async () => {
+  it('registers the backButton listener on Android and removes it on cleanup', async () => {
     const delegates = createAndroidBackButtonDelegates(createStore());
 
-    function Harness() {
-      useAndroidBackButton(delegates);
-      return null;
-    }
-
-    let renderer!: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(React.createElement(Harness));
-    });
+    const stop = installAndroidBackButton(delegates);
+    await Promise.resolve();
 
     expect(App.addListener).toHaveBeenCalledWith('backButton', expect.any(Function));
     expect(backListener).toBeDefined();
@@ -99,9 +92,7 @@ describe('androidBackButton', () => {
     backListener?.({ canGoBack: false });
     expect(App.minimizeApp).toHaveBeenCalledOnce();
 
-    await act(async () => {
-      renderer.unmount();
-    });
+    stop();
     expect(removeListener).toHaveBeenCalledOnce();
   });
 
@@ -150,7 +141,10 @@ describe('androidBackButton', () => {
       if (event.key === 'Escape') baseEscape();
     });
     topMenu.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') topEscape(event.target);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        topEscape(event.target);
+      }
     });
 
     handleAndroidBackButton({ canGoBack: true }, delegates);
@@ -179,7 +173,10 @@ describe('androidBackButton', () => {
     logoutDialog.setAttribute('role', 'dialog');
     const logoutEscape = vi.fn();
     logoutDialog.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') logoutEscape();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        logoutEscape();
+      }
     });
     document.body.append(settingsDialog, logoutDialog);
 
@@ -211,7 +208,10 @@ describe('androidBackButton', () => {
     const releaseSheet = holdModalSheet();
     const docEscape = vi.fn();
     const onDocKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') docEscape();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        docEscape();
+      }
     };
     document.addEventListener('keydown', onDocKey);
     try {
@@ -328,5 +328,142 @@ describe('androidBackButton', () => {
     handleAndroidBackButton({ canGoBack: false }, delegates);
     expect(historyBackSpy).not.toHaveBeenCalled();
     expect(App.minimizeApp).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses a DateFormatSetting-style body-portaled role="none" PopOut before leaving a Settings subpage', () => {
+    const store = createStore();
+    const delegates = createAndroidBackButtonDelegates(store);
+    store.set(settingsModalAtom, {});
+    const stepBack = vi.fn();
+    const stopStepBack = registerSettingsStepBack(stepBack);
+
+    const settingsDialog = document.createElement('div');
+    settingsDialog.setAttribute('role', 'dialog');
+    const marker = document.createElement('div');
+    marker.setAttribute('data-settings-modal', '');
+    settingsDialog.appendChild(marker);
+    document.body.append(settingsDialog);
+
+    let closePopover!: () => void;
+    const popoverClosed = vi.fn();
+    let popoverOpen = true;
+
+    function DateFormatPopoverHarness() {
+      const [open, setOpen] = React.useState(true);
+      closePopover = () => setOpen(false);
+      popoverOpen = open;
+      React.useEffect(() => {
+        if (!open) return undefined;
+        // Mirrors DateFormatSetting's FocusTrap document Escape listener.
+        const onKeyDown = (event: KeyboardEvent) => {
+          if (event.key !== 'Escape') return;
+          event.stopPropagation();
+          event.preventDefault();
+          popoverClosed();
+          setOpen(false);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+      }, [open]);
+
+      return React.createElement(PopOut, {
+        anchor: open ? { x: 100, y: 100, width: 24, height: 24 } : undefined,
+        position: 'Bottom',
+        align: 'End',
+        content: React.createElement(
+          'div',
+          { 'data-format-hints': '', tabIndex: -1 },
+          React.createElement('div', { role: 'none' }, 'Formatting tokens')
+        ),
+      });
+    }
+
+    let unmount: (() => void) | undefined;
+    try {
+      ({ unmount } = render(React.createElement(DateFormatPopoverHarness)));
+      expect(document.querySelector('[data-popout] [role="none"]')).not.toBeNull();
+
+      // First Back dismisses only the PopOut and stays on the Settings subpage.
+      act(() => {
+        handleAndroidBackButton({ canGoBack: true }, delegates);
+      });
+      expect(popoverClosed).toHaveBeenCalledOnce();
+      expect(popoverOpen).toBe(false);
+      expect(document.querySelector('[data-popout]')).toBeNull();
+      expect(stepBack).not.toHaveBeenCalled();
+      expect(store.get(settingsModalAtom)).toEqual({});
+
+      // Second Back steps back out of the Settings subpage.
+      handleAndroidBackButton({ canGoBack: true }, delegates);
+      expect(stepBack).toHaveBeenCalledOnce();
+      expect(store.get(settingsModalAtom)).toEqual({});
+    } finally {
+      closePopover?.();
+      unmount?.();
+      stopStepBack();
+    }
+  });
+
+  it('does not swallow Back on IncomingCalls-style alertdialogs or non-closable conversation covers', () => {
+    const store = createStore();
+    const delegates = createAndroidBackButtonDelegates(store);
+    const windowEscapeShortcut = vi.fn((event: KeyboardEvent) => {
+      if (event.key === 'Escape') event.preventDefault();
+    });
+    window.addEventListener('keydown', windowEscapeShortcut);
+
+    try {
+      // 1. Generic non-Escape role="alertdialog" (no Escape handler) -> proceeds to history back
+      //    and does not leak synthetic Escape to window-level shortcuts (e.g. ShortcutRoot).
+      const alertDialog = document.createElement('div');
+      alertDialog.setAttribute('role', 'alertdialog');
+      document.body.append(alertDialog);
+      window.history.replaceState({ idx: 2 }, '', '/home/!room:example.org/');
+
+      handleAndroidBackButton({ canGoBack: true }, delegates);
+      expect(historyBackSpy).toHaveBeenCalledOnce();
+      expect(windowEscapeShortcut).not.toHaveBeenCalled();
+
+      // 2. IncomingCalls card (role="alertdialog" + data-incoming-call) -> proceeds to drawer / minimize.
+      historyBackSpy.mockClear();
+      alertDialog.setAttribute('data-incoming-call', '!call:example.org');
+      store.set(phoneNavDrawerOpenAtom, true);
+      handleAndroidBackButton({ canGoBack: false }, delegates);
+      expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      expect(App.minimizeApp).not.toHaveBeenCalled();
+
+      // At root with IncomingCalls still ringing -> minimizes instead of trapping the user.
+      window.history.replaceState({ idx: 0 }, '', '/home/');
+      handleAndroidBackButton({ canGoBack: false }, delegates);
+      expect(App.minimizeApp).toHaveBeenCalledOnce();
+
+      // 3. Non-closable [data-conversation-cover] (ignores Escape) -> proceeds to history back;
+      //    closable [data-conversation-cover] (handles Escape) -> closes cover without navigating.
+      alertDialog.remove();
+      historyBackSpy.mockClear();
+      const nonClosableCover = document.createElement('div');
+      nonClosableCover.setAttribute('data-conversation-cover', '');
+      document.body.append(nonClosableCover);
+      window.history.replaceState({ idx: 2 }, '', '/home/!room:example.org/');
+
+      handleAndroidBackButton({ canGoBack: true }, delegates);
+      expect(historyBackSpy).toHaveBeenCalledOnce();
+      expect(windowEscapeShortcut).not.toHaveBeenCalled();
+
+      historyBackSpy.mockClear();
+      const closeCover = vi.fn();
+      nonClosableCover.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          closeCover();
+        }
+      });
+      handleAndroidBackButton({ canGoBack: true }, delegates);
+      expect(closeCover).toHaveBeenCalledOnce();
+      expect(historyBackSpy).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', windowEscapeShortcut);
+    }
   });
 });

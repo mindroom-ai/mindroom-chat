@@ -13,6 +13,7 @@ const t: SettingsTranslate = (key) => key;
 
 const CONTEXT: SettingsContext = {
   native: false,
+  capacitor: false,
   nativeIOS: false,
   diagnostics: false,
   localMindroom: true,

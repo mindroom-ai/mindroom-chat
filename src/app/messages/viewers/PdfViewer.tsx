@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Capacitor } from '@capacitor/core';
 import classNames from 'classnames';
 import { Box, Button, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { openNativeFile, saveFile } from '../../native/nativeFileSave';
+import { isNativeAndroid } from '../../native/nativeSso';
 import { revealDirectionControls } from '../../ui/directional';
 import * as css from './PdfViewer.css';
 import { pdfFrameUrl } from './pdfFrame';
@@ -18,9 +18,6 @@ type PdfViewerProps = {
 
 /** Whether a save or open action is running, and whether the last one failed. */
 type ActionProgress = { pending: boolean; failed: boolean };
-
-const isNativeAndroid = (): boolean =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
 export const PdfViewer = as<'div', PdfViewerProps>(
   ({ name, src, requestClose, className, ...props }, ref) => {

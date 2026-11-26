@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 @CapacitorPlugin(name = "MindRoomFileSave")
 public class MindRoomFileSavePlugin extends Plugin {
@@ -35,8 +36,12 @@ public class MindRoomFileSavePlugin extends Plugin {
     static final String DEFAULT_FILE_NAME = "download";
     static final String DEFAULT_MIME_TYPE = "application/octet-stream";
     static final String EXPORTS_DIR_NAME = "mindroom-exports";
+    static final String SESSION_DIR_PREFIX = "session-";
     static final String OPEN_DIR_PREFIX = "open-";
     static final long STALE_OPEN_MAX_AGE_MS = 60L * 60L * 1000L;
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    );
 
     private static final Map<String, String> FALLBACK_MIME_TYPES = Map.of(
         "pdf", "application/pdf",
@@ -50,6 +55,16 @@ public class MindRoomFileSavePlugin extends Plugin {
         "webp", "image/webp",
         "mp4", "video/mp4"
     );
+
+    static final class StagedSession {
+        final File directory;
+        final File file;
+
+        StagedSession(File directory, File file) {
+            this.directory = directory;
+            this.file = file;
+        }
+    }
 
     private static final class ExportSession {
         final String id, pageId, fileName, mimeType;
@@ -96,7 +111,7 @@ public class MindRoomFileSavePlugin extends Plugin {
             cleanupStaleOpenExports(exportsRoot, System.currentTimeMillis());
 
             String id = UUID.randomUUID().toString();
-            File sessionDir = new File(exportsRoot, "session-" + id);
+            File sessionDir = new File(exportsRoot, SESSION_DIR_PREFIX + id);
             File file = new File(sessionDir, fileName);
             try {
                 if (!sessionDir.mkdirs() && !sessionDir.isDirectory()) {
@@ -149,7 +164,7 @@ public class MindRoomFileSavePlugin extends Plugin {
     @PluginMethod
     public void presentSave(PluginCall call) {
         String id = call.getString("id");
-        if (id == null || id.isEmpty()) {
+        if (!isValidSessionId(id)) {
             call.reject("Save session is missing", "INVALID_SESSION");
             return;
         }
@@ -199,14 +214,45 @@ public class MindRoomFileSavePlugin extends Plugin {
         int resultCode = result != null ? result.getResultCode() : Activity.RESULT_CANCELED;
         Intent data = result != null ? result.getData() : null;
         Uri destinationUri = data != null ? data.getData() : null;
+        String callSessionId = call != null ? call.getString("id") : null;
 
         if (!runOnExecutor(() -> {
-            ExportSession session = activeSession;
-            pickerActive = false;
-            if (session == null) {
-                if (call != null) call.reject("Save session is unavailable", "INVALID_SESSION");
+            ExportSession current = activeSession;
+            boolean matchesActive = current != null && (callSessionId == null || current.id.equals(callSessionId));
+            if (matchesActive || current == null) {
+                pickerActive = false;
+            }
+
+            File sessionDirToDelete = null;
+            File sourceFile = null;
+            if (matchesActive) {
+                activeSession = null;
+                sessionDirToDelete = current.directory;
+                sourceFile = current.file;
+            } else {
+                // Recover staged session after Activity recreation / process death from Capacitor's persisted call id.
+                Context context = getContext();
+                if (context != null && isValidSessionId(callSessionId)) {
+                    File exportsRoot = new File(context.getCacheDir(), EXPORTS_DIR_NAME);
+                    StagedSession recovered = findStagedSession(exportsRoot, callSessionId);
+                    if (recovered != null) {
+                        sessionDirToDelete = recovered.directory;
+                        sourceFile = recovered.file;
+                    }
+                }
+            }
+
+            if (sourceFile == null) {
+                if (call != null) {
+                    if (resultCode != Activity.RESULT_OK || destinationUri == null) {
+                        call.resolve(new JSObject().put("saved", false));
+                    } else {
+                        call.reject("Save session is unavailable", "INVALID_SESSION");
+                    }
+                }
                 return;
             }
+
             try {
                 if (resultCode != Activity.RESULT_OK || destinationUri == null) {
                     if (call != null) call.resolve(new JSObject().put("saved", false));
@@ -218,7 +264,7 @@ public class MindRoomFileSavePlugin extends Plugin {
                     return;
                 }
                 try (
-                    InputStream in = new FileInputStream(session.file);
+                    InputStream in = new FileInputStream(sourceFile);
                     OutputStream out = context.getContentResolver().openOutputStream(destinationUri)
                 ) {
                     if (out == null) throw new IOException("Unable to open destination output stream");
@@ -229,7 +275,7 @@ public class MindRoomFileSavePlugin extends Plugin {
             } catch (IOException | SecurityException e) {
                 if (call != null) call.reject("Unable to save attachment", "FILE_WRITE_FAILED", e);
             } finally {
-                cleanupActiveSession();
+                deleteRecursively(sessionDirToDelete);
             }
         }) && call != null) {
             call.reject("Unable to save attachment", "PLUGIN_UNAVAILABLE");
@@ -313,8 +359,14 @@ public class MindRoomFileSavePlugin extends Plugin {
     protected void handleOnDestroy() {
         destroyed = true;
         runOnExecutor(() -> {
-            pickerActive = false;
-            cleanupActiveSession();
+            if (pickerActive) {
+                // Keep the staged file on disk so a recreated plugin instance can recover and
+                // copy its bytes when the SAF picker returns after Activity destruction.
+                pickerActive = false;
+                activeSession = null;
+            } else {
+                cleanupActiveSession();
+            }
         });
         saveExecutor.shutdown();
         super.handleOnDestroy();
@@ -433,6 +485,41 @@ public class MindRoomFileSavePlugin extends Plugin {
         String safe = safeFileName(fileName);
         int dot = safe.lastIndexOf('.');
         return (dot <= 0 || dot == safe.length() - 1) ? null : safe.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    static boolean isValidSessionId(String id) {
+        return id != null && UUID_PATTERN.matcher(id).matches();
+    }
+
+    static StagedSession findStagedSession(File exportsRoot, String id) {
+        if (exportsRoot == null || !isValidSessionId(id)) return null;
+        try {
+            File canonicalRoot = exportsRoot.getCanonicalFile();
+            if (!canonicalRoot.isDirectory()) return null;
+            String expectedDirName = SESSION_DIR_PREFIX + id;
+            File sessionDir = new File(canonicalRoot, expectedDirName).getCanonicalFile();
+            if (
+                !canonicalRoot.equals(sessionDir.getParentFile()) ||
+                !expectedDirName.equals(sessionDir.getName()) ||
+                !sessionDir.isDirectory()
+            ) {
+                return null;
+            }
+            File[] entries = sessionDir.listFiles();
+            if (entries == null || entries.length != 1) return null;
+            File rawFile = entries[0];
+            File canonicalFile = rawFile.getCanonicalFile();
+            if (
+                !sessionDir.equals(canonicalFile.getParentFile()) ||
+                !rawFile.getName().equals(canonicalFile.getName()) ||
+                !canonicalFile.isFile()
+            ) {
+                return null;
+            }
+            return new StagedSession(sessionDir, canonicalFile);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     static void cleanupStaleOpenExports(File exportsRoot, long nowMs) {

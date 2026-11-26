@@ -1,4 +1,4 @@
-import { isBundledApp, isDesktopAccessAvailable, isDesktopApp } from '../lib/nativeShell';
+import { isBundledApp, isCapacitorApp, isDesktopAccessAvailable } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -31,8 +31,9 @@ export const useSettingsContext = (): SettingsContext => {
   const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
     native: isBundledApp(),
+    capacitor: isCapacitorApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeApp() || isDesktopApp() || getDebugModeEnabled(),
+    diagnostics: isNativeApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

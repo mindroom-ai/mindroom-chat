@@ -72,7 +72,7 @@ const startDiagnostics = (): void => {
   // capture widget's, beside it on the Mac, shares their storage and would take its live session
   // for one that ended unexpectedly.
   if (
-    (isNativeApp() || isDesktopApp() || getDebugModeEnabled()) &&
+    (isNativeApp() || getDebugModeEnabled()) &&
     !isAuxiliaryWindowPath(window.location.pathname)
   ) {
     runSafely('flight recorder', startFlightRecorder);

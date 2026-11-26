@@ -5,6 +5,7 @@ import { desktopBridge, isDesktopApp } from '../lib/nativeShell';
 import {
   clearPendingUniversalLink,
   getAppPathFromUniversalLink,
+  getWebOnlyUniversalLinkUrl,
   openUniversalLinkPath,
   writeAppPathToAddress,
 } from './nativeUniversalLinks';
@@ -154,12 +155,17 @@ export const registerNativeAppUrlCallbacks = (nativeApp: AppUrlPlugin): void => 
     }
   };
 
-  const handleNativeAppUrl = (url: string): 'sso' | 'universal' | undefined => {
+  const handleNativeAppUrl = (url: string): 'sso' | 'universal' | 'web' | undefined => {
     if (routeNativeSsoCallback(url)) return 'sso';
     const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
       openUniversalLinkPath(appPath);
       return 'universal';
+    }
+    const webOnlyUrl = isNativeAndroid() ? getWebOnlyUniversalLinkUrl(url) : undefined;
+    if (webOnlyUrl) {
+      Promise.resolve(Browser.open({ url: webOnlyUrl })).catch(() => undefined);
+      return 'web';
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
     // eslint-disable-next-line no-console
@@ -171,7 +177,9 @@ export const registerNativeAppUrlCallbacks = (nativeApp: AppUrlPlugin): void => 
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url && !handledOpenUrl && !isPageReload() && handleNativeAppUrl(url) === 'universal') {
+      const handled =
+        url && !handledOpenUrl && !isPageReload() ? handleNativeAppUrl(url) : undefined;
+      if (url && (handled === 'universal' || handled === 'web')) {
         clearLaunchRepeat();
         launchUrlToRepeat = url;
         launchRepeatTimer = setTimeout(() => {

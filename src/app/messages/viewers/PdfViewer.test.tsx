@@ -18,6 +18,7 @@ vi.mock('@capacitor/core', () => ({
     getPlatform: vi.fn(() => 'web'),
     isNativePlatform: vi.fn(() => false),
   },
+  registerPlugin: vi.fn(),
 }));
 
 vi.mock('folds', async () => {

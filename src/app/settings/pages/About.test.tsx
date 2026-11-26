@@ -346,7 +346,9 @@ describe('About diagnostics export', () => {
   });
 
   it('always shows diagnostics and keeps recorders in the Electron desktop app', async () => {
-    mocks.isNativeApp.mockReturnValue(false);
+    const { isNativeApp: realIsNativeApp } =
+      await vi.importActual<typeof import('../../native/nativeSso')>('../../native/nativeSso');
+    mocks.isNativeApp.mockImplementation(realIsNativeApp);
     let debugMode = false;
     mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
     mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {

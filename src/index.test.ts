@@ -201,7 +201,7 @@ describe('application bootstrap', () => {
 
   it.each([
     ['native app', true, false],
-    ['desktop app', false, true],
+    ['desktop app', true, true],
   ])(
     "leaves the recorders to the main web view in the quick capture widget's (%s)",
     async (_label, nativeApp, desktop) => {

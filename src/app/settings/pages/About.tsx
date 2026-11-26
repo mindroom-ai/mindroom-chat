@@ -26,7 +26,6 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import type { DesktopUpdateCheckOutcome } from '../../lib/desktopBridge';
-import { isDesktopApp } from '../../lib/nativeShell';
 import { isNativeApp } from '../../native/nativeSso';
 import { checkNativeUpdate, isNativeUpdateAvailable } from '../../native/nativeUpdate';
 import { MacAppIcon } from '../../native/MacAppIcon';
@@ -683,7 +682,7 @@ function AppIdentity() {
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
-  const nativeDiagnostics = isNativeApp() || isDesktopApp();
+  const nativeDiagnostics = isNativeApp();
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
