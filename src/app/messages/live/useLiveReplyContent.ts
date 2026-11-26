@@ -10,6 +10,7 @@ import {
 import {
   getContentToolTraceEvents,
   MINDROOM_TOOL_TRACE_KEY,
+  toolStartedAt,
   type ToolTraceEvent,
 } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
@@ -162,8 +163,9 @@ const withWarmupActivity = (content: IContent): IContent => {
 };
 
 /**
- * The frames' output on the calls a covering checkpoint still shows running: progress edits never
- * carry it, so it would vanish until the next frame while a quiet command keeps running.
+ * The frames' live output and start time on the calls a covering checkpoint still shows running:
+ * progress edits never carry them, so they would vanish until the next frame while a quiet command
+ * keeps running.
  */
 const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IContent => {
   const trace = content[MINDROOM_TOOL_TRACE_KEY];
@@ -174,13 +176,20 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
     if (
       !isRecord(event) ||
       event.type !== 'tool_call_started' ||
-      typeof live?.progress !== 'string' ||
+      live?.type !== 'tool_call_started' ||
       live.tool_name !== event.tool_name
     ) {
       return event;
     }
+    const progress = typeof live.progress === 'string' ? live.progress : undefined;
+    const startedAt = toolStartedAt(event) === undefined ? toolStartedAt(live) : undefined;
+    if (progress === undefined && startedAt === undefined) return event;
     changed = true;
-    return { ...event, progress: live.progress };
+    return {
+      ...event,
+      ...(progress === undefined ? {} : { progress }),
+      ...(startedAt === undefined ? {} : { started_at: startedAt }),
+    };
   });
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
 };
@@ -253,8 +262,8 @@ export type LiveReplyContent = {
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
- * A covering checkpoint keeps the live reasoning and running calls' output, which progress edits
- * never carry.
+ * A covering checkpoint keeps the live reasoning and running calls' output and start time, which
+ * progress edits never carry.
  */
 export const useLiveReplyContent = (
   mx: MatrixClient,

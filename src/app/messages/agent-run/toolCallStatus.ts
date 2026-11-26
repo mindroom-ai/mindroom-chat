@@ -17,9 +17,11 @@ export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>
 
 /**
  * The clock, in Unix milliseconds, of a view that shows how long its running tool calls have run
- * (the Sub-agents panel's, which ticks while a run is at it). Without one, calls show no time.
+ * (the Sub-agents panel's, which ticks while a run is at it). `undefined` means no enclosing view
+ * provides a clock; `null` means the enclosing view's clock is stopped (a paused, waiting, or ended
+ * turn), so child live previews must not start a fallback clock either.
  */
-export const ToolCallClockContext = createContext<number | undefined>(undefined);
+export const ToolCallClockContext = createContext<number | null | undefined>(undefined);
 
 /** A running call shows how long it has run only from this many seconds on. */
 const TOOL_ELAPSED_MIN_SECONDS = 10;
@@ -30,9 +32,9 @@ const TOOL_ELAPSED_MIN_SECONDS = 10;
  */
 export const runningToolElapsed = (
   startedAt: number | undefined,
-  now: number | undefined
+  now: number | null | undefined
 ): number | undefined => {
-  if (startedAt === undefined || now === undefined) return undefined;
+  if (startedAt === undefined || now == null) return undefined;
   const seconds = now / 1000 - startedAt;
   return seconds >= TOOL_ELAPSED_MIN_SECONDS ? seconds : undefined;
 };

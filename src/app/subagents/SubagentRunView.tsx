@@ -198,9 +198,9 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
         <RunMessage sender={agent} ts={meta.startedAt * 1000}>
           {wrote && (
             <div className={css.Reply} data-subagent-transcript="">
-              {/* Its running calls show how long they have run while the turn is at it; an
-                  ended turn's call that never completed has no clock to grow on. */}
-              <ToolCallClockContext value={working ? now : undefined}>
+              {/* Its running calls show how long they have run while the turn is at it; a paused,
+                  waiting, or ended turn passes `null` so child live previews do not start a fallback clock. */}
+              <ToolCallClockContext value={working ? now : null}>
                 <RenderMessageContent
                   msgType="m.text"
                   displayName={agent.name}

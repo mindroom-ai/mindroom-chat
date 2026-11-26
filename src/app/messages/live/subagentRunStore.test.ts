@@ -442,6 +442,40 @@ describe('useRoomSubagentRuns', () => {
     expect(getSubagentRunStore(mx)).toBe(store);
     expect(getSubagentRunStore({} as MatrixClient)).not.toBe(store);
   });
+
+  it('subscribes to nothing and returns an empty list when roomId or MatrixClient is absent', () => {
+    const mx = {} as MatrixClient;
+    const store = getSubagentRunStore(mx);
+    const subscribeSpy = vi.spyOn(store, 'subscribe');
+    const seen: (readonly SubagentRun[])[] = [];
+    function Probe({ roomId }: { roomId: string | undefined }) {
+      seen.push(useRoomSubagentRuns(roomId));
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: undefined })
+        )
+      );
+    });
+    expect(seen.at(-1)).toEqual([]);
+    expect(subscribeSpy).not.toHaveBeenCalled();
+
+    // Outside MatrixClientProvider, still returns an empty list cleanly.
+    act(() => {
+      renderer?.update(React.createElement(Probe, { roomId: ROOM }));
+    });
+    expect(seen.at(-1)).toEqual([]);
+    expect(subscribeSpy).not.toHaveBeenCalled();
+
+    act(() => renderer?.unmount());
+    store.clear();
+  });
 });
 
 describe('useRoomSubagentCounts', () => {

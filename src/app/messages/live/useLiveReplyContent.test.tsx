@@ -262,6 +262,51 @@ describe('useLiveReplyContent', () => {
     });
   });
 
+  it('keeps a running call started_at over a covering checkpoint even without progress', () => {
+    const running = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [running] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: { ...frame.snapshot, tools: [{ ...running, started_at: 1762790005.5 }] },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({
+      version: 2,
+      events: [{ ...running, started_at: 1762790005.5 }],
+    });
+  });
+
+  it('keeps both progress and finite started_at, ignoring non-finite started_at on covering checkpoints', () => {
+    const first = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const second = { type: 'tool_call_started', tool_name: 'bash' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [first, second] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: {
+        ...frame.snapshot,
+        tools: [
+          { ...first, progress: 'line 1', started_at: 1762790001 },
+          { ...second, started_at: Number.NaN },
+        ],
+      },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({
+      version: 2,
+      events: [{ ...first, progress: 'line 1', started_at: 1762790001 }, second],
+    });
+  });
+
   it('shows no output for a call the covering checkpoint shows completed', () => {
     const completed = { type: 'tool_call_completed', tool_name: 'run_shell_command' };
     const checkpointed = durable('streaming', {

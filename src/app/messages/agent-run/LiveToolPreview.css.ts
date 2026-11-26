@@ -152,6 +152,7 @@ const stepIconBase = style({
 
 export const StepIcon = styleVariants({
   running: [stepIconBase, { color: color.Primary.Main }],
+  waiting: [stepIconBase, { color: color.Warning.Main }],
   done: [stepIconBase, { color: color.Success.Main }],
   failed: [stepIconBase, { color: color.Warning.Main }],
 });
@@ -165,6 +166,7 @@ const stepNameBase = style({
 
 export const StepName = styleVariants({
   running: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
+  waiting: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
   done: [stepNameBase, { fontWeight: config.fontWeight.W500, opacity: config.opacity.P400 }],
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
@@ -180,21 +182,37 @@ export const StepElapsed = style({
   whiteSpace: 'nowrap',
 });
 
-export const TerminalWell = style([
+const TERMINAL_LINE_HEIGHT = 1.45;
+
+// Outer padded well so bottom-aligned inner output never clips into or bleeds across the padding.
+export const TerminalWell = style({
+  paddingBlock: toRem(6),
+  paddingInline: toRem(10),
+  borderTop: hairline,
+  backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container} 45%, transparent)`,
+  minWidth: 0,
+});
+
+const terminalOutputBase = style([
   DefaultReset,
   {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
     margin: 0,
-    paddingBlock: toRem(6),
-    paddingInline: toRem(10),
-    borderTop: hairline,
-    backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container} 45%, transparent)`,
     color: color.Surface.OnContainer,
     fontFamily: 'var(--font-mono)',
     fontSize: toRem(11.5),
-    lineHeight: 1.45,
+    lineHeight: TERMINAL_LINE_HEIGHT,
     opacity: 0.88,
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
-    overflow: 'hidden',
   },
 ]);
+
+// Bounds wrapped output to exact rendered line counts, keeping the newest wrapped lines at bottom.
+export const TerminalOutput = styleVariants({
+  subagent: [terminalOutputBase, { maxHeight: `${TERMINAL_LINE_HEIGHT * 3}em` }],
+  shell: [terminalOutputBase, { maxHeight: `${TERMINAL_LINE_HEIGHT * 4}em` }],
+});

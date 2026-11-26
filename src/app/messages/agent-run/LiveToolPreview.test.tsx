@@ -143,7 +143,12 @@ describe('LiveToolPreview', () => {
       threadId = THREAD_ID,
       withClient = true,
       clockNow,
-    }: { roomId?: string; threadId?: string; withClient?: boolean; clockNow?: number } = {}
+    }: {
+      roomId?: string;
+      threadId?: string;
+      withClient?: boolean;
+      clockNow?: number | null;
+    } = {}
   ) => {
     let tree = <LiveToolPreview running={running} roomId={roomId} threadId={threadId} />;
     if (clockNow !== undefined) {
@@ -235,6 +240,8 @@ describe('LiveToolPreview', () => {
     expect(container.textContent).not.toContain('list_files');
     expect(steps[0]?.textContent).toContain('read_file');
     expect(steps[0]?.textContent).toContain('src/app/HtmlBlocks.tsx');
+    expect(steps[0]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Done');
+    expect(steps[0]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
     expect(steps[0]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
     expect(steps[1]?.textContent).toContain('grep');
     expect(steps[1]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
@@ -243,11 +250,13 @@ describe('LiveToolPreview', () => {
     expect(steps[1]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('3s');
     // Missing ended_at omits duration cleanly.
     expect(steps[2]?.querySelector('[data-live-step-elapsed]')).toBeNull();
-    // Active running step ticks live and shows last 3 lines of progress open by default.
+    // Active running step ticks live, exposes accessible status label, and uses 3-line subagent output well.
+    expect(steps[3]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Running');
+    expect(steps[3]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
     expect(steps[3]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('4s');
-    expect(steps[3]?.querySelector('[data-live-output]')?.textContent).toBe(
-      'line 3\nline 4\nline 5'
-    );
+    const subagentOutput = steps[3]?.querySelector('[data-live-output]');
+    expect(subagentOutput?.className).toBe('live-tool-terminal-output-subagent');
+    expect(subagentOutput?.textContent).toBe('line 3\nline 4\nline 5');
 
     act(() => {
       vi.advanceTimersByTime(3_000);
@@ -364,9 +373,9 @@ describe('LiveToolPreview', () => {
     ]);
     const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('[data-live-output]')?.textContent).toBe(
-      'out 3\nout 4\nout 5\nout 6'
-    );
+    const shellOutput = container.querySelector('[data-live-output]');
+    expect(shellOutput?.className).toBe('live-tool-terminal-output-shell');
+    expect(shellOutput?.textContent).toBe('out 3\nout 4\nout 5\nout 6');
     act(() => toggle?.click());
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('[data-live-output]')).toBeNull();
@@ -448,5 +457,149 @@ describe('LiveToolPreview', () => {
     render([toolItem({ index: 3, toolName: 'read_file', command: 'read_file' })]);
     expect(container.innerHTML).toBe('');
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    ['paused' as const, 'Paused'],
+    ['awaiting_approval' as const, 'Waiting for approval'],
+  ])(
+    'renders unfinished child steps as waiting with zero ticking timers when subagent is %s',
+    (status, expectedLabel) => {
+      const store = getSubagentRunStore(mx);
+      act(() => {
+        store.ingest(
+          ROOM_ID,
+          SENDER,
+          makeFrame('del-wait', { status, title: 'Waiting run', callerToolCallId: 'call_wait' }, [
+            {
+              type: 'tool_call_completed',
+              tool_name: 'read_file',
+              args_preview: 'path=src/index.ts',
+              started_at: NOW - 20,
+              ended_at: NOW - 18,
+            },
+            {
+              type: 'tool_call_started',
+              tool_name: 'bash',
+              args_preview: 'command=rm -rf tmp',
+              started_at: NOW - 15,
+            },
+          ]),
+          NOW * 1000
+        );
+      });
+
+      const subagentItem = toolItem({
+        index: 1,
+        toolName: 'run_subagent',
+        command: 'run_subagent',
+        toolCallId: 'call_wait',
+      });
+      render([subagentItem]);
+
+      const steps = [...container.querySelectorAll<HTMLElement>('[data-live-step]')];
+      expect(steps.map((el) => el.dataset.liveStep)).toEqual(['done', 'waiting']);
+      expect(steps[0]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('2s');
+      const waitingIcon = steps[1]?.querySelector('[role="img"]');
+      expect(waitingIcon?.className).toBe('live-tool-step-icon-waiting');
+      expect(waitingIcon?.getAttribute('aria-label')).toBe(expectedLabel);
+      expect(waitingIcon?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+      expect(steps[1]?.querySelector('[data-live-step-elapsed]')).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Even alongside a ticking parallel shell call, a waiting step never renders or ticks elapsed time.
+      render([
+        subagentItem,
+        toolItem({
+          index: 2,
+          toolName: 'bash',
+          argsPreview: 'command=sleep 5',
+          startedAt: NOW - 3,
+        }),
+      ]);
+      act(() => {
+        vi.advanceTimersByTime(4_000);
+      });
+      const subagentSteps = [
+        ...container.querySelectorAll<HTMLElement>(
+          '[data-live-subagent="del-wait"] [data-live-step]'
+        ),
+      ];
+      expect(subagentSteps[1]?.querySelector('[data-live-step-elapsed]')).toBeNull();
+      expect(
+        container.querySelector('[data-live-shell="2"] [data-live-step-elapsed]')?.textContent
+      ).toBe('7s');
+    }
+  );
+
+  it('starts no local interval and hides elapsed time when ToolCallClockContext is explicitly null', () => {
+    render(
+      [
+        toolItem({
+          index: 1,
+          toolName: 'bash',
+          argsPreview: 'command=sleep 10',
+          startedAt: NOW - 15,
+        }),
+      ],
+      { clockNow: null }
+    );
+
+    expect(container.querySelector('[data-live-shell="1"]')).not.toBeNull();
+    expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps a collapsed shell row state stable when a parallel subagent starts and ends', () => {
+    const store = getSubagentRunStore(mx);
+    act(() => {
+      store.ingest(
+        ROOM_ID,
+        SENDER,
+        makeFrame('del-stable', { title: 'Side check', callerToolCallId: 'call_stable' }, [
+          { type: 'tool_call_started', tool_name: 'grep', args_preview: 'pattern=foo' },
+        ]),
+        NOW * 1000
+      );
+    });
+
+    const shell = toolItem({
+      index: 2,
+      toolName: 'bash',
+      argsPreview: 'command=npm test',
+      progress: 'running tests...',
+    });
+    const subagent = toolItem({
+      index: 1,
+      toolName: 'run_subagent',
+      command: 'run_subagent',
+      toolCallId: 'call_stable',
+    });
+
+    render([shell]);
+    const shellToggle = () =>
+      container.querySelector<HTMLButtonElement>('[data-live-shell="2"] button[aria-expanded]');
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('true');
+    act(() => shellToggle()?.click());
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+
+    // Parallel subagent starts: shell row must not remount or reopen.
+    render([subagent, shell]);
+    expect(container.querySelector('[data-live-subagent="del-stable"]')).not.toBeNull();
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+
+    // Parallel subagent finishes: shell row still stays collapsed.
+    render([shell]);
+    expect(container.querySelector('[data-live-subagent="del-stable"]')).toBeNull();
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
   });
 });

@@ -81,17 +81,23 @@ vi.mock('../app/messages/agent-run/LiveToolPreview.css', () => ({
   StepRowButton: 'live-tool-step-row-button',
   StepIcon: {
     running: 'live-tool-step-icon-running',
+    waiting: 'live-tool-step-icon-waiting',
     done: 'live-tool-step-icon-done',
     failed: 'live-tool-step-icon-failed',
   },
   StepName: {
     running: 'live-tool-step-name-running',
+    waiting: 'live-tool-step-name-waiting',
     done: 'live-tool-step-name-done',
     failed: 'live-tool-step-name-failed',
   },
   StepArg: 'live-tool-step-arg',
   StepElapsed: 'live-tool-step-elapsed',
   TerminalWell: 'live-tool-terminal-well',
+  TerminalOutput: {
+    subagent: 'live-tool-terminal-output-subagent',
+    shell: 'live-tool-terminal-output-shell',
+  },
 }));
 vi.mock('../app/avatars/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
 // The canvas hosts' tests replace folds with stand-ins that have no theme colors.

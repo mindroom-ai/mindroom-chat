@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMatrixClient, useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
   isActiveSubagentStatus,
   type SubagentFrame,
@@ -182,15 +182,26 @@ export const getSubagentRunStore = (mx: MatrixClient): SubagentRunStore => {
   return store;
 };
 
-/** The room's sub-agent runs on the active client, rendered again whenever they change. */
-export const useRoomSubagentRuns = (roomId: string): readonly SubagentRun[] => {
-  const store = getSubagentRunStore(useMatrixClient());
+const noopUnsubscribe = () => undefined;
+
+/**
+ * The room's sub-agent runs on the active client, rendered again whenever they change.
+ * When `roomId` is undefined or no Matrix client is mounted, subscribes to nothing and returns an
+ * empty list so callers can keep a stable hook tree while toggling sub-agent lookups.
+ */
+export const useRoomSubagentRuns = (roomId: string | undefined): readonly SubagentRun[] => {
+  const mx = useOptionalMatrixClient();
+  const store = mx ? getSubagentRunStore(mx) : undefined;
   const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
+    (onChange: () => void) =>
+      roomId && store ? store.subscribe(roomId, onChange) : noopUnsubscribe,
     [roomId, store]
   );
-  const getRuns = useCallback(() => store.runs(roomId), [roomId, store]);
-  return useSyncExternalStore(subscribe, getRuns);
+  const getRuns = useCallback(
+    () => (roomId && store ? store.runs(roomId) : NO_RUNS),
+    [roomId, store]
+  );
+  return useSyncExternalStore(subscribe, getRuns, getRuns);
 };
 
 /**
