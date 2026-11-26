@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Icon, Icons, Text } from 'folds';
 import { IconFold } from '@tabler/icons-react';
+import Linkify from 'linkify-react';
+import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { EventType, MsgType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { AiRunErrorAction, AiRunErrorInfo, AiRunInfo } from '../../matrix/protocol/aiRun';
 import { useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -175,6 +177,7 @@ export type RunErrorCardProps = {
   roomId?: string;
   threadId?: string;
   readOnly?: boolean;
+  linkifyOpts?: LinkifyOpts;
 };
 
 /**
@@ -189,6 +192,7 @@ export function RunErrorCard({
   roomId,
   threadId,
   readOnly = false,
+  linkifyOpts,
 }: RunErrorCardProps) {
   const { t } = useTranslation();
   const mx = useOptionalMatrixClient();
@@ -221,6 +225,11 @@ export function RunErrorCard({
 
   const tone = getRunErrorTone(error);
   const chip = getRunErrorChip(error, t);
+  const summaryContent = linkifyOpts ? (
+    <Linkify options={linkifyOpts}>{error.summary}</Linkify>
+  ) : (
+    error.summary
+  );
 
   const canSend =
     !readOnly &&
@@ -302,7 +311,7 @@ export function RunErrorCard({
         {receiptOpen && (
           <div className={css.ReceiptBody}>
             <span className={css.Summary} {...ownDirectionLine}>
-              {error.summary}
+              {summaryContent}
             </span>
             {techRows.length > 0 && <TechDetailsList rows={techRows} />}
           </div>
@@ -334,7 +343,7 @@ export function RunErrorCard({
             {chip && <span className={css.Chip[tone]}>{chip}</span>}
           </div>
           <span className={css.Summary} {...ownDirectionLine}>
-            {error.summary}
+            {summaryContent}
           </span>
         </div>
       </div>

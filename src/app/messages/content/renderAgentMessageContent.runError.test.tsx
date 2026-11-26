@@ -9,6 +9,7 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -18,6 +19,7 @@ import {
   stripTrailingRunErrorHtml,
   stripTrailingRunErrorText,
 } from '../agent-run/runErrorHtml';
+import { LINKIFY_OPTS } from '../html/react-custom-html-parser';
 import { RenderMessageContent } from './RenderMessageContent';
 
 const VIEWER = '@reader:example.org';
@@ -221,6 +223,25 @@ describe('runErrorHtml transforms', () => {
     });
   });
 
+  it('deduplicates bold+italic ***...*** and ___...___ spans against Matrix HTML', () => {
+    const redactedError: AiRunErrorInfo = {
+      kind: 'authentication_failed',
+      title: 'Authentication failed',
+      summary: 'API key ***redacted*** failed for ___prod___ (***a*** and ***b***).',
+      retryable: false,
+    };
+
+    expect(
+      stripTrailingRunErrorHtml(
+        '<p>API key <em><strong>redacted</strong></em> failed for <em><strong>prod</strong></em> (<em><strong>a</strong></em> and <em><strong>b</strong></em>).</p>',
+        redactedError
+      )
+    ).toEqual({
+      html: '',
+      stripped: true,
+    });
+  });
+
   it('strips trailing fallback paragraph from plain text bodies', () => {
     expect(
       stripTrailingRunErrorText(
@@ -293,7 +314,15 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
       sender = AGENT,
       eventId = '$err-1',
       highlightRegex,
-    }: { sender?: string; eventId?: string; highlightRegex?: RegExp } = {}
+      disableRunErrorUi,
+      linkifyOpts = {},
+    }: {
+      sender?: string;
+      eventId?: string;
+      highlightRegex?: RegExp;
+      disableRunErrorUi?: boolean;
+      linkifyOpts?: LinkifyOpts;
+    } = {}
   ) => {
     const mEvent = new MatrixEvent({
       type: EventType.RoomMessage,
@@ -330,9 +359,10 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
               msgType={String(content.msgtype ?? MsgType.Text)}
               ts={1000}
               highlightRegex={highlightRegex}
+              disableRunErrorUi={disableRunErrorUi}
               getContent={() => content as never}
               htmlReactParserOptions={{}}
-              linkifyOpts={{}}
+              linkifyOpts={linkifyOpts}
             />
           </MatrixClientProvider>
         </ClientConfigProvider>
@@ -638,6 +668,140 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
       (span) => span.textContent === 'OpenRouter' && span.style.backgroundColor !== ''
     );
     expect(highlighted).toBeDefined();
+  });
+
+  it('skips RunErrorCard, fallback stripping, and RestartSeam when disableRunErrorUi is true even without highlightRegex', () => {
+    renderMessage(
+      {
+        msgtype: MsgType.Text,
+        body:
+          '**[Response interrupted by service restart]**\n\n' +
+          "⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.",
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          '<p><strong>[Response interrupted by service restart]</strong></p>' +
+          "<p>⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.</p>",
+        'io.mindroom.stream_status': 'error',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'error',
+          error: {
+            kind: 'rate_limited',
+            title: 'Rate limit reached',
+            summary: "Neon hit OpenRouter's rate limit after automatic retries.",
+            status_code: 429,
+            provider: 'OpenRouter',
+            retryable: true,
+            action: 'retry',
+          },
+        },
+      },
+      { highlightRegex: undefined, disableRunErrorUi: true }
+    );
+
+    expect(container.querySelector('[data-run-error-card]')).toBeNull();
+    expect(container.querySelector('[data-restart-seam]')).toBeNull();
+    expect(
+      [...container.querySelectorAll('button')].some((btn) => btn.textContent?.includes('Retry'))
+    ).toBe(false);
+    expect(container.textContent).toContain('[Response interrupted by service restart]');
+    expect(container.textContent).toContain(
+      "⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries."
+    );
+  });
+
+  it('renders missing_api_key summary once with a clickable dashboard URL link', () => {
+    const summary =
+      'Add your provider key at https://dashboard.example.com/setup to resume replies.';
+    renderMessage(
+      {
+        msgtype: MsgType.Text,
+        body: `🔑 ${summary}`,
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          '<p>🔑 Add your provider key at <a href="https://dashboard.example.com/setup">https://dashboard.example.com/setup</a> to resume replies.</p>',
+        'io.mindroom.stream_status': 'error',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'error',
+          error: {
+            kind: 'missing_api_key',
+            title: 'Missing API key',
+            summary,
+            retryable: false,
+          },
+        },
+      },
+      { linkifyOpts: LINKIFY_OPTS }
+    );
+
+    const card = container.querySelector('[data-run-error-card="open"]');
+    expect(card).not.toBeNull();
+    expect(container.textContent?.split(summary)).toHaveLength(2);
+    const link = card?.querySelector('a[href="https://dashboard.example.com/setup"]');
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toBe('https://dashboard.example.com/setup');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noreferrer noopener');
+  });
+
+  it('deduplicates ***redacted*** summary against <em><strong>redacted</strong></em> HTML', () => {
+    renderMessage({
+      msgtype: MsgType.Text,
+      body: '❌ API key ***redacted*** was rejected by provider.',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p>❌ API key <em><strong>redacted</strong></em> was rejected by provider.</p>',
+      'io.mindroom.stream_status': 'error',
+      'io.mindroom.ai_run': {
+        version: 1,
+        status: 'error',
+        error: {
+          kind: 'authentication_failed',
+          title: 'Authentication failed',
+          summary: 'API key ***redacted*** was rejected by provider.',
+          status_code: 401,
+          retryable: false,
+        },
+      },
+    });
+
+    const card = container.querySelector('[data-run-error-card="open"]');
+    expect(card).not.toBeNull();
+    expect(container.querySelector('em')).toBeNull();
+    expect(container.querySelector('strong')).toBeNull();
+    expect(container.textContent?.split('was rejected by provider.')).toHaveLength(2);
+  });
+
+  it('renders RunErrorCard outside MessageTextBody so it never inherits body opacity dimming', () => {
+    for (const msgtype of [MsgType.Text, MsgType.Notice]) {
+      renderMessage({
+        msgtype,
+        body: 'Partial output.\n\n⚠️ OpenRouter sent no data for 5 min (retried once automatically).',
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          '<p>Partial output.</p><p>⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>',
+        'io.mindroom.stream_status': 'error',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'error',
+          error: {
+            kind: 'stream_stalled',
+            title: 'Model stopped responding',
+            summary: 'OpenRouter sent no data for 5 min (retried once automatically).',
+            retryable: true,
+            action: 'continue',
+          },
+        },
+      });
+
+      const card = container.querySelector('[data-run-error-card="open"]');
+      const textBody = container.querySelector('[data-body-direction]');
+      expect(card).not.toBeNull();
+      expect(textBody).not.toBeNull();
+      expect(card?.closest('[data-body-direction]')).toBeNull();
+      expect(textBody?.contains(card)).toBe(false);
+    }
   });
 
   it('ignores ai_run.error and restart markers on non-agent messages', () => {

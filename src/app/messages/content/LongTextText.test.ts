@@ -160,6 +160,7 @@ vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../agent-run/CompactionSeam.css', () => ({}));
 vi.mock('../agent-run/ToolCallsFold.css', () => ({}));
+vi.mock('../agent-run/RunErrorCard.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',

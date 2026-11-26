@@ -1,4 +1,4 @@
-import { style, styleVariants } from '@vanilla-extract/css';
+import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
 const reducedMotion = '(prefers-reduced-motion: reduce)';
@@ -59,14 +59,14 @@ export const IconTile = styleVariants({
     iconTileBase,
     {
       backgroundColor: `color-mix(in srgb, ${color.Warning.Main} 16%, transparent)`,
-      color: color.Warning.Main,
+      color: color.Warning.OnContainer,
     },
   ],
   danger: [
     iconTileBase,
     {
       backgroundColor: `color-mix(in srgb, ${color.Critical.Main} 16%, transparent)`,
-      color: color.Critical.Main,
+      color: color.Critical.OnContainer,
     },
   ],
 });
@@ -127,6 +127,18 @@ export const Summary = style({
   fontSize: toRem(13),
   lineHeight: 1.45,
   color: color.SurfaceVariant.OnContainer,
+});
+
+globalStyle(`${Summary} a:not([class])`, {
+  color: 'inherit',
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
+});
+
+globalStyle(`${Summary} a:focus-visible`, {
+  outline: `${toRem(2)} solid ${color.Primary.Main}`,
+  outlineOffset: toRem(2),
+  borderRadius: config.radii.R300,
 });
 
 export const Footer = style({
@@ -294,7 +306,7 @@ export const ReceiptButton = style([
 export const ReceiptCheck = style({
   display: 'inline-flex',
   alignItems: 'center',
-  color: color.Success.Main,
+  color: color.Success.OnContainer,
   flexShrink: 0,
 });
 
@@ -313,7 +325,7 @@ export const ReceiptTitle = style({
 export const ReceiptChevron = style({
   display: 'inline-flex',
   alignItems: 'center',
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
   marginInlineStart: toRem(2),
 });
 
@@ -354,7 +366,7 @@ export const RestartRuleEnd = style({
   backgroundColor: color.Surface.ContainerLine,
 });
 
+// Inherits MessageTextBody's opacity directly instead of compounding another P400 layer.
 export const RestartLabel = style({
-  opacity: config.opacity.P400,
   overflowWrap: 'anywhere',
 });

@@ -143,6 +143,8 @@ export type RenderAgentMessageContentOptions = {
   hydrateLongText?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
+  /** Disable RunErrorCard, fallback error stripping, and restart seams (e.g. search previews). */
+  disableRunErrorUi?: boolean;
 };
 
 type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
@@ -268,6 +270,7 @@ export const renderAgentMessageContent = ({
   renderUrlsPreview,
   hydrateLongText = true,
   readOnly,
+  disableRunErrorUi = false,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
   // A MindRoom agent's question shows as a card with a button per option.
   const question = fromMindroomAgent
@@ -367,11 +370,32 @@ export const renderAgentMessageContent = ({
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
 
-  // Search results pass highlightRegex: keep matched text intact and avoid rendering actionable
-  // error cards on search hits (which may come from m.replace events lacking threadId).
-  const showRunErrorUi = fromMindroomAgent && highlightRegex === undefined;
+  // Search previews disable run-error UI explicitly (even when highlightRegex is undefined,
+  // e.g. an m.replace hit with no highlights), and highlighted hits also stay intact.
+  const showRunErrorUi = fromMindroomAgent && !disableRunErrorUi && highlightRegex === undefined;
 
-  /** The reply's reasoning and body, folded work, question card, restart seam, and run error card. */
+  /**
+   * Renders RunErrorCard outside MessageTextBody (via renderAfterBody) so the card and its
+   * interactive controls never inherit MessageTextBody's P400/P300 opacity dimming.
+   */
+  const renderRunErrorCard = (bodyContent: Record<string, unknown>): ReactNode => {
+    if (!showRunErrorUi) return null;
+    const aiRun = getAiRunInfo(bodyContent) ?? outerAiRun;
+    if (!aiRun?.error) return null;
+    return (
+      <RunErrorCard
+        error={aiRun.error}
+        aiRun={aiRun}
+        mEvent={mEvent}
+        roomId={roomId ?? mEvent?.getRoomId()}
+        threadId={threadId}
+        readOnly={readOnly}
+        linkifyOpts={linkifyOpts}
+      />
+    );
+  };
+
+  /** The reply's reasoning and body, folded work, question card, and restart seam. */
   const wrapAgentBody = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
@@ -381,13 +405,15 @@ export const renderAgentMessageContent = ({
       effectiveBody: string | undefined
     ) => ReactNode,
     canFold = true,
-    plainBody?: string
+    plainBody?: string,
+    allowRunError = true
   ) => {
+    const runErrorEnabled = showRunErrorUi && allowRunError;
     const prepared = prepareRunErrorBody({
-      enabled: showRunErrorUi,
+      enabled: runErrorEnabled,
       body: plainBody,
       html,
-      aiRun: showRunErrorUi ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined,
+      aiRun: runErrorEnabled ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined,
     });
 
     const renderEffectiveHtml = (customBody: string | undefined): ReactNode =>
@@ -413,37 +439,22 @@ export const renderAgentMessageContent = ({
       );
     };
 
-    const wrappedBody =
-      !question || !renderQuestionCard ? (
-        wrap(renderEffectiveHtml)
-      ) : (
-        <QuestionReply
-          html={prepared.html}
-          question={question}
-          renderCard={renderQuestionCard}
-          renderHtml={renderEffectiveHtml}
-          renderBody={wrap}
-        />
-      );
-
-    if (!prepared.runError) return wrappedBody;
-    return (
-      <>
-        {wrappedBody}
-        <RunErrorCard
-          error={prepared.runError}
-          aiRun={prepared.aiRun}
-          mEvent={mEvent}
-          roomId={roomId ?? mEvent?.getRoomId()}
-          threadId={threadId}
-          readOnly={readOnly}
-        />
-      </>
+    return !question || !renderQuestionCard ? (
+      wrap(renderEffectiveHtml)
+    ) : (
+      <QuestionReply
+        html={prepared.html}
+        question={question}
+        renderCard={renderQuestionCard}
+        renderHtml={renderEffectiveHtml}
+        renderBody={wrap}
+      />
     );
   };
 
   const renderBody =
-    (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
+    (bodyContent: Record<string, unknown>, allowRunError = true) =>
+    (props: { body: string; customBody?: string }) => {
       const { body, customBody: providedCustomBody } = props;
       const renderableContent =
         providedCustomBody === undefined
@@ -471,7 +482,8 @@ export const renderAgentMessageContent = ({
           />
         ),
         true,
-        body
+        body,
+        allowRunError
       );
     };
 
@@ -519,6 +531,11 @@ export const renderAgentMessageContent = ({
     return todoPoke ? (
       <TodoPokeMarker poke={todoPoke} ts={ts ?? mEvent?.getTs()} senderDisplayName={displayName} />
     ) : null;
+  };
+
+  const renderLongTextAfterBody = (downloadedContent: Record<string, unknown>): ReactNode => {
+    const resolvedContent = transformLongTextContent(downloadedContent);
+    return renderRunErrorCard(withLiveWrapperContent(resolvedContent, content));
   };
 
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
@@ -588,7 +605,7 @@ export const renderAgentMessageContent = ({
       <ThreadSummaryCard
         edited={edited}
         summaryInfo={threadSummaryInfo}
-        renderBody={renderBody(content)}
+        renderBody={renderBody(content, false)}
       />
     );
   }
@@ -690,6 +707,7 @@ export const renderAgentMessageContent = ({
               false
             )
           }
+          renderAfterBody={renderRunErrorCard(content)}
         />
       );
     }
@@ -711,6 +729,7 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
+          renderAfterBody={renderLongTextAfterBody}
           renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
@@ -753,6 +772,7 @@ export const renderAgentMessageContent = ({
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
+          renderAfterBody={renderRunErrorCard(renderableContent)}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -776,6 +796,7 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
+          renderAfterBody={renderLongTextAfterBody}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -791,6 +812,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
+        renderAfterBody={renderRunErrorCard(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -821,7 +843,19 @@ export const renderAgentMessageContent = ({
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
           // An inline page still shows there, display-only.
-          renderAfterBody={!readOnly && <ChatUiActionButton event={mEvent} />}
+          renderAfterBody={(() => {
+            const uiActionButton = !readOnly && <ChatUiActionButton event={mEvent} />;
+            const runErrorCard = renderRunErrorCard(content);
+            if (uiActionButton && runErrorCard) {
+              return (
+                <>
+                  {uiActionButton}
+                  {runErrorCard}
+                </>
+              );
+            }
+            return uiActionButton || runErrorCard;
+          })()}
         />
       );
       return canvasTitle ? (
@@ -849,6 +883,7 @@ export const renderAgentMessageContent = ({
           hydrate={hydrateLongText}
           transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
+          renderAfterBody={renderLongTextAfterBody}
           renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
@@ -864,6 +899,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
+        renderAfterBody={renderRunErrorCard(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );

@@ -11,9 +11,16 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AiRunErrorInfo, AiRunInfo } from '../../matrix/protocol/aiRun';
+import type { AiRunErrorInfo } from '../../matrix/protocol/aiRun';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { RestartSeam, RunErrorCard, formatRunErrorCode, getRunErrorTone } from './RunErrorCard';
+import { LINKIFY_OPTS } from '../html/react-custom-html-parser';
+import {
+  RestartSeam,
+  RunErrorCard,
+  type RunErrorCardProps,
+  formatRunErrorCode,
+  getRunErrorTone,
+} from './RunErrorCard';
 
 const discardFailedLocalEcho = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/protocol/pendingLocalEcho', () => ({ discardFailedLocalEcho }));
@@ -223,17 +230,7 @@ describe('RunErrorCard', () => {
     vi.clearAllMocks();
   });
 
-  const renderCard = (
-    props: {
-      error: AiRunErrorInfo;
-      aiRun?: AiRunInfo;
-      mEvent?: MatrixEvent;
-      roomId?: string;
-      threadId?: string;
-      readOnly?: boolean;
-    },
-    mx?: MatrixClient
-  ) => {
+  const renderCard = (props: RunErrorCardProps, mx?: MatrixClient) => {
     const element = <RunErrorCard {...props} />;
     act(() => {
       root.render(mx ? <MatrixClientProvider value={mx}>{element}</MatrixClientProvider> : element);
@@ -663,6 +660,76 @@ describe('RunErrorCard', () => {
     expect(
       [...container.querySelectorAll('button')].some((btn) => btn.textContent?.includes('Continue'))
     ).toBe(false);
+  });
+
+  it('linkifies URLs in error.summary in both the open card and the expanded receipt body', async () => {
+    const missingKeyError: AiRunErrorInfo = {
+      kind: 'missing_api_key',
+      title: 'Missing API key',
+      summary: 'Configure your API key at https://dashboard.example.com/setup before retrying.',
+      retryable: false,
+    };
+    const failedEvent = makeEvent('$missing-key');
+    const room = createMockRoom({ canSend: true, threadEvents: [failedEvent] });
+    const { mx } = createMockClient(room);
+
+    renderCard(
+      {
+        error: missingKeyError,
+        mEvent: failedEvent,
+        roomId: ROOM_ID,
+        threadId: THREAD_ID,
+        linkifyOpts: LINKIFY_OPTS,
+      },
+      mx
+    );
+
+    const openLink = container.querySelector(
+      '[data-run-error-card="open"] a[href="https://dashboard.example.com/setup"]'
+    );
+    expect(openLink).not.toBeNull();
+    expect(openLink?.textContent).toBe('https://dashboard.example.com/setup');
+    expect(openLink?.getAttribute('target')).toBe('_blank');
+    expect(openLink?.getAttribute('rel')).toBe('noreferrer noopener');
+
+    const retryableWithUrl: AiRunErrorInfo = {
+      ...STALLED_ERROR,
+      summary: 'Check status at https://dashboard.example.com/setup and try again.',
+    };
+    renderCard(
+      {
+        error: retryableWithUrl,
+        mEvent: failedEvent,
+        roomId: ROOM_ID,
+        threadId: THREAD_ID,
+        linkifyOpts: LINKIFY_OPTS,
+      },
+      mx
+    );
+
+    const continueButton = [...container.querySelectorAll('button')].find((btn) =>
+      btn.textContent?.includes('Continue')
+    );
+    expect(continueButton).toBeDefined();
+    await act(async () => {
+      continueButton!.click();
+    });
+
+    const receiptButton = container.querySelector<HTMLButtonElement>(
+      '[data-run-error-card="resumed"] button[aria-expanded="false"]'
+    );
+    expect(receiptButton).not.toBeNull();
+    act(() => {
+      receiptButton!.click();
+    });
+
+    const receiptLink = container.querySelector(
+      '[data-run-error-card="resumed"] a[href="https://dashboard.example.com/setup"]'
+    );
+    expect(receiptLink).not.toBeNull();
+    expect(receiptLink?.textContent).toBe('https://dashboard.example.com/setup');
+    expect(receiptLink?.getAttribute('target')).toBe('_blank');
+    expect(receiptLink?.getAttribute('rel')).toBe('noreferrer noopener');
   });
 
   it('renders RestartSeam for single and repeated restarts', () => {

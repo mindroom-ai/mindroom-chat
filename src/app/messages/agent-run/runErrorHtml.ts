@@ -43,8 +43,10 @@ const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
 const stripSimpleMarkdown = (text: string): string =>
   text
-    .replace(/\*\*(\S(?:.*?\S)?)\*\*/g, '$1')
-    .replace(/(^|[^\w])__(\S(?:.*?\S)?)__(?=$|[^\w])/g, '$1$2')
+    .replace(/\*\*\*([^\s*](?:.*?[^\s*])??)\*\*\*/g, '$1')
+    .replace(/(^|[^\w])___([^\s_](?:.*?[^\s_])??)___(?=$|[^\w])/g, '$1$2')
+    .replace(/\*\*([^\s*](?:.*?[^\s*])??)\*\*/g, '$1')
+    .replace(/(^|[^\w])__([^\s_](?:.*?[^\s_])??)__(?=$|[^\w])/g, '$1$2')
     .replace(/`([^`]+)`/g, '$1');
 
 const normalizeComparable = (text: string): string =>
