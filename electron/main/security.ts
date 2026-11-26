@@ -134,6 +134,20 @@ export const supportsQuickCaptureScreenshots = (
   systemVersion: string
 ): boolean => isMacOSAtLeast(platform, systemVersion, 14);
 
+export const UNSANDBOXED_APPIMAGE_ERROR =
+  'MindRoom Chat cannot start with Chromium sandboxing disabled. On Ubuntu 24.04+ and distributions that restrict unprivileged user namespaces, install the .deb package (which includes an AppArmor profile) instead of the AppImage.';
+
+export const shouldRefuseUnsandboxedAppImage = (options: {
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  appImageEnv?: string;
+  hasNoSandboxSwitch: boolean;
+}): boolean =>
+  options.isPackaged &&
+  options.platform === 'linux' &&
+  Boolean(options.appImageEnv?.trim()) &&
+  options.hasNoSandboxSwitch;
+
 export const guardSession = (
   session: Electron.Session,
   isMainWindow: (contents: Electron.WebContents) => boolean,

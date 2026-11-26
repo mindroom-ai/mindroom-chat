@@ -17,12 +17,7 @@ import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import {
-  getAiRunInfo,
-  isAiRunStreaming,
-  readStreamStatus,
-  SUCCESSFUL_STREAM_STATUSES,
-} from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, isAiRunStreaming, isFinishedAgentReply } from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
@@ -80,9 +75,6 @@ import { QuestionCard } from '../question/QuestionCard';
 import { QuestionReply } from '../question/QuestionReply';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
-
-/** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
-const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 
 /** The live keys a streaming reply's frames add to its outer content (useLiveReplyContent). */
 const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
@@ -359,13 +351,8 @@ export const renderAgentMessageContent = ({
   // also say it ended well.
   const foldEventId = eventId ?? mEvent?.getId();
   const outerAiRun = getAiRunInfo(content);
-  const status = outerAiRun?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const streamStatus = readStreamStatus(content);
-  const finished =
-    !!status &&
-    FINISHED_AI_RUN_STATUSES.has(status) &&
-    (!streamStatus || SUCCESSFUL_STREAM_STATUSES.has(streamStatus));
+  const finished = isFinishedAgentReply(content);
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();

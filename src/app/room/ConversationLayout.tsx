@@ -241,6 +241,8 @@ export function ConversationLayout({
                         room={room}
                         threadId={threadId ?? null}
                         canCancel={canCancelJobs && !readOnly}
+                        readOnly={readOnly}
+                        focusConversation={focusConversation}
                       />
                     </ErrorBoundary>
                   </div>

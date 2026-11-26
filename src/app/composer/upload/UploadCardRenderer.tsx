@@ -1,8 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue, type Atom } from 'jotai';
 import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
 import type { MatrixError } from 'matrix-js-sdk';
-import { UploadCard, UploadCardCancel, UploadCardError, UploadCardProgress } from './UploadCard';
+import {
+  UploadCard,
+  UploadCardCancel,
+  UploadCardCompressionProgress,
+  UploadCardError,
+  UploadCardProgress,
+} from './UploadCard';
 import * as css from './UploadCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaConfig } from '../../matrix/hooks/useMediaConfig';
@@ -31,6 +38,17 @@ export const getFileTypeIcon = (mimeType: string): IconSrc => {
 const fileNameOf = (file: { name?: string }): string => file.name ?? '';
 
 export { getTooLargeError };
+
+function CompressingProgressLine({
+  progressAtom,
+  label,
+}: {
+  progressAtom: Atom<number>;
+  label: string;
+}) {
+  const progress = useAtomValue(progressAtom);
+  return <UploadCardCompressionProgress progress={progress} label={label} />;
+}
 
 type UploadStatusLineProps = {
   upload: Upload;
@@ -83,6 +101,10 @@ type UploadHandlers = {
   /** Stores new metadata (such as the spoiler flag) for the item. */
   setMetadata: (item: TUploadItem, metadata: TUploadMetadata) => void;
   onRemove: (file: TUploadItem['file']) => void;
+  /** Swaps a compressing or compressed attachment back to its original source file. */
+  onUseOriginal?: (item: TUploadItem) => void;
+  /** Whether the Use original action is allowed (false once enrolled in an active send). */
+  canUseOriginal?: boolean;
 };
 
 // With `isEncrypted`, a file that is not encrypted must never upload.
@@ -100,26 +122,37 @@ export const UploadCardRenderer = ({
   autoUpload = true,
   setMetadata,
   onRemove,
+  onUseOriginal,
+  canUseOriginal = true,
 }: UploadCardRendererProps) => {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
-  const { file, originalFile, metadata, encInfo, prepError } = fileItem;
+  const { file, originalFile, metadata, encInfo, prepError, compression } = fileItem;
+  const isCompressing = compression?.status === 'compressing';
+
+  const compressingError = useMemo(
+    () =>
+      isCompressing
+        ? toMatrixUploadError(new Error('The file is still compressing.'), 'create')
+        : undefined,
+    [isCompressing]
+  );
 
   // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
   const unencryptedError = useMemo(
     () =>
-      isEncrypted && !encInfo
+      !isCompressing && isEncrypted && !encInfo
         ? toMatrixUploadError(new Error('The file was not encrypted.'), 'create')
         : undefined,
-    [isEncrypted, encInfo]
+    [isCompressing, isEncrypted, encInfo]
   );
   const tooLargeError = useMemo(
-    () => getTooLargeError(file.size, maxUploadSize),
-    [file.size, maxUploadSize]
+    () => (isCompressing ? undefined : getTooLargeError(file.size, maxUploadSize)),
+    [isCompressing, file.size, maxUploadSize]
   );
 
-  const bindBlockError = prepError ?? unencryptedError ?? tooLargeError;
+  const bindBlockError = compressingError ?? prepError ?? unencryptedError ?? tooLargeError;
   const { upload, startUpload, cancelUpload } = useBindUploadAtom(
     client,
     roomUploadAtomFamily(file),
@@ -141,10 +174,12 @@ export const UploadCardRenderer = ({
   const blocked = blockUploadError ?? tooLargeError;
 
   useEffect(() => {
-    // A file that could not be prepared already carries its error and must never start.
-    if (!autoUpload || blockUploadError || upload.status !== UploadStatus.Idle) return;
+    // Compressing placeholders and files that could not be prepared must never auto-upload.
+    if (!autoUpload || isCompressing || blockUploadError || upload.status !== UploadStatus.Idle) {
+      return;
+    }
     void startUpload();
-  }, [autoUpload, blockUploadError, upload.status, startUpload]);
+  }, [autoUpload, isCompressing, blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
     void cancelUpload();
@@ -160,6 +195,11 @@ export const UploadCardRenderer = ({
   const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
   // Direction controls in the name show as code points; the upload keeps the name as it is.
   const name = revealDirectionControls(fileNameOf(originalFile) || fileNameOf(file));
+  const showUseOriginal =
+    onUseOriginal !== undefined &&
+    canUseOriginal &&
+    !prepError &&
+    (isCompressing || compression?.status === 'compressed');
 
   return (
     <UploadCard
@@ -173,7 +213,7 @@ export const UploadCardRenderer = ({
       }
       after={
         <>
-          {upload.status === UploadStatus.Success && (
+          {!isCompressing && upload.status === UploadStatus.Success && (
             <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
           )}
           {canBeSpoiler && (
@@ -198,21 +238,49 @@ export const UploadCardRenderer = ({
         </>
       }
       bottom={
-        <UploadStatusLine
-          upload={upload}
-          blockedError={blocked}
-          maxUploadSize={maxUploadSize}
-          onRetry={autoUpload ? () => void startUpload() : undefined}
-          retryLabel={t('sharedUi.uploadCardRenderer.retry')}
-        />
+        compression?.status === 'compressing' ? (
+          <CompressingProgressLine
+            progressAtom={compression.progressAtom}
+            label={t('sharedUi.uploadCardRenderer.compressing')}
+          />
+        ) : (
+          <UploadStatusLine
+            upload={upload}
+            blockedError={blocked}
+            maxUploadSize={maxUploadSize}
+            onRetry={autoUpload ? () => void startUpload() : undefined}
+            retryLabel={t('sharedUi.uploadCardRenderer.retry')}
+          />
+        )
       }
     >
       <Text size="H6" truncate title={name}>
         {name}
       </Text>
-      <Text size="T200" priority="300">
-        {bytesToSize(originalFile.size)}
-      </Text>
+      <Box alignItems="Center" gap="200" wrap="Wrap">
+        <Text size="T200" priority="300" style={{ whiteSpace: 'nowrap' }}>
+          {compression?.status === 'compressed'
+            ? t('sharedUi.uploadCardRenderer.compressedSize', {
+                originalSize: bytesToSize(compression.originalSize),
+                compressedSize: bytesToSize(originalFile.size),
+              })
+            : bytesToSize(originalFile.size)}
+        </Text>
+        {showUseOriginal && (
+          <Chip
+            type="button"
+            size="400"
+            variant="SurfaceVariant"
+            radii="Pill"
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            onClick={() => onUseOriginal(fileItem)}
+          >
+            <Text as="span" size="T200">
+              {t('sharedUi.uploadCardRenderer.useOriginal')}
+            </Text>
+          </Chip>
+        )}
+      </Box>
     </UploadCard>
   );
 };

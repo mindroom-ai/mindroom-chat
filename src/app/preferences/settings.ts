@@ -13,6 +13,11 @@ import {
 import { isRecord } from '../lib/isRecord';
 import { isMidTurnMode, type MidTurnMode } from './midTurnModes';
 import {
+  DEFAULT_MEDIA_COMPRESSION,
+  isMediaCompressionPreset,
+  type MediaCompressionPreset,
+} from './mediaCompression';
+import {
   keepDeviceRoamingSettings,
   overlayRoamingSettings,
   pendingRoamingSettingsAtom,
@@ -99,6 +104,8 @@ export type Settings = Record<BooleanSettingKey, boolean> &
     dateFormatString: string;
     /** The mode a tap on Send or Enter sends with while an agent replies in the thread. */
     midTurnSend: MidTurnMode;
+    /** Quality preset for client-side compression of attached images and videos. */
+    mediaCompression: MediaCompressionPreset;
     /**
      * Times as 13:00 instead of 1:00 PM; unset, times follow the app language's clock
      * (`useHour24Clock`).
@@ -133,6 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageSpacing: '400',
   dateFormatString: 'D MMM YYYY',
   midTurnSend: 'auto',
+  mediaCompression: DEFAULT_MEDIA_COMPRESSION,
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
@@ -178,6 +186,9 @@ const sanitizeSettings = (value: unknown): Settings => {
     midTurnSend: isMidTurnMode(record.midTurnSend)
       ? record.midTurnSend
       : DEFAULT_SETTINGS.midTurnSend,
+    mediaCompression: isMediaCompressionPreset(record.mediaCompression)
+      ? record.mediaCompression
+      : DEFAULT_SETTINGS.mediaCompression,
     hour24Clock: typeof record.hour24Clock === 'boolean' ? record.hour24Clock : undefined,
   };
   // A stored value of another type counts by its truthiness, so `null` or `0` turns a setting off.

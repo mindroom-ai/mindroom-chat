@@ -1,18 +1,23 @@
-# The Electron Mac app (MindRoom Chat.app, chat.mindroom.app):
-# - pull_request: runs the offline Electron shell e2e suite on macos-26 and publishes nothing;
+# The Electron desktop apps (macOS MindRoom Chat.app and Linux AppImage/.deb, chat.mindroom.app):
+# - pull_request: runs the offline Electron shell e2e suites on macos-26 and ubuntu-24.04 (plus
+#   Linux x64 packaging verification and smoke launch) and publishes nothing;
 # - workflow_call (from release.yml), release: published (hand-cut releases), and workflow_dispatch
-#   (backfilling a release missing its Mac app): builds, Developer ID signs, notarizes, staples,
-#   verifies (fail-closed), and attaches MindRoom-Chat.dmg (universal), arm64/x64 ZIPs with
-#   blockmaps, and latest-mac.yml to the release; the feed job then updates the mac-feed
-#   prerelease (latest-mac.yml) and notifies mindroom-ai/homebrew-tap when this release is the
-#   newest. Existing release assets are never replaced.
+#   (backfilling a release missing macOS and/or Linux artifacts via the platform input):
+#   - macOS (release -> feed): builds, Developer ID signs, notarizes, staples, verifies
+#     (fail-closed), and attaches MindRoom-Chat.dmg (universal), arm64/x64 ZIPs with blockmaps,
+#     and latest-mac.yml; feed then updates mac-feed (latest-mac.yml) and notifies
+#     mindroom-ai/homebrew-tap when this release is the newest;
+#   - Linux (build-linux -> release-linux -> feed-linux): builds and verifies x64 and arm64
+#     AppImages (with embedded blockmaps), .deb packages, and latest-linux*.yml manifests,
+#     uploads all 6 Linux assets in one gh release upload, and updates linux-feed.
+# Existing release assets are never replaced.
 name: Desktop shell
 
 on:
   workflow_call:
     inputs:
       tag:
-        description: The release tag (vYYYY.M.N) to build the Mac app of.
+        description: The release tag (vYYYY.M.N) to build the desktop apps of.
         type: string
         required: true
   release:
@@ -20,14 +25,23 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: The release tag (vYYYY.M.N) whose Mac app is missing.
+        description: The release tag (vYYYY.M.N) whose desktop artifacts are missing.
         type: string
         required: true
+      platform:
+        description: Platform to build (all, mac, or linux).
+        type: choice
+        options:
+          - all
+          - mac
+          - linux
+        default: all
   pull_request:
     paths:
       - electron/**
       - electron/afterPack.cjs
       - scripts/build-desktop-app.sh
+      - scripts/build-linux-desktop.sh
       - scripts/build-trackpad-swipe-addon.sh
       - scripts/desktop-helper-pin.json
       - scripts/fetch-desktop-helper.mjs
@@ -96,15 +110,45 @@ jobs:
       - name: Run offline desktop e2e
         run: npm run e2e:desktop -- --grep-invert @homeserver
 
+  e2e-linux:
+    name: Electron shell e2e (Linux)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: desktop-e2e-linux-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci
+      - name: Build desktop shell
+        run: npm run build:desktop
+      - name: Run offline desktop e2e
+        env:
+          MINDROOM_E2E_NO_SANDBOX: '1'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" npm run e2e:desktop -- --grep-invert @homeserver
+      - name: Package and verify Linux app (x64)
+        env:
+          MINDROOM_LINUX_REQUIRE_SMOKE: '1'
+        run: scripts/build-linux-desktop.sh --arch x64 --skip-web-build
+
   release:
     name: Build, sign, notarize and publish the Mac app
     # When release.yml calls this workflow via workflow_call, github.event_name is the caller's
     # event (workflow_run), never workflow_call.
-    if: github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)
+    if: github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'linux')
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
       contents: write
+    outputs:
+      skipped: ${{ steps.release.outputs.skipped }}
     concurrency:
       group: desktop-release-${{ inputs.tag || github.event.release.tag_name || github.ref }}
       cancel-in-progress: false
@@ -115,6 +159,7 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           if [[ -z ${RELEASE_TAG:-} ]]; then
@@ -131,29 +176,41 @@ jobs:
             echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
             exit 1
           fi
-          published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '[.assets[] | select(.name == "MindRoom-Chat.dmg" or .name == "MindRoom-Chat-arm64-mac.zip" or .name == "MindRoom-Chat-x64-mac.zip")] | length')
+          counts=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[] | select(.name == "MindRoom-Chat.dmg" or .name == "MindRoom-Chat-arm64-mac.zip" or .name == "MindRoom-Chat-x64-mac.zip" or .name == "MindRoom-Chat-arm64-mac.zip.blockmap" or .name == "MindRoom-Chat-x64-mac.zip.blockmap" or .name == "latest-mac.yml")] | "\(length) \([.[] | select(.state == "uploaded")] | length)"')
+          read -r published uploaded <<<"$counts"
+          if [[ $published -eq 6 && $uploaded -eq 6 && ${EVENT_NAME:-} == workflow_dispatch ]]; then
+            echo "::notice::Mac app artifacts are already complete on $RELEASE_TAG; skipping macOS build."
+            echo 'skipped=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ $published != 0 ]]; then
             echo "::error::$RELEASE_TAG already has Mac app artifacts, which are never replaced"
             exit 1
           fi
+          echo 'skipped=false' >> "$GITHUB_OUTPUT"
           echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
+        if: steps.release.outputs.skipped != 'true'
         with:
           ref: refs/tags/${{ env.RELEASE_TAG }}
           persist-credentials: false
       - uses: actions/setup-node@v7
+        if: steps.release.outputs.skipped != 'true'
         with:
           node-version: 24
       - name: Install dependencies
+        if: steps.release.outputs.skipped != 'true'
         run: npm ci
       - name: Import the Developer ID certificate
+        if: steps.release.outputs.skipped != 'true'
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
         with:
           p12-file-base64: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_BASE64 }}
           p12-password: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_PASSWORD }}
           keychain-password: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
       - name: Find the Developer ID identity
+        if: steps.release.outputs.skipped != 'true'
         id: codesign
         run: |
           set -euo pipefail
@@ -165,6 +222,7 @@ jobs:
           fi
           echo "identity=$identity" >> "$GITHUB_OUTPUT"
       - name: Build, sign, notarize and verify
+        if: steps.release.outputs.skipped != 'true'
         env:
           CODESIGN_IDENTITY: ${{ steps.codesign.outputs.identity }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -177,6 +235,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-desktop-app.sh --sign
       - name: Attach verified artifacts to the release
+        if: steps.release.outputs.skipped != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -193,7 +252,7 @@ jobs:
   feed:
     name: Publish the update feed
     needs: release
-    if: ${{ !cancelled() && needs.release.result == 'success' && (inputs.tag || github.event.release.tag_name) }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.skipped != 'true' && (inputs.tag || github.event.release.tag_name) }}
     # One at a time across every release's run, every waiting run kept (queue: max), since a run
     # that finishes late may be older than one waiting. It publishes its release only above what the
     # feed names, so the order runs finish in does not matter, and a re-run repairs a failed
@@ -249,3 +308,216 @@ jobs:
             -f event_type=mindroom-chat-release \
             -f "client_payload[tag_name]=$RELEASE_TAG" \
             -f "client_payload[asset_url]=https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/MindRoom-Chat.dmg"
+
+  build-linux:
+    name: Build and verify Linux app (${{ matrix.arch }})
+    if: github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease) && (github.event_name != 'workflow_dispatch' || inputs.platform != 'mac')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+            appimage_arch: x86_64
+            deb_arch: amd64
+            feed_file: latest-linux.yml
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            appimage_arch: arm64
+            deb_arch: arm64
+            feed_file: latest-linux-arm64.yml
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    concurrency:
+      group: desktop-release-linux-${{ matrix.arch }}-${{ inputs.tag || github.event.release.tag_name || github.ref }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Check the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z ${RELEASE_TAG:-} ]]; then
+            echo '::error::RELEASE_TAG is empty'
+            exit 1
+          fi
+          if ! [[ $RELEASE_TAG =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
+            exit 1
+          fi
+          kind=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease \
+            --jq 'if .isDraft or .isPrerelease then "unpublished" else "published" end')
+          if [[ $kind != published ]]; then
+            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
+            exit 1
+          fi
+          counts=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[] | select(.name == "MindRoom-Chat-x86_64.AppImage" or .name == "MindRoom-Chat-amd64.deb" or .name == "MindRoom-Chat-arm64.AppImage" or .name == "MindRoom-Chat-arm64.deb" or .name == "latest-linux.yml" or .name == "latest-linux-arm64.yml")] | "\(length) \([.[] | select(.state == "uploaded")] | length)"')
+          read -r published uploaded <<<"$counts"
+          if [[ $published -eq 6 && $uploaded -eq 6 && ${EVENT_NAME:-} == workflow_dispatch ]]; then
+            echo "::notice::Linux app artifacts are already complete on $RELEASE_TAG; skipping Linux build."
+            echo 'skipped=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ $published != 0 ]]; then
+            echo "::error::$RELEASE_TAG already has Linux app artifacts, which are never replaced"
+            exit 1
+          fi
+          echo 'skipped=false' >> "$GITHUB_OUTPUT"
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        if: steps.release.outputs.skipped != 'true'
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        if: steps.release.outputs.skipped != 'true'
+        with:
+          node-version: 24
+      - name: Install dependencies
+        if: steps.release.outputs.skipped != 'true'
+        run: npm ci
+      - name: Build and verify Linux app
+        if: steps.release.outputs.skipped != 'true'
+        env:
+          MARKETING_VERSION: ${{ steps.release.outputs.version }}
+          MINDROOM_BUILD_VERSION: ${{ env.RELEASE_TAG }}
+          MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
+          MINDROOM_LINUX_REQUIRE_SMOKE: '1'
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: scripts/build-linux-desktop.sh --arch ${{ matrix.arch }}
+      - name: Generate Linux update manifest
+        if: steps.release.outputs.skipped != 'true'
+        run: |
+          node scripts/desktop-latest-yml.mjs \
+            --platform linux \
+            --version "${{ steps.release.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --arch "${{ matrix.arch }}" \
+            --file "build/desktop-dist/MindRoom-Chat-${{ matrix.appimage_arch }}.AppImage" \
+            --out "build/desktop-dist/${{ matrix.feed_file }}"
+      - name: Upload Linux artifacts
+        if: steps.release.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-desktop-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            build/desktop-dist/MindRoom-Chat-${{ matrix.appimage_arch }}.AppImage
+            build/desktop-dist/MindRoom-Chat-${{ matrix.deb_arch }}.deb
+            build/desktop-dist/${{ matrix.feed_file }}
+
+  release-linux:
+    name: Publish Linux desktop artifacts
+    needs: build-linux
+    if: ${{ !cancelled() && needs.build-linux.result == 'success' && (inputs.tag || github.event.release.tag_name) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      skipped: ${{ steps.release.outputs.skipped }}
+    concurrency:
+      group: desktop-release-linux-publish-${{ inputs.tag || github.event.release.tag_name || github.ref }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Check the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z ${RELEASE_TAG:-} ]]; then
+            echo '::error::RELEASE_TAG is empty'
+            exit 1
+          fi
+          if ! [[ $RELEASE_TAG =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
+            exit 1
+          fi
+          kind=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease \
+            --jq 'if .isDraft or .isPrerelease then "unpublished" else "published" end')
+          if [[ $kind != published ]]; then
+            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
+            exit 1
+          fi
+          counts=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[] | select(.name == "MindRoom-Chat-x86_64.AppImage" or .name == "MindRoom-Chat-amd64.deb" or .name == "MindRoom-Chat-arm64.AppImage" or .name == "MindRoom-Chat-arm64.deb" or .name == "latest-linux.yml" or .name == "latest-linux-arm64.yml")] | "\(length) \([.[] | select(.state == "uploaded")] | length)"')
+          read -r published uploaded <<<"$counts"
+          if [[ $published -eq 6 && $uploaded -eq 6 && ${EVENT_NAME:-} == workflow_dispatch ]]; then
+            echo "::notice::Linux app artifacts are already complete on $RELEASE_TAG; skipping Linux publish."
+            echo 'skipped=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ $published != 0 ]]; then
+            echo "::error::$RELEASE_TAG already has Linux app artifacts, which are never replaced"
+            exit 1
+          fi
+          echo 'skipped=false' >> "$GITHUB_OUTPUT"
+      - name: Download x64 Linux artifacts
+        if: steps.release.outputs.skipped != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-desktop-x64
+          path: build/desktop-dist
+      - name: Download arm64 Linux artifacts
+        if: steps.release.outputs.skipped != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-desktop-arm64
+          path: build/desktop-dist
+      - name: Attach verified Linux artifacts to the release
+        if: steps.release.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          files=(
+            build/desktop-dist/MindRoom-Chat-x86_64.AppImage
+            build/desktop-dist/MindRoom-Chat-amd64.deb
+            build/desktop-dist/latest-linux.yml
+            build/desktop-dist/MindRoom-Chat-arm64.AppImage
+            build/desktop-dist/MindRoom-Chat-arm64.deb
+            build/desktop-dist/latest-linux-arm64.yml
+          )
+          for f in "${files[@]}"; do
+            if [[ ! -s $f ]]; then
+              echo "::error::Missing or empty Linux release artifact: $f"
+              exit 1
+            fi
+          done
+          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY"
+
+  feed-linux:
+    name: Publish the Linux update feed
+    needs: release-linux
+    if: ${{ !cancelled() && needs.release-linux.result == 'success' && needs.release-linux.outputs.skipped != 'true' && (inputs.tag || github.event.release.tag_name) }}
+    concurrency:
+      group: linux-desktop-feed
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - name: Point the Linux feed at this release if it is the newest ready one
+        id: feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/macos-publish-appcast.sh --linux "$RELEASE_TAG"

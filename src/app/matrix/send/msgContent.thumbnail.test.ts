@@ -6,13 +6,19 @@ import { getImageMsgContent } from './msgContent';
 const mocks = vi.hoisted(() => ({
   loadImageElement: vi.fn(),
   getThumbnail: vi.fn(),
+  supportsWebpEncode: vi.fn(() => false),
 }));
 
 vi.mock('./blurHash', () => ({ encodeBlurHash: () => undefined }));
 
 vi.mock('../../lib/dom', async () => {
   const actual = await vi.importActual<typeof import('../../lib/dom')>('../../lib/dom');
-  return { ...actual, loadImageElement: mocks.loadImageElement, getThumbnail: mocks.getThumbnail };
+  return {
+    ...actual,
+    loadImageElement: mocks.loadImageElement,
+    getThumbnail: mocks.getThumbnail,
+    supportsWebpEncode: mocks.supportsWebpEncode,
+  };
 });
 
 const picture = (name: string, type: string, bytes: number): TUploadItem => {
@@ -27,6 +33,7 @@ const clientUploading = () => {
 
 describe('getImageMsgContent thumbnails', () => {
   beforeEach(() => {
+    mocks.supportsWebpEncode.mockReturnValue(false);
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:picture');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
   });
@@ -35,6 +42,7 @@ describe('getImageMsgContent thumbnails', () => {
     vi.restoreAllMocks();
     mocks.loadImageElement.mockReset();
     mocks.getThumbnail.mockReset();
+    mocks.supportsWebpEncode.mockReset();
   });
 
   it('uploads an 800 pixel thumbnail for a picture larger than the timeline shows', async () => {
@@ -66,6 +74,35 @@ describe('getImageMsgContent thumbnails', () => {
     await getImageMsgContent(mx, picture('diagram.png', 'image/png', 5000), 'mxc://o');
 
     expect(mocks.getThumbnail).toHaveBeenCalledWith(expect.anything(), 800, 800, 'image/png');
+  });
+
+  it('encodes WebP thumbnails when the source is WebP and WebP encoding is supported', async () => {
+    mocks.supportsWebpEncode.mockReturnValue(true);
+    mocks.loadImageElement.mockResolvedValue({ width: 2048, height: 1536 });
+    mocks.getThumbnail.mockResolvedValue(new Blob([new Uint8Array(80)], { type: 'image/webp' }));
+    const { mx } = clientUploading();
+
+    const content = await getImageMsgContent(
+      mx,
+      picture('screenshot.webp', 'image/webp', 5000),
+      'mxc://o'
+    );
+
+    expect(mocks.getThumbnail).toHaveBeenCalledWith(expect.anything(), 800, 600, 'image/webp');
+    expect(content.info).toMatchObject({
+      thumbnail_info: { w: 800, h: 600, mimetype: 'image/webp', size: 80 },
+    });
+  });
+
+  it('falls back to PNG thumbnails for WebP images when WebP encoding is unsupported', async () => {
+    mocks.supportsWebpEncode.mockReturnValue(false);
+    mocks.loadImageElement.mockResolvedValue({ width: 2048, height: 1536 });
+    mocks.getThumbnail.mockResolvedValue(new Blob([new Uint8Array(80)], { type: 'image/png' }));
+    const { mx } = clientUploading();
+
+    await getImageMsgContent(mx, picture('screenshot.webp', 'image/webp', 5000), 'mxc://o');
+
+    expect(mocks.getThumbnail).toHaveBeenCalledWith(expect.anything(), 800, 600, 'image/png');
   });
 
   it('sends no thumbnail for small pictures, GIFs, or when it would not be smaller', async () => {

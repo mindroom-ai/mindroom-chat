@@ -91,7 +91,7 @@ for (const viewport of [
       // The element around the row draws the header's surface; the row shows it.
       const roomHeaderSurface = roomHeader.locator('xpath=..');
       await expect(roomHeaderSurface).toHaveCSS('box-shadow', 'none');
-      await expect(roomHeaderSurface).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
+      await expect(roomHeaderSurface).toHaveCSS('backdrop-filter', /^blur\(12px\)/);
       const roomHeaderBox = (await roomHeader.boundingBox())!;
       const composer = page.locator('[data-slate-editor="true"]');
       const composerBox = (await composer.boundingBox())!;

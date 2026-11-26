@@ -68,6 +68,27 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
+  it('defaults mediaCompression to balanced and preserves only known presets', async () => {
+    const { getSettings } = await import('./settings');
+    const stored = (mediaCompression: unknown) => {
+      storageValue = JSON.stringify({ mediaCompression });
+      return getSettings().mediaCompression;
+    };
+
+    storageValue = null;
+    expect(getSettings().mediaCompression).toBe('balanced');
+    expect(stored('off')).toBe('off');
+    expect(stored('balanced')).toBe('balanced');
+    expect(stored('small')).toBe('small');
+    expect(stored('Balanced')).toBe('balanced');
+    expect(stored('high')).toBe('balanced');
+    expect(stored('')).toBe('balanced');
+    expect(stored(1)).toBe('balanced');
+    expect(stored(null)).toBe('balanced');
+
+    storageValue = null;
+  });
+
   it('sanitizes persisted page zoom values', async () => {
     const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } =
       await import('./settings');

@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 个文件"
     },
+    "uploadCardRenderer": {
+      "compressing": "正在压缩...",
+      "useOriginal": "使用原文件",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "显示密码",
       "hide": "隐藏密码"
@@ -517,7 +522,8 @@
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
         "plugins": "插件, 扩展, 附加组件, 集成",
-        "appUpdates": "更新, 版本, 升级, 重启"
+        "appUpdates": "更新, 版本, 升级, 重启",
+        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -539,6 +545,13 @@
         "updateReady": "版本 {{version}} 已准备好安装。",
         "restartToUpdate": "重启以更新",
         "updateInstallFailed": "无法重启以安装更新，请重试。"
+      },
+      "mediaCompression": {
+        "title": "媒体压缩",
+        "description": "在上传前压缩附带的照片、截图和视频。您仍然可以为任意附件选择原文件。",
+        "off": "关闭",
+        "balanced": "均衡",
+        "small": "较小"
       }
     },
     "createChat": {
@@ -1527,7 +1540,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 个后台任务",
-      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成",
+      "reviewApprovalFor": "审核批准：{{tool}}",
+      "checkingApproval": "正在检查批准…"
     },
     "workflowRun": {
       "title": "工作流",

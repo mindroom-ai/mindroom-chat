@@ -18,6 +18,7 @@ const layoutState = vi.hoisted(
     dictationCanSend: boolean;
     hasVoice: boolean;
     hasSendableFiles: boolean;
+    isPreparing: boolean;
     actionsMenuVoiceAction: ComposerExtraVoiceAction | undefined;
     sendLabel: string | undefined;
     sendEmpty: boolean | undefined;
@@ -38,6 +39,7 @@ const layoutState = vi.hoisted(
     dictationCanSend: false,
     hasVoice: false,
     hasSendableFiles: false,
+    isPreparing: false,
     actionsMenuVoiceAction: undefined,
     sendLabel: undefined,
     sendEmpty: undefined,
@@ -219,6 +221,9 @@ vi.mock('../useRoomInputAttachments', () => ({
     lostPastes: false,
     dismissLostPastes: vi.fn(),
     settlePastes: () => true,
+    isPreparing: layoutState.isPreparing,
+    isPreparingNow: () => layoutState.isPreparing,
+    prepareForSend: vi.fn(async (_room: unknown, items: unknown[] = []) => items),
   }),
 }));
 vi.mock('../useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));
@@ -270,6 +275,7 @@ beforeEach(() => {
   layoutState.dictationCanSend = false;
   layoutState.hasVoice = false;
   layoutState.hasSendableFiles = false;
+  layoutState.isPreparing = false;
   layoutState.actionsMenuVoiceAction = undefined;
   layoutState.sendLabel = undefined;
   layoutState.sendEmpty = undefined;
@@ -499,5 +505,21 @@ describe('RoomInput dictation layout and submit guard', () => {
     renderInput({ screenSize: ScreenSize.Desktop });
     expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(true);
     expect(layoutState.sendLabel).toBe('composer.sendMessage');
+  });
+
+  it('disables Send and blocks dictation Finish & Send while attachments are preparing', () => {
+    layoutState.dictationCanSend = true;
+    layoutState.isPreparing = true;
+    renderInput({ screenSize: ScreenSize.Desktop });
+    expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(true);
+    layoutState.sendWithMode?.();
+    expect(layoutState.handoffMock).not.toHaveBeenCalled();
+
+    layoutState.isPreparing = false;
+    cleanup();
+    renderInput({ screenSize: ScreenSize.Desktop });
+    expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('send-btn'));
+    expect(layoutState.handoffMock).toHaveBeenCalledTimes(1);
   });
 });

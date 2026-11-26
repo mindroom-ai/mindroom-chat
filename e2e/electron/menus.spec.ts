@@ -48,12 +48,20 @@ test('application menu omits reload, native zoom roles, and New Window', async (
       };
     });
 
-    expect(menuSnapshot.topLabels.length).toBeGreaterThanOrEqual(5);
-    expect(menuSnapshot.topLabels).toEqual(expect.arrayContaining(['Edit', 'View', 'Window']));
+    if (process.platform === 'linux') {
+      expect(menuSnapshot.topLabels).toEqual(['File', 'Edit', 'View', 'Window', 'Help']);
+    } else {
+      expect(menuSnapshot.topLabels.length).toBeGreaterThanOrEqual(5);
+      expect(menuSnapshot.topLabels).toEqual(expect.arrayContaining(['Edit', 'View', 'Window']));
+    }
 
     const forbiddenRoles = new Set(['reload', 'forcereload', 'zoomin', 'zoomout', 'resetzoom']);
+    const macOnlyRoles = new Set(['services', 'hide', 'hideothers', 'unhide', 'zoom', 'front']);
     for (const item of menuSnapshot.items) {
       expect(forbiddenRoles.has(item.role), `unexpected role ${item.role}`).toBe(false);
+      if (process.platform === 'linux') {
+        expect(macOnlyRoles.has(item.role), `unexpected macOS-only role ${item.role}`).toBe(false);
+      }
       expect(item.label.toLowerCase()).not.toBe('new window');
     }
 

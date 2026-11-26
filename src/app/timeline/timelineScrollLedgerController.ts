@@ -28,7 +28,7 @@ import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger'
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { isDesktopWebKit } from '../lib/user-agent';
 import { isIOSWebKitDevice } from './scrollQuiescence';
-import { listShrinkAfterResize, pastEndCorrection } from './useListEndClamp';
+import { listShrinkAfterResize, pastEndCorrection } from './timelineListShrink';
 
 type VirtualItemKey = string | number | bigint;
 

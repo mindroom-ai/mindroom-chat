@@ -20,7 +20,7 @@ export type ThreadApprovalRecord = {
 export const collectThreadApprovals = (
   events: readonly MatrixEvent[],
   roomId: string,
-  threadId: string,
+  threadId: string | null,
   now = Date.now()
 ): ThreadApprovalRecord[] => {
   const redacted = new Set(

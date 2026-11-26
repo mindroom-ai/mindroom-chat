@@ -545,6 +545,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'mediaCompression',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'featureUi.settings.mediaCompression.title',
+    descriptionKey: 'featureUi.settings.mediaCompression.description',
+    keywordsKey: `${KEYWORDS}.mediaCompression`,
+    scope: 'account',
+  },
+  {
     id: 'hideMembershipEvents',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',

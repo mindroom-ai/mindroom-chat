@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
-  return { useTranslation: () => ({ t: translateFromEn }) };
+  return { useTranslation: () => ({ t: translateFromEn, i18n: { language: 'en' } }) };
 });
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
@@ -35,6 +35,7 @@ vi.mock('folds', async () => {
     reactModule.createElement('div', props, children);
   return {
     Avatar: box,
+    Badge: box,
     Box: box,
     Icon: (props: Record<string, unknown>) => reactModule.createElement('i', props),
     IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
@@ -351,6 +352,67 @@ describe('HomeDirectSection', () => {
       renderer!.root.findByProps({ 'data-testid': 'home-direct-section' }).props['data-expanded']
     ).toBe('true');
   });
+
+  it('shows aggregated hidden unread badge and aria-label on Show all only for hidden unread DMs', () => {
+    const rooms = Array.from({ length: 8 }, (_, index) => makeRoom(`!dm-${index + 1}:example.org`));
+    const allRoomIds = rooms.map((r) => r.roomId);
+    const store = makeUnreadStore([
+      ['!dm-1:example.org', { total: 4, highlight: 1 }],
+      ['!dm-6:example.org', { total: 2, highlight: 0 }],
+      ['!dm-7:example.org', { total: 3, highlight: 1 }],
+    ]);
+    const toggle = () =>
+      renderer!.root.find(
+        (n) => n.type === 'button' && n.props['data-home-dm-action'] === 'toggle-all'
+      );
+
+    renderDirect(
+      {
+        visibleRooms: selectRenderedDirectRooms(rooms, undefined, false, false),
+        allRoomIds,
+        showAll: false,
+      },
+      store
+    );
+    const badge = toggle().find((n) => typeof n.type === 'string' && 'data-unread' in n.props);
+    expect(badge.props['data-highlight']).toBe('true');
+    expect(badge.find((n) => n !== badge && n.type === 'span').children).toEqual(['5']);
+    expect(toggle().props['aria-label']).toBe('Show all (8), unread messages');
+
+    // Selecting !dm-7 makes it visible, leaving only !dm-6 hidden without highlight.
+    renderDirect(
+      {
+        visibleRooms: selectRenderedDirectRooms(rooms, '!dm-7:example.org', false, false),
+        allRoomIds,
+        selectedRoomId: '!dm-7:example.org',
+        showAll: false,
+      },
+      store
+    );
+    const remaining = toggle().find((n) => typeof n.type === 'string' && 'data-unread' in n.props);
+    expect(remaining.props['data-highlight']).toBeUndefined();
+    expect(remaining.find((n) => n !== remaining && n.type === 'span').children).toEqual(['2']);
+
+    // Updating an unrelated visible room does not alter the hidden badge count.
+    act(() => {
+      store.set(roomToUnreadAtom, {
+        type: 'PUT',
+        unreadInfo: { roomId: '!dm-2:example.org', total: 9, highlight: 1 },
+      });
+    });
+    expect(
+      toggle()
+        .find((n) => typeof n.type === 'string' && 'data-unread' in n.props)
+        .find((n) => n.type === 'span' && n.props.size === 'L400').children
+    ).toEqual(['2']);
+
+    // Expanding to Show less clears the hidden badge and aria-label.
+    renderDirect({ visibleRooms: rooms, allRoomIds, showAll: true }, store);
+    expect(
+      toggle().findAll((n) => typeof n.type === 'string' && 'data-unread' in n.props)
+    ).toHaveLength(0);
+    expect(toggle().props['aria-label']).toBeUndefined();
+  });
 });
 
 describe('HomeAgentsSection', () => {
@@ -639,5 +701,53 @@ describe('HomeAgentsSection', () => {
     expect(
       renderer!.root.findByProps({ 'data-testid': 'home-agents-section' }).props['data-expanded']
     ).toBeUndefined();
+  });
+
+  it('shows hidden agent DM unread badge on Show all and clears it when the unread agent is visible or expanded', () => {
+    const agents: HomeSidebarAgent[] = Array.from({ length: 8 }, (_, index) => {
+      const dmRoom = index < 6 ? makeRoom(`!dm-agent-${index + 1}:example.org`) : undefined;
+      return {
+        userId: `@mindroom_a${index + 1}:example.org`,
+        name: `Agent ${index + 1}`,
+        dmRoom,
+        directRoomId: dmRoom?.roomId,
+        lastActivityTs: 100 - index,
+      };
+    });
+    const agentDmRoomIds = agents.flatMap((a) => (a.dmRoom ? [a.dmRoom.roomId] : []));
+    const store = makeUnreadStore([['!dm-agent-6:example.org', { total: 4, highlight: 0 }]]);
+    const toggle = () =>
+      renderer!.root.find(
+        (n) => n.type === 'button' && n.props['data-home-agents-action'] === 'toggle-all'
+      );
+
+    renderAgents(
+      {
+        visibleAgents: selectRenderedAgents(agents, undefined, false, false),
+        totalCount: agents.length,
+        agentDmRoomIds,
+        showAll: false,
+      },
+      store
+    );
+    const badge = toggle().find((n) => typeof n.type === 'string' && 'data-unread' in n.props);
+    expect(badge.find((n) => n !== badge && n.type === 'span').children).toEqual(['4']);
+    expect(toggle().props['aria-label']).toBe('Show all (8), unread messages');
+
+    // Selecting the hidden unread agent DM makes it visible so the toggle clears its badge.
+    renderAgents(
+      {
+        visibleAgents: selectRenderedAgents(agents, '!dm-agent-6:example.org', false, false),
+        totalCount: agents.length,
+        agentDmRoomIds,
+        selectedRoomId: '!dm-agent-6:example.org',
+        showAll: false,
+      },
+      store
+    );
+    expect(
+      toggle().findAll((n) => typeof n.type === 'string' && 'data-unread' in n.props)
+    ).toHaveLength(0);
+    expect(toggle().props['aria-label']).toBeUndefined();
   });
 });

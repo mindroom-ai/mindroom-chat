@@ -22,6 +22,7 @@ import {
 } from './compactThreadRootData';
 import {
   getLatestRenderableVisibleThreadReplyEvent,
+  getEventPreviewContent,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
@@ -194,11 +195,11 @@ export const resolveThreadPresentationSnapshot = ({
   const latestReplyPreviewText =
     getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText;
   const rootPreviewLocalization = getThreadPreviewLocalization(
-    rootEvent?.getContent?.(),
+    getEventPreviewContent(rootEvent),
     rootPreviewText
   );
   const latestReplyPreviewLocalization = getThreadPreviewLocalization(
-    latestPreviewEvent?.getContent?.(),
+    getEventPreviewContent(latestPreviewEvent),
     latestReplyPreviewText
   );
 

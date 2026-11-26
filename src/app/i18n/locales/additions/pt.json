@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} ficheiros",
       "fileCount_other": "{{count}} ficheiros"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimindo...",
+      "useOriginal": "Usar original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Mostrar palavra-passe",
       "hide": "Ocultar palavra-passe"
@@ -543,7 +548,8 @@
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
         "plugins": "plugins, extensões, complementos, integrações",
-        "appUpdates": "atualização, atualizações, versão, atualizar, reiniciar"
+        "appUpdates": "atualização, atualizações, versão, atualizar, reiniciar",
+        "mediaCompression": "capturas de tela, gravações de tela, imagens, vídeos, compressão, tamanho do envio"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -565,6 +571,13 @@
         "updateReady": "A versão {{version}} está pronta para instalar.",
         "restartToUpdate": "Reiniciar para atualizar",
         "updateInstallFailed": "Não foi possível reiniciar para instalar a atualização. Tente novamente."
+      },
+      "mediaCompression": {
+        "title": "Compressão de mídia",
+        "description": "Comprima fotos, capturas de tela e vídeos anexados antes de enviar. Você ainda pode usar o original para qualquer anexo.",
+        "off": "Desativada",
+        "balanced": "Equilibrada",
+        "small": "Pequena"
       }
     },
     "createChat": {
@@ -1621,7 +1634,9 @@
       "jobTotal_other": "{{count}} tarefas em segundo plano",
       "jobTotalFinished_one": "{{count}} tarefa em segundo plano concluída",
       "jobTotalFinished_many": "{{count}} tarefas em segundo plano concluídas",
-      "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas"
+      "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas",
+      "reviewApprovalFor": "Rever aprovação: {{tool}}",
+      "checkingApproval": "A verificar aprovação…"
     },
     "workflowRun": {
       "title": "Fluxo de trabalho",

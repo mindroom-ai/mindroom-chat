@@ -31,6 +31,8 @@ export const DARK_THEME_NAMES = [
   'tokyoNight',
 ] as const;
 
+export const ALL_THEME_NAMES = [...LIGHT_THEME_NAMES, ...DARK_THEME_NAMES] as const;
+
 export type ThemeName = (typeof LIGHT_THEME_NAMES)[number] | (typeof DARK_THEME_NAMES)[number];
 
 const carriesOneOf = (names: readonly ThemeName[]): string =>

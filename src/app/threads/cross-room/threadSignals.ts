@@ -120,15 +120,14 @@ type Shown = {
 const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown => {
   const id = event.getId();
   const edit = id ? getEditedEvent(id, event, thread?.timelineSet) : undefined;
-  if (!edit) return { event, content: event.getContent() };
-  const editContent = edit.getContent();
-  const newContent = editContent['m.new_content'];
+  const content = getLatestMessageContent(event, edit);
+  if (!edit) return { event, content };
   return {
     event,
-    content: isRecord(newContent) ? newContent : editContent,
+    content,
     editTs: edit.getTs(),
     editId: edit.getId(),
-    streaming: isAiRunStreaming(editContent),
+    streaming: isAiRunStreaming(edit.getContent()),
   };
 };
 

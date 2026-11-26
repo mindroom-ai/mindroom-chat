@@ -392,8 +392,9 @@ describe('RoomTimeline', () => {
           threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
         });
 
+        let renderer: ReturnType<typeof create> | undefined;
         await act(async () => {
-          create(
+          renderer = create(
             React.createElement(ControlledRoomTimeline, {
               room,
               eventId: threadRoot.getId(),
@@ -405,11 +406,13 @@ describe('RoomTimeline', () => {
         });
 
         expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-        // Virtual item 0 is the room intro, so room event index 0 sits at virtual index 1.
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(1, {
-          align: 'center',
-          behavior: 'smooth',
-        });
+        // Compact cards handle focus directly without mounting the row virtualizer behind them.
+        const compactCards = renderer?.root.findAllByType(compactPlaceholderType) ?? [];
+        expect(compactCards).toHaveLength(1);
+        expect(compactCards[0]?.props.focusRequest).toEqual(
+          expect.objectContaining({ eventId: threadRoot.getId() })
+        );
+        expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
       });
 
       it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {

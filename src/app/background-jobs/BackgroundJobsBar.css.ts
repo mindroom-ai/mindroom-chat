@@ -385,6 +385,14 @@ export const Pill = styleVariants({
     {
       background: color.Warning.Container,
       color: color.Warning.OnContainer,
+      selectors: {
+        [`${Job}[data-job-reviewable] &`]: {
+          boxShadow: `inset 0 0 0 1px ${color.Warning.ContainerLine}`,
+        },
+        [`${Job}[data-job-reviewable]:hover &`]: {
+          background: color.Warning.ContainerHover,
+        },
+      },
       '@container': {
         [phone]: { paddingInline: 0, inlineSize: config.lineHeight.T200, justifyContent: 'center' },
       },
@@ -397,6 +405,25 @@ export const Pill = styleVariants({
   ],
   // A held job's word, at every width: its time has stopped and it has no Stop.
   done: [pill, { background: color.Secondary.Container, color: color.Secondary.OnContainer }],
+});
+
+// A waiting pill that acts as its own button (on the folded bar or an openable row), above the row's reach.
+export const PillButton = style({
+  position: 'relative',
+  zIndex: 2,
+  border: 0,
+  paddingBlock: 0,
+  font: 'inherit',
+  fontSize: config.fontSize.T200,
+  lineHeight: config.lineHeight.T200,
+  fontWeight: config.fontWeight.W400,
+  cursor: 'pointer',
+  boxShadow: `inset 0 0 0 1px ${color.Warning.ContainerLine}`,
+  selectors: {
+    '&:hover': { background: color.Warning.ContainerHover },
+    '&:active': { background: color.Warning.ContainerActive },
+    '&:focus-visible': keyboardRing,
+  },
 });
 
 // On a phone the pill is its icon; its words stay for screen readers.
@@ -638,3 +665,9 @@ export const FoldedActions = style({
 // On the title line its buttons and Stopping are a line tall, as the title line's are, so the bar
 // keeps the typing strip's height with Stop or without it.
 globalStyle(`${FoldedActions} > *`, { blockSize: lineHeight });
+
+// Hovering the pill button highlights only the pill, not the row or folded toggle underneath.
+globalStyle(
+  `${Job}:has(${PillButton}:hover) ${RowOpen}, ${FoldedText}:has(${PillButton}:hover) > ${Headline} > ${FoldedToggle}`,
+  { textDecoration: 'none' }
+);

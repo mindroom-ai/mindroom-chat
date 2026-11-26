@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
+import { usePanelSlot } from './panelPresence';
 import { ResizablePanel, SIDE_PANEL_MAX_WIDTH } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';
 
@@ -35,6 +36,8 @@ const renderPanel = ({
   paddingInlineEnd,
   onExpand,
   expandLabel,
+  collapsible = true,
+  collapseLabel = 'Close',
 }: {
   framed?: boolean;
   maxPanelWidth?: number;
@@ -42,6 +45,8 @@ const renderPanel = ({
   paddingInlineEnd?: string;
   onExpand?: () => void;
   expandLabel?: string;
+  collapsible?: boolean;
+  collapseLabel?: string | null;
 } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
@@ -55,12 +60,12 @@ const renderPanel = ({
       <ResizablePanel
         storageKey="test.width"
         resizeLabel="Resize"
-        collapseLabel="Close"
+        collapseLabel={collapseLabel ?? undefined}
         testId="panel"
         side="end"
         minContentWidth={360}
         maxPanelWidth={maxPanelWidth}
-        onCollapse={onCollapse}
+        onCollapse={collapsible ? onCollapse : undefined}
         onExpand={onExpand}
         expandLabel={expandLabel}
       >
@@ -87,23 +92,27 @@ const renderStatefulPanel = ({
   let updateLayout: ((next: PanelLayout) => void) | undefined;
   function Harness() {
     const [layout, setLayout] = useState<PanelLayout>(initialLayout);
+    const [open, setOpen] = useState(true);
     updateLayout = setLayout;
-    return (
-      <PanelFrameProvider value={{ label: 'Notes', layout, setLayout }}>
-        <ResizablePanel
-          storageKey="test.width"
-          resizeLabel="Resize"
-          collapseLabel="Close"
-          testId="panel"
-          side="end"
-          minContentWidth={360}
-        >
-          <div>
-            <PanelHeaderControls />
-            <p>content</p>
-          </div>
-        </ResizablePanel>
-      </PanelFrameProvider>
+    return usePanelSlot(
+      open ? (
+        <PanelFrameProvider key="notes" value={{ label: 'Notes', layout, setLayout }}>
+          <ResizablePanel
+            storageKey="test.width"
+            resizeLabel="Resize"
+            collapseLabel="Close"
+            testId="panel"
+            side="end"
+            minContentWidth={360}
+            onCollapse={() => setOpen(false)}
+          >
+            <div>
+              <PanelHeaderControls />
+              <p>content</p>
+            </div>
+          </ResizablePanel>
+        </PanelFrameProvider>
+      ) : undefined
     );
   }
   const rendered = render(<Harness />, { container: row });
@@ -116,13 +125,40 @@ const renderStatefulPanel = ({
   };
 };
 
+const panelEl = () => screen.getByTestId('panel');
 const separator = () => screen.getByRole('separator', { name: 'Resize' });
+const IDLE_COLLAPSE = {
+  width: '200px',
+  charging: undefined as string | undefined,
+  preview: undefined as string | undefined,
+  progress: '',
+  pull: '',
+  overlay: false,
+};
+const ARMED_COLLAPSE = {
+  charging: 'true',
+  preview: 'true',
+  progress: '1',
+  pull: '3px',
+  overlay: true,
+};
+const expectCollapse = (expected: Partial<typeof IDLE_COLLAPSE> = {}) =>
+  expect({
+    width: panelEl().style.width,
+    charging: panelEl().dataset.collapseCharging,
+    preview: panelEl().dataset.collapsePreview,
+    progress: panelEl().style.getPropertyValue('--mr-collapse-progress'),
+    pull: panelEl().style.getPropertyValue('--mr-collapse-pull'),
+    overlay: panelEl().querySelector('[data-panel-collapse-overlay]') !== null,
+  }).toEqual({ ...IDLE_COLLAPSE, ...expected });
 const stored = () => JSON.parse(localStorage.getItem('test.width') ?? 'null') as unknown;
 
+const moveTo = (width: number) =>
+  fireEvent.pointerMove(separator(), { clientX: 500 - (width - 400) });
 /** Drags the splitter from 400 px wide to `width` (the panel is at the row's end) and holds it. */
 const dragTo = (width: number) => {
   fireEvent.pointerDown(separator(), { button: 0, clientX: 500 });
-  fireEvent.pointerMove(separator(), { clientX: 500 - (width - 400) });
+  moveTo(width);
 };
 const release = () => fireEvent.pointerUp(separator());
 
@@ -172,7 +208,7 @@ describe('dragging a side panel past its widest', () => {
   it('out past the threshold and back, resizes as any drag does', () => {
     const { setLayout } = renderPanel();
     dragTo(900);
-    fireEvent.pointerMove(separator(), { clientX: 500 - (500 - 400) });
+    moveTo(500);
     expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
     expect(screen.getByTestId('panel').style.width).toBe('500px');
     expect(separator().getAttribute('aria-valuetext')).toBeNull();
@@ -223,10 +259,10 @@ describe('dragging a side panel past its widest', () => {
       dragTo(1800);
       expect(screen.getByTestId('panel').style.width).toBe('1800px');
       expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
-      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 39 - 400) });
+      moveTo(widest + 39);
       expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
       expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
-      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 60 - 400) });
+      moveTo(widest + 60);
       expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
       expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
       release();
@@ -265,7 +301,7 @@ describe('dragging a side panel past its widest', () => {
     expect(panel.dataset.expandPreview).toBeUndefined();
     expect(panel.querySelector('[data-panel-expand-ghost]')).toBeNull();
 
-    fireEvent.pointerMove(separator(), { clientX: 500 - (620 - 400) });
+    moveTo(620);
     expect(panel.style.width).toBe('600px');
     expect(panel.dataset.expandCharging).toBe('true');
     expect(panel.style.getPropertyValue('--mr-expand-progress')).toBe('0.5');
@@ -273,7 +309,7 @@ describe('dragging a side panel past its widest', () => {
     expect(panel.dataset.expandPreview).toBeUndefined();
     expect(panel.querySelector('[data-panel-expand-ghost]')).toBeNull();
 
-    fireEvent.pointerMove(separator(), { clientX: 500 - (640 - 400) });
+    moveTo(640);
     expect(panel.dataset.expandPreview).toBeUndefined();
     expect(panel.style.getPropertyValue('--mr-expand-pull')).toBe('3px');
   });
@@ -319,14 +355,14 @@ describe('dragging a side panel past its widest', () => {
     expect(panel.querySelector('[data-panel-expand-ghost]')).not.toBeNull();
 
     // Back into charging range: preview and ghost drop, charging and highlight remain.
-    fireEvent.pointerMove(separator(), { clientX: 500 - (620 - 400) });
+    moveTo(620);
     expect(panel.dataset.expandPreview).toBeUndefined();
     expect(panel.querySelector('[data-panel-expand-ghost]')).toBeNull();
     expect(panel.dataset.expandCharging).toBe('true');
     expect(panel.dataset.expandHighlight).toBe('true');
 
     // Back inside normal width range: all overdrag state clears while drag continues.
-    fireEvent.pointerMove(separator(), { clientX: 500 - (550 - 400) });
+    moveTo(550);
     expect(panel.dataset.dragging).toBe('true');
     expect(panel.dataset.expandCharging).toBeUndefined();
     expect(panel.dataset.expandHighlight).toBeUndefined();
@@ -387,5 +423,77 @@ describe('dragging a side panel past its widest', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('charges collapse below minWidth, arms and clears the fold chip on drag-back, and guards pre-render release', () => {
+    const { onCollapse } = renderPanel();
+
+    dragTo(190);
+    expectCollapse({ charging: 'true', progress: '0.25', pull: '1px' });
+    expect(panelEl().dataset.dragging).toBe('true');
+    expect(panelEl().style.getPropertyValue('--mr-expand-progress')).toBe('');
+
+    moveTo(160);
+    expectCollapse(ARMED_COLLAPSE);
+    const overlay = panelEl().querySelector('[data-panel-collapse-overlay]');
+    expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+    expect(overlay?.querySelector('[data-panel-collapse-badge]')?.textContent).toBe('Close');
+
+    moveTo(0);
+    expectCollapse(ARMED_COLLAPSE);
+
+    moveTo(180);
+    expectCollapse({ charging: 'true', progress: '0.5', pull: '2px' });
+
+    moveTo(260);
+    expectCollapse({ width: '260px' });
+    expect(panelEl().dataset.dragging).toBe('true');
+
+    // Armed, then pulled back and released before React re-renders: must not collapse.
+    moveTo(150);
+    act(() => {
+      const dispatch = (type: string, clientX?: number) =>
+        separator().dispatchEvent(new TestPointerEvent(type, { bubbles: true, clientX }));
+      dispatch('pointermove', 660);
+      dispatch('pointerup');
+    });
+    expect(onCollapse).not.toHaveBeenCalled();
+    expect(stored()).toBe(240);
+  });
+
+  it('clears collapse overlay and charging on exit phase while gliding out from minWidth', () => {
+    const stub = { playState: 'running', cancel: vi.fn(), finished: new Promise(() => undefined) };
+    const animate = vi.fn((_keyframes: Keyframe[]) => stub as unknown as Animation);
+    Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animate });
+    try {
+      renderStatefulPanel();
+      dragTo(150);
+      expectCollapse(ARMED_COLLAPSE);
+      release();
+      expectCollapse();
+      expect(panelEl().dataset.dragging).toBeUndefined();
+      expect(animate.mock.calls.at(-1)?.[0]).toEqual([
+        { width: '200px', marginInlineStart: '0px' },
+        { width: '0px', marginInlineStart: '0px' },
+      ]);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
+  });
+
+  it('leaves non-collapsible panels unaffected and omits the fold badge without collapseLabel', () => {
+    renderPanel({ collapsible: false });
+    dragTo(120);
+    expectCollapse();
+    expect(separator().getAttribute('aria-valuetext')).toBeNull();
+    release();
+    expect(stored()).toBe(200);
+
+    cleanup();
+    localStorage.setItem('test.width', JSON.stringify(400));
+    renderPanel({ collapseLabel: null });
+    dragTo(150);
+    expectCollapse(ARMED_COLLAPSE);
+    expect(panelEl().querySelector('[data-panel-collapse-badge]')).toBeNull();
   });
 });

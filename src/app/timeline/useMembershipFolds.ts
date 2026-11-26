@@ -5,7 +5,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type MutableRefObject,
+  type SetStateAction,
 } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
@@ -39,6 +41,8 @@ type UseMembershipFoldsOptions = {
   isSkipped: (event: MatrixEvent) => boolean;
   /** Event IDs that must remain visible (route or jump targets). */
   pinnedIds: ReadonlySet<string>;
+  /** Persistent expanded-fold anchors shared across surface switches (e.g. RoomSurface ↔ Compact). */
+  openState?: [ReadonlySet<string>, Dispatch<SetStateAction<ReadonlySet<string>>>];
 };
 
 /**
@@ -54,6 +58,7 @@ export const useMembershipFolds = ({
   entries,
   isSkipped,
   pinnedIds,
+  openState,
 }: UseMembershipFoldsOptions): {
   view: MembershipFoldView;
   rows: RoomRowProjection;
@@ -82,7 +87,8 @@ export const useMembershipFolds = ({
     return enabled ? planMembershipFolds(events, { isSkipped, pinnedIds }) : [];
   }, [decryptions, enabled, events, isSkipped, pinnedIds]);
 
-  const [openAnchorIds, setOpenAnchorIds] = useState<ReadonlySet<string>>(() => new Set());
+  const internalOpenState = useState<ReadonlySet<string>>(() => new Set());
+  const [openAnchorIds, setOpenAnchorIds] = openState ?? internalOpenState;
 
   const view = useMemo(
     () => viewMembershipFolds(folds, (fold) => fold.eventIds.some((id) => openAnchorIds.has(id))),
@@ -91,18 +97,21 @@ export const useMembershipFolds = ({
 
   const rows = useMemo(() => projectRoomRows(events, entries, view), [events, entries, view]);
 
-  const toggle = useCallback((fold: MembershipFold) => {
-    setOpenAnchorIds((anchors) => {
-      const next = new Set(anchors);
-      const isOpen = fold.eventIds.some((id) => next.has(id));
-      // Every event of the run holds it open: it stays open when its first one leaves the rows.
-      for (const id of fold.eventIds) {
-        if (isOpen) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-  }, []);
+  const toggle = useCallback(
+    (fold: MembershipFold) => {
+      setOpenAnchorIds((anchors) => {
+        const next = new Set(anchors);
+        const isOpen = fold.eventIds.some((id) => next.has(id));
+        // Every event of the run holds it open: it stays open when its first one leaves the rows.
+        for (const id of fold.eventIds) {
+          if (isOpen) next.delete(id);
+          else next.add(id);
+        }
+        return next;
+      });
+    },
+    [setOpenAnchorIds]
+  );
 
   return { view, rows, toggle };
 };

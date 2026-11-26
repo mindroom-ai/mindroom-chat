@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MindRoomParticleBackground, resolveMindRoomParticleCount } from './ParticleBackground';
+import { PARTICLE_THEMES } from './particleBackgroundTheme';
 
 vi.mock('@basnijholt/particular-drift/react', () => ({
   ParticularDriftCanvas: ({
@@ -24,10 +25,13 @@ vi.mock('./ParticleBackground.css', () => ({
 
 // `getContext` stands in for the browser's WebGL2: null when the browser reports a major
 // performance caveat, as Chromium does for its software fallback.
-const stubWebGL2 = (getContext: (type: string, attributes?: object) => unknown) =>
+const stubWebGL2 = (
+  getContext: (type: string, attributes?: object) => unknown,
+  themeClasses: ReadonlySet<string> = new Set()
+) =>
   vi.stubGlobal('document', {
     createElement: () => ({ getContext }),
-    documentElement: { classList: { contains: () => false } },
+    documentElement: { classList: { contains: (name: string) => themeClasses.has(name) } },
   });
 
 describe('MindRoomParticleBackground', () => {
@@ -51,6 +55,8 @@ describe('MindRoomParticleBackground', () => {
     expect(canvas.props['data-options']).toMatchObject({
       interactive: true,
       cursorMode: 'repel',
+      backgroundColor: PARTICLE_THEMES.light.backgroundColor,
+      particleColor: PARTICLE_THEMES.light.particleColor,
       particleCount: 80000,
       maxDevicePixelRatio: 1.25,
     });
@@ -97,6 +103,55 @@ describe('MindRoomParticleBackground', () => {
       maxDevicePixelRatio: 0.75,
       maxFramesPerSecond: 30,
     });
+  });
+
+  it('matches the active html theme class and updates live on class changes', () => {
+    const classes = new Set(['green-theme']);
+    stubWebGL2(() => ({ getExtension: () => ({ loseContext: () => undefined }) }), classes);
+    let notifyMutation: (() => void) | undefined;
+    const onDisconnect = vi.fn();
+    vi.stubGlobal(
+      'MutationObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyMutation = callback;
+        }
+        observe() {}
+        disconnect = onDisconnect;
+      }
+    );
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<MindRoomParticleBackground selfContained />);
+    });
+
+    expect(renderer!.root.findByType('canvas').props['data-options']).toMatchObject({
+      backgroundColor: PARTICLE_THEMES.green.backgroundColor,
+      particleColor: PARTICLE_THEMES.green.particleColor,
+    });
+    expect(renderer!.root.findByType('div').props.style).toMatchObject({
+      background: PARTICLE_THEMES.green.backgroundRadialGradient,
+    });
+
+    classes.clear();
+    classes.add('sakura-theme');
+    act(() => {
+      notifyMutation?.();
+    });
+
+    expect(renderer!.root.findByType('canvas').props['data-options']).toMatchObject({
+      backgroundColor: PARTICLE_THEMES.sakura.backgroundColor,
+      particleColor: PARTICLE_THEMES.sakura.particleColor,
+    });
+    expect(renderer!.root.findByType('div').props.style).toMatchObject({
+      background: PARTICLE_THEMES.sakura.backgroundRadialGradient,
+    });
+
+    act(() => {
+      renderer!.unmount();
+    });
+    expect(onDisconnect).toHaveBeenCalledTimes(1);
   });
 
   describe('particle count where WebGL2 runs on the GPU', () => {
