@@ -138,6 +138,11 @@ jobs:
       - name: Install Python 3.13
         run: uv python install 3.13
 
+      - name: Run-error backend contract test
+        env:
+          E2E_MINDROOM_CHECKOUT: ${{ github.workspace }}/mindroom-backend
+        run: npx vitest run src/app/messages/agent-run/runErrorContract.test.ts
+
       - name: Start the test homeserver
         run: docker compose -f e2e/docker-compose.yaml up -d --wait
 

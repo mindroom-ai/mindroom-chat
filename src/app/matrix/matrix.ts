@@ -238,7 +238,8 @@ export const isTransientMatrixError = (error: unknown): boolean => {
   return error.errcode === 'M_UNKNOWN' && !error.data?.error;
 };
 
-const isTooLargeError = (error: unknown): boolean =>
+/** Whether an upload error means the file exceeds the homeserver's size limit. */
+export const isTooLargeError = (error: unknown): boolean =>
   httpStatusOf(error) === 413 || (error instanceof MatrixError && error.errcode === 'M_TOO_LARGE');
 
 const formatMegabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`;

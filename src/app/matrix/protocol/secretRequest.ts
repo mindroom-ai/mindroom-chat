@@ -1,13 +1,7 @@
 import { isRecord } from '../../lib/isRecord';
+import { MINDROOM_SECRET_REQUEST_KEY, type SecretRequestStatus } from './secretRequestPreview';
 
-/**
- * Key of the card an agent posts when it needs the person to type a secret, an `m.notice` with
- * the request under this key. The backend edits the notice (`m.replace`) to set the final status.
- * The request is for a service's key, or for a temporary secret, which names a variable instead.
- */
-export const MINDROOM_SECRET_REQUEST_KEY = 'io.mindroom.secret_request';
-
-export type SecretRequestStatus = 'pending' | 'saved' | 'declined' | 'expired';
+export { MINDROOM_SECRET_REQUEST_KEY, type SecretRequestStatus };
 
 /** Where the person lets MindRoom keep a temporary secret, which sets how long it lives. */
 export type SecretKeep = 'memory' | 'disk';

@@ -3,7 +3,14 @@ import { atom, type createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-import { type TUploadItem, type UploadCompression, UploadStatus } from '../matrix/state/upload';
+import {
+  isUploadItemReady,
+  type TUploadItem,
+  type TUploadMetadata,
+  type UploadCompression,
+  UploadStatus,
+} from '../matrix/state/upload';
+import { canZipUploadItem } from './roomInputAttachmentAccess';
 import {
   isEligibleImageForCompression,
   isEligibleVideoForCompression,
@@ -80,7 +87,7 @@ const replaceStagedItem = (
   if (replacement.prepError) {
     store.set(nextUploadAtom, { error: replacement.prepError });
   } else if (
-    replacement.compression?.status !== 'compressing' &&
+    isUploadItemReady(replacement) &&
     store.get(nextUploadAtom).status === UploadStatus.Error
   ) {
     store.set(nextUploadAtom, { status: UploadStatus.Idle });
@@ -120,11 +127,15 @@ const createPendingJob = (
       controller.abort();
       finish();
     },
-    useOriginal: () => {
-      if (!allowUseOriginal || finished) return;
-      preferOriginal = true;
-      controller.abort();
-    },
+    ...(allowUseOriginal
+      ? {
+          useOriginal: () => {
+            if (finished) return;
+            preferOriginal = true;
+            controller.abort();
+          },
+        }
+      : {}),
   };
   const findLive = () =>
     getMediaCompressionGeneration() !== startGen || (controller.signal.aborted && !preferOriginal)
@@ -156,12 +167,16 @@ const createPendingJob = (
         .catch(() => undefined)
         .finally(finish);
     },
-    commit: (prepared: TUploadItem | undefined, nextCompression?: UploadCompression) => {
+    commit: (
+      prepared: TUploadItem | undefined,
+      nextCompression?: UploadCompression,
+      metadataPatch?: Partial<TUploadMetadata>
+    ) => {
       const liveAfter = findLive();
       if (!prepared || !liveAfter) return;
       replaceStagedItem(optsRef.current, targetAtom, roomId, liveAfter, {
         ...prepared,
-        metadata: liveAfter.metadata,
+        metadata: metadataPatch ? { ...liveAfter.metadata, ...metadataPatch } : liveAfter.metadata,
         ...(nextCompression && !prepared.prepError ? { compression: nextCompression } : {}),
       });
     },
@@ -276,15 +291,21 @@ const restoreOriginalItem = async (optsRef: OptsRef, item: TUploadItem): Promise
   const opts = optsRef.current;
   if (opts.sendingDeferred || opts.enrolled.current.some((e) => e.file === item.file)) return;
   if (item.compression?.status === 'compressing') {
-    item.compression.useOriginal();
+    item.compression.useOriginal?.();
     return;
   }
-  if (item.compression?.status !== 'compressed') return;
+  if (item.compression?.status !== 'compressed' || !item.compression.sourceFile) return;
 
   const { roomId, room } = opts.current.current;
   const targetAtom = opts.getTargetAtom(roomId);
   const liveBefore = opts.store.get(targetAtom).find((e) => e.file === item.file);
-  if (!liveBefore || liveBefore.compression?.status !== 'compressed') return;
+  if (
+    !liveBefore ||
+    liveBefore.compression?.status !== 'compressed' ||
+    !liveBefore.compression.sourceFile
+  ) {
+    return;
+  }
 
   const currentUpload = opts.store.get(roomUploadAtomFamily(liveBefore.file));
   if (currentUpload.status === UploadStatus.Loading) {
@@ -310,10 +331,75 @@ const restoreOriginalItem = async (optsRef: OptsRef, item: TUploadItem): Promise
   });
 };
 
+const compressItemToZip = async (optsRef: OptsRef, item: TUploadItem): Promise<void> => {
+  const opts = optsRef.current;
+  if (opts.sendingDeferred || opts.enrolled.current.some((e) => e.file === item.file)) return;
+
+  const { roomId, room } = opts.current.current;
+  const targetAtom = opts.getTargetAtom(roomId);
+  const liveBefore = opts.store.get(targetAtom).find((e) => e.file === item.file);
+  if (!liveBefore || !canZipUploadItem(liveBefore)) return;
+
+  const rawFile = liveBefore.originalFile;
+
+  const priorUpload = opts.store.get(roomUploadAtomFamily(liveBefore.file));
+  if (priorUpload.status === UploadStatus.Loading || priorUpload.status === UploadStatus.Success) {
+    return;
+  }
+  const priorError = priorUpload.status === UploadStatus.Error ? priorUpload.error : undefined;
+  const maxOutputBytes =
+    opts.maxUploadSize !== undefined && liveBefore.file.size > opts.maxUploadSize
+      ? opts.maxUploadSize
+      : undefined;
+
+  const job = createPendingJob(optsRef, rawFile, roomId, targetAtom, 0, false, liveBefore.metadata);
+  if (priorError && liveBefore.file === job.placeholder.file) {
+    opts.store.set(roomUploadAtomFamily(job.placeholder.file), { status: UploadStatus.Idle });
+  }
+  replaceStagedItem(opts, targetAtom, roomId, liveBefore, job.placeholder);
+
+  await job.run(async () => {
+    // Keep ZIP writer behind a dynamic import so it contributes 0 bytes to the initial bundle.
+    const result = job.signal.aborted
+      ? ({ status: 'aborted' } as const)
+      : await import('../lib/media/zipFile')
+          .then(({ zipFile }) =>
+            zipFile(rawFile, {
+              maxOutputBytes,
+              signal: job.signal,
+              onProgress: job.setProgress,
+            })
+          )
+          .catch((error: unknown) => {
+            if (!job.signal.aborted) {
+              // eslint-disable-next-line no-console
+              console.warn('[composer] could not load or run zip compression', error);
+            }
+            return { status: job.signal.aborted ? ('aborted' as const) : ('error' as const) };
+          });
+
+    if (result.status === 'aborted' || !job.findLive()) return;
+
+    if (result.status !== 'ok') {
+      if (priorError) {
+        optsRef.current.store.set(roomUploadAtomFamily(liveBefore.file), { error: priorError });
+      }
+      job.commit(liveBefore, { status: 'zipFailed', reason: result.status });
+      return;
+    }
+
+    const prepared = await prepareItemFile(optsRef.current, result.file, roomId, room);
+    job.commit(
+      prepared,
+      { status: 'compressed', originalSize: rawFile.size },
+      { markedAsSpoiler: false }
+    );
+  });
+};
+
 /**
- * Manages client-side image and video compression for staged composer attachments:
- * inline image compression (concurrency 2), async video transcoding with progress,
- * and per-item "Use original" override.
+ * Manages client-side image, video, and oversized-file `.zip` compression for staged composer
+ * attachments, plus per-item "Use original" override.
  */
 export const useMediaCompression = (options: UseMediaCompressionOptions) => {
   const optsRef = useRef(options);
@@ -326,6 +412,7 @@ export const useMediaCompression = (options: UseMediaCompressionOptions) => {
       createPendingVideo: (file: File, preset: MediaCompressionPreset, room: Room, id: string) =>
         createPendingVideo(optsRef, file, preset, room, id),
       useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, item),
+      compressToZip: (item: TUploadItem) => compressItemToZip(optsRef, item),
     }),
     []
   );

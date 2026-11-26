@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..18f0557 100644
+index 186f79e..be37d32 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -12,7 +12,28 @@ index 186f79e..18f0557 100644
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -247,7 +250,11 @@ class Virtualizer {
+@@ -231,7 +234,8 @@ class Virtualizer {
+       // write has yet to report: that moved it.
+       tailStillMoving: () => {
+         const state = this.scrollState;
+-        if ((state == null ? void 0 : state.phase) !== "queued" || this.pendingWrite !== null) {
++        const queued = (state == null ? void 0 : state.phase) === "queued";
++        if (!queued && this._holdOffset === 0 || this.pendingWrite !== null) {
+           return false;
+         }
+         const now = this._readElementOffset();
+@@ -239,7 +243,9 @@ class Virtualizer {
+           return false;
+         }
+         this._lastElementOffset = now;
+-        state.samples = [...state.samples ?? [], { t: this.now(), offset: now }];
++        if (queued) {
++          state.samples = [...state.samples ?? [], { t: this.now(), offset: now }];
++        }
+         return true;
+       },
+       onTailClosed: () => {
+@@ -247,7 +253,11 @@ class Virtualizer {
          if ((state == null ? void 0 : state.phase) === "queued" && scrollClassifier.flingCaught(state.samples ?? [])) {
            this.scrollState = null;
          }
@@ -24,7 +45,7 @@ index 186f79e..18f0557 100644
          this._writeAwaitingCommand();
          this._retryClampedAdjustment();
        }
-@@ -386,6 +393,8 @@ class Virtualizer {
+@@ -386,6 +396,8 @@ class Virtualizer {
          anchorTo: "start",
          followOnAppend: false,
          scrollEndThreshold: 1,
@@ -33,7 +54,7 @@ index 186f79e..18f0557 100644
          isScrollingResetDelay: 150,
          enabled: true,
          isRtl: false,
-@@ -414,9 +423,16 @@ class Virtualizer {
+@@ -414,9 +426,16 @@ class Virtualizer {
          const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
@@ -52,7 +73,7 @@ index 186f79e..18f0557 100644
            }
            const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
            if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-@@ -508,6 +524,12 @@ class Virtualizer {
+@@ -508,6 +527,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -65,7 +86,19 @@ index 186f79e..18f0557 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +647,48 @@ class Virtualizer {
+@@ -553,7 +578,10 @@ class Virtualizer {
+             const wasOverscrolled = this._reportedOverscroll;
+             this._reportedOverscroll = offset < 0 || elementMax !== null && offset > elementMax + 1;
+             const elementOffset = offset;
+-            this._lastElementOffset = elementOffset;
++            // PR 5: preserve _lastElementOffset during idle debounce callbacks while a tail or wheel hold is active.
++            if (isScrolling || this._lastElementOffset === null || (this._iosGesture.tail() === null && !this._wheelLive)) {
++              this._lastElementOffset = elementOffset;
++            }
+             offset = this._toLayoutOffset(offset);
+             const kind = this._classifyScrollEvent(
+               offset,
+@@ -625,9 +653,43 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -90,11 +123,6 @@ index 186f79e..18f0557 100644
 +              }
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
-+              if (live !== null && this._holdOffset !== 0 && this.options.enabled && this._canWriteScroll() && (this.scrollState == null || this.scrollState.phase !== "smooth")) {
-+                const clamped = this._clampedAdjustment;
-+                const clampShortfall = clamped !== null && Math.abs(live - clamped.maxAtWrite) < 1.5 ? clamped.target - clamped.maxAtWrite : 0;
-+                this.scrollOffset = this._toLayoutOffset(live) + clampShortfall;
-+              }
 +              const heldBefore = this._holdOffset;
 +              this._flushHoldIfReady(true);
 +              if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
@@ -115,7 +143,7 @@ index 186f79e..18f0557 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,19 +766,31 @@ class Virtualizer {
+@@ -705,19 +767,40 @@ class Virtualizer {
        }
        return null;
      };
@@ -132,7 +160,16 @@ index 186f79e..18f0557 100644
 +      const cmd = this.getCommandWrittenOffset();
 +      const live = cmd === null ? this._readElementOffset() : null;
 +      const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0;
-+      if (nextHold === this._holdOffset) return;
++      if (nextHold === this._holdOffset) {
++        if (live !== null) this.scrollOffset = nextHold;
++        return;
++      }
++      // PR 5: rebase scrollOffset from live before zeroing _holdOffset (preserving any clamped shortfall).
++      if (live !== null && nextHold === 0) {
++        const clamped = this._clampedAdjustment;
++        const clampShortfall = clamped !== null && Math.abs(live - clamped.maxAtWrite) < 1.5 ? clamped.target - clamped.maxAtWrite : 0;
++        this.scrollOffset = this._toLayoutOffset(live) + clampShortfall;
++      }
 +      this._holdOffset = nextHold;
 +      if (nextHold < 0) {
 +        this.scrollOffset = nextHold;
@@ -150,11 +187,23 @@ index 186f79e..18f0557 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1500,7 +1573,7 @@ class Virtualizer {
+@@ -1492,15 +1575,17 @@ class Virtualizer {
+       if (this.scrollOffset !== null) this.scrollOffset += delta;
+       return true;
+     } else {
+-      const offset = this.getScrollOffset();
++      // PR 2: reconcile an unseen live element scrollTop move before writing.
++      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
++      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !utils.approxEqual(live, this.pendingWrite.target)) ? this._toLayoutOffset(live) : this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(offset + delta);
+       const write = this._scrollToOffset(offset, {
+         adjustments: delta,
+         behavior
        });
        if (this.scrollOffset !== null) {
-         if (this.pendingWrite === write) this.scrollOffset += delta;
+-        if (this.pendingWrite === write) this.scrollOffset += delta;
 -        if (this.scrollOffset < 0) this.scrollOffset = 0;
++        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
 +        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;
@@ -186,7 +235,7 @@ index 159bbd6..cce95a0 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..26a739e 100644
+index ef861e1..b48acbb 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -199,7 +248,28 @@ index ef861e1..26a739e 100644
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -246,7 +249,11 @@ class Virtualizer {
+@@ -230,7 +233,8 @@ class Virtualizer {
+       // write has yet to report: that moved it.
+       tailStillMoving: () => {
+         const state = this.scrollState;
+-        if ((state == null ? void 0 : state.phase) !== "queued" || this.pendingWrite !== null) {
++        const queued = (state == null ? void 0 : state.phase) === "queued";
++        if (!queued && this._holdOffset === 0 || this.pendingWrite !== null) {
+           return false;
+         }
+         const now = this._readElementOffset();
+@@ -238,7 +242,9 @@ class Virtualizer {
+           return false;
+         }
+         this._lastElementOffset = now;
+-        state.samples = [...state.samples ?? [], { t: this.now(), offset: now }];
++        if (queued) {
++          state.samples = [...state.samples ?? [], { t: this.now(), offset: now }];
++        }
+         return true;
+       },
+       onTailClosed: () => {
+@@ -246,7 +252,11 @@ class Virtualizer {
          if ((state == null ? void 0 : state.phase) === "queued" && flingCaught(state.samples ?? [])) {
            this.scrollState = null;
          }
@@ -211,7 +281,7 @@ index ef861e1..26a739e 100644
          this._writeAwaitingCommand();
          this._retryClampedAdjustment();
        }
-@@ -385,6 +392,8 @@ class Virtualizer {
+@@ -385,6 +395,8 @@ class Virtualizer {
          anchorTo: "start",
          followOnAppend: false,
          scrollEndThreshold: 1,
@@ -220,7 +290,7 @@ index ef861e1..26a739e 100644
          isScrollingResetDelay: 150,
          enabled: true,
          isRtl: false,
-@@ -413,9 +422,16 @@ class Virtualizer {
+@@ -413,9 +425,16 @@ class Virtualizer {
          const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
          if (didEdgeKeysChange) {
            edgeKeysChanged = true;
@@ -239,7 +309,7 @@ index ef861e1..26a739e 100644
            }
            const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
            if (behavior && nextCount > 0 && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-@@ -507,6 +523,12 @@ class Virtualizer {
+@@ -507,6 +526,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -252,7 +322,19 @@ index ef861e1..26a739e 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +646,48 @@ class Virtualizer {
+@@ -552,7 +577,10 @@ class Virtualizer {
+             const wasOverscrolled = this._reportedOverscroll;
+             this._reportedOverscroll = offset < 0 || elementMax !== null && offset > elementMax + 1;
+             const elementOffset = offset;
+-            this._lastElementOffset = elementOffset;
++            // PR 5: preserve _lastElementOffset during idle debounce callbacks while a tail or wheel hold is active.
++            if (isScrolling || this._lastElementOffset === null || (this._iosGesture.tail() === null && !this._wheelLive)) {
++              this._lastElementOffset = elementOffset;
++            }
+             offset = this._toLayoutOffset(offset);
+             const kind = this._classifyScrollEvent(
+               offset,
+@@ -624,9 +652,43 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -277,11 +359,6 @@ index ef861e1..26a739e 100644
 +              }
 +              this._wheelTimer = null;
 +              this._wheelLive = false;
-+              if (live !== null && this._holdOffset !== 0 && this.options.enabled && this._canWriteScroll() && (this.scrollState == null || this.scrollState.phase !== "smooth")) {
-+                const clamped = this._clampedAdjustment;
-+                const clampShortfall = clamped !== null && Math.abs(live - clamped.maxAtWrite) < 1.5 ? clamped.target - clamped.maxAtWrite : 0;
-+                this.scrollOffset = this._toLayoutOffset(live) + clampShortfall;
-+              }
 +              const heldBefore = this._holdOffset;
 +              this._flushHoldIfReady(true);
 +              if (this._holdOffset < 0 && this._holdOffset === heldBefore) {
@@ -302,7 +379,7 @@ index ef861e1..26a739e 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,19 +765,31 @@ class Virtualizer {
+@@ -704,19 +766,40 @@ class Virtualizer {
        }
        return null;
      };
@@ -319,7 +396,16 @@ index ef861e1..26a739e 100644
 +      const cmd = this.getCommandWrittenOffset();
 +      const live = cmd === null ? this._readElementOffset() : null;
 +      const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0;
-+      if (nextHold === this._holdOffset) return;
++      if (nextHold === this._holdOffset) {
++        if (live !== null) this.scrollOffset = nextHold;
++        return;
++      }
++      // PR 5: rebase scrollOffset from live before zeroing _holdOffset (preserving any clamped shortfall).
++      if (live !== null && nextHold === 0) {
++        const clamped = this._clampedAdjustment;
++        const clampShortfall = clamped !== null && Math.abs(live - clamped.maxAtWrite) < 1.5 ? clamped.target - clamped.maxAtWrite : 0;
++        this.scrollOffset = this._toLayoutOffset(live) + clampShortfall;
++      }
 +      this._holdOffset = nextHold;
 +      if (nextHold < 0) {
 +        this.scrollOffset = nextHold;
@@ -337,11 +423,23 @@ index ef861e1..26a739e 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1499,7 +1572,7 @@ class Virtualizer {
+@@ -1491,15 +1574,17 @@ class Virtualizer {
+       if (this.scrollOffset !== null) this.scrollOffset += delta;
+       return true;
+     } else {
+-      const offset = this.getScrollOffset();
++      // PR 2: reconcile an unseen live element scrollTop move before writing.
++      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
++      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? this._toLayoutOffset(live) : this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(offset + delta);
+       const write = this._scrollToOffset(offset, {
+         adjustments: delta,
+         behavior
        });
        if (this.scrollOffset !== null) {
-         if (this.pendingWrite === write) this.scrollOffset += delta;
+-        if (this.pendingWrite === write) this.scrollOffset += delta;
 -        if (this.scrollOffset < 0) this.scrollOffset = 0;
++        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
 +        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;

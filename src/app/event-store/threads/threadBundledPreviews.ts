@@ -1,6 +1,7 @@
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { isKnownRedactedEventId } from '../../matrix/eventRevision';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -70,7 +71,9 @@ export const getBundledThreadPreviews = (
       }
     }
     // The client's own title rule reads the edited content, as it does for loaded events.
-    return isThreadSummaryEvent(event) === title ? event : undefined;
+    if (isThreadSummaryEvent(event) !== title) return undefined;
+    if (!title && isFoldedSecretRequestEvent(event, room.myUserId || undefined)) return undefined;
+    return event;
   };
   const latest = bundle.latest_event;
   const editTs = object(latest) ? getSameSenderBundledEdit(latest)?.origin_server_ts : undefined;

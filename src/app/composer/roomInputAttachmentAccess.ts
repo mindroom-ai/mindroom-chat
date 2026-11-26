@@ -6,6 +6,7 @@ import {
   type TUploadItem,
   type Upload,
 } from '../matrix/state/upload';
+import { canZipOversizedFile } from '../lib/media/mediaCompressionEligibility';
 import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
 
 export const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size' as const;
@@ -21,6 +22,12 @@ export const getTooLargeError = (
   maxUploadSize !== undefined && fileSize > maxUploadSize
     ? toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload')
     : undefined;
+
+/** Whether a staged upload item is eligible for client-side lossless `.zip` compression. */
+export const canZipUploadItem = (item: TUploadItem): boolean =>
+  isUploadItemReady(item) &&
+  item.metadata.mindroomPasteAttachment === undefined &&
+  canZipOversizedFile(item.originalFile);
 
 export type AttachmentSnapshot = {
   staged: TUploadItem[];

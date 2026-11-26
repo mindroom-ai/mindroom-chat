@@ -44,6 +44,7 @@ type AiRunError = {
   provider?: unknown;
   retryable?: unknown;
   action?: unknown;
+  fallback?: unknown;
 };
 
 export type AiRunErrorAction = 'continue' | 'retry' | 'compact';
@@ -71,6 +72,7 @@ export type AiRunErrorInfo = {
   provider?: string;
   retryable: boolean;
   action?: AiRunErrorAction;
+  fallback?: string;
 };
 
 type AiRunMetadata = {
@@ -189,6 +191,7 @@ export const parseAiRunError = (value: unknown): AiRunErrorInfo | undefined => {
   const statusCode = asPositiveInteger(error.status_code);
   const provider = asTrimmedString(error.provider);
   const action = asAiRunErrorAction(error.action);
+  const fallback = asTrimmedString(error.fallback);
 
   return {
     kind,
@@ -200,6 +203,7 @@ export const parseAiRunError = (value: unknown): AiRunErrorInfo | undefined => {
     ...(provider !== undefined ? { provider } : {}),
     retryable: typeof error.retryable === 'boolean' ? error.retryable : false,
     ...(action !== undefined ? { action } : {}),
+    ...(fallback !== undefined ? { fallback } : {}),
   };
 };
 

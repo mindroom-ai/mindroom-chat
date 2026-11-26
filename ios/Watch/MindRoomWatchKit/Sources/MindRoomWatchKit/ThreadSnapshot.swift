@@ -230,16 +230,17 @@ public struct ThreadSnapshot: Equatable, Sendable {
                            toolNames: toolNames, durationSeconds: durationSeconds,
                            workText: workText, answerText: answerText)
         }
-        let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
+        let isPreviewMessage = { (event: JSON) in
+            isMessage(event) && !isFoldedSecretRequest(event, latestEdit: edit(event), isAgent: isAgent)
+        }
+        let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isPreviewMessage($0) }.map(message)
         let cards = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: .distantPast) }
         let decidable = cards.filter { isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId) }
         // As the web client: only the newest agent reply asks (not an internal relay of a message), until
         // the person writes or reacts, for 7 days, and only when it answers this person.
         var openQuestion: Question?
-        if let asking = conversation.last(where: {
-            isAgent($0["sender"] as? String) && $0["type"] as? String == "m.room.message"
-                && $0.content["com.mindroom.original_sender"] == nil
-        }), let question = Question.parse(asking, latestEdit: edit(asking)) {
+        if let asking = conversation.last(where: { isAgent($0["sender"] as? String) && isPreviewMessage($0) }),
+           let question = Question.parse(asking, latestEdit: edit(asking)) {
             let askedAt = edit(asking)?.timestamp ?? asking.timestamp
             let wroteSince = conversation.contains { ($0["sender"] as? String) == ownUserId && $0.timestamp > askedAt }
             let keys = Set(question.options.map(\.key))
@@ -285,6 +286,18 @@ func v2MarkersMatchTrace(_ markers: [PlainText.ToolMarker], in content: JSON) ->
         previousIndex = marker.index
     }
     return true
+}
+
+/// Whether `event` is a trusted agent's anchored secret-request notice that reached a terminal
+/// edited status (`saved`, `declined`, or `expired`), and therefore folds into its reply.
+func isFoldedSecretRequest(_ event: JSON, latestEdit: JSON?, isAgent: (String?) -> Bool) -> Bool {
+    let isId: (Any?) -> Bool = { ($0 as? String).map { !$0.isEmpty && $0.utf16.count <= 512 } ?? false }
+    guard event["type"] as? String == "m.room.message", !event.isRedacted,
+          isAgent(event["sender"] as? String),
+          event.content["io.mindroom.secret_request"] is JSON,
+          let request = effectiveContent(event, latestEdit: latestEdit)["io.mindroom.secret_request"] as? JSON,
+          let status = request["status"] as? String, ["saved", "declined", "expired"].contains(status) else { return false }
+    return isId(request["response_event_id"]) && isId(request["tool_call_id"])
 }
 
 /// True only when the reply is a finished, non-truncated run whose work may be folded and timed.

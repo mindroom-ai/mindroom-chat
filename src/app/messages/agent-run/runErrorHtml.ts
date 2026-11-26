@@ -14,9 +14,6 @@ const RESTART_MARKER_TEXTS = new Set([
   '[Response interrupted: agent restarted to apply a config change]',
 ]);
 
-const AGENT_PREFIX_REG = /^\[[^\]]+\]\s+/u;
-const ERROR_ICON_PREFIX_REG = /^(?:⚠\uFE0F?|❌|🔑|⏰\uFE0F?|⏱\uFE0F?|💳)\s+/u;
-
 const INLINE_TAGS = new Set([
   'a',
   'b',
@@ -110,34 +107,15 @@ const partsOf = (all: ChildNode[]): Part[] => {
 
 export const isFallbackRunErrorParagraph = (text: string, error: AiRunErrorInfo): boolean => {
   const normalizedText = normalizeComparable(text);
-  const normalizedSummary = normalizeComparable(error.summary);
-  if (!normalizedText || !normalizedSummary) return false;
-  if (normalizedText === normalizedSummary) return true;
-
-  let candidate = normalizedText;
-  let hasPrefix = false;
-  if (AGENT_PREFIX_REG.test(candidate)) {
-    candidate = candidate.replace(AGENT_PREFIX_REG, '');
-    hasPrefix = true;
-  }
-  if (ERROR_ICON_PREFIX_REG.test(candidate)) {
-    candidate = candidate.replace(ERROR_ICON_PREFIX_REG, '');
-    hasPrefix = true;
-  }
-  if (!hasPrefix) return false;
-  if (candidate === normalizedSummary) return true;
-
-  const normalizedTitle = normalizeComparable(error.title);
-  if (!normalizedTitle) return false;
-  return (
-    candidate === `${normalizedTitle} — ${normalizedSummary}` ||
-    candidate === `${normalizedTitle}: ${normalizedSummary}`
-  );
+  if (!normalizedText) return false;
+  const expected = normalizeComparable(error.fallback ?? error.summary);
+  return Boolean(expected && normalizedText === expected);
 };
 
 /**
- * Strips only the trailing fallback error paragraph from an agent reply's HTML when it repeats
- * `error.summary`, keeping all earlier paragraphs and tool markers intact above RunErrorCard.
+ * Strips only the trailing fallback error paragraph from an agent reply's HTML when it matches
+ * `error.fallback` (or `error.summary` on legacy payloads), keeping all earlier paragraphs and
+ * tool markers intact above RunErrorCard.
  */
 export const stripTrailingRunErrorHtml = (
   html: string,

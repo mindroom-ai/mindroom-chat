@@ -27,6 +27,9 @@ const AGENT = '@mindroom_dev:example.org';
 const HUMAN = '@colleague:example.org';
 const ROOM_ID = '!room:example.org';
 
+const STALLED_FALLBACK =
+  '[mindroom_dev] ⚠️ OpenRouter sent no data for 5 min (retried once automatically).';
+
 const STALLED_ERROR: AiRunErrorInfo = {
   kind: 'stream_stalled',
   title: 'Model stopped responding',
@@ -36,7 +39,11 @@ const STALLED_ERROR: AiRunErrorInfo = {
   provider: 'OpenRouter',
   retryable: true,
   action: 'continue',
+  fallback: STALLED_FALLBACK,
 };
+
+const RATE_LIMITED_FALLBACK =
+  "⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.";
 
 const RATE_LIMITED_ERROR: AiRunErrorInfo = {
   kind: 'rate_limited',
@@ -46,7 +53,11 @@ const RATE_LIMITED_ERROR: AiRunErrorInfo = {
   provider: 'OpenRouter',
   retryable: true,
   action: 'retry',
+  fallback: RATE_LIMITED_FALLBACK,
 };
+
+const QUOTA_EXHAUSTED_FALLBACK =
+  "💳 Account quota reached — OpenRouter rejected this request because the account's quota or credits are exhausted.";
 
 const QUOTA_EXHAUSTED_ERROR: AiRunErrorInfo = {
   kind: 'quota_exhausted',
@@ -56,144 +67,118 @@ const QUOTA_EXHAUSTED_ERROR: AiRunErrorInfo = {
   statusCode: 402,
   provider: 'OpenRouter',
   retryable: false,
+  fallback: QUOTA_EXHAUSTED_FALLBACK,
 };
 
-const MISSING_KEY_ERROR_MARKDOWN: AiRunErrorInfo = {
+const MISSING_KEY_FALLBACK =
+  "🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.";
+
+const MISSING_KEY_ERROR: AiRunErrorInfo = {
   kind: 'missing_api_key',
   title: 'No AI provider key configured',
   summary:
-    "No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.",
+    "No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose Connect your AI provider, paste your key, then send your message again.",
   code: 'missing_api_key',
   retryable: false,
-};
-
-const MISSING_KEY_ERROR_PLAIN: AiRunErrorInfo = {
-  ...MISSING_KEY_ERROR_MARKDOWN,
-  summary:
-    "No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose Connect your AI provider, paste your key, then send your message again.",
+  fallback: MISSING_KEY_FALLBACK,
 };
 
 describe('runErrorHtml transforms', () => {
-  it('strips trailing fallback paragraph matching summary or prefixed with emoji or [agent]', () => {
-    const cases = [
-      '<p>OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⚠ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>❌ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>🔑 OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⏰ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⏱️ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⏱ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>💳 OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>[mindroom_dev] ⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>⚠️ Model stopped responding — OpenRouter sent no data for 5 min (retried once automatically).</p>',
-      '<p>[mindroom_dev] ⚠️ Model stopped responding — OpenRouter sent no data for 5 min (retried once automatically).</p>',
+  it('deduplicates exact fallback copy in both plain text and HTML, including markdown and arbitrary copy', () => {
+    const cases: Array<{ name: string; plain: string; html: string; error: AiRunErrorInfo }> = [
+      {
+        name: '[agent] prefixed fallback',
+        plain: STALLED_FALLBACK,
+        html: `<p>${STALLED_FALLBACK}</p>`,
+        error: STALLED_ERROR,
+      },
+      {
+        name: '[team] prefixed fallback',
+        plain: `[team] ${RATE_LIMITED_FALLBACK}`,
+        html: `<p>[team] ${RATE_LIMITED_FALLBACK}</p>`,
+        error: { ...RATE_LIMITED_ERROR, fallback: `[team] ${RATE_LIMITED_FALLBACK}` },
+      },
+      {
+        name: 'quota_exhausted emoji fallback',
+        plain: QUOTA_EXHAUSTED_FALLBACK,
+        html: `<p>${QUOTA_EXHAUSTED_FALLBACK}</p>`,
+        error: QUOTA_EXHAUSTED_ERROR,
+      },
+      {
+        name: 'authentication_failed title: summary fallback',
+        plain: '❌ Authentication failed (OpenRouter): Invalid API key',
+        html: '<p>❌ Authentication failed (OpenRouter): Invalid API key</p>',
+        error: {
+          kind: 'authentication_failed',
+          title: 'Authentication failed (OpenRouter)',
+          summary: 'Invalid API key',
+          statusCode: 401,
+          provider: 'OpenRouter',
+          retryable: false,
+          fallback: '❌ Authentication failed (OpenRouter): Invalid API key',
+        },
+      },
+      {
+        name: 'NoteKind.ERROR bold markdown fallback',
+        plain: '**[Response interrupted by an error: setup failed]**',
+        html: '<p><strong>[Response interrupted by an error: setup failed]</strong></p>',
+        error: {
+          kind: 'runtime_error',
+          title: 'Reply failed',
+          summary: 'setup failed',
+          retryable: false,
+          fallback: '**[Response interrupted by an error: setup failed]**',
+        },
+      },
+      {
+        name: 'missing_api_key with bold markdown',
+        plain: MISSING_KEY_FALLBACK,
+        html: "<p>🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose <strong>Connect your AI provider</strong>, paste your key, then send your message again.</p>",
+        error: MISSING_KEY_ERROR,
+      },
+      {
+        name: 'headless missing_api_key with inline code and __emphasis__',
+        plain:
+          "🔑 No AI provider key is set up yet, so I can't reply. Missing key. A `.env` file at __storage/.env__ works too.",
+        html: "<p>🔑 No AI provider key is set up yet, so I can't reply. Missing key. A <code>.env</code> file at <strong>storage/.env</strong> works too.</p>",
+        error: {
+          kind: 'missing_api_key',
+          title: 'No AI provider key configured',
+          summary: "No AI provider key is set up yet, so I can't reply.",
+          code: 'missing_api_key',
+          retryable: false,
+          fallback:
+            "🔑 No AI provider key is set up yet, so I can't reply. Missing key. A `.env` file at __storage/.env__ works too.",
+        },
+      },
+      {
+        name: 'future backend copy change independent of title and summary',
+        plain: '🔌 Upstream stream closed before tokens arrived.',
+        html: '<p>🔌 Upstream stream closed before tokens arrived.</p>',
+        error: {
+          ...STALLED_ERROR,
+          fallback: '🔌 Upstream stream closed before tokens arrived.',
+        },
+      },
     ];
 
-    for (const html of cases) {
-      expect(stripTrailingRunErrorHtml(html, STALLED_ERROR), html).toEqual({
+    for (const testCase of cases) {
+      expect(stripTrailingRunErrorHtml(testCase.html, testCase.error), testCase.name).toEqual({
         html: '',
         stripped: true,
       });
+      expect(stripTrailingRunErrorText(testCase.plain, testCase.error), testCase.name).toEqual({
+        body: '',
+        stripped: true,
+      });
     }
-  });
-
-  it('strips exact backend plain_text + to_wire() shapes for rate_limited, quota_exhausted, authentication_failed, and missing_api_key', () => {
-    // rate_limited: own-user reply emits ⏱️ (or ⏱) without [agent] prefix
-    expect(
-      stripTrailingRunErrorHtml(
-        "<p>⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.</p>",
-        RATE_LIMITED_ERROR
-      )
-    ).toEqual({ html: '', stripped: true });
-    expect(
-      stripTrailingRunErrorHtml(
-        "<p>⏱ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.</p>",
-        RATE_LIMITED_ERROR
-      )
-    ).toEqual({ html: '', stripped: true });
-    expect(
-      stripTrailingRunErrorText(
-        "⏱️ Rate limit reached — Neon hit OpenRouter's rate limit after automatic retries.",
-        RATE_LIMITED_ERROR
-      )
-    ).toEqual({ body: '', stripped: true });
-
-    // quota_exhausted: own-user reply emits 💳 without [agent] prefix
-    expect(
-      stripTrailingRunErrorHtml(
-        "<p>💳 Account quota reached — OpenRouter rejected this request because the account's quota or credits are exhausted.</p>",
-        QUOTA_EXHAUSTED_ERROR
-      )
-    ).toEqual({ html: '', stripped: true });
-    expect(
-      stripTrailingRunErrorText(
-        "💳 Account quota reached — OpenRouter rejected this request because the account's quota or credits are exhausted.",
-        QUOTA_EXHAUSTED_ERROR
-      )
-    ).toEqual({ body: '', stripped: true });
-
-    // authentication_failed: emits ❌ {title}: {summary}
-    const authError: AiRunErrorInfo = {
-      kind: 'authentication_failed',
-      title: 'Authentication failed (OpenRouter)',
-      summary: 'Invalid API key',
-      statusCode: 401,
-      provider: 'OpenRouter',
-      retryable: false,
-    };
-    expect(
-      stripTrailingRunErrorHtml(
-        '<p>❌ Authentication failed (OpenRouter): Invalid API key</p>',
-        authError
-      )
-    ).toEqual({ html: '', stripped: true });
-
-    // missing_api_key: rendered HTML has <strong> while wire summary may keep ** or omit **
-    const missingKeyHtml =
-      "<p>🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose <strong>Connect your AI provider</strong>, paste your key, then send your message again.</p>";
-    expect(stripTrailingRunErrorHtml(missingKeyHtml, MISSING_KEY_ERROR_MARKDOWN)).toEqual({
-      html: '',
-      stripped: true,
-    });
-    expect(stripTrailingRunErrorHtml(missingKeyHtml, MISSING_KEY_ERROR_PLAIN)).toEqual({
-      html: '',
-      stripped: true,
-    });
-
-    const missingKeyPlain =
-      "🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.";
-    expect(stripTrailingRunErrorText(missingKeyPlain, MISSING_KEY_ERROR_MARKDOWN)).toEqual({
-      body: '',
-      stripped: true,
-    });
-    expect(stripTrailingRunErrorText(missingKeyPlain, MISSING_KEY_ERROR_PLAIN)).toEqual({
-      body: '',
-      stripped: true,
-    });
-
-    // Inline code backticks and __emphasis__ normalize cleanly too
-    const headlessMissingKey: AiRunErrorInfo = {
-      kind: 'missing_api_key',
-      title: 'No AI provider key configured',
-      summary:
-        "No AI provider key is set up yet, so I can't reply. Missing key. A `.env` file at __storage/.env__ works too.",
-      code: 'missing_api_key',
-      retryable: false,
-    };
-    expect(
-      stripTrailingRunErrorHtml(
-        "<p>🔑 No AI provider key is set up yet, so I can't reply. Missing key. A <code>.env</code> file at <strong>storage/.env</strong> works too.</p>",
-        headlessMissingKey
-      )
-    ).toEqual({ html: '', stripped: true });
   });
 
   it('strips only the trailing fallback paragraph and preserves earlier streamed paragraphs', () => {
     const html =
       '<p>First paragraph of progress.</p>' +
       '<p>Second paragraph before failure.</p>' +
-      '<p>[mindroom_dev] ⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>';
+      `<p>${STALLED_FALLBACK}</p>`;
 
     expect(stripTrailingRunErrorHtml(html, STALLED_ERROR)).toEqual({
       html: '<p>First paragraph of progress.</p><p>Second paragraph before failure.</p>',
@@ -201,24 +186,61 @@ describe('runErrorHtml transforms', () => {
     });
   });
 
-  it('does not strip normal reply paragraphs even when prefixed with an icon or bracket label containing the summary', () => {
-    const unrelated = '<p>Partial answer that should stay visible.</p>';
-    expect(stripTrailingRunErrorHtml(unrelated, STALLED_ERROR)).toEqual({
+  it('never strips trailing text that does not match fallback', () => {
+    const cases = [
+      '<p>Partial answer that should stay visible.</p>',
+      '<p>OpenRouter sent no data for 5 min (retried once automatically).</p>',
+      '<p>⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>',
+      '<p>⚠️ Note: earlier we saw OpenRouter sent no data for 5 min (retried once automatically). Please check the logs.</p>',
+      '<p>[status] Logged error: OpenRouter sent no data for 5 min (retried once automatically). Next step is to inspect metrics.</p>',
+    ];
+
+    for (const html of cases) {
+      expect(stripTrailingRunErrorHtml(html, STALLED_ERROR), html).toEqual({
+        html,
+        stripped: false,
+      });
+    }
+
+    expect(
+      stripTrailingRunErrorText('Earlier line.\n\nDifferent trailing paragraph.', STALLED_ERROR)
+    ).toEqual({
+      body: 'Earlier line.\n\nDifferent trailing paragraph.',
+      stripped: false,
+    });
+  });
+
+  it('matches error.summary verbatim on legacy payloads without fallback and does not strip arbitrary text', () => {
+    const legacyError: AiRunErrorInfo = {
+      kind: 'stream_stalled',
+      title: 'Model stopped responding',
+      summary: 'OpenRouter sent no data for 5 min (retried once automatically).',
+      retryable: true,
+      action: 'continue',
+    };
+
+    expect(
+      stripTrailingRunErrorHtml(
+        '<p>OpenRouter sent no data for 5 min (retried once automatically).</p>',
+        legacyError
+      )
+    ).toEqual({ html: '', stripped: true });
+    expect(
+      stripTrailingRunErrorText(
+        'OpenRouter sent no data for 5 min (retried once automatically).',
+        legacyError
+      )
+    ).toEqual({ body: '', stripped: true });
+
+    const prefixed = '<p>⚠️ OpenRouter sent no data for 5 min (retried once automatically).</p>';
+    expect(stripTrailingRunErrorHtml(prefixed, legacyError)).toEqual({
+      html: prefixed,
+      stripped: false,
+    });
+
+    const unrelated = '<p>Partial output that stays visible.</p>';
+    expect(stripTrailingRunErrorHtml(unrelated, legacyError)).toEqual({
       html: unrelated,
-      stripped: false,
-    });
-
-    const warningNote =
-      '<p>⚠️ Note: earlier we saw OpenRouter sent no data for 5 min (retried once automatically). Please check the logs.</p>';
-    expect(stripTrailingRunErrorHtml(warningNote, STALLED_ERROR)).toEqual({
-      html: warningNote,
-      stripped: false,
-    });
-
-    const bracketNote =
-      '<p>[status] Logged error: OpenRouter sent no data for 5 min (retried once automatically). Next step is to inspect metrics.</p>';
-    expect(stripTrailingRunErrorHtml(bracketNote, STALLED_ERROR)).toEqual({
-      html: bracketNote,
       stripped: false,
     });
   });
@@ -244,10 +266,7 @@ describe('runErrorHtml transforms', () => {
 
   it('strips trailing fallback paragraph from plain text bodies', () => {
     expect(
-      stripTrailingRunErrorText(
-        'Earlier line.\n\n[mindroom_dev] ⚠️ OpenRouter sent no data for 5 min (retried once automatically).',
-        STALLED_ERROR
-      )
+      stripTrailingRunErrorText(`Earlier line.\n\n${STALLED_FALLBACK}`, STALLED_ERROR)
     ).toEqual({
       body: 'Earlier line.',
       stripped: true,
@@ -255,11 +274,17 @@ describe('runErrorHtml transforms', () => {
 
     expect(
       stripTrailingRunErrorText(
-        '⚠️ OpenRouter sent no data for 5 min (retried once automatically).',
-        STALLED_ERROR
+        'Earlier line.\n\n**[Response interrupted by an error: setup failed]**',
+        {
+          kind: 'runtime_error',
+          title: 'Reply failed',
+          summary: 'setup failed',
+          retryable: false,
+          fallback: '**[Response interrupted by an error: setup failed]**',
+        }
       )
     ).toEqual({
-      body: '',
+      body: 'Earlier line.',
       stripped: true,
     });
   });
@@ -391,6 +416,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           provider: 'OpenRouter',
           retryable: true,
           action: 'continue',
+          fallback: STALLED_FALLBACK,
         },
       },
     });
@@ -426,6 +452,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           provider: 'OpenRouter',
           retryable: true,
           action: 'retry',
+          fallback: RATE_LIMITED_FALLBACK,
         },
         needle: "Neon hit OpenRouter's rate limit",
       },
@@ -443,27 +470,13 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           status_code: 402,
           provider: 'OpenRouter',
           retryable: false,
+          fallback: QUOTA_EXHAUSTED_FALLBACK,
         },
         needle: "account's quota or credits are exhausted",
       },
       {
-        name: 'missing_api_key_markdown_wire',
-        body: "🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.",
-        formattedBody:
-          "<p>🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose <strong>Connect your AI provider</strong>, paste your key, then send your message again.</p>",
-        error: {
-          kind: 'missing_api_key',
-          title: 'No AI provider key configured',
-          summary:
-            "No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.",
-          code: 'missing_api_key',
-          retryable: false,
-        },
-        needle: 'No AI provider key is set up yet',
-      },
-      {
-        name: 'missing_api_key_plain_wire',
-        body: "🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose **Connect your AI provider**, paste your key, then send your message again.",
+        name: 'missing_api_key',
+        body: MISSING_KEY_FALLBACK,
         formattedBody:
           "<p>🔑 No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose <strong>Connect your AI provider</strong>, paste your key, then send your message again.</p>",
         error: {
@@ -473,8 +486,22 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             "No AI provider key is set up yet, so I can't reply. Open the MindRoom dashboard, choose Connect your AI provider, paste your key, then send your message again.",
           code: 'missing_api_key',
           retryable: false,
+          fallback: MISSING_KEY_FALLBACK,
         },
         needle: 'No AI provider key is set up yet',
+      },
+      {
+        name: 'note_error',
+        body: '**[Response interrupted by an error: setup failed]**',
+        formattedBody: '<p><strong>[Response interrupted by an error: setup failed]</strong></p>',
+        error: {
+          kind: 'runtime_error',
+          title: 'Reply failed',
+          summary: 'setup failed',
+          retryable: false,
+          fallback: '**[Response interrupted by an error: setup failed]**',
+        },
+        needle: 'setup failed',
       },
     ];
 
@@ -523,6 +550,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           summary: 'OpenRouter sent no data for 5 min (retried once automatically).',
           retryable: true,
           action: 'continue',
+          fallback: STALLED_FALLBACK,
         },
       },
     });
@@ -568,6 +596,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           summary: 'OpenRouter sent no data.',
           retryable: true,
           action: 'continue',
+          fallback: '⚠️ OpenRouter sent no data.',
         },
       },
     });
@@ -612,6 +641,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           status_code: 503,
           retryable: true,
           action: 'retry',
+          fallback: '⚠️ Provider error.',
         },
       },
     });
@@ -652,6 +682,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             provider: 'OpenRouter',
             retryable: true,
             action: 'retry',
+            fallback: RATE_LIMITED_FALLBACK,
           },
         },
       },
@@ -693,6 +724,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             provider: 'OpenRouter',
             retryable: true,
             action: 'retry',
+            fallback: RATE_LIMITED_FALLBACK,
           },
         },
       },
@@ -729,6 +761,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             title: 'Missing API key',
             summary,
             retryable: false,
+            fallback: `🔑 ${summary}`,
           },
         },
       },
@@ -762,6 +795,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
           summary: 'API key ***redacted*** was rejected by provider.',
           status_code: 401,
           retryable: false,
+          fallback: '❌ API key ***redacted*** was rejected by provider.',
         },
       },
     });
@@ -791,6 +825,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             summary: 'OpenRouter sent no data for 5 min (retried once automatically).',
             retryable: true,
             action: 'continue',
+            fallback: '⚠️ OpenRouter sent no data for 5 min (retried once automatically).',
           },
         },
       });
@@ -820,6 +855,7 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
             title: 'Spoofed',
             summary: 'Spoofed error.',
             retryable: false,
+            fallback: '⚠️ Spoofed error.',
           },
         },
       },
