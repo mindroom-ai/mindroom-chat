@@ -221,6 +221,7 @@ export const UploadCardRenderer = ({
               type="button"
               variant="SurfaceVariant"
               radii="Pill"
+              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
               onClick={() => onUseOriginal(fileItem)}
             >
               <Text as="span" size="B300">

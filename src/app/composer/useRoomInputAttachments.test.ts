@@ -1210,10 +1210,12 @@ describe('attachment staging ownership', () => {
           await Promise.resolve();
         });
         await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
-        expect(startSendSession.mock.calls[0]?.[0]).toMatchObject({
-          textContent: expect.objectContaining({ body: 'See attached screenshot' }),
-          batch: { fileItems: [shot] },
-        });
+        expect(startSendSession).toHaveBeenCalledWith(
+          expect.objectContaining({
+            textContent: expect.objectContaining({ body: 'See attached screenshot' }),
+            batch: { fileItems: [shot] },
+          })
+        );
         roomIdToUploadItemsAtomFamily.remove(viewKey);
       }
 
@@ -1340,19 +1342,21 @@ describe('attachment staging ownership', () => {
               encInfo: { v: 'v2' },
             })
           );
-          expect(startSendSession.mock.calls[0]?.[0]).toMatchObject({
-            textContent: expect.objectContaining({ body: 'Look at both files' }),
-            batch: {
-              fileItems: [
-                shot,
-                expect.objectContaining({
-                  file: encryptedVideo,
-                  originalFile: compressedVideo,
-                  encInfo: { v: 'v2' },
-                }),
-              ],
-            },
-          });
+          expect(startSendSession).toHaveBeenCalledWith(
+            expect.objectContaining({
+              textContent: expect.objectContaining({ body: 'Look at both files' }),
+              batch: {
+                fileItems: [
+                  shot,
+                  expect.objectContaining({
+                    file: encryptedVideo,
+                    originalFile: compressedVideo,
+                    encInfo: { v: 'v2' },
+                  }),
+                ],
+              },
+            })
+          );
         } finally {
           prepSpy.mockRestore();
         }
