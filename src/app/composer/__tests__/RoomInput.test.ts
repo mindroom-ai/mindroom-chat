@@ -5809,8 +5809,8 @@ describe("RoomInput as Home's ask field", () => {
       expect(
         renderer.root.find((n) => n.props['data-upload-board-inline'] === 'true')
       ).toBeTruthy();
-      expect(readKeptFileNames(USER_ID, spaceKey)).toEqual(['brief.pdf']);
-      expect(readKeptFileNames(USER_ID, ROOM_ID)).toEqual([]);
+      expect(readKeptFileNames(spaceKey)).toEqual(['brief.pdf']);
+      expect(readKeptFileNames(getRoomInputDraftKey(USER_ID, ROOM_ID))).toEqual([]);
 
       // Type once, fail Send on plain room after target moved to encrypted room (restoring target
       // and original draft), then switch to encrypted room and retry without re-typing.

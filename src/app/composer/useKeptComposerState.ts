@@ -3,6 +3,7 @@ import { useAtomValue, useStore } from 'jotai';
 import { useInConversationView } from '../navigation/conversationView';
 import { isPasteFileName } from '../matrix/protocol/pasteAttachmentMarker';
 import {
+  getRoomInputDraftKey,
   keepReplyDraft,
   keepStagedFileNames,
   readKeptFileNames,
@@ -34,6 +35,7 @@ export const useKeptComposerState = (
   // and Space's All threads composer do.
   const userId = useInConversationView() ? '' : ownUserId;
   const fileScope = stagedDraftKey ?? roomId;
+  const keptFilesKey = userId ? (stagedDraftKey ?? getRoomInputDraftKey(userId, roomId)) : undefined;
   const itemsAtom = roomIdToUploadItemsAtomFamily(fileScope);
   // Pastes the composer puts back do not answer the notice of the other files.
   const stagedCount = useAtomValue(itemsAtom).filter(
@@ -53,9 +55,9 @@ export const useKeptComposerState = (
   // Names kept while nothing is staged here are files the page before had.
   useLayoutEffect(() => {
     const staged = store.get(roomIdToUploadItemsAtomFamily(fileScope)).length > 0;
-    const kept = userId && !staged ? readKeptFileNames(userId, fileScope) : [];
+    const kept = keptFilesKey && !staged ? readKeptFileNames(keptFilesKey) : [];
     setLost({ scope: fileScope, names: kept.filter((name) => !isPasteFileName(name)) });
-  }, [fileScope, store, userId]);
+  }, [fileScope, keptFilesKey, store]);
   // Attaching files again answers the notice.
   useEffect(() => {
     if (stagedCount > 0) setLost(undefined);
@@ -63,10 +65,10 @@ export const useKeptComposerState = (
 
   const dismissLostFiles = useCallback(() => {
     setLost(undefined);
-    if (userId && store.get(roomIdToUploadItemsAtomFamily(fileScope)).length === 0) {
-      keepStagedFileNames(userId, fileScope, [], store);
+    if (keptFilesKey && store.get(roomIdToUploadItemsAtomFamily(fileScope)).length === 0) {
+      keepStagedFileNames(keptFilesKey, [], store);
     }
-  }, [fileScope, store, userId]);
+  }, [fileScope, keptFilesKey, store]);
 
   const lostFileNames = lost?.scope === fileScope ? lost.names : [];
   return { lostFileNames, dismissLostFiles };

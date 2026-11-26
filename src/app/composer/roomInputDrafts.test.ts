@@ -269,12 +269,12 @@ describe('message draft persistence', () => {
         metadata: { markedAsSpoiler: false },
       };
       fileStore.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
-      keepStagedFileNames(ROBIN, spaceKey, [staged], fileStore);
+      keepStagedFileNames(spaceKey, [staged], fileStore);
       expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe(
         '!des:example.org'
       );
 
-      keepStagedFileNames(ROBIN, spaceKey, [], fileStore);
+      keepStagedFileNames(spaceKey, [], fileStore);
       expect(values.has(`roomInputDraft:${spaceKey}`)).toBe(false);
       expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBeUndefined();
     });

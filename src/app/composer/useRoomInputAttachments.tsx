@@ -238,9 +238,13 @@ export const useRoomInputAttachments = ({
     (targetRoomId: string) => {
       if (!userId || view !== undefined) return;
       const key = listKey(targetRoomId);
-      keepStagedFileNames(userId, key, store.get(roomIdToUploadItemsAtomFamily(key)), store);
+      keepStagedFileNames(
+        stagedListKey ?? getRoomInputDraftKey(userId, targetRoomId),
+        store.get(roomIdToUploadItemsAtomFamily(key)),
+        store
+      );
     },
-    [listKey, store, userId, view]
+    [listKey, stagedListKey, store, userId, view]
   );
 
   // Paste files belong to the draft they were pasted into; other files to the room's composer,

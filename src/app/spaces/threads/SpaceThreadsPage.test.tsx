@@ -637,7 +637,6 @@ describe('SpaceThreadsPage', () => {
     const file = new File(['x'], 'spec.pdf', { type: 'application/pdf' });
     fileStore.set(spaceThreadsDestinationAtomFamily(spaceDraftKey), ROOM_DES);
     keepStagedFileNames(
-      ME,
       spaceDraftKey,
       [{ file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } }],
       fileStore
