@@ -428,16 +428,26 @@ const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] =
   return [session.uploads ?? uploads, Array.from(activeFiles)];
 };
 
-const isTooLargeUpload = (upload: Upload | undefined): boolean =>
-  upload?.status === UploadStatus.Error && isTooLargeError(upload.error);
+const isReleasableTooLargeItem = (
+  item: TUploadItem | undefined,
+  upload: Upload | undefined
+): boolean =>
+  item !== undefined &&
+  item.metadata.mindroomPasteAttachment === undefined &&
+  upload?.status === UploadStatus.Error &&
+  isTooLargeError(upload.error);
 
-// Too-large (413 / M_TOO_LARGE) uploads cannot be retried as-is: release them from the active
-// send session while keeping them staged on the board so Compress (.zip) is available immediately.
+// Too-large (413 / M_TOO_LARGE) ordinary uploads cannot be retried as-is: release them from the
+// active send session while keeping them staged on the board so Compress (.zip) is available
+// immediately. Large paste attachments are not zip-eligible and keep their existing enrollment.
 const releaseTooLargeUploads = (session: SendSession): void => {
-  const [uploads] = getSessionUploads(session);
-  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  const { staged, enrolled, uploads } = session.composer.attachments.snapshot(session.roomId);
+  const itemsByFile = new Map([...enrolled, ...staged].map((item) => [item.file, item]));
+  const uploadMap = new Map((session.uploads ?? uploads).map((upload) => [upload.file, upload]));
   const droppedFiles = session.orderedFiles.filter(
-    (file) => !session.sentFiles.has(file) && isTooLargeUpload(uploadMap.get(file))
+    (file) =>
+      !session.sentFiles.has(file) &&
+      isReleasableTooLargeItem(itemsByFile.get(file), uploadMap.get(file))
   );
   if (droppedFiles.length === 0) return;
   const dropped = new Set(droppedFiles);
@@ -990,7 +1000,8 @@ export const useRoomInputSendSessionController = ({
         (fileItem) =>
           isUploadItemReady(fileItem) &&
           !heldFiles.has(fileItem.file) &&
-          (completeWithinCall || !isTooLargeUpload(uploadByFile.get(fileItem.file)))
+          (completeWithinCall ||
+            !isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file)))
       );
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {

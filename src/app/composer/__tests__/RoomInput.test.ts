@@ -6339,4 +6339,73 @@ describe('RoomInput media compression send and voice invariants', () => {
       renderer.unmount();
     });
   });
+
+  it('keeps a 413 large paste attachment enrolled and staged on Send instead of dropping it as an orphan', async () => {
+    const store = createStore();
+    const paste1 = new File(['huge paste'], 'mindroom-paste-413a.txt', { type: 'text/plain' });
+    const paste2 = new File(['huge paste 2'], 'mindroom-paste-413b.txt', { type: 'text/plain' });
+    const pasteItem1 = createUploadItem(paste1, {
+      metadata: {
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: { id: '413a', chars: 10, fileName: paste1.name },
+      },
+    });
+    const pasteItem2 = createUploadItem(paste2, {
+      metadata: {
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: { id: '413b', chars: 12, fileName: paste2.name },
+      },
+    });
+    stageUploadItems(store, [pasteItem1]);
+    store.set(roomUploadAtomFamily(paste1), {
+      error: new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413),
+    });
+
+    const { renderer } = await renderRoomInput(store);
+    const cardFor = (file: File) =>
+      renderer.root.findAllByType(UploadCardRenderer).find((c) => c.props.fileItem.file === file);
+
+    // 1. Already-413 paste attachment: Send enrolls it so resetting the editor does not orphan-delete it.
+    stageComposerText('see pasted log');
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      setEditorText('');
+      customEditorState.props!.onChange?.();
+    });
+    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$paste-caption' });
+    await act(async () => {
+      await getPrimarySendButton(renderer).props.onClick();
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+    expect(cardFor(paste1)?.props.canUseOriginal).toBe(false);
+
+    // 2. In-flight paste attachment that returns 413 after Send: stays enrolled and staged.
+    const gate = createDeferred<{ content_uri: string }>();
+    await act(async () => {
+      cardFor(paste1)?.props.onRemove(paste1);
+      await Promise.resolve();
+      await Promise.resolve();
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: pasteItem2 });
+      store.set(roomUploadAtomFamily(paste2), { promise: gate.promise });
+    });
+    stageComposerText('second pasted log');
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      setEditorText('');
+      customEditorState.props!.onChange?.();
+    });
+    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$paste-caption-2' });
+    await act(async () => {
+      await getPrimarySendButton(renderer).props.onClick();
+    });
+    await act(async () => {
+      gate.reject(new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+    expect(cardFor(paste2)?.props.canUseOriginal).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
 });
