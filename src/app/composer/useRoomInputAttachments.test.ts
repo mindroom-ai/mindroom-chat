@@ -93,7 +93,13 @@ const makeTestRoom = (roomId: string, encrypted = false) =>
 
 const renderHarness = (
   prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
-  options?: { stagedListKey?: string; deferUpload?: boolean; view?: string; draftKey?: string }
+  options?: {
+    stagedListKey?: string;
+    deferUpload?: boolean;
+    sendingDeferred?: boolean;
+    view?: string;
+    draftKey?: string;
+  }
 ) => {
   const store = createStore();
   const editor = createEditor();
@@ -106,10 +112,12 @@ const renderHarness = (
     threadId,
     roomId = ROOM_ID,
     room = initialRoom,
+    sendingDeferred = options?.sendingDeferred,
   }: {
     threadId?: string;
     roomId?: string;
     room?: Room;
+    sendingDeferred?: boolean;
   }) => {
     saveDraft = useRoomInputDraft(
       editor,
@@ -129,10 +137,13 @@ const renderHarness = (
       createUploadItems: prepare,
       stagedListKey: options?.stagedListKey,
       deferUpload: options?.deferUpload,
+      sendingDeferred,
     });
     return feature.board;
   };
-  const wrap = (props: { threadId?: string; roomId?: string; room?: Room } = {}) =>
+  const wrap = (
+    props: { threadId?: string; roomId?: string; room?: Room; sendingDeferred?: boolean } = {}
+  ) =>
     React.createElement(
       Provider,
       { store },
@@ -160,6 +171,8 @@ const renderHarness = (
     changeThread: (threadId: string) => act(() => renderer.update(wrap({ threadId }))),
     changeRoom: (roomId: string, room?: Room) =>
       act(() => renderer.update(wrap({ roomId, room: room ?? initialRoom }))),
+    setSendingDeferred: (sendingDeferred: boolean) =>
+      act(() => renderer.update(wrap({ sendingDeferred }))),
     onEditorChange: () => {
       saveDraft();
       feature.onEditorChange();
@@ -930,5 +943,67 @@ describe('attachment staging ownership', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('disables Use original while sendingDeferred is true while keeping explicit Remove separate', async () => {
+    mediaCompressMocks.compressImage.mockReset();
+    const rawImg = new File(['raw'], 'shot.png', { type: 'image/png' });
+    Object.defineProperty(rawImg, 'size', { value: 120 * 1024 });
+    const compressedImg = new File(['cmp'], 'shot.webp', { type: 'image/webp' });
+    Object.defineProperty(compressedImg, 'size', { value: 24 * 1024 });
+    mediaCompressMocks.compressImage.mockResolvedValueOnce({
+      file: compressedImg,
+      originalSize: rawImg.size,
+      compressedSize: compressedImg.size,
+    });
+
+    const homeKey = 'home-sending-deferred';
+    const harness = renderHarness(async () => [], {
+      stagedListKey: homeKey,
+      deferUpload: true,
+      sendingDeferred: false,
+      view: HOME_ASK_VIEW,
+      draftKey: homeKey,
+    });
+
+    await act(async () => {
+      harness.feature.onPaste({
+        clipboardData: { files: [rawImg], items: [], getData: () => '' },
+        preventDefault: vi.fn(),
+      } as never);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cardBefore = harness.renderer.root.findByType(UploadCardRenderer);
+    expect(cardBefore.props.canUseOriginal).toBe(true);
+
+    // Once deferred send starts, Use original is hidden and calling onUseOriginal is ignored.
+    harness.setSendingDeferred(true);
+    const cardDuring = harness.renderer.root.findByType(UploadCardRenderer);
+    expect(cardDuring.props.canUseOriginal).toBe(false);
+    await act(async () => {
+      cardDuring.props.onUseOriginal(harness.feature.access.snapshot().staged[0]);
+      await Promise.resolve();
+    });
+    expect(harness.feature.access.snapshot().staged[0]?.file).toBe(compressedImg);
+
+    // Explicit Remove still works independently while sendingDeferred is true.
+    act(() => {
+      cardDuring.props.onRemove(compressedImg);
+    });
+    expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+
+    // Re-enabling after deferred send finishes/fails restores canUseOriginal.
+    harness.setSendingDeferred(false);
+    const stagedAgain: TUploadItem = {
+      file: compressedImg,
+      originalFile: compressedImg,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: { status: 'compressed', sourceFile: rawImg, originalSize: rawImg.size },
+    };
+    act(() => harness.feature.access.append(ROOM_ID, [stagedAgain]));
+    expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
   });
 });

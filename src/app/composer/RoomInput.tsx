@@ -407,6 +407,7 @@ export function RoomInput({
     createUploadItems,
     stagedListKey: ask ? textKey : undefined,
     deferUpload: !!ask,
+    sendingDeferred: !!ask && submitPending,
     inlineUploadBoard: !!ask,
   });
   const { settlePastes, dismissLostPastes } = attachments;
@@ -661,8 +662,9 @@ export function RoomInput({
           }
           if (settlePastes() !== true) return;
         }
-        if (attachments.hasPendingStaging()) {
-          await attachments.waitForPendingStaging();
+        const capturedDictationStaging = attachments.snapshotPendingStaging();
+        if (capturedDictationStaging.length > 0) {
+          await attachments.waitForPendingStaging(capturedDictationStaging);
           if (!mountedRef.current || dictationHandoffRef.current.composerKey !== startKey) {
             return;
           }
@@ -745,14 +747,15 @@ export function RoomInput({
       if (settled !== true && !(await settled)) return;
       if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
       const textContent = takeText();
-      const pendingStaging = attachments.hasPendingStaging();
+      const capturedStaging = attachments.snapshotPendingStaging();
+      const hasCapturedStaging = capturedStaging.length > 0;
       // With nothing to send on Home, there is no send to track.
-      if (ask && !textContent && !attachments.hasSendableFiles && !pendingStaging) return;
+      if (ask && !textContent && !attachments.hasSendableFiles && !hasCapturedStaging) return;
       const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
       if (
         ask &&
         !attachments.hasSendableFiles &&
-        !pendingStaging &&
+        !hasCapturedStaging &&
         hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
       ) {
         return;
@@ -791,8 +794,8 @@ export function RoomInput({
         );
         const existingQueue = pendingCompressionQueuesRef.current.get(textKey);
 
-        if (pendingStaging || hasCompressing || existingQueue) {
-          if (!textContent && batchCandidates.length === 0 && !pendingStaging) return;
+        if (hasCapturedStaging || hasCompressing || existingQueue) {
+          if (!textContent && batchCandidates.length === 0 && !hasCapturedStaging) return;
           if (
             hasPasteMarkerInText(
               textContent,
@@ -855,15 +858,16 @@ export function RoomInput({
 
           try {
             await previousWait;
-            if (pendingStaging) {
-              await attachments.waitForPendingStaging();
+            let stagingProducedNone = false;
+            if (hasCapturedStaging) {
+              const stagedByBatch = await attachments.waitForPendingStaging(capturedStaging);
+              stagingProducedNone = stagedByBatch.length === 0;
               const afterStage = attachments.access.snapshot(sendContext.roomId);
               const afterEnrolled = new Set(afterStage.enrolled.map((item) => item.file));
               const existingFiles = new Set(batchCandidates.map((item) => item.file));
-              const newlyStaged = afterStage.staged.filter(
+              const newlyStaged = stagedByBatch.filter(
                 (item) =>
                   !item.prepError &&
-                  !item.metadata.mindroomPasteAttachment &&
                   !afterEnrolled.has(item.file) &&
                   !claimedFiles.has(item.file) &&
                   !existingFiles.has(item.file)
@@ -880,6 +884,7 @@ export function RoomInput({
               return;
             }
             if (
+              stagingProducedNone ||
               hasMissingPasteAttachmentForText(textContent, batchCandidates, fileItems) ||
               (!textContent && fileItems.length === 0)
             ) {
@@ -927,38 +932,69 @@ export function RoomInput({
         }
       }
 
+      const sameAccount = captureAccountGuard(store);
       setSubmitPending(true);
       ask?.onSendingChange?.(true);
       let releaseInitialLeases: (() => void) | undefined;
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
+      const restorePendingFallback = () => {
+        if (!pendingFallback) return;
+        const fragment = pendingFallback;
+        pendingFallback = undefined;
+        if (sameAccount()) {
+          sessions.restoreText({ roomId, threadId: draftThreadId }, fragment);
+        } else if (userId && listSessions().some((session) => session.userId === userId)) {
+          restoreTextToDraft(store, textKey, fragment);
+        }
+      };
       try {
-        if (ask && (attachments.hasSendableFiles || pendingStaging)) {
+        if (ask && (attachments.hasSendableFiles || hasCapturedStaging)) {
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
           if (textContent) {
             pendingFallback = composer.snapshotText();
             composer.resetText();
             sendTypingStatus(false);
           }
-          const { uploadedItems, missingPasteMarker } = await prepareAndUploadDeferredAttachments({
-            room,
-            batchItems: initialSnapshot!.staged,
-            textContent,
-            prepareForSend: attachments.prepareForSend,
-            uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
-            onPrepared: (prepared) => {
-              releasePreparedLeases = attachments.access.protectPasteItems(prepared);
-            },
-          });
+          const initialEnrolled = new Set(initialSnapshot!.enrolled.map((item) => item.file));
+          const batchItems = initialSnapshot!.staged.filter(
+            (item) => !item.prepError && !initialEnrolled.has(item.file)
+          );
+          let stagingProducedNone = false;
+          if (hasCapturedStaging) {
+            const stagedByBatch = await attachments.waitForPendingStaging(capturedStaging);
+            stagingProducedNone = stagedByBatch.length === 0;
+            const existingFiles = new Set(batchItems.map((item) => item.file));
+            const newlyStaged = stagedByBatch.filter(
+              (item) => !item.prepError && !existingFiles.has(item.file)
+            );
+            batchItems.push(...newlyStaged);
+          }
+          if (!sameAccount() || stagingProducedNone) {
+            restorePendingFallback();
+            return;
+          }
+          const { aborted, uploadedItems, missingPasteMarker } =
+            await prepareAndUploadDeferredAttachments({
+              room,
+              items: batchItems,
+              batchItems: [...initialSnapshot!.staged, ...batchItems],
+              textContent,
+              prepareForSend: attachments.prepareForSend,
+              uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
+              onPrepared: (prepared) => {
+                releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+              },
+              isAborted: () => !sameAccount(),
+            });
           if (
+            aborted ||
+            !sameAccount() ||
             !ask.canSend(room) ||
             missingPasteMarker ||
             (!textContent && uploadedItems.length === 0)
           ) {
-            if (pendingFallback) {
-              sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-              pendingFallback = undefined;
-            }
+            restorePendingFallback();
             return;
           }
           const fallbackForSession = pendingFallback;
@@ -971,8 +1007,12 @@ export function RoomInput({
             completeWithinCall: uploadedItems.length > 0,
             composerFallback: fallbackForSession,
             composerAlreadyReset: Boolean(textContent),
-            beforeSend: (sentTo) => ask.canSend(sentTo),
-            onLocalEchoCreated: ask.onLocalEcho,
+            beforeSend: (sentTo) => sameAccount() && ask.canSend(sentTo),
+            onLocalEchoCreated: ask.onLocalEcho
+              ? (eventId, sentRoom) => {
+                  if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
+                }
+              : undefined,
           });
           sendTypingStatus(false);
           try {
@@ -991,22 +1031,26 @@ export function RoomInput({
           explicitMidTurnMode: explicitMode !== undefined,
           batch: ask ? { fileItems: [] } : undefined,
           // Home's question is asked about, and told of, as it was at this press.
-          beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
-          onLocalEchoCreated: ask?.onLocalEcho,
+          beforeSend: ask && ((sentTo) => sameAccount() && ask.canSend(sentTo)),
+          onLocalEchoCreated: ask?.onLocalEcho
+            ? (eventId, sentRoom) => {
+                if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
+              }
+            : undefined,
         });
         // The composer is free again once the send session owns the text.
         sendTypingStatus(false);
         await sending;
       } catch (error) {
-        if (pendingFallback) {
-          sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-        }
+        restorePendingFallback();
         throw error;
       } finally {
         releasePreparedLeases?.();
         releaseInitialLeases?.();
-        ask?.onSendingChange?.(false);
-        if (mountedRef.current) setSubmitPending(false);
+        if (sameAccount()) {
+          ask?.onSendingChange?.(false);
+          if (mountedRef.current) setSubmitPending(false);
+        }
       }
     },
     [

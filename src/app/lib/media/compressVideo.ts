@@ -105,18 +105,6 @@ const probeSourceFps = async (videoTrack: InputVideoTrack): Promise<number | und
   return undefined;
 };
 
-const probeDurationSeconds = async (input: Input): Promise<number | undefined> => {
-  try {
-    const duration = await input.getDurationFromMetadata();
-    if (duration !== null && Number.isFinite(duration) && duration > 0) {
-      return duration;
-    }
-  } catch {
-    // Duration metadata may be absent (e.g. MediaRecorder WebM); rely on write and output caps.
-  }
-  return undefined;
-};
-
 const runVideoCompression = async (
   file: File,
   options: CompressVideoOptions,
@@ -147,11 +135,6 @@ const runVideoCompression = async (
       displayWidth <= 0 ||
       displayHeight <= 0
     ) {
-      return undefined;
-    }
-
-    const durationSeconds = await probeDurationSeconds(input);
-    if (durationSeconds !== undefined && (durationSeconds * targetBitrate) / 8 > MAX_OUTPUT_BYTES) {
       return undefined;
     }
 

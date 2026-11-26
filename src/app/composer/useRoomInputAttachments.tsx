@@ -87,8 +87,15 @@ type UseRoomInputAttachmentsOptions = {
   stagedListKey?: string;
   /** Keeps staged files local and unencrypted until `prepareForSend` commits them at Send. */
   deferUpload?: boolean;
+  /** True while a deferred send (Home Ask) is in flight; disables per-card "Use original" swaps. */
+  sendingDeferred?: boolean;
   /** Renders the upload board in normal flow above the composer instead of floating. */
   inlineUploadBoard?: boolean;
+};
+
+export type PendingStagingEntry = {
+  listKey: string;
+  promise: Promise<TUploadItem[]>;
 };
 
 type RoomInputAttachments = {
@@ -108,8 +115,10 @@ type RoomInputAttachments = {
   ) => Promise<TUploadItem[]>;
   /** Whether any pasted/dropped/picked files are currently staging (e.g. inline image compression). */
   hasPendingStaging: () => boolean;
-  /** Resolves once all currently in-flight `stageFiles` operations have finished staging. */
-  waitForPendingStaging: () => Promise<void>;
+  /** Captures only the `stageFiles` batches already in flight for the current list at call time. */
+  snapshotPendingStaging: () => PendingStagingEntry[];
+  /** Resolves to the items appended by `entries` (or currently in-flight entries when omitted). */
+  waitForPendingStaging: (entries?: readonly PendingStagingEntry[]) => Promise<TUploadItem[]>;
   /** Whether the upload board card list is currently expanded. */
   boardOpen: boolean;
   onPaste: (event: ClipboardEvent<HTMLElement>) => void;
@@ -173,6 +182,7 @@ export const useRoomInputAttachments = ({
   createUploadItems,
   stagedListKey,
   deferUpload = false,
+  sendingDeferred = false,
   inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
@@ -536,14 +546,30 @@ export const useRoomInputAttachments = ({
   const restorePastesRef = useRef(restorePastes);
   restorePastesRef.current = restorePastes;
 
-  const pendingStaging = useRef(new Set<Promise<void>>());
-  const hasPendingStaging = useCallback(() => pendingStaging.current.size > 0, []);
-  const waitForPendingStaging = useCallback(async (): Promise<void> => {
-    while (pendingStaging.current.size > 0) {
-      // eslint-disable-next-line no-await-in-loop
-      await Promise.allSettled([...pendingStaging.current]);
-    }
-  }, []);
+  const sendingDeferredRef = useRef(sendingDeferred);
+  sendingDeferredRef.current = sendingDeferred;
+  const preparingCount = useRef(0);
+  const [preparingForSend, setPreparingForSend] = useState(false);
+
+  const pendingStaging = useRef(new Set<PendingStagingEntry>());
+  const snapshotPendingStaging = useCallback(
+    (): PendingStagingEntry[] =>
+      [...pendingStaging.current].filter((entry) => entry.listKey === listKey()),
+    [listKey]
+  );
+  const hasPendingStaging = useCallback(
+    () => snapshotPendingStaging().length > 0,
+    [snapshotPendingStaging]
+  );
+  const waitForPendingStaging = useCallback(
+    async (entries?: readonly PendingStagingEntry[]): Promise<TUploadItem[]> => {
+      const target = entries ?? snapshotPendingStaging();
+      if (target.length === 0) return [];
+      const settled = await Promise.allSettled(target.map((entry) => entry.promise));
+      return settled.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+    },
+    [snapshotPendingStaging]
+  );
 
   const replaceEnrolled = useCallback((oldFile: TUploadContent, replacement: TUploadItem) => {
     claims.forEach((claim) => {
@@ -584,102 +610,136 @@ export const useRoomInputAttachments = ({
     notify,
   });
 
-  const waitForCompression = useCallback(
-    async (items: readonly TUploadItem[], targetRoomId?: string): Promise<TUploadItem[]> => {
-      await waitForPendingStaging();
-      return awaitCompression(items, targetRoomId);
+  const waitForCompression = awaitCompression;
+
+  const handleUseOriginal = useCallback(
+    (fileItem: TUploadItem) => {
+      if (sendingDeferredRef.current || preparingCount.current > 0) return;
+      void restoreOriginal(fileItem);
     },
-    [awaitCompression, waitForPendingStaging]
+    [restoreOriginal]
   );
 
-  // Commits staged files to `targetRoom` at Send time: waits for in-flight staging and active
-  // compressions, then (when deferred) encrypts iff `targetRoom` is encrypted, resets transient
-  // errors for retry, and blocks files over the server's size limit.
+  // Commits staged files to `targetRoom` at Send time: waits for in-flight staging captured at
+  // call time and active compressions, then (when deferred) encrypts iff `targetRoom` is
+  // encrypted, resets transient errors for retry, and blocks files over the server's size limit.
   const prepareForSend = useCallback(
     async (targetRoom: Room, explicitItems?: TUploadItem[]): Promise<TUploadItem[]> => {
-      await waitForPendingStaging();
-      const targetAtom = getTargetAtom(targetRoom.roomId);
-      const enrolledSet = new Set(enrolled.current.map((entry) => entry.file));
-      const candidates =
-        explicitItems ??
-        access.snapshot().staged.filter((item) => !item.prepError && !enrolledSet.has(item.file));
-      if (candidates.length === 0) return [];
+      const capturedStaging = explicitItems === undefined ? snapshotPendingStaging() : [];
+      preparingCount.current += 1;
+      if (mounted.current) setPreparingForSend(true);
+      try {
+        const targetAtom = getTargetAtom(targetRoom.roomId);
+        let candidates: TUploadItem[];
+        if (explicitItems !== undefined) {
+          candidates = explicitItems;
+        } else {
+          const initialSnapshot = access.snapshot();
+          const enrolledSet = new Set(initialSnapshot.enrolled.map((entry) => entry.file));
+          candidates = initialSnapshot.staged.filter(
+            (item) => !item.prepError && !enrolledSet.has(item.file)
+          );
+          if (capturedStaging.length > 0) {
+            const stagedByBatch = await waitForPendingStaging(capturedStaging);
+            const existing = new Set(candidates.map((item) => item.file));
+            const afterEnrolled = new Set(enrolled.current.map((entry) => entry.file));
+            candidates = [
+              ...candidates,
+              ...stagedByBatch.filter(
+                (item) =>
+                  !item.prepError && !afterEnrolled.has(item.file) && !existing.has(item.file)
+              ),
+            ];
+          }
+        }
+        if (candidates.length === 0) return [];
 
-      const hasCompressing = candidates.some((item) => item.compression?.status === 'compressing');
-      const resolvedCandidates = hasCompressing
-        ? await awaitCompression(candidates, targetRoom.roomId)
-        : candidates;
-      if (!deferUpload || resolvedCandidates.length === 0) return resolvedCandidates;
-
-      const encrypted = targetRoom.hasEncryptionStateEvent();
-      const ready: TUploadItem[] = [];
-      for (const item of resolvedCandidates) {
-        const liveBefore = store.get(targetAtom).find((entry) => entry.file === item.file);
-        if (!liveBefore || liveBefore.prepError) continue;
-        const tooLarge = getTooLargeError(liveBefore.originalFile.size, maxUploadSize);
-        if (tooLarge) {
-          store.set(roomUploadAtomFamily(liveBefore.file), { error: tooLarge });
-          continue;
-        }
-        const upload = store.get(roomUploadAtomFamily(liveBefore.file));
-        const needsPrep =
-          !!liveBefore.encInfo !== encrypted || upload.status === UploadStatus.Error;
-        if (!needsPrep) {
-          ready.push(liveBefore);
-          continue;
-        }
-        if (upload.status === UploadStatus.Loading) {
-          mx.cancelUpload(upload.promise);
-          store.set(roomUploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
-        }
-        const hasOwner = owners.current.has(liveBefore.file);
-        const owner = owners.current.get(liveBefore.file);
-        // eslint-disable-next-line no-await-in-loop
-        const [prepared] = await createRoomUploadItems(
-          [liveBefore.originalFile],
-          targetRoom,
-          () => liveBefore.metadata
+        const hasCompressing = candidates.some(
+          (item) => item.compression?.status === 'compressing'
         );
-        const liveAfter = store.get(targetAtom).find((entry) => entry.file === liveBefore.file);
-        if (!prepared || !liveAfter) continue;
-        const replacement: TUploadItem = {
-          ...prepared,
-          metadata: liveAfter.metadata,
-          ...(liveAfter.compression && !prepared.prepError
-            ? { compression: liveAfter.compression }
-            : {}),
-        };
-        if (replacement.file !== liveAfter.file) {
-          owners.current.delete(liveAfter.file);
-          if (hasOwner) owners.current.set(replacement.file, owner);
+        const resolvedCandidates = hasCompressing
+          ? await awaitCompression(candidates, targetRoom.roomId)
+          : candidates;
+        if (resolvedCandidates.length === 0) return [];
+        if (!deferUpload) {
+          if (hasCompressing) return resolvedCandidates;
+          const liveFiles = new Set(store.get(targetAtom).map((entry) => entry.file));
+          return resolvedCandidates.filter((item) => liveFiles.has(item.file));
         }
-        if (replacement.prepError) {
-          store.set(roomUploadAtomFamily(replacement.file), { error: replacement.prepError });
-        } else if (
-          store.get(roomUploadAtomFamily(replacement.file)).status === UploadStatus.Error
-        ) {
-          store.set(roomUploadAtomFamily(replacement.file), { status: UploadStatus.Idle });
+
+        const encrypted = targetRoom.hasEncryptionStateEvent();
+        const ready: TUploadItem[] = [];
+        for (const item of resolvedCandidates) {
+          const liveBefore = store.get(targetAtom).find((entry) => entry.file === item.file);
+          if (!liveBefore || liveBefore.prepError) continue;
+          const tooLarge = getTooLargeError(liveBefore.originalFile.size, maxUploadSize);
+          if (tooLarge) {
+            store.set(roomUploadAtomFamily(liveBefore.file), { error: tooLarge });
+            continue;
+          }
+          const upload = store.get(roomUploadAtomFamily(liveBefore.file));
+          const needsPrep =
+            !!liveBefore.encInfo !== encrypted || upload.status === UploadStatus.Error;
+          if (!needsPrep) {
+            ready.push(liveBefore);
+            continue;
+          }
+          if (upload.status === UploadStatus.Loading) {
+            mx.cancelUpload(upload.promise);
+            store.set(roomUploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
+          }
+          const hasOwner = owners.current.has(liveBefore.file);
+          const owner = owners.current.get(liveBefore.file);
+          // eslint-disable-next-line no-await-in-loop
+          const [prepared] = await createRoomUploadItems(
+            [liveBefore.originalFile],
+            targetRoom,
+            () => liveBefore.metadata
+          );
+          const liveAfter = store.get(targetAtom).find((entry) => entry.file === liveBefore.file);
+          if (!prepared || !liveAfter) continue;
+          const replacement: TUploadItem = {
+            ...prepared,
+            metadata: liveAfter.metadata,
+            ...(liveAfter.compression && !prepared.prepError
+              ? { compression: liveAfter.compression }
+              : {}),
+          };
+          if (replacement.file !== liveAfter.file) {
+            owners.current.delete(liveAfter.file);
+            if (hasOwner) owners.current.set(replacement.file, owner);
+          }
+          if (replacement.prepError) {
+            store.set(roomUploadAtomFamily(replacement.file), { error: replacement.prepError });
+          } else if (
+            store.get(roomUploadAtomFamily(replacement.file)).status === UploadStatus.Error
+          ) {
+            store.set(roomUploadAtomFamily(replacement.file), { status: UploadStatus.Idle });
+          }
+          store.set(targetAtom, { type: 'REPLACE', item: liveAfter, replacement });
+          if (replacement.file !== liveAfter.file) {
+            roomUploadAtomFamily.remove(liveAfter.file);
+          }
+          const preparedTooLarge = !replacement.prepError
+            ? getTooLargeError(replacement.file.size, maxUploadSize)
+            : undefined;
+          if (preparedTooLarge) {
+            store.set(roomUploadAtomFamily(replacement.file), { error: preparedTooLarge });
+          }
+          const isReady = !replacement.prepError && !preparedTooLarge;
+          enrolled.current = isReady
+            ? enrolled.current.map((entry) => (entry.file === liveAfter.file ? replacement : entry))
+            : enrolled.current.filter((entry) => entry.file !== liveAfter.file);
+          syncEnrolled();
+          syncUploadWatches();
+          notify();
+          if (isReady) ready.push(replacement);
         }
-        store.set(targetAtom, { type: 'REPLACE', item: liveAfter, replacement });
-        if (replacement.file !== liveAfter.file) {
-          roomUploadAtomFamily.remove(liveAfter.file);
-        }
-        const preparedTooLarge = !replacement.prepError
-          ? getTooLargeError(replacement.file.size, maxUploadSize)
-          : undefined;
-        if (preparedTooLarge) {
-          store.set(roomUploadAtomFamily(replacement.file), { error: preparedTooLarge });
-        }
-        const isReady = !replacement.prepError && !preparedTooLarge;
-        enrolled.current = isReady
-          ? enrolled.current.map((entry) => (entry.file === liveAfter.file ? replacement : entry))
-          : enrolled.current.filter((entry) => entry.file !== liveAfter.file);
-        syncEnrolled();
-        syncUploadWatches();
-        notify();
-        if (isReady) ready.push(replacement);
+        return ready;
+      } finally {
+        preparingCount.current -= 1;
+        if (mounted.current) setPreparingForSend(preparingCount.current > 0);
       }
-      return ready;
     },
     [
       access,
@@ -689,6 +749,7 @@ export const useRoomInputAttachments = ({
       maxUploadSize,
       mx,
       notify,
+      snapshotPendingStaging,
       store,
       syncEnrolled,
       syncUploadWatches,
@@ -733,8 +794,8 @@ export const useRoomInputAttachments = ({
     // composer still shows it once they are prepared.
     async (files: File[], asked?: { roomId: string; draftKey?: string }) => {
       if (files.length === 0) return;
-      const run = (async () => {
-        const targetRoomId = asked?.roomId ?? current.current.roomId;
+      const targetRoomId = asked?.roomId ?? current.current.roomId;
+      const run = (async (): Promise<TUploadItem[]> => {
         const targetRoom =
           (asked && typeof mx.getRoom === 'function' ? mx.getRoom(targetRoomId) : undefined) ??
           current.current.room;
@@ -770,7 +831,7 @@ export const useRoomInputAttachments = ({
 
         if (!mounted.current) {
           videoJobs.forEach(({ job }) => job.discard());
-          return;
+          return [];
         }
         if (
           asked &&
@@ -779,7 +840,7 @@ export const useRoomInputAttachments = ({
           videoJobs.forEach(({ job }) => job.discard());
           // eslint-disable-next-line no-console
           console.warn('[composer] files not attached: the conversation changed');
-          return;
+          return [];
         }
 
         videoJobs.forEach(({ index, job }) => {
@@ -787,17 +848,20 @@ export const useRoomInputAttachments = ({
         });
         access.append(targetRoomId, stagedItems);
         videoJobs.forEach(({ job }) => job.start());
+        return stagedItems;
       })();
-      pendingStaging.current.add(run);
+      const entry: PendingStagingEntry = { listKey: listKey(targetRoomId), promise: run };
+      pendingStaging.current.add(entry);
       try {
         await run;
       } finally {
-        pendingStaging.current.delete(run);
+        pendingStaging.current.delete(entry);
       }
     },
     [
       access,
       compressInlineImages,
+      listKey,
       maxUploadSize,
       mx,
       prepareLocalItems,
@@ -1018,8 +1082,13 @@ export const useRoomInputAttachments = ({
                   replaceItem(fileItem, { ...fileItem, metadata })
                 }
                 onRemove={(file) => access.remove(current.current.roomId, [file])}
-                onUseOriginal={(fileItem) => void restoreOriginal(fileItem)}
-                canUseOriginal={!enrolledFiles.has(item.file) && !waitingForCompression}
+                onUseOriginal={handleUseOriginal}
+                canUseOriginal={
+                  !sendingDeferred &&
+                  !preparingForSend &&
+                  !enrolledFiles.has(item.file) &&
+                  !waitingForCompression
+                }
               />
             ))}
           </UploadBoardContent>
@@ -1035,6 +1104,7 @@ export const useRoomInputAttachments = ({
     prepareForSend,
     waitForCompression,
     hasPendingStaging,
+    snapshotPendingStaging,
     waitForPendingStaging,
     boardOpen,
     onPaste,

@@ -16,18 +16,20 @@ Create `src/app/preferences/mediaCompression.ts` (Layer 1, same pattern as `midT
 - `MEDIA_COMPRESSION_PRESETS = ['off', 'balanced', 'small'] as const`
 - `DEFAULT_MEDIA_COMPRESSION: MediaCompressionPreset = 'balanced'`
 
-| Preset | Images (max long edge / quality) | Videos (max long edge / max fps / target bitrate) |
-| :--- | :--- | :--- |
-| `off` | Unchanged original | Unchanged original |
-| `balanced` (default) | 2048 px / 0.84 | 1920 px (1080p) / 30 fps / 2.5 Mbps H.264 MP4 |
-| `small` | 1280 px / 0.72 | 1280 px (720p) / 30 fps / 1.2 Mbps H.264 MP4 |
+| Preset               | Images (max long edge / quality) | Videos (max long edge / max fps / target bitrate) |
+| :------------------- | :------------------------------- | :------------------------------------------------ |
+| `off`                | Unchanged original               | Unchanged original                                |
+| `balanced` (default) | 2048 px / 0.84                   | 1920 px (1080p) / 30 fps / 2.5 Mbps H.264 MP4     |
+| `small`              | 1280 px / 0.72                   | 1280 px (720p) / 30 fps / 1.2 Mbps H.264 MP4      |
 
 Why `balanced` defaults to 2048 px for images and 1080p for videos:
+
 - 2048 px matches MindRoom backend's image cap (`media_delivery.py`), keeps Retina screenshot text crisp, and shrinks 3-10 MB macOS PNG screenshots by 80-95%.
 - 1080p H.264 VBR at 2.5 Mbps target (screen recordings typically settle at 0.5-1.5 Mbps) keeps screen-recorded UI text readable while cutting 40-100 MB Retina `.mov` recordings by 60-90%.
 - Small synthetic files in existing unit/E2E tests stay untouched because of the minimum size floors (32 KiB for images, 1 MiB for videos) and the savings guard.
 
 Wiring:
+
 - Add `mediaCompression: MediaCompressionPreset` to `Settings` in `src/app/preferences/settings.ts` with validation in `sanitizeSettings`.
 - Add `mediaCompression` to `ROAMING_SETTINGS` in `src/app/preferences/roamingSettings.ts` (`scope: 'account'`) so protecting homeserver disk space follows the user across devices.
 - Register the setting in `src/app/preferences/settingsRegistry.ts` on page `chats` with search keywords for screenshots, screen recordings, images, videos, compression, and upload size.
@@ -38,7 +40,7 @@ Wiring:
 Pure Layer 0 module with zero app imports and zero new npm dependencies, loaded only via dynamic `import()` when `preset !== 'off'` and `file.type.startsWith('image/')`.
 
 1. **Skip rules (return original untouched)**:
-   - Non-raster or vector/icon formats: `image/svg+xml`, `image/gif`, `image/x-icon`, `image/vnd.microsoft.icon`, and unknown/non-image MIME types.
+   - Explicit image MIME allowlist (`image/png`, `image/jpeg`, `image/webp`, `image/heic`, `image/heif`); all other formats (`image/svg+xml`, `image/gif`, `image/avif`, `image/tiff`, `image/bmp`, `image/x-icon`, `image/heic-sequence`, `image/heif-sequence`, unknown/non-image MIME types) stay untouched.
    - Files smaller than `32 KiB` (unless over `maxUploadSize`).
    - **APNG**: scan PNG chunks (first 64 KiB) until `IDAT`/`IEND`; if an `acTL` chunk appears before `IDAT` (or the header is malformed), skip.
    - **Animated WebP**: inspect the first 64 bytes (`RIFF....WEBP`); if `VP8X` has the animation flag `(byte[20] & 0x02) !== 0` or an `ANIM` chunk is present (or malformed), skip.
@@ -52,7 +54,7 @@ Pure Layer 0 module with zero app imports and zero new npm dependencies, loaded 
 3. **Format choice and WebKit fallback**:
    - Cache a one-time `supportsWebpEncode()` check (`1x1` canvas `toDataURL('image/webp').startsWith('data:image/webp')`) and also verify the produced `blob.type` matches the requested MIME (Safari/WKWebView can silently return `image/png` when asked for WebP).
    - On WebP-capable browsers (Chrome, Electron macOS, Firefox, Android): encode as `image/webp` at the preset quality. WebP handles both opaque and transparent screenshots (including macOS window shadows).
-   - On Safari / iOS WKWebView (`!supportsWebpEncode()`): scan alpha pixels on the resized canvas only when the source MIME can carry transparency (`image/png`, `image/webp`, `image/avif`), short-circuiting on the first pixel with `alpha < 255`. Encode opaque images as `image/jpeg` at preset quality; encode transparent images as `image/png` (kept only if resizing shrank the file).
+   - On Safari / iOS WKWebView (`!supportsWebpEncode()`): scan alpha pixels on the resized canvas only when the source MIME can carry transparency (`image/png`, `image/webp`), short-circuiting on the first pixel with `alpha < 255`. Encode opaque images as `image/jpeg` at preset quality; encode transparent images as `image/png` (kept only if resizing shrank the file).
 
 4. **Savings guard and filename**:
    - Keep the compressed file only if `blob.size > 0` and either `blob.size < file.size * 0.95` (at least 5% smaller) or `maxUploadSize !== undefined && file.size > maxUploadSize && blob.size <= maxUploadSize`.
@@ -75,7 +77,7 @@ Pure Layer 0 module loaded only via dynamic `import()` when `preset !== 'off'` a
 
 3. **Transcode recipe**:
    - Stream input via `BlobSource(file)` (avoids loading the full raw `.mov` into JS memory).
-   - Target `Mp4OutputFormat({ fastStart: 'in-memory' })` into `BufferTarget()` with H.264 (`avc`) video for universal playback across Matrix clients, Safari, iOS, Electron, Chrome, and MindRoom backend.
+   - Target `Mp4OutputFormat({ fastStart: false })` into `BufferTarget()` with H.264 (`avc`) video for universal playback across Matrix clients, Safari, iOS, Electron, Chrome, and MindRoom backend; `fastStart: false` streams incremental writes so the live 64 MiB cap can abort early without duration pre-flight estimates.
    - Compute scaled dimensions without upscaling, preserving display aspect ratio and rotation metadata, and round both width and height to **even integers** (`Math.max(2, Math.round(dim / 2) * 2)`) because macOS region/window screen recordings frequently have odd pixel dimensions that H.264 encoders reject.
    - Cap frame rate at 30 fps only when the source exceeds 30 fps (never upscale lower frame rates).
    - **Audio passthrough**: if an audio track is already MP4-compatible (`aac`, `mp3`, `opus`), copy packets untouched without invoking `AudioEncoder`. This is critical because iOS 16.4-18.x WKWebView and Linux Chrome often lack `AudioEncoder`, while macOS/iOS screen recordings carry AAC audio or no audio. Transcode incompatible audio only if supported.

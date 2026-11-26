@@ -3,21 +3,18 @@ import { getMimeTypeBase } from '../mimeTypes';
 export const MIN_IMAGE_COMPRESSION_BYTES = 32 * 1024;
 export const MIN_VIDEO_COMPRESSION_BYTES = 1024 * 1024;
 
-export const SKIPPED_IMAGE_MIME_TYPES = new Set([
-  'image/svg+xml',
-  'image/gif',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/apng',
-  'image/avif',
-  'image/heic-sequence',
-  'image/heif-sequence',
+export const ELIGIBLE_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
 ]);
 
 /** Whether `file` is an image candidate for client-side compression. */
 export const isEligibleImageForCompression = (file: File, maxUploadSize?: number): boolean => {
   const mime = getMimeTypeBase(file.type);
-  if (!mime.startsWith('image/') || SKIPPED_IMAGE_MIME_TYPES.has(mime)) return false;
+  if (!ELIGIBLE_IMAGE_MIME_TYPES.has(mime)) return false;
   if (file.size <= 0) return false;
   return (
     file.size >= MIN_IMAGE_COMPRESSION_BYTES ||

@@ -122,16 +122,16 @@ const mediaMsgContent = (
   return withSpoiler(withFileSource(content, item, mxc), item);
 };
 
-/**
- * A picture larger than the timeline shows gets a thumbnail, so timelines load that instead of
- * the whole file. Animated GIFs keep only the original, which a thumbnail would freeze.
- */
 const getImageThumbnailMimeType = (mimetype: string | undefined): string => {
   if (mimetype === 'image/jpeg') return 'image/jpeg';
   if (mimetype === 'image/webp' && supportsWebpEncode()) return 'image/webp';
   return 'image/png';
 };
 
+/**
+ * A picture larger than the timeline shows gets a thumbnail, so timelines load that instead of
+ * the whole file. Animated GIFs keep only the original, which a thumbnail would freeze.
+ */
 const needsImageThumbnail = (info: IImageInfo): boolean =>
   info.mimetype !== 'image/gif' && Math.max(info.w ?? 0, info.h ?? 0) > THUMBNAIL_MAX_SIZE;
 

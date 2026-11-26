@@ -387,6 +387,8 @@ describe('compressImage', () => {
       new File([new Uint8Array(64 * 1024)], 'favicon.ico', { type: 'image/x-icon' }),
       new File([new Uint8Array(64 * 1024)], 'favicon2.ico', { type: 'image/vnd.microsoft.icon' }),
       new File([new Uint8Array(64 * 1024)], 'animated.avif', { type: 'image/avif' }),
+      new File([new Uint8Array(64 * 1024)], 'multipage.tiff', { type: 'image/tiff' }),
+      new File([new Uint8Array(64 * 1024)], 'bitmap.bmp', { type: 'image/bmp' }),
       new File([new Uint8Array(64 * 1024)], 'burst.heics', { type: 'image/heic-sequence' }),
       new File([new Uint8Array(64 * 1024)], 'burst.heifs', { type: 'image/heif-sequence' }),
       makeStaticPng(32 * 1024 - 1, 'tiny.png'),

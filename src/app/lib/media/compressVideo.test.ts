@@ -495,13 +495,17 @@ describe('compressVideo', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('enforces the 64 MiB output cap before, during, and after conversion', async () => {
+  it('does not pre-flight reject long recordings and enforces the 64 MiB output cap during and after conversion', async () => {
+    // A 5-minute screen recording (duration * targetBitrate / 8 > 64 MiB) still encodes because
+    // VBR H.264 often compresses mostly-static recordings far below the target bitrate.
     mocks.state.nextDuration = 300;
-    expect(await compressVideo(makeVideoFile(100 * ONE_MIB), BALANCED)).toBeUndefined();
-    expect(mocks.state.initCalls).toHaveLength(0);
-    expect(mocks.state.inputs[0]?.dispose).toHaveBeenCalledTimes(1);
+    mocks.state.nextOutputBytes = 10 * ONE_MIB;
+    const longResult = await compressVideo(makeVideoFile(100 * ONE_MIB), BALANCED);
+    expect(longResult?.compressedSize).toBe(10 * ONE_MIB);
+    expect(mocks.state.initCalls).toHaveLength(1);
+    expect(mocks.state.inputs[0]?.getDurationFromMetadata).not.toHaveBeenCalled();
 
-    // Duration-less MediaRecorder WebM relies on incremental fastStart: false writes to enforce the 64 MiB cap live.
+    // Incremental fastStart: false writes enforce the 64 MiB cap live (including duration-less WebM).
     mocks.state.nextDuration = null;
     mocks.state.onExecute = async (_conversion, target) => {
       target.emitWrite(0, SIXTY_FOUR_MIB + 1);
