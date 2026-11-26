@@ -152,8 +152,7 @@ const createPendingJob = (
     const opts = optsRef.current;
     const stale =
       getMediaCompressionGeneration() !== startGen ||
-      (controller.signal.aborted && !preferOriginal) ||
-      opts.getTargetAtom(roomId) !== targetAtom;
+      (controller.signal.aborted && !preferOriginal);
     return stale
       ? undefined
       : opts.store.get(targetAtom).find((e) => e.compression === compression);
@@ -383,10 +382,12 @@ export const useMediaCompression = (options: UseMediaCompressionOptions) => {
       useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, waitingCountRef, item),
       waitForCompression: async (
         items: readonly TUploadItem[],
-        targetRoomId: string = optsRef.current.current.current.roomId
+        targetRoomId: string = optsRef.current.current.current.roomId,
+        capturedTargetAtom?: StagedList
       ): Promise<TUploadItem[]> => {
         const { getTargetAtom, store } = optsRef.current;
-        const targetAtom = getTargetAtom(targetRoomId);
+        const targetAtom = capturedTargetAtom ?? getTargetAtom(targetRoomId);
+        const startGen = getMediaCompressionGeneration();
         const hasCompressing = items.some((item) => item.compression?.status === 'compressing');
         if (hasCompressing) {
           waitingCountRef.current += 1;
@@ -396,7 +397,7 @@ export const useMediaCompression = (options: UseMediaCompressionOptions) => {
           const resolved = await Promise.all(
             items.map((i) => (i.compression?.status === 'compressing' ? i.compression.done : i))
           );
-          if (optsRef.current.getTargetAtom(targetRoomId) !== targetAtom) return [];
+          if (getMediaCompressionGeneration() !== startGen) return [];
           const liveByFile = new Map(store.get(targetAtom).map((e) => [e.file, e]));
           return resolved.flatMap((i) => {
             const live = i && liveByFile.get(i.file);

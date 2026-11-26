@@ -6259,4 +6259,120 @@ describe('RoomInput media compression send and voice invariants', () => {
       });
     }
   });
+
+  it('delivers compressing video, caption, and queued follow-up attachment when ThreadView closes and evicts roomIdToUploadItemsAtomFamily after Send', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+
+    const VIEW = 'thread-panel-video';
+    const THREAD_ID = '$thread-video-root';
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    mxState.getRoom.mockImplementation((id: string) => createRoom(id, true));
+
+    const { renderer } = await renderRoomInput(store, {
+      view: VIEW,
+      threadId: THREAD_ID,
+      encryptedRoom: true,
+      fileDropContainerRef: dropRef,
+    });
+
+    try {
+      const rawVideo = makeSizedFile('thread-demo.mov', 'video/quicktime', 4 * 1024 * 1024);
+      const compressedVideo = makeSizedFile('thread-demo.mp4', 'video/mp4', 600 * 1024);
+      const videoGate = createDeferred<{
+        file: File;
+        originalSize: number;
+        compressedSize: number;
+      }>();
+      mediaCompressionMocks.compressVideo.mockImplementationOnce(() => videoGate.promise);
+
+      await act(async () => {
+        fileInputState.onDrop?.([rawVideo]);
+        await Promise.resolve();
+      });
+      const viewKey = composerStateKey(ROOM_ID, VIEW);
+      expect(store.get(roomIdToUploadItemsAtomFamily(viewKey))[0]?.compression?.status).toBe(
+        'compressing'
+      );
+
+      stageComposerText('Video from thread panel');
+      resetEditorOnNextSend();
+      const uploadDeferred = createDeferred<{ content_uri: string }>();
+      mxState.uploadContent.mockReturnValueOnce(uploadDeferred.promise);
+      mxState.sendMessage
+        .mockResolvedValueOnce({ event_id: '$thread-vid-evt' })
+        .mockResolvedValueOnce({ event_id: '$thread-cap-evt' })
+        .mockResolvedValueOnce({ event_id: '$thread-shot-evt' })
+        .mockResolvedValueOnce({ event_id: '$thread-follow-evt' });
+
+      let firstSubmit!: Promise<void>;
+      await act(async () => {
+        firstSubmit = submitComposer();
+        await Promise.resolve();
+      });
+      expect(mxState.uploadContent).not.toHaveBeenCalled();
+      expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+      // Stage a ready screenshot and queue a second Send behind the compressing video so its
+      // waitForCompression runs only AFTER ThreadView has closed and evicted the atom-family entry.
+      const followFile = makeSizedFile('follow-shot.png', 'image/png', 50 * 1024);
+      const [encFollowItem] = await createRoomUploadItems([followFile], createRoom(ROOM_ID, true));
+      store.set(roomIdToUploadItemsAtomFamily(viewKey), { type: 'PUT', item: [encFollowItem!] });
+      store.set(roomUploadAtomFamily(encFollowItem!.file), {
+        mxc: 'mxc://mindroom/enc-follow-shot',
+      });
+      encryptionState.encryptAttachment.mockClear();
+
+      stageComposerText('Follow-up with screenshot');
+      resetEditorOnNextSend();
+      let secondSubmit!: Promise<void>;
+      await act(async () => {
+        secondSubmit = submitComposer();
+        await Promise.resolve();
+      });
+
+      // Close ThreadView right after pressing Send: unmount and evict the atom-family entry.
+      await act(async () => {
+        renderer.unmount();
+        roomIdToUploadItemsAtomFamily.remove(viewKey);
+      });
+      expect(store.get(roomIdToUploadItemsAtomFamily(viewKey))).toEqual([]);
+
+      // Compression finishes after ThreadView closed -> encrypts video, uploads, and delivers both sends.
+      await act(async () => {
+        videoGate.resolve({
+          file: compressedVideo,
+          originalSize: rawVideo.size,
+          compressedSize: compressedVideo.size,
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+      expect(encryptionState.encryptAttachment).toHaveBeenCalledTimes(1);
+      expect(mxState.uploadContent.mock.calls[0]![0]).not.toBe(compressedVideo);
+
+      await act(async () => {
+        uploadDeferred.resolve({ content_uri: 'mxc://mindroom/enc-thread-vid' });
+        await Promise.all([firstSubmit, secondSubmit]);
+        await Promise.resolve();
+      });
+      await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(4));
+      expect(
+        mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+      ).toEqual([
+        'thread-demo.mp4',
+        'Video from thread panel',
+        'follow-shot.png',
+        'Follow-up with screenshot',
+      ]);
+      const videoPayload = mxState.sendMessage.mock.calls[0]![1] as { file?: { url?: string } };
+      expect(videoPayload.file?.url).toBe('mxc://mindroom/enc-thread-vid');
+    } finally {
+      vi.unstubAllGlobals();
+      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
+    }
+  });
 });

@@ -201,7 +201,6 @@ vi.mock('./useRoomInputAttachments', () => ({
     lostPastes: false,
     dismissLostPastes: vi.fn(),
     settlePastes: () => true,
-    hasPendingStaging: () => false,
     snapshotPendingStaging: () => [],
     waitForPendingStaging: async () => [],
     prepareForSend: vi.fn(async (_room: unknown, items: unknown[] = []) => items),

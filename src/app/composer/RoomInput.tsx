@@ -816,6 +816,7 @@ export function RoomInput({
             signalBridgedRoom: isSignalBridgeRoom(room),
           };
           const sendComposerContext = { roomId, threadId: draftThreadId };
+          const sendItemsAtom = attachments.itemsAtom;
           const sameAccount = captureAccountGuard(store);
           const previousWait = existingQueue?.tail ?? Promise.resolve();
           let releaseWait!: () => void;
@@ -877,7 +878,11 @@ export function RoomInput({
             }
             const fileItems =
               batchCandidates.length > 0
-                ? await attachments.waitForCompression(batchCandidates, sendContext.roomId)
+                ? await attachments.waitForCompression(
+                    batchCandidates,
+                    sendContext.roomId,
+                    sendItemsAtom
+                  )
                 : [];
             if (!sameAccount()) {
               restoreCompressionFallback();

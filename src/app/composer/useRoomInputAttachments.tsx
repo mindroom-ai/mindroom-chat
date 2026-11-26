@@ -31,6 +31,7 @@ import { ConversationViewContext } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
+  isUploadItemReady,
   type TUploadItem,
   type TUploadMetadata,
   type Upload,
@@ -64,6 +65,7 @@ import {
 import { isEligibleImageForCompression } from '../lib/media/mediaCompressionEligibility';
 import { getImageCompressionSpec } from '../preferences/mediaCompression';
 import { settingsAtom } from '../preferences/settings';
+import { getMediaCompressionGeneration } from './mediaCompressionJobs';
 import { useMediaCompression, type PendingVideoCompression } from './useMediaCompression';
 
 type CreateRoomInputUploadItems = (
@@ -111,10 +113,9 @@ type RoomInputAttachments = {
   /** Waits for any compressing items in `items` to settle and returns the still-staged ready items. */
   waitForCompression: (
     items: readonly TUploadItem[],
-    targetRoomId?: string
+    targetRoomId?: string,
+    targetAtom?: StagedList
   ) => Promise<TUploadItem[]>;
-  /** Whether any pasted/dropped/picked files are currently staging (e.g. inline image compression). */
-  hasPendingStaging: () => boolean;
   /** Captures only the `stageFiles` batches already in flight for the current list at call time. */
   snapshotPendingStaging: () => PendingStagingEntry[];
   /** Resolves to the items appended by `entries` (or currently in-flight entries when omitted). */
@@ -557,10 +558,6 @@ export const useRoomInputAttachments = ({
       [...pendingStaging.current].filter((entry) => entry.listKey === listKey()),
     [listKey]
   );
-  const hasPendingStaging = useCallback(
-    () => snapshotPendingStaging().length > 0,
-    [snapshotPendingStaging]
-  );
   const waitForPendingStaging = useCallback(
     async (entries?: readonly PendingStagingEntry[]): Promise<TUploadItem[]> => {
       const target = entries ?? snapshotPendingStaging();
@@ -626,10 +623,16 @@ export const useRoomInputAttachments = ({
   const prepareForSend = useCallback(
     async (targetRoom: Room, explicitItems?: TUploadItem[]): Promise<TUploadItem[]> => {
       const capturedStaging = explicitItems === undefined ? snapshotPendingStaging() : [];
+      const startGen = getMediaCompressionGeneration();
       preparingCount.current += 1;
       if (mounted.current) setPreparingForSend(true);
       try {
-        const targetAtom = getTargetAtom(targetRoom.roomId);
+        // Reuse this hook's captured `itemsAtom` when it matches `targetRoom` so ThreadView
+        // atom-family eviction on unmount does not swap in a fresh empty atom during handoff.
+        const targetAtom =
+          listKey(targetRoom.roomId) === listKey(roomId)
+            ? itemsAtom
+            : getTargetAtom(targetRoom.roomId);
         let candidates: TUploadItem[];
         if (explicitItems !== undefined) {
           candidates = explicitItems;
@@ -658,13 +661,18 @@ export const useRoomInputAttachments = ({
           (item) => item.compression?.status === 'compressing'
         );
         const resolvedCandidates = hasCompressing
-          ? await awaitCompression(candidates, targetRoom.roomId)
+          ? await awaitCompression(candidates, targetRoom.roomId, targetAtom)
           : candidates;
-        if (resolvedCandidates.length === 0) return [];
+        if (resolvedCandidates.length === 0 || getMediaCompressionGeneration() !== startGen) {
+          return [];
+        }
         if (!deferUpload) {
           if (hasCompressing) return resolvedCandidates;
-          const liveFiles = new Set(store.get(targetAtom).map((entry) => entry.file));
-          return resolvedCandidates.filter((item) => liveFiles.has(item.file));
+          const liveByFile = new Map(store.get(targetAtom).map((entry) => [entry.file, entry]));
+          return resolvedCandidates.flatMap((item) => {
+            const live = liveByFile.get(item.file);
+            return live && isUploadItemReady(live) ? [live] : [];
+          });
         }
 
         const encrypted = targetRoom.hasEncryptionStateEvent();
@@ -696,6 +704,7 @@ export const useRoomInputAttachments = ({
             targetRoom,
             () => liveBefore.metadata
           );
+          if (getMediaCompressionGeneration() !== startGen) return [];
           const liveAfter = store.get(targetAtom).find((entry) => entry.file === liveBefore.file);
           if (!prepared || !liveAfter) continue;
           const replacement: TUploadItem = {
@@ -746,9 +755,12 @@ export const useRoomInputAttachments = ({
       awaitCompression,
       deferUpload,
       getTargetAtom,
+      itemsAtom,
+      listKey,
       maxUploadSize,
       mx,
       notify,
+      roomId,
       snapshotPendingStaging,
       store,
       syncEnrolled,
@@ -1103,7 +1115,6 @@ export const useRoomInputAttachments = ({
     hasSendableFiles,
     prepareForSend,
     waitForCompression,
-    hasPendingStaging,
     snapshotPendingStaging,
     waitForPendingStaging,
     boardOpen,

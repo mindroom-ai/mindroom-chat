@@ -6,8 +6,13 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
 import { isUploadItemReady, UploadStatus, type TUploadItem } from '../matrix/state/upload';
 import * as uploadPreparation from '../matrix/send/roomInputUploadPreparation';
+import { composerStateKey } from '../navigation/conversationView';
 import { abortAllMediaCompressions } from './mediaCompressionJobs';
-import { composerUploadItemsAtom, roomUploadAtomFamily } from './roomInputDrafts';
+import {
+  composerUploadItemsAtom,
+  roomIdToUploadItemsAtomFamily,
+  roomUploadAtomFamily,
+} from './roomInputDrafts';
 import { useMediaCompression, type UseMediaCompressionOptions } from './useMediaCompression';
 
 const mockCompressImage = vi.hoisted(() => vi.fn());
@@ -51,12 +56,14 @@ const renderHook = ({
   maxUploadSize = 50 * 1024 * 1024,
   mx,
   store = createStore(),
+  view,
 }: {
   room?: Room;
   deferUpload?: boolean;
   maxUploadSize?: number;
   mx?: MatrixClient;
   store?: ReturnType<typeof createStore>;
+  view?: string;
 } = {}) => {
   const matrixClient =
     mx ??
@@ -69,7 +76,7 @@ const renderHook = ({
   const notify = vi.fn();
   const ownersRef = { current: new Map<TUploadContent, string | undefined>() };
   const enrolledRef = { current: [] as TUploadItem[] };
-  const getTargetAtom = (targetRoomId: string) => composerUploadItemsAtom(targetRoomId, undefined);
+  const getTargetAtom = (targetRoomId: string) => composerUploadItemsAtom(targetRoomId, view);
   let api!: ReturnType<typeof useMediaCompression>;
 
   const Harness = ({
@@ -633,5 +640,78 @@ describe('useMediaCompression', () => {
     });
     await Promise.resolve();
     expect(harness.store.get(targetAtom)).toEqual([job.placeholder]);
+  });
+
+  it('keeps compressing video alive across ThreadView atom-family eviction and resolves via captured targetAtom', async () => {
+    const VIEW = 'thread-panel';
+    const encRoom = makeRoom(ROOM_ID, true);
+    const harness = renderHook({ room: encRoom, view: VIEW });
+    const capturedAtom = harness.getTargetAtom(ROOM_ID);
+    const rawVideo = makeSizedFile('thread-clip.mov', 'video/quicktime', 4 * 1024 * 1024);
+    const compressedVideo = makeSizedFile('thread-clip.mp4', 'video/mp4', 700 * 1024);
+    const encryptedVideo = makeSizedFile('thread-clip.mp4', 'application/octet-stream', 700 * 1024);
+    const gate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mockCompressVideo.mockImplementationOnce(() => gate.promise);
+    const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
+      {
+        file: encryptedVideo,
+        originalFile: compressedVideo,
+        encInfo: { v: 'v2' } as never,
+        metadata: { markedAsSpoiler: false },
+      },
+    ]);
+
+    try {
+      const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', encRoom, ROOM_ID)!;
+      harness.store.set(capturedAtom, { type: 'PUT', item: job.placeholder });
+      job.start();
+      await vi.waitFor(() => expect(mockCompressVideo).toHaveBeenCalledTimes(1));
+
+      // Simulate ThreadView unmount: evict the atom-family entry while waitForCompression is active,
+      // and also verify a second wait started after eviction with the captured atom still resolves.
+      let waitBeforeEvict!: Promise<TUploadItem[]>;
+      act(() => {
+        waitBeforeEvict = harness.api.waitForCompression([job.placeholder], ROOM_ID, capturedAtom);
+      });
+      harness.unmount();
+      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
+      expect(composerUploadItemsAtom(ROOM_ID, VIEW)).not.toBe(capturedAtom);
+      const waitAfterEvict = harness.api.waitForCompression(
+        [job.placeholder],
+        ROOM_ID,
+        capturedAtom
+      );
+
+      gate.resolve({
+        file: compressedVideo,
+        originalSize: rawVideo.size,
+        compressedSize: compressedVideo.size,
+      });
+
+      const [beforeResult, afterResult] = await Promise.all([waitBeforeEvict, waitAfterEvict]);
+      expect(prepSpy).toHaveBeenCalledWith([compressedVideo], encRoom, expect.any(Function));
+      for (const result of [beforeResult, afterResult]) {
+        expect(result).toEqual([
+          expect.objectContaining({
+            file: encryptedVideo,
+            originalFile: compressedVideo,
+            encInfo: { v: 'v2' },
+            compression: {
+              status: 'compressed',
+              sourceFile: rawVideo,
+              originalSize: rawVideo.size,
+            },
+          }),
+        ]);
+      }
+      expect(harness.store.get(capturedAtom)).toEqual(beforeResult);
+    } finally {
+      prepSpy.mockRestore();
+      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
+    }
   });
 });
