@@ -1,13 +1,17 @@
 import { style } from '@vanilla-extract/css';
 
-import { particleBackgroundGradientVar } from './particleBackgroundTheme.css';
+import {
+  particleBackgroundColorVar,
+  particleColorVar,
+  particleGlowPercentVar,
+} from './particleBackgroundTheme.css';
 
 export const ParticleBackground = style({
   position: 'absolute',
   inset: 0,
   zIndex: 0,
   pointerEvents: 'none',
-  background: particleBackgroundGradientVar,
+  background: `radial-gradient(circle at 50% 45%, color-mix(in srgb, ${particleColorVar} ${particleGlowPercentVar}, transparent), color-mix(in srgb, ${particleBackgroundColorVar} 12%, transparent) 30%, ${particleBackgroundColorVar} 72%)`,
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       opacity: 0.75,
