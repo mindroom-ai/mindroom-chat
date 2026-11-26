@@ -78,6 +78,7 @@ const dictationSession = (changes: Partial<DictationSnapshot> = {}) => {
     failedSegments: 0,
     completedSegments: 1,
     hasPartialText: true,
+    hasVoiceAudio: false,
     previewText: 'Hello world',
     capReached: false,
     interrupted: false,

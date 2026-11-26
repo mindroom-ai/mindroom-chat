@@ -2212,6 +2212,8 @@
       "finishAndSend": "إنهاء وإرسال",
       "retry": "إعادة المحاولة",
       "retryAndSend": "إعادة المحاولة والإرسال",
+      "sendAsVoice": "إرسال كرسالة صوتية",
+      "attachAsVoice": "إرفاق كرسالة صوتية",
       "insertPartial": "إدراج الجزء المنسوخ",
       "discard": "تجاهل",
       "dismissError": "إغلاق خطأ الإملاء",

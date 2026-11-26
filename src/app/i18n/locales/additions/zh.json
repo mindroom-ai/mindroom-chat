@@ -1887,6 +1887,8 @@
       "finishAndSend": "完成并发送",
       "retry": "重试",
       "retryAndSend": "重试并发送",
+      "sendAsVoice": "作为语音发送",
+      "attachAsVoice": "作为语音添加",
       "insertPartial": "插入部分文本",
       "discard": "放弃",
       "dismissError": "关闭听写错误",

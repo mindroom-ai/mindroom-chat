@@ -1952,6 +1952,8 @@
       "finishAndSend": "Bitir ve gönder",
       "retry": "Yeniden dene",
       "retryAndSend": "Yeniden dene ve gönder",
+      "sendAsVoice": "Ses olarak gönder",
+      "attachAsVoice": "Ses olarak ekle",
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
