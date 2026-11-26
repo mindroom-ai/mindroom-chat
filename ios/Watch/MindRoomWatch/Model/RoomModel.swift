@@ -304,7 +304,10 @@ final class RoomModel: ObservableObject {
                 keptEvents[rootId] = ThreadSnapshot.kept(events)
                 unread[rootId] = nil
                 snapshotReads[rootId] = (key, Date())
-                if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
+                if let reply = snapshot.reply {
+                    let body = reply.answerText.isEmpty ? reply.text : reply.answerText
+                    await learnNames([reply.sender] + PlainText.mentionedUserIds(body))
+                }
                 // The room's trust may have changed while the names were read: the snapshot as it is now.
                 snapshot = snapshots[rootId] ?? snapshot
                 if resolved.roots.contains(rootId) { continue }
@@ -349,7 +352,8 @@ final class RoomModel: ObservableObject {
 
     private func line(_ reply: ThreadSnapshot.Message?) -> String {
         guard let reply else { return String(localized: "Sent") }
-        let text = reply.isVoiceOnly ? String(localized: "Voice message") : reply.text.isEmpty ? "…" : named(reply.text)
+        let body = reply.answerText.isEmpty ? reply.text : reply.answerText
+        let text = reply.isVoiceOnly ? String(localized: "Voice message") : body.isEmpty ? "…" : named(body)
         return "\(name(reply.sender)): \(text)"
     }
 

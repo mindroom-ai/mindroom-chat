@@ -1188,4 +1188,34 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     const { room } = await setup(ME, [ask]);
     expect(readThreadSignals(room, ROOT, ME, NOW).pendingApproval).toBeUndefined();
   });
+
+  it('previews a finished agent reply by its post-tool answer, including outer-only edit metadata', async () => {
+    const reply = event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } });
+    const edit = new MatrixEvent({
+      event_id: '$r-final',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 4000,
+      content: {
+        msgtype: 'm.text',
+        body: '* fallback',
+        'io.mindroom.ai_run': { version: 1, status: 'completed' },
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'Checking status.\n\n🔧 `read_file` [1]\n\nReady to ship.',
+        },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$r' },
+      },
+    });
+    const { room, thread } = await setup(ME, [reply], { opened: true });
+    thread.timelineSet.addLiveEvent(edit, { addToState: false });
+    reply.makeReplaced(edit);
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'text',
+      text: 'Ready to ship.',
+    });
+  });
 });

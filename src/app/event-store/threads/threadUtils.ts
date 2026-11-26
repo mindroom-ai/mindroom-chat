@@ -2,6 +2,7 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
+import { getLatestMessageContent } from '../../matrix/room';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
@@ -95,15 +96,27 @@ export const isVisibleThreadReplyEvent = (event: VisibleThreadEventLike): boolea
   return isVisibleThreadReplyEventType(event.getType?.());
 };
 
+/**
+ * The event content used for thread previews and preview localization, merging outer-edit
+ * MindRoom metadata when a replacement is applied while staying safe for minimal test mocks.
+ */
+export const getEventPreviewContent = (
+  event: MatrixEvent | undefined
+): Record<string, unknown> | null | undefined => {
+  if (!event) return undefined;
+  const replacingEvent =
+    typeof event.replacingEvent === 'function' ? (event.replacingEvent() ?? undefined) : undefined;
+  if (replacingEvent) {
+    return getLatestMessageContent(event, replacingEvent);
+  }
+  return typeof event.getContent === 'function'
+    ? (event.getContent() as Record<string, unknown> | null | undefined)
+    : undefined;
+};
+
 export const getVisibleThreadEventBodyPreviewText = (
   event: MatrixEvent | undefined
-): string | undefined => {
-  const content =
-    event && typeof event.getContent === 'function'
-      ? (event.getContent() as Record<string, unknown> | null | undefined)
-      : undefined;
-  return getThreadMessagePreviewText(content);
-};
+): string | undefined => getThreadMessagePreviewText(getEventPreviewContent(event));
 
 export const getLatestRenderableVisibleThreadReplyEvent = (
   replyEvents: MatrixEvent[]

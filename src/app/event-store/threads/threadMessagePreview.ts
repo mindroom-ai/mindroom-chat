@@ -3,7 +3,9 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { TFunction } from 'i18next';
 import { getMemberDisplayName, trimReplyFromBody } from '../../matrix/room';
 import { isVoiceMessageContent } from '../../matrix/protocol/voiceMessage';
+import { isFinishedAgentReply } from '../../matrix/protocol/aiRun';
 import { readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { revealDirectionControls } from '../../ui/directional';
 import { stripPreviewMath } from './previewMath';
@@ -20,10 +22,10 @@ const TOOL_CALL_MARKER_REGEX = /^🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*
 
 const mapPreviewLines = (
   body: string,
-  mapLine: (line: string, context: 'prose' | 'code' | 'fence') => string
+  mapLine: (line: string, context: 'prose' | 'code' | 'fence', lineIndex: number) => string
 ): string => {
   let fence: string | undefined;
-  const lines = body.split(/\r?\n/).map((line) => {
+  const lines = body.split(/\r?\n/).map((line, lineIndex) => {
     const match = fence
       ? (/^(`{3,})( *)$/.exec(line) ?? /^ {0,3}(~{3,})([ \t]*)$/.exec(line))
       : (/^(`{3,})(?!`)(\S*)$/.exec(line) ?? /^ {0,3}(~{3,})(.*)$/.exec(line));
@@ -36,29 +38,38 @@ const mapPreviewLines = (
         (fence[0] === '`' ? match[1] === fence : match[1]!.length >= fence.length)
       ) {
         fence = undefined;
-        return mapLine(line, 'fence');
+        return mapLine(line, 'fence', lineIndex);
       }
-      return mapLine(line, 'code');
+      return mapLine(line, 'code', lineIndex);
     }
     if (match) {
       // The message parser accepts backticks in info strings. Keep examples
       // protected here too, including conservative unmatched-fence handling.
       fence = match[1];
-      return mapLine(line, 'fence');
+      return mapLine(line, 'fence', lineIndex);
     }
-    return mapLine(line, 'prose');
+    return mapLine(line, 'prose', lineIndex);
   });
   return lines.join('\n');
 };
 
-const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
+const extractPreviewTools = (
+  body: string
+): { body: string; toolCallCount: number; lastToolLineIndex: number; afterLastTool: string } => {
   let toolCallCount = 0;
-  const text = mapPreviewLines(body, (line, context) => {
-    if (context !== 'prose' || !TOOL_CALL_MARKER_REGEX.test(line)) return line;
-    toolCallCount += 1;
-    return ' ';
+  let lastToolLineIndex = -1;
+  let afterLines: string[] = [];
+  const text = mapPreviewLines(body, (line, context, lineIndex) => {
+    if (context === 'prose' && TOOL_CALL_MARKER_REGEX.test(line)) {
+      toolCallCount += 1;
+      lastToolLineIndex = lineIndex;
+      afterLines = [];
+      return ' ';
+    }
+    if (lastToolLineIndex >= 0) afterLines.push(line);
+    return line;
   });
-  return { body: text, toolCallCount };
+  return { body: text, toolCallCount, lastToolLineIndex, afterLastTool: afterLines.join('\n') };
 };
 
 // Bound the text fed to the regex pipeline below: previews render as a single
@@ -68,6 +79,14 @@ const extractPreviewTools = (body: string): { body: string; toolCallCount: numbe
 const PREVIEW_SOURCE_MAX_LENGTH = 2000;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
+// Matching finishedWorkSplit.ts: pending tool mark and characters that show nothing.
+const INVISIBLE_PREVIEW_TEXT_REGEX = /[\s⏳\u200B-\u200D\u2060\uFEFF\uFE0F]/gu;
+
+const boundPreviewSource = (source: string): string =>
+  source.length > PREVIEW_SOURCE_MAX_LENGTH
+    ? // Drop a split-off lone high surrogate at the cut point.
+      source.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
+    : source;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -164,16 +183,32 @@ const toTidyLines = (text: string): string =>
 
 const computeBodyPreview = (
   body: string,
-  tidy: (text: string) => string = toOneLine
+  tidy: (text: string) => string = toOneLine,
+  preferPostToolAnswer = false
 ): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
-  const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
-  const boundedSource =
-    withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
-      ? // Drop a split-off lone high surrogate at the cut point.
-        withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
-      : withoutToolMarkers;
-  const prose = tidy(stripPreviewMath(boundedSource, stripPreviewMarkdown));
+  const {
+    body: withoutToolMarkers,
+    toolCallCount,
+    lastToolLineIndex,
+    afterLastTool,
+  } = extractPreviewTools(withoutReply);
+
+  if (preferPostToolAnswer && toolCallCount > 0 && lastToolLineIndex >= 0 && afterLastTool) {
+    const cleanedAnswer = tidy(
+      stripPreviewMath(boundPreviewSource(afterLastTool), stripPreviewMarkdown)
+    ).replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
+    if (
+      cleanedAnswer.replace(INVISIBLE_PREVIEW_TEXT_REGEX, '').length > 0 &&
+      !hasLikelyIncompleteStreamingBody(cleanedAnswer)
+    ) {
+      return { text: cleanedAnswer, localization: undefined };
+    }
+  }
+
+  const prose = tidy(
+    stripPreviewMath(boundPreviewSource(withoutToolMarkers), stripPreviewMarkdown)
+  );
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
@@ -196,27 +231,29 @@ const computeBodyPreview = (
 };
 
 // Thread records, cross-room index entries and the minimap preview the root
-// and latest replies of every thread on each rebuild. The analysis depends
-// only on the body, so a least-recently-used cache sized above one large
-// room's working set (523 threads) reuses it across rebuilds. The character
-// budget bounds the strings it can keep alive.
+// and latest replies of every thread on each rebuild. The analysis depends on
+// the body and whether a finished reply prefers its post-tool answer, so a
+// least-recently-used cache sized above one large room's working set (523
+// threads) reuses it across rebuilds. The character budget bounds the strings
+// it can keep alive.
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
-const analyzeBodyPreview = (body: string): ThreadPreview => {
-  const cached = bodyPreviewCache.get(body);
+const analyzeBodyPreview = (body: string, preferPostToolAnswer = false): ThreadPreview => {
+  const cacheKey = `${preferPostToolAnswer ? '1' : '0'}\0${body}`;
+  const cached = bodyPreviewCache.get(cacheKey);
   if (cached) {
     // Map iteration follows insertion order, so re-inserting marks it recent.
-    bodyPreviewCache.delete(body);
-    bodyPreviewCache.set(body, cached);
+    bodyPreviewCache.delete(cacheKey);
+    bodyPreviewCache.set(cacheKey, cached);
     return cached;
   }
 
-  const analysis = computeBodyPreview(body);
-  bodyPreviewCache.set(body, analysis);
-  bodyPreviewCacheChars += body.length;
+  const analysis = computeBodyPreview(body, toOneLine, preferPostToolAnswer);
+  bodyPreviewCache.set(cacheKey, analysis);
+  bodyPreviewCacheChars += cacheKey.length;
   for (const oldest of bodyPreviewCache.keys()) {
     if (
       bodyPreviewCache.size <= BODY_PREVIEW_CACHE_MAX_ENTRIES &&
@@ -268,8 +305,12 @@ const resolveThreadPreview = (
   const canvasTitle = readCanvasNoticeTitle(previewContent);
   if (canvasTitle) return { text: canvasTitle, localization: undefined };
 
+  const preferPostToolAnswer =
+    isFinishedAgentReply(content) && !hasLongTextMetadata(previewContent);
   const bodyPreview =
-    typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
+    typeof previewContent.body === 'string'
+      ? analyzeBodyPreview(previewContent.body, preferPostToolAnswer)
+      : undefined;
   if (bodyPreview?.text) return bodyPreview;
 
   return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;
