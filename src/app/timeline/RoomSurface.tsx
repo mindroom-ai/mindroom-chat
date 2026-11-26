@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -68,6 +69,13 @@ import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/t
 import { countsRoomRows } from './roomTimelineClassicRows';
 import { FilterBarSlot, roomViewStyleUnder } from './RoomTimelineOverlays';
 import { useTimelineEnvironment, useTrustedRoomAccounts } from './TimelineViewport';
+import { useTimelineExpansionState } from './message-rendering/useTimelineMessageFeature';
+import {
+  useThreadReturnPlace,
+  useViewportAtBottomNow,
+  type RoomRowsPlace,
+} from './roomTimelineScroll';
+import type { TimelineLiveEndViewState } from './timelineLiveEnd';
 import { CompactRoomSurface } from './CompactRoomSurface';
 import { RoomRowsTimeline } from './RoomRowsTimeline';
 import type { RoomTimelineProps } from './RoomTimeline';
@@ -79,8 +87,6 @@ const ignoreSortFreeze: Dispatch<SetStateAction<ThreadSortFreezeState | null>> =
 type RoomRowsViewportApi = {
   scrollToItem: ScrollToItem;
   scrollToElement: ScrollToElement;
-  isViewportAtLatestNow: () => boolean;
-  markLiveExpansionCandidate: (eventId: string) => void;
   followOwnSend: () => void;
 };
 
@@ -216,8 +222,9 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   );
 
   const liveTimelineLinked = timeline.linkedTimelines.includes(getLiveTimeline(room));
+  const firstRoomTimeline = timeline.linkedTimelines[0];
   const canPaginateRoomBack =
-    typeof timeline.linkedTimelines[0]?.getPaginationToken(Direction.Backward) === 'string';
+    typeof firstRoomTimeline?.getPaginationToken(Direction.Backward) === 'string';
 
   useThreadSeedPrewarmController({
     room,
@@ -263,6 +270,30 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
 
   // Shared refs published by RoomRowsTimeline when mounted; fall back while Compact/Spinner shows.
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const fallbackReturnPlaceRef = useRef<RoomRowsPlace>(undefined);
+  const threadReturnPlace = useThreadReturnPlace({
+    memoryRef: props.threadReturnPlaceRef ?? fallbackReturnPlaceRef,
+    roomId: room.roomId,
+    eventId,
+    roomRowsShown: !compactViewRequested,
+    latestAtTop,
+    scrollRef,
+  });
+  const returnedRef = useRef(false);
+  const committedView = `${room.roomId}||${viewMode}`;
+  const liveEndViewStateRef = useRef<TimelineLiveEndViewState>({
+    view: committedView,
+    roomId: room.roomId,
+  });
+  const hydrating = roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp;
+  const rowsTimelineMounted = !(compactCards && (hydrating || threadIndex.showCompactRoomView));
+  useLayoutEffect(() => {
+    if (!rowsTimelineMounted) {
+      liveEndViewStateRef.current = { view: committedView, roomId: room.roomId };
+    }
+  }, [committedView, room.roomId, rowsTimelineMounted]);
+  const expansionState = useTimelineExpansionState();
+  const isViewportAtLatestNow = useViewportAtBottomNow(scrollRef, atBottomRef, latestAtTopRef);
   const atLiveEndRef = useRef(false);
   const loadedRangeRef = useRef(stateRange);
   const roomRowsRef = useRef(loadedRoomRows);
@@ -278,8 +309,6 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     () => ({
       scrollToItem: (i, o) => viewportApiRef.current?.scrollToItem(i, o) ?? false,
       scrollToElement: (el, o) => viewportApiRef.current?.scrollToElement(el, o) ?? false,
-      isViewportAtLatestNow: () => viewportApiRef.current?.isViewportAtLatestNow() ?? false,
-      markLiveExpansionCandidate: (id) => viewportApiRef.current?.markLiveExpansionCandidate(id),
       followOwnSend: () => viewportApiRef.current?.followOwnSend(),
     }),
     []
@@ -371,7 +400,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     timeline,
     rebuildTimeline: buildInitialTimeline,
     setTimeline: setRelinkedTimeline,
-    isViewportAtBottomNow: viewportApi.isViewportAtLatestNow,
+    isViewportAtBottomNow: isViewportAtLatestNow,
     scrollToBottomRef,
   });
   const handleRoomRefresh = useCallback(
@@ -477,7 +506,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     effectiveThreadFilterState: threadIndex.effectiveThreadFilterState,
     hideActivity: settings.hideActivity,
     readsMainTimeline: !compactCards,
-    markLiveExpansionCandidate: viewportApi.markLiveExpansionCandidate,
+    markLiveExpansionCandidate: expansionState.liveExpansion.mark,
     latestAtTopRef,
     onOwnSend: viewportApi.followOwnSend,
     mx,
@@ -557,7 +586,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     setTimeline,
     windowLimit,
     roomHasMoreCachedBack,
-    canPaginateRoomBack,
+    firstRoomTimeline,
     liveTimelineLinked,
     paginateRoom,
     threadIndex,
@@ -577,9 +606,14 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     filterBar,
     filterBarShown,
     roomStyle: roomViewStyleUnder(filterBar ? filterBarHeight : null),
-    hydrating: roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp,
+    hydrating,
     clientCatchingUp,
     threadSectionsShown,
+    committedView,
+    threadReturnPlace,
+    returnedRef,
+    liveEndViewStateRef,
+    expansionState,
     scrollRef,
     atLiveEndRef,
     loadedRangeRef,

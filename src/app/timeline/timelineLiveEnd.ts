@@ -252,6 +252,11 @@ export const useThreadOpeningPin = (o: ThreadOpeningPinOptions): void => {
   });
 };
 
+export type TimelineLiveEndViewState = {
+  view: string | undefined;
+  roomId: string | undefined;
+};
+
 export type TimelineLiveEndOptions = {
   /** The rows pinned at the latest end: the room's, an open thread's once scrolled, or none. */
   surface?: 'room' | 'thread';
@@ -268,6 +273,8 @@ export type TimelineLiveEndOptions = {
   /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
   scrollToBottomRef?: MutableRefObject<ScrollToBottomState>;
   committedView?: string;
+  /** Persistent committed view/room state across remounts (e.g. RoomSurface ↔ Compact switches). */
+  viewStateRef?: MutableRefObject<TimelineLiveEndViewState>;
   focusItem?: RoomTimelineFocusItem;
   /** Runs at each gesture or scroll that hands the position to the reader in the room view. */
   onReaderGesture?: () => void;
@@ -306,6 +313,7 @@ export const useTimelineLiveEnd = ({
   scrollElement,
   scrollToBottomRef,
   committedView,
+  viewStateRef,
   focusItem,
   onReaderGesture,
   pendingListShrinkPx,
@@ -315,10 +323,11 @@ export const useTimelineLiveEnd = ({
   atLiveEndRef,
   liveReplies,
 }: TimelineLiveEndOptions): void => {
-  const requestRef = useRef(opensAtLatest);
+  const requestRef = useRef(opensAtLatest && !focusItem);
   const seenCountRef = useRef(scrollToBottomRef?.current.count ?? 0);
-  const viewRef = useRef(committedView);
-  const roomRef = useRef(roomId);
+  const seenFocusRef = useRef(focusItem);
+  const internalViewStateRef = useRef<TimelineLiveEndViewState>({ view: committedView, roomId });
+  const activeViewStateRef = viewStateRef ?? internalViewStateRef;
   const latestRef = useLatestRef({
     surface,
     virtualizer,
@@ -329,12 +338,12 @@ export const useTimelineLiveEnd = ({
   });
 
   useLayoutEffect(() => {
-    if (viewRef.current === committedView) return;
-    viewRef.current = committedView;
+    if (activeViewStateRef.current.view === committedView) return;
+    const sameRoom = activeViewStateRef.current.roomId === roomId;
+    activeViewStateRef.current = { view: committedView, roomId };
     // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = roomRef.current === roomId || opensAtLatest;
-    roomRef.current = roomId;
-  }, [committedView, opensAtLatest, roomId]);
+    requestRef.current = sameRoom || (opensAtLatest && !focusItem);
+  }, [activeViewStateRef, committedView, focusItem, opensAtLatest, roomId]);
 
   // Every commit compares the count as it is then: a render that React bails out of keeps the
   // count it read without running its effects, so effect dependencies would miss that pin.
@@ -347,6 +356,8 @@ export const useTimelineLiveEnd = ({
   });
 
   useLayoutEffect(() => {
+    if (seenFocusRef.current === focusItem) return;
+    seenFocusRef.current = focusItem;
     // A jump to an event owns the position from here.
     if (focusItem) requestRef.current = false;
   }, [focusItem]);

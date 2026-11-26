@@ -24,14 +24,7 @@ import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils
 import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from '../event-store/cache/preloadSettings';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import {
-  isNearLatestEnd,
-  useLatestPinAsked,
-  useThreadReturnPlace,
-  useTimelineRowJumps,
-  useViewportAtBottomNow,
-  type RoomRowsPlace,
-} from './roomTimelineScroll';
+import { isNearLatestEnd, useLatestPinAsked, useTimelineRowJumps } from './roomTimelineScroll';
 import {
   useRetryAfterPageWithoutRows,
   useRoomWindowPaginator,
@@ -98,7 +91,6 @@ export function RoomRowsTimeline({
   const lastRoomTimelineRef = useLatestRef(
     state.timeline.linkedTimelines[state.timeline.linkedTimelines.length - 1]
   );
-  const fallbackReturnPlaceRef = useRef<RoomRowsPlace>(undefined);
 
   // Scroll setup installs useFooterBottomPin BEFORE useTimelineScrollLedgerController.
   const scroll = useTimelineScrollSetup({
@@ -119,6 +111,7 @@ export function RoomRowsTimeline({
     messageLayout: settings.messageLayout,
     messageSpacing: settings.messageSpacing,
     hideActivity: settings.hideActivity,
+    expansionState: state.expansionState,
   });
 
   const revealedIdsRef = useRef(new Set<string>());
@@ -171,14 +164,13 @@ export function RoomRowsTimeline({
 
   // Separate from rows mounted: the 0-thread compact fallback stays start-aligned with no fill.
   const roomSurfaceShown = !compactViewRequested;
-  const threadReturnPlace = useThreadReturnPlace({
-    memoryRef: props.threadReturnPlaceRef ?? fallbackReturnPlaceRef,
-    roomId: room.roomId,
-    eventId,
-    roomRowsShown: roomSurfaceShown,
-    latestAtTop,
-    scrollRef,
-  });
+  const { threadReturnPlace, returnedRef } = state;
+  const [unreadOpeningSuppressedRoomId] = useState(() =>
+    state.liveEndViewStateRef.current.roomId === room.roomId &&
+    state.liveEndViewStateRef.current.view !== state.committedView
+      ? room.roomId
+      : undefined
+  );
   const membershipRevealedRef = useRef(new Set<string>());
   const returnEventId = threadReturnPlace?.eventId;
   const membershipPinnedIds = useMemo(() => {
@@ -353,6 +345,7 @@ export function RoomRowsTimeline({
     timelineAtLiveEnd,
     unreadInfo: state.unreadInfo,
     unreadScrollAnchorIndex:
+      unreadOpeningSuppressedRoomId === room.roomId ||
       windowState.unreadScrollAnchorIndex === undefined
         ? undefined
         : rowIndexOfLoaded(roomProjection, windowState.unreadScrollAnchorIndex),
@@ -383,11 +376,6 @@ export function RoomRowsTimeline({
     unreadInfo: state.unreadInfo,
   });
   const markRoomAsRead = useMarkRoomAsRead(handleMarkAsRead, state.setUnreadInfo);
-  const isViewportAtLatestNow = useViewportAtBottomNow(
-    scrollRef,
-    state.atBottomRef,
-    latestAtTopRef
-  );
 
   const followOwnSend = useCallback(() => {
     if (compactViewRequested) return;
@@ -403,13 +391,7 @@ export function RoomRowsTimeline({
   state.loadedRangeRef.current = loadedRange;
   state.roomRowsRef.current = roomRows;
   state.foldedRowsRef.current = roomProjection.foldedRows;
-  state.viewportApiRef.current = {
-    scrollToItem,
-    scrollToElement,
-    isViewportAtLatestNow,
-    markLiveExpansionCandidate: feature.markLiveExpansionCandidate,
-    followOwnSend,
-  };
+  state.viewportApiRef.current = { scrollToItem, scrollToElement, followOwnSend };
   useLayoutEffect(
     () => () => {
       state.viewportApiRef.current = null;
@@ -420,18 +402,18 @@ export function RoomRowsTimeline({
   const returnRowIndex = threadReturnPlace
     ? roomRows.findIndex((e) => e.getId() === threadReturnPlace.eventId)
     : -1;
-  const returnedRef = useRef(false);
+  const { setFocusItem } = state;
   useLayoutEffect(() => {
     if (!threadReturnPlace || returnRowIndex === -1 || returnedRef.current) return;
     returnedRef.current = true;
-    state.setFocusItem({
+    setFocusItem({
       eventId: threadReturnPlace.eventId,
       index: returnRowIndex,
       scrollTo: true,
       highlight: false,
       offset: threadReturnPlace.offset,
     });
-  }, [returnRowIndex, state, threadReturnPlace]);
+  }, [returnRowIndex, returnedRef, setFocusItem, threadReturnPlace]);
 
   const { expandAll, toggleExpandAll } = feature;
   const handleToggleExpandAll = useCallback(
@@ -452,7 +434,8 @@ export function RoomRowsTimeline({
       !threadReturnPlace &&
       (latestAtTop || !(state.unreadInfo?.scrollTo && state.unreadInfo.inLiveTimeline)),
     latestAtTop,
-    committedView: `${viewKey}|${viewMode}`,
+    committedView: state.committedView,
+    viewStateRef: state.liveEndViewStateRef,
     focusItem: state.focusItem,
     isViewportAtBottomNow,
     atLiveEndRef,

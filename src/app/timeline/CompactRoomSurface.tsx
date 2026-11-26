@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Direction } from 'matrix-js-sdk';
 import { Box } from 'folds';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
@@ -25,7 +26,8 @@ export function CompactRoomSurface({
     enabled: !eventId,
     roomId: room.roomId,
     hostRef: compactHostRef,
-    canPaginateBack: state.canPaginateRoomBack,
+    canPaginateBack:
+      typeof state.firstRoomTimeline?.getPaginationToken(Direction.Backward) === 'string',
     hasMoreCachedBack: state.roomHasMoreCachedBack,
     paginateBack: state.paginateRoom,
   });

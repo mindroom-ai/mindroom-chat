@@ -6,15 +6,18 @@ import {
   createControlledRoomTimelineHarness,
   flushAsyncWork,
   getClickableByText,
+  isScrollNearBottomMock,
   isTimelineAtLiveEndMock,
   makeEvent,
   makeRoom,
   roomTimelineVirtualizerState,
+  scrollToItemMock,
   scrollType,
   virtualPaginatorState,
   type ViewModeControl,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import type { RoomRowsPlace } from '../roomTimelineScroll';
 
 const makeScroll = () => {
   const listeners = new Map<string, Set<EventListener>>();
@@ -221,5 +224,113 @@ describe('RoomTimeline scroll-to-bottom request', () => {
 
     expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
     renderer!.unmount();
+  });
+
+  it('preserves return place, live-end pin with unread, and expansion state across Threads -> Compact -> Threads', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
+    const reply1 = makeEvent('$reply1', { threadRootId: '$root', ts: 2 });
+    const plain = makeEvent('$plain', { sender: '@other:example.org', ts: 4 });
+    const room = makeRoom({
+      liveEvents: [root, reply1, plain],
+      threads: [{ id: '$root', rootEvent: root, events: [root, reply1] }] as never,
+    });
+    // Mark $root as read so $plain is unread in the live timeline (opensAtLatest === false).
+    Object.assign(room, { getEventReadUpTo: () => '$root' });
+
+    const scroll = makeScroll();
+    // Simulate a scrolled-up position with a visible old row so any bogus unmount save would record it.
+    scroll.el.scrollTop = 100;
+    isScrollNearBottomMock.mockImplementation(
+      (metrics) => !metrics || metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <= 96
+    );
+    const oldRowNode = {
+      dataset: { messageId: '$root' },
+      getAttribute: (name: string) => (name === 'data-message-id' ? '$root' : null),
+      getBoundingClientRect: () => ({ top: 120, bottom: 200 }),
+    };
+    scroll.el.querySelectorAll = (() => [
+      oldRowNode,
+    ]) as unknown as typeof scroll.el.querySelectorAll;
+
+    const threadReturnPlaceRef: { current: RoomRowsPlace | undefined } = { current: undefined };
+    const viewModeControl: ViewModeControl = {};
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          initialViewMode: 'threaded',
+          viewModeControl,
+          extraProps: { threadReturnPlaceRef },
+        }),
+        {
+          createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+        }
+      );
+      await flushAsyncWork();
+    });
+
+    // Initial mount with unread info opens at the unread marker (align: 'start'), not pinned to latest (align: 'end').
+    const hasEndPin = () =>
+      roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.some(
+        ([, opts]) => (opts as { align?: string } | undefined)?.align === 'end'
+      );
+    expect(hasEndPin()).toBe(false);
+
+    // Toggle Expand All on and record a per-message manual override.
+    const findExpansionProvider = () =>
+      renderer!.root.find(
+        (node) =>
+          typeof node.props.expandAllInit === 'boolean' &&
+          node.props.manualExpansionState instanceof Map
+      );
+    expect(findExpansionProvider().props.expandAllInit).toBe(false);
+    await act(async () => {
+      getClickableByText(renderer!, '[+all]').props.onClick({ preventDefault: vi.fn() });
+      await flushAsyncWork();
+    });
+    const beforeSwitchProvider = findExpansionProvider();
+    expect(beforeSwitchProvider.props.expandAllInit).toBe(true);
+    const manualMap = beforeSwitchProvider.props.manualExpansionState as Map<string, boolean>;
+    manualMap.set('$plain', false);
+
+    // Switch Threads (scrolled up) -> Compact.
+    await act(async () => {
+      viewModeControl.setViewMode!('compact');
+      await flushAsyncWork();
+    });
+    // Switching to Compact must NOT save a bogus threadReturnPlace.
+    expect(threadReturnPlaceRef.current).toBeUndefined();
+
+    roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+    scrollToItemMock.mockClear();
+
+    // Switch Compact -> Threads: must pin to latest (even with unread!), never jump back to $root,
+    // and preserve both expandAll and the manual per-message expansion choice.
+    await act(async () => {
+      viewModeControl.setViewMode!('threaded');
+      await flushAsyncWork();
+    });
+    expect(threadReturnPlaceRef.current).toBeUndefined();
+    expect(scrollToItemMock).not.toHaveBeenCalled();
+    expect(hasEndPin()).toBe(true);
+    const afterSwitchProvider = findExpansionProvider();
+    expect(afterSwitchProvider.props.expandAllInit).toBe(true);
+    expect(afterSwitchProvider.props.manualExpansionState).toBe(manualMap);
+    expect(
+      (afterSwitchProvider.props.manualExpansionState as Map<string, boolean>).get('$plain')
+    ).toBe(false);
+
+    // Real RoomSurface unmount (e.g. opening a thread while scrolled up) still saves return place.
+    await act(async () => {
+      renderer!.unmount();
+    });
+    expect(threadReturnPlaceRef.current).toEqual({
+      roomId: room.roomId,
+      eventId: '$root',
+      offset: 120,
+    });
   });
 });
