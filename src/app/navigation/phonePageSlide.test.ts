@@ -1961,6 +1961,105 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     forwardScene!.cleanup(false);
   });
 
+  it('captures roomPreview on 1 -> 2 slide from Space All threads when returnToSpaceThreads is set', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Space All Threads', 85);
+    setActivePhoneSwipeContext({
+      sessionId: SESSION,
+      roomId: '!space:example.org',
+      isSpaceThreads: true,
+    });
+
+    slidePhonePage(() => {
+      showThread(true);
+      setActivePhoneSwipeContext({
+        sessionId: SESSION,
+        roomId: ROOM,
+        threadId: THREAD,
+        returnToSpaceThreads: true,
+      });
+      page.textContent = 'Thread View';
+    });
+    pageMock.frame();
+    await pageMock.finish();
+
+    const scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(scene).not.toBeNull();
+    const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+    expect(under?.textContent).toContain('Space All Threads');
+    expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(85);
+    scene!.cleanup(false);
+  });
+
+  it('rejects Space All threads capture without returnToSpaceThreads or across sessions, and clears stale roomPreview', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Room Overview');
+    const slideIntoThread = async (
+      label: string,
+      departing: Parameters<typeof setActivePhoneSwipeContext>[0],
+      returnToSpaceThreads?: boolean
+    ) => {
+      showThread(false);
+      page.textContent = label;
+      setActivePhoneSwipeContext(departing);
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext({
+          sessionId: SESSION,
+          roomId: ROOM,
+          threadId: THREAD,
+          ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+        });
+        page.textContent = 'Thread View';
+      });
+      pageMock.frame();
+      await pageMock.finish();
+    };
+    const expectBackdrop = (fromLocationKey: string) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey,
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Entering a thread from an overlay over Space All threads (no returnToSpaceThreads) must
+    // neither capture Space All threads nor retain an earlier room preview.
+    await slideIntoThread('Room Overview', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Space All Threads', {
+      sessionId: SESSION,
+      roomId: '!space:example.org',
+      isSpaceThreads: true,
+    });
+    expectBackdrop('k-overlay');
+
+    // Cross-session isSpaceThreads must never capture even with returnToSpaceThreads.
+    await slideIntoThread('Room Overview Again', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread(
+      'Other Account Space Threads',
+      {
+        sessionId: 'https://other.org::@bob:other.org',
+        roomId: '!space:other.org',
+        isSpaceThreads: true,
+      },
+      true
+    );
+    expectBackdrop('k-cross');
+
+    // Entering from an unmatched surface without swipe context clears any stale roomPreview.
+    await slideIntoThread('Room Overview Third', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Activity', undefined);
+    expectBackdrop('k-activity');
+  });
+
   const addCanvas = (parent: HTMLElement, width = 48, height = 32) => {
     const canvas = Object.assign(document.createElement('canvas'), { width, height });
     parent.append(canvas);
@@ -1972,53 +2071,6 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
   const expectDisposed = (el: HTMLElement, canvas: HTMLCanvasElement) =>
     expect([canvas.width, canvas.height, el.childElementCount]).toEqual([0, 0, 0]);
-
-  it('mounts zero-canvas backdrop and clears stale roomPreview when swiping back from a thread opened outside its room', async () => {
-    const pageMock = browser();
-    const ctxSpy = mockCanvas2d();
-    const { stage, page } = makeStage('Room Overview');
-    const slideIntoThread = async (
-      label: string,
-      departing: Parameters<typeof setActivePhoneSwipeContext>[0]
-    ) => {
-      showThread(false);
-      page.textContent = label;
-      addCanvas(page, 64, 48);
-      setActivePhoneSwipeContext(departing);
-      slidePhonePage(() => {
-        showThread(true);
-        setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
-        page.textContent = 'Thread View';
-      });
-      pageMock.frame();
-      await pageMock.finish();
-    };
-    try {
-      // Populate roomPreview from Room Overview first, then open a thread from Space All threads
-      // (no room swipe context) or another room: neither retains roomPreview and back-swipe mounts
-      // the zero-canvas themed backdrop instead of a cloned canvas snapshot.
-      for (const [label, departing, locKey] of [
-        ['Space All Threads', undefined, 'k-space'],
-        ['Other Room', { sessionId: SESSION, roomId: '!other:example.org' }, 'k-other-room'],
-      ] as const) {
-        await slideIntoThread('Room Overview', { sessionId: SESSION, roomId: ROOM });
-        await slideIntoThread(label, departing);
-        const scene = createThreadBackSwipeScene({
-          key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
-          fromLocationKey: locKey,
-          onCommit: vi.fn(),
-          dirSign: 1,
-        });
-        expect(scene).not.toBeNull();
-        expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
-        expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
-        expect(stage.querySelectorAll('canvas')).toHaveLength(0);
-        scene!.cleanup(false);
-      }
-    } finally {
-      ctxSpy.mockRestore();
-    }
-  });
   const key = { sessionId: SESSION, roomId: ROOM, threadId: THREAD };
   const openScene = (
     create: typeof createThreadBackSwipeScene | typeof createThreadForwardSwipeScene,

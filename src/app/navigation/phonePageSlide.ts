@@ -88,7 +88,10 @@ export type PhoneSwipePreviewKey = {
   threadId?: string;
 };
 
-export type ActivePhoneSwipeContext = PhoneSwipePreviewKey;
+export type ActivePhoneSwipeContext = PhoneSwipePreviewKey & {
+  isSpaceThreads?: boolean;
+  returnToSpaceThreads?: boolean;
+};
 
 export type LiveThreadBackUnder = {
   stage: HTMLElement;
@@ -1303,7 +1306,9 @@ export const slidePhonePage = (change: Change): void => {
         enteredContext?.threadId &&
         departingContext &&
         departingContext.sessionId === enteredContext.sessionId &&
-        departingContext.roomId === enteredContext.roomId
+        ((!departingContext.isSpaceThreads && departingContext.roomId === enteredContext.roomId) ||
+          (departingContext.isSpaceThreads === true &&
+            enteredContext.returnToSpaceThreads === true))
       ) {
         storePhoneSwipePreview(
           'room',
