@@ -79,13 +79,11 @@ type SendSession = RoomInputSendSessionState & {
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
   openedThreadId?: string;
   /**
-   * Whether it started in a conversation view's composer. A thread's view may take over a send the
-   * room's composer started, but only while mounted: as it goes, the send parks for the room's
-   * composer again, which holds its files' board.
+   * Parking key computed at send creation: a staged-draft key, or the originating composer's
+   * `voiceComposerKey` (so a thread view taking over a room composer's send parks it back for
+   * the room's composer when the view closes).
    */
-  originThreadView?: boolean;
-  /** Parked sends of a staged-draft composer file under its draft key, never the room's. */
-  stagedDraftKey?: string;
+  originParkKey?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -767,13 +765,7 @@ export const useRoomInputSendSessionController = ({
     (target: SendSlot, notifyAlways: boolean) => {
       target.unpark?.();
       const { session: held } = target;
-      let key = held
-        ? (held.stagedDraftKey ??
-          voiceComposerKey({
-            ...held.composerContext,
-            threadView: held.originThreadView ?? threadView,
-          }))
-        : composerKeyRef.current;
+      let key = held?.originParkKey ?? composerKeyRef.current;
       // A send whose root opened its thread goes on with a view of that thread that is there
       // (one that mounts as this composer goes has listed itself already); else with the room's.
       const threadKey =
@@ -799,7 +791,7 @@ export const useRoomInputSendSessionController = ({
         parkListenersOf(mx).forEach((listener) => listener());
       }
     },
-    [composerKeyRef, mx, store, threadView]
+    [composerKeyRef, mx, store]
   );
 
   const startSendSession = useCallback(
@@ -1013,8 +1005,8 @@ export const useRoomInputSendSessionController = ({
         onTextConsumed,
         composer,
       });
-      session.originThreadView = threadView;
-      session.stagedDraftKey = stagedDraftKey;
+      session.originParkKey =
+        stagedDraftKey ?? voiceComposerKey({ ...targetComposerContext, threadView });
       activeSlot.session = session;
       busySlotsOf(mx).add(activeSlot);
       // The session wakes on its own uploads, with or without its composer.
