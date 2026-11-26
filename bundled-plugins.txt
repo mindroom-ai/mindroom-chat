@@ -6,7 +6,7 @@
 
 # GitHub pull request links, which a click opens in the pull request side panel, a thread's pull requests
 # with their hover cards and its worktree branch (also in its details), and the side panel itself.
-https://github.com/mindroom-ai/pull-request-client-plugin 3a086165f80732526d659629d23effd4368893d5
+https://github.com/mindroom-ai/pull-request-client-plugin 07c760f5690c0e260ca3fd8e4a1ff9d3bceccce4
 
 # Quiet per-thread AI cost, token count, models used, and context window telemetry on Compact cards
 # and in thread details (hover card, thread menu, and sidebar hover card); off by default until
