@@ -12,9 +12,13 @@ import {
   pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
-import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequest';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { getMemberDisplayName } from '../../matrix/room';
-import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import {
+  getRetainedThreadSecretRequest,
+  getRetainedThreadSummaryReply,
+  getThreadSummaryReply,
+} from '../../matrix/client/unopenedThreadEdits';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import {
   getCompactThreadRootBodyPreviewText,
@@ -125,7 +129,12 @@ export const resolveThreadPresentationSnapshot = ({
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
   const summaryReply = getThreadSummaryReply(thread);
-  const knownReplies = [...replyEvents, thread?.replyToEvent];
+  const knownReplies = [
+    ...replyEvents,
+    thread?.replyToEvent,
+    getRetainedThreadSummaryReply(thread),
+    getRetainedThreadSecretRequest(thread),
+  ];
   // A root fetched earlier keeps the server's previews of that moment. Once this device knows a
   // newer thread event, or a newer revision of the bundle's latest one, its reply is out of date.
   const bundleLatest = bundle.latest;

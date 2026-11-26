@@ -3,12 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_SECRET_REQUEST_KEY,
   effectiveSecretRequestStatus,
-  isAnchoredSecretRequestEvent,
-  isFoldedSecretRequestEvent,
   parseSecretRequestContent,
   secretRequestPath,
   type SecretRequest,
 } from './secretRequest';
+import { isAnchoredSecretRequestEvent, isFoldedSecretRequestEvent } from './secretRequestPreview';
 import { secretRequestEditContent, secretRequestPayload } from './secretRequest.test.shared';
 
 const inner = (overrides: Record<string, unknown> = {}) => ({
@@ -470,19 +469,53 @@ describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
     expect(isFoldedSecretRequestEvent(event, viewer)).toBe(false);
   });
 
-  it('reads replacingEvent m.new_content on minimal mocks that do not update getContent', () => {
-    const mockEvent = {
+  it.each<[string, Record<string, unknown>]>([
+    ['unknown status', { status: 'unknown' }],
+    ['empty response_event_id', { status: 'saved', response_event_id: '' }],
+    ['oversized tool_call_id', { status: 'saved', tool_call_id: 'x'.repeat(513) }],
+    ['non-string tool_call_id', { status: 'saved', tool_call_id: 42 }],
+  ])('rejects invalid preview metadata (%s)', (_label, overrides) => {
+    const event = makeNotice(overrides);
+    expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
+  });
+
+  it('reads replacingEvent m.new_content and direct secret-request content, and falls back on untrusted edits', () => {
+    const makeMock = (replacingEvent: () => Record<string, unknown> | null) => ({
       getType: () => 'm.room.message',
       getSender: () => AGENT,
       isRedacted: () => false,
       isRedaction: () => false,
       getOriginalContent: () => content(secretRequestPayload()),
       getContent: () => content(secretRequestPayload()),
-      replacingEvent: () => ({
-        getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
-      }),
-    };
-    expect(isAnchoredSecretRequestEvent(mockEvent, VIEWER)).toBe(true);
-    expect(isFoldedSecretRequestEvent(mockEvent, VIEWER)).toBe(true);
+      replacingEvent,
+    });
+
+    const newContentEdit = makeMock(() => ({
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isAnchoredSecretRequestEvent(newContentEdit, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(newContentEdit, VIEWER)).toBe(true);
+
+    const directEdit = makeMock(() => ({
+      getContent: () => content(secretRequestPayload({ status: 'declined' })),
+    }));
+    expect(isAnchoredSecretRequestEvent(directEdit, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(directEdit, VIEWER)).toBe(true);
+
+    const foreignSenderEdit = makeMock(() => ({
+      getSender: () => VIEWER,
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isAnchoredSecretRequestEvent(foreignSenderEdit, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(foreignSenderEdit, VIEWER)).toBe(false);
+
+    const decryptionFailureEdit = makeMock(() => ({
+      getSender: () => AGENT,
+      isDecryptionFailure: () => true,
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isAnchoredSecretRequestEvent(decryptionFailureEdit, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(decryptionFailureEdit, VIEWER)).toBe(false);
   });
 });

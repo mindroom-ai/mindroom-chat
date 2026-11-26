@@ -3,7 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
 import { getLatestMessageContent } from '../../matrix/room';
-import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequest';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';

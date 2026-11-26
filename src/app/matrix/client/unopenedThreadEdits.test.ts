@@ -29,7 +29,11 @@ import {
 } from '../protocol/secretRequest.test.shared';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
 import { getReleasableEdits } from '../room';
-import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import {
+  getRetainedThreadSummaryReply,
+  getThreadSummaryReply,
+  keepUnopenedThreadEditsShown,
+} from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
 const roomId = '!room:example.org';
@@ -208,13 +212,14 @@ const fixture = (serverThread: () => IEvent[]) => {
   const room = (): Room => mx.getRoom(roomId)!;
   const thread = (): Thread => room().getThread(rootId)!;
   /** What the thread's Compact card shows: its latest reply's preview and whether it streams. */
-  const card = (cached?: { text: string; ts: number }) => {
+  const card = (cached?: { text: string; ts: number; sender?: string }) => {
     const record = buildThreadRecord({
       room: room(),
       threadRootId: rootId,
       // What the overview's cache read last: a saved copy of the reply, at its revision's time.
       fallbackLatestReplyPreviewText: cached?.text,
       fallbackLatestReplyTs: cached?.ts,
+      fallbackLastSenderId: cached?.sender,
     });
     return {
       preview: record.presentation.latestReplyPreviewText,
@@ -618,6 +623,57 @@ describe('edits of unopened threads', () => {
     await f.deliver([{ ...reply(), event_id: '$later', origin_server_ts: 170, sender: helper }]);
     await f.deliver([title(180)]);
     expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$later');
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('keeps a cached pending prompt cleared when a title notice arrives after a live save', async () => {
+    const cached = { text: 'API token needed', ts: 120, sender: helper };
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    await f.deliver([withSummary(pendingSecret())]);
+    expect(f.card(cached).preview).toBe('API token needed');
+
+    const presentCached = () =>
+      buildThreadRecord({
+        room: f.room(),
+        threadRootId: rootId,
+        fallbackLatestReplyPreviewText: cached.text,
+        fallbackLatestReplyTs: cached.ts,
+        fallbackLastSenderId: cached.sender,
+      }).presentation;
+
+    await f.deliver([savedSecretEdit(160)]);
+    expect(presentCached()).toMatchObject({
+      latestReplyPreviewText: undefined,
+      latestReplyTs: undefined,
+      lastSenderId: undefined,
+    });
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+
+    await f.deliver([title(180)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$title-180');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    const afterTitle = presentCached();
+    expect(afterTitle.latestReplyPreviewText).toBeUndefined();
+    expect(afterTitle.latestReplyTs).toBeUndefined();
+    expect(afterTitle.lastSenderId).not.toBe(helper);
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('keeps the retained agent reply over a cached pending prompt when a title arrives after a live save', async () => {
+    const cached = { text: 'API token needed', ts: 120, sender: helper };
+    const agentReply = (): IEvent => ({ ...reply(), sender: helper });
+    const f = fixture(() => [agentReply(), pendingSecret()]);
+    await f.start();
+    await f.deliver([withSummary(agentReply())]);
+    await f.deliver([pendingSecret()]);
+    expect(f.card(cached).preview).toBe('API token needed');
+
+    await f.deliver([savedSecretEdit(160)]);
+    expect(f.card(cached).preview).toBe('Thinking about it');
+
+    await f.deliver([title(180)]);
+    expect(f.card(cached).preview).toBe('Thinking about it');
     expect(f.loadedThread()).toBe(false);
   });
 });

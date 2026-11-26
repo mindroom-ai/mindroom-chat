@@ -1,7 +1,7 @@
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { isKnownRedactedEventId } from '../../matrix/eventRevision';
-import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequest';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 const object = (value: unknown): value is Record<string, unknown> =>
