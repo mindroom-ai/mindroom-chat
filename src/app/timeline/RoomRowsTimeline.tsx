@@ -164,13 +164,15 @@ export function RoomRowsTimeline({
 
   // Separate from rows mounted: the 0-thread compact fallback stays start-aligned with no fill.
   const roomSurfaceShown = !compactViewRequested;
-  const { threadReturnPlace, returnedRef } = state;
-  const [unreadOpeningSuppressedRoomId] = useState(() =>
+  const { threadReturnPlace, returnedRef, setFocusItem } = state;
+  const sameRoomSwitchRef = useRef(
     state.liveEndViewStateRef.current.roomId === room.roomId &&
-    state.liveEndViewStateRef.current.view !== state.committedView
+      state.liveEndViewStateRef.current.view !== state.committedView
       ? room.roomId
       : undefined
   );
+  if (sameRoomSwitchRef.current !== room.roomId) sameRoomSwitchRef.current = undefined;
+  const isSameRoomViewSwitch = sameRoomSwitchRef.current === room.roomId;
   const membershipRevealedRef = useRef(new Set<string>());
   const returnEventId = threadReturnPlace?.eventId;
   const membershipPinnedIds = useMemo(() => {
@@ -189,6 +191,7 @@ export function RoomRowsTimeline({
     entries: windowState.threadFilteredEventEntries,
     isSkipped: isHiddenBeforeFolding,
     pinnedIds: membershipPinnedIds,
+    openState: state.membershipOpenState,
   });
   const membershipFoldsRef = useLatestRef(membershipFolds.view);
   const renderedRoomRowsRef = useRef<RenderedRoomRows>(NO_RENDERED_ROOM_ROWS);
@@ -233,7 +236,7 @@ export function RoomRowsTimeline({
 
   const automaticFill = useRoomAutomaticFill({
     viewKey,
-    enabled: roomSurfaceShown && !eventId && !latestAtTop,
+    enabled: roomSurfaceShown && !eventId && !latestAtTop && !isSameRoomViewSwitch,
     latestEventId: loadedRoomRows[loadedRoomRows.length - 1]?.getId(),
     contentKey: `${loadedRange.start}:${loadedRange.end}:${loadedRoomRows.length}`,
     getScrollElement,
@@ -345,8 +348,7 @@ export function RoomRowsTimeline({
     timelineAtLiveEnd,
     unreadInfo: state.unreadInfo,
     unreadScrollAnchorIndex:
-      unreadOpeningSuppressedRoomId === room.roomId ||
-      windowState.unreadScrollAnchorIndex === undefined
+      isSameRoomViewSwitch || windowState.unreadScrollAnchorIndex === undefined
         ? undefined
         : rowIndexOfLoaded(roomProjection, windowState.unreadScrollAnchorIndex),
   });
@@ -391,18 +393,23 @@ export function RoomRowsTimeline({
   state.loadedRangeRef.current = loadedRange;
   state.roomRowsRef.current = roomRows;
   state.foldedRowsRef.current = roomProjection.foldedRows;
+  const focusItemRef = useLatestRef(state.focusItem);
   state.viewportApiRef.current = { scrollToItem, scrollToElement, followOwnSend };
   useLayoutEffect(
     () => () => {
       state.viewportApiRef.current = null;
+      const focus = focusItemRef.current;
+      if (focus?.scrollTo || focus?.highlight)
+        setFocusItem((cur) =>
+          cur === focus ? { ...focus, scrollTo: false, highlight: false } : cur
+        );
     },
-    [state.viewportApiRef]
+    [focusItemRef, setFocusItem, state.viewportApiRef]
   );
 
   const returnRowIndex = threadReturnPlace
     ? roomRows.findIndex((e) => e.getId() === threadReturnPlace.eventId)
     : -1;
-  const { setFocusItem } = state;
   useLayoutEffect(() => {
     if (!threadReturnPlace || returnRowIndex === -1 || returnedRef.current) return;
     returnedRef.current = true;

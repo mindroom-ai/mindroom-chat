@@ -381,11 +381,13 @@ vi.mock('../../emoji/useImagePackRooms', () => ({
   useImagePackRooms: () => [],
 }));
 
-vi.mock('../../messages/useMemberEventParser', () => ({
+vi.mock('../../messages/useMemberEventParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../messages/useMemberEventParser')>()),
   useMemberEventParser: () => () => undefined,
 }));
 
-vi.mock('../useVirtualPaginator', () => ({
+vi.mock('../useVirtualPaginator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../useVirtualPaginator')>()),
   useVirtualPaginator: (options: {
     count: number;
     range: { start: number; end: number };
@@ -1314,6 +1316,7 @@ const makeEvent = (
     threadRootId: opts.threadRootId,
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
+    getPrevContent: () => ({}),
     getOriginalContent: () => opts.content ?? { body: eventId },
     getWireContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,

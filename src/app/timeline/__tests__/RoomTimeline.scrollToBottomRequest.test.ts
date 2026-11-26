@@ -16,6 +16,7 @@ import {
   virtualPaginatorState,
   type ViewModeControl,
 } from '../test-utils/RoomTimeline.test.shared';
+import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import type { RoomRowsPlace } from '../roomTimelineScroll';
 
@@ -332,5 +333,322 @@ describe('RoomTimeline scroll-to-bottom request', () => {
       eventId: '$root',
       offset: 120,
     });
+  });
+
+  it('pins a newly opened room to its latest row after a completed focus jump in the previous room', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const roomA = makeRoom({
+      roomId: '!room-a:example.org',
+      liveEvents: [
+        makeEvent('$a1', { roomId: '!room-a:example.org', ts: 1 }),
+        makeEvent('$a2', { roomId: '!room-a:example.org', ts: 2 }),
+      ],
+    });
+    const roomB = makeRoom({
+      roomId: '!room-b:example.org',
+      liveEvents: [
+        makeEvent('$b1', { roomId: '!room-b:example.org', ts: 3 }),
+        makeEvent('$b2', { roomId: '!room-b:example.org', ts: 4 }),
+      ],
+    });
+    const scroll = makeScroll();
+    const threadReturnPlaceRef: { current: RoomRowsPlace | undefined } = {
+      current: { roomId: roomA.roomId, eventId: '$a1', offset: 80 },
+    };
+    const hasAlignPin = (align: 'start' | 'end') =>
+      roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.some(
+        ([, opts]) => (opts as { align?: string } | undefined)?.align === align
+      );
+
+    vi.useFakeTimers();
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomA,
+            initialViewMode: 'classic',
+            extraProps: { threadReturnPlaceRef },
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+          }
+        );
+        await flushAsyncWork();
+      });
+      expect(hasAlignPin('start')).toBe(true);
+
+      // Let FOCUS_LIFETIME_MS expire so focusItem remains non-null with scrollTo: false.
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await flushAsyncWork();
+      });
+
+      roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+      await act(async () => {
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomB,
+            initialViewMode: 'classic',
+            extraProps: { threadReturnPlaceRef },
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(hasAlignPin('end')).toBe(true);
+    } finally {
+      act(() => renderer?.unmount());
+      vi.useRealTimers();
+    }
+  });
+
+  it('lands on the unread marker when returning to a room after a Compact → Threads switch', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const rootA = makeEvent('$root-a', {
+      roomId: '!room-a:example.org',
+      isThreadRoot: true,
+      ts: 1,
+    });
+    const replyA = makeEvent('$reply-a', {
+      roomId: '!room-a:example.org',
+      threadRootId: '$root-a',
+      ts: 2,
+    });
+    const plainA = makeEvent('$plain-a', {
+      roomId: '!room-a:example.org',
+      sender: '@other:example.org',
+      ts: 3,
+    });
+    const roomA = makeRoom({
+      roomId: '!room-a:example.org',
+      liveEvents: [rootA, replyA, plainA],
+      threads: [{ id: '$root-a', rootEvent: rootA, events: [rootA, replyA] }] as never,
+    });
+    Object.assign(roomA, { getEventReadUpTo: () => '$root-a' });
+    const roomB = makeRoom({
+      roomId: '!room-b:example.org',
+      liveEvents: [
+        makeEvent('$b1', { roomId: '!room-b:example.org', ts: 4 }),
+        makeEvent('$b2', { roomId: '!room-b:example.org', ts: 5 }),
+      ],
+    });
+    const scroll = makeScroll();
+    const viewModeControl: ViewModeControl = {};
+    const hasAlignPin = (align: 'start' | 'end') =>
+      roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.some(
+        ([, opts]) => (opts as { align?: string } | undefined)?.align === align
+      );
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomA,
+            initialViewMode: 'compact',
+            viewModeControl,
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+          }
+        );
+        await flushAsyncWork(5);
+      });
+
+      // Same-room Compact(A) → Threads(A) suppresses unread opening and pins to latest.
+      roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+      scrollToItemMock.mockClear();
+      await act(async () => {
+        viewModeControl.setViewMode!('threaded');
+        await flushAsyncWork();
+      });
+      expect(scrollToItemMock).not.toHaveBeenCalled();
+      expect(hasAlignPin('start')).toBe(false);
+      expect(hasAlignPin('end')).toBe(true);
+
+      // Visiting Room B clears the same-room switch suppression.
+      await act(async () => {
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomB,
+            initialViewMode: 'compact',
+            viewModeControl,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+      scrollToItemMock.mockClear();
+      // Returning to Room A with unreads lands on the unread marker (align: 'start').
+      await act(async () => {
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomA,
+            initialViewMode: 'compact',
+            viewModeControl,
+          })
+        );
+        await flushAsyncWork();
+      });
+      expect(hasAlignPin('start')).toBe(true);
+      expect(hasAlignPin('end')).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('clears stale return-from-thread focus on Compact unmount so returning to Threads opens at newest', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const root1 = makeEvent('$root1', { isThreadRoot: true, ts: 1 });
+    const reply1 = makeEvent('$reply1', { threadRootId: '$root1', ts: 2 });
+    const root2 = makeEvent('$root2', { isThreadRoot: true, ts: 3 });
+    const room = makeRoom({
+      liveEvents: [root1, reply1, root2],
+      threads: [
+        { id: '$root1', rootEvent: root1, events: [root1, reply1] },
+        { id: '$root2', rootEvent: root2, events: [root2] },
+      ] as never,
+    });
+    const scroll = makeScroll();
+    const viewModeControl: ViewModeControl = {};
+    const threadReturnPlaceRef: { current: RoomRowsPlace | undefined } = {
+      current: { roomId: room.roomId, eventId: '$root1', offset: 120 },
+    };
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'threaded',
+            initialThreadFilterState: createDefaultThreadFilterState(),
+            viewModeControl,
+            extraProps: { threadReturnPlaceRef },
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+          }
+        );
+        await flushAsyncWork();
+      });
+      // Initial return from thread triggered the focus jump while scrollTo is still active.
+      expect(
+        roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.some(
+          ([, opts]) => (opts as { align?: string } | undefined)?.align === 'start'
+        )
+      ).toBe(true);
+
+      // Switch to Compact before FOCUS_LIFETIME_MS expires.
+      await act(async () => {
+        viewModeControl.setViewMode!('compact');
+        await flushAsyncWork();
+      });
+
+      scrollToItemMock.mockClear();
+      scroll.el.scrollTo.mockClear();
+      roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+
+      // Returning to Threads opens at newest (scrollTo({ top: 0 }) in latestAtTop) and does not replay the old focus jump.
+      await act(async () => {
+        viewModeControl.setViewMode!('threaded');
+        await flushAsyncWork();
+      });
+      expect(scrollToItemMock).not.toHaveBeenCalled();
+      expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
+      expect(scroll.el.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('preserves expanded membership folds and avoids blank hideInitialRows flash across Classic → Compact → Classic', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const m1 = makeEvent('$m1', {
+      type: 'm.room.member',
+      stateKey: '@u1:example.org',
+      content: { membership: 'join' },
+      ts: 1,
+    });
+    const m2 = makeEvent('$m2', {
+      type: 'm.room.member',
+      stateKey: '@u2:example.org',
+      content: { membership: 'join' },
+      ts: 2,
+    });
+    const m3 = makeEvent('$m3', {
+      type: 'm.room.member',
+      stateKey: '@u3:example.org',
+      content: { membership: 'join' },
+      ts: 3,
+    });
+    const root = makeEvent('$root', { isThreadRoot: true, ts: 4 });
+    const reply1 = makeEvent('$reply1', { threadRootId: '$root', ts: 5 });
+    const room = makeRoom({
+      liveEvents: [m1, m2, m3, root, reply1],
+      threads: [{ id: '$root', rootEvent: root, events: [root, reply1] }] as never,
+    });
+    const scroll = makeScroll();
+    const viewModeControl: ViewModeControl = {};
+    const findMembershipToggle = (r: ReturnType<typeof create>) =>
+      r.root.find(
+        (node) => node.type === 'button' && typeof node.props['aria-expanded'] === 'boolean'
+      );
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'classic',
+            viewModeControl,
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+          }
+        );
+        await flushAsyncWork();
+      });
+
+      // Genuine room open keeps automatic fill active (rows hidden until initial geometry settles).
+      const initialInner = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(initialInner.props.style.visibility).toBe('hidden');
+
+      // Expand the membership fold manually.
+      const toggleBefore = findMembershipToggle(renderer!);
+      expect(toggleBefore.props['aria-expanded']).toBe(false);
+      await act(async () => {
+        toggleBefore.props.onClick();
+        await flushAsyncWork();
+      });
+      expect(findMembershipToggle(renderer!).props['aria-expanded']).toBe(true);
+
+      // Switch Classic → Compact (unmounts RoomRowsTimeline).
+      await act(async () => {
+        viewModeControl.setViewMode!('compact');
+        await flushAsyncWork();
+      });
+      expect(renderer!.root.findAllByProps({ 'data-testid': 'room-virtual-inner' })).toHaveLength(
+        0
+      );
+
+      // Switch Compact → Classic: fold remains expanded and rows are NOT hidden by automatic fill.
+      await act(async () => {
+        viewModeControl.setViewMode!('classic');
+        await flushAsyncWork();
+      });
+      const returnedInner = renderer!.root.findByProps({ 'data-testid': 'room-virtual-inner' });
+      expect(returnedInner.props.style.visibility).toBeUndefined();
+      expect(findMembershipToggle(renderer!).props['aria-expanded']).toBe(true);
+    } finally {
+      act(() => renderer?.unmount());
+    }
   });
 });

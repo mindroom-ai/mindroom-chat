@@ -206,8 +206,16 @@ describe('RoomTimeline Compact sections wiring', () => {
             state: frozenState as never,
           }),
           {
-            createNodeMock: (element) =>
-              element.type === 'div' && element.props.direction === 'Column' ? host : null,
+            createNodeMock: (element) => {
+              const { props } = element;
+              return element.type === 'div' &&
+                typeof props === 'object' &&
+                props !== null &&
+                'direction' in props &&
+                props.direction === 'Column'
+                ? host
+                : null;
+            },
           }
         );
         await flushAsyncWork();

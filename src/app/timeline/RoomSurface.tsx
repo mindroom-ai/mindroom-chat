@@ -293,6 +293,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     }
   }, [committedView, room.roomId, rowsTimelineMounted]);
   const expansionState = useTimelineExpansionState();
+  const membershipOpenState = useState<ReadonlySet<string>>(() => new Set());
   const isViewportAtLatestNow = useViewportAtBottomNow(scrollRef, atBottomRef, latestAtTopRef);
   const atLiveEndRef = useRef(false);
   const loadedRangeRef = useRef(stateRange);
@@ -614,6 +615,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     returnedRef,
     liveEndViewStateRef,
     expansionState,
+    membershipOpenState,
     scrollRef,
     atLiveEndRef,
     loadedRangeRef,

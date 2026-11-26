@@ -342,8 +342,8 @@ export const useTimelineLiveEnd = ({
     const sameRoom = activeViewStateRef.current.roomId === roomId;
     activeViewStateRef.current = { view: committedView, roomId };
     // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = sameRoom || (opensAtLatest && !focusItem);
-  }, [activeViewStateRef, committedView, focusItem, opensAtLatest, roomId]);
+    requestRef.current = sameRoom || opensAtLatest;
+  }, [activeViewStateRef, committedView, opensAtLatest, roomId]);
 
   // Every commit compares the count as it is then: a render that React bails out of keeps the
   // count it read without running its effects, so effect dependencies would miss that pin.

@@ -195,7 +195,7 @@ export const useThreadReturnPlace = ({
         : readRoomRowsPlace(scrollElement, shown.roomId);
     };
   }, [memoryRef]);
-  return place;
+  return place?.roomId === roomId ? place : undefined;
 };
 
 /**
