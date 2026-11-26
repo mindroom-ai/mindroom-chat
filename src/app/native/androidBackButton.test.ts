@@ -638,17 +638,18 @@ describe('androidBackButton', () => {
 
     function ModalLayerHarness() {
       const [open, setOpen] = React.useState(true);
-      return React.createElement(
-        ModalLayer,
-        {
-          open,
-          onClose: () => {
-            onClose();
-            setOpen(false);
-          },
+      return React.createElement(ModalLayer, {
+        open,
+        onClose: () => {
+          onClose();
+          setOpen(false);
         },
-        React.createElement('div', null, React.createElement('button', { type: 'button' }, 'OK'))
-      );
+        children: React.createElement(
+          'div',
+          null,
+          React.createElement('button', { type: 'button' }, 'OK')
+        ),
+      });
     }
 
     const { unmount } = render(React.createElement(ModalLayerHarness));
