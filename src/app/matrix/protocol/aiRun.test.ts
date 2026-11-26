@@ -415,6 +415,7 @@ describe('getAiRunInfo error payload', () => {
           provider: 'OpenRouter',
           retryable: true,
           action: 'continue',
+          fallback: '  ⚠️ Neon stopped responding — OpenRouter sent no data for 5 min.  ',
         },
       },
     });
@@ -430,7 +431,33 @@ describe('getAiRunInfo error payload', () => {
       provider: 'OpenRouter',
       retryable: true,
       action: 'continue',
+      fallback: '⚠️ Neon stopped responding — OpenRouter sent no data for 5 min.',
     });
+  });
+
+  it('parses optional fallback and omits empty, whitespace, or non-string values', () => {
+    const base = {
+      kind: 'runtime_error',
+      title: 'Reply failed',
+      summary: 'setup failed',
+    };
+
+    expect(
+      parseAiRunError({
+        ...base,
+        fallback: '  **[Response interrupted by an error: setup failed]**  ',
+      })
+    ).toEqual({
+      ...base,
+      retryable: false,
+      fallback: '**[Response interrupted by an error: setup failed]**',
+    });
+
+    for (const ignored of ['', '   \n\t  ', 123, null, true, ['x'], { text: 'x' }]) {
+      const parsed = parseAiRunError({ ...base, fallback: ignored });
+      expect(parsed).toEqual({ ...base, retryable: false });
+      expect(parsed).not.toHaveProperty('fallback');
+    }
   });
 
   it('reads error metadata from m.new_content and supports error-only ai_run payloads', () => {
