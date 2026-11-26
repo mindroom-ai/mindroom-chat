@@ -173,11 +173,13 @@ public struct ThreadSnapshot: Equatable, Sendable {
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
+        // Non-title messages (excluding folded voice echoes) still count toward thread activity timestamps.
+        let activityMessages = messages.filter { message in
+            !(message.eventId.map(hiddenEchoIds.contains) ?? false) && message.content["io.mindroom.thread_summary"] == nil
+        }
         // The conversation: what people and agents said, without folded voice echoes, titles, and answered secret requests.
-        let conversation = messages.filter { message in
-            !(message.eventId.map(hiddenEchoIds.contains) ?? false)
-                && message.content["io.mindroom.thread_summary"] == nil
-                && !isFoldedSecretRequest(message, latestEdit: edit(message), isAgent: isAgent)
+        let conversation = activityMessages.filter { message in
+            !isFoldedSecretRequest(message, latestEdit: edit(message), isAgent: isAgent)
         }
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
@@ -260,7 +262,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
             if let card = cards.first(where: { $0.eventId == event.eventId }) { return .approval(card) }
             return isMessage(event) ? .message(message(event)) : nil
         }
-        let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
+        let latestTs = ([root] + activityMessages).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title,
             heading: summary ?? (all.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,

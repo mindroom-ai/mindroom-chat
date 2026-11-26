@@ -230,6 +230,32 @@ final class ThreadListEntryTests: XCTestCase {
         XCTAssertEqual(entry?.latestTs, 50)
         XCTAssertEqual(entry?.key, "$secret 4")
     }
+
+    func testAFoldedSecretRequestGivesOnlyItsTime() {
+        let pending = event("$secret", 30, sender: agent, [
+            "msgtype": "m.notice",
+            "body": "API token needed",
+            "io.mindroom.secret_request": [
+                "request_id": "req-1", "status": "pending",
+                "response_event_id": "$reply", "tool_call_id": "call_1",
+            ] as JSON,
+        ])
+        let answered = bundling(edit("$secret-edit", 45, of: "$secret", sender: agent, [
+            "msgtype": "m.notice",
+            "body": "🔑 Secret received.",
+            "io.mindroom.secret_request": [
+                "request_id": "req-1", "status": "saved",
+                "response_event_id": "$reply", "tool_call_id": "call_1",
+            ] as JSON,
+        ]), in: pending)
+        let entry = ThreadListEntry.parse(root(thread: [
+            "count": 2, "latest_event": answered, "io.mindroom.latest_reply": answered,
+        ]), ownUserId: me)
+        XCTAssertEqual(entry?.title, "Root body")
+        XCTAssertNil(entry?.reply)
+        XCTAssertEqual(entry?.latestTs, 45)
+        XCTAssertEqual(entry?.key, "$secret 2")
+    }
 }
 
 final class PlainTextTests: XCTestCase {
