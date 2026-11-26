@@ -171,9 +171,9 @@ test('ungrouped flat mode uses 4px card gap and scrolls with zero overlapping ca
   await expect(list).toHaveAttribute('data-compact-card-count', '32');
   await expect(list).not.toHaveAttribute('data-cards-pending');
   await expect(page.locator('[data-compact-section]')).toHaveCount(0);
-  const mountedCount = await page.locator('[data-thread-root-id]').count();
-  expect(mountedCount).toBeGreaterThan(0);
-  expect(mountedCount).toBeLessThan(32);
+  // Retry across a possible one-frame font-load re-probe before checking mounted window bounds.
+  await expect.poll(() => page.locator('[data-thread-root-id]').count()).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('[data-thread-root-id]').count()).toBeLessThan(32);
 
   const topMetrics = await measureList(page);
   expect(topMetrics.overlapCount).toBe(0);

@@ -420,7 +420,6 @@ export function RoomView({
           onExitThread={threadState.handleExitThread}
           onShowBeside={onShowBeside}
           onShowFull={onShowFull}
-          overviewAreaRef={areaRef}
         />
       )
     );

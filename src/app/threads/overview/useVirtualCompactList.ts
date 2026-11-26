@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { tabbablesOf } from '../../lib/overlayFocus';
-import { useScrollAnchorMemory, type ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { compactCardNavigation, compactCardsIn, focusCompactCard } from './compactCardKeys';
 import { useCompactBlocks } from './useCompactBlocks';
 
@@ -26,7 +26,7 @@ type Options = {
   getRowId?: (row: Element) => string | undefined;
 };
 
-/** Shared virtualization, scroll-anchor restore, and card key navigation for compact thread lists. */
+/** Shared block virtualization and card key navigation for compact thread lists. */
 export function useVirtualCompactList(options: Options) {
   const { groups, memoryKey, keyScope = memoryKey, priorityTarget, protectedId } = options;
   const { records, indexPending, getRowId } = options;
@@ -41,15 +41,12 @@ export function useVirtualCompactList(options: Options) {
   const [intent, setIntent] = useState<FocusIntent>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
   const hasPriorityTarget = priorityTarget !== undefined && ids.includes(priorityTarget);
-  const [getRowKey, idOf] = useMemo(
+  const idOf = useMemo(
     () =>
       getRowId
-        ? ([
-            (row: Element) => getRowId(row) ?? null,
-            (card: HTMLElement) =>
-              getRowId(card.closest('[data-scroll-anchor]') ?? card) ?? card.dataset.threadRootId,
-          ] as const)
-        : ([undefined, undefined] as const),
+        ? (card: HTMLElement) =>
+            getRowId(card.closest('[data-scroll-anchor]') ?? card) ?? card.dataset.threadRootId
+        : undefined,
     [getRowId]
   );
 
@@ -122,15 +119,5 @@ export function useVirtualCompactList(options: Options) {
     scrollRef,
   ]);
 
-  const placeList = useScrollAnchorMemory({
-    memory,
-    memoryKey,
-    scrollRef,
-    contentRef,
-    ready: ids.length > 0 && blocks.placeReady,
-    progress: blocks.progress,
-    getRowKey,
-  });
-
-  return { scrollRef, contentRef, ids, hasPriorityTarget, placeList, findCard, ...blocks };
+  return { scrollRef, contentRef, memory, ids, hasPriorityTarget, findCard, ...blocks };
 }

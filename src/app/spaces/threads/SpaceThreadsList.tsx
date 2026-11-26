@@ -56,7 +56,7 @@ import {
 import { useVirtualCompactList } from '../../threads/overview/useVirtualCompactList';
 import { setThreadResolved } from '../../threads/tags/useMutateThreadTags';
 import { ownDirectionLine } from '../../ui/directional';
-import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
 import type { SpaceRoomItem } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
@@ -124,7 +124,7 @@ const useInFlightKeys = () => {
   return [keys, run] as const;
 };
 
-export const SpaceThreadsNotice = ({
+export function SpaceThreadsNotice({
   message,
   loading,
   emptyKey,
@@ -132,17 +132,19 @@ export const SpaceThreadsNotice = ({
   message: string;
   loading?: boolean;
   emptyKey?: SpaceThreadsEmptyKey;
-}) => (
-  <div
-    className={compactCss.EmptyState}
-    data-space-threads-loading={loading ? 'true' : undefined}
-    data-space-threads-empty={emptyKey}
-  >
-    <Text size="T300" priority="400">
-      {message}
-    </Text>
-  </div>
-);
+}) {
+  return (
+    <div
+      className={compactCss.EmptyState}
+      data-space-threads-loading={loading ? 'true' : undefined}
+      data-space-threads-empty={emptyKey}
+    >
+      <Text size="T300" priority="400">
+        {message}
+      </Text>
+    </div>
+  );
+}
 
 type SpaceThreadCardRowProps = {
   entry: CrossRoomThreadIndexEntry;
@@ -165,10 +167,26 @@ type SpaceThreadCardRowProps = {
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
 
-const SpaceThreadCardRow = memo(function SpaceThreadCardRow(props: SpaceThreadCardRowProps) {
-  const { entry, room, roomName, accentColor, scrollRootRef, showRoomBadge } = props;
-  const { pinned, canToggle, canPin, resolving, pinning, menuOpen, snoozeNow, metaVersion } = props;
-  const { onOpenThread, onSetResolved, onPin, onOpenMenu } = props;
+const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
+  entry,
+  room,
+  roomName,
+  accentColor,
+  scrollRootRef,
+  showRoomBadge,
+  pinned,
+  canToggle,
+  canPin,
+  resolving,
+  pinning,
+  menuOpen,
+  snoozeNow,
+  metaVersion,
+  onOpenThread,
+  onSetResolved,
+  onPin,
+  onOpenMenu,
+}: SpaceThreadCardRowProps) {
   const { t, i18n } = useTranslation();
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
@@ -387,16 +405,40 @@ export function SpaceThreadsList({
     };
   }, [entryKeys, foldedSections, sections, singleBucketTab]);
 
-  const { scrollRef, contentRef, ids, rows, liveIds, extentComplete, findCard } =
-    useVirtualCompactList({
-      groups,
-      memory: scrollMemory,
-      memoryKey: scrollMemoryKey,
-      protectedId: menuKey,
-      records: entryByKey,
-      indexPending,
-      getRowId: getSpaceRowId,
-    });
+  const {
+    scrollRef,
+    contentRef,
+    memory,
+    ids,
+    rows,
+    liveIds,
+    extentComplete,
+    placeReady,
+    progress,
+    findCard,
+  } = useVirtualCompactList({
+    groups,
+    memory: scrollMemory,
+    memoryKey: scrollMemoryKey,
+    protectedId: menuKey,
+    records: entryByKey,
+    indexPending,
+    getRowId: getSpaceRowId,
+  });
+
+  const hasCards = liveIds.some((key) => {
+    const entry = entryByKey.get(key);
+    return !!entry && roomsById.has(entry.roomId);
+  });
+  useScrollAnchorMemory({
+    memory,
+    memoryKey: scrollMemoryKey,
+    scrollRef,
+    contentRef,
+    ready: hasCards && placeReady,
+    progress,
+    getRowKey: getSpaceRowId,
+  });
 
   const closeMenu = (selectedMenu: ThreadActionsMenuState) => {
     if (!clearMenu(selectedMenu)) return;

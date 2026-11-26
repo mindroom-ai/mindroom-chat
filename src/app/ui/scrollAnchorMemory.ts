@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 const SCROLL_ANCHOR_ATTRIBUTE = 'data-scroll-anchor';
 const SCROLL_ANCHOR_SELECTOR = `[${SCROLL_ANCHOR_ATTRIBUTE}]`;
@@ -122,7 +122,7 @@ type ScrollAnchorMemoryOptions = {
   /** Optional handoff for a window that waits for the first write. */
   progress?: { placed?: boolean; left?: boolean; onWrite?: () => void };
   /** Custom key extractor when `data-scroll-anchor` alone is not unique across rooms. */
-  getRowKey?: (row: Element) => string | null;
+  getRowKey?: (row: Element) => string | undefined;
 };
 
 /**
@@ -141,8 +141,12 @@ export function useScrollAnchorMemory({
   contentRef,
   ready,
   progress,
-  getRowKey = getAnchorKey,
+  getRowKey,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
+  const resolveRowKey = useMemo(
+    () => (getRowKey ? (row: Element) => getRowKey(row) ?? null : getAnchorKey),
+    [getRowKey]
+  );
   const restoreRef = useRef<RestoreState>(undefined);
   const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
@@ -177,8 +181,8 @@ export function useScrollAnchorMemory({
     const restore = () => {
       const { snapshot } = state;
       if (!snapshot) return;
-      const placement = placeRows(view, snapshot, state.placedRows, getRowKey);
-      const rowOrder = getRowKeys(view, getRowKey);
+      const placement = placeRows(view, snapshot, state.placedRows, resolveRowKey);
+      const rowOrder = getRowKeys(view, resolveRowKey);
       // A reader who left at the top stays at the top, where rows that moved
       // up show; one who scrolled since the last write keeps their place.
       // Late layout moves the placed rows together (the header padding
@@ -212,7 +216,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, getRowKey, memory, memoryKey, progress, ready, restarts, scrollRef]);
+  }, [contentRef, memory, memoryKey, progress, ready, resolveRowKey, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -220,10 +224,10 @@ export function useScrollAnchorMemory({
       // A list without its rows, before they render or after they all went,
       // keeps the position saved before it.
       if (view && readyRef.current) {
-        memory.set(memoryKey, captureScrollAnchors(view, getRowKey));
+        memory.set(memoryKey, captureScrollAnchors(view, resolveRowKey));
       }
     };
-  }, [getRowKey, memory, memoryKey, scrollRef]);
+  }, [memory, memoryKey, resolveRowKey, scrollRef]);
 
   return useCallback(
     (place: ScrollAnchorSnapshot) => {

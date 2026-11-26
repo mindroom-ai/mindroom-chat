@@ -34,7 +34,7 @@ import { InsetScrollbar } from '../../ui/InsetScrollbar';
 import * as overlay from '../../ui/styles/RoomOverlay.css';
 import { useThreadPinning } from '../../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { MOST_ROWS_IN_MOTION, useListMotion } from '../../ui/listMotion';
 import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
 import {
@@ -236,7 +236,7 @@ export function CompactRoomView({
     // A read the homeserver cannot answer only retries: the list places on the cards it has.
     indexPending: indexPending && !unreachable,
   });
-  const { ids, hasPriorityTarget: address, placeList } = blocks;
+  const { ids, hasPriorityTarget: address } = blocks;
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: blocks.liveIds,
@@ -331,6 +331,17 @@ export function CompactRoomView({
       console.error('[CompactRoomView] Resolve failed:', error);
     }
   }, [error]);
+
+  // Opening a card remounts this view, and threads that got replies meanwhile
+  // sort above the cards that were in view, so restore by those cards.
+  const placeList = useScrollAnchorMemory({
+    memory: compactRoomScrollStateRef.current,
+    memoryKey: room.roomId,
+    scrollRef: viewRef,
+    contentRef,
+    ready: cardViewModels.length > 0 && blocks.placeReady,
+    progress: blocks.progress,
+  });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
   // with that request does; the one the list mounted with had that mount. A replaced entry (a

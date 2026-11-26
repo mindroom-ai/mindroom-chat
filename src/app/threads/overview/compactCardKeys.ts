@@ -1,9 +1,10 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
+/** The button of a Compact room card (room overview or Thread Board column) that opens its thread. */
+const COMPACT_ROOM_CARD_SELECTOR = '[data-compact-room-view] [data-thread-root-id]';
 /** The button of a Compact room or Space overview card that opens its thread. */
 const VIEW_SELECTOR = '[data-compact-room-view], [data-space-threads-list]';
-const CARD_SELECTOR =
-  '[data-compact-room-view] [data-thread-root-id], [data-space-threads-list] [data-thread-root-id]';
+const CARD_SELECTOR = `${COMPACT_ROOM_CARD_SELECTOR}, [data-space-threads-list] [data-thread-root-id]`;
 
 /** The full keyboard order and focus command for each mounted Compact scroller. */
 export const compactCardNavigation = new WeakMap<
@@ -58,13 +59,12 @@ export const compactCardsIn = (root: ParentNode | null | undefined): HTMLElement
     (card) => !card.closest('[inert]')
   );
 
-/** The card that has the keyboard's focus under `root`. */
-export const focusedCompactCard = (root: Node | null | undefined): HTMLElement | undefined => {
-  if (typeof document === 'undefined' || !root) return undefined;
+/** The Compact room card that has the keyboard's focus, under `root` when one is given. */
+export const focusedCompactCard = (root?: Node | null): HTMLElement | undefined => {
+  if (typeof document === 'undefined' || root === null) return undefined;
   const focused = document.activeElement;
-  return focused instanceof HTMLElement && focused.matches(CARD_SELECTOR) && root.contains(focused)
-    ? focused
-    : undefined;
+  const card = focused instanceof HTMLElement && focused.matches(COMPACT_ROOM_CARD_SELECTOR);
+  return card && (root === undefined || root.contains(focused)) ? focused : undefined;
 };
 
 /** The first card below the floating header, which a card scrolled under it is not. */

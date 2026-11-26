@@ -7,12 +7,12 @@ const BUFFER_BLOCKS = 1;
 const WIDTH_SETTLE_MS = 80;
 const SHELL = '[data-scroll-anchor]';
 const HEARD = 'pointerdown pointerup pointercancel dragstart dragend blur wheel keydown'.split(' ');
-const defaultRowId = (row: HTMLElement) => row.dataset.scrollAnchor;
+const defaultRowId = (row: Element) => row.getAttribute('data-scroll-anchor') ?? undefined;
 const cardId = (
   element: Element | null | undefined,
-  getRowId: (row: HTMLElement) => string | undefined
+  getRowId: (row: Element) => string | undefined
 ) => {
-  const shell = element?.closest<HTMLElement>(SHELL);
+  const shell = element?.closest(SHELL);
   return shell ? getRowId(shell) : undefined;
 };
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
@@ -36,7 +36,7 @@ type Options = {
   records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
   /** Custom row ID extractor when `data-scroll-anchor` alone is not unique across rooms. */
-  getRowId?: (row: HTMLElement) => string | undefined;
+  getRowId?: (row: Element) => string | undefined;
 };
 
 export function useCompactBlocks(options: Options) {

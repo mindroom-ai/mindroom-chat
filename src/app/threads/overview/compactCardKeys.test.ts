@@ -75,22 +75,30 @@ describe('compactCardsIn and focusedCompactCard', () => {
     card('$a').parentElement!.setAttribute('inert', '');
     expect(compactCardsIn(view).map((element) => element.dataset.threadRootId)).toEqual(['$b']);
     card('$a').parentElement!.removeAttribute('inert');
-    expect(focusedCompactCard(view)).toBeUndefined();
+    expect(focusedCompactCard()).toBeUndefined();
     card('$b').focus();
+    expect(focusedCompactCard()).toBe(card('$b'));
     expect(focusedCompactCard(view)).toBe(card('$b'));
     card('$x').focus();
+    expect(focusedCompactCard()).toBeUndefined();
+    // A board column's compact view outside `view` matches unscoped `focusedCompactCard()`.
+    const boardView = mountCards(['$board']);
+    card('$board').focus();
+    expect(focusedCompactCard()).toBe(card('$board'));
     expect(focusedCompactCard(view)).toBeUndefined();
-    // Cards in a Space list outside `view` are ignored when `focusedCompactCard` is scoped to `view`.
+    expect(focusedCompactCard(boardView)).toBe(card('$board'));
+    // Space All-threads cards are navigable in their own list, but excluded from `focusedCompactCard()`.
     document.body.insertAdjacentHTML(
       'beforeend',
       '<div data-space-threads-list="true"><button data-thread-root-id="$s"></button></div>'
     );
     const spaceList = document.querySelector<HTMLElement>('[data-space-threads-list]')!;
     const spaceCard = spaceList.querySelector<HTMLElement>('[data-thread-root-id="$s"]')!;
+    expect(compactCardsIn(spaceList)).toEqual([spaceCard]);
     spaceCard.focus();
-    expect(focusedCompactCard(view)).toBeUndefined();
-    expect(focusedCompactCard(undefined)).toBeUndefined();
-    expect(focusedCompactCard(spaceList)).toBe(spaceCard);
+    expect(focusedCompactCard()).toBeUndefined();
+    expect(focusedCompactCard(spaceList)).toBeUndefined();
+    expect(focusedCompactCard(null)).toBeUndefined();
   });
 });
 
