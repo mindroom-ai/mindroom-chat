@@ -854,9 +854,15 @@ export const useRoomInputSendSessionController = ({
         activeSlot = createSendSlot();
         activeSlot.repark = () => parkSlot(activeSlot, true);
       }
+      const restoreResetFallback = () => {
+        if (!composerAlreadyReset || !composerFallback) return;
+        restoreText(targetComposerContext, composerFallback);
+        onTextConsumed?.();
+      };
       const existingSession = activeSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
+          restoreResetFallback();
           throw new Error(
             'Cannot start a lifecycle-complete send while another session is active.'
           );
@@ -878,10 +884,7 @@ export const useRoomInputSendSessionController = ({
           return;
         }
         if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
-          if (composerAlreadyReset && composerFallback) {
-            restoreText(targetComposerContext, composerFallback);
-            onTextConsumed?.();
-          }
+          restoreResetFallback();
           return;
         }
         // The composer takes the message now, as it does any message; the reply draft the earlier
@@ -972,10 +975,7 @@ export const useRoomInputSendSessionController = ({
         return;
       }
       if (hasFailedPasteMarkerInText(textContent, staged)) {
-        if (composerAlreadyReset && composerFallback) {
-          restoreText(targetComposerContext, composerFallback);
-          onTextConsumed?.();
-        }
+        restoreResetFallback();
         return;
       }
       attachments.enroll(sendItems);

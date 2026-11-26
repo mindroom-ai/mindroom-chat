@@ -815,8 +815,6 @@ export function RoomInput({
             restorePendingFallback();
             return;
           }
-          const fallbackForSession = pendingFallback;
-          pendingFallback = undefined;
           const rootModelForSession = pendingRootModel;
           pendingRootModel = undefined;
           const sending = sessions.startSendSession({
@@ -826,7 +824,7 @@ export function RoomInput({
             rootModel: rootModelForSession ?? null,
             batch: { fileItems: uploadedItems },
             completeWithinCall: uploadedItems.length > 0,
-            composerFallback: fallbackForSession,
+            composerFallback: pendingFallback,
             composerAlreadyReset: Boolean(textContent),
             beforeSend: ask ? (sentTo) => sameAccount() && ask.canSend(sentTo) : () => sameAccount(),
             onLocalEchoCreated:
@@ -834,13 +832,15 @@ export function RoomInput({
               ((id, sent) => {
                 if (sameAccount()) ask.onLocalEcho?.(id, sent);
               }),
+            onTextConsumed: () => {
+              pendingFallback = undefined;
+            },
           });
           sendTypingStatus(false);
           try {
             await sending;
           } catch (error) {
-            // `completeWithinCall` already restored fallback text and cleared the failed session
-            // while keeping uploaded files staged on the deferred board for retry in any room.
+            restorePendingFallback();
             // eslint-disable-next-line no-console
             console.warn('[room-input] could not send the message', error);
           }

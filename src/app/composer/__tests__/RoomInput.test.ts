@@ -5998,6 +5998,44 @@ describe("RoomInput as Home's ask field", () => {
     );
     r2.unmount();
   });
+
+  it('restores deferred caption when the send controller rejects before taking ownership', async () => {
+    const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { stagedDraftKey: spaceKey });
+
+    // Start an earlier long-text send so an active session occupies the slot while uploading.
+    const earlierUpload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(earlierUpload.promise);
+    stageComposerText('x'.repeat(70_000));
+    resetEditorOnNextSend();
+    let firstSend!: Promise<void>;
+    await act(async () => {
+      firstSend = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+
+    // Attach a file + type a follow-up caption and send while the earlier text send is still active.
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['pdf'], 'spec.pdf', { type: 'application/pdf' })]);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(store.get(composerUploadItemsAtom(spaceKey, undefined))).toHaveLength(1);
+    stageComposerText('Follow-up caption');
+    resetEditorOnNextSend();
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/spec' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(customEditorState.editor, [
+      { type: 'paragraph', children: [{ text: 'Follow-up caption' }] },
+    ]);
+
+    await act(async () => {
+      earlierUpload.resolve({ content_uri: 'mxc://mindroom/long-text' });
+      await firstSend;
+    });
+    renderer.unmount();
+  });
 });
 
 describe('RoomInput media compression send and voice invariants', () => {
