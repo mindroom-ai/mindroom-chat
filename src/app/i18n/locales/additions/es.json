@@ -2018,7 +2018,7 @@
       "noSpeech": "No se detectó voz.",
       "noSpeechOffThread": "No se detectó voz en {{room}}.",
       "sendFailedOffThread": "No se pudo finalizar el mensaje dictado en {{room}}. Ábrelo para reintentar.",
-      "sendFailedOffTarget": "No se pudo finalizar el mensaje dictado en {{room}}. Selecciónalo en «Publicar en» para reintentar.",
+      "sendFailedOffTarget": "No se pudo finalizar el mensaje dictado en {{room}}. Vuelve a elegir {{room}} para reintentar.",
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
       "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",

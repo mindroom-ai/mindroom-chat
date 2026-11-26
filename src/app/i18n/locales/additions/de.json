@@ -1953,7 +1953,7 @@
       "noSpeech": "Keine Sprache erkannt.",
       "noSpeechOffThread": "Keine Sprache in {{room}} erkannt.",
       "sendFailedOffThread": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Öffne den Raum, um es erneut zu versuchen.",
-      "sendFailedOffTarget": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Wähle den Raum unter „Senden an“ aus, um es erneut zu versuchen.",
+      "sendFailedOffTarget": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Wähle {{room}} erneut aus, um es erneut zu versuchen.",
       "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
       "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
       "capReached": "Limit von 5:00 erreicht",

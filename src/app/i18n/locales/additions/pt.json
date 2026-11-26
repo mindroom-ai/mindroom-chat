@@ -2018,7 +2018,7 @@
       "noSpeech": "Nenhuma fala detectada.",
       "noSpeechOffThread": "Nenhuma fala detectada em {{room}}.",
       "sendFailedOffThread": "Não foi possível concluir a mensagem ditada em {{room}}. Abra para tentar novamente.",
-      "sendFailedOffTarget": "Não foi possível concluir a mensagem ditada em {{room}}. Selecione-a em \"Enviar para\" para tentar novamente.",
+      "sendFailedOffTarget": "Não foi possível concluir a mensagem ditada em {{room}}. Escolha {{room}} novamente para tentar novamente.",
       "statusPendingRetry_one": "{{count}} segmento aguardando nova tentativa",
       "statusPendingRetry_many": "{{count}} segmentos aguardando nova tentativa",
       "statusPendingRetry_other": "{{count}} segmentos aguardando nova tentativa",

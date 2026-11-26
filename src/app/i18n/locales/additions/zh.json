@@ -1888,7 +1888,7 @@
       "noSpeech": "未检测到语音。",
       "noSpeechOffThread": "在 {{room}} 中未检测到语音。",
       "sendFailedOffThread": "无法完成 {{room}} 中的听写消息。请打开并重试。",
-      "sendFailedOffTarget": "无法完成 {{room}} 中的听写消息。请在“发送到”中选择该房间以重试。",
+      "sendFailedOffTarget": "无法完成 {{room}} 中的听写消息。请再次选择 {{room}} 以重试。",
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",

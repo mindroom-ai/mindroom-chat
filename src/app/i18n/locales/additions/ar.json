@@ -2213,7 +2213,7 @@
       "noSpeech": "لم يتم اكتشاف أي كلام.",
       "noSpeechOffThread": "لم يتم اكتشاف أي كلام في ⁨{{room}}⁩.",
       "sendFailedOffThread": "تعذّر إنهاء الرسالة المُملاة في ⁨{{room}}⁩. افتحها لإعادة المحاولة.",
-      "sendFailedOffTarget": "تعذّر إنهاء الرسالة المُملاة في ⁨{{room}}⁩. اخترها في «النشر في» لإعادة المحاولة.",
+      "sendFailedOffTarget": "تعذّر إنهاء الرسالة المُملاة في ⁨{{room}}⁩. اختر ⁨{{room}}⁩ مرة أخرى لإعادة المحاولة.",
       "statusPendingRetry_zero": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
       "statusPendingRetry_one": "مقطع واحد (⁨{{count}}⁩) بانتظار إعادة المحاولة",
       "statusPendingRetry_two": "مقطعان (⁨{{count}}⁩) بانتظار إعادة المحاولة",

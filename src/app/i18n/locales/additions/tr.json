@@ -1953,7 +1953,7 @@
       "noSpeech": "Konuşma algılanmadı.",
       "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
       "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
-      "sendFailedOffTarget": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için \"Gönder\" kısmından seçin.",
+      "sendFailedOffTarget": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için {{room}} odasını tekrar seçin.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
       "capReached": "5:00 sınırına ulaşıldı",
