@@ -10,11 +10,8 @@ import {
 } from './roomFocusScrollController';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import {
-  useGestureBottomPins,
-  useLatestRowPin,
-  useThreadOpenedAtLatest,
-} from './roomTimelineScroll';
+import { useGestureBottomPins, useThreadOpenedAtLatest } from './roomTimelineScroll';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 const ROW_HEIGHT = 100;
@@ -161,7 +158,7 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
         readMeasurementCorrectionPx: controller.readMeasurementCorrectionPx,
       });
 
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: readerScrolledRef.current.value ? 'thread' : undefined,
         itemCount: keys.length,
         virtualizer: controller.virtualizer,

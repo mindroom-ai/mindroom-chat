@@ -48,8 +48,8 @@ export const useRoomCachedBackState = ({
   sessionId: string;
   setRoomHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
-  threadId: string | undefined;
-  threadIdRef: MutableRefObject<string | undefined>;
+  threadId?: string;
+  threadIdRef?: MutableRefObject<string | undefined>;
   timeline: Timeline;
 }): void => {
   useEffect(() => {
@@ -91,7 +91,8 @@ export const useRoomCachedBackState = ({
         return undefined;
       });
       if (!cachedBackState) return;
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef?.current)
+        return;
 
       if (cachedBackState.cachedBeforeToken === null) markRoomStart();
 

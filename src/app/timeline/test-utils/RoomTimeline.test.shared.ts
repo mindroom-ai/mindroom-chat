@@ -63,6 +63,7 @@ const {
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
   saveCachedThreadSummaryMock,
+  isScrollNearBottomMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   roomTimelineVirtualizerState,
@@ -146,6 +147,9 @@ const {
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
+  isScrollNearBottomMock: vi.fn(
+    (_metrics?: { scrollHeight: number; scrollTop: number; clientHeight: number }) => true
+  ),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
@@ -377,11 +381,13 @@ vi.mock('../../emoji/useImagePackRooms', () => ({
   useImagePackRooms: () => [],
 }));
 
-vi.mock('../../messages/useMemberEventParser', () => ({
+vi.mock('../../messages/useMemberEventParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../messages/useMemberEventParser')>()),
   useMemberEventParser: () => () => undefined,
 }));
 
-vi.mock('../useVirtualPaginator', () => ({
+vi.mock('../useVirtualPaginator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../useVirtualPaginator')>()),
   useVirtualPaginator: (options: {
     count: number;
     range: { start: number; end: number };
@@ -1185,7 +1191,7 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
   return {
     ...actual,
-    isScrollNearBottom: () => true,
+    isScrollNearBottom: isScrollNearBottomMock,
     isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
@@ -1310,6 +1316,7 @@ const makeEvent = (
     threadRootId: opts.threadRootId,
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
+    getPrevContent: () => ({}),
     getOriginalContent: () => opts.content ?? { body: eventId },
     getWireContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
@@ -1592,6 +1599,8 @@ beforeEach(() => {
   roomTimelineVirtualizerState.scrollToEndMock.mockClear();
   roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
+  isScrollNearBottomMock.mockReset();
+  isScrollNearBottomMock.mockReturnValue(true);
   isTimelineAtLiveEndMock.mockReturnValue(true);
   reactionOrEditEventMock.mockImplementation(() => false);
   isMembershipChangedMock.mockImplementation(() => false);
@@ -1942,6 +1951,7 @@ export {
   virtualPaginatorState,
   waitForCondition,
   wrapWithSyncEngine,
+  isScrollNearBottomMock,
   isTimelineAtLiveEndMock,
 };
 

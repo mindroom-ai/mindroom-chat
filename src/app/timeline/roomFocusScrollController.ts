@@ -17,12 +17,10 @@ import {
 } from './useVirtualPaginator';
 import { scrollToBottom } from '../lib/dom';
 import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
+import { useThreadOpeningPin } from './timelineLiveEnd';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
-import {
-  shouldPinThreadToBottomOnOpen,
-  type ThreadInitialRenderMode,
-} from '../event-store/threads/threadRenderUtils';
+import type { ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
 import {
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
@@ -110,6 +108,39 @@ export type RoomFocusScrollControllerOptions = {
 
 type Options = RoomFocusScrollControllerOptions;
 
+const NOOP = () => undefined;
+const ALWAYS_FALSE = () => false;
+const EMPTY_EVENTS: MatrixEvent[] = [];
+const DEFAULT_BRANCH_OPTIONS = {
+  threadTargets: {
+    getPending: NOOP,
+    queue: NOOP,
+    complete: NOOP,
+    discard: NOOP,
+    advanceAttempt: NOOP,
+    wakeRetry: NOOP,
+  } satisfies ThreadTargetCommands,
+  pendingThreadOpenTick: 0,
+  retryPagination: NOOP,
+  scrollToItem: ALWAYS_FALSE as ScrollToItem,
+  suppressFocusPaginationRef: { current: false } as MutableRefObject<boolean>,
+  isThreadOpenBottomPinSuppressed: ALWAYS_FALSE,
+  requestThreadOpenBottomPin: ALWAYS_FALSE,
+  cancelThreadOpenBottomPin: NOOP,
+  threadEventIndexMapRef: { current: new Map<string, number>() },
+  threadEventsLength: 0,
+  threadFilteredEvents: EMPTY_EVENTS,
+  threadFilteredEventsRef: { current: EMPTY_EVENTS },
+  threadInitialRenderMode: 'live' as ThreadInitialRenderMode,
+  threadLatestOpenPending: false,
+  threadOpenedAtLatest: false,
+  threadUserScrolled: false,
+  threadTimelineTick: 0,
+};
+
+export type RoomFocusScrollControllerInput = Omit<Options, keyof typeof DEFAULT_BRANCH_OPTIONS> &
+  Partial<Pick<Options, keyof typeof DEFAULT_BRANCH_OPTIONS>>;
+
 /**
  * What hands the scroll position to the reader. A plain `scroll` is not one: the virtual list
  * moves the position by itself when rows above the view change size.
@@ -136,42 +167,34 @@ type MarkerOpening = { marker: UnreadMarker; viewKey: string; over: boolean };
  * the room view or until the view changes. Returns what that gesture calls. Rows that run newest
  * first have their unread rows above the marker, so they open at their top instead.
  */
-const useUnreadMarkerOpening = ({
-  latestAtTopRef,
-  roomId,
-  scrollToItem,
-  threadId,
-  unreadInfo,
-  unreadScrollAnchorIndex,
-}: Pick<
-  Options,
-  | 'latestAtTopRef'
-  | 'roomId'
-  | 'scrollToItem'
-  | 'threadId'
-  | 'unreadInfo'
-  | 'unreadScrollAnchorIndex'
->) => {
+const useUnreadMarkerOpening = (o: Options) => {
+  const { scrollToItem } = o;
   const openingRef = useRef<MarkerOpening>(undefined);
   useLayoutEffect(() => {
-    const viewKey = `${roomId}|${threadId ?? ''}`;
+    const viewKey = `${o.roomId}|${o.threadId ?? ''}`;
     const previous = openingRef.current;
-    // A thread or another room ends the opening of the view it began in.
     if (previous && previous.viewKey !== viewKey) previous.over = true;
-    if (threadId || !unreadInfo?.readUptoEventId || latestAtTopRef?.current) return;
-    if (!unreadInfo.inLiveTimeline || !unreadInfo.scrollTo) return;
+    if (o.threadId || !o.unreadInfo?.readUptoEventId || o.latestAtTopRef?.current) return;
+    if (!o.unreadInfo.inLiveTimeline || !o.unreadInfo.scrollTo) return;
     let opening = previous;
-    if (!opening || opening.marker !== unreadInfo) {
-      opening = { marker: unreadInfo, viewKey, over: false };
+    if (!opening || opening.marker !== o.unreadInfo) {
+      opening = { marker: o.unreadInfo, viewKey, over: false };
       openingRef.current = opening;
     }
-    if (opening.over || unreadScrollAnchorIndex === undefined) return;
-    scrollToItem(unreadScrollAnchorIndex, {
+    if (opening.over || o.unreadScrollAnchorIndex === undefined) return;
+    scrollToItem(o.unreadScrollAnchorIndex, {
       behavior: 'instant',
       align: 'start',
       stopInView: true,
     });
-  }, [latestAtTopRef, roomId, scrollToItem, threadId, unreadInfo, unreadScrollAnchorIndex]);
+  }, [
+    o.latestAtTopRef,
+    o.roomId,
+    scrollToItem,
+    o.threadId,
+    o.unreadInfo,
+    o.unreadScrollAnchorIndex,
+  ]);
   return useCallback(() => {
     const opening = openingRef.current;
     if (opening) opening.over = true;
@@ -268,22 +291,7 @@ const useRoomFocusJump = ({
   threadFilteredEventsRef,
   foldedRows,
   threadId,
-}: Pick<
-  Options,
-  | 'alive'
-  | 'focusItem'
-  | 'focusScrollResetToken'
-  | 'retryPagination'
-  | 'roomId'
-  | 'scrollRef'
-  | 'scrollToElement'
-  | 'scrollToItem'
-  | 'setFocusItem'
-  | 'suppressFocusPaginationRef'
-  | 'threadFilteredEventsRef'
-  | 'foldedRows'
-  | 'threadId'
->) => {
+}: Options) => {
   const foldedRowsRef = useLatestRef(foldedRows);
   const [memory] = useState<FocusJumpMemory>(() => ({ roomId, focusItem }));
   // In the render that shows another room, before any effect: a focus of the previous room must
@@ -408,161 +416,33 @@ const useRoomFocusJump = ({
 };
 
 /**
- * A thread opened at its newest row is held there while its rows arrive and measure, until the
- * reader's first gesture or a jump target suppresses the opening pin.
- */
-const useThreadOpeningPin = ({
-  readMeasurementCorrectionPx,
-  isThreadOpenBottomPinSuppressed,
-  requestThreadOpenBottomPin,
-  scrollRef,
-  scrollThreadToEnd,
-  setAtBottom,
-  threadEventsLength,
-  threadId,
-  threadInitialRenderMode,
-  threadLatestOpenPending,
-  threadOpenedAtLatest,
-  threadUserScrolled,
-}: Pick<
-  Options,
-  | 'readMeasurementCorrectionPx'
-  | 'isThreadOpenBottomPinSuppressed'
-  | 'requestThreadOpenBottomPin'
-  | 'scrollRef'
-  | 'scrollThreadToEnd'
-  | 'setAtBottom'
-  | 'threadEventsLength'
-  | 'threadId'
-  | 'threadInitialRenderMode'
-  | 'threadLatestOpenPending'
-  | 'threadOpenedAtLatest'
-  | 'threadUserScrolled'
->) => {
-  // Whether the effect below pinned in this commit; the one after it then has nothing to do.
-  const pinnedInCommitRef = useRef(false);
-  // Where the last pin, or the last commit that found the view at the bottom, left the scroll
-  // position: a view above it was moved up by something else than the rows growing.
-  const pinnedPositionRef = useRef<{ top: number; correction: number }>(undefined);
-  useLayoutEffect(() => {
-    if (!threadId) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    const scrollArea = scrollRef.current;
-    if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
-    setAtBottom(true);
-    pinnedInCommitRef.current = true;
-    pinnedPositionRef.current = {
-      top: scrollArea.scrollTop,
-      correction: readMeasurementCorrectionPx?.() ?? 0,
-    };
-  }, [
-    readMeasurementCorrectionPx,
-    isThreadOpenBottomPinSuppressed,
-    requestThreadOpenBottomPin,
-    scrollRef,
-    scrollThreadToEnd,
-    setAtBottom,
-    threadEventsLength,
-    threadId,
-    threadInitialRenderMode,
-    threadLatestOpenPending,
-    threadOpenedAtLatest,
-    threadUserScrolled,
-  ]);
-  // Rows measure after the commit that pinned them: one taller than its estimate (a tool call, a
-  // reasoning summary) pushes the newest reply below the view. The commit that renders the
-  // measurement pins it again, as long as the opening pin holds and nothing else moved the view
-  // up (a script or assistive technology scrolls without the gestures that end the pin).
-  useLayoutEffect(() => {
-    if (pinnedInCommitRef.current) {
-      pinnedInCommitRef.current = false;
-      return;
-    }
-    const scrollArea = scrollRef.current;
-    if (!threadId || !scrollArea) return;
-    const correction = readMeasurementCorrectionPx?.() ?? 0;
-    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
-      pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
-      return;
-    }
-    const pinnedPosition = pinnedPositionRef.current;
-    if (!pinnedPosition) return;
-    // A shrink correction moves the scroll up even while other rows grow in the same pass.
-    // Compare against the position after our own corrections, so only an additional upward
-    // scroll hands ownership away. The ledger keeps the sum across its pre-paint renders.
-    const correctedTop = pinnedPosition.top + correction - pinnedPosition.correction;
-    if (scrollArea.scrollTop < correctedTop - 1) return;
-    const pinned = shouldPinThreadToBottomOnOpen({
-      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
-      threadId,
-      threadLatestOpenPending,
-      threadOpenedAtLatest,
-      hasUserScrollIntent: threadUserScrolled,
-      threadInitialRenderMode,
-      threadEventCount: threadEventsLength,
-    });
-    if (!pinned || !requestThreadOpenBottomPin()) return;
-    if (scrollThreadToEnd) scrollThreadToEnd(false);
-    else scrollToBottom(scrollArea, 'instant');
-    pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
-  });
-};
-
-/**
  * Brings the thread session's pending jump target into view in the open thread. A row in the DOM
  * is centred; otherwise the thread's virtual list scrolls toward it and the session tries again on
  * the next frame, until THREAD_TARGET_ATTEMPTS attempts found no row.
  */
-const useThreadJumpTarget = ({
-  cancelThreadBottomSettle,
-  pendingThreadOpenTick,
-  scrollRef,
-  scrollThreadEventIntoView,
-  scrollToElement,
-  setFocusItem,
-  threadEventIndexMapRef,
-  threadId,
-  threadTargets,
-  threadTimelineTick,
-}: Pick<
-  Options,
-  | 'cancelThreadBottomSettle'
-  | 'pendingThreadOpenTick'
-  | 'scrollRef'
-  | 'scrollThreadEventIntoView'
-  | 'scrollToElement'
-  | 'setFocusItem'
-  | 'threadEventIndexMapRef'
-  | 'threadId'
-  | 'threadTargets'
-  | 'threadTimelineTick'
->) => {
+const useThreadJumpTarget = (o: Options) => {
+  const {
+    cancelThreadBottomSettle,
+    scrollThreadEventIntoView,
+    scrollToElement,
+    setFocusItem,
+    threadTargets,
+  } = o;
   useLayoutEffect(() => {
-    if (!threadId) return;
+    if (!o.threadId) return;
     const target = threadTargets.getPending();
     if (!target) return;
     const { requestId, eventId } = target;
-    if (target.threadId !== threadId) {
+    if (target.threadId !== o.threadId) {
       threadTargets.discard(requestId);
       return;
     }
-    const index = threadEventIndexMapRef.current.get(eventId);
+    const index = o.threadEventIndexMapRef.current.get(eventId);
     if (index !== undefined) {
       setFocusItem({ eventId, index, scrollTo: false, highlight: target.highlight });
     }
-    const row = getEventElementById(scrollRef.current, eventId);
+    const row = getEventElementById(o.scrollRef.current, eventId);
     if (row) {
-      // The opening pin must not pull the reader back from the target.
       cancelThreadBottomSettle?.();
       scrollToElement(row, { align: 'center', behavior: 'instant', stopInView: true });
       threadTargets.complete(requestId, true);
@@ -577,15 +457,15 @@ const useThreadJumpTarget = ({
     requestAnimationFrame(() => threadTargets.wakeRetry(requestId));
   }, [
     cancelThreadBottomSettle,
-    pendingThreadOpenTick,
-    scrollRef,
+    o.pendingThreadOpenTick,
+    o.scrollRef,
     scrollThreadEventIntoView,
     scrollToElement,
     setFocusItem,
-    threadEventIndexMapRef,
-    threadId,
+    o.threadEventIndexMapRef,
+    o.threadId,
     threadTargets,
-    threadTimelineTick,
+    o.threadTimelineTick,
   ]);
 };
 
@@ -630,42 +510,27 @@ const finishSmoothBottomPin = (scrollArea: HTMLElement, wanted: () => boolean) =
  * smooth one to the bottom is finished at once if it stops short, until a newer request or a
  * gesture.
  */
-const useBottomPinRequests = ({
-  latestAtTopRef,
-  onBottomPin,
-  scrollRef,
-  scrollThreadToEnd,
-  scrollToBottomRef,
-  shouldApplyThreadBottomPin,
-}: Pick<
-  Options,
-  | 'latestAtTopRef'
-  | 'onBottomPin'
-  | 'scrollRef'
-  | 'scrollThreadToEnd'
-  | 'scrollToBottomRef'
-  | 'shouldApplyThreadBottomPin'
->) => {
-  const seenCountRef = useRef(scrollToBottomRef.current.count);
-  const guardRef = useLatestRef(shouldApplyThreadBottomPin);
+const useBottomPinRequests = (o: Options) => {
+  const seenCountRef = useRef(o.scrollToBottomRef.current.count);
+  const guardRef = useLatestRef(o.shouldApplyThreadBottomPin);
   useLayoutEffect(() => {
-    const { count, smooth } = scrollToBottomRef.current;
+    const { count, smooth } = o.scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
-    if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
-    const scrollArea = scrollRef.current;
+    if (count <= 0 || !o.shouldApplyThreadBottomPin(count)) return;
+    const scrollArea = o.scrollRef.current;
     if (!scrollArea) return;
-    const latestAtTop = !!latestAtTopRef?.current;
-    onBottomPin?.();
-    if (scrollThreadToEnd && !latestAtTop) {
-      scrollThreadToEnd(smooth);
+    const latestAtTop = !!o.latestAtTopRef?.current;
+    o.onBottomPin?.();
+    if (o.scrollThreadToEnd && !latestAtTop) {
+      o.scrollThreadToEnd(smooth);
       return;
     }
     scrollToLatestEnd(scrollArea, latestAtTop, smooth ? 'smooth' : 'instant');
     if (smooth && !latestAtTop) {
       finishSmoothBottomPin(
         scrollArea,
-        () => scrollToBottomRef.current.count === count && guardRef.current(count)
+        () => o.scrollToBottomRef.current.count === count && guardRef.current(count)
       );
     }
   });
@@ -684,11 +549,7 @@ type GestureListeners = {
  * room view they end the aiming at the unread marker.
  */
 const useReaderGestures = (
-  {
-    cancelThreadOpenBottomPin,
-    scrollRef,
-    threadId,
-  }: Pick<Options, 'cancelThreadOpenBottomPin' | 'scrollRef' | 'threadId'>,
+  { cancelThreadOpenBottomPin, scrollRef, threadId }: Options,
   endMarkerOpening: () => void
 ) => {
   const [listening] = useState<{ listeners?: GestureListeners }>({});
@@ -729,64 +590,47 @@ const useReaderGestures = (
 };
 
 /** Keeps the room focus item's index at its event's row while rows come and go above it. */
-const useFocusIndexTracking = ({
-  focusItem,
-  setFocusItem,
-  threadFilteredEvents,
-  foldedRows,
-  threadId,
-}: Pick<
-  Options,
-  'focusItem' | 'setFocusItem' | 'threadFilteredEvents' | 'foldedRows' | 'threadId'
->) => {
+const useFocusIndexTracking = (o: Options) => {
+  const { setFocusItem } = o;
   useEffect(() => {
-    const eventId = focusItem?.eventId;
-    if (threadId || !focusItem || !eventId) return;
-    const index = focusedRoomRow(threadFilteredEvents, foldedRows, focusItem);
-    if (index === focusItem.index) return;
+    const eventId = o.focusItem?.eventId;
+    if (o.threadId || !o.focusItem || !eventId) return;
+    const index = focusedRoomRow(o.threadFilteredEvents, o.foldedRows, o.focusItem);
+    if (index === o.focusItem.index) return;
     setFocusItem((current) =>
       current?.eventId === eventId && current.index !== index ? { ...current, index } : current
     );
-  }, [focusItem, foldedRows, setFocusItem, threadFilteredEvents, threadId]);
+  }, [o.focusItem, o.foldedRows, setFocusItem, o.threadFilteredEvents, o.threadId]);
 };
 
 /** Brings the row of the message being edited into view, unless it already shows in full. */
-const useEditedRowInView = ({
-  editId,
-  scrollRef,
-  scrollToElement,
-}: Pick<Options, 'editId' | 'scrollRef' | 'scrollToElement'>) => {
+const useEditedRowInView = (o: Options) => {
+  const { scrollToElement } = o;
   useEffect(() => {
-    if (!editId) return;
-    const row = getEventElementById(scrollRef.current, editId);
+    if (!o.editId) return;
+    const row = getEventElementById(o.scrollRef.current, o.editId);
     if (row) scrollToElement(row, { behavior: 'smooth', align: 'center', stopInView: true });
-  }, [editId, scrollRef, scrollToElement]);
+  }, [o.editId, o.scrollRef, scrollToElement]);
 };
 
-/**
- * Jump to Latest shows while the timeline is away from its live end. Back at the live end it hides
- * when the latest-end anchor is within reach of the scroll area; otherwise scrolling decides.
- */
-const useLiveEndAtBottom = ({
-  atBottomAnchorRef,
-  latestAtTopRef,
-  scrollRef,
-  setAtBottom,
-  timelineAtLiveEnd,
-}: Pick<
-  Options,
-  'atBottomAnchorRef' | 'latestAtTopRef' | 'scrollRef' | 'setAtBottom' | 'timelineAtLiveEnd'
->) => {
+/** Jump to Latest shows away from live end and hides once the latest-end anchor is in reach. */
+const useLiveEndAtBottom = (o: Options) => {
+  const { setAtBottom } = o;
   useEffect(() => {
-    if (!timelineAtLiveEnd) {
+    if (!o.timelineAtLiveEnd) {
       setAtBottom(false);
       return;
     }
-    const anchor = atBottomAnchorRef.current;
-    const scrollArea = scrollRef.current;
-    if (!anchor || !scrollArea) return;
-    if (isLatestAnchorInReach(anchor, scrollArea, !!latestAtTopRef?.current)) setAtBottom(true);
-  }, [atBottomAnchorRef, latestAtTopRef, scrollRef, setAtBottom, timelineAtLiveEnd]);
+    const anchor = o.atBottomAnchorRef.current;
+    const scrollArea = o.scrollRef.current;
+    if (
+      anchor &&
+      scrollArea &&
+      isLatestAnchorInReach(anchor, scrollArea, !!o.latestAtTopRef?.current)
+    ) {
+      setAtBottom(true);
+    }
+  }, [o.atBottomAnchorRef, o.latestAtTopRef, o.scrollRef, setAtBottom, o.timelineAtLiveEnd]);
 };
 
 /**
@@ -794,7 +638,8 @@ const useLiveEndAtBottom = ({
  * matters: before paint, the thread's opening pin runs ahead of its jump target, which cancels it,
  * and the bottom-pin requests run ahead of the latest-row pin the timeline calls after this hook.
  */
-export const useRoomFocusScrollController = (options: RoomFocusScrollControllerOptions): void => {
+export const useRoomFocusScrollController = (rawOptions: RoomFocusScrollControllerInput): void => {
+  const options: Options = { ...DEFAULT_BRANCH_OPTIONS, ...rawOptions };
   // Before paint.
   const endMarkerOpening = useUnreadMarkerOpening(options);
   useRoomFocusJump(options);

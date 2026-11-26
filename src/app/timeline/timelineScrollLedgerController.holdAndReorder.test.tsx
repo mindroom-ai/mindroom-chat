@@ -5,7 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EXPAND_ALL_LINE_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
-import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
+import { useTimelineRowJumps } from './roomTimelineScroll';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import {
   readVirtualizerHoldOffset,
   useTimelineScrollLedgerController,
@@ -215,7 +216,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       });
       if (withRowJumps) mounted.jumps = jumps;
 
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: thread ? 'thread' : 'room',
         itemCount: keys.length,
         virtualizer: controller.virtualizer,

@@ -60,8 +60,8 @@ export const useRoomPaginationCommandController = ({
   sessionId: string;
   setRoomHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<RoomTimelineState>>;
-  threadId: string | undefined;
-  threadIdRef: MutableRefObject<string | undefined>;
+  threadId?: string;
+  threadIdRef?: MutableRefObject<string | undefined>;
   timeline: RoomTimelineState;
 }) => {
   const backPaginationPromiseRef = useRef<Promise<void>>(undefined);
@@ -104,7 +104,7 @@ export const useRoomPaginationCommandController = ({
         mapEvent: createPreferLiveEventMapper(room, mapper),
       });
 
-      if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (!alive() || roomIdRef.current !== room.roomId || threadIdRef?.current) return;
 
       if (cachedPaginationSnapshot.status === 'start-known') {
         if (firstTimeline.getPaginationToken(Direction.Backward) !== null) {
@@ -154,7 +154,7 @@ export const useRoomPaginationCommandController = ({
           });
         }
 
-        if (alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
+        if (alive() && roomIdRef.current === room.roomId && !threadIdRef?.current) {
           recalibrateTimelinePagination(
             setTimeline,
             currentLinkedTimelines,
@@ -173,7 +173,7 @@ export const useRoomPaginationCommandController = ({
       // so we can compare after and know which events are new.
       const preFetchEarliestId = getEarliestLoadedRoomEvent(room, currentLinkedTimelines)?.getId();
       await handleTimelinePagination(true);
-      if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (!alive() || roomIdRef.current !== room.roomId || threadIdRef?.current) return;
 
       // ISSUE-207 P3.3 (explicit-persist-point, option b): backward
       // pagination delivers events with `toStartOfTimeline=true`,
@@ -216,7 +216,7 @@ export const useRoomPaginationCommandController = ({
           edge: firstTimeline,
           before: cachedAbove,
           setTimeline,
-          isCurrent: () => alive() && roomIdRef.current === room.roomId && !threadIdRef.current,
+          isCurrent: () => alive() && roomIdRef.current === room.roomId && !threadIdRef?.current,
         });
       }
     } finally {

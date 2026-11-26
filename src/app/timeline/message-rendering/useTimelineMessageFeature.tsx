@@ -119,6 +119,8 @@ type UseTimelineMessageFeatureOptions = TimelineSettings & {
   threadId?: string;
   scrollRef: RefObject<HTMLDivElement | null>;
   showThreadRepliesInRoom: boolean;
+  /** Persistent expansion choices shared across room surface switches (`useTimelineExpansionState`). */
+  expansionState?: TimelineExpansionState;
 };
 
 /**
@@ -300,6 +302,21 @@ const useLiveExpansion = () => {
   return { ids: idsRef.current, mark, consume };
 };
 
+/** Persistent message expansion choices and live-arrival auto-expand state. */
+export const useTimelineExpansionState = () => {
+  const liveExpansion = useLiveExpansion();
+  const manualExpansionState = useRef(new Map<string, boolean>()).current;
+  const [expandAll, setExpandAll] = useState(false);
+  const toggleExpandAll = useCallback(() => {
+    // The new baseline replaces every choice made for a single message.
+    manualExpansionState.clear();
+    setExpandAll((current) => !current);
+  }, [manualExpansionState]);
+  return { liveExpansion, manualExpansionState, expandAll, setExpandAll, toggleExpandAll };
+};
+
+export type TimelineExpansionState = ReturnType<typeof useTimelineExpansionState>;
+
 /** Lines a failed send's Not sent row and reason up with the end of an own bubble. */
 const endAligned = { alignItems: 'flex-end' } as const;
 
@@ -391,22 +408,18 @@ export const useTimelineMessageFeature = ({
   hideActivity,
   messageLayout,
   messageSpacing,
+  expansionState,
 }: UseTimelineMessageFeatureOptions) => {
   const client = useMatrixClient();
   // Reaction pickers offer the emoji of the room, its spaces and the homeserver's emoji room.
   const imagePackRooms = useImagePackRooms(room.roomId, useAtomValue(roomToParentsAtom));
   const [editingEventId, setEditingEventId] = useState<string>();
-  const liveExpansion = useLiveExpansion();
+  const internalExpansionState = useTimelineExpansionState();
+  const { liveExpansion, manualExpansionState, expandAll, toggleExpandAll } =
+    expansionState ?? internalExpansionState;
   const { mark: markLiveExpansionCandidate, consume: consumeLiveExpansion } = liveExpansion;
   const liveExpansionIds = liveExpansion.ids;
-  const manualExpansionState = useRef(new Map<string, boolean>()).current;
-  const [expandAll, setExpandAll] = useState(false);
   const restoreExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
-  const toggleExpandAll = useCallback(() => {
-    // The new baseline replaces every choice made for a single message.
-    manualExpansionState.clear();
-    setExpandAll((current) => !current);
-  }, [manualExpansionState]);
   const renderedEventsRef = useRef<MatrixEvent[]>([]);
   renderedEventsRef.current = [];
   const openRoomSettings = useOpenRoomSettings();

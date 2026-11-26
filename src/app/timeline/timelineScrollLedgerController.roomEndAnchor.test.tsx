@@ -4,7 +4,8 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_INTRO_KEY } from './roomTimelineRows';
-import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
+import { useTimelineRowJumps } from './roomTimelineScroll';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import {
   readVirtualizerHoldOffset,
   useTimelineScrollLedgerController,
@@ -197,7 +198,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       });
       if (withRowJumps) mounted.jumps = jumps;
 
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: 'room',
         itemCount: keys.length,
         virtualizer: controller.virtualizer,
