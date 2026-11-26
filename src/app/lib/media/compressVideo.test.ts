@@ -43,6 +43,7 @@ type MockBufferTarget = {
 type MockInput = {
   options: unknown;
   dispose: ReturnType<typeof vi.fn<() => void>>;
+  getDurationFromMetadata: ReturnType<typeof vi.fn<() => Promise<number | null>>>;
 };
 
 type MockState = {

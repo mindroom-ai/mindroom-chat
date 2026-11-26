@@ -216,19 +216,6 @@ export const UploadCardRenderer = ({
           {!isCompressing && upload.status === UploadStatus.Success && (
             <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
           )}
-          {showUseOriginal && (
-            <Chip
-              type="button"
-              variant="SurfaceVariant"
-              radii="Pill"
-              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-              onClick={() => onUseOriginal(fileItem)}
-            >
-              <Text as="span" size="B300">
-                {t('sharedUi.uploadCardRenderer.useOriginal')}
-              </Text>
-            </Chip>
-          )}
           {canBeSpoiler && (
             <IconButton
               type="button"
@@ -270,14 +257,30 @@ export const UploadCardRenderer = ({
       <Text size="H6" truncate title={name}>
         {name}
       </Text>
-      <Text size="T200" priority="300">
-        {compression?.status === 'compressed'
-          ? t('sharedUi.uploadCardRenderer.compressedSize', {
-              originalSize: bytesToSize(compression.originalSize),
-              compressedSize: bytesToSize(originalFile.size),
-            })
-          : bytesToSize(originalFile.size)}
-      </Text>
+      <Box alignItems="Center" gap="200" wrap="Wrap">
+        <Text size="T200" priority="300" style={{ whiteSpace: 'nowrap' }}>
+          {compression?.status === 'compressed'
+            ? t('sharedUi.uploadCardRenderer.compressedSize', {
+                originalSize: bytesToSize(compression.originalSize),
+                compressedSize: bytesToSize(originalFile.size),
+              })
+            : bytesToSize(originalFile.size)}
+        </Text>
+        {showUseOriginal && (
+          <Chip
+            type="button"
+            size="400"
+            variant="SurfaceVariant"
+            radii="Pill"
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            onClick={() => onUseOriginal(fileItem)}
+          >
+            <Text as="span" size="T200">
+              {t('sharedUi.uploadCardRenderer.useOriginal')}
+            </Text>
+          </Chip>
+        )}
+      </Box>
     </UploadCard>
   );
 };
