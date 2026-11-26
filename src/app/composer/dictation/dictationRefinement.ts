@@ -82,10 +82,13 @@ export const createDictationRateBudget = (): DictationRateBudget => ({
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
-const isFrameAlignedWav = (wav: Blob): boolean => {
+export const isFrameAlignedWav = (wav: Blob): boolean => {
   const dataBytes = wav.size - DICTATION_WAV_HEADER_BYTES;
   return dataBytes > 0 && dataBytes % FRAME_BYTES === 0;
 };
+
+export const segmentSlicePosition = (index: number, count: number): SegmentSlicePosition =>
+  count === 1 ? 'only' : index === 0 ? 'first' : index === count - 1 ? 'last' : 'middle';
 
 /** Computes the [startFrame, endFrame) slice kept for a segment without trimming voiced frames. */
 export const computeSegmentSliceFrames = (
@@ -129,16 +132,7 @@ const planMergedGroup = (segments: readonly SliceableSegment[]) => {
     if (!isFrameAlignedWav(seg.wav)) return null;
   }
   const slices = segments.map((seg, i) =>
-    computeSegmentSliceFrames(
-      seg,
-      segments.length === 1
-        ? 'only'
-        : i === 0
-          ? 'first'
-          : i === segments.length - 1
-            ? 'last'
-            : 'middle'
-    )
+    computeSegmentSliceFrames(seg, segmentSlicePosition(i, segments.length))
   );
   let totalFrames = 0;
   const padAfter: number[] = [];

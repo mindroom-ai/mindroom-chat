@@ -801,6 +801,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     });
   }
 
+  const takeJournalAndReset = (): { journalId?: string } => {
+    const journalId = checkpointer.takeJournal()?.id;
+    releaseAll();
+    return journalId ? { journalId } : {};
+  };
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -879,21 +885,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       requeueFailedSegments(false, { phase: 'finishing', errorMessage: undefined });
       return settleFinishOrRetry(generation);
     },
-    takePartialText: () => {
-      const text = stitchCompleted();
-      const journalId = checkpointer.takeJournal()?.id;
-      releaseAll();
-      return { text, ...(journalId ? { journalId } : {}) };
-    },
+    takePartialText: () => ({ text: stitchCompleted(), ...takeJournalAndReset() }),
     buildVoiceAudio: () => {
       if (snapshot.phase === 'idle') return Promise.resolve(undefined);
       return buildDictationVoiceAudio(records, groups, now());
     },
-    completeVoiceFallback: () => {
-      const journalId = checkpointer.takeJournal()?.id;
-      releaseAll();
-      return journalId ? { journalId } : {};
-    },
+    completeVoiceFallback: takeJournalAndReset,
     park: () => {
       if (snapshot.phase === 'requesting') {
         if (requestMode === 'start') {

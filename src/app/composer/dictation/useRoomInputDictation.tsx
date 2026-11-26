@@ -59,6 +59,7 @@ import {
   getMountedOwner,
   mergeDictatedDoc,
   registerMountedDictationOwner,
+  type CreateVoiceUploadItems,
 } from './dictationSendHandoff';
 import type {
   DictationSession,
@@ -88,11 +89,7 @@ export type UseRoomInputDictationOptions = {
   containerRef?: RefObject<HTMLElement | null>;
   createSession?: (opts: DictationSessionOptions) => DictationSession;
   onCommandProblem?: (problem: string) => void;
-  prepareVoiceUploadItems?: (
-    file: File,
-    duration: number,
-    waveform: number[] | undefined
-  ) => Promise<TUploadItem[]>;
+  prepareVoiceUploadItems?: CreateVoiceUploadItems;
   appendAttachments?: (roomId: string, items: TUploadItem[]) => void;
   restoreAttachments?: (roomId: string, items: TUploadItem[]) => void;
   restoreReplyDraft?: (replyDraft: IReplyDraft) => void;
@@ -613,11 +610,10 @@ export const useRoomInputDictation = ({
   const handleRetry = useCallback(() => {
     const current = getLiveDictationSession();
     if (!current || current.getSnapshot().phase !== 'failed') return;
-    setVoiceFallbackError(undefined);
     completeLiveDictation(current, 'retry');
   }, [completeLiveDictation, getLiveDictationSession]);
 
-  const handleAttachAsVoice = useCallback(async () => {
+  const handleAttachAsVoice = async () => {
     if (voiceFallbackPendingRef.current) return;
     const prepareItems = callbacksRef.current.prepareVoiceUploadItems;
     const appendItems = callbacksRef.current.appendAttachments;
@@ -629,12 +625,10 @@ export const useRoomInputDictation = ({
     setVoiceFallbackPending(true);
     setVoiceFallbackError(undefined);
     const sameAccount = captureAccountGuard(store);
-    const targetRoomId = roomId;
-    const targetSendKey = sendKey;
     const isStillActiveTarget = () =>
       sameAccount() &&
       mountedRef.current &&
-      activeSendKeyRef.current === targetSendKey &&
+      activeSendKeyRef.current === sendKey &&
       store.get(liveCaptureAtom)?.session === current &&
       current.getSnapshot().phase === 'failed';
     try {
@@ -650,7 +644,7 @@ export const useRoomInputDictation = ({
       if (items.length === 0) throw new Error('Could not prepare voice message.');
       if (!isStillActiveTarget()) return;
 
-      appendItems(targetRoomId, items);
+      appendItems(roomId, items);
       const shouldFocus = consumeRestoreFocus();
       const savedSelection = consumeSelectionRef(current);
       if (voiceAudio.missingAudioPartialText) {
@@ -680,23 +674,11 @@ export const useRoomInputDictation = ({
       voiceFallbackPendingRef.current = false;
       if (mountedRef.current) setVoiceFallbackPending(false);
     }
-  }, [
-    activeSendKeyRef,
-    callbacksRef,
-    consumeRestoreFocus,
-    consumeSelectionRef,
-    editor,
-    focusEditor,
-    getLiveDictationSession,
-    roomId,
-    sendKey,
-    store,
-  ]);
+  };
 
   const handleInsertPartial = useCallback(() => {
     const current = getLiveDictationSession();
     if (!current) return;
-    setVoiceFallbackError(undefined);
     const { text, journalId } = current.takePartialText();
     if (
       insertDictatedText(editor, text, consumeSelectionRef(current), {

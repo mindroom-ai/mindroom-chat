@@ -6,10 +6,12 @@ import {
 import {
   computeSegmentSliceFrames,
   getRefinementGroupCoveredEnd,
+  isFrameAlignedWav,
   MIN_INTERNAL_GAP_FRAMES,
+  segmentSlicePosition,
+  stitchRefinedSegments,
   type RefinementGroup,
   type RefinementSegmentRecord,
-  type SegmentSlicePosition,
 } from './dictationRefinement';
 import {
   buildPcm16WavHeader,
@@ -18,7 +20,6 @@ import {
   DICTATION_SAMPLE_RATE,
   DICTATION_WAV_HEADER_BYTES,
 } from './dictationSegmenter';
-import { stitchTranscript, type StitchSegmentInput } from './stitchTranscript';
 
 const FRAME_BYTES = DICTATION_FRAME_SAMPLES * 2;
 
@@ -39,64 +40,28 @@ const extractMissingAudioPartialText = (
 ): string | undefined => {
   if (records.every((record) => hasUsableDictationWav(record.wav))) return undefined;
 
-  const parts: StitchSegmentInput[] = [];
-  if (groups.length === 0) {
-    for (const record of records) {
-      if (
-        !hasUsableDictationWav(record.wav) &&
-        record.status === 'completed' &&
-        record.text !== undefined
-      ) {
-        parts.push({ text: record.text, overlapped: record.segment.overlapped });
-      }
-    }
-  } else {
-    for (const group of groups) {
-      if (group.startIndex >= records.length) break;
-      const end = Math.min(group.endIndex, records.length - 1);
-      let primaryStart = group.startIndex;
-      const coveredEnd = Math.min(getRefinementGroupCoveredEnd(group), end);
-      if (group.refinedText && coveredEnd >= group.startIndex) {
-        let allCoveredMissingWav = true;
-        for (let i = group.startIndex; i <= coveredEnd; i += 1) {
-          if (hasUsableDictationWav(records[i]?.wav)) {
-            allCoveredMissingWav = false;
-            break;
-          }
-        }
-        if (allCoveredMissingWav) {
-          parts.push({
-            text: group.refinedText,
-            overlapped: records[group.startIndex]?.segment.overlapped ?? false,
-          });
-          primaryStart = coveredEnd + 1;
-        }
-      }
-      for (let i = primaryStart; i <= end; i += 1) {
-        const record = records[i];
-        if (
-          record &&
-          !hasUsableDictationWav(record.wav) &&
-          record.status === 'completed' &&
-          record.text !== undefined
-        ) {
-          parts.push({ text: record.text, overlapped: record.segment.overlapped });
-        }
-      }
-    }
-  }
+  const maskedRecords = records.map((record) =>
+    hasUsableDictationWav(record.wav)
+      ? { ...record, status: 'failed' as const, text: undefined }
+      : record
+  );
+  const effectiveGroups: RefinementGroup[] =
+    groups.length === 0
+      ? [{ startIndex: 0, endIndex: records.length - 1, state: 'fallback' }]
+      : groups.map((group) => {
+          const coveredEnd = Math.min(getRefinementGroupCoveredEnd(group), records.length - 1);
+          const keepRefined =
+            coveredEnd >= group.startIndex &&
+            records
+              .slice(group.startIndex, coveredEnd + 1)
+              .every((record) => !hasUsableDictationWav(record.wav));
+          return keepRefined
+            ? { ...group, refinedEndIndex: coveredEnd }
+            : { ...group, refinedText: undefined };
+        });
 
-  const stitched = stitchTranscript(parts);
+  const stitched = stitchRefinedSegments(maskedRecords, effectiveGroups);
   return stitched.length > 0 ? stitched : undefined;
-};
-
-type PlannedVoiceSlice = {
-  wav: Blob;
-  byteStart: number;
-  byteEnd: number;
-  keptLeading: number;
-  keptTrailing: number;
-  adjacentIntoNext: boolean;
 };
 
 const computeWaveformFromPcm16 = (view: DataView, totalSamples: number): number[] => {
@@ -137,19 +102,17 @@ export const buildDictationVoiceAudio = async (
   }
   if (audioEntries.length === 0) return undefined;
 
-  const slices: PlannedVoiceSlice[] = audioEntries.map((entry, i) => {
-    const { record, index } = entry;
+  const slices = audioEntries.map(({ record, index }, i) => {
     const { wav } = record;
-    const prev = i > 0 ? audioEntries[i - 1] : undefined;
-    const next = i + 1 < audioEntries.length ? audioEntries[i + 1] : undefined;
+    const prev = audioEntries[i - 1];
+    const next = audioEntries[i + 1];
     const adjacentFromPrev =
       prev !== undefined && record.segment.overlapped && index === prev.index + 1;
     const adjacentIntoNext =
       next !== undefined && next.record.segment.overlapped && next.index === index + 1;
     const dataBytes = wav.size - DICTATION_WAV_HEADER_BYTES;
-    const frameAligned = dataBytes > 0 && dataBytes % FRAME_BYTES === 0;
 
-    if (!frameAligned) {
+    if (!isFrameAlignedWav(wav)) {
       const evenDataBytes = dataBytes - (dataBytes % 2);
       return {
         wav,
@@ -162,15 +125,10 @@ export const buildDictationVoiceAudio = async (
     }
 
     const totalFrames = dataBytes / FRAME_BYTES;
-    const position: SegmentSlicePosition =
-      audioEntries.length === 1
-        ? 'only'
-        : i === 0
-          ? 'first'
-          : i === audioEntries.length - 1
-            ? 'last'
-            : 'middle';
-    const slice = computeSegmentSliceFrames({ ...record.segment, wav }, position);
+    const slice = computeSegmentSliceFrames(
+      { ...record.segment, wav },
+      segmentSlicePosition(i, audioEntries.length)
+    );
     const startFrame = adjacentFromPrev
       ? Math.min(totalFrames, DICTATION_HARD_CUT_OVERLAP_FRAMES)
       : slice.startFrame;
@@ -186,58 +144,36 @@ export const buildDictationVoiceAudio = async (
     };
   });
 
-  const padAfterFrames: number[] = [];
-  let totalPcmBytes = 0;
+  const pcmParts: BlobPart[] = [];
   for (let i = 0; i < slices.length; i += 1) {
     const slice = slices[i]!;
-    totalPcmBytes += Math.max(0, slice.byteEnd - slice.byteStart);
-    if (i + 1 < slices.length) {
-      const next = slices[i + 1]!;
+    if (slice.byteEnd > slice.byteStart) {
+      pcmParts.push(slice.wav.slice(slice.byteStart, slice.byteEnd));
+    }
+    const next = slices[i + 1];
+    if (next) {
       const padFrames = slice.adjacentIntoNext
         ? 0
         : Math.max(0, MIN_INTERNAL_GAP_FRAMES - (slice.keptTrailing + next.keptLeading));
-      padAfterFrames.push(padFrames);
-      totalPcmBytes += padFrames * FRAME_BYTES;
+      if (padFrames > 0) pcmParts.push(new Uint8Array(padFrames * FRAME_BYTES));
     }
   }
-  if (totalPcmBytes < 2) return undefined;
+  const pcmBlob = new Blob(pcmParts);
+  if (pcmBlob.size < 2) return undefined;
 
   // Snapshot any missing-WAV partial text before awaiting Blob reads so caller mutations cannot race.
   const missingAudioPartialText = extractMissingAudioPartialText(records, groups);
 
-  const output = new Uint8Array(DICTATION_WAV_HEADER_BYTES + totalPcmBytes);
-  output.set(new Uint8Array(buildPcm16WavHeader(totalPcmBytes, DICTATION_SAMPLE_RATE)), 0);
-
-  const buffers = await Promise.all(
-    slices.map((slice) =>
-      slice.byteEnd > slice.byteStart
-        ? slice.wav.slice(slice.byteStart, slice.byteEnd).arrayBuffer()
-        : Promise.resolve(new ArrayBuffer(0))
-    )
-  );
-
-  let offset = DICTATION_WAV_HEADER_BYTES;
-  for (let i = 0; i < slices.length; i += 1) {
-    const bytes = new Uint8Array(buffers[i]!);
-    if (bytes.byteLength > 0) {
-      output.set(bytes, offset);
-      offset += bytes.byteLength;
-    }
-    const padFrames = padAfterFrames[i] ?? 0;
-    if (padFrames > 0) {
-      offset += padFrames * FRAME_BYTES;
-    }
-  }
-
-  const totalSamples = Math.floor(totalPcmBytes / 2);
-  const seconds = totalSamples / DICTATION_SAMPLE_RATE;
-  const duration = Math.max(1, Math.round(seconds * 1000));
-  const waveform = computeWaveformFromPcm16(
-    new DataView(output.buffer, DICTATION_WAV_HEADER_BYTES, totalPcmBytes),
-    totalSamples
-  );
+  const pcmBuffer = await pcmBlob.arrayBuffer();
+  const totalSamples = Math.floor(pcmBuffer.byteLength / 2);
+  const duration = Math.max(1, Math.round((totalSamples / DICTATION_SAMPLE_RATE) * 1000));
+  const waveform = computeWaveformFromPcm16(new DataView(pcmBuffer), totalSamples);
   const timestamp = new Date(nowMs).toISOString().replace(/[:.]/g, '-');
-  const file = new File([output], `voice-message-${timestamp}.wav`, { type: 'audio/wav' });
+  const file = new File(
+    [buildPcm16WavHeader(pcmBuffer.byteLength, DICTATION_SAMPLE_RATE), pcmBuffer],
+    `voice-message-${timestamp}.wav`,
+    { type: 'audio/wav' }
+  );
 
   return {
     file,

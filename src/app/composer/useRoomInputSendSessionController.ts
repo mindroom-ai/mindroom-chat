@@ -54,6 +54,11 @@ import {
   threadForkDraftId,
 } from '../event-store/threads/threadFork';
 
+export const LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR =
+  'Cannot start a lifecycle-complete send while another session is active.';
+export const LIFECYCLE_COMPLETE_UNFINISHED_ERROR =
+  'Lifecycle-complete send did not finish within the initiating call.';
+
 type SendSession = RoomInputSendSessionState & {
   room: Room;
   roomId: string;
@@ -892,9 +897,7 @@ export const useRoomInputSendSessionController = ({
       if (existingSession) {
         if (completeWithinCall) {
           restoreResetFallback();
-          throw new Error(
-            'Cannot start a lifecycle-complete send while another session is active.'
-          );
+          throw new Error(LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR);
         }
         if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
           // Send again: the attachments whose send failed go out again; text being sent stays
@@ -1086,7 +1089,7 @@ export const useRoomInputSendSessionController = ({
       }
       if (completeWithinCall && activeSlot.session) {
         clearSendSession(activeSlot);
-        throw new Error('Lifecycle-complete send did not finish within the initiating call.');
+        throw new Error(LIFECYCLE_COMPLETE_UNFINISHED_ERROR);
       }
     },
     [
