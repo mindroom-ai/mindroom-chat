@@ -50,16 +50,17 @@ jobs:
         run: npx tsc --noEmit -p config/tsconfig.app.json
       - name: Strict check
         if: ${{ !cancelled() }}
-        # config/tsconfig.strict.json covers the tests too; tsc needs more than Node's default heap on a runner.
+        # config/tsconfig.strict.json covers the tests too (~4.2 GiB TS heap, ~6.3 GiB peak RSS);
+        # ubuntu-24.04 runners have 16 GiB RAM, so 10 GiB keeps headroom alongside Lint below.
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
+          NODE_OPTIONS: --max-old-space-size=10240
         run: npx tsc --noEmit -p config/tsconfig.strict.json
       - name: Lint
         if: ${{ !cancelled() }}
-        # The type-aware rules load the same program as the strict check: ESLint too needs more than Node's
-        # default heap on a runner, where it sometimes ran out at about 4 GB.
+        # The type-aware rules load the same strict TS program plus ESLint ASTs: 6 GiB OOMed on main,
+        # while 10 GiB finishes around 8.3 GiB peak RSS with headroom on the 16 GiB ubuntu-24.04 runner.
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
+          NODE_OPTIONS: --max-old-space-size=10240
         run: npm run lint
       - name: Unit tests
         if: ${{ !cancelled() }}
