@@ -57,6 +57,7 @@ import { hasFailedPasteMarkerInText, skipsRootModel } from './useRoomInputSendSe
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import {
   hasMissingPasteAttachmentForText,
+  prepareAndUploadDeferredAttachments,
   type RoomInputAttachmentAccess,
 } from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
@@ -431,31 +432,29 @@ export const useRoomInputVoice = ({
           composerBundle.companionItems.length > 0 &&
           prepareAttachmentsForSend
         ) {
-          const initialCompanions = composerBundle.companionItems;
-          const preparedCompanions = await prepareAttachmentsForSend(
-            liveContext.room,
-            initialCompanions
-          );
+          const { prepared, missingPasteMarker } = await prepareAndUploadDeferredAttachments({
+            room: liveContext.room,
+            items: composerBundle.companionItems,
+            batchItems: composerBundle.companionItems,
+            textContent: composerBundle.textContent,
+            prepareForSend: prepareAttachmentsForSend,
+            onPrepared: (preparedCompanions) => {
+              const releasePrepared = attachmentAccess.protectPasteItems(preparedCompanions);
+              const prevRelease = composerBundle.releasePasteProtection;
+              composerBundle.releasePasteProtection = () => {
+                releasePrepared();
+                prevRelease();
+              };
+            },
+          });
           ensureSameAccount();
-          const releasePrepared = attachmentAccess.protectPasteItems(preparedCompanions);
-          const prevRelease = composerBundle.releasePasteProtection;
-          composerBundle.releasePasteProtection = () => {
-            releasePrepared();
-            prevRelease();
-          };
-          if (
-            hasMissingPasteAttachmentForText(
-              composerBundle.textContent,
-              initialCompanions,
-              preparedCompanions
-            )
-          ) {
+          if (missingPasteMarker) {
             return logAndThrowUploadError(
               new Error('A pasted attachment could not be prepared for this room.'),
               'create'
             );
           }
-          composerBundle.companionItems = preparedCompanions;
+          composerBundle.companionItems = prepared;
         }
         const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
         // A file removed from the composer before it goes is left out.
@@ -511,12 +510,22 @@ export const useRoomInputVoice = ({
           const companionUploadResults = await companionUploadResultsPromise;
           ensureSameAccount();
 
-          const readyItems = [
-            ...companionUploadResults
-              .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
-              .filter((item): item is TUploadItem => item !== undefined && stillStaged(item)),
-            fileItem,
-          ];
+          const uploadedCompanions = companionUploadResults
+            .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
+            .filter((item): item is TUploadItem => item !== undefined && stillStaged(item));
+          if (
+            hasMissingPasteAttachmentForText(
+              composerBundle.textContent,
+              eligibleCompanionItems,
+              uploadedCompanions
+            )
+          ) {
+            return logAndThrowUploadError(
+              new Error('A pasted attachment could not be uploaded for this room.'),
+              'upload'
+            );
+          }
+          const readyItems = [...uploadedCompanions, fileItem];
           try {
             if (composerBundle) {
               composerBundle.handedOff = true;
