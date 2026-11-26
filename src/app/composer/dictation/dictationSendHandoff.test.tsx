@@ -1768,7 +1768,7 @@ describe('dictationSendHandoff', () => {
     expect(startSendSession.mock.calls[0]?.[0]?.batch?.fileItems).toEqual([readyItem]);
   });
 
-  it('sends failed detached dictation as voice with companion text, missingAudioPartialText, attachment, reply, rootModel, and midTurnMode, deleting journal only on consumption', async () => {
+  it('sends failed detached dictation as voice with companion text, missingAudioPartialText, attachment, reply, rootModel, and midTurnMode, settling journal on composer handoff', async () => {
     const store = createStore();
     const room = makeRoom('!voice:example.org', 'Voice Room');
     const key = getRoomInputDraftKey('@alice:example.org', room.roomId);
@@ -1877,14 +1877,13 @@ describe('dictationSendHandoff', () => {
     expect(capturedOpts?.context?.roomId).toBe(room.roomId);
     expect(capturedOpts?.batch?.fileItems).toEqual([companionItem, voiceItem]);
 
-    // Normal room clears live session & detached entry at composer handoff, but keeps journal alive until voice sends.
+    // Normal room settles the dictation journal immediately on composer handoff (matching Attach as voice),
+    // clears live session & detached entry, and leaves upload atom ownership with the composer board.
     expect(s.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
     expect(store.get(detachedDictationSendsAtom).has(key)).toBe(false);
-    expect(mocks.deleteCapture).not.toHaveBeenCalled();
-
-    // Once Matrix accepts voiceItem (onUploadSent), journal is deleted and upload atom stays owned by composer.
-    capturedOpts!.onUploadSent?.(voiceItem.file);
     expect(mocks.deleteCapture).toHaveBeenCalledWith('j-voice-send');
+    expect(mocks.deleteCapture).toHaveBeenCalledTimes(1);
+    expect(capturedOpts?.onUploadSent).toBeUndefined();
     expect(store.get(roomUploadAtomFamily(voiceItem.file)).status).toBe(UploadStatus.Success);
 
     sendGate.resolve();
@@ -2439,7 +2438,8 @@ describe('dictationSendHandoff', () => {
         enrolled = enrolled.filter((item) => !files.includes(item.file));
       },
       append: (_r, items) => {
-        staged = [...staged, ...items];
+        const next = items.filter((item) => !staged.some((sItem) => sItem.file === item.file));
+        staged = [...staged, ...next];
         listeners.forEach((fn) => fn());
       },
       remove: (_r, files) => {
@@ -2540,9 +2540,12 @@ describe('dictationSendHandoff', () => {
     expect(sentPayloads[0]?.['m.relates_to']).toBeUndefined();
     expect(staged.map((item) => item.file)).toEqual([voiceFile]);
     expect(store.get(roomUploadAtomFamily(voiceFile)).status).toBe(UploadStatus.Success);
-    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+    // Journal is already settled at composer handoff (matching Attach as voice), before sendMessage finishes.
+    expect(s.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteCapture).toHaveBeenCalledWith('j-thread-voice');
+    expect(mocks.deleteCapture).toHaveBeenCalledTimes(1);
 
-    // Retry from composer sends voiceItem INSIDE photo's thread without resending photo, then deletes journal.
+    // Retry from composer sends voiceItem INSIDE photo's thread without resending photo.
     await act(async () => {
       await controller.startSendSession();
     });
@@ -2554,8 +2557,204 @@ describe('dictationSendHandoff', () => {
       event_id: '$ev-photo',
     });
     expect(staged).toEqual([]);
-    expect(mocks.deleteCapture).toHaveBeenCalledWith('j-thread-voice');
+    expect(mocks.deleteCapture).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+
+  it('keeps normal-room journal intact on pre-handoff upload failure, then settles on handoff so removing a failed card or leaving never leaves a ghost journal', async () => {
+    const store = createStore();
+    const roomId = '!normal-handoff-settle:example.org';
+    const sendMessage = vi.fn(async () => {
+      throw new Error('Matrix send 503');
+    });
+    const room = {
+      roomId,
+      name: 'Normal Settle Room',
+      hasEncryptionStateEvent: () => false,
+      getEventForTxnId: () => undefined,
+      getMembers: () => [],
+      currentState: { getStateEvents: () => [] },
+    } as unknown as Room;
+    let txnCounter = 0;
+    const mx = {
+      getRoom: (id: string) => (id === roomId ? room : null),
+      makeTxnId: () => `txn-${(txnCounter += 1)}`,
+      sendMessage,
+      cancelPendingEvent: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const voiceFile = new File([new Uint8Array(64)], 'voice-message.wav', { type: 'audio/wav' });
+    const voiceAudio: DictationVoiceAudio = {
+      file: voiceFile,
+      duration: 1_800,
+      waveform: Array.from({ length: 48 }, () => 280),
+    };
+    const voiceItem: TUploadItem = {
+      file: voiceFile,
+      originalFile: voiceFile,
+      encInfo: undefined,
+      metadata: {
+        markedAsSpoiler: false,
+        voiceMessage: { duration: 1_800, waveform: voiceAudio.waveform },
+      },
+    };
+
+    let staged: TUploadItem[] = [];
+    let enrolled: TUploadItem[] = [];
+    const listeners = new Set<() => void>();
+    const access: RoomInputAttachmentAccess = {
+      snapshot: () => {
+        const tracked = [
+          ...staged,
+          ...enrolled.filter((item) => !staged.some((sItem) => sItem.file === item.file)),
+        ];
+        return {
+          staged: [...staged],
+          enrolled: [...enrolled],
+          uploads: tracked.map((item) => store.get(roomUploadAtomFamily(item.file))),
+        };
+      },
+      enroll: (items) => {
+        const next = items.filter((item) => !enrolled.some((e) => e.file === item.file));
+        enrolled = [...enrolled, ...next];
+      },
+      clearEnrollment: (files) => {
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+      },
+      append: (_r, items) => {
+        const next = items.filter((item) => !staged.some((sItem) => sItem.file === item.file));
+        staged = [...staged, ...next];
+        listeners.forEach((fn) => fn());
+      },
+      remove: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+        listeners.forEach((fn) => fn());
+      },
+      release: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+        listeners.forEach((fn) => fn());
+      },
+      protectPasteItems: () => () => undefined,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    let controller!: ReturnType<typeof useRoomInputSendSessionController>;
+    function SendControllerHost() {
+      controller = useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        clearReplyDraft: vi.fn(),
+        editor,
+        sendTypingStatus: vi.fn(),
+        attachments: access,
+        buildUploadMessageContent: async (item, mxc) => ({
+          msgtype: 'm.audio',
+          body: item.file.name,
+          url: mxc,
+        }),
+      });
+      return null;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <SendControllerHost />
+      </Provider>
+    );
+
+    const key = getRoomInputDraftKey('@alice:example.org', roomId);
+    const s = makeMockSession('recording', 'j-normal-settle', voiceAudio);
+    let uploadAttempt = 0;
+    const uploadItem = vi.fn(async (item: TUploadItem) => {
+      uploadAttempt += 1;
+      if (uploadAttempt === 1) throw new Error('Upload 502');
+      store.set(roomUploadAtomFamily(item.file), { mxc: `mxc://example.org/${item.file.name}` });
+      return `mxc://example.org/${item.file.name}`;
+    });
+
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        mx,
+        room,
+        session: s.session,
+        ownerKey: key,
+        composerContext: { roomId, threadId: undefined },
+        sendContext: {
+          roomId,
+          room,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        attachments: access,
+        sessions: {
+          startSendSession: controller.startSendSession,
+          restoreText: controller.restoreText,
+        },
+        createVoiceUploadItems: vi.fn(async () => [voiceItem]),
+        uploadItem,
+      })
+    );
+
+    await act(async () => {
+      s.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 0,
+        errorMessage: 'STT offline',
+      });
+      await Promise.resolve();
+    });
+
+    // 1. Pre-handoff upload failure -> keeps entry failed and journal 100% intact, does not stage card.
+    store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
+    await vi.waitFor(() =>
+      expect(store.get(detachedDictationSendsAtom).get(key)).toMatchObject({
+        status: 'failed',
+        errorMessage: 'Upload 502',
+      })
+    );
+    expect(staged).toEqual([]);
+    expect(s.session.completeVoiceFallback).not.toHaveBeenCalled();
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    // 2. Retry uploads voice and hands off to UploadBoard -> journal is immediately deleted even though mx.sendMessage fails.
+    store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    expect(staged.map((item) => item.file)).toEqual([voiceFile]);
+    expect(store.get(detachedDictationSendsAtom).has(key)).toBe(false);
+    expect(s.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteCapture).toHaveBeenCalledWith('j-normal-settle');
+    expect(mocks.deleteCapture).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseCapture).not.toHaveBeenCalledWith('j-normal-settle');
+
+    // 3. Leaving and returning to the room keeps the failed voice card on UploadBoard while the
+    // journal is already deleted, and removing the card leaves no undeleted ghost journal.
+    view.unmount();
+    const returned = render(
+      <Provider store={store}>
+        <SendControllerHost />
+      </Provider>
+    );
+    expect(staged.map((item) => item.file)).toEqual([voiceFile]);
+    await act(async () => {
+      access.remove(roomId, [voiceFile]);
+      await Promise.resolve();
+    });
+    expect(staged).toEqual([]);
+    returned.unmount();
+    expect(mocks.deleteCapture).toHaveBeenCalledWith('j-normal-settle');
+    expect(mocks.deleteCapture).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseCapture).not.toHaveBeenCalledWith('j-normal-settle');
   });
 
   it('keeps failing across repeated Home Send as voice presses while an oversized PDF remains staged and excluded from prepared', async () => {
@@ -2613,6 +2812,8 @@ describe('dictationSendHandoff', () => {
     const s = makeMockSession('recording', 'j-home-oversized', voiceAudio);
     // Home's prepareForSend omits the oversized PDF from prepared while leaving it staged on the board.
     const prepareAttachmentsForSend = vi.fn(async () => []);
+    const createVoiceUploadItems = vi.fn(async () => [voiceItem]);
+    const uploadItem = vi.fn(async () => 'mxc://example.org/voice');
     const startSendSession = vi.fn(async (opts?: StartRoomInputSendSessionOptions) => {
       opts?.onUploadSent?.(voiceItem.file);
     });
@@ -2629,8 +2830,8 @@ describe('dictationSendHandoff', () => {
         ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true },
         prepareAttachmentsForSend,
         sessions: { startSendSession, restoreText: vi.fn() },
-        createVoiceUploadItems: vi.fn(async () => [voiceItem]),
-        uploadItem: vi.fn(async () => 'mxc://example.org/voice'),
+        createVoiceUploadItems,
+        uploadItem,
       })
     );
 
@@ -2644,7 +2845,7 @@ describe('dictationSendHandoff', () => {
       await Promise.resolve();
     });
 
-    // Press 1: fails and does not send voice alone or delete journal.
+    // Press 1: fails immediately on companion prep without preparing or uploading the voice WAV.
     store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
     await vi.waitFor(() =>
       expect(store.get(detachedDictationSendsAtom).get(key)).toMatchObject({
@@ -2652,10 +2853,12 @@ describe('dictationSendHandoff', () => {
         errorMessage: 'Could not upload attachment.',
       })
     );
+    expect(createVoiceUploadItems).not.toHaveBeenCalled();
+    expect(uploadItem).not.toHaveBeenCalled();
     expect(startSendSession).not.toHaveBeenCalled();
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
 
-    // Press 2 (without removing huge.pdf): MUST still fail and keep journal intact!
+    // Press 2 (without removing huge.pdf): MUST still fail immediately without uploading the voice WAV!
     store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
     await vi.waitFor(() => expect(prepareAttachmentsForSend).toHaveBeenCalledTimes(2));
     await vi.waitFor(() =>
@@ -2664,13 +2867,18 @@ describe('dictationSendHandoff', () => {
         errorMessage: 'Could not upload attachment.',
       })
     );
+    expect(createVoiceUploadItems).not.toHaveBeenCalled();
+    expect(uploadItem).not.toHaveBeenCalled();
     expect(startSendSession).not.toHaveBeenCalled();
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
 
-    // Once user removes huge.pdf, Press 3 sends voice cleanly and deletes journal.
+    // Once user removes huge.pdf, Press 3 uploads voice once, sends cleanly, and deletes journal.
     access.remove(room.roomId, [pdfFile]);
     store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
     await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
+    expect(createVoiceUploadItems).toHaveBeenCalledTimes(1);
+    expect(uploadItem).toHaveBeenCalledTimes(1);
+    expect(uploadItem).toHaveBeenCalledWith(voiceItem);
     expect(startSendSession.mock.calls[0]?.[0]?.batch?.fileItems).toEqual([voiceItem]);
     expect(mocks.deleteCapture).toHaveBeenCalledWith('j-home-oversized');
   });
@@ -2707,13 +2915,15 @@ describe('dictationSendHandoff', () => {
     const s = makeMockSession('recording', 'j-home-partial', voiceAudio);
     const rootModel = threadModelContent('@router:example.org', 'DEV1', 'fast@high');
     const onSendingChange = vi.fn();
+    const onLocalEcho = vi.fn();
 
     let sendAttempt = 0;
     const startSendSession = vi.fn(async (opts?: StartRoomInputSendSessionOptions) => {
       sendAttempt += 1;
       if (sendAttempt === 1) {
-        // Companion photo sends and creates a thread root, then voice fails!
-        opts?.onLocalEchoCreated?.('$root-home-photo', room);
+        // Even if a local echo (~room:txn) fires first, createdThreadId must record ONLY the
+        // real server rootEventId from onUploadSent.
+        opts?.onLocalEchoCreated?.('~home-partial:txn-1', room);
         opts?.onUploadSent?.(photoItem.file, '$root-home-photo');
         throw new Error('Voice send 503');
       }
@@ -2733,6 +2943,7 @@ describe('dictationSendHandoff', () => {
         ask: {
           agentUserId: '@mindroom_helper:example.org',
           canSend: () => true,
+          onLocalEcho,
           onSendingChange,
         },
         prepareAttachmentsForSend: vi.fn(async (_r, items) => items),
@@ -2768,6 +2979,7 @@ describe('dictationSendHandoff', () => {
     // Attempt 2: skips already-sent photo, sends ONLY voiceItem inside $root-home-photo with rootModel: null.
     store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
     await vi.waitFor(() => expect(store.get(detachedDictationSendsAtom).has(key)).toBe(false));
+    expect(onLocalEcho).toHaveBeenCalledWith('~home-partial:txn-1', room);
     expect(startSendSession.mock.calls[1]?.[0]?.batch?.fileItems).toEqual([voiceItem]);
     expect(startSendSession.mock.calls[1]?.[0]?.context?.threadId).toBe('$root-home-photo');
     expect(startSendSession.mock.calls[1]?.[0]?.rootModel).toBeNull();

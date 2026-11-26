@@ -442,11 +442,7 @@ export const startDetachedDictationSend = (
       : undefined;
   };
 
-  const buildSendSessionBase = (
-    liveRoom: Room,
-    textContent: IContent | undefined,
-    onThreadCreated?: (eventId: string) => void
-  ) => ({
+  const buildSendSessionBase = (liveRoom: Room, textContent: IContent | undefined) => ({
     textContent,
     midTurnMode: input.midTurnMode,
     explicitMidTurnMode: input.explicitMidTurnMode,
@@ -459,14 +455,11 @@ export const startDetachedDictationSend = (
     composerContext,
     composerAlreadyReset: true,
     beforeSend: (sentTo: Room) => sameAccount() && (!ask || ask.canSend(sentTo)),
-    onLocalEchoCreated:
-      ask?.onLocalEcho || onThreadCreated
-        ? (eventId: string, sentRoom: Room) => {
-            if (!sameAccount()) return;
-            onThreadCreated?.(eventId);
-            ask?.onLocalEcho?.(eventId, sentRoom);
-          }
-        : undefined,
+    onLocalEchoCreated: ask?.onLocalEcho
+      ? (eventId: string, sentRoom: Room) => {
+          if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
+        }
+      : undefined,
   });
 
   const prepareCompanionStaged = async (
@@ -640,10 +633,7 @@ export const startDetachedDictationSend = (
       removeEntry();
       return;
     }
-    if (
-      preparedStaged.status !== 'ready' ||
-      (!textContent && preparedStaged.items.length === 0)
-    ) {
+    if (preparedStaged.status !== 'ready' || (!textContent && preparedStaged.items.length === 0)) {
       restoreDraftAndCleanup(
         preparedStaged.status === 'missingPaste' ? mergedFallback : input.docSnapshot
       );
@@ -737,6 +727,27 @@ export const startDetachedDictationSend = (
     }
     const textContent = composeDetachedTextContent(scratch);
 
+    let sendStaged: TUploadItem[] | undefined;
+    if (isHomeSend) {
+      // Prepare deferred Home companions before uploading the WAV so a known oversized/failed
+      // companion fails immediately instead of re-uploading the voice recording on every retry.
+      const preparedStaged = await prepareCompanionStaged(
+        liveRoom,
+        getActiveStaged(),
+        textContent,
+        true
+      );
+      if (preparedStaged.status === 'aborted') return abortDetachedSend();
+      if (preparedStaged.status !== 'ready') {
+        return markFailed(
+          preparedStaged.status === 'missingPaste'
+            ? 'Could not upload pasted attachment.'
+            : 'Could not upload attachment.'
+        );
+      }
+      sendStaged = preparedStaged.items;
+    }
+
     let voiceItem: TUploadItem | undefined;
     let handedOffToAttachments = false;
     try {
@@ -760,44 +771,15 @@ export const startDetachedDictationSend = (
       if (aborted || !sameAccount()) return abortDetachedSend();
 
       const readyVoiceItem = voiceItem;
-      let sendStaged: TUploadItem[];
-      if (isHomeSend) {
-        const preparedStaged = await prepareCompanionStaged(
-          liveRoom,
-          getActiveStaged(),
-          textContent,
-          true
-        );
-        if (preparedStaged.status === 'aborted') return abortDetachedSend();
-        if (preparedStaged.status !== 'ready') {
-          return markFailed(
-            preparedStaged.status === 'missingPaste'
-              ? 'Could not upload pasted attachment.'
-              : 'Could not upload attachment.'
-          );
-        }
-        sendStaged = preparedStaged.items;
-      } else {
-        // Normal rooms hand readyVoiceItem to the composer board + real send controller so it
-        // natively handles companion uploads, retries, thread-root continuity, and queuing.
-        sendStaged = getActiveStaged();
-        attachments.append(roomId, [readyVoiceItem]);
-        handedOffToAttachments = true;
-      }
-
       let voiceSent = false;
-      let journalDeleted = false;
-      let targetJournalId = journalId;
-      const detachAndClearSession = () => {
+      let journalSettled = false;
+      const settleVoiceJournal = () => {
+        if (journalSettled) return;
+        journalSettled = true;
         removeEntry();
         clearMatchingError();
         if (textContent) input.dismissLostNotices?.();
-        targetJournalId = session.completeVoiceFallback().journalId ?? targetJournalId;
-      };
-      const settleVoiceJournal = () => {
-        if (journalDeleted) return;
-        journalDeleted = true;
-        if (isHomeSend) detachAndClearSession();
+        const targetJournalId = session.completeVoiceFallback().journalId ?? journalId;
         if (!targetJournalId) return;
         if (sameAccount() && !aborted) void deleteCapture(targetJournalId).catch(() => undefined);
         else releaseCapture(targetJournalId);
@@ -811,31 +793,38 @@ export const startDetachedDictationSend = (
         else input.sessions.restoreText(composerContext, mergedFallback);
       };
 
-      if (!isHomeSend) detachAndClearSession();
+      if (!isHomeSend) {
+        // Normal rooms hand readyVoiceItem to the composer board + real send controller so it
+        // natively handles companion uploads, retries, thread-root continuity, and queuing.
+        // Settle the dictation journal on handoff (matching Attach as voice) so removing a
+        // failed voice card or leaving the room never resurrects a ghost dictation on reload.
+        sendStaged = getActiveStaged();
+        attachments.append(roomId, [readyVoiceItem]);
+        handedOffToAttachments = true;
+        settleVoiceJournal();
+      }
 
       let keepFailedOnError = false;
       try {
         await input.sessions.startSendSession({
-          ...buildSendSessionBase(
-            liveRoom,
-            textContent,
-            isHomeSend ? recordCreatedThread : undefined
-          ),
+          ...buildSendSessionBase(liveRoom, textContent),
           rootModel: createdThreadId ? null : (input.rootModel ?? null),
-          batch: { fileItems: [...sendStaged, readyVoiceItem] },
+          batch: { fileItems: [...(sendStaged ?? []), readyVoiceItem] },
           completeWithinCall: isHomeSend,
           composerFallback: isHomeSend ? [] : mergedFallback,
-          onUploadSent: (sentFile: TUploadContent, rootEventId?: string) => {
-            if (isHomeSend && rootEventId) recordCreatedThread(rootEventId);
-            if (sentFile === readyVoiceItem.file) {
-              voiceSent = true;
-              settleVoiceJournal();
-            } else if (isHomeSend) {
-              sentCompanionFiles.add(sentFile);
-              const match = currentStaged.find((item) => item.file === sentFile);
-              if (match) sentCompanionFiles.add(match.originalFile);
-            }
-          },
+          onUploadSent: isHomeSend
+            ? (sentFile: TUploadContent, rootEventId?: string) => {
+                if (rootEventId) recordCreatedThread(rootEventId);
+                if (sentFile === readyVoiceItem.file) {
+                  voiceSent = true;
+                  settleVoiceJournal();
+                } else {
+                  sentCompanionFiles.add(sentFile);
+                  const match = currentStaged.find((item) => item.file === sentFile);
+                  if (match) sentCompanionFiles.add(match.originalFile);
+                }
+              }
+            : undefined,
         });
         if (isHomeSend && !voiceSent) {
           throw new Error('Could not send voice message.');
@@ -843,17 +832,16 @@ export const startDetachedDictationSend = (
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[dictation-send] could not send dictation as voice message', error);
-        if (!voiceSent) {
-          if (!isHomeSend) {
-            if (textContent && sameAccount() && !aborted) restoreMergedText();
-            if (targetJournalId) releaseCapture(targetJournalId);
-          } else if (sameAccount() && !aborted) {
+        if (!isHomeSend) {
+          if (textContent && sameAccount() && !aborted) restoreMergedText();
+        } else if (!voiceSent) {
+          if (sameAccount() && !aborted) {
             keepFailedOnError = true;
             markFailed(describeVoiceFallbackError(error));
           } else {
             abortDetachedSend();
           }
-        } else if (isHomeSend && textContent && sameAccount() && !aborted) {
+        } else if (textContent && sameAccount() && !aborted) {
           restoreMergedText();
         }
       } finally {
