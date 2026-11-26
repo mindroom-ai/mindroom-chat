@@ -8,9 +8,10 @@ import { updateSessionLastPath } from '../../matrix/session/sessions';
 
 // The notice places are tested in ui/noticeSlots.test.tsx.
 vi.mock('../../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
-vi.mock('folds', async () => {
+vi.mock('folds', async (importOriginal) => {
   const reactModule = await import('react');
   return {
+    ...(await importOriginal<typeof import('folds')>()),
     Box: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
   };
