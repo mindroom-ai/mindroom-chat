@@ -720,6 +720,33 @@ describe('SubagentsPanel', () => {
     expect(shownTimes()).toEqual([]);
   });
 
+  it.each([
+    ['paused' as const, 'Paused'],
+    ['awaiting_approval' as const, 'Waiting for approval'],
+  ])(
+    'announces %s shell rows as %s with collapsible stdout and no elapsed time',
+    (status, expectedLabel) => {
+      ingest(
+        'run',
+        meta(status),
+        docs(BASH_MD, [{ ...bash('tool_call_started', NOW - 60), progress: 'cmd output' }], false)
+      );
+      render();
+      open('run');
+
+      const step = transcript()?.querySelector('[data-live-shell="1"] [data-live-step]');
+      expect(step?.getAttribute('data-live-step')).toBe('waiting');
+      expect(step?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(expectedLabel);
+      expect(step?.querySelector('[data-live-step-elapsed]')).toBeNull();
+      const toggle = step?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe('cmd output');
+      act(() => toggle?.click());
+      expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+      expect(step?.querySelector('[data-live-output]')).toBeNull();
+    }
+  );
+
   it('shows no tool time without a start from MindRoom, nor once the run has ended', () => {
     ingest(
       'older',

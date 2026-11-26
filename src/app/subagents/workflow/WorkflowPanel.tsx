@@ -13,6 +13,7 @@ import type { Room } from 'matrix-js-sdk';
 import { Box, Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
+import { useLiveClock } from '../../lib/hooks/useLiveClock';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { localDigits } from '../../lib/localDigits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -24,7 +25,6 @@ import { getWorkflowRunStore, useWorkflowRun } from '../../messages/live/workflo
 import { workflowRunHeading } from '../../messages/workflow-run/workflowRunLabels';
 import {
   useCanCancelBackgroundJob,
-  useLiveClock,
   WorkflowRunControls,
   WorkflowRunMetrics,
   WorkflowRunTitleBadges,

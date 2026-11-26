@@ -1,9 +1,11 @@
 import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { TFunction } from 'i18next';
+import { Icons, type IconSrc } from 'folds';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
+import type { ActivityTone } from '../../ui/ThreadActivity';
 import type { ReasoningSegment } from './reasoningSegments';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'expired';
@@ -22,6 +24,17 @@ export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>
  * turn), so child live previews must not start a fallback clock either.
  */
 export const ToolCallClockContext = createContext<number | null | undefined>(undefined);
+
+export type ToolCallWaitingStatus = 'paused' | 'awaiting_approval';
+
+/**
+ * Why an enclosing view with a stopped clock (`ToolCallClockContext === null`) is waiting, so
+ * shell rows in a paused or approval-blocked sub-agent turn stay visible and announce the right
+ * status instead of ticking or being treated as an ended foreground reply.
+ */
+export const ToolCallWaitingStatusContext = createContext<ToolCallWaitingStatus | undefined>(
+  undefined
+);
 
 /** A running call shows how long it has run only from this many seconds on. */
 const TOOL_ELAPSED_MIN_SECONDS = 10;
@@ -111,6 +124,17 @@ export const TOOL_STATE_TITLE = {
   denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
   expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
 } as const satisfies Record<ToolCallState, string>;
+
+export const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone }> = {
+  running: { src: Icons.Terminal, tone: 'neutral' },
+  waiting: { src: Icons.Pause, tone: 'warning' },
+  done: { src: Icons.Check, tone: 'success' },
+  // A call that did not complete (an error, refusal, denial, cancellation or interruption: its
+  // result says which) is not the green check, nor a red alarm.
+  failed: { src: Icons.Warning, tone: 'warning' },
+  denied: { src: Icons.Cross, tone: 'critical' },
+  expired: { src: Icons.Clock, tone: 'neutral' },
+};
 
 /**
  * What happened to each call. The public trace says started or completed, and `is_error` for a

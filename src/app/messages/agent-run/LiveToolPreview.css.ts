@@ -1,5 +1,6 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { MonoOutput, MUTED_LIVE_OPACITY, Panel } from '../../ui/ThreadActivity.css';
 
 const hairline = `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`;
 const mono = { fontFamily: 'var(--font-mono)', fontSize: toRem(12) } as const;
@@ -9,8 +10,9 @@ const truncate = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 } as const;
-// Composed with MessageTextBody's 0.9 streaming opacity, 0.95 keeps >= 4.5:1 AA across all 23 palettes.
-const muted = { color: color.Surface.OnContainer, opacity: 0.95 } as const;
+const muted = { color: color.Surface.OnContainer, opacity: MUTED_LIVE_OPACITY } as const;
+
+export const LIVE_OUTPUT_LINES = { subagent: 3, shell: 4 } as const;
 
 export const Stack = style({
   display: 'flex',
@@ -20,14 +22,14 @@ export const Stack = style({
   minWidth: 0,
 });
 
-export const Card = style({
-  border: hairline,
-  borderRadius: config.radii.R400,
-  backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container} 60%, transparent)`,
-  color: color.Surface.OnContainer,
-  overflow: 'hidden',
-  minWidth: 0,
-});
+export const Card = style([
+  Panel,
+  {
+    marginBlockStart: 0,
+    color: color.Surface.OnContainer,
+    minWidth: 0,
+  },
+]);
 
 export const CardHeader = style({
   display: 'flex',
@@ -166,9 +168,8 @@ const stepNameBase = style({
 });
 
 export const StepName = styleVariants({
-  running: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
-  waiting: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
-  done: [stepNameBase, { fontWeight: config.fontWeight.W500, opacity: 0.95 }],
+  active: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
+  done: [stepNameBase, muted, { fontWeight: config.fontWeight.W500 }],
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
 
@@ -195,25 +196,16 @@ export const TerminalWell = style({
 });
 
 const terminalOutputBase = style([
-  DefaultReset,
+  MonoOutput,
+  muted,
   {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-    margin: 0,
-    color: color.Surface.OnContainer,
-    fontFamily: 'var(--font-mono)',
     fontSize: toRem(11.5),
     lineHeight: TERMINAL_LINE_HEIGHT,
-    opacity: 0.95,
-    whiteSpace: 'pre-wrap',
-    overflowWrap: 'anywhere',
   },
 ]);
 
 // Bounds wrapped output to exact rendered line counts, keeping the newest wrapped lines at bottom.
-export const TerminalOutput = styleVariants({
-  subagent: [terminalOutputBase, { maxHeight: `${TERMINAL_LINE_HEIGHT * 3}em` }],
-  shell: [terminalOutputBase, { maxHeight: `${TERMINAL_LINE_HEIGHT * 4}em` }],
-});
+export const TerminalOutput = styleVariants(LIVE_OUTPUT_LINES, (lines) => [
+  terminalOutputBase,
+  { maxHeight: `${TERMINAL_LINE_HEIGHT * lines}em` },
+]);

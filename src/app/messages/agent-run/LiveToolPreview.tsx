@@ -2,18 +2,28 @@ import { useContext, useId, useRef, useState, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Spinner } from 'folds';
 import { useStore } from 'jotai';
-import { toToolArgumentFields, type ArgumentValue } from '../../approvals/argumentFields';
+import { toToolArgumentFields, valueText } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { useInterval } from '../../lib/hooks/useInterval';
+import { useLiveClock } from '../../lib/hooks/useLiveClock';
 import { formatWorkDuration } from '../../lib/time';
-import { isActiveSubagentStatus, type SubagentStatus } from '../../matrix/protocol/subagentFrame';
+import type { SubagentStatus } from '../../matrix/protocol/subagentFrame';
 import { toolEndedAt, toolStartedAt } from '../../matrix/protocol/toolTrace';
 import { openSubagentsPanel } from '../../navigation/subagentsPanel';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { useRevealOnOpen } from '../../ui/disclosureReveal';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import { useRoomSubagentRuns, type SubagentRun } from '../live/subagentRunStore';
-import { ToolCallClockContext } from './toolCallStatus';
+import {
+  findLinkedSubagentRun,
+  useRoomSubagentRuns,
+  type SubagentRun,
+} from '../live/subagentRunStore';
+import {
+  TOOL_STATE_ICON,
+  ToolCallClockContext,
+  ToolCallWaitingStatusContext,
+  type ToolCallState,
+  type ToolCallWaitingStatus,
+} from './toolCallStatus';
 import * as css from './LiveToolPreview.css';
 
 export type LiveToolItem = {
@@ -26,8 +36,8 @@ export type LiveToolItem = {
   startedAt?: number;
 };
 
-type StepState = 'running' | 'waiting' | 'done' | 'failed';
-type TerminalLines = keyof typeof css.TerminalOutput;
+type StepState = Extract<ToolCallState, 'running' | 'waiting' | 'done' | 'failed'>;
+type TerminalLines = keyof typeof css.LIVE_OUTPUT_LINES;
 type LiveToolPreviewProps = {
   running: readonly LiveToolItem[];
   roomId?: string;
@@ -43,11 +53,10 @@ type SubagentStep = {
   output?: string;
 };
 
-const LIVE_CLOCK_MS = 1_000;
 const SUBAGENT_STEP_LIMIT = 4;
-const SUBAGENT_OUTPUT_LINES = 3;
-const SHELL_OUTPUT_LINES = 4;
 const FALLBACK_OUTPUT_LINES = 6;
+// Unlike `KEY_ORDER` in argumentFields.ts (which leads with approval/messaging keys like `to`/`room`),
+// live step rows lead with execution targets (commands, file paths, search patterns, URLs).
 const PRIMARY_ARG_KEYS = [
   'command',
   'args',
@@ -59,18 +68,20 @@ const PRIMARY_ARG_KEYS = [
   'url',
 ] as const;
 
-const STEP_STATUS_LABEL = {
-  running: 'mindroomUi.subagents.running',
-  waiting: 'mindroomUi.subagents.paused',
-  done: 'mindroomUi.subagents.completed',
-  failed: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallFailed',
-} as const satisfies Record<StepState, string>;
-
-const STEP_ICON_SRC = {
-  waiting: Icons.Pause,
-  done: Icons.Check,
-  failed: Icons.Warning,
-} as const;
+const stepStatusLabelKey = (state: StepState, waitingStatus: ToolCallWaitingStatus = 'paused') => {
+  switch (state) {
+    case 'running':
+      return 'mindroomUi.subagents.running';
+    case 'waiting':
+      return waitingStatus === 'awaiting_approval'
+        ? 'mindroomUi.subagents.awaiting_approval'
+        : 'mindroomUi.subagents.paused';
+    case 'done':
+      return 'mindroomUi.subagents.completed';
+    case 'failed':
+      return 'mindroomUi.messages.mindroomHtmlBlocks.toolCallFailed';
+  }
+};
 
 const isShellTool = (name: string): boolean => name === 'run_shell_command' || name === 'bash';
 const isSubagentTool = (name: string): boolean =>
@@ -85,14 +96,6 @@ export const normalizeToolOutput = (value: unknown): string | undefined =>
 const tailLines = (text: string, maxLines: number): string =>
   text.split('\n').slice(-maxLines).join('\n');
 
-const flattenArgValue = (value: ArgumentValue): string =>
-  (value.kind === 'nested'
-    ? value.fields.map((field) => `${field.key}: ${flattenArgValue(field.value)}`).join(', ')
-    : value.text
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-
 /** Extracts one concise single-line primary argument from `args_preview`, preferring target keys. */
 export const extractPrimaryArg = (argsPreview: string | undefined): string | undefined => {
   const trimmed = argsPreview?.trim();
@@ -101,47 +104,11 @@ export const extractPrimaryArg = (argsPreview: string | undefined): string | und
   if ('fields' in parsed) {
     for (const key of PRIMARY_ARG_KEYS) {
       const match = parsed.fields.find((field) => field.key.toLowerCase() === key);
-      const text = match && flattenArgValue(match.value);
+      const text = match && valueText(match.value).replace(/\s+/g, ' ').trim();
       if (text) return text;
     }
   }
   return revealDirectionControls(trimmed.replace(/\s+/g, ' ')) || undefined;
-};
-
-/** Finds the room's sub-agent run linked to a parent reply's tool call in the same conversation. */
-export const findLinkedSubagentRun = (
-  runs: readonly SubagentRun[],
-  toolCallId: string | undefined,
-  threadId: string | undefined
-): SubagentRun | undefined => {
-  if (!toolCallId) return undefined;
-  const expectedThread = threadId ?? null;
-  const matches = runs.filter(
-    ({ meta }) => meta.callerToolCallId === toolCallId && meta.threadId === expectedThread
-  );
-  return matches.sort(
-    (a, b) =>
-      Number(isActiveSubagentStatus(b.meta.status)) -
-        Number(isActiveSubagentStatus(a.meta.status)) || b.meta.startedAt - a.meta.startedAt
-  )[0];
-};
-
-/**
- * Current Unix milliseconds while `active` is true: reuses `ToolCallClockContext` when provided
- * (as in `SubagentRunView`), returns `undefined` with zero timers when a provider explicitly passes
- * `null` (paused/waiting/ended view), and otherwise ticks every second only while active. Zero
- * timers when idle.
- */
-export const useLiveToolClock = (active: boolean): number | undefined => {
-  const sharedNow = useContext(ToolCallClockContext);
-  const [tick, setTick] = useState(0);
-  useInterval(
-    () => setTick((count) => count + 1),
-    active && sharedNow === undefined ? LIVE_CLOCK_MS : -1
-  );
-  if (!active || sharedNow === null) return undefined;
-  void tick;
-  return sharedNow ?? Date.now();
 };
 
 const unfinishedStepState = (status: SubagentStatus): StepState => {
@@ -165,10 +132,6 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
           : event.is_error === true
             ? 'failed'
             : 'done';
-      const rawOutput =
-        state === 'running' || state === 'waiting'
-          ? normalizeToolOutput(event.progress)
-          : undefined;
       return {
         key,
         state,
@@ -179,28 +142,56 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
             : undefined,
         startedAt: toolStartedAt(event),
         endedAt: toolEndedAt(event),
-        output: rawOutput ? tailLines(rawOutput, SUBAGENT_OUTPUT_LINES) : undefined,
+        output:
+          state === 'running' || state === 'waiting'
+            ? normalizeToolOutput(event.progress)
+            : undefined,
       };
     });
 };
 
-const formatStepDuration = (
-  state: StepState,
-  startedAt: number | undefined,
-  endedAt: number | undefined,
-  now: number | undefined,
-  language: string
-): string | undefined => {
-  if (startedAt === undefined || state === 'waiting') return undefined;
+/** Leaf timer so 1-second ticks only re-render the elapsed text of actively running steps. */
+function LiveStepElapsed({
+  state,
+  startedAt,
+  endedAt,
+  language,
+}: {
+  state: StepState;
+  startedAt?: number;
+  endedAt?: number;
+  language: string;
+}) {
+  const { t } = useTranslation();
+  const sharedNow = useContext(ToolCallClockContext);
+  const localNow = useLiveClock(
+    state === 'running' && startedAt !== undefined && sharedNow === undefined
+  );
+
+  if (startedAt === undefined || state === 'waiting') return null;
+  let duration: string | undefined;
   if (state === 'running') {
-    return now === undefined
-      ? undefined
-      : formatWorkDuration(Math.max(0, now - startedAt * 1000), language);
+    if (sharedNow === null) return null;
+    duration = formatWorkDuration((sharedNow ?? localNow) - startedAt * 1000, language);
+  } else if (endedAt !== undefined && endedAt >= startedAt) {
+    duration = formatWorkDuration(Math.max(1_000, (endedAt - startedAt) * 1000), language);
   }
-  return endedAt !== undefined && endedAt >= startedAt
-    ? formatWorkDuration(Math.max(1_000, (endedAt - startedAt) * 1000), language)
-    : undefined;
-};
+  if (!duration) return null;
+
+  return (
+    <span
+      className={css.StepElapsed}
+      title={
+        state === 'running'
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.toolRunningFor', { duration })
+          : undefined
+      }
+      data-live-step-elapsed=""
+    >
+      {duration}
+    </span>
+  );
+}
 
 function TerminalWell({
   lines,
@@ -216,7 +207,7 @@ function TerminalWell({
   return (
     <div ref={wellRef} id={id} className={css.TerminalWell}>
       <pre className={css.TerminalOutput[lines]} data-live-output="">
-        {output}
+        {tailLines(output, css.LIVE_OUTPUT_LINES[lines])}
       </pre>
     </div>
   );
@@ -224,58 +215,49 @@ function TerminalWell({
 
 function LiveStepRow({
   state,
-  statusLabel,
+  waitingStatus,
   toolName,
   arg,
-  duration,
+  startedAt,
+  endedAt,
   output,
   outputLines = 'subagent',
 }: {
   state: StepState;
-  statusLabel?: string;
+  waitingStatus?: ToolCallWaitingStatus;
   toolName: string;
   arg?: string;
-  duration?: string;
+  startedAt?: number;
+  endedAt?: number;
   output?: string;
   outputLines?: TerminalLines;
 }) {
   const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const [open, setOpen] = useState(true);
   const outputId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const armReveal = useRevealOnOpen(open, toggleRef, outputRef);
-  const resolvedStatusLabel = statusLabel ?? t(STEP_STATUS_LABEL[state]);
-  const durationTitle =
-    state === 'running' && duration
-      ? t('mindroomUi.messages.mindroomHtmlBlocks.toolRunningFor', { duration })
-      : undefined;
+  const statusLabel = t(stepStatusLabelKey(state, waitingStatus));
+  const stepNameClass = css.StepName[state === 'running' || state === 'waiting' ? 'active' : state];
 
   const content = (
     <>
-      <span
-        className={css.StepIcon[state]}
-        role="img"
-        aria-label={resolvedStatusLabel}
-        title={resolvedStatusLabel}
-      >
+      <span className={css.StepIcon[state]} role="img" aria-label={statusLabel} title={statusLabel}>
         {state === 'running' ? (
           <Spinner size="50" variant="Secondary" aria-hidden />
         ) : (
-          <Icon size="50" src={STEP_ICON_SRC[state]} aria-hidden />
+          <Icon size="50" src={TOOL_STATE_ICON[state].src} aria-hidden />
         )}
       </span>
-      <span className={css.StepName[state]}>{toolName}</span>
+      <span className={stepNameClass}>{toolName}</span>
       {arg && (
         <span className={css.StepArg} title={arg} {...ownDirectionLine}>
           {arg}
         </span>
       )}
-      {duration && (
-        <span className={css.StepElapsed} title={durationTitle} data-live-step-elapsed="">
-          {duration}
-        </span>
-      )}
+      <LiveStepElapsed state={state} startedAt={startedAt} endedAt={endedAt} language={language} />
     </>
   );
 
@@ -307,28 +289,14 @@ function LiveStepRow({
   );
 }
 
-function SubagentPreviewCard({
-  tool,
-  run,
-  steps,
-  roomId,
-  now,
-}: {
-  tool: LiveToolItem;
-  run: SubagentRun;
-  steps: readonly SubagentStep[];
-  roomId: string;
-  now: number | undefined;
-}) {
+function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentRun }) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
   const jotaiStore = useStore();
+  const steps = recentSubagentSteps(run);
   const title = revealDirectionControls(run.meta.title || run.meta.agent);
   const callCount = run.meta.usage?.toolCalls ?? run.docs.tools.length;
-  const waitingLabel =
-    run.meta.status === 'awaiting_approval'
-      ? t('mindroomUi.subagents.awaiting_approval')
-      : t('mindroomUi.subagents.paused');
+  const waitingStatus: ToolCallWaitingStatus =
+    run.meta.status === 'awaiting_approval' ? 'awaiting_approval' : 'paused';
   const trimmed = tool.progress?.trim();
   const fallbackOutput =
     steps.length === 0 &&
@@ -336,7 +304,7 @@ function SubagentPreviewCard({
     trimmed &&
     trimmed !== title &&
     trimmed !== run.meta.agent
-      ? tailLines(tool.progress, SUBAGENT_OUTPUT_LINES)
+      ? tool.progress
       : undefined;
 
   return (
@@ -354,7 +322,7 @@ function SubagentPreviewCard({
           type="button"
           className={css.OpenButton}
           aria-label={t('mindroomUi.subagents.showFor', { name: title })}
-          onClick={() => openSubagentsPanel(jotaiStore, roomId, run.meta.threadId, run.run)}
+          onClick={() => openSubagentsPanel(jotaiStore, run.roomId, run.meta.threadId, run.run)}
           data-live-subagent-open=""
         >
           <span>{t('mindroomUi.subagents.title')}</span>
@@ -367,10 +335,11 @@ function SubagentPreviewCard({
             <LiveStepRow
               key={step.key}
               state={step.state}
-              statusLabel={step.state === 'waiting' ? waitingLabel : undefined}
+              waitingStatus={waitingStatus}
               toolName={step.toolName}
               arg={step.arg}
-              duration={formatStepDuration(step.state, step.startedAt, step.endedAt, now, language)}
+              startedAt={step.startedAt}
+              endedAt={step.endedAt}
               output={step.output}
               outputLines="subagent"
             />
@@ -382,17 +351,6 @@ function SubagentPreviewCard({
   );
 }
 
-type PreviewEntry =
-  | {
-      kind: 'subagent';
-      tool: LiveToolItem;
-      run: SubagentRun;
-      steps: SubagentStep[];
-      roomId: string;
-    }
-  | { kind: 'shell'; tool: LiveToolItem }
-  | { kind: 'fallback'; tool: LiveToolItem; progress: string };
-
 /**
  * Structured live preview under `Running N tool calls`: linked sub-agent step cards, immediate
  * foreground shell/bash rows, and a compact fallback for other running calls reporting progress.
@@ -400,68 +358,47 @@ type PreviewEntry =
  * keeping a single stable component tree so parallel rows never lose local UI state.
  */
 export function LiveToolPreview({ running, roomId, threadId }: LiveToolPreviewProps) {
-  const language = useAppLanguageCode();
   const clockContext = useContext(ToolCallClockContext);
-  const shellState: StepState = clockContext === null ? 'waiting' : 'running';
+  const waitingStatus = useContext(ToolCallWaitingStatusContext);
+  const shellState: StepState =
+    clockContext === null || waitingStatus !== undefined ? 'waiting' : 'running';
   const needsSubagents =
     !!roomId && running.some((tool) => !!tool.toolCallId && isSubagentTool(tool.toolName));
   const subagentRuns = useRoomSubagentRuns(needsSubagents ? roomId : undefined);
-  const entries = running.flatMap((tool): PreviewEntry[] => {
+  const items = running.flatMap((tool) => {
     if (roomId && isSubagentTool(tool.toolName)) {
       const run = findLinkedSubagentRun(subagentRuns, tool.toolCallId, threadId);
-      if (run) return [{ kind: 'subagent', tool, run, steps: recentSubagentSteps(run), roomId }];
+      if (run)
+        return [<SubagentPreviewCard key={`subagent-${tool.index}`} tool={tool} run={run} />];
     }
-    if (isShellTool(tool.toolName)) return [{ kind: 'shell', tool }];
-    return tool.progress ? [{ kind: 'fallback', tool, progress: tool.progress }] : [];
+    if (isShellTool(tool.toolName)) {
+      return [
+        <div key={`shell-${tool.index}`} className={css.Card} data-live-shell={tool.index}>
+          <LiveStepRow
+            state={shellState}
+            waitingStatus={waitingStatus}
+            toolName={tool.toolName}
+            arg={extractPrimaryArg(tool.argsPreview)}
+            startedAt={tool.startedAt}
+            output={tool.progress}
+            outputLines="shell"
+          />
+        </div>,
+      ];
+    }
+    if (!tool.progress) return [];
+    return [
+      <div key={`fallback-${tool.index}`}>
+        {running.length > 1 && <div className={activityCss.OutputLabel}>{tool.command}</div>}
+        <pre className={activityCss.Output}>{tailLines(tool.progress, FALLBACK_OUTPUT_LINES)}</pre>
+      </div>,
+    ];
   });
-  const needsClock = entries.some(
-    (entry) =>
-      (entry.kind === 'shell' && entry.tool.startedAt !== undefined) ||
-      (entry.kind === 'subagent' &&
-        entry.steps.some((step) => step.state === 'running' && step.startedAt !== undefined))
-  );
-  const now = useLiveToolClock(needsClock);
-  if (entries.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className={css.Stack} data-live-tool-preview="">
-      {entries.map((entry) => {
-        if (entry.kind === 'subagent') {
-          return (
-            <SubagentPreviewCard
-              key={`subagent-${entry.tool.index}`}
-              tool={entry.tool}
-              run={entry.run}
-              steps={entry.steps}
-              roomId={entry.roomId}
-              now={now}
-            />
-          );
-        }
-        if (entry.kind === 'shell') {
-          const { tool } = entry;
-          return (
-            <div key={`shell-${tool.index}`} className={css.Card} data-live-shell={tool.index}>
-              <LiveStepRow
-                state={shellState}
-                toolName={tool.toolName}
-                arg={extractPrimaryArg(tool.argsPreview)}
-                duration={formatStepDuration(shellState, tool.startedAt, undefined, now, language)}
-                output={tool.progress ? tailLines(tool.progress, SHELL_OUTPUT_LINES) : undefined}
-                outputLines="shell"
-              />
-            </div>
-          );
-        }
-        return (
-          <div key={`fallback-${entry.tool.index}`}>
-            <div className={activityCss.OutputLabel}>{entry.tool.command}</div>
-            <pre className={activityCss.Output}>
-              {tailLines(entry.progress, FALLBACK_OUTPUT_LINES)}
-            </pre>
-          </div>
-        );
-      })}
+      {items}
     </div>
   );
 }

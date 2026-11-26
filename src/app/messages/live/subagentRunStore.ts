@@ -60,21 +60,44 @@ export const runsStartedIn = (
 ): readonly SubagentRun[] =>
   threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
 
+/** Finds the room's sub-agent run linked to a parent reply's tool call in the same conversation. */
+export const findLinkedSubagentRun = (
+  runs: readonly SubagentRun[],
+  toolCallId: string | undefined,
+  threadId: string | undefined
+): SubagentRun | undefined => {
+  if (!toolCallId) return undefined;
+  const expectedThread = threadId ?? null;
+  let best: SubagentRun | undefined;
+  let bestActive = false;
+  for (const run of runs) {
+    if (run.meta.callerToolCallId !== toolCallId || run.meta.threadId !== expectedThread) continue;
+    const active = isActiveSubagentStatus(run.meta.status);
+    if (
+      !best ||
+      (active && !bestActive) ||
+      (active === bestActive && run.meta.startedAt > best.meta.startedAt)
+    ) {
+      best = run;
+      bestActive = active;
+    }
+  }
+  return best;
+};
+
 const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 
 const isWorking = ({ status }: SubagentMeta): boolean =>
   status === 'running' || status === 'awaiting_approval';
 
+const STICKY_META_KEYS = ['task', 'title', 'result', 'callerToolCallId'] as const;
+
 const nextMeta = (held: SubagentMeta | undefined, latest: SubagentMeta): SubagentMeta => {
+  if (!held) return latest;
   const meta = { ...latest };
-  const task = latest.task ?? held?.task;
-  const title = latest.title ?? held?.title;
-  const result = latest.result ?? held?.result;
-  const callerToolCallId = latest.callerToolCallId ?? held?.callerToolCallId;
-  if (task !== undefined) meta.task = task;
-  if (title !== undefined) meta.title = title;
-  if (result !== undefined) meta.result = result;
-  if (callerToolCallId !== undefined) meta.callerToolCallId = callerToolCallId;
+  for (const key of STICKY_META_KEYS) {
+    if (meta[key] === undefined && held[key] !== undefined) meta[key] = held[key];
+  }
   return meta;
 };
 
@@ -191,7 +214,7 @@ const noopUnsubscribe = () => undefined;
  */
 export const useRoomSubagentRuns = (roomId: string | undefined): readonly SubagentRun[] => {
   const mx = useOptionalMatrixClient();
-  const store = mx ? getSubagentRunStore(mx) : undefined;
+  const store = roomId && mx ? getSubagentRunStore(mx) : undefined;
   const subscribe = useCallback(
     (onChange: () => void) =>
       roomId && store ? store.subscribe(roomId, onChange) : noopUnsubscribe,

@@ -8,14 +8,14 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { SubagentFrame, SubagentMeta } from '../../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../../matrix/protocol/toolTrace';
 import { subagentsPanelAtom } from '../../navigation/subagentsPanel';
-import { getSubagentRunStore, type SubagentRun } from '../live/subagentRunStore';
-import { ToolCallClockContext } from './toolCallStatus';
+import { getSubagentRunStore } from '../live/subagentRunStore';
 import {
-  extractPrimaryArg,
-  findLinkedSubagentRun,
-  LiveToolPreview,
-  type LiveToolItem,
-} from './LiveToolPreview';
+  ToolCallClockContext,
+  ToolCallWaitingStatusContext,
+  type ToolCallWaitingStatus,
+} from './toolCallStatus';
+import * as css from './LiveToolPreview.css';
+import { extractPrimaryArg, LiveToolPreview, type LiveToolItem } from './LiveToolPreview';
 
 const ROOM_ID = '!room:example.org';
 const THREAD_ID = '$thread-root:example.org';
@@ -56,6 +56,14 @@ const toolItem = (overrides: Partial<LiveToolItem> = {}): LiveToolItem => ({
   ...overrides,
 });
 
+const subagentItem = (toolCallId: string, overrides: Partial<LiveToolItem> = {}): LiveToolItem =>
+  toolItem({
+    toolName: 'run_subagent',
+    command: 'run_subagent',
+    toolCallId,
+    ...overrides,
+  });
+
 describe('extractPrimaryArg', () => {
   it('prefers target keys via toToolArgumentFields and falls back to trimmed args_preview', () => {
     expect(extractPrimaryArg('timeout=60, command=pytest -q tests/live.py')).toBe(
@@ -69,48 +77,6 @@ describe('extractPrimaryArg', () => {
     expect(extractPrimaryArg('room=#dev, text=hello\nworld')).toBe('room=#dev, text=hello world');
     expect(extractPrimaryArg('command=echo \u202ehi')).toBe('echo <U+202E>hi');
     expect(extractPrimaryArg('   ')).toBeUndefined();
-  });
-});
-
-describe('findLinkedSubagentRun', () => {
-  const runOf = (run: string, meta: Partial<SubagentMeta>): SubagentRun => ({
-    roomId: ROOM_ID,
-    run,
-    sender: '@bot:example.org',
-    meta: makeMeta({ subagent: run, ...meta }),
-    docs: { md: '', reasoning: '', tools: [], status: 'streaming', activity: '', segments: [] },
-    sid: '1762790000000-abcdef01',
-    seq: 0,
-    lastFrameAt: NOW * 1000,
-    stale: false,
-  });
-
-  it('scopes matches to the same conversation and prefers active then newest runs', () => {
-    const otherThread = runOf('other', {
-      callerToolCallId: 'call_1',
-      threadId: '$other:example.org',
-    });
-    const completed = runOf('done', {
-      callerToolCallId: 'call_1',
-      status: 'completed',
-      startedAt: NOW - 5,
-    });
-    const active = runOf('live', {
-      callerToolCallId: 'call_1',
-      status: 'running',
-      startedAt: NOW - 20,
-    });
-    expect(findLinkedSubagentRun([otherThread, completed, active], 'call_1', THREAD_ID)?.run).toBe(
-      'live'
-    );
-    expect(findLinkedSubagentRun([otherThread], 'call_1', THREAD_ID)).toBeUndefined();
-    expect(
-      findLinkedSubagentRun(
-        [runOf('room', { callerToolCallId: 'call_1', threadId: null })],
-        'call_1',
-        undefined
-      )?.run
-    ).toBe('room');
   });
 });
 
@@ -136,6 +102,22 @@ describe('LiveToolPreview', () => {
     vi.useRealTimers();
   });
 
+  const ingestRun = (
+    run: string,
+    meta: Partial<SubagentMeta>,
+    tools: ToolTraceEvent[],
+    seq = 0
+  ) => {
+    act(() => {
+      getSubagentRunStore(mx).ingest(
+        ROOM_ID,
+        SENDER,
+        makeFrame(run, meta, tools, seq),
+        (NOW + seq) * 1000
+      );
+    });
+  };
+
   const render = (
     running: LiveToolItem[],
     {
@@ -143,14 +125,21 @@ describe('LiveToolPreview', () => {
       threadId = THREAD_ID,
       withClient = true,
       clockNow,
+      waitingStatus,
     }: {
       roomId?: string;
       threadId?: string;
       withClient?: boolean;
       clockNow?: number | null;
+      waitingStatus?: ToolCallWaitingStatus;
     } = {}
   ) => {
     let tree = <LiveToolPreview running={running} roomId={roomId} threadId={threadId} />;
+    if (waitingStatus !== undefined) {
+      tree = (
+        <ToolCallWaitingStatusContext value={waitingStatus}>{tree}</ToolCallWaitingStatusContext>
+      );
+    }
     if (clockNow !== undefined) {
       tree = <ToolCallClockContext value={clockNow}>{tree}</ToolCallClockContext>;
     }
@@ -163,71 +152,55 @@ describe('LiveToolPreview', () => {
   };
 
   it('renders a linked subagent card with up to 4 steps, durations, stdout toggle, and Sub-agents jump', () => {
-    const store = getSubagentRunStore(mx);
     const bashOutput = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5'].join('\n');
-    act(() => {
-      store.ingest(
-        ROOM_ID,
-        SENDER,
-        makeFrame(
-          'del-2',
-          {
-            subagent: 'del-1',
-            title: 'Verify live steps',
-            callerToolCallId: 'call_sub_1',
-            usage: { inputTokens: 1000, outputTokens: 200, toolCalls: 5 },
-          },
-          [
-            {
-              type: 'tool_call_completed',
-              tool_name: 'list_files',
-              args_preview: 'path=src',
-              started_at: NOW - 25,
-              ended_at: NOW - 24,
-            },
-            {
-              type: 'tool_call_completed',
-              tool_name: 'read_file',
-              args_preview: 'file_path=src/app/HtmlBlocks.tsx',
-              started_at: NOW - 20,
-              ended_at: NOW - 19.8,
-            },
-            {
-              type: 'tool_call_completed',
-              tool_name: 'grep',
-              args_preview: 'pattern=LiveToolPreview',
-              started_at: NOW - 15,
-              ended_at: NOW - 12,
-              is_error: true,
-            },
-            {
-              type: 'tool_call_completed',
-              tool_name: 'write_file',
-              args_preview: 'path=src/app/LiveToolPreview.tsx',
-              started_at: NOW - 10,
-            },
-            {
-              type: 'tool_call_started',
-              tool_name: 'bash',
-              args_preview: 'command=vitest run LiveToolPreview',
-              started_at: NOW - 4,
-              progress: bashOutput,
-            },
-          ]
-        ),
-        NOW * 1000
-      );
-    });
+    ingestRun(
+      'del-2',
+      {
+        subagent: 'del-1',
+        title: 'Verify live steps',
+        callerToolCallId: 'call_sub_1',
+        usage: { inputTokens: 1000, outputTokens: 200, toolCalls: 5 },
+      },
+      [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'list_files',
+          args_preview: 'path=src',
+          started_at: NOW - 25,
+          ended_at: NOW - 24,
+        },
+        {
+          type: 'tool_call_completed',
+          tool_name: 'read_file',
+          args_preview: 'file_path=src/app/HtmlBlocks.tsx',
+          started_at: NOW - 20,
+          ended_at: NOW - 19.8,
+        },
+        {
+          type: 'tool_call_completed',
+          tool_name: 'grep',
+          args_preview: 'pattern=LiveToolPreview',
+          started_at: NOW - 15,
+          ended_at: NOW - 12,
+          is_error: true,
+        },
+        {
+          type: 'tool_call_completed',
+          tool_name: 'write_file',
+          args_preview: 'path=src/app/LiveToolPreview.tsx',
+          started_at: NOW - 10,
+        },
+        {
+          type: 'tool_call_started',
+          tool_name: 'bash',
+          args_preview: 'command=vitest run LiveToolPreview',
+          started_at: NOW - 4,
+          progress: bashOutput,
+        },
+      ]
+    );
 
-    render([
-      toolItem({
-        index: 1,
-        toolName: 'run_subagent',
-        command: 'run_subagent',
-        toolCallId: 'call_sub_1',
-        progress: 'Calling bash (started 12:00:00 UTC)',
-      }),
-    ]);
+    render([subagentItem('call_sub_1', { progress: 'Calling bash (started 12:00:00 UTC)' })]);
 
     expect(container.textContent).toContain('Verify live steps');
     expect(container.querySelector('[data-live-subagent-count]')?.textContent).toContain('5 calls');
@@ -255,7 +228,7 @@ describe('LiveToolPreview', () => {
     expect(steps[3]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
     expect(steps[3]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('4s');
     const subagentOutput = steps[3]?.querySelector('[data-live-output]');
-    expect(subagentOutput?.className).toBe('live-tool-terminal-output-subagent');
+    expect(subagentOutput?.className).toBe(css.TerminalOutput.subagent);
     expect(subagentOutput?.textContent).toBe('line 3\nline 4\nline 5');
 
     act(() => {
@@ -286,21 +259,12 @@ describe('LiveToolPreview', () => {
   });
 
   it('renders a clean header card when a linked subagent has not started its first tool yet', () => {
-    const store = getSubagentRunStore(mx);
-    act(() => {
-      store.ingest(
-        ROOM_ID,
-        SENDER,
-        makeFrame('del-1', { agent: 'researcher', callerToolCallId: 'call_sub_empty' }, []),
-        NOW * 1000
-      );
-    });
+    ingestRun('del-1', { agent: 'researcher', callerToolCallId: 'call_sub_empty' }, []);
 
     render([
-      toolItem({
+      subagentItem('call_sub_empty', {
         toolName: 'continue_subagent',
         command: 'continue_subagent',
-        toolCallId: 'call_sub_empty',
       }),
     ]);
 
@@ -313,10 +277,9 @@ describe('LiveToolPreview', () => {
 
     // Non-redundant pre-tool progress shows under the header; once the run ends, lingering started steps settle.
     render([
-      toolItem({
+      subagentItem('call_sub_empty', {
         toolName: 'continue_subagent',
         command: 'continue_subagent',
-        toolCallId: 'call_sub_empty',
         progress: 'Warming up workspace…',
       }),
     ]);
@@ -324,19 +287,12 @@ describe('LiveToolPreview', () => {
       'Warming up workspace…'
     );
 
-    act(() => {
-      store.ingest(
-        ROOM_ID,
-        SENDER,
-        makeFrame(
-          'del-1',
-          { status: 'failed', callerToolCallId: 'call_sub_empty' },
-          [{ type: 'tool_call_started', tool_name: 'bash', started_at: NOW - 5 }],
-          1
-        ),
-        (NOW + 1) * 1000
-      );
-    });
+    ingestRun(
+      'del-1',
+      { status: 'failed', callerToolCallId: 'call_sub_empty' },
+      [{ type: 'tool_call_started', tool_name: 'bash', started_at: NOW - 5 }],
+      1
+    );
     expect(container.querySelector<HTMLElement>('[data-live-step]')?.dataset.liveStep).toBe(
       'failed'
     );
@@ -374,7 +330,7 @@ describe('LiveToolPreview', () => {
     const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     const shellOutput = container.querySelector('[data-live-output]');
-    expect(shellOutput?.className).toBe('live-tool-terminal-output-shell');
+    expect(shellOutput?.className).toBe(css.TerminalOutput.shell);
     expect(shellOutput?.textContent).toBe('out 3\nout 4\nout 5\nout 6');
     act(() => toggle?.click());
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
@@ -382,25 +338,12 @@ describe('LiveToolPreview', () => {
   });
 
   it('shows parallel running calls together without shadowing each other', () => {
-    const store = getSubagentRunStore(mx);
-    act(() => {
-      store.ingest(
-        ROOM_ID,
-        SENDER,
-        makeFrame('del-p', { title: 'Check docs', callerToolCallId: 'call_p' }, [
-          { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'path=README.md' },
-        ]),
-        NOW * 1000
-      );
-    });
+    ingestRun('del-p', { title: 'Check docs', callerToolCallId: 'call_p' }, [
+      { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'path=README.md' },
+    ]);
 
     render([
-      toolItem({
-        index: 1,
-        toolName: 'run_subagent',
-        command: 'run_subagent',
-        toolCallId: 'call_p',
-      }),
+      subagentItem('call_p'),
       toolItem({ index: 2, toolName: 'bash', argsPreview: 'command=npm test' }),
       toolItem({
         index: 3,
@@ -435,7 +378,7 @@ describe('LiveToolPreview', () => {
     expect(container.querySelector('[data-live-step-elapsed]')?.textContent).toBe('5s');
     expect(vi.getTimerCount()).toBe(0);
 
-    // Unlinked run_subagent (older backend) falls back to 6-line progress preview cleanly even without MatrixClient.
+    // Unlinked run_subagent (older backend) falls back to 6-line progress without repeating the command label.
     const sixPlus = Array.from({ length: 8 }, (_, i) => `row ${i + 1}`).join('\n');
     render(
       [
@@ -448,7 +391,7 @@ describe('LiveToolPreview', () => {
       ],
       { withClient: false }
     );
-    expect(container.textContent).toContain('run_subagent(task=old)');
+    expect(container.textContent).not.toContain('run_subagent(task=old)');
     expect(container.textContent).toContain('row 3');
     expect(container.textContent).not.toContain('row 2');
     expect(vi.getTimerCount()).toBe(0);
@@ -465,43 +408,30 @@ describe('LiveToolPreview', () => {
   ])(
     'renders unfinished child steps as waiting with zero ticking timers when subagent is %s',
     (status, expectedLabel) => {
-      const store = getSubagentRunStore(mx);
-      act(() => {
-        store.ingest(
-          ROOM_ID,
-          SENDER,
-          makeFrame('del-wait', { status, title: 'Waiting run', callerToolCallId: 'call_wait' }, [
-            {
-              type: 'tool_call_completed',
-              tool_name: 'read_file',
-              args_preview: 'path=src/index.ts',
-              started_at: NOW - 20,
-              ended_at: NOW - 18,
-            },
-            {
-              type: 'tool_call_started',
-              tool_name: 'bash',
-              args_preview: 'command=rm -rf tmp',
-              started_at: NOW - 15,
-            },
-          ]),
-          NOW * 1000
-        );
-      });
+      ingestRun('del-wait', { status, title: 'Waiting run', callerToolCallId: 'call_wait' }, [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'read_file',
+          args_preview: 'path=src/index.ts',
+          started_at: NOW - 20,
+          ended_at: NOW - 18,
+        },
+        {
+          type: 'tool_call_started',
+          tool_name: 'bash',
+          args_preview: 'command=rm -rf tmp',
+          started_at: NOW - 15,
+        },
+      ]);
 
-      const subagentItem = toolItem({
-        index: 1,
-        toolName: 'run_subagent',
-        command: 'run_subagent',
-        toolCallId: 'call_wait',
-      });
-      render([subagentItem]);
+      const parentCall = subagentItem('call_wait');
+      render([parentCall]);
 
       const steps = [...container.querySelectorAll<HTMLElement>('[data-live-step]')];
       expect(steps.map((el) => el.dataset.liveStep)).toEqual(['done', 'waiting']);
       expect(steps[0]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('2s');
       const waitingIcon = steps[1]?.querySelector('[role="img"]');
-      expect(waitingIcon?.className).toBe('live-tool-step-icon-waiting');
+      expect(waitingIcon?.className).toBe(css.StepIcon.waiting);
       expect(waitingIcon?.getAttribute('aria-label')).toBe(expectedLabel);
       expect(waitingIcon?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
       expect(steps[1]?.querySelector('[data-live-step-elapsed]')).toBeNull();
@@ -509,7 +439,7 @@ describe('LiveToolPreview', () => {
 
       // Even alongside a ticking parallel shell call, a waiting step never renders or ticks elapsed time.
       render([
-        subagentItem,
+        parentCall,
         toolItem({
           index: 2,
           toolName: 'bash',
@@ -532,44 +462,59 @@ describe('LiveToolPreview', () => {
     }
   );
 
-  it('shows waiting state, starts no local interval, and hides elapsed time when ToolCallClockContext is explicitly null', () => {
-    render(
-      [
-        toolItem({
-          index: 1,
-          toolName: 'bash',
-          argsPreview: 'command=sleep 10',
-          startedAt: NOW - 15,
-        }),
-      ],
-      { clockNow: null }
-    );
+  it.each([
+    [undefined, 'Paused'],
+    ['paused' as const, 'Paused'],
+    ['awaiting_approval' as const, 'Waiting for approval'],
+  ])(
+    'shows waiting state (%s -> %s), keeps stdout collapsible, and runs zero timers when clock is null',
+    (waitingStatus, expectedLabel) => {
+      render(
+        [
+          toolItem({
+            index: 1,
+            toolName: 'bash',
+            argsPreview: 'command=sleep 10',
+            startedAt: NOW - 15,
+            progress: 'waiting line 1\nwaiting line 2',
+          }),
+        ],
+        { clockNow: null, waitingStatus }
+      );
 
-    const step = container.querySelector('[data-live-shell="1"] [data-live-step]');
-    expect(step?.getAttribute('data-live-step')).toBe('waiting');
-    expect(step?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Paused');
-    expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
-    expect(vi.getTimerCount()).toBe(0);
+      const step = container.querySelector('[data-live-shell="1"] [data-live-step]');
+      expect(step?.getAttribute('data-live-step')).toBe('waiting');
+      expect(step?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(expectedLabel);
+      expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
 
-    act(() => {
-      vi.advanceTimersByTime(5_000);
-    });
-    expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
-    expect(vi.getTimerCount()).toBe(0);
-  });
+      // Stdout well stays open by default and can collapse/reopen while paused or awaiting approval.
+      const toggle = step?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe(
+        'waiting line 1\nwaiting line 2'
+      );
+      act(() => toggle?.click());
+      expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+      expect(step?.querySelector('[data-live-output]')).toBeNull();
+      act(() => toggle?.click());
+      expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe(
+        'waiting line 1\nwaiting line 2'
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  );
 
   it('keeps a collapsed shell row state stable when a parallel subagent starts and ends', () => {
-    const store = getSubagentRunStore(mx);
-    act(() => {
-      store.ingest(
-        ROOM_ID,
-        SENDER,
-        makeFrame('del-stable', { title: 'Side check', callerToolCallId: 'call_stable' }, [
-          { type: 'tool_call_started', tool_name: 'grep', args_preview: 'pattern=foo' },
-        ]),
-        NOW * 1000
-      );
-    });
+    ingestRun('del-stable', { title: 'Side check', callerToolCallId: 'call_stable' }, [
+      { type: 'tool_call_started', tool_name: 'grep', args_preview: 'pattern=foo' },
+    ]);
 
     const shell = toolItem({
       index: 2,
@@ -577,12 +522,7 @@ describe('LiveToolPreview', () => {
       argsPreview: 'command=npm test',
       progress: 'running tests...',
     });
-    const subagent = toolItem({
-      index: 1,
-      toolName: 'run_subagent',
-      command: 'run_subagent',
-      toolCallId: 'call_stable',
-    });
+    const subagent = subagentItem('call_stable');
 
     render([shell]);
     const shellToggle = () =>

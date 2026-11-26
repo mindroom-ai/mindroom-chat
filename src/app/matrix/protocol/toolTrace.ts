@@ -55,7 +55,7 @@ export const getToolTraceV2Events = (trace: unknown): ToolTraceEvent[] | undefin
 };
 
 /** A Unix-seconds timestamp on a trace event, or undefined when missing or not a finite number. */
-export const toolTimestamp = (value: unknown): number | undefined =>
+const toolTimestamp = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
 /** When a tool call started, in Unix seconds; undefined when missing or malformed. */

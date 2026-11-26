@@ -262,31 +262,17 @@ describe('useLiveReplyContent', () => {
     });
   });
 
-  it('keeps a running call started_at over a covering checkpoint even without progress', () => {
-    const running = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+  it('preserves finite live started_at over a covering checkpoint without overwriting a durable start', () => {
+    const noProgress = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const withDurableStart = {
+      type: 'tool_call_started',
+      tool_name: 'bash',
+      started_at: 1762790000,
+    };
+    const malformed = { type: 'tool_call_started', tool_name: 'grep' };
     const checkpointed = durable('streaming', {
       'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
-      'io.mindroom.tool_trace': { version: 2, events: [running] },
-    });
-    const frame = snapshot(4);
-    ingest({
-      ...frame,
-      snapshot: { ...frame.snapshot, tools: [{ ...running, started_at: 1762790005.5 }] },
-    });
-    render(checkpointed);
-
-    expect(shown()['io.mindroom.tool_trace']).toEqual({
-      version: 2,
-      events: [{ ...running, started_at: 1762790005.5 }],
-    });
-  });
-
-  it('keeps both progress and finite started_at, ignoring non-finite started_at on covering checkpoints', () => {
-    const first = { type: 'tool_call_started', tool_name: 'run_shell_command' };
-    const second = { type: 'tool_call_started', tool_name: 'bash' };
-    const checkpointed = durable('streaming', {
-      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
-      'io.mindroom.tool_trace': { version: 2, events: [first, second] },
+      'io.mindroom.tool_trace': { version: 2, events: [noProgress, withDurableStart, malformed] },
     });
     const frame = snapshot(4);
     ingest({
@@ -294,8 +280,9 @@ describe('useLiveReplyContent', () => {
       snapshot: {
         ...frame.snapshot,
         tools: [
-          { ...first, progress: 'line 1', started_at: 1762790001 },
-          { ...second, started_at: Number.NaN },
+          { ...noProgress, started_at: 1762790005.5 },
+          { ...withDurableStart, progress: 'line 1', started_at: 1762790099 },
+          { ...malformed, started_at: Number.NaN },
         ],
       },
     });
@@ -303,7 +290,11 @@ describe('useLiveReplyContent', () => {
 
     expect(shown()['io.mindroom.tool_trace']).toEqual({
       version: 2,
-      events: [{ ...first, progress: 'line 1', started_at: 1762790001 }, second],
+      events: [
+        { ...noProgress, started_at: 1762790005.5 },
+        { ...withDurableStart, progress: 'line 1' },
+        malformed,
+      ],
     });
   });
 

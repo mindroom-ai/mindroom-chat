@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Button, Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { subscribeRelativeTimeClock } from '../../i18n/useRelativeTime';
+import { useLiveClock } from '../../lib/hooks/useLiveClock';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
@@ -25,15 +25,6 @@ import {
 import * as css from './WorkflowRunCard.css';
 
 const RESUME_TIMEOUT_MS = 15_000;
-
-export const useLiveClock = (active: boolean): number => {
-  const [now, setNow] = useState(Date.now);
-  useEffect(
-    () => (active ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
-    [active]
-  );
-  return now;
-};
 
 export const useCanCancelBackgroundJob = (room: Room, readOnly = false): boolean => {
   const viewerId = useMatrixClient().getUserId();

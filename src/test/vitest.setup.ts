@@ -58,6 +58,8 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   Detail: 'activity-detail',
   Chevron: 'activity-chevron',
   Panel: 'activity-panel',
+  MonoOutput: 'activity-mono-output',
+  MUTED_LIVE_OPACITY: 0.95,
   Output: 'activity-output',
   OutputLabel: 'activity-output-label',
   Row: 'activity-row',
@@ -67,37 +69,6 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   Elapsed: 'activity-elapsed',
   RowText: 'activity-row-text',
   Result: 'activity-result',
-}));
-vi.mock('../app/messages/agent-run/LiveToolPreview.css', () => ({
-  Stack: 'live-tool-stack',
-  Card: 'live-tool-card',
-  CardHeader: 'live-tool-header',
-  CardTitle: 'live-tool-title',
-  CardCount: 'live-tool-count',
-  OpenButton: 'live-tool-open',
-  Steps: 'live-tool-steps',
-  Step: 'live-tool-step',
-  StepRow: 'live-tool-step-row',
-  StepRowButton: 'live-tool-step-row-button',
-  StepIcon: {
-    running: 'live-tool-step-icon-running',
-    waiting: 'live-tool-step-icon-waiting',
-    done: 'live-tool-step-icon-done',
-    failed: 'live-tool-step-icon-failed',
-  },
-  StepName: {
-    running: 'live-tool-step-name-running',
-    waiting: 'live-tool-step-name-waiting',
-    done: 'live-tool-step-name-done',
-    failed: 'live-tool-step-name-failed',
-  },
-  StepArg: 'live-tool-step-arg',
-  StepElapsed: 'live-tool-step-elapsed',
-  TerminalWell: 'live-tool-terminal-well',
-  TerminalOutput: {
-    subagent: 'live-tool-terminal-output-subagent',
-    shell: 'live-tool-terminal-output-shell',
-  },
 }));
 vi.mock('../app/avatars/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
 // The canvas hosts' tests replace folds with stand-ins that have no theme colors.

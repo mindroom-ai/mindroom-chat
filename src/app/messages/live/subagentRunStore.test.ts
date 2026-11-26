@@ -13,6 +13,7 @@ import {
 import fixture from './__fixtures__/subagent-frames-v1.json';
 import {
   countActiveSubagents,
+  findLinkedSubagentRun,
   getSubagentRunStore,
   SUBAGENT_QUIET_RUN_KEPT_MS,
   SUBAGENT_WORKING_RUN_FRESHNESS_MS,
@@ -475,6 +476,100 @@ describe('useRoomSubagentRuns', () => {
 
     act(() => renderer?.unmount());
     store.clear();
+  });
+
+  it('unsubscribes and stops re-rendering when roomId switches from enabled to undefined', () => {
+    const mx = {} as MatrixClient;
+    const store = getSubagentRunStore(mx);
+    const seen: (readonly SubagentRun[])[] = [];
+    function Probe({ roomId }: { roomId: string | undefined }) {
+      seen.push(useRoomSubagentRuns(roomId));
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: ROOM })
+        )
+      );
+    });
+    act(() => store.ingest(ROOM, AGENT, snapshot(0, 'Active'), 1000));
+    expect(seen.at(-1)?.[0]?.docs.md).toBe('Active');
+
+    act(() => {
+      renderer?.update(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: undefined })
+        )
+      );
+    });
+    expect(seen.at(-1)).toEqual([]);
+    const rendersWhenDisabled = seen.length;
+
+    act(() => store.ingest(ROOM, AGENT, append(1, 'Active', '!'), 1100));
+    expect(seen).toHaveLength(rendersWhenDisabled);
+
+    act(() => renderer?.unmount());
+    store.clear();
+  });
+});
+
+describe('findLinkedSubagentRun', () => {
+  const runOf = (
+    runId: string,
+    status: SubagentStatus,
+    extra: Partial<SubagentMeta> = {}
+  ): SubagentRun => ({
+    roomId: ROOM,
+    run: runId,
+    sender: AGENT,
+    meta: meta(status, { subagent: runId, ...extra }),
+    docs: docs(''),
+    sid: SID,
+    seq: 0,
+    lastFrameAt: 1000,
+    stale: false,
+  });
+
+  it('scopes matches to the same conversation and prefers active then newest runs', () => {
+    const otherThread = runOf('other', 'running', {
+      callerToolCallId: 'call_1',
+      threadId: '$other:example',
+    });
+    const completed = runOf('done', 'completed', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790095,
+    });
+    const olderActive = runOf('live-old', 'running', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790050,
+    });
+    const newerActive = runOf('live-new', 'running', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790080,
+    });
+    expect(
+      findLinkedSubagentRun(
+        [otherThread, completed, olderActive, newerActive],
+        'call_1',
+        '$thread:example'
+      )?.run
+    ).toBe('live-new');
+    expect(findLinkedSubagentRun([otherThread], 'call_1', '$thread:example')).toBeUndefined();
+    expect(findLinkedSubagentRun([newerActive], undefined, '$thread:example')).toBeUndefined();
+    expect(
+      findLinkedSubagentRun(
+        [runOf('room', 'running', { callerToolCallId: 'call_1', threadId: null })],
+        'call_1',
+        undefined
+      )?.run
+    ).toBe('room');
   });
 });
 

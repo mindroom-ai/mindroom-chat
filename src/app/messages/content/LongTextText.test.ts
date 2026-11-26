@@ -85,26 +85,25 @@ vi.mock('./MsgTypeRenderers', () => ({
 }));
 vi.mock('../canvas/InlineCanvasFrame', () => ({ InlineCanvasFrame: () => null }));
 vi.mock('./ImageOverlay', () => ({ ImageOverlay: () => null }));
-vi.mock('folds', () => ({
-  Box: ({ children, ...props }: Record<string, unknown>) =>
-    React.createElement('div', props, children as React.ReactNode),
-  Icon: ({ children, ...props }: Record<string, unknown>) =>
-    React.createElement('span', props, children as React.ReactNode),
-  Icons: new Proxy(
-    {},
-    {
-      get: (_, prop) => String(prop),
-    }
-  ),
-  Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
-  Text: ({ as = 'div', children, ...props }: Record<string, unknown>) =>
-    React.createElement(typeof as === 'string' ? as : 'div', props, children as React.ReactNode),
-  config: {
-    space: {
-      S100: '4px',
-    },
-  },
-}));
+vi.mock('folds', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('folds')>();
+  return {
+    ...actual,
+    Box: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('div', props, children as React.ReactNode),
+    Icon: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('span', props, children as React.ReactNode),
+    Icons: new Proxy(
+      {},
+      {
+        get: (_, prop) => String(prop),
+      }
+    ),
+    Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
+    Text: ({ as = 'div', children, ...props }: Record<string, unknown>) =>
+      React.createElement(typeof as === 'string' ? as : 'div', props, children as React.ReactNode),
+  };
+});
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
@@ -225,9 +224,9 @@ vi.mock('../agent-run/StreamingIndicator', () => ({
 vi.mock('./messageStateSuffix', () => ({
   getMessageStateSuffixRenderer: () => undefined,
 }));
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+vi.mock('../../matrix/hooks/useMatrixClient', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useMatrixClient')>()),
   useMatrixClient: () => hookMocks.mx,
-  useOptionalMatrixClient: () => hookMocks.mx,
 }));
 
 const getDownloadLongTextSidecarBlob = async () =>

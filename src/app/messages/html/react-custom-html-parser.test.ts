@@ -71,7 +71,8 @@ vi.mock('../../lib/dom', async () => {
 
 vi.mock('../content/ImageOverlay', () => ({ ImageOverlay: () => null }));
 
-vi.mock('folds', async () => {
+vi.mock('folds', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('folds')>();
   const ReactModule = await import('react');
   const ReactLib = ReactModule.default;
   const passthrough =
@@ -80,6 +81,7 @@ vi.mock('folds', async () => {
       ReactLib.createElement(tag, props, children);
 
   return {
+    ...actual,
     Box: passthrough('div'),
     Chip: passthrough('span'),
     Spinner: passthrough('span'),
@@ -102,18 +104,12 @@ vi.mock('folds', async () => {
         },
         children
       ),
-    config: {
-      space: {
-        S400: '16px',
-      },
-    },
     Icons: new Proxy(
       {},
       {
         get: (_, prop) => String(prop),
       }
     ),
-    toRem: (value: number) => `${value / 16}rem`,
     Tooltip: passthrough('span'),
     TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
       children(() => undefined),
@@ -948,7 +944,13 @@ describe('useToolTraceMarkerParserOptions', () => {
         shownByDefault,
         threadId,
         reasoning,
-      }: { shownByDefault: boolean; threadId?: string; reasoning?: string }
+        extraContent,
+      }: {
+        shownByDefault: boolean;
+        threadId?: string;
+        reasoning?: string;
+        extraContent?: Record<string, unknown>;
+      }
     ) => {
       const store = createStore();
       store.set(settingsAtom, { ...getSettings(), showToolCalls: shownByDefault });
@@ -960,6 +962,7 @@ describe('useToolTraceMarkerParserOptions', () => {
           ...(reasoning
             ? { 'io.mindroom.reasoning': { text: reasoning, duration_ms: 12_000 } }
             : {}),
+          ...extraContent,
         };
         const options = markerParserOptions(createBaseOpts(), content);
         return React.createElement(
@@ -1257,6 +1260,33 @@ describe('useToolTraceMarkerParserOptions', () => {
       expect(reply.text()).not.toContain('web_search');
       reply.unmount();
     });
+
+    it('keeps live previews hidden while the cog is closed and reveals them when opened', async () => {
+      const reply = renderReply('<p>🔧 <code>run_shell_command</code> [1] ⏳</p>', {
+        shownByDefault: false,
+        extraContent: {
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [
+              {
+                type: 'tool_call_started',
+                tool_name: 'run_shell_command',
+                args_preview: 'command=pytest',
+                progress: 'running...',
+              },
+            ],
+          },
+        },
+      });
+      expect(reply.text()).not.toContain('pytest');
+      await act(() => reply.cogButton().props.onClick());
+      expect(reply.text()).toContain('pytest');
+      expect(reply.text()).toContain('running...');
+      await act(() => reply.cogButton().props.onClick());
+      expect(reply.text()).not.toContain('pytest');
+      reply.unmount();
+    });
   });
 
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {
@@ -1328,98 +1358,54 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
-  it('shows the last 4 lines for direct shell output and last 6 lines for fallback progress', () => {
-    const output = Array.from({ length: 10 }, (_, i) => `step ${i + 1}`).join('\n');
+  it('renders live preview under a marker and normalizes output whitespace', () => {
     const shell = renderTreeWithToolTrace('<p>🔧 <code>run_shell_command</code> [1]</p>', {
-      'io.mindroom.tool_trace': {
-        version: 2,
-        events: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: output }],
-      },
-    });
-    const shellText = collectTextContent(shell.toJSON());
-    expect(shellText).toMatch(toolCountLabel(1));
-    expect(shellText).toContain('step 7');
-    expect(shellText).toContain('step 10');
-    expect(shellText).not.toContain('step 6');
-
-    const fallback = renderTreeWithToolTrace('<p>🔧 <code>web_search</code> [1]</p>', {
-      'io.mindroom.tool_trace': {
-        version: 2,
-        events: [{ type: 'tool_call_started', tool_name: 'web_search', progress: output }],
-      },
-    });
-    const fallbackText = collectTextContent(fallback.toJSON());
-    expect(fallbackText).toContain('step 5');
-    expect(fallbackText).toContain('step 10');
-    expect(fallbackText).not.toContain('step 4');
-  });
-
-  it('keeps the indentation of a running call output first line', () => {
-    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
-    const renderer = renderTreeWithToolTrace(html, {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
           {
             type: 'tool_call_started',
             tool_name: 'run_shell_command',
-            progress: '  root:\n    child: 1\n',
+            args_preview: 'command=pytest',
+            progress: '\r\n\n  root:\n    child: 1\n',
           },
         ],
       },
     });
-
-    const [output] = renderer.root.findAll(
+    expect(collectTextContent(shell.toJSON())).toMatch(toolCountLabel(1));
+    const [output] = shell.root.findAll(
       (node) => node.type === 'pre' && node.props['data-live-output'] === ''
     );
     expect(output!.children.join('')).toBe('  root:\n    child: 1');
   });
 
-  it('drops leading blank lines of a running call output', () => {
-    const html = '<p>🔧 <code>run_subagent</code> [1]</p>';
-    const renderer = renderTreeWithToolTrace(html, {
-      'io.mindroom.tool_trace': {
-        version: 2,
-        events: [
-          {
-            type: 'tool_call_started',
-            tool_name: 'run_subagent',
-            progress: '\r\n\nCalling write_report\n  writing',
-          },
-        ],
-      },
-    });
-
-    const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
-    expect(output!.children.join('')).toBe('Calling write_report\n  writing');
-  });
-
-  it('shows every parallel running shell call simultaneously, even before output arrives', () => {
-    const html =
-      '<p>🔧 <code>run_shell_command</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
+  it('names a fallback call whose output shows only while several calls run', () => {
+    const html = '<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>web_search</code> [2]</p>';
     const started = (args: string, progress?: string) => ({
       type: 'tool_call_started',
-      tool_name: 'run_shell_command',
+      tool_name: 'web_search',
       args_preview: args,
       progress,
     });
-    const renderer = renderTreeWithToolTrace(html, {
-      'io.mindroom.tool_trace': {
-        version: 2,
-        events: [started('command=pytest'), started('command=npm run build', 'compiling')],
-      },
-    });
+    const labels = (events: object[]) =>
+      renderTreeWithToolTrace(html, { 'io.mindroom.tool_trace': { version: 2, events } })
+        .root.findAll((node) => node.props.className === 'activity-output-label')
+        .map((node) => node.children.join(''));
 
-    const cards = renderer.root.findAll((node) => node.props['data-live-shell'] !== undefined);
-    expect(cards).toHaveLength(2);
-    expect(collectTextContent(renderer.toJSON())).toContain('pytest');
-    expect(collectTextContent(renderer.toJSON())).toContain('npm run build');
-    expect(collectTextContent(renderer.toJSON())).toContain('compiling');
+    expect(labels([started('q=first'), started('q=second', 'searching')])).toEqual([
+      'web_search(q=second)',
+    ]);
+    expect(
+      labels([
+        { type: 'tool_call_completed', tool_name: 'web_search', result_preview: 'ok' },
+        started('q=second', 'searching'),
+      ])
+    ).toEqual([]);
   });
 
-  it('drops a call output once the call completed', () => {
+  it('omits live preview once the call completed or the foreground reply stopped', () => {
     const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
-    const renderer = renderTreeWithToolTrace(html, {
+    const completed = renderTreeWithToolTrace(html, {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
@@ -1432,8 +1418,27 @@ describe('useToolTraceMarkerParserOptions', () => {
         ],
       },
     });
+    expect(completed.root.findAll((node) => node.props['data-live-tool-preview'] === '')).toEqual(
+      []
+    );
+    expect(collectTextContent(completed.toJSON())).not.toContain('step 1');
 
-    expect(collectTextContent(renderer.toJSON())).not.toContain('step 1');
+    const stopped = renderTreeWithToolTrace(html, {
+      'io.mindroom.stream_status': 'stopped',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_started',
+            tool_name: 'run_shell_command',
+            args_preview: 'command=sleep 99',
+            started_at: 1000,
+            progress: 'still here',
+          },
+        ],
+      },
+    });
+    expect(stopped.root.findAll((node) => node.props['data-live-tool-preview'] === '')).toEqual([]);
   });
 
   it('expands marker-only tool refs with the marker tool name', () => {

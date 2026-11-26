@@ -5,7 +5,6 @@ import {
   runningToolCalls,
   toolEndedAt,
   toolStartedAt,
-  toolTimestamp,
   toolTraceCallId,
 } from './toolTrace';
 
@@ -81,15 +80,8 @@ describe('toolTraceCallId', () => {
   });
 });
 
-describe('toolTimestamp / toolStartedAt / toolEndedAt', () => {
+describe('toolStartedAt / toolEndedAt', () => {
   it('reads finite numeric Unix-second timestamps and ignores malformed values', () => {
-    expect(toolTimestamp(1762790002.5)).toBe(1762790002.5);
-    expect(toolTimestamp(0)).toBe(0);
-    expect(toolTimestamp('1762790002')).toBeUndefined();
-    expect(toolTimestamp(null)).toBeUndefined();
-    expect(toolTimestamp(Number.NaN)).toBeUndefined();
-    expect(toolTimestamp(Number.POSITIVE_INFINITY)).toBeUndefined();
-
     const event = {
       type: 'tool_call_completed',
       tool_name: 'bash',
@@ -98,7 +90,13 @@ describe('toolTimestamp / toolStartedAt / toolEndedAt', () => {
     };
     expect(toolStartedAt(event)).toBe(1000.25);
     expect(toolEndedAt(event)).toBe(1002.75);
+    expect(toolStartedAt({ started_at: 0 })).toBe(0);
+    expect(toolEndedAt({ ended_at: 0 })).toBe(0);
     expect(toolStartedAt(undefined)).toBeUndefined();
-    expect(toolEndedAt({ started_at: 1000, ended_at: 'bad' })).toBeUndefined();
+    expect(toolEndedAt(undefined)).toBeUndefined();
+    for (const bad of ['1762790002', null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(toolStartedAt({ started_at: bad })).toBeUndefined();
+      expect(toolEndedAt({ ended_at: bad })).toBeUndefined();
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { isRecord } from '../../lib/isRecord';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
@@ -38,9 +39,6 @@ export const LIVE_COMPACTIONS_KEY = 'io.mindroom.live_compactions';
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
 const LONG_TEXT_KEY = 'io.mindroom.long_text';
 const LIVE_DURABLE_STATUSES = new Set(['pending', 'streaming']);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const getLiveCheckpoint = (content: IContent): LiveOrder | undefined => {
   const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
@@ -182,13 +180,14 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
       return event;
     }
     const progress = typeof live.progress === 'string' ? live.progress : undefined;
-    const startedAt = toolStartedAt(event) === undefined ? toolStartedAt(live) : undefined;
-    if (progress === undefined && startedAt === undefined) return event;
+    const durableStart = toolStartedAt(event);
+    const startedAt = durableStart ?? toolStartedAt(live);
+    if (progress === undefined && startedAt === durableStart) return event;
     changed = true;
     return {
       ...event,
       ...(progress === undefined ? {} : { progress }),
-      ...(startedAt === undefined ? {} : { started_at: startedAt }),
+      ...(startedAt === durableStart ? {} : { started_at: startedAt }),
     };
   });
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;

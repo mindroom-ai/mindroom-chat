@@ -1,6 +1,6 @@
+import { isRecord } from '../../lib/isRecord';
 import { parseAiRunModel, type AiRunModelInfo } from './aiRun';
 import { parseLiveFrame, type LiveDelta, type LiveDocs, type LiveOrder } from './liveFrame';
-import { toolStartedAt, type ToolTraceEvent } from './toolTrace';
 
 /** Event type of the ephemeral frames that stream a MindRoom sub-agent run. */
 export const SUBAGENT_FRAME_EVENT_TYPE = 'io.mindroom.subagents';
@@ -68,9 +68,6 @@ const ACTIVE_STATUSES: ReadonlySet<SubagentStatus> = new Set([
   'awaiting_approval',
   'paused',
 ]);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
@@ -147,14 +144,6 @@ export const parseSubagentFrame = (content: unknown): SubagentFrame | null => {
   const { reply: _reply, ...order } = live;
   return { ...order, run, meta };
 };
-
-/**
- * When a tool call of a sub-agent run started, in Unix seconds on the clock of the run's
- * `started_at`. MindRoom before the field sends none, and a value that is not a finite number
- * counts as none, so the frame still shows.
- */
-export const subagentToolStartedAt = (event: ToolTraceEvent): number | undefined =>
-  toolStartedAt(event);
 
 export const isActiveSubagentStatus = (status: SubagentStatus): boolean =>
   ACTIVE_STATUSES.has(status);

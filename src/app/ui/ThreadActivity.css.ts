@@ -118,26 +118,37 @@ export const Panel = style({
   overflow: 'hidden',
 });
 
-// The latest output of a running call, under its activity line whether or not the panel is open. At most six
-// rendered lines show, the newest at the bottom, however long a wrapped line is.
-export const Output = style([
+// Composed with MessageTextBody's 0.9 streaming opacity, 0.95 keeps >= 4.5:1 AA across all 23 palettes.
+export const MUTED_LIVE_OPACITY = 0.95;
+
+// Bottom-aligned monospace output base shared by live tool previews and fallback output.
+export const MonoOutput = style([
   DefaultReset,
   {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'flex-end',
-    maxHeight: '9em',
     overflow: 'hidden',
+    margin: 0,
+    color: color.Surface.OnContainer,
+    fontFamily: 'var(--font-mono)',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+]);
+
+// The latest output of a running call, under its activity line whether or not the panel is open. At most six
+// rendered lines show, the newest at the bottom, however long a wrapped line is.
+export const Output = style([
+  MonoOutput,
+  {
+    maxHeight: '9em',
     margin: `${config.space.S100} 0 0`,
     paddingInlineStart: config.space.S300,
     borderInlineStart: `${config.borderWidth.B600} solid ${color.SurfaceVariant.ContainerLine}`,
-    color: color.Surface.OnContainer,
-    fontFamily: 'var(--font-mono)',
     fontSize: toRem(12),
     lineHeight: 1.5,
-    opacity: config.opacity.P400,
-    whiteSpace: 'pre-wrap',
-    overflowWrap: 'anywhere',
+    opacity: MUTED_LIVE_OPACITY,
   },
 ]);
 
@@ -147,7 +158,7 @@ export const OutputLabel = style({
   color: color.Surface.OnContainer,
   fontFamily: 'var(--font-mono)',
   fontSize: toRem(12),
-  opacity: 0.75,
+  opacity: MUTED_LIVE_OPACITY,
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });

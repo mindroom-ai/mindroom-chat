@@ -1,10 +1,6 @@
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import {
-  isRestartInterrupted,
-  subagentToolStartedAt,
-  type SubagentMeta,
-} from '../matrix/protocol/subagentFrame';
-import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
+import { isRestartInterrupted, type SubagentMeta } from '../matrix/protocol/subagentFrame';
+import { toolStartedAt, type ToolTraceEvent } from '../matrix/protocol/toolTrace';
 
 /** A tool call as a row or card shows it: its tool, its arguments when sent, and when it started. */
 export type ToolActivity = { tool: string; preview?: string; startedAt?: number };
@@ -23,7 +19,7 @@ export const toolActivity = (event: ToolTraceEvent | undefined): ToolActivity | 
   const { tool_name: tool, args_preview: preview } = event ?? {};
   if (typeof tool !== 'string' || !tool) return undefined;
   const args = typeof preview === 'string' ? oneLine(preview) : '';
-  const startedAt = event && subagentToolStartedAt(event);
+  const startedAt = toolStartedAt(event);
   return {
     tool,
     ...(args ? { preview: args } : {}),
