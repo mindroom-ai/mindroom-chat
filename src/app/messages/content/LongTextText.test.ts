@@ -227,6 +227,7 @@ vi.mock('./messageStateSuffix', () => ({
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
+  useOptionalMatrixClient: () => hookMocks.mx,
 }));
 
 const getDownloadLongTextSidecarBlob = async () =>

@@ -165,7 +165,10 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
           : event.is_error === true
             ? 'failed'
             : 'done';
-      const rawOutput = state === 'running' ? normalizeToolOutput(event.progress) : undefined;
+      const rawOutput =
+        state === 'running' || state === 'waiting'
+          ? normalizeToolOutput(event.progress)
+          : undefined;
       return {
         key,
         state,
@@ -278,7 +281,7 @@ function LiveStepRow({
 
   return (
     <div className={css.Step} data-live-step={state}>
-      {state === 'running' && output ? (
+      {(state === 'running' || state === 'waiting') && output ? (
         <>
           <button
             ref={toggleRef}

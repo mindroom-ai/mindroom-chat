@@ -9,7 +9,8 @@ const truncate = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 } as const;
-const muted = { color: color.Surface.OnContainer, opacity: config.opacity.P400 } as const;
+// Composed with MessageTextBody's 0.9 streaming opacity, 0.95 keeps >= 4.5:1 AA across all 23 palettes.
+const muted = { color: color.Surface.OnContainer, opacity: 0.95 } as const;
 
 export const Stack = style({
   display: 'flex',
@@ -159,15 +160,15 @@ export const StepIcon = styleVariants({
 
 const stepNameBase = style({
   ...mono,
-  flexShrink: 0,
+  ...truncate,
+  flex: '0 1 auto',
   color: color.Surface.OnContainer,
-  whiteSpace: 'nowrap',
 });
 
 export const StepName = styleVariants({
   running: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
   waiting: [stepNameBase, { fontWeight: config.fontWeight.W600 }],
-  done: [stepNameBase, { fontWeight: config.fontWeight.W500, opacity: config.opacity.P400 }],
+  done: [stepNameBase, { fontWeight: config.fontWeight.W500, opacity: 0.95 }],
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
 
@@ -205,7 +206,7 @@ const terminalOutputBase = style([
     fontFamily: 'var(--font-mono)',
     fontSize: toRem(11.5),
     lineHeight: TERMINAL_LINE_HEIGHT,
-    opacity: 0.88,
+    opacity: 0.95,
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
