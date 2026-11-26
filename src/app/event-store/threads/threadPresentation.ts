@@ -138,13 +138,13 @@ export const resolveThreadPresentationSnapshot = ({
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...knownReplies, summaryReply].some((event) => {
-      if (!event) return false;
-      if (isFolded(event)) return !!bundle.reply && event.getId() === bundle.reply.getId();
-      return event.getId() === bundleLatest.id
-        ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
-        : event.getTs() > bundleLatest.ts;
-    });
+    [...knownReplies, summaryReply].some(
+      (event) =>
+        !!event &&
+        (event.getId() === bundleLatest.id
+          ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
+          : event.getTs() > bundleLatest.ts)
+    );
   const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
   const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents, viewerUserId);
   // The SDK restores the bundled reply before loading the thread timeline.

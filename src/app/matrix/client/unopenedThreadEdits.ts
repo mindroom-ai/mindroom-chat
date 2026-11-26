@@ -41,17 +41,26 @@ type SummarizedThread = {
 const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
   !!room && !!editId && isKnownRedactedEventId(room, editId);
 
+/** Any reply of a thread: not its root, nor its title notice. */
+const isThreadReply = (
+  thread: SummarizedThread,
+  event: MatrixEvent | null | undefined
+): event is MatrixEvent => !!event && event.getId() !== thread.id && !isThreadSummaryEvent(event);
+
 /** A reply the thread's summary may name: not its root, title notice, or a folded secret request. */
 const isSummarizedReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
 ): event is MatrixEvent =>
-  !!event &&
-  event.getId() !== thread.id &&
-  !isThreadSummaryEvent(event) &&
+  isThreadReply(thread, event) &&
   !isFoldedSecretRequestEvent(event, thread.room?.myUserId || undefined);
 
-const refreshRetainedEdit = (thread: SummarizedThread, retained: MatrixEvent): MatrixEvent => {
+/** The reply retained by the unopened-thread watcher, even if it has since folded. */
+export const getRetainedThreadSummaryReply = (
+  thread: SummarizedThread | null | undefined
+): MatrixEvent | undefined => {
+  const retained = thread ? summarizedReplies.get(thread) : undefined;
+  if (!retained || !thread) return undefined;
   // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
   // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
   // from replacingEventId().
@@ -74,19 +83,8 @@ export const getThreadSummaryReply = (
   if (!thread) return undefined;
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
-  const retained = summarizedReplies.get(thread);
-  if (!retained) return summarized;
-  refreshRetainedEdit(thread, retained);
+  const retained = getRetainedThreadSummaryReply(thread);
   return isSummarizedReply(thread, retained) ? retained : summarized;
-};
-
-/** The reply retained by the unopened-thread watcher, even if it has since folded. */
-export const getRetainedThreadSummaryReply = (
-  thread: SummarizedThread | null | undefined
-): MatrixEvent | undefined => {
-  if (!thread) return undefined;
-  const retained = summarizedReplies.get(thread);
-  return retained ? refreshRetainedEdit(thread, retained) : undefined;
 };
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
@@ -206,7 +204,7 @@ const createEditWatcher = (): EditWatcher => {
       summarizedReplies.delete(thread);
       return false;
     }
-    if (isSummarizedReply(thread, thread.replyToEvent))
+    if (isThreadReply(thread, thread.replyToEvent))
       summarizedReplies.set(thread, thread.replyToEvent);
     let changed = false;
     const targets = new Set<MatrixEvent>();

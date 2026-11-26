@@ -121,7 +121,7 @@ describe('folded secret-request notices as thread reply previews', () => {
         content: secretRequestEditContent('$secret'),
       })
     );
-    const bundledPreviews = { reply: replyEvent, latest: { id: '$reply', ts: 2 } };
+    const bundledPreviews = { reply: replyEvent, latest: { id: '$secret', ts: 5 } };
     const loadedThread = { room, events: [replyEvent, folded], timeline: [replyEvent, folded] };
     const unopenedThread = { room, events: [], timeline: [], replyToEvent: folded };
     const presentCached = (
@@ -192,5 +192,88 @@ describe('folded secret-request notices as thread reply previews', () => {
       latestReplyPreviewText: 'Follow-up after deploy',
       lastSenderId: VIEWER,
     });
+  });
+
+  it('keeps a server-bundled reply paired with the folded secret, and outgrows an older stale bundle', () => {
+    const answer = new MatrixEvent({
+      event_id: '$answer',
+      room_id: ROOM,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 1000,
+      content: {
+        msgtype: 'm.text',
+        body: 'Release deployed successfully.',
+        'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
+      },
+    });
+    const staleDraft = new MatrixEvent({
+      event_id: '$answer',
+      room_id: ROOM,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 1000,
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking about it.',
+        'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
+      },
+    });
+    const makePendingSecret = () =>
+      new MatrixEvent({
+        event_id: '$secret',
+        room_id: ROOM,
+        sender: AGENT,
+        type: 'm.room.message',
+        origin_server_ts: 2000,
+        content: {
+          msgtype: 'm.notice',
+          body: 'API token needed',
+          [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload({ status: 'pending' }),
+          'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
+        },
+      });
+    const pending = makePendingSecret();
+    const folded = makePendingSecret();
+    folded.makeReplaced(
+      new MatrixEvent({
+        event_id: '$secret-edit',
+        room_id: ROOM,
+        sender: AGENT,
+        type: 'm.room.message',
+        origin_server_ts: 2500,
+        content: secretRequestEditContent('$secret'),
+      })
+    );
+    const unopenedThread = { room, events: [], timeline: [], replyToEvent: folded };
+    const presentBundled = (
+      bundledPreviews: Parameters<typeof resolveThreadPresentationSnapshot>[0]['bundledPreviews']
+    ) =>
+      resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: ROOT,
+        rootEvent: root,
+        thread: unopenedThread,
+        bundledPreviews,
+      });
+
+    // Server bundled $answer alongside the folded $secret (latest = { id: '$secret', ts: 2500 }):
+    // outgrown is false, so $answer is kept and shown.
+    expect(
+      presentBundled({ reply: answer, latest: { id: '$secret', ts: 2500 } }).latestReplyPreviewText
+    ).toBe('Release deployed successfully.');
+
+    // Older stale bundle (latest = { id: '$answer', ts: 1000 }) IS outgrown once the newer
+    // $secret (ts = 2000) arrives, so neither a redacted answer nor a stale draft resurfaces.
+    expect(
+      presentBundled({ reply: staleDraft, latest: { id: '$answer', ts: 1000 } })
+        .latestReplyPreviewText
+    ).toBeUndefined();
+
+    // Pending secret bundle (latest = { id: '$secret', ts: 2000 }) IS outgrown once $secret
+    // folds at ts = 2500.
+    expect(
+      presentBundled({ reply: pending, latest: { id: '$secret', ts: 2000 } }).latestReplyPreviewText
+    ).toBeUndefined();
   });
 });

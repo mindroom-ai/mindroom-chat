@@ -532,15 +532,27 @@ describe('bundled secret-request previews', () => {
     );
   });
 
-  it('keeps a different bundled answer across a newer folded secret, and invalidates a stale pending secret', () => {
-    const answerShape = summaryShape();
-    answerShape.latest_event = answerShape['io.mindroom.latest_reply'];
-    const { room, root } = fixture(answerShape);
-    const newerFolded = new MatrixEvent({ ...secretEvent('saved', 5000), room_id: roomId });
-    expect(presentation(room, root, [newerFolded]).latestReplyPreviewText).toBe(
+  it('keeps a server-bundled answer paired with a folded secret, and outgrows older or pending bundles', () => {
+    const rawFolded = secretEvent('saved', 5000);
+    const newerFolded = new MatrixEvent({ ...rawFolded, room_id: roomId });
+
+    // Server bundled io.mindroom.latest_reply = $reply alongside latest_event = folded $secret.
+    const freshShape = summaryShape();
+    freshShape.latest_event = rawFolded;
+    const fresh = fixture(freshShape);
+    expect(presentation(fresh.room, fresh.root, [newerFolded]).latestReplyPreviewText).toBe(
       'Final answer with dates'
     );
 
+    // An older root whose latest_event predates $secret is outgrown once $secret arrives.
+    const staleShape = summaryShape();
+    staleShape.latest_event = staleShape['io.mindroom.latest_reply'];
+    const stale = fixture(staleShape);
+    expect(
+      presentation(stale.room, stale.root, [newerFolded]).latestReplyPreviewText
+    ).toBeUndefined();
+
+    // A pending secret bundle is outgrown once the secret folds via a newer edit.
     const pending = secretEvent('pending', 3000);
     const pendingFixture = bundleFixture(pending);
     const loadedReply = new MatrixEvent({

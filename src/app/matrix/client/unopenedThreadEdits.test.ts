@@ -613,8 +613,16 @@ describe('edits of unopened threads', () => {
     expect(f.loadedThread()).toBe(false);
   });
 
-  it('keeps an earlier retained reply when an already-folded secret request arrives', async () => {
-    const agentReply = (): IEvent => ({ ...reply(), sender: helper });
+  it('replaces an earlier detached reply when an already-folded secret request arrives', async () => {
+    const answer = (): IEvent => ({
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        ...reply().content,
+        body: 'Sensitive answer to delete',
+      },
+    });
     const foldedSecret = (): IEvent =>
       message(
         '$secret',
@@ -630,18 +638,77 @@ describe('edits of unopened threads', () => {
         },
         helper
       );
-    const f = fixture(() => [agentReply(), foldedSecret()]);
+    const f = fixture(() => [answer(), foldedSecret()]);
     await f.start();
-    await f.deliver([withSummary(agentReply())]);
-    expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+    await f.deliver([withSummary(answer())]);
+    expect(f.card().preview).toBe('Sensitive answer to delete');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$answer');
 
+    // An already-folded secret request replaces $answer in summarizedReplies, matching main.
     await f.deliver([foldedSecret()]);
-    expect(getThreadSummaryReply(f.thread())?.getId()).toBe('$reply');
-    expect(f.card().preview).toBe('Thinking about it');
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+    expect(f.card().preview).toBeUndefined();
 
-    await f.deliver([edit('Deployed to production.', 170, 'completed', helper)]);
-    expect(f.card()).toEqual({ preview: 'Deployed to production.', streaming: false });
+    // Redacting the earlier detached $answer can never resurrect it, and a title notice keeps
+    // $secret retained for folded-cache suppression.
+    await f.deliver([redaction('$answer', 155)]);
+    expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+    expect(f.card().preview).toBeUndefined();
+
+    await f.deliver([title(180)]);
+    expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$secret');
+    expect(f.card().preview).toBeUndefined();
     expect(f.loadedThread()).toBe(false);
+  });
+
+  it('outgrows a stale bundled draft or redacted bundled answer when a newer secret request folds', async () => {
+    const draftAnswer = (): IEvent => ({
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        ...reply().content,
+        body: 'Thinking about it.',
+      },
+    });
+    const f = fixture(() => [pendingSecret()]);
+    await f.start();
+    // Stale older root bundled $answer as both latest_event and io.mindroom.latest_reply.
+    await f.deliver([withSummary(draftAnswer(), draftAnswer())]);
+    expect(f.card().preview).toBe('Thinking about it.');
+
+    // A newer secret request arrives, $answer is redacted off-timeline, and the secret folds.
+    await f.deliver([pendingSecret()]);
+    expect(f.card().preview).toBe('API token needed');
+    await f.deliver([redaction('$answer', 155), savedSecretEdit(160)]);
+    expect(f.card().preview).toBeUndefined();
+    expect(f.loadedThread()).toBe(false);
+
+    // By contrast, a fresh root whose latest_event is the folded secret paired with
+    // io.mindroom.latest_reply = $answer keeps and displays $answer.
+    const finalAnswer: IEvent = {
+      ...reply(),
+      event_id: '$answer',
+      sender: helper,
+      content: {
+        msgtype: 'm.text',
+        body: 'Release deployed successfully.',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+    };
+    const foldedSecretWithEdit: IEvent = {
+      ...pendingSecret(),
+      unsigned: { 'm.relations': { 'm.replace': savedSecretEdit(160) } },
+    };
+    const fresh = fixture(() => [finalAnswer, foldedSecretWithEdit]);
+    await fresh.start();
+    await fresh.deliver([withSummary(foldedSecretWithEdit, finalAnswer)]);
+    expect(fresh.card().preview).toBe('Release deployed successfully.');
+    expect(fresh.card({ text: 'API token needed', ts: 120, sender: helper }).preview).toBe(
+      'Release deployed successfully.'
+    );
+    expect(fresh.loadedThread()).toBe(false);
   });
 
   it('retains a summary-only pending secret request across a title notice and drops it once folded', async () => {
