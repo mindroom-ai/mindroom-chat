@@ -8,8 +8,10 @@ import {
   pendingVoiceSendDraftAtom,
   threadViewVoiceComposersAtom,
   forgetComposerStateOfSession,
+  composersHoldUnsavedWork,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
   homeAskDestinationAtomFamily,
   homeAskPendingAtomFamily,
   restoreTextToDraft,
@@ -229,6 +231,51 @@ describe('message draft persistence', () => {
       store.set(homeAskPendingAtomFamily(ROBIN), sending);
       forgetComposerStateOfSession(store);
       expect(store.get(homeAskPendingAtomFamily(ROBIN))).toBeUndefined();
+    });
+  });
+
+  describe('Space All threads draft', () => {
+    const ROBIN = '@robin:example.org';
+    const OTHER = '@other:example.org';
+    const SPACE = '!space:example.org';
+
+    afterEach(() => {
+      clearRoomInputDrafts(ROBIN);
+      clearRoomInputDrafts(OTHER);
+    });
+
+    it('is isolated from room, thread, and Home draft keys and cleans up on account clear and session end', () => {
+      const spaceKey = getSpaceThreadsDraftKey(ROBIN, SPACE);
+      expect(spaceKey).not.toBe(getHomeAskDraftKey(ROBIN));
+      expect(spaceKey).not.toBe(getRoomInputDraftKey(ROBIN, SPACE));
+      expect(spaceKey).not.toBe(getRoomInputDraftKey(ROBIN, SPACE, 'space-threads'));
+
+      const store = createStore();
+      const otherSpaceKey = getSpaceThreadsDraftKey(OTHER, SPACE);
+      store.set(roomIdToMsgDraftAtomFamily(spaceKey), draft);
+      store.set(roomIdToMsgDraftAtomFamily(otherSpaceKey), draft);
+      expect(values.has(`roomInputDraft:${spaceKey}`)).toBe(true);
+
+      const file = new File(['x'], 'deck.pdf', { type: 'application/pdf' });
+      store.set(composerUploadItemsAtom(spaceKey, undefined), {
+        type: 'PUT',
+        item: {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+        },
+      });
+      expect(composersHoldUnsavedWork(store)).toBe(true);
+
+      clearRoomInputDrafts(ROBIN);
+      expect(values.has(`roomInputDraft:${spaceKey}`)).toBe(false);
+      expect(values.has(`roomInputDraft:${otherSpaceKey}`)).toBe(true);
+      expect(createStore().get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual([]);
+
+      forgetComposerStateOfSession(store);
+      expect(store.get(composerUploadItemsAtom(spaceKey, undefined))).toEqual([]);
+      expect(composersHoldUnsavedWork(store)).toBe(false);
     });
   });
 });

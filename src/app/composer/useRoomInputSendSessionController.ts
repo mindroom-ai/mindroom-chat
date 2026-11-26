@@ -261,6 +261,8 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
+  /** False for staged-draft composers so they never adopt a room composer's parked send. */
+  adoptParked?: boolean;
 };
 
 export const hasFailedPasteMarkerInText = (
@@ -472,6 +474,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
+  adoptParked = true,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -1126,6 +1129,7 @@ export const useRoomInputSendSessionController = ({
     () => !!slot.session || slot.queued.length > 0
   );
   useEffect(() => {
+    if (!adoptParked) return;
     const own = slotRef.current;
     if (own.session || own.queued.length > 0) return;
     const parked = parkedSlotsOf(mx).get(composerKey);
@@ -1164,7 +1168,17 @@ export const useRoomInputSendSessionController = ({
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [attachments, composerKey, isMounted, mx, ownBusy, parkVersion, reportSent, restoreText]);
+  }, [
+    adoptParked,
+    attachments,
+    composerKey,
+    isMounted,
+    mx,
+    ownBusy,
+    parkVersion,
+    reportSent,
+    restoreText,
+  ]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   // Always bind repark so a post-unmount send (such as background dictation) can park too.

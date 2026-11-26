@@ -91,6 +91,10 @@ export const getRoomInputDraftKey = (userId: string, roomId: string, threadId?: 
 /** The key of Home's ask field draft: one per account, whichever room it is to go to. */
 export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([userId]);
 
+/** The key of a space's All threads composer draft: one per account and space. */
+export const getSpaceThreadsDraftKey = (userId: string, spaceId: string): string =>
+  JSON.stringify([userId, null, 'space-threads', spaceId]);
+
 /** Where Home's ask draft goes: the agent and the room, null for a direct chat yet to start. */
 export type HomeAskDestination = {
   agentId: string;
