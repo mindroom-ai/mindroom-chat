@@ -212,7 +212,7 @@ const computeBodyPreview = (
   if (preferPostToolAnswer && toolCallCount > 0 && lastToolLineIndex >= 0 && afterLastTool) {
     const cleanedAnswer = tidy(
       stripPreviewMath(boundPreviewSource(afterLastTool), stripPreviewMarkdown)
-    ).replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
+    );
     if (
       cleanedAnswer.replace(INVISIBLE_PREVIEW_TEXT_REGEX, '').length > 0 &&
       !hasLikelyIncompleteStreamingBody(cleanedAnswer)

@@ -456,4 +456,14 @@ describe('folded-work post-tool answer previews', () => {
     expect(getThreadMessagePreviewText(wrapper)).toBe('All checks passed.');
     expect(getThreadPreviewLocalization(wrapper, 'All checks passed.')).toBeUndefined();
   });
+
+  it('preserves leading punctuation like ::1 in extracted post-tool answers', () => {
+    const content = finishedContent(
+      'Checking interfaces.\n\n🔧 `shell` [1]\n\n::1 is the IPv6 loopback address.'
+    );
+    expect(getThreadMessagePreviewText(content)).toBe('::1 is the IPv6 loopback address.');
+    expect(
+      getThreadPreviewLocalization(content, '::1 is the IPv6 loopback address.')
+    ).toBeUndefined();
+  });
 });
