@@ -21,8 +21,10 @@
 +        this._lastElementOffset = live; scheduleWheelFlush(50); return
 +      }
 +      this._wheelTimer = null; this._wheelLive = false
-+      if (live !== null && this._holdOffset !== 0 && this.options.enabled && this._canWriteScroll() && this.scrollState?.phase !== 'smooth') this.scrollOffset = this._toLayoutOffset(live) + (this._clampedAdjustment !== null && Math.abs(live - this._clampedAdjustment.maxAtWrite) < 1.5 ? this._clampedAdjustment.target - this._clampedAdjustment.maxAtWrite : 0)
-+      this._flushHoldIfReady(true); this._retryClampedAdjustment()
++      const heldBefore = this._holdOffset
++      this._flushHoldIfReady(true)
++      if (this._holdOffset < 0 && this._holdOffset === heldBefore) this.notify(true)
++      this._retryClampedAdjustment()
 +    }, delay)
 +  }
 +  const onWheel = () => { if (!this.options.holdScrollDuringWheel) return; if (!this._wheelLive) this._wheelSince = this.now(); scheduleWheelFlush(150) }
@@ -34,7 +36,17 @@
 
 ## PR 2: Reconcile unseen live `scrollTop` moves in `applyScrollAdjustment`
 
-removed: not needed after #900, ablation 2026-11-25
+**Problem & repro:** If iOS momentum scrolling during `lateFling` (`_iosGesture.inMotion() === false`) or synchronous app/driver code moves `scrollElement.scrollTop` before a `scroll` event delivers the new offset, `applyScrollAdjustment` writes from the stale cached `scrollOffset` and snaps the scroller back. Reproduce on iOS by finishing a moved touch drag into `lateFling`, advancing `el.scrollTop` from `1000` to `960` without a `scroll` event, and calling `resizeItem(aboveIdx, size + 80)` (lands at `1080` instead of `1040`); or on desktop by mutating `el.scrollTop += 200` (without a `scroll` event) then calling `resizeItem(aboveIdx, size - 20)` (lands at `old - 20` instead of `old + 180`).
+
+```diff
+-  const offset = this.getScrollOffset() // in applyScrollAdjustment() else-branch
++  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
++  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
+-  if (this.pendingWrite === write) this.scrollOffset += delta
+-  if (this.scrollOffset < 0) this.scrollOffset = 0
++  if (this.pendingWrite === write) this.scrollOffset = offset + delta
++  if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0
+```
 
 ## PR 3: Never flush negative `_holdOffset` past `scrollTop = 0`
 
@@ -49,7 +61,10 @@ removed: not needed after #900, ablation 2026-11-25
 +  const cmd = this.getCommandWrittenOffset()
 +  const live = cmd === null ? this._readElementOffset() : null
 +  const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0
-+  if (nextHold === this._holdOffset) return
++  if (nextHold === this._holdOffset) {
++    if (live !== null) this.scrollOffset = nextHold
++    return
++  }
 +  this._holdOffset = nextHold
 +  if (nextHold < 0) {
 +    this.scrollOffset = nextHold; this._clampedAdjustment = null
@@ -83,5 +98,40 @@ removed: not needed after #900, ablation 2026-11-25
 +  }
 +  if (item) {
 +    anchor = [item.key, scrollOffset - item.start]
++  }
+```
+
+## PR 5: Keep iOS gesture tail open while `_holdOffset !== 0` and unify live-offset rebase in `_flushHoldIfReady`
+
+**Problem & repro:** During an iOS momentum fling, `scroll` events can pause for >=150 ms while `scrollTop` is still moving. `_iosGesture`'s `tailStillMoving()` only checked live `scrollTop` movement when a scroll command was queued (`scrollState?.phase === 'queued'`), so an active `_holdOffset` (with `scrollState === null`) flushed prematurely straight into the live fling. In addition, when the iOS tail closed after unseen `scrollTop` movement (whether >=1 px checked by `tailStillMoving()` or sub-1 px quiet-tail drift), `_flushHoldIfReady` wrote from the stale cached `scrollOffset` instead of rebasing from `live` (unlike the desktop wheel flush path). Extending `tailStillMoving()` to also check live element movement when `this._holdOffset !== 0` (appending to `state.samples` only when `queued`) keeps the tail open until momentum settles, and moving the live-offset rebase (preserving any pre-gesture `_clampedAdjustment` shortfall) into `_flushHoldIfReady` makes it the single owner for both iOS gesture and desktop WebKit wheel flushes. Reproduce on iOS by starting a touch drag, resizing an above-viewport item (+200 px) to accumulate `_holdOffset = 200`, firing `touchend`, advancing `el.scrollTop` by -20 px without a `scroll` event, and waiting 150 ms: without this fix `_holdOffset` flushes immediately into the fling to stale `oldScroll + 200`; with this fix `_holdOffset` stays `200` while moving and flushes cleanly to `live + 200` once steady.
+
+```diff
+   // _iosGesture host tailStillMoving():
+-  const state = this.scrollState
+-  if (state?.phase !== 'queued' || this.pendingWrite !== null) {
++  const state = this.scrollState
++  const queued = state?.phase === 'queued'
++  if ((!queued && this._holdOffset === 0) || this.pendingWrite !== null) {
+     return false
+   }
+   const now = this._readElementOffset()
+   if (now === null || this._lastElementOffset === null || Math.abs(now - this._lastElementOffset) < 1) {
+     return false
+   }
+   this._lastElementOffset = now
+-  state.samples = [...(state.samples ?? []), { t: this.now(), offset: now }]
++  if (queued) {
++    state.samples = [...(state.samples ?? []), { t: this.now(), offset: now }]
++  }
+   return true
+
+   // _flushHoldIfReady(sync) — before `this._holdOffset = nextHold` (removes duplicate rebase from scheduleWheelFlush):
++  if (live !== null && nextHold === 0) {
++    const clamped = this._clampedAdjustment
++    const clampShortfall =
++      clamped !== null && Math.abs(live - clamped.maxAtWrite) < 1.5
++        ? clamped.target - clamped.maxAtWrite
++        : 0
++    this.scrollOffset = this._toLayoutOffset(live) + clampShortfall
 +  }
 ```
