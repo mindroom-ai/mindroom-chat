@@ -185,7 +185,7 @@ test('ungrouped flat mode uses 4px card gap and scrolls with zero overlapping ca
   expect(topMetrics.scrollHeight).toBeGreaterThan(topMetrics.clientHeight);
 
   await scrollToBottom(page);
-  await expect(page.locator('[data-thread-root-id="$quiet-1"]')).toBeVisible();
+  await expect(page.locator('[data-thread-root-id="$quiet-20"]')).toBeInViewport();
   const bottomMetrics = await measureList(page);
   expect(bottomMetrics.overlapCount).toBe(0);
   expect(bottomMetrics.scrollTop).toBeGreaterThan(0);

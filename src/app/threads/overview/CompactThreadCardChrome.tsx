@@ -98,6 +98,18 @@ export function CompactBlockSpacer({ row, scrollRef }: CompactBlockSpacerProps) 
   );
 }
 
+/** Renders one virtualized compact block row: either a card via `renderCard` or a spacer button. */
+export const renderCompactBlockRow = (
+  row: CompactBlockRow,
+  scrollRef: RefObject<HTMLElement | null>,
+  renderCard: (id: string) => ReactNode
+): ReactNode =>
+  typeof row === 'string' ? (
+    renderCard(row)
+  ) : (
+    <CompactBlockSpacer key={`spacer:${row.key}`} row={row} scrollRef={scrollRef} />
+  );
+
 export type CompactCardActionsProps = {
   pinned: boolean;
   showResolveAction: boolean;

@@ -215,6 +215,7 @@ function Fixture() {
             snoozeNow={NOW}
             metaVersion={1}
             showLoading={false}
+            scrollMemoryKey="!space:example.org"
             onOpenThread={() => undefined}
           />
         </div>

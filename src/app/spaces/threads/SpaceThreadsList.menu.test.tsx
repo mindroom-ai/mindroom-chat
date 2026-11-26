@@ -167,6 +167,7 @@ describe('SpaceThreadsList real ThreadActionsMenu integration', () => {
               snoozeNow={NOW}
               metaVersion={1}
               showLoading={false}
+              scrollMemoryKey="!space:example.org"
               onOpenThread={vi.fn()}
             />
           </MatrixClientProvider>

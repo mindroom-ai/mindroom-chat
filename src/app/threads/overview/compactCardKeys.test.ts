@@ -80,6 +80,17 @@ describe('compactCardsIn and focusedCompactCard', () => {
     expect(focusedCompactCard(view)).toBe(card('$b'));
     card('$x').focus();
     expect(focusedCompactCard(view)).toBeUndefined();
+    // Cards in a Space list outside `view` are ignored when `focusedCompactCard` is scoped to `view`.
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div data-space-threads-list="true"><button data-thread-root-id="$s"></button></div>'
+    );
+    const spaceList = document.querySelector<HTMLElement>('[data-space-threads-list]')!;
+    const spaceCard = spaceList.querySelector<HTMLElement>('[data-thread-root-id="$s"]')!;
+    spaceCard.focus();
+    expect(focusedCompactCard(view)).toBeUndefined();
+    expect(focusedCompactCard(undefined)).toBeUndefined();
+    expect(focusedCompactCard(spaceList)).toBe(spaceCard);
   });
 });
 

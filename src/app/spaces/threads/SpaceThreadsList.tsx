@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type RefObject,
 } from 'react';
 import { Text } from 'folds';
@@ -36,16 +37,12 @@ import type {
   CompactThreadSectionId,
 } from '../../threads/overview/compactThreadSections';
 import * as compactCss from '../../threads/overview/CompactRoomView.css';
-import {
-  handleCardArrowKey,
-  useCompactCardNavigation,
-  type CompactCardFocusIntent,
-} from '../../threads/overview/compactCardKeys';
+import { handleCardArrowKey } from '../../threads/overview/compactCardKeys';
 import { CompactSectionHeader } from '../../threads/overview/CompactSectionHeader';
 import {
-  CompactBlockSpacer,
   CompactCardList,
   CompactHeightGuard,
+  renderCompactBlockRow,
 } from '../../threads/overview/CompactThreadCardChrome';
 import {
   CompactThreadCardRow,
@@ -56,10 +53,10 @@ import {
   buildCompactThreadCardViewModelFromRecord,
   getForkedFrom,
 } from '../../threads/overview/compactThreadCardViewModel';
-import { useCompactBlocks, type CompactBlockRow } from '../../threads/overview/useCompactBlocks';
+import { useVirtualCompactList } from '../../threads/overview/useVirtualCompactList';
 import { setThreadResolved } from '../../threads/tags/useMutateThreadTags';
 import { ownDirectionLine } from '../../ui/directional';
-import { useScrollAnchorMemory, type ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
 import type { SpaceRoomItem } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
@@ -68,33 +65,12 @@ const ThreadActionsMenu = lazy(() =>
   import('../../threads/ThreadActionsMenu').then((m) => ({ default: m.ThreadActionsMenu }))
 );
 
-function RoomThreadActionsMenu({
-  room,
-  rootId,
-  summaryText,
-  anchor,
-  onClose,
-  onOpenThread,
-}: {
-  room: Room;
-  rootId: string;
-  summaryText?: string;
-  anchor: ThreadActionsMenuState['anchor'];
-  onClose: () => void;
-  onOpenThread: () => void;
-}) {
-  const powerLevels = usePowerLevels(room);
+function RoomThreadActionsMenu(props: ComponentProps<typeof ThreadActionsMenu>) {
+  const powerLevels = usePowerLevels(props.room);
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <Suspense fallback={null}>
-        <ThreadActionsMenu
-          room={room}
-          rootId={rootId}
-          summaryText={summaryText}
-          anchor={anchor}
-          onClose={onClose}
-          onOpenThread={onOpenThread}
-        />
+        <ThreadActionsMenu {...props} />
       </Suspense>
     </PowerLevelsContextProvider>
   );
@@ -106,9 +82,6 @@ const getSpaceRowId = (row: Element): string | undefined => {
     ? getCrossRoomThreadIndexKey(row.dataset.roomId, row.dataset.scrollAnchor)
     : row.dataset.scrollAnchor;
 };
-const getSpaceRowKey = (row: Element): string | null => getSpaceRowId(row) ?? null;
-const getSpaceCardKey = (card: HTMLElement): string | undefined =>
-  getSpaceRowId(card.closest('[data-scroll-anchor]') ?? card) ?? card.dataset.threadRootId;
 
 export type SpaceThreadsEmptyKey = 'no-rooms' | 'no-threads' | 'no-matching';
 
@@ -151,7 +124,7 @@ const useInFlightKeys = () => {
   return [keys, run] as const;
 };
 
-export function SpaceThreadsNotice({
+export const SpaceThreadsNotice = ({
   message,
   loading,
   emptyKey,
@@ -159,19 +132,17 @@ export function SpaceThreadsNotice({
   message: string;
   loading?: boolean;
   emptyKey?: SpaceThreadsEmptyKey;
-}) {
-  return (
-    <div
-      className={compactCss.EmptyState}
-      data-space-threads-loading={loading ? 'true' : undefined}
-      data-space-threads-empty={emptyKey}
-    >
-      <Text size="T300" priority="400">
-        {message}
-      </Text>
-    </div>
-  );
-}
+}) => (
+  <div
+    className={compactCss.EmptyState}
+    data-space-threads-loading={loading ? 'true' : undefined}
+    data-space-threads-empty={emptyKey}
+  >
+    <Text size="T300" priority="400">
+      {message}
+    </Text>
+  </div>
+);
 
 type SpaceThreadCardRowProps = {
   entry: CrossRoomThreadIndexEntry;
@@ -194,26 +165,10 @@ type SpaceThreadCardRowProps = {
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
 
-const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
-  entry,
-  room,
-  roomName,
-  accentColor,
-  scrollRootRef,
-  showRoomBadge,
-  pinned,
-  canToggle,
-  canPin,
-  resolving,
-  pinning,
-  menuOpen,
-  snoozeNow,
-  metaVersion,
-  onOpenThread,
-  onSetResolved,
-  onPin,
-  onOpenMenu,
-}: SpaceThreadCardRowProps) {
+const SpaceThreadCardRow = memo(function SpaceThreadCardRow(props: SpaceThreadCardRowProps) {
+  const { entry, room, roomName, accentColor, scrollRootRef, showRoomBadge } = props;
+  const { pinned, canToggle, canPin, resolving, pinning, menuOpen, snoozeNow, metaVersion } = props;
+  const { onOpenThread, onSetResolved, onPin, onOpenMenu } = props;
   const { t, i18n } = useTranslation();
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
@@ -317,7 +272,7 @@ export type SpaceThreadsListProps = {
   showLoading: boolean;
   emptyKey?: SpaceThreadsEmptyKey;
   scrollMemory?: ScrollAnchorMemory;
-  scrollMemoryKey?: string;
+  scrollMemoryKey: string;
   indexPending?: boolean;
   onOpenThread: (roomId: string, threadRootId: string) => void;
 };
@@ -337,17 +292,14 @@ export function SpaceThreadsList({
   showLoading,
   emptyKey,
   scrollMemory,
-  scrollMemoryKey = 'space-threads',
+  scrollMemoryKey,
   indexPending = false,
   onOpenThread,
 }: SpaceThreadsListProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const fallbackScrollMemoryRef = useRef<ScrollAnchorMemory>(new Map());
-  const memory = scrollMemory ?? fallbackScrollMemoryRef.current;
+
   const roomsByIdRef = useRef(roomsById);
   useLayoutEffect(() => {
     roomsByIdRef.current = roomsById;
@@ -404,90 +356,54 @@ export function SpaceThreadsList({
     menuRef.current = nextMenu;
     setMenu(nextMenu);
   }, []);
-  const closeMenu = useCallback((selectedMenu: ThreadActionsMenuState) => {
-    if (menuRef.current !== selectedMenu) return;
+  const clearMenu = useCallback((selectedMenu: ThreadActionsMenuState) => {
+    if (menuRef.current !== selectedMenu) return false;
     menuRef.current = undefined;
     setMenu(undefined);
-    const trigger = selectedMenu.trigger?.isConnected
-      ? selectedMenu.trigger
-      : (Array.from(
-          scrollRef.current?.querySelectorAll<HTMLElement>('[data-room-id][data-scroll-anchor]') ??
-            []
-        )
-          .find(
-            (shell) =>
-              shell.dataset.roomId === selectedMenu.roomId &&
-              shell.dataset.scrollAnchor === selectedMenu.rootId
-          )
-          ?.querySelector<HTMLButtonElement>('[data-thread-root-id]') ?? undefined);
-    (trigger ?? scrollRef.current)?.focus();
+    return true;
   }, []);
-
   const menuRoom = menu ? roomsById.get(menu.roomId)?.room : undefined;
   useLayoutEffect(() => {
-    if (!menu || menuRoom) return;
-    if (menuRef.current === menu) menuRef.current = undefined;
-    setMenu(undefined);
-  }, [menu, menuRoom]);
+    if (menu && !menuRoom) clearMenu(menu);
+  }, [clearMenu, menu, menuRoom]);
 
-  const menuEntry = menu
-    ? entryByKey.get(getCrossRoomThreadIndexKey(menu.roomId, menu.rootId))
-    : undefined;
+  const menuKey = menu ? getCrossRoomThreadIndexKey(menu.roomId, menu.rootId) : undefined;
+  const menuEntry = menuKey ? entryByKey.get(menuKey) : undefined;
   const menuSummaryText = menuEntry
     ? getThreadPrimarySummaryText(menuEntry.threadRecord.presentation)
     : menu?.viewModel.primarySummaryText;
 
-  const groups = useMemo<Record<string, string[]>>(() => {
-    if (sections) {
-      return Object.fromEntries(
-        sections.map((section) => {
-          const fixedOpen = section.id === singleBucketTab;
-          const closed = !fixedOpen && foldedSections.includes(section.id);
-          return [section.id, closed ? [] : [...section.rootIds]];
-        })
-      );
-    }
-    return { all: [...entryKeys] };
+  const { sectionStates, groups } = useMemo(() => {
+    if (!sections) return { sectionStates: undefined, groups: { all: [...entryKeys] } };
+    const states = sections.map((section) => {
+      const fixedOpen = section.id === singleBucketTab;
+      return { section, fixedOpen, closed: !fixedOpen && foldedSections.includes(section.id) };
+    });
+    return {
+      sectionStates: states,
+      groups: Object.fromEntries(
+        states.map(({ section, closed }) => [section.id, closed ? [] : [...section.rootIds]])
+      ),
+    };
   }, [entryKeys, foldedSections, sections, singleBucketTab]);
-  const ids = useMemo(() => Object.values(groups).flat(), [groups]);
 
-  const [intent, setIntent] = useState<CompactCardFocusIntent>();
-  const pending = intent?.scope === scrollMemoryKey && ids.includes(intent.id) ? intent : undefined;
+  const { scrollRef, contentRef, ids, rows, liveIds, extentComplete, findCard } =
+    useVirtualCompactList({
+      groups,
+      memory: scrollMemory,
+      memoryKey: scrollMemoryKey,
+      protectedId: menuKey,
+      records: entryByKey,
+      indexPending,
+      getRowId: getSpaceRowId,
+    });
 
-  const blocks = useCompactBlocks({
-    groups,
-    scrollRef,
-    contentRef,
-    memory,
-    roomId: scrollMemoryKey,
-    target: pending?.id,
-    protectedId: menu ? getCrossRoomThreadIndexKey(menu.roomId, menu.rootId) : undefined,
-    records: entryByKey,
-    indexPending,
-    getRowId: getSpaceRowId,
-  });
-
-  useScrollAnchorMemory({
-    memory,
-    memoryKey: scrollMemoryKey,
-    scrollRef,
-    contentRef,
-    ready: ids.length > 0 && blocks.placeReady,
-    progress: blocks.progress,
-    getRowKey: getSpaceRowKey,
-  });
-
-  useCompactCardNavigation({
-    scrollRef,
-    ids,
-    idOf: getSpaceCardKey,
-    scope: scrollMemoryKey,
-    intent,
-    pending,
-    setIntent,
-    targetReady: blocks.targetReady,
-    progress: blocks.progress,
-  });
+  const closeMenu = (selectedMenu: ThreadActionsMenuState) => {
+    if (!clearMenu(selectedMenu)) return;
+    const key = getCrossRoomThreadIndexKey(selectedMenu.roomId, selectedMenu.rootId);
+    const trigger = selectedMenu.trigger?.isConnected ? selectedMenu.trigger : findCard(key);
+    (trigger ?? scrollRef.current)?.focus();
+  };
 
   const renderCard = (key: string) => {
     const entry = entryByKey.get(key);
@@ -522,12 +438,8 @@ export function SpaceThreadsList({
     );
   };
 
-  const renderRow = (row: CompactBlockRow) =>
-    typeof row === 'string' ? (
-      renderCard(row)
-    ) : (
-      <CompactBlockSpacer key={`spacer:${row.key}`} row={row} scrollRef={scrollRef} />
-    );
+  const renderRow = (row: (typeof rows)[number][number]) =>
+    renderCompactBlockRow(row, scrollRef, renderCard);
 
   return (
     <div
@@ -536,15 +448,11 @@ export function SpaceThreadsList({
       data-space-threads-list="true"
       data-page-slide-clip=""
       data-compact-card-count={ids.length}
-      data-cards-pending={!blocks.extentComplete || undefined}
+      data-cards-pending={!extentComplete || undefined}
       tabIndex={-1}
     >
       <CompactCardList ref={contentRef} onKeyDown={handleCardArrowKey}>
-        <CompactHeightGuard
-          scrollRef={scrollRef}
-          contentRef={contentRef}
-          liveIds={blocks.liveIds}
-        />
+        <CompactHeightGuard scrollRef={scrollRef} contentRef={contentRef} liveIds={liveIds} />
         {pinError && (
           <Text role="alert" size="T200">
             {t('thread.pinFailed')}
@@ -554,23 +462,19 @@ export function SpaceThreadsList({
         {emptyKey && (
           <SpaceThreadsNotice message={t(EMPTY_MESSAGE_KEYS[emptyKey])} emptyKey={emptyKey} />
         )}
-        {sections
-          ? sections.flatMap((section, index) => {
-              const fixedOpen = section.id === singleBucketTab;
-              const closed = !fixedOpen && foldedSections.includes(section.id);
-              return [
-                <CompactSectionHeader
-                  key={`section:${section.id}`}
-                  id={section.id}
-                  count={section.rootIds.length}
-                  closed={closed}
-                  fixedOpen={fixedOpen}
-                  onToggle={onToggleSectionFold}
-                />,
-                ...(closed ? [] : (blocks.rows[index] ?? []).map(renderRow)),
-              ];
-            })
-          : (blocks.rows[0] ?? []).map(renderRow)}
+        {sectionStates
+          ? sectionStates.flatMap(({ section, closed, fixedOpen }, index) => [
+              <CompactSectionHeader
+                key={`section:${section.id}`}
+                id={section.id}
+                count={section.rootIds.length}
+                closed={closed}
+                fixedOpen={fixedOpen}
+                onToggle={onToggleSectionFold}
+              />,
+              ...(closed ? [] : (rows[index] ?? []).map(renderRow)),
+            ])
+          : (rows[0] ?? []).map(renderRow)}
       </CompactCardList>
       {menu && menuRoom && (
         <RoomThreadActionsMenu
@@ -581,10 +485,7 @@ export function SpaceThreadsList({
           anchor={menu.anchor}
           onClose={() => closeMenu(menu)}
           onOpenThread={() => {
-            if (menuRef.current !== menu) return;
-            menuRef.current = undefined;
-            setMenu(undefined);
-            onOpenThread(menu.roomId, menu.rootId);
+            if (clearMenu(menu)) onOpenThread(menu.roomId, menu.rootId);
           }}
         />
       )}

@@ -75,6 +75,8 @@ export interface ThreadContextBannerProps {
   onShowFull?: () => void;
   /** Given, the banner starts with a Close button in place of Back (a second thread's view). */
   onClose?: () => void;
+  /** Room overview container beside the thread; resolve shortcut yields only to cards inside it. */
+  overviewAreaRef?: RefObject<HTMLElement | null>;
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -231,6 +233,7 @@ export function ThreadContextBanner({
   onShowBeside,
   onShowFull,
   onClose,
+  overviewAreaRef,
 }: ThreadContextBannerProps) {
   const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -404,7 +407,7 @@ export function ThreadContextBanner({
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('resolveThread', () => {
     // On a focused card beside the thread, the keys are that card's (CompactRoomView).
-    if (focusedCompactCard()) return false;
+    if (focusedCompactCard(overviewAreaRef?.current)) return false;
     if (behindPanel || !resolveShortcut || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
     return true;

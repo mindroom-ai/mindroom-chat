@@ -18,10 +18,10 @@ import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store
 import { CompactSectionHeader } from './CompactSectionHeader';
 import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import {
-  CompactBlockSpacer,
   CompactCardList,
   CompactHeightGuard,
   PinnedThreadsSection,
+  renderCompactBlockRow,
 } from './CompactThreadCardChrome';
 import {
   CompactThreadCardRow,
@@ -34,7 +34,7 @@ import { InsetScrollbar } from '../../ui/InsetScrollbar';
 import * as overlay from '../../ui/styles/RoomOverlay.css';
 import { useThreadPinning } from '../../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { MOST_ROWS_IN_MOTION, useListMotion } from '../../ui/listMotion';
 import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
 import {
@@ -43,7 +43,7 @@ import {
   isCompactFocusRequestOpen,
   meetCompactFocusRequest,
 } from './compactFocusRequest';
-import { useCompactBlocks, type CompactBlockRow } from './useCompactBlocks';
+import { useVirtualCompactList } from './useVirtualCompactList';
 import { useCompactThreadSections } from './useCompactThreadSections';
 import {
   COMPACT_THREAD_SECTION_ORDER,
@@ -57,13 +57,10 @@ import { ThreadCardDetails } from './ThreadCardDetails';
 import { useShortcut } from '../../shortcuts/useShortcut';
 import { useHomeserverUnreachable } from '../../matrix/client/homeserverReachability';
 import {
-  compactCardsIn,
   focusCardBeside,
   focusedCompactCard,
   handleCardArrowKey,
   isKeyboardFocus,
-  useCompactCardNavigation,
-  type CompactCardFocusIntent,
 } from './compactCardKeys';
 
 const ThreadActionsMenu = lazy(() =>
@@ -223,41 +220,27 @@ export function CompactRoomView({
       ordinary: shownRows.filter((id) => !pins.has(id)),
     };
   }, [folded, heldSections, pinnedRootIds, shownRows]);
-  const ids = useMemo(() => Object.values(groups).flat(), [groups]);
-  const keyScope = `${roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
-  const [intent, setIntent] = useState<CompactCardFocusIntent>();
-  const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
+  const unreachable = useHomeserverUnreachable(room.client);
   // One destination owns the window: the address while its card is in the shown order (one in a
   // folded section or outside the filter is not), else the card the keys go to.
-  const address = !!pushed && ids.includes(focusRequest.eventId);
-  const unreachable = useHomeserverUnreachable(room.client);
-  const blocks = useCompactBlocks({
+  const blocks = useVirtualCompactList({
     groups,
     scrollRef: viewRef,
     contentRef,
     memory,
-    roomId,
-    target: address ? focusRequest.eventId : pending?.id,
+    memoryKey: roomId,
+    keyScope: `${roomId}|${requestKey ?? ''}|${focusScope ?? ''}`,
+    priorityTarget: pushed ? focusRequest.eventId : undefined,
     protectedId: menu?.roomId === roomId ? menu.rootId : undefined,
     records: threadRecordMap,
     // A read the homeserver cannot answer only retries: the list places on the cards it has.
     indexPending: indexPending && !unreachable,
   });
+  const { ids, hasPriorityTarget: address, placeList } = blocks;
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: blocks.liveIds,
     threadRecordMap,
-  });
-  useCompactCardNavigation({
-    scrollRef: viewRef,
-    ids,
-    scope: keyScope,
-    intent,
-    pending,
-    setIntent,
-    blocked: address,
-    targetReady: blocks.targetReady,
-    progress: blocks.progress,
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>(undefined);
@@ -271,9 +254,7 @@ export function CompactRoomView({
     setMenu(undefined);
     const trigger = selectedMenu.trigger?.isConnected
       ? selectedMenu.trigger
-      : compactCardsIn(viewRef.current).find(
-          (button) => button.dataset.threadRootId === selectedMenu.rootId
-        );
+      : blocks.findCard(selectedMenu.rootId);
     (trigger ?? viewRef.current)?.focus();
   };
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
@@ -351,17 +332,6 @@ export function CompactRoomView({
     }
   }, [error]);
 
-  // Opening a card remounts this view, and threads that got replies meanwhile
-  // sort above the cards that were in view, so restore by those cards.
-  const placeList = useScrollAnchorMemory({
-    memory: compactRoomScrollStateRef.current,
-    memoryKey: room.roomId,
-    scrollRef: viewRef,
-    contentRef,
-    ready: cardViewModels.length > 0 && blocks.placeReady,
-    progress: blocks.progress,
-  });
-
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
   // with that request does; the one the list mounted with had that mount. A replaced entry (a
   // thread beside the list closing) or a step back or forward leaves the list where it is.
@@ -436,13 +406,11 @@ export function CompactRoomView({
       />
     );
   };
-  const renderRow = (row: CompactBlockRow) => {
-    if (typeof row === 'string') {
-      const model = modelByRootId.get(row);
+  const renderRow = (row: (typeof blocks.rows)[number][number]) =>
+    renderCompactBlockRow(row, viewRef, (id) => {
+      const model = modelByRootId.get(id);
       return model ? renderCard(model) : null;
-    }
-    return <CompactBlockSpacer key={`spacer:${row.key}`} row={row} scrollRef={viewRef} />;
-  };
+    });
   const showRichEmptyState =
     threadRootIds.length === 0 && emptyState !== undefined && threadRecordMap.size > 0;
   return (
