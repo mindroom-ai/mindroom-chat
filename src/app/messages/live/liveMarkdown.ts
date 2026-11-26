@@ -322,12 +322,16 @@ export const loadLiveMarkdown = (): Promise<void> => {
 };
 
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
-export const renderLiveMarkdown = (md: string): string | undefined => {
+export const renderLiveMarkdown = (
+  md: string,
+  options?: { commonMarkHtml?: boolean }
+): string | undefined => {
   if (!renderer || !rendererWithoutFootnotes) return undefined;
-  const normalized = transformOutsideFencedCode(
-    transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
-    separateSupportedBlockHtml
-  );
+  const lf = md.replace(/\r\n?/g, '\n');
+  const prepared = options?.commonMarkHtml
+    ? lf
+    : transformOutsideFencedCode(lf, escapeHtmlBlockOpeners);
+  const normalized = transformOutsideFencedCode(prepared, separateSupportedBlockHtml);
   const env: FootnoteRenderEnv = {};
   const rendered = renderer.render(normalized, env);
   const html = env._hasDuplicateFootnoteDefs
