@@ -227,14 +227,16 @@ export function DictationCapsule({
             )}
           </CapsuleControlButton>
         }
+        bottom={
+          subtleStatus ? (
+            <Text size="T200" className={css.StatusNote}>
+              {subtleStatus}
+            </Text>
+          ) : null
+        }
         statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending, recovered))}
         statusRole="status"
       />
-      {subtleStatus && (
-        <Text size="T200" className={css.StatusNote}>
-          {subtleStatus}
-        </Text>
-      )}
     </div>
   );
 }

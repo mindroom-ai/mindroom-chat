@@ -4,9 +4,11 @@ import { createStore, Provider } from 'jotai';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
+import { glassDenseOverBackdrop } from '../../ui/styles/Glass.css';
 import { liveCaptureCapsulesShownAtom } from '../capture/liveCapture';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import { DictationCapsule } from './DictationCapsule';
+import * as css from './DictationCapsule.css';
 import type { DictationSnapshot } from './dictationSession';
 
 vi.mock('react-i18next', () => ({
@@ -349,5 +351,35 @@ describe('DictationCapsule', () => {
       false
     );
     expect(screen.getByRole('status').textContent).toBe('composer.dictation.statusRecovered');
+  });
+
+  it('renders StatusNote inside CapsuleStacked when subtleStatus is shown and omits it when absent', () => {
+    const h = handlers();
+    const expectStatusNoteInsideCapsule = (container: HTMLElement, expectedText: string) => {
+      const wrapper = container.firstElementChild;
+      expect(wrapper?.className).toBe(voiceCss.Container);
+      expect(wrapper?.children).toHaveLength(1);
+      const capsules = container.getElementsByClassName(voiceCss.CapsuleStacked);
+      expect(capsules).toHaveLength(1);
+      const capsule = capsules[0]!;
+      expect(capsule.classList.contains(glassDenseOverBackdrop)).toBe(true);
+      const statusNotes = container.getElementsByClassName(css.StatusNote);
+      expect(statusNotes).toHaveLength(1);
+      expect(statusNotes[0]?.textContent).toBe(expectedText);
+      expect(capsule.contains(statusNotes[0]!)).toBe(true);
+    };
+
+    const { container, rerender } = render(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'finishing' })} sending {...h} />
+    );
+    expectStatusNoteInsideCapsule(container, 'composer.dictation.statusSending');
+
+    rerender(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'paused', failedSegments: 1 })} {...h} />
+    );
+    expectStatusNoteInsideCapsule(container, 'composer.dictation.statusPendingRetry:1');
+
+    rerender(<DictationCapsule snapshot={baseSnapshot({ phase: 'recording' })} {...h} />);
+    expect(container.getElementsByClassName(css.StatusNote)).toHaveLength(0);
   });
 });

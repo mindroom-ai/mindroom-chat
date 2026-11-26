@@ -54,6 +54,7 @@ export type RecordingCapsuleProps = {
   pauseBusy?: boolean;
   onTogglePause: () => void;
   after?: ReactNode;
+  bottom?: ReactNode;
   statusText: string;
   statusRole?: AriaRole;
 };
@@ -95,6 +96,7 @@ export function RecordingCapsule(props: RecordingCapsuleProps) {
         </CapsuleControlButton>
         {props.after}
       </div>
+      {props.bottom}
       <span className={css.HiddenStatus} role={props.statusRole}>
         {props.statusText}
       </span>
