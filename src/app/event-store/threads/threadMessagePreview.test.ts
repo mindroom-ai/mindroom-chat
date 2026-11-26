@@ -120,6 +120,13 @@ describe('stripPreviewMarkdown', () => {
     expect(stripPreviewMarkdown('pick a | b')).toBe('pick a | b');
     expect(stripPreviewMarkdown('```\n| a | b |\n```')).toContain('| a | b |');
   });
+
+  it('strips prose thematic breaks without mangling spaced rules or fenced code', () => {
+    expect(stripPreviewMarkdown('Before\n\n* * *\n\n- - -\n\n---\n\nAfter')).toBe(
+      'Before\n\n \n\n \n\n \n\nAfter'
+    );
+    expect(stripPreviewMarkdown('```\n---\n* * *\n```')).toContain('---\n* * *');
+  });
 });
 
 describe('getThreadMessagePreviewText', () => {
@@ -383,6 +390,16 @@ describe('folded-work post-tool answer previews', () => {
     [
       'rule-only tail',
       'Running the build:\n\n🔧 `build` [1]\n\n---',
+      '🔧 1 tool · Running the build',
+    ],
+    [
+      'spaced asterisk rule tail',
+      'Running the build:\n\n🔧 `build` [1]\n\n* * *',
+      '🔧 1 tool · Running the build',
+    ],
+    [
+      'spaced hyphen rule tail',
+      'Running the build:\n\n🔧 `build` [1]\n\n- - -',
       '🔧 1 tool · Running the build',
     ],
     ['pending hourglass tail', '🔧 `build` [1]\n\n⏳', '🔧 1 tool'],

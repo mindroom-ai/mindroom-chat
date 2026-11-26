@@ -80,7 +80,7 @@ const PREVIEW_SOURCE_MAX_LENGTH = 2000;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
 // Matching finishedWorkSplit.ts: pending tool mark and characters that show nothing.
-const INVISIBLE_PREVIEW_TEXT_REGEX = /[\s⏳\u200B-\u200D\u2060\uFEFF\uFE0F]/gu;
+const INVISIBLE_PREVIEW_TEXT_REGEX = /[\s⏳\u200B-\u200D\u2060\uFEFF]|\uFE0F/gu;
 
 const boundPreviewSource = (source: string): string =>
   source.length > PREVIEW_SOURCE_MAX_LENGTH
@@ -96,14 +96,34 @@ const formatToolCallSummary = (count: number): string =>
 
 // A GFM table's delimiter row carries no text, and its rows read as cells set
 // apart by a middle dot. Only rows fenced by pipes count, so prose such as
-// "a | b" stays as written. Fence lines drop out, as for any code block.
+// "a | b" stays as written. Fence lines and standalone thematic breaks drop out
+// in prose, while fenced code blocks keep their literal lines.
 const TABLE_DELIMITER_ROW_REGEX = /^\|(?:\s*:?-+:?\s*\|)+$/;
 const TABLE_ROW_REGEX = /^\|.*\|$/;
+const THEMATIC_BREAK_REGEX = /^\s*(?:[-*_]\s*){3,}$/;
+
+const stripProseBlockPrefix = (line: string): string => {
+  const withoutHeadingAndQuote = line.replace(/^#{1,6}\s+/, '').replace(/^\s*(?:>\s?)+/, '');
+  // Keep standalone thematic breaks intact until previewLineText strips them in
+  // prose context, so list-prefix removal never turns "* * *" or "- - -" into
+  // leftover punctuation ("* *" / "- -").
+  if (THEMATIC_BREAK_REGEX.test(withoutHeadingAndQuote)) {
+    return withoutHeadingAndQuote.trimStart();
+  }
+  return withoutHeadingAndQuote
+    .replace(/^\s*[-*+]\s+/, '')
+    .replace(/^\s*\d{1,3}[.)]\s+/, '')
+    .trimStart();
+};
 
 const previewLineText = (): ((line: string, context: 'prose' | 'code' | 'fence') => string) => {
   let inTable = false;
   return (line, context) => {
     const row = line.trim();
+    if (context === 'prose' && THEMATIC_BREAK_REGEX.test(row)) {
+      inTable = false;
+      return ' ';
+    }
     if (context !== 'prose' || !TABLE_ROW_REGEX.test(row)) {
       inTable = false;
       return context === 'fence' ? ' ' : line;
@@ -127,16 +147,12 @@ const previewLineText = (): ((line: string, context: 'prose' | 'code' | 'fence')
 // snake_case or __init__ than emphasis, and LLM output uses asterisks.
 export const stripPreviewMarkdown = (value: string): string =>
   mapPreviewLines(
-    value
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/^\s*(?:>\s?)+/gm, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
-      .replace(/^\s*\d{1,3}[.)]\s+/gm, '')
-      // Indentation is presentation-only in this single-line result. Normalize
-      // it after counting tools so nested code boundaries can also be stripped.
-      .split('\n')
-      .map((line) => line.trimStart())
-      .join('\n'),
+    // Normalize prose block prefixes and indentation in a first pass so nested
+    // code boundaries (e.g. inside blockquotes or list items) can be recognized
+    // and stripped without altering lines inside top-level fenced code blocks.
+    mapPreviewLines(value, (line, context) =>
+      context === 'prose' ? stripProseBlockPrefix(line) : line
+    ),
     previewLineText()
   )
     // Destinations may contain one level of balanced parens, e.g.
@@ -151,8 +167,7 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])?)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
+    .replace(/`([^`\n]+)`/g, '$1');
 
 export type ThreadPreviewLocalization =
   | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' | 'encrypted' }

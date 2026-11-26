@@ -109,9 +109,7 @@ export const getEventPreviewContent = (
   if (replacingEvent) {
     return getLatestMessageContent(event, replacingEvent);
   }
-  return typeof event.getContent === 'function'
-    ? (event.getContent() as Record<string, unknown> | null | undefined)
-    : undefined;
+  return typeof event.getContent === 'function' ? event.getContent() : undefined;
 };
 
 export const getVisibleThreadEventBodyPreviewText = (
