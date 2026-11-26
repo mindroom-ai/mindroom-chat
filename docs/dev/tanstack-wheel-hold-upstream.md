@@ -21,7 +21,7 @@
 +        this._lastElementOffset = live; scheduleWheelFlush(50); return
 +      }
 +      this._wheelTimer = null; this._wheelLive = false
-+      if (live !== null && this._holdOffset !== 0) this.scrollOffset = live + this._holdOffset
++      if (live !== null && this._holdOffset !== 0 && this.options.enabled && this._canWriteScroll() && this.scrollState?.phase !== 'smooth') this.scrollOffset = this._toLayoutOffset(live) + (this._clampedAdjustment !== null && Math.abs(live - this._clampedAdjustment.maxAtWrite) < 1.5 ? this._clampedAdjustment.target - this._clampedAdjustment.maxAtWrite : 0)
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
 +    }, delay)
 +  }
