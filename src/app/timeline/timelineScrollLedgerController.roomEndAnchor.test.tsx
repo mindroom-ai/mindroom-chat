@@ -2,6 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useTimelineRowJumps } from './roomTimelineScroll';
@@ -14,8 +15,7 @@ import {
 const ROW_HEIGHT = 100;
 const INTRO_ESTIMATE_PX = 160.5;
 const VIEWPORT_HEIGHT = 600;
-const SAFARI_MAC_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_2 like Mac OS X) AppleWebKit/605.1.15';
 const CHROME_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
@@ -87,6 +87,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     dispose?.();
     dispose = undefined;
     vi.useRealTimers();
+    _resetIOSDetectionForTests();
     vi.unstubAllGlobals();
     Object.defineProperty(navigator, 'userAgent', { value: origUA, configurable: true });
     Object.defineProperty(navigator, 'platform', { value: origPlatform, configurable: true });
@@ -292,39 +293,6 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
   });
 
-  it('holds a two-row ResizeObserver batch in _holdOffset during a desktop WebKit forward wheel and flushes cleanly', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
-    const { scrollElement, scrollWrites, fireRowBatch, getVirtualizer, getTileTop } =
-      await mountRoom({ initialScrollTop: 1200 });
-    const v = getVirtualizer();
-    const row8 = scrollElement.querySelector('[data-index="8"]')!;
-    const row9 = scrollElement.querySelector('[data-index="9"]')!;
-    v.itemSizeCache.set('$ev-8', ROW_HEIGHT);
-    v.itemSizeCache.set('$ev-9', ROW_HEIGHT);
-    const visualBefore = getTileTop('$ev-12')! - scrollElement.scrollTop;
-
-    // Active forward wheel engages virtual-core wheel-hold (_canWriteScroll() === false).
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: 40 }));
-    scrollWrites.length = 0;
-
-    fireRowBatch([
-      { target: row8, height: ROW_HEIGHT + 60 },
-      { target: row9, height: ROW_HEIGHT + 80 },
-    ]);
-
-    // No DOM scrollTop write while wheel is live; _holdOffset absorbs the full +140 batch.
-    expect(scrollWrites).toEqual([]);
-    expect(readVirtualizerHoldOffset(v)).toBe(140);
-    expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
-
-    // After wheel quiescence, _holdOffset flushes into scrollTop with visual position unchanged.
-    vi.advanceTimersByTime(200);
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(0);
-    expect(scrollElement.scrollTop).toBe(1340);
-    expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
-  });
-
   it('anchors a scrolled reader without jumping when roomIntro prepends as virtual item 0', async () => {
     const initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
     const { scrollElement, render, getTileTop } = await mountRoom({
@@ -366,7 +334,8 @@ describe('oldest-first room anchoring with real virtualizer', () => {
 
   it('clamps negative _holdOffset on flush so reaching scrollTop=0 never snaps rows upward', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
+    stubUserAgent(IPHONE_UA);
+    _resetIOSDetectionForTests();
     const initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
     const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
       initialKeys,
@@ -376,26 +345,28 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     const v = getVirtualizer();
     const anchorVisualBeforeResize = getTileTop('$ev-12')! - scrollElement.scrollTop;
 
-    // Row 0 (above scrollTop=1200) shrinks by -80px during a live wheel burst.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    // Row 0 (above scrollTop=1200) shrinks by -80px during an active iOS touch drag.
+    scrollElement.dispatchEvent(new Event('touchstart'));
     v.resizeItem(0, 20);
     expect(readVirtualizerHoldOffset(v)).toBe(-80);
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(anchorVisualBeforeResize);
 
-    // User keeps wheeling up to scrollTop=30 while -80 is still held (live + hold = -50 < 0).
+    // User scrolls up to scrollTop=30 while -80 is still held (live + hold = -50 < 0).
     scrollElement.scrollTop = 30;
     scrollElement.dispatchEvent(new Event('scroll'));
     render();
     const row1VisualAt30 = getTileTop('$ev-1')! - scrollElement.scrollTop;
 
-    // Wheel quiescence flushes only -30 to scrollTop=0, leaving -50 held with 0px visual snap.
+    // Ending the touch flushes only -30 to scrollTop=0, leaving -50 held with 0px visual snap.
+    scrollElement.dispatchEvent(new Event('touchend'));
     vi.advanceTimersByTime(200);
     expect(scrollElement.scrollTop).toBe(0);
     expect(readVirtualizerHoldOffset(v)).toBe(-50);
     expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
 
-    // Another wheel pause at scrollTop=0 keeps -50 held rather than snapping rows by -50px.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    // Another touch at scrollTop=0 keeps -50 held rather than snapping rows by -50px.
+    scrollElement.dispatchEvent(new Event('touchstart'));
+    scrollElement.dispatchEvent(new Event('touchend'));
     vi.advanceTimersByTime(200);
     expect(scrollElement.scrollTop).toBe(0);
     expect(readVirtualizerHoldOffset(v)).toBe(-50);
@@ -406,72 +377,5 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(950);
     expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
-  });
-
-  it('clears _holdOffset on explicit jump and bottom pin so wheel quiescence cannot clobber landing', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
-    const { scrollElement, pins, render, getVirtualizer, getJumps } = await mountRoom({
-      initialScrollTop: 1200,
-      withRowJumps: true,
-    });
-    const v = getVirtualizer();
-
-    // Hold a +350px above-viewport resize during a live wheel.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    v.resizeItem(4, ROW_HEIGHT + 350);
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(350);
-
-    // Explicit jump clears _holdOffset and lands at the target index without post-quiescence drift.
-    getJumps().scrollToItem(30, { align: 'start' });
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(0);
-    const landedAfterJump = scrollElement.scrollTop;
-    vi.advanceTimersByTime(300);
-    expect(scrollElement.scrollTop).toBe(landedAfterJump);
-
-    // Same invariant for an explicit bottom pin (Jump to Latest / own send).
-    scrollElement.scrollTop = 1200;
-    scrollElement.dispatchEvent(new Event('scroll'));
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    v.resizeItem(3, ROW_HEIGHT + 250);
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(250);
-
-    pins.current = { count: pins.current.count + 1, smooth: false };
-    render();
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(0);
-    const landedAtEnd = scrollElement.scrollTop;
-    expect(landedAtEnd).toBeGreaterThan(2500);
-    vi.advanceTimersByTime(300);
-    expect(scrollElement.scrollTop).toBe(landedAtEnd);
-  });
-
-  it('preserves a pre-wheel clamped adjustment shortfall on desktop WebKit wheel flush', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
-    const { scrollElement, getVirtualizer, getTileTop } = await mountRoom({
-      initialScrollTop: 3400,
-    });
-    vi.advanceTimersByTime(200);
-    const v = getVirtualizer();
-    const row24 = scrollElement.querySelector<HTMLElement>('[data-index="24"]')!;
-    const visualBefore = getTileTop('$ev-34')! - scrollElement.scrollTop;
-
-    Object.defineProperty(row24, 'offsetHeight', { value: ROW_HEIGHT + 50, configurable: true });
-    v.measureElement(row24);
-    expect(scrollElement.scrollTop).toBe(3400);
-    expect((v as unknown as { _clampedAdjustment: unknown })._clampedAdjustment).toEqual({
-      target: 3450,
-      maxAtWrite: 3400,
-    });
-
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    await Promise.resolve();
-    v.resizeItem(0, ROW_HEIGHT + 50);
-    expect(readVirtualizerHoldOffset(v)).toBe(50);
-
-    vi.advanceTimersByTime(200);
-    expect(readVirtualizerHoldOffset(v)).toBe(0);
-    expect(scrollElement.scrollTop).toBe(3500);
-    expect(getTileTop('$ev-34')! - scrollElement.scrollTop).toBe(visualBefore);
   });
 });

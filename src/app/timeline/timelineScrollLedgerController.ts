@@ -26,7 +26,6 @@ import {
 } from './batchedMeasurementRef';
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
-import { isDesktopWebKit } from '../lib/user-agent';
 import { isIOSWebKitDevice } from './scrollQuiescence';
 import { listShrinkAfterResize, pastEndCorrection } from './timelineListShrink';
 
@@ -246,7 +245,6 @@ export const useTimelineScrollLedgerController = ({
     getScrollElement,
     estimateSize,
     overscan: 10,
-    holdScrollDuringWheel: isDesktopWebKit(),
     ...(anchorToEnd ? { anchorTo: 'end' as const, scrollEndThreshold: -1, anchorSkipLeading } : {}),
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,

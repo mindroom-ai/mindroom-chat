@@ -15,8 +15,7 @@ import {
 const ROW_HEIGHT = 100;
 const INTRO_ESTIMATE_PX = 160.5;
 const VIEWPORT_HEIGHT = 600;
-const SAFARI_MAC_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_2 like Mac OS X) AppleWebKit/605.1.15';
 
 const stubUserAgent = (userAgent: string) => {
   Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
@@ -309,12 +308,13 @@ describe('oldest-first room anchoring with real virtualizer', () => {
 
   it('shows the actual room intro after reaching history start with shrinking rows', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
+    stubUserAgent(IPHONE_UA);
+    _resetIOSDetectionForTests();
     const { scrollElement, getTileTop, getVirtualizer, fireRowBatch, render } = await mountRoom({
       initialKeys: [ROOM_INTRO_KEY, ...Array.from({ length: 40 }, (_, i) => `$ev-${i}`)],
       initialScrollTop: 1200,
     });
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+    scrollElement.dispatchEvent(new Event('touchstart'));
     // Eight estimated rows above the reader turn out to be short rows (20px not 100px).
     const entries = Array.from({ length: 8 }, (_, i) => ({
       target: scrollElement.querySelector(`[data-index="${i + 2}"]`)!,
@@ -325,11 +325,8 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(-640);
     scrollElement.scrollTop = 0;
     scrollElement.dispatchEvent(new Event('scroll'));
+    scrollElement.dispatchEvent(new Event('touchend'));
     render();
-    vi.advanceTimersByTime(2000);
-    render();
-    // No more history can prepend. Another upward wheel at zero should expose the first row.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
     vi.advanceTimersByTime(2000);
     render();
     expect(getTileTop(ROOM_INTRO_KEY)).toBeLessThan(VIEWPORT_HEIGHT);
@@ -337,14 +334,15 @@ describe('oldest-first room anchoring with real virtualizer', () => {
 
   it('drops a clamped negative hold when roomIntro later mounts at rest', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
+    stubUserAgent(IPHONE_UA);
+    _resetIOSDetectionForTests();
     const rows = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
     const { scrollElement, getTileTop, getVirtualizer, fireRowBatch, render } = await mountRoom({
       initialKeys: rows,
       initialScrollTop: 1200,
       initialCanLoadOlder: true,
     });
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+    scrollElement.dispatchEvent(new Event('touchstart'));
     fireRowBatch(
       Array.from({ length: 8 }, (_, i) => ({
         target: scrollElement.querySelector(`[data-index="${i + 2}"]`)!,
@@ -353,6 +351,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     );
     scrollElement.scrollTop = 0;
     scrollElement.dispatchEvent(new Event('scroll'));
+    scrollElement.dispatchEvent(new Event('touchend'));
     vi.advanceTimersByTime(2000);
     // Older history can still prepend: negative hold stays clamped at rest.
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(-640);
@@ -429,15 +428,16 @@ describe('oldest-first room anchoring with real virtualizer', () => {
 
   it('shows the first reply when scrolling up to the start of an open fully-loaded thread', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
+    stubUserAgent(IPHONE_UA);
+    _resetIOSDetectionForTests();
     const { scrollElement, getTileTop, getVirtualizer, render } = await mountRoom({
       thread: true,
       shortHistory: true,
       initialScrollTop: 6600,
       initialKeys: Array.from({ length: 80 }, (_, i) => `$ev-${i}`),
     });
+    scrollElement.dispatchEvent(new Event('touchstart'));
     for (let pos = 6360; pos >= 1200; pos -= 240) {
-      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
       scrollElement.scrollTop = pos;
       scrollElement.dispatchEvent(new Event('scroll'));
       render();
@@ -446,43 +446,11 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(-640);
     scrollElement.scrollTop = 0;
     scrollElement.dispatchEvent(new Event('scroll'));
+    scrollElement.dispatchEvent(new Event('touchend'));
     render();
     vi.advanceTimersByTime(2000);
     render();
     expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
     expect(getTileTop('$ev-0')).toBeLessThan(VIEWPORT_HEIGHT);
-  });
-
-  it('does not write into desktop WebKit wheel scrolling when a thread gets a reply in newest-first view', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    stubUserAgent(SAFARI_MAC_UA);
-    _resetIOSDetectionForTests();
-    const keys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
-    const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
-      latestAtTop: true,
-      initialKeys: keys,
-    });
-    const inner = scrollElement.firstElementChild!;
-    const rect = inner.getBoundingClientRect();
-    inner.getBoundingClientRect = () => ({ ...rect, top: -scrollElement.scrollTop });
-    render();
-
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
-    scrollElement.scrollTop = 1300;
-    scrollElement.dispatchEvent(new Event('scroll'));
-    render([keys[30]!, ...keys.filter((_, i) => i !== 30)]);
-    // Must stay at 1300 during the live desktop wheel while holding +100px so row $ev-13 stays still.
-    expect(scrollElement.scrollTop).toBe(1300);
-    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(100);
-    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
-
-    // At rest (after the wheel timer expires), virtual-core flushes the hold and lands at 1400.
-    vi.advanceTimersByTime(500);
-    expect(
-      (getVirtualizer() as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()
-    ).toBe(true);
-    expect(readVirtualizerHoldOffset(getVirtualizer())).toBe(0);
-    expect(scrollElement.scrollTop).toBe(1400);
-    expect(getTileTop('$ev-13')! - scrollElement.scrollTop).toBe(0);
   });
 });

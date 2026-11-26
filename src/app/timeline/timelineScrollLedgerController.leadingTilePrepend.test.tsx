@@ -415,21 +415,7 @@ describe('stable leading tile prepend anchoring in oldest-first timelines', () =
     expect(scrollElement.scrollTop).toBe(800);
     expect(yOf('$ev-40')).toBe(EXPAND_ALL_LINE_ESTIMATE_PX);
 
-    // Same at scrollTop=0 during a live desktop WebKit wheel: holds +800 then flushes cleanly.
-    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -120 }));
-    flushSync(() => {
-      scrollElement.scrollTop = 0;
-      scrollElement.dispatchEvent(new Event('scroll'));
-    });
-    expect(mounted.range!.start).toBe(24);
-    expect(scrollElement.scrollTop).toBe(0);
-    expect(readVirtualizerHoldOffset(mounted.virtualizer!)).toBe(800);
-    expect(yOf('$ev-32')).toBe(EXPAND_ALL_LINE_ESTIMATE_PX);
 
-    vi.advanceTimersByTime(300);
-    expect(readVirtualizerHoldOffset(mounted.virtualizer!)).toBe(0);
-    expect(scrollElement.scrollTop).toBe(800);
-    expect(yOf('$ev-32')).toBe(EXPAND_ALL_LINE_ESTIMATE_PX);
   });
 
   const runDirectVirtualizerPrepend = (extra?: {
