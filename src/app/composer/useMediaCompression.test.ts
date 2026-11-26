@@ -960,6 +960,10 @@ describe('useMediaCompression', () => {
       encInfo: undefined,
     });
     expect(isUploadItemReady(fail.current())).toBe(false);
+    expect(encHarness.store.get(roomUploadAtomFamily(fail.current().file))).toMatchObject({
+      status: UploadStatus.Error,
+      error: expect.objectContaining({ httpStatus: 413 }),
+    });
     encHarness.unmount();
 
     // 3. Deferred Home Ask preserves .zip without encrypting until Send.

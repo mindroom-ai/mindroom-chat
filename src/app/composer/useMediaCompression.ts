@@ -1,7 +1,7 @@
 import { useMemo, useRef, type RefObject } from 'react';
 import { atom, type createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import type { TUploadContent } from '../matrix/matrix';
+import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import {
   isUploadItemReady,
@@ -86,12 +86,14 @@ const replaceStagedItem = (
     if (owners.current.delete(liveItem.file)) owners.current.set(replacement.file, owner);
   }
   const nextUploadAtom = roomUploadAtomFamily(replacement.file);
+  const { status } = store.get(nextUploadAtom);
   if (replacement.prepError) {
     store.set(nextUploadAtom, { error: replacement.prepError });
-  } else if (
-    isUploadItemReady(replacement) &&
-    store.get(nextUploadAtom).status === UploadStatus.Error
-  ) {
+  } else if (replacement.compression?.status === 'zipFailed' && status !== UploadStatus.Error) {
+    store.set(nextUploadAtom, {
+      error: toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload'),
+    });
+  } else if (isUploadItemReady(replacement) && status === UploadStatus.Error) {
     store.set(nextUploadAtom, { status: UploadStatus.Idle });
   }
   store.set(targetAtom, { type: 'REPLACE', item: liveItem, replacement });
@@ -269,12 +271,7 @@ const createPendingBackgroundCompression = (
       void job.run(async () => {
         const outcome = await compress(job);
         if (!job.findLive()) return;
-        if (job.wantsOriginal()) {
-          const prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
-          job.commit(prepared, { status: 'original' });
-          return;
-        }
-        if (outcome.kind === 'zipFailed') {
+        if (!job.wantsOriginal() && outcome.kind === 'zipFailed') {
           // Never read or encrypt an oversized file that failed zipping and cannot be uploaded.
           job.commit(
             { file: rawFile, originalFile: rawFile, encInfo: undefined, metadata: DEFAULT_META },
@@ -282,23 +279,21 @@ const createPendingBackgroundCompression = (
           );
           return;
         }
-        if (outcome.kind === 'fallback') {
-          const prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
-          job.commit(prepared, job.wantsOriginal() ? { status: 'original' } : undefined);
-          return;
+        if (!job.wantsOriginal() && outcome.kind === 'compressed') {
+          const prepared = await prepareItemFile(optsRef.current, outcome.file, roomId, targetRoom);
+          if (!job.wantsOriginal()) {
+            job.commit(prepared, {
+              status: 'compressed',
+              originalSize: outcome.originalSize,
+              ...(allowUseOriginal ? { sourceFile: rawFile } : {}),
+            });
+            return;
+          }
+          // Re-prepare rawFile if "Use original" was clicked while encrypting the compressed file.
+          if (!job.findLive()) return;
         }
-        let prepared = await prepareItemFile(optsRef.current, outcome.file, roomId, targetRoom);
-        // If "Use original" was clicked while encrypting the compressed file, re-prepare rawFile.
-        if (job.wantsOriginal() && job.findLive()) {
-          prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
-          job.commit(prepared, { status: 'original' });
-          return;
-        }
-        job.commit(prepared, {
-          status: 'compressed',
-          originalSize: outcome.originalSize,
-          ...(allowUseOriginal ? { sourceFile: rawFile } : {}),
-        });
+        const prepared = await prepareItemFile(optsRef.current, rawFile, roomId, targetRoom);
+        job.commit(prepared, job.wantsOriginal() ? { status: 'original' } : undefined);
       });
     },
   };
