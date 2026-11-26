@@ -4,7 +4,7 @@ import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
 import { THREAD_MODEL_KEY } from './threadModel';
-import { INLINE_MEDIA_CONTENT_KEY } from './inlineMedia';
+import { INLINE_MEDIA_CONTENT_KEY } from './metadata';
 import { hasToolPositions } from './toolPositions';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';

@@ -1,9 +1,10 @@
 import { createContext } from 'react';
 import type { IEncryptedFile } from '../types/common';
-import { readEncryptedFile } from './chatUiProtocol';
+import { readEncryptedFile } from './encryptedFile';
 import type { EventAttachmentOwner } from './eventAttachments';
+import { INLINE_MEDIA_CONTENT_KEY } from './metadata';
 
-export const INLINE_MEDIA_CONTENT_KEY = 'io.mindroom.inline_media';
+export { INLINE_MEDIA_CONTENT_KEY };
 export const MAX_INLINE_MEDIA_ENTRIES = 64;
 
 export type InlineMediaEntry = { file: IEncryptedFile; mimeType?: string; size?: number };
