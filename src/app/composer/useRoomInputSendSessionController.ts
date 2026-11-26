@@ -996,13 +996,20 @@ export const useRoomInputSendSessionController = ({
         ...[...busySlotsOf(mx)].flatMap((busy) => busy.session?.orderedFiles ?? []),
         ...(batch ? [] : enrolled.map((item) => item.file)),
       ]);
-      const sendItems = (batch?.fileItems ?? staged).filter(
-        (fileItem) =>
-          isUploadItemReady(fileItem) &&
-          !heldFiles.has(fileItem.file) &&
-          (completeWithinCall ||
-            !isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file)))
+      const candidateItems = (batch?.fileItems ?? staged).filter(
+        (fileItem) => isUploadItemReady(fileItem) && !heldFiles.has(fileItem.file)
       );
+      const droppedTooLargeFiles: TUploadContent[] = [];
+      const sendItems = completeWithinCall
+        ? candidateItems
+        : candidateItems.filter((fileItem) => {
+            if (!isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file))) return true;
+            droppedTooLargeFiles.push(fileItem.file);
+            return false;
+          });
+      if (batch && droppedTooLargeFiles.length > 0) {
+        attachments.clearEnrollment(droppedTooLargeFiles);
+      }
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {
         onTextConsumed?.();

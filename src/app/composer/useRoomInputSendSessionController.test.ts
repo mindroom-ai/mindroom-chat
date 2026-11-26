@@ -41,6 +41,7 @@ type HarnessApi = {
   sendSessionUploadItemsRef: MutableRefObject<TUploadItem[]>;
   uploadsRef: MutableRefObject<Upload[]>;
   mountedRef: MutableRefObject<boolean>;
+  clearEnrollment: Mock;
   hasActiveSendSession: () => boolean;
   joinedSendPending: boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
@@ -161,6 +162,19 @@ const TestHarness = ({
   const sendSessionUploadItemsRef = useRef<TUploadItem[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
   const mountedRef = useRef(true);
+  const clearEnrollmentSpy = useMemo(
+    () =>
+      vi.fn((files: TUploadContent[]) => {
+        const dropped = new Set(files);
+        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
+          (item) => !dropped.has(item.file)
+        );
+        sendSessionFilesRef.current = sendSessionFilesRef.current.filter(
+          (file) => !dropped.has(file)
+        );
+      }),
+    []
+  );
 
   const attachments = useMemo<RoomInputAttachmentAccess>(
     () => ({
@@ -173,13 +187,15 @@ const TestHarness = ({
         selectedFilesRef.current = [...selectedFilesRef.current, ...items];
       },
       enroll: (items) => {
-        sendSessionUploadItemsRef.current = items;
-        sendSessionFilesRef.current = items.map((item) => item.file);
+        const known = new Set(sendSessionUploadItemsRef.current.map((item) => item.file));
+        const next = [
+          ...sendSessionUploadItemsRef.current,
+          ...items.filter((item) => !known.has(item.file)),
+        ];
+        sendSessionUploadItemsRef.current = next;
+        sendSessionFilesRef.current = next.map((item) => item.file);
       },
-      clearEnrollment: () => {
-        sendSessionUploadItemsRef.current = [];
-        sendSessionFilesRef.current = [];
-      },
+      clearEnrollment: clearEnrollmentSpy,
       protectPasteItems: () => () => {},
       subscribe: () => () => {},
       release: (_roomId, files) => {
@@ -203,7 +219,7 @@ const TestHarness = ({
         uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
       },
     }),
-    []
+    [clearEnrollmentSpy]
   );
 
   const controller = useRoomInputSendSessionController({
@@ -239,9 +255,10 @@ const TestHarness = ({
       sendSessionUploadItemsRef,
       uploadsRef,
       mountedRef,
+      clearEnrollment: clearEnrollmentSpy,
       ...controller,
     });
-  }, [controller, onReady]);
+  }, [clearEnrollmentSpy, controller, onReady]);
 
   return null;
 };
@@ -2884,5 +2901,65 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
       await Promise.resolve();
     });
     await vi.waitFor(() => expect(onConsumedNoText).toHaveBeenCalledTimes(1));
+  });
+
+  it('clears pre-enrolled ordinary 413 files from a batch handoff while keeping 413 paste attachments enrolled', async () => {
+    const { api, mx } = renderHarness();
+    const err413 = new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413);
+
+    // 1. Pre-enrolled ordinary 413 file + caption: sends caption and clears the 413 file's enrollment.
+    const bigFile = createFile('huge.log');
+    const bigItem = createUploadItem(bigFile);
+    api.selectedFilesRef.current = [bigItem];
+    api.sendSessionUploadItemsRef.current = [bigItem];
+    api.sendSessionFilesRef.current = [bigFile];
+    api.uploadsRef.current = [{ file: bigFile, status: UploadStatus.Error, error: err413 }];
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated caption' },
+        batch: { fileItems: [bigItem] },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['dictated caption']);
+    expect(api.clearEnrollment).toHaveBeenCalledWith([bigFile]);
+    expect(api.sendSessionFilesRef.current).toEqual([]);
+    expect(api.selectedFilesRef.current).toEqual([bigItem]);
+
+    // 2. Pre-enrolled ordinary 413 file with no caption: still clears enrollment and consumes text.
+    api.clearEnrollment.mockClear();
+    api.sendSessionUploadItemsRef.current = [bigItem];
+    api.sendSessionFilesRef.current = [bigFile];
+    const onConsumed = vi.fn();
+    await act(async () => {
+      await api.startSendSession({
+        textContent: undefined,
+        batch: { fileItems: [bigItem] },
+        composerAlreadyReset: true,
+        onTextConsumed: onConsumed,
+      });
+    });
+    expect(api.clearEnrollment).toHaveBeenCalledWith([bigFile]);
+    expect(api.sendSessionFilesRef.current).toEqual([]);
+    expect(onConsumed).toHaveBeenCalledTimes(1);
+
+    // 3. Pre-enrolled 413 paste attachment + caption: does NOT release the paste attachment.
+    api.clearEnrollment.mockClear();
+    const pasteFile = createFile('mindroom-paste-a3f19c.txt');
+    const pasteItem = createPasteUploadItem(pasteFile);
+    api.selectedFilesRef.current = [pasteItem];
+    api.sendSessionUploadItemsRef.current = [pasteItem];
+    api.sendSessionFilesRef.current = [pasteFile];
+    api.uploadsRef.current = [{ file: pasteFile, status: UploadStatus.Error, error: err413 }];
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated paste caption' },
+        batch: { fileItems: [pasteItem] },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(api.clearEnrollment).not.toHaveBeenCalledWith([pasteFile]);
+    expect(api.sendSessionFilesRef.current).toEqual([pasteFile]);
+    expect(api.selectedFilesRef.current).toEqual([pasteItem]);
   });
 });
