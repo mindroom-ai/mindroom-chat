@@ -1064,7 +1064,12 @@ export function RoomInput({
     : t('composer.sendMessage');
   const emojiLabel = t('composer.emoji');
   const boardOpen = emojiAnchor !== undefined;
-  const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice && !dictationCanSend;
+  const composerEmpty =
+    noText &&
+    !attachments.hasSendableFiles &&
+    !attachments.isPreparing &&
+    !hasVoice &&
+    !dictationCanSend;
   const showPhoneEmptyVoice =
     phone && !ask && dictation.available && !forkFrom && !dictation.active && composerEmpty;
 

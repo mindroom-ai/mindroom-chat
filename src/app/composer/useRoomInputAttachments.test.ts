@@ -932,7 +932,7 @@ describe('attachment staging ownership', () => {
       await vi.waitFor(() => expect(normalHarness.feature.isPreparing).toBe(false));
       expect(normalHarness.feature.hasSendableFiles).toBe(true);
       expect(uploadContent).toHaveBeenCalledTimes(1);
-      expect(uploadContent.mock.calls[0]?.[0]).toBe(compressedCollapsed);
+      expect(uploadContent).toHaveBeenCalledWith(compressedCollapsed, expect.anything());
       prepCollapsedSpy.mockRestore();
       normalHarness.renderer.unmount();
     } finally {
