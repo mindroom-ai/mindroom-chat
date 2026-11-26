@@ -12,6 +12,7 @@ import {
 } from 'react';
 import classNames from 'classnames';
 import { Box, Icon, Icons, Text } from 'folds';
+import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -70,13 +71,14 @@ import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import { useHomeAgents } from './homeAgents';
 import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
 import {
+  getExpandedHomeDirectSectionsAtom,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
-  readExpandedHomeDirectSections,
+} from '../../ui/nav/homeExpandedDirectSections';
+import {
   selectRenderedAgents,
   selectRenderedDirectRooms,
   splitHomeDirectSections,
-  writeExpandedHomeDirectSections,
 } from './homeDirectSections';
 import {
   type HomeAddRoomsMenu,
@@ -267,24 +269,11 @@ export function Home() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
   const userId = client.getSafeUserId();
-  const [expandedState, setExpandedState] = useState(() => ({
-    userId,
-    ids: readExpandedHomeDirectSections(userId),
-  }));
-  useEffect(() => {
-    setExpandedState((prev) =>
-      prev.userId === userId ? prev : { userId, ids: readExpandedHomeDirectSections(userId) }
-    );
-  }, [userId]);
-  const expandedIds =
-    expandedState.userId === userId ? expandedState.ids : readExpandedHomeDirectSections(userId);
-  const toggleExpandedDirectSection = (categoryId: string) => {
-    const next = new Set(expandedIds);
-    if (next.has(categoryId)) next.delete(categoryId);
-    else next.add(categoryId);
-    writeExpandedHomeDirectSections(userId, next);
-    setExpandedState({ userId, ids: next });
-  };
+  const expandedDirectSectionsAtom = useMemo(
+    () => getExpandedHomeDirectSectionsAtom(userId),
+    [userId]
+  );
+  const [expandedIds, toggleExpandedDirectSection] = useAtom(expandedDirectSectionsAtom);
   const showAllDms = expandedIds.has(HOME_DIRECT_CATEGORY_ID);
   const showAllAgents = expandedIds.has(HOME_AGENTS_CATEGORY_ID);
 

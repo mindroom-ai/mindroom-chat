@@ -29,6 +29,7 @@ import {
 import { listSessions } from '../../matrix/session/sessions';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
+import { clearExpandedHomeDirectSectionsStore } from '../../ui/nav/homeExpandedDirectSections';
 import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
 import { clearNotified } from '../../notifications/notifiedOnce';
 import {
@@ -121,6 +122,7 @@ export const clearUserUiState = async (userId: string): Promise<void> => {
   clearThreadSidebarPreferencesStore(userId);
   clearSeenThreadRoots(userId);
   clearClosedNavCategoriesStore(userId);
+  clearExpandedHomeDirectSectionsStore(userId);
   clearSyncFilterIds(userId);
   clearNotified(userId);
   // The keys of preferences/accountStorageKeys.ts, whose builders also write them. A new key kept

@@ -1,17 +1,21 @@
+import { createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HomeAgent } from './homeAgents';
+import { homeExpandedDirectSectionsStorageKey } from '../../preferences/accountStorageKeys';
 import type { RoomToUnread } from '../../matrix/types/room';
+import {
+  clearExpandedHomeDirectSectionsStore,
+  getExpandedHomeDirectSectionsAtom,
+} from '../../ui/nav/homeExpandedDirectSections';
+import type { HomeAgent } from './homeAgents';
 import {
   getHiddenSectionUnread,
   getOneToOneAgentPartnerId,
   HOME_AGENTS_CATEGORY_ID,
   HOME_DIRECT_CATEGORY_ID,
-  readExpandedHomeDirectSections,
   selectRenderedAgents,
   selectRenderedDirectRooms,
   splitHomeDirectSections,
-  writeExpandedHomeDirectSections,
 } from './homeDirectSections';
 
 const ME = '@maya:example.org';
@@ -102,7 +106,12 @@ const makeHomeAgent = (
 });
 
 describe('homeDirectSections', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearExpandedHomeDirectSectionsStore(ME);
+    clearExpandedHomeDirectSectionsStore(LIAM);
+    clearExpandedHomeDirectSectionsStore(NORA);
+  });
 
   it('places Direct messages and Agents category IDs in the mindroom namespace', () => {
     expect(HOME_DIRECT_CATEGORY_ID).toBe('mindroom|home-direct');
@@ -519,13 +528,21 @@ describe('homeDirectSections', () => {
   });
 
   it('ranks live agent DMs by DM recency with activity/name/userId tie-breaks ahead of room-only agents', () => {
-    const dm = (slug: string, lastActiveTs: number) =>
-      makeRoom({
+    const dmReads = new Map<string, number>();
+    const dm = (slug: string, lastActiveTs: number) => {
+      const room = makeRoom({
         roomId: `!dm-${slug}:example.org`,
         joined: 2,
         partnerId: `@mindroom_${slug}:example.org`,
         lastActiveTs,
       });
+      const readLastActive = room.getLastActiveTimestamp.bind(room);
+      room.getLastActiveTimestamp = () => {
+        dmReads.set(slug, (dmReads.get(slug) ?? 0) + 1);
+        return readLastActive();
+      };
+      return room;
+    };
     const result = splitHomeDirectSections(
       [dm('zero', 0), dm('tie_lo', 3000), dm('tie_hi', 3000), dm('fast', 5000)],
       [
@@ -552,6 +569,13 @@ describe('homeDirectSections', () => {
       '@mindroom_nodm_a:example.org',
       '@mindroom_nodm_b:example.org',
     ]);
+    // DM activity timestamp is read once per room before sorting, never inside the comparator.
+    expect(Object.fromEntries(dmReads)).toEqual({
+      zero: 1,
+      tie_lo: 1,
+      tie_hi: 1,
+      fast: 1,
+    });
   });
 
   it('aggregates hidden section unreads only across hiddenRoomIds', () => {
@@ -577,7 +601,7 @@ describe('homeDirectSections', () => {
     });
   });
 
-  it('persists expanded direct/agent section IDs per user and sanitizes bad storage', () => {
+  it('persists expanded direct/agent section IDs per user via user-scoped atom registry and sanitizes bad storage', () => {
     const stored = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => stored.get(key) ?? null,
@@ -585,21 +609,56 @@ describe('homeDirectSections', () => {
       removeItem: (key: string) => stored.delete(key),
     });
 
-    expect(readExpandedHomeDirectSections(ME).size).toBe(0);
-    writeExpandedHomeDirectSections(ME, new Set([HOME_DIRECT_CATEGORY_ID, 'bogus']));
-    writeExpandedHomeDirectSections(LIAM, new Set([HOME_AGENTS_CATEGORY_ID]));
-    expect([...readExpandedHomeDirectSections(ME)]).toEqual([HOME_DIRECT_CATEGORY_ID]);
-    expect([...readExpandedHomeDirectSections(LIAM)]).toEqual([HOME_AGENTS_CATEGORY_ID]);
+    const store = createStore();
+    const meAtom = getExpandedHomeDirectSectionsAtom(ME);
+    const liamAtom = getExpandedHomeDirectSectionsAtom(LIAM);
+    expect(getExpandedHomeDirectSectionsAtom(ME)).toBe(meAtom);
+    expect(store.get(meAtom).size).toBe(0);
 
-    stored.set(`homeExpandedDirectSections:${NORA}`, 'not-json');
-    expect(readExpandedHomeDirectSections(NORA).size).toBe(0);
+    store.set(meAtom, HOME_DIRECT_CATEGORY_ID);
+    store.set(meAtom, 'bogus');
+    store.set(liamAtom, HOME_AGENTS_CATEGORY_ID);
+    expect([...store.get(meAtom)]).toEqual([HOME_DIRECT_CATEGORY_ID]);
+    expect([...store.get(liamAtom)]).toEqual([HOME_AGENTS_CATEGORY_ID]);
+    expect(JSON.parse(stored.get(homeExpandedDirectSectionsStorageKey(ME)) ?? 'null')).toEqual([
+      HOME_DIRECT_CATEGORY_ID,
+    ]);
+    expect(JSON.parse(stored.get(homeExpandedDirectSectionsStorageKey(LIAM)) ?? 'null')).toEqual([
+      HOME_AGENTS_CATEGORY_ID,
+    ]);
+
+    // Toggling off the last expanded section removes the storage key cleanly.
+    store.set(meAtom, HOME_DIRECT_CATEGORY_ID);
+    expect(store.get(meAtom).size).toBe(0);
+    expect(stored.has(homeExpandedDirectSectionsStorageKey(ME))).toBe(false);
+
+    // Clearing the user store removes both localStorage and cached atom state.
+    clearExpandedHomeDirectSectionsStore(LIAM);
+    expect(stored.has(homeExpandedDirectSectionsStorageKey(LIAM))).toBe(false);
+    expect(getExpandedHomeDirectSectionsAtom(LIAM)).not.toBe(liamAtom);
+    expect(createStore().get(getExpandedHomeDirectSectionsAtom(LIAM)).size).toBe(0);
+
+    // Malformed or partially invalid storage sanitizes cleanly.
+    stored.set(homeExpandedDirectSectionsStorageKey(NORA), 'not-json');
+    expect(createStore().get(getExpandedHomeDirectSectionsAtom(NORA)).size).toBe(0);
+    clearExpandedHomeDirectSectionsStore(NORA);
+
     stored.set(
-      `homeExpandedDirectSections:${NORA}`,
+      homeExpandedDirectSectionsStorageKey(NORA),
       JSON.stringify([HOME_AGENTS_CATEGORY_ID, 42, 'other'])
     );
-    expect([...readExpandedHomeDirectSections(NORA)]).toEqual([HOME_AGENTS_CATEGORY_ID]);
-    expect(readExpandedHomeDirectSections('').size).toBe(0);
+    expect([...createStore().get(getExpandedHomeDirectSectionsAtom(NORA))]).toEqual([
+      HOME_AGENTS_CATEGORY_ID,
+    ]);
 
+    // Empty user ID returns an uncached in-memory atom and never writes storage.
+    const emptyA = getExpandedHomeDirectSectionsAtom('');
+    const emptyB = getExpandedHomeDirectSectionsAtom('');
+    expect(emptyA).not.toBe(emptyB);
+    expect(store.get(emptyA).size).toBe(0);
+
+    // Storage failures degrade to in-memory state without throwing.
+    clearExpandedHomeDirectSectionsStore(ME);
     vi.stubGlobal('localStorage', {
       getItem: () => {
         throw new Error('blocked');
@@ -607,10 +666,14 @@ describe('homeDirectSections', () => {
       setItem: () => {
         throw new Error('blocked');
       },
+      removeItem: () => {
+        throw new Error('blocked');
+      },
     });
-    expect(readExpandedHomeDirectSections(ME).size).toBe(0);
-    expect(() =>
-      writeExpandedHomeDirectSections(ME, new Set([HOME_DIRECT_CATEGORY_ID]))
-    ).not.toThrow();
+    const blockedStore = createStore();
+    const blockedMeAtom = getExpandedHomeDirectSectionsAtom(ME);
+    expect(blockedStore.get(blockedMeAtom).size).toBe(0);
+    expect(() => blockedStore.set(blockedMeAtom, HOME_DIRECT_CATEGORY_ID)).not.toThrow();
+    expect([...blockedStore.get(blockedMeAtom)]).toEqual([HOME_DIRECT_CATEGORY_ID]);
   });
 });

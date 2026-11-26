@@ -12,6 +12,7 @@ import {
   type ClosedNavCategoriesAtom,
   makeClosedNavCategoriesAtom,
 } from '../../ui/nav/closedNavCategories';
+import { clearExpandedHomeDirectSectionsStore } from '../../ui/nav/homeExpandedDirectSections';
 import * as spaceSectionCss from '../space/SpaceRoomSection.css';
 import * as homeSectionsCss from './HomeSections.css';
 import { Home } from './Home';
@@ -52,7 +53,7 @@ const {
     closedState: { atom: undefined as ClosedNavCategoriesAtom | undefined },
     homeState: {
       userId: '@alice:example.org',
-      directRooms: [] as Array<Record<string, unknown>>,
+      directRooms: [] as Array<{ roomId: string }>,
       homeAgents: [] as Array<Record<string, unknown>>,
       directTabShown: true,
       selectedRoomId: undefined as string | undefined,
@@ -519,7 +520,7 @@ vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
 vi.mock('./HiddenRailPages', () => ({ HiddenRailPages: () => null }));
 vi.mock('../direct/useDirectRooms', () => ({
   useDirectRooms: () => homeState.directRooms,
-  useDirectRoomIds: () => homeState.directRooms.map((room) => room.roomId as string),
+  useDirectRoomIds: () => homeState.directRooms.map((room) => room.roomId),
 }));
 vi.mock('./homeAgents', () => ({
   useHomeAgents: () => homeState.homeAgents,
@@ -564,9 +565,13 @@ const makeStore = (rooms: string[], parents: Record<string, string[]> = {}) => {
   return store;
 };
 
-const renderHome = (rooms: string[], parents: Record<string, string[]> = {}) => {
+const renderHome = (
+  rooms: string[],
+  parents: Record<string, string[]> = {},
+  existingStore?: ReturnType<typeof createStore>
+) => {
   closedState.atom = makeClosedNavCategoriesAtom('@alice:example.org');
-  const store = makeStore(rooms, parents);
+  const store = existingStore ?? makeStore(rooms, parents);
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(React.createElement(Provider, { store }, React.createElement(Home)));
@@ -705,6 +710,11 @@ describe('Home', () => {
     homeState.directTabShown = true;
     homeState.selectedRoomId = undefined;
     vi.unstubAllGlobals();
+    clearExpandedHomeDirectSectionsStore('@alice:example.org');
+    clearExpandedHomeDirectSectionsStore('@bob:example.org');
+    if (typeof localStorage !== 'undefined' && typeof localStorage.clear === 'function') {
+      localStorage.clear();
+    }
     focusTrapState.options = undefined;
     fakeAnchorEvent.currentTarget.focus.mockReset();
     shortcutCalls.length = 0;
@@ -1376,7 +1386,7 @@ describe('Home', () => {
     });
 
     homeState.homeAgents = [];
-    homeState.directRooms = [unlistedDm, customDm] as unknown as Array<Record<string, unknown>>;
+    homeState.directRooms = [unlistedDm, customDm];
     const { renderer } = renderHome(['!room:example.org']);
 
     const sectionRoomIds = (testId: string) =>
@@ -1598,7 +1608,16 @@ describe('Home', () => {
     expect(rowCount(first.renderer, 'home-agents-section')).toBe(5);
     act(() => first.renderer.unmount());
 
-    // Remounting as Alice restores expanded Direct messages while keeping Agents compact.
+    // Remounting inside the same app store preserves Alice's expanded Direct messages.
+    const remounted = renderHome(['!room:example.org'], {}, first.store);
+    expect(rowCount(remounted.renderer, 'home-direct-section')).toBe(7);
+    expect(rowCount(remounted.renderer, 'home-agents-section')).toBe(5);
+    act(() => remounted.renderer.unmount());
+
+    // Cold reload (fresh store and atom registry) hydrates Alice's preference from localStorage.
+    const persisted = new Map(stored);
+    clearExpandedHomeDirectSectionsStore('@alice:example.org');
+    persisted.forEach((value, key) => stored.set(key, value));
     const second = renderHome(['!room:example.org']);
     expect(rowCount(second.renderer, 'home-direct-section')).toBe(7);
     expect(rowCount(second.renderer, 'home-agents-section')).toBe(5);
