@@ -108,7 +108,11 @@ import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
 import { useOptionalClientConfig } from '../config/useClientConfig';
-import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
+import {
+  skipsRootModel,
+  useRoomInputSendSessionController,
+} from './useRoomInputSendSessionController';
+import type { ThreadModelContent } from '../matrix/protocol/threadModel';
 import {
   getVoiceMessageContentOptions,
   useRoomInputUploadTransport,
@@ -761,6 +765,7 @@ export function RoomInput({
       let releaseInitialLeases: (() => void) | undefined;
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
+      let pendingRootModel: ThreadModelContent | undefined;
       let claimedDeferredSend = false;
       try {
         if (deferredDraft && attachments.hasSendableFiles) {
@@ -768,6 +773,7 @@ export function RoomInput({
           deferredSendPendingRef.current = true;
           setDeferredSendPending(true);
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
+          pendingRootModel = !skipsRootModel(textContent) ? takeRootModelDraft(room) : undefined;
           if (textContent) {
             pendingFallback = composer.snapshotText();
             composer.resetText();
@@ -796,10 +802,13 @@ export function RoomInput({
           }
           const fallbackForSession = pendingFallback;
           pendingFallback = undefined;
+          const rootModelForSession = pendingRootModel;
+          pendingRootModel = undefined;
           const sending = sessions.startSendSession({
             textContent,
             midTurnMode: mode,
             explicitMidTurnMode: explicitMode !== undefined,
+            rootModel: rootModelForSession ?? null,
             batch: { fileItems: uploadedItems },
             completeWithinCall: uploadedItems.length > 0,
             composerFallback: fallbackForSession,
@@ -836,6 +845,7 @@ export function RoomInput({
         }
         throw error;
       } finally {
+        if (pendingRootModel) getModelController(mx).restoreRootModelDraft(room, pendingRootModel);
         if (claimedDeferredSend) {
           deferredSendPendingRef.current = false;
           if (mountedRef.current) setDeferredSendPending(false);

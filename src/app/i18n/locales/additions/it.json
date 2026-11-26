@@ -1968,6 +1968,7 @@
       "noSpeech": "Nessuna voce rilevata.",
       "noSpeechOffThread": "Nessuna voce rilevata in {{room}}.",
       "sendFailedOffThread": "Impossibile completare il messaggio dettato in {{room}}. Aprilo per riprovare.",
+      "sendFailedOffTarget": "Impossibile completare il messaggio dettato in {{room}}. Selezionalo in \"Pubblica in\" per riprovare.",
       "statusPendingRetry_one": "{{count}} segmento in attesa di nuovo tentativo",
       "statusPendingRetry_many": "{{count}} segmenti in attesa di nuovo tentativo",
       "statusPendingRetry_other": "{{count}} segmenti in attesa di nuovo tentativo",

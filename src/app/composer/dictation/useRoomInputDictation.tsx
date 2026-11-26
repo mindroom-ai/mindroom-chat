@@ -795,7 +795,7 @@ export const useRoomInputDictation = ({
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
         ...(detachedEntry.status === 'failed' && detachedTargetMismatch
           ? {
-              errorMessage: t('composer.dictation.sendFailedOffThread', {
+              errorMessage: t('composer.dictation.sendFailedOffTarget', {
                 room: detachedEntry.roomName,
               }),
             }

@@ -2030,7 +2030,7 @@ describe('useRoomInputDictation', () => {
     const view = render(wrap('!des:example.org'));
     expect(screen.queryByText('composer.dictation.retryAndSend')).toBeNull();
     expect(screen.getByText('composer.dictation.discard')).toBeTruthy();
-    expect(screen.getByRole('alert').textContent).toContain('composer.dictation.sendFailedOffThread');
+    expect(screen.getByRole('alert').textContent).toContain('composer.dictation.sendFailedOffTarget');
 
     view.rerender(wrap('!eng:example.org'));
     fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));

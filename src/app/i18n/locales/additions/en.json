@@ -1903,6 +1903,7 @@
       "noSpeech": "No speech detected.",
       "noSpeechOffThread": "No speech detected in {{room}}.",
       "sendFailedOffThread": "Could not finish dictated message in {{room}}. Open it to retry.",
+      "sendFailedOffTarget": "Could not finish dictated message in {{room}}. Select it in \"Post to\" to retry.",
       "statusPendingRetry_one": "{{count}} segment pending retry",
       "statusPendingRetry_other": "{{count}} segments pending retry",
       "capReached": "5:00 limit reached",

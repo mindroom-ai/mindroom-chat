@@ -575,22 +575,13 @@ export const keepStagedFileNames = (
   userId: string,
   scope: string,
   items: TUploadItem[],
-  store?: JotaiStore
+  store: JotaiStore
 ): void => {
   writeStoredJson(
     stagedFilesStorageKey(userId, scope),
     items.length > 0 ? items.map((item) => item.originalFile.name) : undefined
   );
-  if (!isSpaceThreadsDraftKey(scope)) return;
-  if (store) {
-    store.set(spaceThreadsEntryAtomFamily(scope), {});
-  } else if (items.length === 0) {
-    const storageKey = `${DRAFT_STORAGE_PREFIX}${scope}`;
-    const stored = readStoredJson(storageKey);
-    if (isRecord(stored) && asDraft(stored.draft).length === 0) {
-      removeStorageItemSafe(getSafeLocalStorage(), storageKey);
-    }
-  }
+  if (isSpaceThreadsDraftKey(scope)) store.set(spaceThreadsEntryAtomFamily(scope), {});
 };
 
 /** The names of the files a room or staged composer had staged when they were last kept. */

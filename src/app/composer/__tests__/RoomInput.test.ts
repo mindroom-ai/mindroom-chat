@@ -119,6 +119,7 @@ const {
   modelPickerState: {
     props: [] as Array<{ room: Room; threadId?: string; newThread?: boolean }>,
     takeRootModelDraft: vi.fn<() => ThreadModelContent | undefined>(() => undefined),
+    restoreRootModelDraft: vi.fn(),
   },
   mxState: {
     cancelUpload: vi.fn(),
@@ -518,6 +519,7 @@ vi.mock('../../models/modelController', () => ({
       (modelPickerState.takeRootModelDraft as (...a: unknown[]) => ThreadModelContent | undefined)(
         ...args
       ),
+    restoreRootModelDraft: (...args: unknown[]) => modelPickerState.restoreRootModelDraft(...args),
   }),
 }));
 
@@ -1102,6 +1104,7 @@ afterEach(() => {
   customEditorState.replyContextRenderCount = 0;
   modelPickerState.props = [];
   modelPickerState.takeRootModelDraft.mockReset();
+  modelPickerState.restoreRootModelDraft.mockReset();
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -5915,5 +5918,61 @@ describe("RoomInput as Home's ask field", () => {
     ]);
     expect(editorOutputState.plainText).toBe('Follow up');
     renderer.unmount();
+  });
+
+  it('takes root model before deferred upload so unmounted sends keep it, and restores it if no send runs', async () => {
+    threadModeState.mode = 'thread';
+    const pick = threadModelContent('@router:example.org', 'DEV1', 'opus@high');
+    const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+
+    // 1. Background deferred send: composer unmounts while uploading, root upload still stamps pick.
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const store1 = createStore();
+    const { renderer: r1 } = await renderRoomInput(store1, { stagedDraftKey: spaceKey });
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['big'], 'deck.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+    stageComposerText('Caption');
+    resetEditorOnNextSend();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$file' })
+      .mockResolvedValueOnce({ event_id: '$caption' });
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = getPrimarySendButton(r1).props.onClick();
+      await Promise.resolve();
+    });
+    expect(modelPickerState.takeRootModelDraft).toHaveBeenCalledTimes(1);
+    r1.unmount();
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/deck' });
+      await sending;
+    });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'deck.pdf',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    expect(modelPickerState.restoreRootModelDraft).not.toHaveBeenCalled();
+
+    // 2. Failed file-only upload ends with no send -> root model draft is restored.
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const store2 = createStore();
+    const { renderer: r2 } = await renderRoomInput(store2, { stagedDraftKey: spaceKey });
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['big'], 'fail.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+    stageComposerText('');
+    mxState.uploadContent.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => getPrimarySendButton(r2).props.onClick());
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(modelPickerState.restoreRootModelDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ roomId: ROOM_ID }),
+      pick
+    );
+    r2.unmount();
   });
 });

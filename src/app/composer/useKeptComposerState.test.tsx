@@ -99,9 +99,9 @@ describe('useKeptComposerState', () => {
   });
 
   it('names the staged files a reload lost until they are dismissed', () => {
-    openPage();
+    const store = openPage();
     expect(kept?.lostFileNames).toEqual([]);
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('photo.png')]);
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('photo.png')], store);
 
     reload();
     expect(kept?.lostFileNames).toEqual(['notes.txt', 'photo.png']);
@@ -116,8 +116,13 @@ describe('useKeptComposerState', () => {
   });
 
   it('leaves large pastes out of the notice, since the draft keeps their text', () => {
-    openPage();
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('mindroom-paste-a3f19c.txt')]);
+    const initialStore = openPage();
+    keepStagedFileNames(
+      ME,
+      ROOM,
+      [staged('notes.txt'), staged('mindroom-paste-a3f19c.txt')],
+      initialStore
+    );
     const store = reload();
     expect(kept?.lostFileNames).toEqual(['notes.txt']);
     // The paste the composer puts back does not answer the notice of the file still missing.
@@ -134,7 +139,7 @@ describe('useKeptComposerState', () => {
     const store = createStore();
     const items = [staged('notes.txt')];
     store.set(roomIdToUploadItemsAtomFamily(ROOM), { type: 'PUT', item: items });
-    keepStagedFileNames(ME, ROOM, items);
+    keepStagedFileNames(ME, ROOM, items, store);
     openPage(store);
     expect(kept?.lostFileNames).toEqual([]);
   });
@@ -142,7 +147,7 @@ describe('useKeptComposerState', () => {
   it('keeps nothing of an account that signed out', () => {
     const store = openPage();
     act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt')], store);
     clearRoomInputDrafts(ME);
 
     expect(reload().get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
@@ -153,7 +158,7 @@ describe('useKeptComposerState', () => {
   it("leaves what the room's page kept to that page in another conversation view", () => {
     const store = openPage();
     act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt')], store);
     act(() => renderer?.unmount());
     const kept0 = new Map(values);
 
@@ -168,8 +173,8 @@ describe('useKeptComposerState', () => {
     const spaceKey = getSpaceThreadsDraftKey(ME, '!space:example.org');
     const roomStore = openPage();
     act(() => roomStore.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
-    keepStagedFileNames(ME, ROOM, [staged('room.png')]);
-    keepStagedFileNames(ME, spaceKey, [staged('space.pdf')]);
+    keepStagedFileNames(ME, ROOM, [staged('room.png')], roomStore);
+    keepStagedFileNames(ME, spaceKey, [staged('space.pdf')], roomStore);
     act(() => renderer?.unmount());
     roomIdToReplyDraftAtomFamily.remove(ROOM);
 
