@@ -6,8 +6,10 @@ export type ToolTraceEvent = {
   truncated?: unknown;
   // The latest output a running call reported; only live frames carry it.
   progress?: unknown;
-  // When the call started, in Unix seconds; only sub-agent frames carry it (subagentToolStartedAt).
+  // When the call started, in Unix seconds; carried on live and sub-agent frames (toolStartedAt).
   started_at?: unknown;
+  // When a completed call settled, in Unix seconds; carried on sub-agent frames (toolEndedAt).
+  ended_at?: unknown;
   // The provider's ID of the call, which a secret request names (secretRequest.ts `anchor`).
   tool_call_id?: unknown;
   // True on a completed call that did not succeed (an error, refusal, denial, cancellation or
@@ -51,6 +53,18 @@ export const getToolTraceV2Events = (trace: unknown): ToolTraceEvent[] | undefin
   const toolTrace = asToolTrace(trace);
   return toolTrace?.version === 2 ? getToolTraceEvents(toolTrace) : undefined;
 };
+
+/** A Unix-seconds timestamp on a trace event, or undefined when missing or not a finite number. */
+export const toolTimestamp = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+/** When a tool call started, in Unix seconds; undefined when missing or malformed. */
+export const toolStartedAt = (event: ToolTraceEvent | undefined): number | undefined =>
+  toolTimestamp(event?.started_at);
+
+/** When a tool call completed, in Unix seconds; undefined when missing or malformed. */
+export const toolEndedAt = (event: ToolTraceEvent | undefined): number | undefined =>
+  toolTimestamp(event?.ended_at);
 
 /** A trace event's call ID; undefined when it carries none. */
 export const toolTraceCallId = (event: ToolTraceEvent | undefined): string | undefined =>

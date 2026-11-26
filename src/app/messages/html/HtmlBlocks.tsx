@@ -21,13 +21,13 @@ import {
   trimLeadingToolRefBoundary,
 } from '../agent-run/toolRefDom';
 import { PasteMarker, parsePasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
-import { subagentToolStartedAt } from '../../matrix/protocol/subagentFrame';
 import {
   MINDROOM_TOOL_TRACE_KEY,
   ToolTraceEvent,
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
+  toolStartedAt,
   toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
 import type { SecretRequest } from '../../matrix/protocol/secretRequest';
@@ -59,6 +59,7 @@ import {
   withFailures,
 } from '../agent-run/toolCallStatus';
 import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
+import { LiveToolPreview, normalizeToolOutput } from '../agent-run/LiveToolPreview';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import {
   getEffectiveToolApprovalStatus,
@@ -231,22 +232,13 @@ type ToolBlockRenderData = {
   /** Whether the completed call's trace entry says it did not succeed (`is_error`). */
   failed?: boolean;
   progress?: string;
-  /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
+  /** When a running call started, in Unix seconds, from frames that say (toolStartedAt). */
   startedAt?: number;
 };
-
-// How many of a running call's last output lines show under its tool calls.
-const TOOL_OUTPUT_LINES = 6;
 
 // A tool's name, arguments and output show their direction controls as code points.
 const asToolTraceText = (value: unknown): string | undefined =>
   typeof value === 'string' ? revealDirectionControls(value.trim()) || undefined : undefined;
-
-// Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
-const asToolOutput = (value: unknown): string | undefined =>
-  typeof value === 'string'
-    ? revealDirectionControls(value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd()) || undefined
-    : undefined;
 
 const buildToolRefRenderData = (
   toolRef: ToolRefParseResult,
@@ -282,8 +274,8 @@ const buildToolRefRenderData = (
       toolName: traceToolName,
       argsPreview,
       resultInline: false,
-      progress: asToolOutput(eventRaw?.progress),
-      startedAt: eventRaw && subagentToolStartedAt(eventRaw),
+      progress: normalizeToolOutput(eventRaw?.progress),
+      startedAt: toolStartedAt(eventRaw),
     };
   }
 
@@ -505,8 +497,7 @@ function ToolRefGroupBlock({
   // Without a cog to open them (no ToolCallsFold), the calls show.
   const fold = shown ? undefined : use(ToolCallsFoldContext);
   if (fold && !fold.open) return null;
-  const running = loadedTools.filter((_tool, index) => states[index] === 'running');
-  const outputTool = running.filter((tool) => tool.progress).at(-1);
+  const running = calls.filter((tool) => isLoadedTool(tool) && stateOf(tool) === 'running');
   // Only a running call shows how long it has run; the line shows the one that started first.
   const starts = running.flatMap(({ startedAt }) => (startedAt === undefined ? [] : [startedAt]));
   // Without the trace details the calls' states are unknown, so only count them.
@@ -536,15 +527,12 @@ function ToolRefGroupBlock({
       detail={summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
       preview={
-        outputTool?.progress && (
-          <>
-            {running.length > 1 && (
-              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
-            )}
-            <pre className={activityCss.Output}>
-              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-            </pre>
-          </>
+        running.length > 0 && (
+          <LiveToolPreview
+            running={running}
+            roomId={message?.roomId}
+            threadId={message?.threadId}
+          />
         )
       }
     >

@@ -1328,21 +1328,30 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
-  it('shows the last lines of a running call output under the collapsed tool calls', () => {
-    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+  it('shows the last 4 lines for direct shell output and last 6 lines for fallback progress', () => {
     const output = Array.from({ length: 10 }, (_, i) => `step ${i + 1}`).join('\n');
-    const renderer = renderTreeWithToolTrace(html, {
+    const shell = renderTreeWithToolTrace('<p>🔧 <code>run_shell_command</code> [1]</p>', {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: output }],
       },
     });
+    const shellText = collectTextContent(shell.toJSON());
+    expect(shellText).toMatch(toolCountLabel(1));
+    expect(shellText).toContain('step 7');
+    expect(shellText).toContain('step 10');
+    expect(shellText).not.toContain('step 6');
 
-    const text = collectTextContent(renderer.toJSON());
-    expect(text).toMatch(toolCountLabel(1));
-    expect(text).toContain('step 5');
-    expect(text).toContain('step 10');
-    expect(text).not.toContain('step 4');
+    const fallback = renderTreeWithToolTrace('<p>🔧 <code>web_search</code> [1]</p>', {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'web_search', progress: output }],
+      },
+    });
+    const fallbackText = collectTextContent(fallback.toJSON());
+    expect(fallbackText).toContain('step 5');
+    expect(fallbackText).toContain('step 10');
+    expect(fallbackText).not.toContain('step 4');
   });
 
   it('keeps the indentation of a running call output first line', () => {
@@ -1360,7 +1369,9 @@ describe('useToolTraceMarkerParserOptions', () => {
       },
     });
 
-    const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
+    const [output] = renderer.root.findAll(
+      (node) => node.type === 'pre' && node.props['data-live-output'] === ''
+    );
     expect(output!.children.join('')).toBe('  root:\n    child: 1');
   });
 
@@ -1383,7 +1394,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(output!.children.join('')).toBe('Calling write_report\n  writing');
   });
 
-  it('names the call whose output shows only while several calls run', () => {
+  it('shows every parallel running shell call simultaneously, even before output arrives', () => {
     const html =
       '<p>🔧 <code>run_shell_command</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
     const started = (args: string, progress?: string) => ({
@@ -1392,20 +1403,18 @@ describe('useToolTraceMarkerParserOptions', () => {
       args_preview: args,
       progress,
     });
-    const labels = (events: object[]) =>
-      renderTreeWithToolTrace(html, { 'io.mindroom.tool_trace': { version: 2, events } })
-        .root.findAll((node) => node.props.className === 'activity-output-label')
-        .map((node) => node.children.join(''));
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [started('command=pytest'), started('command=npm run build', 'compiling')],
+      },
+    });
 
-    expect(labels([started('pytest'), started('npm run build', 'compiling')])).toEqual([
-      'run_shell_command(npm run build)',
-    ]);
-    expect(
-      labels([
-        { type: 'tool_call_completed', tool_name: 'run_shell_command', result_preview: 'ok' },
-        started('npm run build', 'compiling'),
-      ])
-    ).toEqual([]);
+    const cards = renderer.root.findAll((node) => node.props['data-live-shell'] !== undefined);
+    expect(cards).toHaveLength(2);
+    expect(collectTextContent(renderer.toJSON())).toContain('pytest');
+    expect(collectTextContent(renderer.toJSON())).toContain('npm run build');
+    expect(collectTextContent(renderer.toJSON())).toContain('compiling');
   });
 
   it('drops a call output once the call completed', () => {

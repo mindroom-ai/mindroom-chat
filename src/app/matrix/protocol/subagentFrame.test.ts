@@ -102,6 +102,17 @@ describe('sub-agent frames', () => {
     );
   });
 
+  it('keeps the parent call ID, and has none for a missing, empty or malformed one', () => {
+    const linked = frame({ meta: { ...meta, caller_tool_call_id: 'call_sub_1' } });
+    expect(parseSubagentFrame(linked)?.meta.callerToolCallId).toBe('call_sub_1');
+    [undefined, '', 42, null].forEach((callerToolCallId) =>
+      expect(
+        parseSubagentFrame(frame({ meta: { ...meta, caller_tool_call_id: callerToolCallId } }))
+          ?.meta
+      ).not.toHaveProperty('callerToolCallId')
+    );
+  });
+
   it.each([
     ['a string', 'opus'],
     ['a number', 3],

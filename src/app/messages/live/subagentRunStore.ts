@@ -70,9 +70,11 @@ const nextMeta = (held: SubagentMeta | undefined, latest: SubagentMeta): Subagen
   const task = latest.task ?? held?.task;
   const title = latest.title ?? held?.title;
   const result = latest.result ?? held?.result;
+  const callerToolCallId = latest.callerToolCallId ?? held?.callerToolCallId;
   if (task !== undefined) meta.task = task;
   if (title !== undefined) meta.title = title;
   if (result !== undefined) meta.result = result;
+  if (callerToolCallId !== undefined) meta.callerToolCallId = callerToolCallId;
   return meta;
 };
 
