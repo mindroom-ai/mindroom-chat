@@ -34,17 +34,7 @@
 
 ## PR 2: Reconcile unseen live `scrollTop` moves in `applyScrollAdjustment`
 
-**Problem & repro:** If app/driver code writes `scrollElement.scrollTop` synchronously and an item resizes before the `scroll` event delivers the new offset, `applyScrollAdjustment` writes from the stale cached `scrollOffset` and snaps the scroller back. Reproduce by mutating `el.scrollTop += 600` (without a scroll event) then calling `resizeItem(aboveIdx, size - 20)`.
-
-```diff
--  const offset = this.getScrollOffset() // in applyScrollAdjustment() else-branch
-+  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
-+  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
--  if (this.pendingWrite === write) this.scrollOffset += delta
--  if (this.scrollOffset < 0) this.scrollOffset = 0
-+  if (this.pendingWrite === write) this.scrollOffset = offset + delta
-+  if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0
-```
+removed: not needed after #900, ablation 2026-11-25
 
 ## PR 3: Never flush negative `_holdOffset` past `scrollTop = 0`
 

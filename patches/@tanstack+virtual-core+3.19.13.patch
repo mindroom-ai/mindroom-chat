@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..fda4a4e 100644
+index 186f79e..a1cbf98 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -148,23 +148,11 @@ index 186f79e..fda4a4e 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1492,15 +1563,17 @@ class Virtualizer {
-       if (this.scrollOffset !== null) this.scrollOffset += delta;
-       return true;
-     } else {
--      const offset = this.getScrollOffset();
-+      // PR 2: reconcile an unseen live element scrollTop move before writing.
-+      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
-+      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset();
-       this._clampedAdjustment = this._clampedBy(offset + delta);
-       const write = this._scrollToOffset(offset, {
-         adjustments: delta,
-         behavior
+@@ -1500,7 +1571,7 @@ class Virtualizer {
        });
        if (this.scrollOffset !== null) {
--        if (this.pendingWrite === write) this.scrollOffset += delta;
+         if (this.pendingWrite === write) this.scrollOffset += delta;
 -        if (this.scrollOffset < 0) this.scrollOffset = 0;
-+        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
 +        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;
@@ -196,7 +184,7 @@ index 159bbd6..cce95a0 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..938129f 100644
+index ef861e1..4906566 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -345,23 +333,11 @@ index ef861e1..938129f 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1491,15 +1562,17 @@ class Virtualizer {
-       if (this.scrollOffset !== null) this.scrollOffset += delta;
-       return true;
-     } else {
--      const offset = this.getScrollOffset();
-+      // PR 2: reconcile an unseen live element scrollTop move before writing.
-+      const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null;
-+      const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset();
-       this._clampedAdjustment = this._clampedBy(offset + delta);
-       const write = this._scrollToOffset(offset, {
-         adjustments: delta,
-         behavior
+@@ -1499,7 +1570,7 @@ class Virtualizer {
        });
        if (this.scrollOffset !== null) {
--        if (this.pendingWrite === write) this.scrollOffset += delta;
+         if (this.pendingWrite === write) this.scrollOffset += delta;
 -        if (this.scrollOffset < 0) this.scrollOffset = 0;
-+        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
 +        if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0;
        }
        return true;
