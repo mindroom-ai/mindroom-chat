@@ -1439,6 +1439,43 @@
       "stopReply": {
         "label": "Arrêter la réponse",
         "stopping": "Arrêt…"
+      },
+      "runError": {
+        "cardLabel": "Erreur d’exécution",
+        "actions": {
+          "continue": "Continuer",
+          "retry": "Réessayer",
+          "compact": "Compacter"
+        },
+        "chips": {
+          "streamStalled": "Flux interrompu",
+          "providerUnavailable": "Indisponible",
+          "rateLimited": "Limite atteinte",
+          "timeout": "Délai dépassé",
+          "contextWindow": "Limite de contexte",
+          "tokensPerMinute": "Limite de jetons",
+          "safeguardRefusal": "Refusé",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "Clé API",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Erreur"
+        },
+        "technicalDetails": "Détails techniques",
+        "details": {
+          "model": "Modèle",
+          "provider": "Fournisseur",
+          "code": "Code",
+          "detail": "Détail",
+          "error": "Erreur"
+        },
+        "receipt": {
+          "continue": "Repris",
+          "retry": "Réessayé",
+          "compact": "Compacté"
+        },
+        "sendFailed": "Impossible d’envoyer le message. Réessayez.",
+        "restartSeam": "Service redémarré · contexte conservé",
+        "restartSeamRepeated": "Service redémarré ({{times}}×) · contexte conservé"
       }
     },
     "message-search": {
