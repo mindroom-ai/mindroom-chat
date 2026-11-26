@@ -31,8 +31,10 @@ vi.mock('../../ui/SettingTile', () => ({
   ),
 }));
 
-vi.mock('../../ui/settings/SettingSwitchTile', () => ({
-  SettingSwitchTile: ({ focusId }: { focusId?: string }) => <div data-focus-id={focusId} />,
+vi.mock('folds', () => ({
+  Switch: ({ value, onChange }: { value: boolean; onChange: (on: boolean) => void }) => (
+    <button type="button" role="switch" aria-checked={value} onClick={() => onChange(!value)} />
+  ),
 }));
 
 vi.mock('../../ui/settings/ChoiceButton', () => ({
@@ -130,6 +132,7 @@ describe('Chats settings page', () => {
       'voiceHoldShortcut',
       'markdown',
       'mediaCompression',
+      'autoZipLargeFiles',
     ]);
 
     const tile = editorSection.findByProps({ 'data-focus-id': 'mediaCompression' });
@@ -180,5 +183,34 @@ describe('Chats settings page', () => {
     expect(store.get(settingsAtom).mediaCompression).toBe('small');
     expect(loadPendingRoamingSettings(aliceKey)).toEqual({ mediaCompression: 'small' });
     expect(getSettings().mediaCompression).toBe('balanced');
+  });
+
+  it('shows Compress large files (.zip) off by default and persists toggles to device or roaming storage', () => {
+    renderChats();
+    const tile = () => renderer.root.findByProps({ 'data-focus-id': 'autoZipLargeFiles' });
+    const toggle = () => tile().findByProps({ role: 'switch' });
+    expect(tile().props['data-title']).toBe('Compress large files (.zip)');
+    expect(tile().props['data-description']).toBeTruthy();
+    expect(toggle().props['aria-checked']).toBe(false);
+
+    act(() => {
+      toggle().props.onClick();
+    });
+    expect(store.get(settingsAtom).autoZipLargeFiles).toBe(true);
+    expect(getSettings().autoZipLargeFiles).toBe(true);
+    act(() => renderer.unmount());
+
+    localStorage.clear();
+    const aliceKey = pendingRoamingSettingsKey('@alice:example.org', 'ALICEPHONE');
+    store = createStore();
+    store.set(roamingAccountContentAtom, { version: 1 });
+    store.set(pendingRoamingSettingsAtom, { storageKey: aliceKey, values: {} });
+    renderChats();
+    act(() => {
+      toggle().props.onClick();
+    });
+    expect(store.get(settingsAtom).autoZipLargeFiles).toBe(true);
+    expect(loadPendingRoamingSettings(aliceKey)).toEqual({ autoZipLargeFiles: true });
+    expect(getSettings().autoZipLargeFiles).toBe(false);
   });
 });

@@ -541,7 +541,8 @@
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
         "plugins": "plug-ins, plugins, extensies, add-ons, integraties",
         "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten",
-        "mediaCompression": "schermafbeeldingen, schermopnamen, afbeeldingen, video’s, compressie, uploadgrootte"
+        "mediaCompression": "schermafbeeldingen, schermopnamen, afbeeldingen, video’s, compressie, uploadgrootte",
+        "autoZipLargeFiles": "zip, archief, comprimeren, json, csv, log, grote bestanden, uploadgrootte"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -570,6 +571,10 @@
         "off": "Uit",
         "balanced": "Gebalanceerd",
         "small": "Klein"
+      },
+      "autoZipLargeFiles": {
+        "title": "Grote bestanden comprimeren (.zip)",
+        "description": "Comprimeer comprimeerbare bestanden groter dan 1 MB automatisch als .zip voordat je ze uploadt. Je kunt voor elke bijlage nog steeds het origineel gebruiken."
       }
     },
     "createChat": {

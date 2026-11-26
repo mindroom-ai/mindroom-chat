@@ -224,6 +224,26 @@ describe('settings registry', () => {
     }
   });
 
+  it('lists Compress large files (.zip) on Chats as an account setting and finds it by search keywords', () => {
+    const found = (query: string) =>
+      searchSettings(query, getShownSettings(WEB), (key, values) => translateFromEn(key, values));
+    const [match] = found('compress large files');
+    expect(match?.setting).toMatchObject({
+      id: 'autoZipLargeFiles',
+      page: 'chats',
+      scope: 'account',
+    });
+    expect(match?.label).toBe('Compress large files (.zip)');
+    expect(match?.location).toEqual(['Chats', 'Editor']);
+
+    for (const query of ['zip', 'archive', 'json', 'csv', 'log', 'large files', 'upload size']) {
+      expect(
+        found(query).map(({ setting }) => setting.id),
+        query
+      ).toContain('autoZipLargeFiles');
+    }
+  });
+
   it('labels the roaming settings with the account and keeps every other app setting on the device', () => {
     const scopeOf = (id: string) => SETTINGS.find((setting) => setting.id === id)?.scope;
     Object.keys(ROAMING_SETTINGS).forEach((id) => expect(scopeOf(id), id).toBe('account'));

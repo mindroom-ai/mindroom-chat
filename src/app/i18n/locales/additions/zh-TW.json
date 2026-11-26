@@ -528,7 +528,8 @@
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
         "plugins": "外掛程式, 插件, 擴充功能, 整合",
         "appUpdates": "更新, 版本, 升級, 重新啟動",
-        "mediaCompression": "螢幕截圖, 螢幕錄影, 圖片, 影片, 壓縮, 上傳大小"
+        "mediaCompression": "螢幕截圖, 螢幕錄影, 圖片, 影片, 壓縮, 上傳大小",
+        "autoZipLargeFiles": "zip, 壓縮檔, 壓縮, json, csv, 日誌, 大型檔案, 上傳大小"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -557,6 +558,10 @@
         "off": "關閉",
         "balanced": "平衡",
         "small": "較小"
+      },
+      "autoZipLargeFiles": {
+        "title": "壓縮大型檔案 (.zip)",
+        "description": "在上傳前自動將超過 1 MB 的可壓縮檔案壓縮為 .zip。您仍可為任何附件使用原始檔案。"
       }
     },
     "createChat": {

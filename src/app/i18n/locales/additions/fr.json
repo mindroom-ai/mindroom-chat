@@ -554,7 +554,8 @@
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
         "plugins": "plugins, extensions, modules, intégrations",
         "appUpdates": "mise à jour, mises à jour, version, actualiser, redémarrer",
-        "mediaCompression": "captures d’écran, enregistrements d’écran, images, vidéos, compression, taille d’envoi"
+        "mediaCompression": "captures d’écran, enregistrements d’écran, images, vidéos, compression, taille d’envoi",
+        "autoZipLargeFiles": "zip, archive, compresser, json, csv, journal, log, fichiers volumineux, taille d’envoi"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -583,6 +584,10 @@
         "off": "Désactivée",
         "balanced": "Équilibrée",
         "small": "Petite"
+      },
+      "autoZipLargeFiles": {
+        "title": "Compresser les fichiers volumineux (.zip)",
+        "description": "Compressez automatiquement en .zip les fichiers compressibles de plus de 1 Mo avant l’envoi. Vous pouvez toujours utiliser l’original pour chaque pièce jointe."
       }
     },
     "createChat": {

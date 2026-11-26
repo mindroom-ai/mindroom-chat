@@ -564,4 +564,30 @@ describe('upload card renderers', () => {
       expect(text).not.toContain('Retry');
     }
   );
+
+  it('shows zipFailed in an encrypted room even when encInfo is undefined without uploading plaintext', () => {
+    const raw = createFile({
+      name: 'huge.bin',
+      type: 'application/octet-stream',
+      size: 60_000_000,
+    });
+    uploadMock.upload = { file: raw, status: 'idle' };
+    uploadMock.mediaConfig = { 'm.upload.size': 50_000_000 };
+    const { text } = renderCard({
+      isEncrypted: true,
+      fileItem: stagedItem(raw, {
+        encInfo: undefined,
+        compression: { status: 'zipFailed', reason: 'too-large' },
+      }),
+      onCompressToZip: vi.fn(),
+    });
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(uploadMock.useBindUploadAtom).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ blockUploadError: expect.any(MatrixError) })
+    );
+    expect(text).toContain('Still too large after compressing to .zip (maximum is 50.0 MB).');
+    expect(text).not.toContain('not encrypted');
+  });
 });

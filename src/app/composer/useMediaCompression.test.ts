@@ -825,4 +825,161 @@ describe('useMediaCompression', () => {
     expect(mockZipFile).toHaveBeenCalledTimes(1);
     expect(harness.store.get(targetAtom)[1]?.file).toBe(zippedTxt);
   });
+
+  const runAutoZip = (h: ReturnType<typeof renderHook>, file: File, room: Room) => {
+    const atom = h.getTargetAtom(ROOM_ID);
+    h.store.set(atom, { type: 'DELETE', item: h.store.get(atom) });
+    const job = h.api.createPendingAutoZip(file, room, ROOM_ID)!;
+    h.store.set(atom, { type: 'PUT', item: job.placeholder });
+    job.start();
+    return { job, current: () => h.store.get(atom)[0]! };
+  };
+
+  it('auto-zips sub-limit files with Use original (post-zip & mid-zip) and falls back silently on no-savings', async () => {
+    const encRoom = makeRoom(ROOM_ID, true);
+    const h = renderHook({ room: encRoom, maxUploadSize: 50 * 1024 * 1024 });
+    expect(
+      h.api.createPendingAutoZip(
+        makeSizedFile('s.json', 'application/json', 512 * 1024),
+        encRoom,
+        ROOM_ID
+      )
+    ).toBeUndefined();
+    expect(
+      h.api.createPendingAutoZip(
+        makeSizedFile('p.png', 'image/png', 2 * 1024 * 1024),
+        encRoom,
+        ROOM_ID
+      )
+    ).toBeUndefined();
+
+    const rawJson = makeSizedFile('diag.json', 'application/json', 2 * 1024 * 1024);
+    const zippedJson = makeSizedFile('diag.json.zip', 'application/zip', 180 * 1024);
+    const encZip = makeSizedFile('diag.json.zip', 'application/octet-stream', 180 * 1024);
+    const encRaw = makeSizedFile('diag.json', 'application/octet-stream', 2 * 1024 * 1024);
+    const prepSpy = vi
+      .spyOn(uploadPreparation, 'createRoomUploadItems')
+      .mockImplementation(async (files, _r, getMeta) =>
+        files.map((file, i) => ({
+          file: file === zippedJson ? encZip : encRaw,
+          originalFile: file,
+          encInfo: { v: 'v2' } as never,
+          metadata: getMeta ? getMeta(file, i) : { markedAsSpoiler: false },
+        }))
+      );
+
+    // 1. Sub-limit JSON compresses with sourceFile; post-zip Use original cancels upload & restores raw.
+    mockZipFile.mockImplementationOnce(async (_f: File, opts: { maxOutputBytes?: number }) => {
+      expect(opts.maxOutputBytes).toBeUndefined();
+      return zipOk(rawJson, zippedJson);
+    });
+    const first = runAutoZip(h, rawJson, encRoom);
+    expect(
+      first.job.placeholder.compression?.status === 'compressing' &&
+        first.job.placeholder.compression.useOriginal
+    ).toBeTypeOf('function');
+    await vi.waitFor(() => expect(first.current().compression?.status).toBe('compressed'));
+    expect(first.current()).toMatchObject({
+      file: encZip,
+      originalFile: zippedJson,
+      compression: { status: 'compressed', originalSize: rawJson.size, sourceFile: rawJson },
+    });
+    const inflight = new Promise<{ content_uri: string }>(() => {});
+    h.store.set(roomUploadAtomFamily(encZip), { promise: inflight });
+    await h.api.useOriginal(first.current());
+    expect(h.mx.cancelUpload).toHaveBeenCalledWith(inflight);
+    expect(first.current()).toMatchObject({
+      originalFile: rawJson,
+      compression: { status: 'original' },
+    });
+
+    // 2. Mid-zip Use original aborts zipFile ({ status: 'aborted' }) and still restores rawFile.
+    const rawCsv = makeSizedFile('report.csv', 'text/csv', 2 * 1024 * 1024);
+    let signal: AbortSignal | undefined;
+    mockZipFile.mockImplementationOnce(async (_f: File, opts: { signal?: AbortSignal }) => {
+      signal = opts.signal;
+      await new Promise<void>((r) =>
+        opts.signal?.addEventListener('abort', () => r(), { once: true })
+      );
+      return { status: 'aborted' as const };
+    });
+    const second = runAutoZip(h, rawCsv, encRoom);
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    await h.api.useOriginal(second.job.placeholder);
+    expect(signal?.aborted).toBe(true);
+    await vi.waitFor(() => expect(second.current().compression).toEqual({ status: 'original' }));
+    expect(second.current().originalFile).toBe(rawCsv);
+
+    // 3. Sub-limit no-savings falls back silently with compression: undefined.
+    const randomBin = makeSizedFile('random.bin', 'application/octet-stream', 2 * 1024 * 1024);
+    mockZipFile.mockResolvedValueOnce({ status: 'no-savings' });
+    const third = runAutoZip(h, randomBin, encRoom);
+    await vi.waitFor(() => expect(third.current().compression).toBeUndefined());
+    expect(third.current().originalFile).toBe(randomBin);
+    expect(isUploadItemReady(third.current())).toBe(true);
+    prepSpy.mockRestore();
+  });
+
+  it('auto-zips oversized files without Use original, commits zipFailed when incompressible, and defers Home Ask encryption', async () => {
+    const limit = 10 * 1024 * 1024;
+    const room = makeRoom(ROOM_ID, false);
+    const h = renderHook({ room, maxUploadSize: limit });
+
+    // 1. Oversized compressible JSON zips with maxOutputBytes and omits useOriginal/sourceFile.
+    const bigJson = makeSizedFile('huge.json', 'application/json', 20 * 1024 * 1024);
+    const zippedJson = makeSizedFile('huge.json.zip', 'application/zip', 2 * 1024 * 1024);
+    mockZipFile.mockImplementationOnce(async (_f: File, opts: { maxOutputBytes?: number }) => {
+      expect(opts.maxOutputBytes).toBe(limit);
+      return zipOk(bigJson, zippedJson);
+    });
+    const ok = runAutoZip(h, bigJson, room);
+    expect(
+      ok.job.placeholder.compression?.status === 'compressing'
+        ? ok.job.placeholder.compression.useOriginal
+        : 'bad'
+    ).toBeUndefined();
+    await vi.waitFor(() =>
+      expect(ok.current().compression).toEqual({ status: 'compressed', originalSize: bigJson.size })
+    );
+    expect(ok.current().originalFile).toBe(zippedJson);
+
+    // 2. Oversized incompressible file in an encrypted room skips encryption and commits zipFailed.
+    const encRoom = makeRoom(ROOM_ID, true);
+    const encHarness = renderHook({ room: encRoom, maxUploadSize: limit });
+    const prepareSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems');
+    const bigBin = makeSizedFile('random.bin', 'application/octet-stream', 20 * 1024 * 1024);
+    mockZipFile.mockResolvedValueOnce({ status: 'too-large' });
+    const fail = runAutoZip(encHarness, bigBin, encRoom);
+    await vi.waitFor(() =>
+      expect(fail.current().compression).toEqual({ status: 'zipFailed', reason: 'too-large' })
+    );
+    expect(prepareSpy).not.toHaveBeenCalled();
+    expect(fail.current()).toMatchObject({
+      file: bigBin,
+      originalFile: bigBin,
+      encInfo: undefined,
+    });
+    expect(isUploadItemReady(fail.current())).toBe(false);
+    expect(encHarness.store.get(roomUploadAtomFamily(fail.current().file))).toMatchObject({
+      status: UploadStatus.Error,
+      error: expect.objectContaining({ httpStatus: 413 }),
+    });
+    encHarness.unmount();
+
+    // 3. Deferred Home Ask preserves .zip without encrypting until Send.
+    const deferred = renderHook({ room: encRoom, deferUpload: true, maxUploadSize: limit });
+    const homeJson = makeSizedFile('logs.json', 'application/json', 2 * 1024 * 1024);
+    const homeZip = makeSizedFile('logs.json.zip', 'application/zip', 150 * 1024);
+    mockZipFile.mockResolvedValueOnce(zipOk(homeJson, homeZip));
+    const home = runAutoZip(deferred, homeJson, encRoom);
+    await vi.waitFor(() => expect(home.current().compression?.status).toBe('compressed'));
+    expect(prepareSpy).not.toHaveBeenCalled();
+    expect(home.current()).toMatchObject({
+      file: homeZip,
+      originalFile: homeZip,
+      encInfo: undefined,
+      compression: { status: 'compressed', originalSize: homeJson.size, sourceFile: homeJson },
+    });
+    deferred.unmount();
+  });
 });

@@ -432,6 +432,27 @@ describe('attachment staging ownership', () => {
     );
   });
 
+  it('drops >= 1 MiB app logs when autoZipLargeFiles is enabled and the conversation changed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { DEFAULT_SETTINGS, settingsAtom } = await import('../preferences/settings');
+    let finishExport!: (built: { fileName: string; blob: Blob }) => void;
+    diagnostics.buildDiagnosticsExport.mockReturnValue(new Promise((r) => (finishExport = r)));
+    const harness = renderHarness();
+    harness.store.set(settingsAtom, { ...DEFAULT_SETTINGS, autoZipLargeFiles: true });
+    harness.changeThread('$asked');
+    act(() => harness.feature.attachAppLogs());
+    harness.changeThread('$other');
+    await act(async () => {
+      finishExport({
+        fileName: 'mindroom-diagnostics-large.json',
+        blob: new Blob(['{"a":1}\n'.repeat(160_000)], { type: 'application/json' }),
+      });
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+    expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+    warn.mockRestore();
+  });
+
   it('stages nothing when the app logs cannot be built', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     diagnostics.buildDiagnosticsExport.mockRejectedValue(new Error('storage gone'));

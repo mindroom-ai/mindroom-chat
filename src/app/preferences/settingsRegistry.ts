@@ -554,6 +554,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'autoZipLargeFiles',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'featureUi.settings.autoZipLargeFiles.title',
+    descriptionKey: 'featureUi.settings.autoZipLargeFiles.description',
+    keywordsKey: `${KEYWORDS}.autoZipLargeFiles`,
+    scope: 'account',
+  },
+  {
     id: 'hideMembershipEvents',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',

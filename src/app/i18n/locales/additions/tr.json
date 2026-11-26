@@ -541,7 +541,8 @@
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
         "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat",
-        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu"
+        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu",
+        "autoZipLargeFiles": "zip, arşiv, sıkıştır, json, csv, günlük, log, büyük dosyalar, yükleme boyutu"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -570,6 +571,10 @@
         "off": "Kapalı",
         "balanced": "Dengeli",
         "small": "Küçük"
+      },
+      "autoZipLargeFiles": {
+        "title": "Büyük dosyaları sıkıştır (.zip)",
+        "description": "Yüklemeden önce 1 MB üzerindeki sıkıştırılabilir dosyaları otomatik olarak .zip ile sıkıştırın. Herhangi bir ek için yine de orijinal dosyayı kullanabilirsiniz."
       }
     },
     "createChat": {
