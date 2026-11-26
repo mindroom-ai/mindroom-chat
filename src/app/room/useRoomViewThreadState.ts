@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react';
 import { UNSAFE_LocationContext } from 'react-router-dom';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
@@ -28,6 +29,7 @@ import {
   createThreadBackSwipeScene,
   createThreadForwardSwipeScene,
   getCurrentPhoneLocationKey,
+  type LiveThreadBackUnder,
   rekeyPhoneSwipePreviewThread,
   setActivePhoneSwipeContext,
 } from '../navigation/phonePageSlide';
@@ -42,10 +44,12 @@ import {
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
 import {
+  currentHistoryLocation,
   historyPageOf,
   isSpaceThreadsPage,
   previousHistoryOrigin,
   RETURN_TO_ROOM_STATE,
+  roomFocusEventOf,
   showsRoom,
 } from '../routes/historyStack';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
@@ -75,7 +79,13 @@ import { loadLatestCachedThreadEvents } from '../event-store/cache/eventReposito
 import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
+export type LiveRoomPeekFocus = {
+  eventId: string;
+  onlyIfUnsaved?: boolean;
+};
+
 type UseRoomViewThreadStateOptions = {
+  enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
   eventId?: string;
   hasMindroomAgents?: boolean;
   room: Room;
@@ -119,6 +129,7 @@ export type RoomViewThreadState = {
 };
 
 export const useRoomViewThreadState = ({
+  enterLiveRoomPeek,
   eventId,
   hasMindroomAgents = true,
   room,
@@ -206,42 +217,66 @@ export const useRoomViewThreadState = ({
   // path replaces the thread instead); from anywhere else (Activity, search, another room's link),
   // `toRoom` puts the room in the thread's place, so the browser's back still returns to where the
   // thread was opened from.
+  const location = useContext(UNSAFE_LocationContext)?.location;
+  const locationKey = location?.key;
+  const locationState: unknown = location?.state;
+
+  const resolveThreadExit = useCallback(() => {
+    if (!effectiveThreadId) return { returnsToRoom: false, returnsToSpaceThreads: false };
+    const browserHistoryState: unknown =
+      typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
+    const historyExitTarget =
+      (locationKey !== undefined || locationState !== undefined
+        ? getRoomThreadExitTargetFromHistoryState({ key: locationKey, usr: locationState })
+        : undefined) ?? getRoomThreadExitTargetFromHistoryState(browserHistoryState);
+    // Another account's way back, reached by a browser back step after a switch, leads to its
+    // own pages.
+    const recordedBy = historyExitTarget?.sessionId;
+    const activeSessionId = getActiveSession()?.sessionId ?? sessionId;
+    const exitTarget =
+      historyExitTarget?.roomId === roomId &&
+      (historyExitTarget.threadId === effectiveThreadId ||
+        historyExitTarget.threadId === threadId) &&
+      (recordedBy === undefined || recordedBy === activeSessionId)
+        ? historyExitTarget
+        : undefined;
+    const addresses = [roomId, getCanonicalAliasOrRoomId(mx, roomId)];
+    const threadIds = [threadId, effectiveThreadId].filter((id): id is string => !!id);
+    // The page the thread was opened from, when the app has shown it; a redirect to the thread
+    // may have replaced the entry that recorded it. Before the history recorder's passive effect
+    // records a newly mounted thread, fall back to the exit target recorded on the location.
+    const currentEntry = currentHistoryLocation();
+    const origin =
+      currentEntry && showsRoom(currentEntry, addresses, threadIds)
+        ? previousHistoryOrigin((page) => !showsRoom(page, addresses, threadIds))
+        : undefined;
+    const originPath = origin?.path ?? exitTarget?.exitPath;
+    if (!originPath) {
+      return { exitTarget, origin, returnsToRoom: false, returnsToSpaceThreads: false };
+    }
+    const originPage = historyPageOf(originPath);
+    const returnsToRoom = showsRoom(originPage, addresses, ['']);
+    const originFocusEventId = returnsToRoom ? roomFocusEventOf(originPage) : undefined;
+    const openedForOrigin = origin
+      ? origin.returnToOrigin === true
+      : exitTarget?.returnToOrigin === true;
+    const returnsToSpaceThreads = openedForOrigin && isSpaceThreadsPage(originPage);
+    return {
+      exitTarget,
+      origin,
+      originFocusEventId,
+      originPath,
+      returnsToRoom,
+      returnsToSpaceThreads,
+    };
+  }, [effectiveThreadId, locationKey, locationState, mx, roomId, sessionId, threadId]);
+
   const leaveThread = useCallback(
     (toRoom: () => void) => {
-      const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
-      // Another account's way back, reached by a browser back step after a switch, leads to its
-      // own pages.
-      const recordedBy = historyExitTarget?.sessionId;
-      const exitTarget =
-        historyExitTarget?.roomId === roomId &&
-        historyExitTarget.threadId === effectiveThreadId &&
-        (recordedBy === undefined || recordedBy === getActiveSession()?.sessionId)
-          ? historyExitTarget
-          : undefined;
-      const addresses = [roomId, getCanonicalAliasOrRoomId(mx, roomId)];
-      // The page the thread was opened from, when the app has shown it; a redirect to the thread
-      // may have replaced the entry that recorded it. After a reload, the exit target's path.
-      const origin = previousHistoryOrigin(
-        (page) =>
-          !showsRoom(
-            page,
-            addresses,
-            [threadId, effectiveThreadId].filter((id): id is string => !!id)
-          )
-      );
-      const originPath = origin?.path ?? exitTarget?.exitPath;
-      if (!originPath) {
-        toRoom();
-        return;
-      }
-      const originPage = historyPageOf(originPath);
-      const returnsToRoom = showsRoom(originPage, addresses, ['']);
-      const openedForOrigin = origin
-        ? origin.returnToOrigin === true
-        : exitTarget?.returnToOrigin === true;
-      const returnsToSpaceThreads = openedForOrigin && isSpaceThreadsPage(originPage);
+      const { exitTarget, origin, originPath, returnsToRoom, returnsToSpaceThreads } =
+        resolveThreadExit();
       // The room itself (with no thread open in it) or the Space All threads page that opened it.
-      if (!returnsToRoom && !returnsToSpaceThreads) {
+      if (!originPath || (!returnsToRoom && !returnsToSpaceThreads)) {
         toRoom();
         return;
       }
@@ -255,7 +290,7 @@ export const useRoomViewThreadState = ({
       } else if (!origin || origin.steps === 1) window.history.back();
       else window.history.go(-origin.steps);
     },
-    [effectiveThreadId, mx, navigatePath, roomId, threadId]
+    [navigatePath, resolveThreadExit]
   );
 
   const handleExitThread = useCallback(() => {
@@ -318,36 +353,20 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
-  const location = useContext(UNSAFE_LocationContext)?.location;
-  const locationKey = location?.key;
-  const locationState: unknown = location?.state;
-
   useLayoutEffect(() => {
     if (threadId && effectiveThreadId && threadId !== effectiveThreadId) {
       rekeyPhoneSwipePreviewThread('room', { sessionId, roomId, threadId }, effectiveThreadId);
     }
-    const browserHistoryState: unknown =
-      typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
-    const exitTarget =
-      (locationKey !== undefined || locationState !== undefined
-        ? getRoomThreadExitTargetFromHistoryState({ key: locationKey, usr: locationState })
-        : undefined) ?? getRoomThreadExitTargetFromHistoryState(browserHistoryState);
-    const activeSessionId = getActiveSession()?.sessionId ?? sessionId;
-    const returnToSpaceThreads =
-      !!effectiveThreadId &&
-      exitTarget?.returnToOrigin === true &&
-      exitTarget.roomId === roomId &&
-      (exitTarget.threadId === effectiveThreadId || exitTarget.threadId === threadId) &&
-      (exitTarget.sessionId === undefined || exitTarget.sessionId === activeSessionId);
+    const { returnsToSpaceThreads } = resolveThreadExit();
     const context = {
       sessionId,
       roomId,
       threadId: effectiveThreadId,
-      ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+      ...(returnsToSpaceThreads ? { returnToSpaceThreads: true } : {}),
     };
     setActivePhoneSwipeContext(context);
     return () => clearActivePhoneSwipeContext(context);
-  }, [effectiveThreadId, locationKey, locationState, roomId, sessionId, threadId]);
+  }, [effectiveThreadId, resolveThreadExit, roomId, sessionId, threadId]);
 
   const resolveFromLocationKey = useCallback(
     () =>
@@ -358,17 +377,36 @@ export const useRoomViewThreadState = ({
     [locationKey]
   );
 
+  const enterLiveRoomPeekRef = useLatestRef(enterLiveRoomPeek);
+
   const beginThreadBackSwipe = useCallback(
     ({ dirSign }: { dirSign: 1 | -1 }) => {
       if (!effectiveThreadId) return null;
+      const { originFocusEventId, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+      const peekFocus: LiveRoomPeekFocus | undefined = !returnsToRoom
+        ? { eventId: effectiveThreadId }
+        : originFocusEventId
+          ? { eventId: originFocusEventId, onlyIfUnsaved: true }
+          : undefined;
       return createThreadBackSwipeScene({
         key: { sessionId, roomId, threadId: effectiveThreadId },
         fromLocationKey: resolveFromLocationKey(),
         onCommit: handleExitThread,
         dirSign,
+        enterLiveUnder: returnsToSpaceThreads
+          ? undefined
+          : () => enterLiveRoomPeekRef.current?.(peekFocus) ?? null,
       });
     },
-    [effectiveThreadId, handleExitThread, resolveFromLocationKey, roomId, sessionId]
+    [
+      effectiveThreadId,
+      enterLiveRoomPeekRef,
+      handleExitThread,
+      resolveFromLocationKey,
+      resolveThreadExit,
+      roomId,
+      sessionId,
+    ]
   );
 
   const beginThreadForwardSwipe = useCallback(

@@ -12,6 +12,7 @@ import { Settings } from '../../settings/Settings';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../local-mindroom/settingsPage';
 import mindroomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { LinkIndicator } from './LocalMindroomTab.css';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 /** The brand's name, the same in every language; it is also the button's accessible name. */
 const LOGO_NAME = 'MindRoom';
@@ -28,6 +29,7 @@ export function LocalMindroomTab() {
   const { t } = useTranslation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = () => setSettingsOpen(false);
+  const railMenuProps = useRailVisibilityMenuTrigger('localMindroom');
 
   return (
     <>
@@ -39,6 +41,7 @@ export function LocalMindroomTab() {
               ref={triggerRef}
               outlined
               onClick={() => setSettingsOpen(true)}
+              {...railMenuProps}
             >
               <img
                 src={mindroomLogo}

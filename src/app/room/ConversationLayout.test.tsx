@@ -28,10 +28,27 @@ vi.mock('../timeline/RoomViewFollowing', () => ({
   ),
 }));
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({
-  BackgroundJobsBar: ({ threadId, canCancel }: { threadId: string | null; canCancel: boolean }) => {
+  BackgroundJobsBar: ({
+    threadId,
+    canCancel,
+    readOnly = false,
+    focusConversation,
+  }: {
+    threadId: string | null;
+    canCancel: boolean;
+    readOnly?: boolean;
+    focusConversation?: () => void;
+  }) => {
     seen.jobs.push(threadId);
     if (seen.jobsThrow) throw new Error('jobs bar broke');
-    return <div data-testid="jobs" data-can-cancel={String(canCancel)} />;
+    return (
+      <div
+        data-testid="jobs"
+        data-can-cancel={String(canCancel)}
+        data-read-only={String(readOnly)}
+        data-has-focus={String(typeof focusConversation === 'function')}
+      />
+    );
   },
 }));
 vi.mock('../bug-reports/error-reporting/errorReporting', () => ({
@@ -151,6 +168,8 @@ it("acts on none of a fork draft's thread: no approvals to answer, no jobs to ca
   expect(screen.queryByTestId('approval-queue')).toBeNull();
   expect(seen.approvals.at(-1)).toBeUndefined();
   expect(screen.getByTestId('jobs').dataset.canCancel).toBe('false');
+  expect(screen.getByTestId('jobs').dataset.readOnly).toBe('true');
+  expect(screen.getByTestId('jobs').dataset.hasFocus).toBe('true');
 });
 
 it('shows only its children while collapsed', () => {

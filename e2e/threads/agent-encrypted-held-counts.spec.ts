@@ -8,6 +8,7 @@ import {
   mentionHelper,
   openNewSession,
   routerToken,
+  scrollHomeToRoom,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -52,6 +53,7 @@ const goHome = async (page: Page, roomId: string): Promise<void> => {
     window.history.pushState(null, '', '/home/');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
+  await scrollHomeToRoom(page, roomId);
   await expect(page.locator(`[data-room-id="${roomId}"]`).first()).toBeVisible({
     timeout: 60_000,
   });
@@ -64,7 +66,8 @@ const expectDevices = async (
   roomId: string,
   log: string[],
   step: string,
-  expected: (server: number) => number
+  expected: (server: number) => number,
+  minServer = 0
 ): Promise<void> => {
   let held = 0;
   await expect
@@ -75,7 +78,8 @@ const expectDevices = async (
         log.push(
           `${step}: ${devices.map(([who], i) => `${who} ${shown[i]}`).join(', ')}, server ${server}`
         );
-        held = shown.every((count) => count === expected(server)) ? held + 1 : 0;
+        held =
+          server >= minServer && shown.every((count) => count === expected(server)) ? held + 1 : 0;
         return held >= 5;
       },
       { timeout: 120_000, intervals: [1000], message: `${step}: every device shows the count` }
@@ -230,10 +234,12 @@ test('an unread fast agent reply stays counted after a reload', async ({ page: d
         }
       )
       .toBeGreaterThanOrEqual(2);
-    await expectDevices([['desk', desk]], stack, roomId, log, 'fast', (server) => server - 1);
+    // MindRoom sends encrypted thread_summary notices (provisional + post-reply) whose push rules
+    // the server cannot read, so the server counts >= 2 while the device counts only the 1 reply.
+    await expectDevices([['desk', desk]], stack, roomId, log, 'fast', () => 1, 2);
     await desk.reload();
     await goHome(desk, roomId);
-    await expectDevices([['desk', desk]], stack, roomId, log, 'fast-reload', (s) => s - 1);
+    await expectDevices([['desk', desk]], stack, roomId, log, 'fast-reload', () => 1, 2);
   } finally {
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
   }
@@ -306,12 +312,12 @@ test('a new session whose keys come late from the key backup shows an unread fin
         message: "the key backup holds the keys of the helper's events",
       })
       .toBe(0);
-    // The server counts the title notice, whose push rules it cannot read; the devices do not.
-    await expectDevices([['desk', desk]], stack, roomId, log, 'desk', (server) => server - 1);
+    // The server counts the title notices, whose push rules it cannot read; the devices do not.
+    await expectDevices([['desk', desk]], stack, roomId, log, 'desk', () => 1, 2);
     // A reload starts from the saved sync (P3-lane5-F002: 0 after a reload).
     await desk.reload();
     await goHome(desk, roomId);
-    await expectDevices([['desk', desk]], stack, roomId, log, 'desk-reload', (s) => s - 1);
+    await expectDevices([['desk', desk]], stack, roomId, log, 'desk-reload', () => 1, 2);
 
     // Two new sessions, a phone (Chromium) and a desktop (WebKit), sign in without the keys.
     const sessions: Array<[string, Page]> = [
@@ -359,11 +365,11 @@ test('a new session whose keys come late from the key backup shows an unread fin
       await goHome(page, roomId);
     }
     const devices: Array<[string, Page]> = [['desk', desk], ...sessions];
-    await expectDevices(devices, stack, roomId, log, 'keys', (server) => server - 1);
+    await expectDevices(devices, stack, roomId, log, 'keys', () => 1, 2);
 
     await Promise.all(sessions.map(([, page]) => page.reload()));
     await Promise.all(sessions.map(([, page]) => goHome(page, roomId)));
-    await expectDevices(devices, stack, roomId, log, 'keys-reload', (server) => server - 1);
+    await expectDevices(devices, stack, roomId, log, 'keys-reload', () => 1, 2);
   } finally {
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
     await webkit.close();

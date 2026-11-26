@@ -17,12 +17,14 @@ import { createPrivateRoom } from '../helpers/matrix';
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/canvas/agent-canvas-during-call.spec.ts
 test.describe.configure({ timeout: 300_000 });
 test.use({
+  permissions: ['microphone'],
   launchOptions: {
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: [
       '--disable-features=IsolateSandboxedIframes',
       '--use-fake-ui-for-media-stream',
       '--use-fake-device-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
     ],
   },
 });

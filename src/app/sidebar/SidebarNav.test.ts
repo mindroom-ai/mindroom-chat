@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   homeserverUrl: 'https://mindroom.chat',
 }));
 
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
     React.createElement('div', { ref }, children),
 }));
@@ -77,12 +78,16 @@ vi.mock('./rail/LocalMindroomTab', () => ({
   LocalMindroomTab: () => React.createElement('div', { 'data-tab': 'mindroom' }),
 }));
 
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
+vi.mock('../matrix/hooks/useMatrixClient', () => {
+  const client = {
     getHomeserverUrl: () => mocks.homeserverUrl,
     getAccessToken: () => 'token',
-  }),
-}));
+  };
+  return {
+    useMatrixClient: () => client,
+    useOptionalMatrixClient: () => client,
+  };
+});
 
 vi.mock('../matrix/hooks/useAccountSettings', async () => {
   const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import('../preferences/accountSettings');

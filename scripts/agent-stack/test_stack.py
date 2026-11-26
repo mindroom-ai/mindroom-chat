@@ -79,6 +79,41 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(pick("ask scout"), "scout")
         self.assertEqual(pick("hello"), "helper")
 
+    def test_thread_summary_schema_supports_title_and_limits_length(self) -> None:
+        title_schema = {"type": "object", "properties": {"title": {"type": "string"}}}
+        legacy_schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+        prompt = f"Summarize this thread.\n{TESTER}: alpha123 plain extra words beyond the limit"
+
+        for schema, field in ((title_schema, "title"), (legacy_schema, "summary")):
+            with self.subTest(field=field):
+                result = stub_model.schema_value(schema, {}, prompt)
+                value = result[field]
+                self.assertEqual(value, "Stub title: alpha123 plain extra words")
+                self.assertLessEqual(len(value.split()), 6)
+                self.assertLessEqual(len(value), 80)
+
+        # Hashtags are stripped and long words stay within MindRoom's 80-char / 6-word cap.
+        tagged = stub_model.schema_value(title_schema, {}, f"{TESTER}: stream42 #slow")
+        self.assertEqual(tagged, {"title": "Stub title: stream42 slow"})
+
+        long_prompt = f"{TESTER}: {'a' * 35} {'b' * 35} {'c' * 35}"
+        long_title = stub_model.schema_value(title_schema, {}, long_prompt)["title"]
+        self.assertLessEqual(len(long_title), 80)
+        self.assertLessEqual(len(long_title.split()), 6)
+        self.assertEqual(long_title, long_title.rstrip())
+
+        self.assertEqual(stub_model.schema_value(title_schema, {}, "  ###  "), {"title": "Stub title"})
+
+        # Call notes keep their dedicated summary and do not turn a title field into a thread title.
+        notes_schema = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}, "title": {"type": "string"}},
+        }
+        self.assertEqual(
+            stub_model.schema_value(notes_schema, {}, "<transcript>Hello world</transcript>"),
+            {"summary": "Stub notes of the call.", "title": "stub"},
+        )
+
     def test_agents_are_refused_with_a_real_model(self) -> None:
         with (
             mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--model", "real", "--agents", "2"]),
@@ -1092,6 +1127,95 @@ class AliveTests(unittest.TestCase):
         self.assertFalse(stack.alive(process.pid, "marker", process=process))
 
 
+class PrepareSourceTests(unittest.TestCase):
+    LFS_POINTER = "version https://git-lfs.github.com/spec/v1\noid sha256:" + "0" * 64 + "\nsize 123\n"
+    FAKE_UV = '#!/bin/sh\necho "$*" >> "$FAKE_UV_LOG"\n'
+    FAILING_GIT_LFS = '#!/bin/sh\necho "$*" >> "$FAKE_GIT_LFS_LOG"\necho "git-lfs should not be invoked" >&2\nexit 99\n'
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.checkout = self.root / "mindroom"
+        for relpath, content in (
+            (".gitattributes", "*.png filter=lfs diff=lfs merge=lfs -text\n"),
+            ("pyproject.toml", "[project]\nname = 'mindroom'\n"),
+            ("assets/logo.png", self.LFS_POINTER),
+            ("avatars/spaces/root_space.png", self.LFS_POINTER),
+        ):
+            path = self.checkout / relpath
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        git = ["git", "-C", str(self.checkout), "-c", "user.name=Test", "-c", "user.email=test@example.org"]
+        no_lfs = [
+            "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=",
+            "-c", "filter.lfs.smudge=", "-c", "filter.lfs.required=false",
+        ]
+        for command in (
+            ["init", "-q"],
+            [*no_lfs, "add", "."],
+            [*no_lfs, "-c", "commit.gpgsign=false", "commit", "-qm", "source"],
+            ["config", "filter.lfs.process", "git-lfs filter-process"],
+            ["config", "filter.lfs.smudge", "git-lfs smudge -- %f"],
+            ["config", "filter.lfs.required", "true"],
+        ):
+            subprocess.run([*git, *command], check=True)
+        self.sha = stack.git(self.checkout, "rev-parse", "HEAD")
+        (self.root / "bin").mkdir()
+        for name, body in (("uv", self.FAKE_UV), ("git-lfs", self.FAILING_GIT_LFS)):
+            script = self.root / "bin" / name
+            script.write_text(body)
+            script.chmod(0o755)
+        environment = {
+            "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}",
+            "E2E_AGENT_STACK_ROOT": str(self.root / "stacks"),
+            "FAKE_UV_LOG": str(self.root / "uv.log"),
+            "FAKE_GIT_LFS_LOG": str(self.root / "git-lfs.log"),
+        }
+        for patcher in (mock.patch.dict(os.environ, environment), mock.patch.object(stack, "log")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_source_is_archived_once_without_lfs_or_avatars(self) -> None:
+        source = stack.prepare_source(self.checkout, self.sha)
+        self.assertEqual(stack.prepare_source(self.checkout, self.sha), source)
+        self.assertEqual((source / "pyproject.toml").read_text(), "[project]\nname = 'mindroom'\n")
+        self.assertEqual((source / "assets" / "logo.png").read_text(), self.LFS_POINTER)
+        self.assertFalse((source / "avatars").exists())
+        self.assertTrue((source / ".complete").exists())
+        self.assertEqual(len((self.root / "uv.log").read_text().splitlines()), 1)
+        self.assertFalse((self.root / "git-lfs.log").exists())
+
+    def test_a_failed_or_truncated_archive_raises_stack_error_without_complete(self) -> None:
+        bad_sha = "0" * 40
+        with self.assertRaises(stack.StackError) as raised:
+            stack.prepare_source(self.checkout, bad_sha)
+        self.assertIn("fatal:", str(raised.exception))
+        self.assertFalse((self.root / "stacks" / "src" / bad_sha / ".complete").exists())
+
+        truncated = io.BytesIO()
+        with tarfile.open(fileobj=truncated, mode="w|") as tar:
+            info = tarfile.TarInfo("pyproject.toml")
+            info.size = 1024
+            tar.addfile(info, io.BytesIO(b"x" * 1024))
+        real_popen = subprocess.Popen
+        script = (
+            "import sys; sys.stdout.buffer.write(bytes.fromhex(sys.argv[1])); "
+            "print('stream aborted', file=sys.stderr); sys.exit(1)"
+        )
+        with mock.patch.object(
+            stack.subprocess,
+            "Popen",
+            side_effect=lambda _cmd, **kwargs: real_popen(
+                [sys.executable, "-c", script, truncated.getvalue()[:600].hex()], **kwargs
+            ),
+        ):
+            with self.assertRaises(stack.StackError) as raised:
+                stack.prepare_source(self.checkout, self.sha)
+        self.assertIn("stream aborted", str(raised.exception))
+        self.assertFalse((self.root / "stacks" / "src" / self.sha / ".complete").exists())
+
+
 class WorkerImageTests(unittest.TestCase):
     DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 
@@ -1637,11 +1761,16 @@ class StubScenarioTests(unittest.TestCase):
         self.assertIn("Finished **delegate** after 1 tool call(s)", text)
         self.assertIn("delegated-ok.", text)
 
-    def test_schedule_scenarios_adapt_to_structured_and_legacy_tool_schemas(self) -> None:
+    def test_schedule_scenarios_adapt_to_unified_structured_and_legacy_tool_schemas(self) -> None:
         scenarios = stub_model.tool_scenarios([])
 
-        def request_body(prompt: str, properties: dict | None, *results: str) -> dict:
-            function: dict = {"name": "schedule"}
+        def request_body(
+            prompt: str,
+            properties: dict | None,
+            *results: str,
+            tool_name: str = "schedule",
+        ) -> dict:
+            function: dict = {"name": tool_name}
             if properties is not None:
                 function["parameters"] = {"type": "object", "properties": properties}
             return {
@@ -1653,6 +1782,13 @@ class StubScenarioTests(unittest.TestCase):
                 ],
             }
 
+        unified_props = {
+            "action": {"type": "string", "enum": ["create", "edit", "list", "cancel"]},
+            "message": {"type": "string"},
+            "new_thread": {"type": "boolean"},
+            "delay_seconds": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        }
         structured_props = {
             "message": {"type": "string"},
             "new_thread": {"type": "boolean"},
@@ -1665,6 +1801,13 @@ class StubScenarioTests(unittest.TestCase):
         }
 
         for tag, delay_seconds in (("#schedulesoon", 20), ("#schedule", 150)):
+            unified_args = {
+                "action": "create",
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
             structured_args = {
                 "message": "@helper remind me to stretch",
                 "new_thread": False,
@@ -1676,21 +1819,22 @@ class StubScenarioTests(unittest.TestCase):
                 "new_thread": False,
             }
             cases = (
-                ("structured", structured_props, structured_args),
-                ("delay_seconds_only", {"delay_seconds": {"type": "integer"}}, structured_args),
-                ("message_only", {"message": {"type": "string"}}, structured_args),
-                ("legacy", legacy_props, legacy_args),
-                ("no_parameters", None, legacy_args),
+                ("unified", "scheduler", unified_props, unified_args),
+                ("structured", "schedule", structured_props, structured_args),
+                ("delay_seconds_only", "schedule", {"delay_seconds": {"type": "integer"}}, structured_args),
+                ("message_only", "schedule", {"message": {"type": "string"}}, structured_args),
+                ("legacy", "schedule", legacy_props, legacy_args),
+                ("no_parameters", "schedule", None, legacy_args),
             )
-            for label, props, expected in cases:
+            for label, tool_name, props, expected in cases:
                 with self.subTest(schema=label, tag=tag):
                     self.assertEqual(
-                        stub_model.plan(request_body(f"please {tag}", props), scenarios),
-                        ("tool", "schedule", expected),
+                        stub_model.plan(request_body(f"please {tag}", props, tool_name=tool_name), scenarios),
+                        ("tool", tool_name, expected),
                     )
 
         kind, text = stub_model.plan(
-            request_body("please #schedulesoon", structured_props, "Scheduled task task-1"),
+            request_body("please #schedulesoon", unified_props, "Scheduled task task-1", tool_name="scheduler"),
             scenarios,
         )
         self.assertEqual(kind, "text")

@@ -13,7 +13,8 @@ import { clientStartupMarks } from '../lib/startupTimeline';
 
 const client = {};
 
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));

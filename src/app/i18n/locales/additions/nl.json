@@ -1537,7 +1537,9 @@
       "jobTotal_one": "{{count}} achtergrondtaak",
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
-      "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid"
+      "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid",
+      "reviewApprovalFor": "Goedkeuring controleren: {{tool}}",
+      "checkingApproval": "Goedkeuring controleren…"
     },
     "workflowRun": {
       "title": "Workflow",
@@ -1842,6 +1844,12 @@
       "show": "Tonen",
       "hide": "Verbergen",
       "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "In de zijbalk tonen",
+        "sidebarSettings": "Zijbalkinstellingen…"
+      }
     }
   },
   "composer": {

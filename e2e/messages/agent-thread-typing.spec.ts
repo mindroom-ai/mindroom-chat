@@ -94,7 +94,7 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
           );
           const stop = row
             ? [...row.querySelectorAll('button')].find(
-                (button) => button.textContent?.trim() === 'Stop'
+                (button) => button.getAttribute('aria-label') === 'Stop reply'
               )
             : undefined;
           if (rowBox && stop && !captured) {

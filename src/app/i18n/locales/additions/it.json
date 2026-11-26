@@ -1584,7 +1584,9 @@
       "jobTotal_other": "{{count}} attività in background",
       "jobTotalFinished_one": "{{count}} attività in background completata",
       "jobTotalFinished_many": "{{count}} attività in background completate",
-      "jobTotalFinished_other": "{{count}} attività in background completate"
+      "jobTotalFinished_other": "{{count}} attività in background completate",
+      "reviewApprovalFor": "Esamina approvazione: {{tool}}",
+      "checkingApproval": "Controllo dell’approvazione…"
     },
     "workflowRun": {
       "title": "Flusso di lavoro",
@@ -1907,6 +1909,12 @@
       "show": "Mostra",
       "hide": "Nascondi",
       "zeroTokens": "0 token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Mostra nella barra laterale",
+        "sidebarSettings": "Impostazioni della barra laterale…"
+      }
     }
   },
   "composer": {

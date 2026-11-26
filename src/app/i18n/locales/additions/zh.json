@@ -1490,7 +1490,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 个后台任务",
-      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成",
+      "reviewApprovalFor": "审核批准：{{tool}}",
+      "checkingApproval": "正在检查批准…"
     },
     "workflowRun": {
       "title": "工作流",
@@ -1777,6 +1779,12 @@
       "show": "显示",
       "hide": "隐藏",
       "zeroTokens": "0 令牌"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "在侧边栏显示",
+        "sidebarSettings": "侧边栏设置…"
+      }
     }
   },
   "composer": {

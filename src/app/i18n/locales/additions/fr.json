@@ -1584,7 +1584,9 @@
       "jobTotal_other": "{{count}} tâches en arrière-plan",
       "jobTotalFinished_one": "{{count}} tâche en arrière-plan terminée",
       "jobTotalFinished_many": "{{count}} tâches en arrière-plan terminées",
-      "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées"
+      "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées",
+      "reviewApprovalFor": "Examiner l’approbation : {{tool}}",
+      "checkingApproval": "Vérification de l’approbation…"
     },
     "workflowRun": {
       "title": "Flux de travail",
@@ -1907,6 +1909,12 @@
       "show": "Afficher",
       "hide": "Masquer",
       "zeroTokens": "0 jeton"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Afficher dans la barre latérale",
+        "sidebarSettings": "Paramètres de la barre latérale…"
+      }
     }
   },
   "composer": {

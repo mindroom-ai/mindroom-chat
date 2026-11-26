@@ -126,12 +126,16 @@ const spaceButton = (page: Page, spaceId: string): RailButton => ({
   entries: ENTRIES,
 });
 
-/** Home and Direct Messages: their menus mark their rooms as read. */
-const sectionButton = (page: Page, label: string): RailButton => ({
+/** Home marks its rooms read; Direct Messages also includes Sidebar settings below its switches. */
+const sectionButton = (
+  page: Page,
+  label: string,
+  entries: string[] = ['Mark as Read']
+): RailButton => ({
   name: label.toLowerCase().replace(/\s+/g, '-'),
   button: page.getByRole('button', { name: label, exact: true }),
   menu: page.getByRole('menu').filter({ hasText: 'Mark as Read' }),
-  entries: ['Mark as Read'],
+  entries,
 });
 
 /**
@@ -273,7 +277,11 @@ const checkScheme = async (page: Page, tag: string) => {
   const [first, , third] = (await railOrder(page)) as [string, string, string];
   await checkLongPress(page, spaceButton(page, first), tag);
   await checkLongPress(page, sectionButton(page, 'Home'), tag);
-  await checkLongPress(page, sectionButton(page, 'Direct Messages'), tag);
+  await checkLongPress(
+    page,
+    sectionButton(page, 'Direct Messages', ['Mark as Read', 'Sidebar settings…']),
+    tag
+  );
   await checkDrag(page, tag);
   await checkSwipe(page, third, tag);
   await checkTap(page, third, tag);

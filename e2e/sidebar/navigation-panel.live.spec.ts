@@ -114,9 +114,15 @@ for (const mobile of [false, true]) {
         await page.mouse.move(dragX, dragY);
         await page.mouse.down();
         await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
-        // Below its smallest width the panel follows the pointer, ready to close on release.
-        await expect.poll(async () => (await panel.boundingBox())?.width).toBe(150);
+        // Below its smallest width the panel holds at 200 while charging collapse and showing the fold chip.
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(200);
+        await expect(panel).toHaveAttribute('data-collapse-charging', 'true');
         await expect(panel).toHaveAttribute('data-collapse-preview', 'true');
+        await expect(panel.locator('[data-panel-collapse-badge]')).toHaveText(
+          'Collapse navigation panel'
+        );
         await expect(panel).toHaveCount(1);
         await expect(page.getByRole('button', { name: 'Expand navigation panel' })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
@@ -126,6 +132,8 @@ for (const mobile of [false, true]) {
         await expect
           .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
           .toBe(resizedWidth);
+        await expect(panel).not.toHaveAttribute('data-collapse-charging', 'true');
+        await expect(panel).not.toHaveAttribute('data-collapse-preview', 'true');
         await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
         await page.mouse.up();
         await expect(panel).toHaveCount(0);

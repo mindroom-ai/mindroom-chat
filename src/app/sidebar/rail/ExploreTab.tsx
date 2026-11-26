@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar/SidebarItem';
 import { useExploreSelected } from '../../routes/useExploreSelected';
 import { useOpenExplore } from './useOpenExplore';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 type ExploreTabProps = {
   /** Lets the navigation panel take the click; return true when it did. */
@@ -15,6 +16,7 @@ export function ExploreTab({ onSelect }: ExploreTabProps) {
   const { t } = useTranslation();
   const selected = useExploreSelected();
   const openExplore = useOpenExplore();
+  const railMenuProps = useRailVisibilityMenuTrigger('explore');
 
   const handleClick = () => {
     if (onSelect?.(selected)) return;
@@ -24,7 +26,14 @@ export function ExploreTab({ onSelect }: ExploreTabProps) {
   const label = t('nav.exploreCommunity');
   const exploreIcon = <Icon src={Icons.Explore} filled={selected} />;
   const renderTrigger = (ref: React.Ref<HTMLButtonElement>) => (
-    <SidebarAvatar as="button" ref={ref} outlined aria-label={label} onClick={handleClick}>
+    <SidebarAvatar
+      as="button"
+      ref={ref}
+      outlined
+      aria-label={label}
+      onClick={handleClick}
+      {...railMenuProps}
+    >
       {exploreIcon}
     </SidebarAvatar>
   );

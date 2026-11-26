@@ -1631,7 +1631,9 @@
       "jobTotalFinished_one": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_few": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_many": "Завершено фоновых задач: {{count}}",
-      "jobTotalFinished_other": "Завершено фоновых задач: {{count}}"
+      "jobTotalFinished_other": "Завершено фоновых задач: {{count}}",
+      "reviewApprovalFor": "Проверить одобрение: {{tool}}",
+      "checkingApproval": "Проверка одобрения…"
     },
     "workflowRun": {
       "title": "Рабочий процесс",
@@ -1972,6 +1974,12 @@
       "show": "Показать",
       "hide": "Скрыть",
       "zeroTokens": "0 токенов"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Показывать на боковой панели",
+        "sidebarSettings": "Настройки боковой панели…"
+      }
     }
   },
   "composer": {

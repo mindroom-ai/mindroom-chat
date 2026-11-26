@@ -8,6 +8,7 @@ import {
   expect,
   openLobby,
   openNewSession,
+  scrollHomeToRoom,
   sendFromComposer,
   test,
   uniqueWord,
@@ -51,7 +52,8 @@ test("an agent's notice makes its room unread only when marked", async ({ page, 
   };
 
   await openLobby(page, stack);
-  for (const name of Object.values(rooms)) {
+  for (const [key, name] of Object.entries(rooms) as [keyof typeof rooms, string][]) {
+    await scrollHomeToRoom(page, ids[key]);
     await expect(roomRow(page, name)).toHaveAttribute('data-highlight', 'false', {
       timeout: 60_000,
     });
@@ -62,9 +64,11 @@ test("an agent's notice makes its room unread only when marked", async ({ page, 
 
   // The unmarked notice was sent first, so the client holds it once the marked one shows.
   const expectRooms = async () => {
+    await scrollHomeToRoom(page, ids.marked);
     await expect(roomRow(page, rooms.marked)).toHaveAttribute('data-highlight', 'true', {
       timeout: 90_000,
     });
+    await scrollHomeToRoom(page, ids.unmarked);
     await expect(roomRow(page, rooms.unmarked)).toHaveAttribute('data-highlight', 'false');
   };
 
@@ -107,7 +111,8 @@ test('a notice in an encrypted agent room leaves the room read once it decrypts'
   await joinRoom(stack.homeserver, personToken, ids.sealed);
 
   await openLobby(page, stack);
-  for (const name of Object.values(rooms)) {
+  for (const [key, name] of Object.entries(rooms) as [keyof typeof rooms, string][]) {
+    await scrollHomeToRoom(page, ids[key]);
     await expect(roomRow(page, name)).toHaveAttribute('data-highlight', 'false', {
       timeout: 60_000,
     });
@@ -135,9 +140,11 @@ test('a notice in an encrypted agent room leaves the room read once it decrypts'
   // both once the anchor room shows unread; the encrypted room then reads once its notice decrypts.
   await sendNotice(stack, ids.anchor, `${word} weekly report`, true);
   const expectSealedRead = async () => {
+    await scrollHomeToRoom(page, ids.anchor);
     await expect(roomRow(page, rooms.anchor)).toHaveAttribute('data-highlight', 'true', {
       timeout: 90_000,
     });
+    await scrollHomeToRoom(page, ids.sealed);
     let read = 0;
     await expect
       .poll(

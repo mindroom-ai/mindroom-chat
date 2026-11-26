@@ -1537,7 +1537,9 @@
       "jobTotal_one": "{{count}} बैकग्राउंड कार्य",
       "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
       "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
-      "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
+      "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "reviewApprovalFor": "स्वीकृति की समीक्षा करें: {{tool}}",
+      "checkingApproval": "स्वीकृति की जाँच हो रही है…"
     },
     "workflowRun": {
       "title": "वर्कफ़्लो",
@@ -1842,6 +1844,12 @@
       "show": "दिखाएं",
       "hide": "छिपाएं",
       "zeroTokens": "0 टोकन"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "साइडबार में दिखाएँ",
+        "sidebarSettings": "साइडबार सेटिंग…"
+      }
     }
   },
   "composer": {

@@ -35,9 +35,9 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 //   of the gap to the next control where they stand closer (e2e/helpers/hitAreas.ts);
 // - axe-core finds nothing critical or serious.
 // The screens: home with the rail, a room in Compact and in Threads view (unread, streaming and
-// resolved threads), a thread with reasoning, a tool call, a folded long reply, a code block, a
-// running background job and someone typing, an approval under review, settings, Activity, a
-// space's lobby and the command palette.
+// resolved threads, and someone typing), a thread with reasoning, a tool call, a folded long reply,
+// a code block and a running background job, an approval under review, settings, Activity, a space's
+// lobby and the command palette.
 // Set PHONE_A11Y_SHOTS=<directory> to save each screen.
 const SHOTS = process.env.PHONE_A11Y_SHOTS;
 const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
@@ -248,13 +248,7 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
         await go(page, lobby);
         await showCompact(page, false);
         await expect(page.locator('[data-message-item]').first()).toBeVisible({ timeout: 30_000 });
-      },
-    },
-    {
-      name: 'thread',
-      open: async (page) => {
-        // A job runs 45 s; someone types for 30 s.
-        await ask(stack, 'Run the nightly export #job', seeded.thread);
+        // Room-level human typing notices show in room view (not inside a thread view).
         await matrixFetch(
           stack.homeserver,
           `/rooms/${encodeURIComponent(stack.rooms.lobby)}/typing/${encodeURIComponent(
@@ -266,12 +260,19 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
             body: JSON.stringify({ typing: true, timeout: 30_000 }),
           }
         );
+        await expect(page.getByRole('button', { name: 'Drop Typing Status' })).toBeVisible();
+      },
+    },
+    {
+      name: 'thread',
+      open: async (page) => {
+        // A job runs 45 s.
+        await ask(stack, 'Run the nightly export #job', seeded.thread);
         await go(page, threadUrl(stack, seeded.thread));
         await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
         await expect(page.getByRole('button', { name: 'Stop task: Run a command' })).toBeVisible({
           timeout: 120_000,
         });
-        await expect(page.getByRole('button', { name: 'Drop Typing Status' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Copy code' }).first()).toBeVisible();
         // The long reply is folded.
         await expect(page.locator('[data-message-disclosure]').first()).toBeAttached();

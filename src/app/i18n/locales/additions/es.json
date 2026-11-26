@@ -1584,7 +1584,9 @@
       "jobTotal_other": "{{count}} tareas en segundo plano",
       "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
       "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
-      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas",
+      "reviewApprovalFor": "Revisar aprobación: {{tool}}",
+      "checkingApproval": "Comprobando aprobación…"
     },
     "workflowRun": {
       "title": "Flujo de trabajo",
@@ -1907,6 +1909,12 @@
       "show": "Mostrar",
       "hide": "Ocultar",
       "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Mostrar en la barra lateral",
+        "sidebarSettings": "Ajustes de la barra lateral…"
+      }
     }
   },
   "composer": {

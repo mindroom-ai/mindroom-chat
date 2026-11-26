@@ -134,6 +134,10 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         entitlements: 'electron/entitlements.mac.plist',
         entitlementsInherit: 'electron/entitlements.helper.plist',
         signIgnore: ['Contents/Helpers/MindRoom Desktop Helper\\.app(/|$)'],
+        extendInfo: expect.objectContaining({
+          NSAppleEventsUsageDescription:
+            'MindRoom controls only the applications you explicitly allow.',
+        }),
         target: [
           { target: 'dmg', arch: ['universal'] },
           { target: 'zip', arch: ['arm64', 'x64'] },
@@ -175,17 +179,26 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     expect(rawConfig).not.toContain('CFBundleURLTypes');
     expect(rawConfig).not.toContain('provisioningProfile');
 
-    for (const plist of ['electron/entitlements.mac.plist', 'electron/entitlements.helper.plist']) {
+    const expectedEntitlements: Record<string, [string, string][]> = {
+      'electron/entitlements.mac.plist': [
+        ['com.apple.security.automation.apple-events', 'true'],
+        ['com.apple.security.cs.allow-jit', 'true'],
+        ['com.apple.security.device.audio-input', 'true'],
+        ['com.apple.security.device.camera', 'true'],
+      ],
+      'electron/entitlements.helper.plist': [
+        ['com.apple.security.cs.allow-jit', 'true'],
+        ['com.apple.security.device.audio-input', 'true'],
+        ['com.apple.security.device.camera', 'true'],
+      ],
+    };
+    for (const [plist, expected] of Object.entries(expectedEntitlements)) {
       const xml = read(plist);
       const keys = [...xml.matchAll(/<key>([^<]+)<\/key>\s*<(true|false)\/>/g)].map((m) => [
         m[1],
         m[2],
       ]);
-      expect(keys).toEqual([
-        ['com.apple.security.cs.allow-jit', 'true'],
-        ['com.apple.security.device.audio-input', 'true'],
-        ['com.apple.security.device.camera', 'true'],
-      ]);
+      expect(keys).toEqual(expected);
       for (const bad of [
         'aps-environment',
         'com.apple.developer.',
@@ -195,6 +208,9 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         expect(xml).not.toContain(bad);
       }
     }
+    expect(read('electron/entitlements.helper.plist')).not.toContain(
+      'com.apple.security.automation.apple-events'
+    );
   });
 });
 

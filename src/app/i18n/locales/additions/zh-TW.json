@@ -1490,7 +1490,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 個背景工作",
-      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成",
+      "reviewApprovalFor": "審核核准：{{tool}}",
+      "checkingApproval": "正在檢查核准…"
     },
     "workflowRun": {
       "title": "工作流程",
@@ -1777,6 +1779,12 @@
       "show": "顯示",
       "hide": "隱藏",
       "zeroTokens": "0 權杖"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "在側邊欄顯示",
+        "sidebarSettings": "側邊欄設定…"
+      }
     }
   },
   "composer": {
