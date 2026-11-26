@@ -83,14 +83,10 @@ type UseRoomInputAttachmentsOptions = {
   isMarkdown: boolean;
   fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
-  /** Overrides the room key used for staged files (e.g. Home's single account-wide list). */
+  /** Fixed staged-file key across target switches; also defers upload/encryption and renders the board inline. */
   stagedListKey?: string;
-  /** Keeps staged files local and unencrypted until `prepareForSend` commits them at Send. */
-  deferUpload?: boolean;
-  /** True while a deferred send (Home Ask) is in flight; disables per-card "Use original" swaps. */
+  /** True while a deferred send is in flight; disables per-card "Use original" swaps. */
   sendingDeferred?: boolean;
-  /** Renders the upload board in normal flow above the composer instead of floating. */
-  inlineUploadBoard?: boolean;
 };
 
 type RoomInputAttachments = {
@@ -167,11 +163,10 @@ export const useRoomInputAttachments = ({
   fileDropContainerRef,
   createUploadItems,
   stagedListKey,
-  deferUpload = false,
   sendingDeferred = false,
-  inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
+  const deferUpload = stagedListKey !== undefined;
   const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
   // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
   const view = useContext(ConversationViewContext);
@@ -233,17 +228,18 @@ export const useRoomInputAttachments = ({
     });
   }, []);
 
-  // The names of a room's staged files follow every change, so a reload can say what it lost.
+  // The names of a composer's staged files follow every change, so a reload can say what it lost.
   const keepNames = useCallback(
     (targetRoomId: string) => {
-      if (!userId || view !== undefined || stagedListKey !== undefined) return;
+      if (!userId || view !== undefined) return;
+      const key = listKey(targetRoomId);
       keepStagedFileNames(
-        userId,
-        targetRoomId,
-        store.get(roomIdToUploadItemsAtomFamily(targetRoomId))
+        stagedListKey ?? getRoomInputDraftKey(userId, targetRoomId),
+        store.get(roomIdToUploadItemsAtomFamily(key)),
+        store
       );
     },
-    [stagedListKey, store, userId, view]
+    [listKey, stagedListKey, store, userId, view]
   );
 
   // Paste files belong to the draft they were pasted into; other files to the room's composer,
@@ -989,7 +985,7 @@ export const useRoomInputAttachments = ({
   const board =
     visibleItems.length > 0 ? (
       <UploadBoard
-        inline={inlineUploadBoard}
+        inline={deferUpload}
         header={
           <UploadBoardHeader
             open={boardOpen}

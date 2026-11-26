@@ -171,11 +171,7 @@ const matchesOriginApiUrl = (
 const onDictationShortcutCapture = (event: KeyboardEvent): void => {
   if (event.defaultPrevented || event.repeat || isComposingKey(event)) return;
   if (!matchesShortcut(event, 'dictate')) return;
-  if (
-    computerOwnsKeyboardEvent(event) ||
-    computerOwnsKeyboardFocus() ||
-    openOverlay() !== 'none'
-  ) {
+  if (computerOwnsKeyboardEvent(event) || computerOwnsKeyboardFocus() || openOverlay() !== 'none') {
     return;
   }
 
@@ -788,10 +784,18 @@ export const useRoomInputDictation = ({
     </IconTooltip>
   ) : null;
 
+  const detachedTargetMismatch = detachedEntry !== undefined && detachedEntry.roomId !== roomId;
   const capsuleSnapshot: DictationSnapshot = detachedEntry
     ? {
         ...displaySnapshot,
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
+        ...(detachedEntry.status === 'failed' && detachedTargetMismatch
+          ? {
+              errorMessage: t('composer.dictation.sendFailedOffTarget', {
+                room: detachedEntry.roomName,
+              }),
+            }
+          : {}),
       }
     : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
       ? { ...displaySnapshot, errorMessage: localNotice }
@@ -815,7 +819,13 @@ export const useRoomInputDictation = ({
             onPause={handlePause}
             onResume={handleResume}
             onFinish={handleFinish}
-            onRetry={detachedEntry ? detachedEntry.retryAndSend : handleRetry}
+            onRetry={
+              detachedEntry
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.retryAndSend
+                : handleRetry
+            }
             onInsertPartial={detachedEntry ? detachedEntry.insertPartial : handleInsertPartial}
             onDiscard={detachedEntry ? handleRequestDiscardDetached : handleRequestDiscardLive}
             onDismissError={handleDismissError}

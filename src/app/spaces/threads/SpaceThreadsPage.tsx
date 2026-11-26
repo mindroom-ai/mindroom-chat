@@ -457,6 +457,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 
         {spaceRooms.length > 0 && (
           <SpaceThreadComposer
+            spaceId={space.roomId}
             rooms={rooms}
             roomsById={roomsById}
             activeRoomIds={activeRoomIds}

@@ -18,7 +18,7 @@ export type DictationCapsuleProps = {
   onPause: () => void;
   onResume: () => void;
   onFinish: () => void;
-  onRetry: () => void;
+  onRetry?: () => void;
   onInsertPartial: () => void;
   onDiscard: () => void;
   onDismissError: () => void;
@@ -135,11 +135,13 @@ export function DictationCapsule({
               {detail}
             </Text>
             <div className={css.RecoveryActions}>
-              <Button size="300" radii="300" variant="Primary" onClick={onRetry}>
-                <Text size="B300">
-                  {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
-                </Text>
-              </Button>
+              {onRetry && (
+                <Button size="300" radii="300" variant="Primary" onClick={onRetry}>
+                  <Text size="B300">
+                    {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
+                  </Text>
+                </Button>
+              )}
               {hasPartialText && (
                 <Button
                   size="300"

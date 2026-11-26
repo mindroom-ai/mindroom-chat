@@ -2088,6 +2088,7 @@
       "noSpeech": "Речь не обнаружена.",
       "noSpeechOffThread": "Речь в {{room}} не обнаружена.",
       "sendFailedOffThread": "Не удалось завершить надиктованное сообщение в {{room}}. Откройте его, чтобы повторить попытку.",
+      "sendFailedOffTarget": "Не удалось завершить надиктованное сообщение в {{room}}. Выберите {{room}} снова, чтобы повторить попытку.",
       "statusPendingRetry_one": "{{count}} фрагмент ожидает повтора",
       "statusPendingRetry_few": "{{count}} фрагмента ожидают повтора",
       "statusPendingRetry_many": "{{count}} фрагментов ожидают повтора",

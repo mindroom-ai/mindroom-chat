@@ -100,7 +100,6 @@ const renderHarness = (
   prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
   options?: {
     stagedListKey?: string;
-    deferUpload?: boolean;
     sendingDeferred?: boolean;
     view?: string;
     draftKey?: string;
@@ -145,7 +144,6 @@ const renderHarness = (
       fileDropContainerRef: createRef<HTMLElement>(),
       createUploadItems: prepare,
       stagedListKey: options?.stagedListKey,
-      deferUpload: options?.deferUpload,
       sendingDeferred,
     });
     return feature.board;
@@ -639,7 +637,6 @@ describe('attachment staging ownership', () => {
     const homeKey = 'home-draft';
     const harness = renderHarness(createSpy, {
       stagedListKey: homeKey,
-      deferUpload: true,
       view: HOME_ASK_VIEW,
       draftKey: homeKey,
     });
@@ -737,7 +734,6 @@ describe('attachment staging ownership', () => {
 
       const harness = renderHarness(async () => [], {
         stagedListKey: 'home-ask-key',
-        deferUpload: true,
       });
       act(() => {
         harness.feature.onPaste({
@@ -880,7 +876,6 @@ describe('attachment staging ownership', () => {
       // 4. Collapsed board survival: video keeps compressing when cards unmount and auto-uploads when ready.
       const uploadContent = vi.fn(() => new Promise<{ content_uri: string }>(() => {}));
       const normalHarness = renderHarness(async () => [], {
-        deferUpload: false,
         uploadContent,
       });
       const collapsedVideo = makeSized('collapsed.mov', 'video/quicktime', 3 * 1024 * 1024);
@@ -955,7 +950,6 @@ describe('attachment staging ownership', () => {
     const homeKey = 'home-sending-deferred';
     const harness = renderHarness(async () => [], {
       stagedListKey: homeKey,
-      deferUpload: true,
       sendingDeferred: false,
       view: HOME_ASK_VIEW,
       draftKey: homeKey,

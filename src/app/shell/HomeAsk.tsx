@@ -430,6 +430,7 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
             editor={editor}
             room={composerRoom}
             roomId={composerRoom.roomId}
+            stagedDraftKey={draftKey}
             threadingEnabled={composerThreadMode !== 'room'}
             fileDropContainerRef={fileDropContainerRef ?? askRef}
             onRoomMessageSent={(eventId) => {

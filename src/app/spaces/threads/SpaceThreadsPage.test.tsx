@@ -16,9 +16,12 @@ import {
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearRoomInputDrafts,
   composerUploadItemsAtom,
-  getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
+  keepStagedFileNames,
   roomIdToMsgDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -74,8 +77,17 @@ vi.mock('../../threads/page/useJoinedRoomThreadLists', () => ({
 }));
 
 vi.mock('../../composer/RoomInput', () => ({
-  RoomInput: (props: { roomId: string; onRoomMessageSent?: (id: string) => boolean | void }) => (
-    <div data-testid="mock-room-input" data-room-id={props.roomId}>
+  RoomInput: (props: {
+    roomId: string;
+    stagedDraftKey?: string;
+    onRestoreDestination?: (roomId: string) => void;
+    onRoomMessageSent?: (id: string) => boolean | void;
+  }) => (
+    <div
+      data-testid="mock-room-input"
+      data-room-id={props.roomId}
+      data-staged-draft-key={props.stagedDraftKey}
+    >
       <button
         type="button"
         data-testid="mock-send-message"
@@ -89,6 +101,13 @@ vi.mock('../../composer/RoomInput', () => ({
         onClick={() => props.onRoomMessageSent?.('~local-root')}
       >
         Send local echo
+      </button>
+      <button
+        type="button"
+        data-testid="mock-restore-eng"
+        onClick={() => props.onRestoreDestination?.(ROOM_ENG)}
+      >
+        Restore eng
       </button>
     </div>
   ),
@@ -390,6 +409,7 @@ afterEach(() => {
   mocks.threadCardBadgesCalls.length = 0;
   clearCompactRoomSectionsStore(ME);
   clearRoomThreadFiltersStore(ME);
+  clearRoomInputDrafts(ME);
   localStorage.clear();
 });
 
@@ -542,8 +562,9 @@ describe('SpaceThreadsPage', () => {
       makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
       makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
     ];
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
     const store = createStore();
-    store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(ME, ROOM_ENG)), [
+    store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
       { type: 'paragraph', children: [{ text: 'WIP deploy note' }] } as never,
     ]);
 
@@ -557,14 +578,85 @@ describe('SpaceThreadsPage', () => {
 
     cleanup();
     clearRoomThreadFiltersStore(ME);
+    clearRoomInputDrafts(ME);
     const uploadStore = createStore();
-    uploadStore.set(composerUploadItemsAtom(ROOM_ENG, undefined), {
+    uploadStore.set(composerUploadItemsAtom(spaceDraftKey, undefined), {
       type: 'PUT',
       item: { file: {} as File, originalFile: { name: 'spec.png' } as File, metadata: {} } as never,
     });
     const { container: c2 } = renderSpaceThreads({ rooms, entries, store: uploadStore });
     toggleRoomOption(c2, ROOM_DES);
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+  });
+
+  it('preserves chosen target across remount, reload, file-only reload, and temporary non-sendable fallback', () => {
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
+    const rooms = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true }),
+    ];
+    const store = createStore();
+    const first = renderSpaceThreads({ rooms, entries: [], screenSize: ScreenSize.Mobile, store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
+      spaceDraftKey
+    );
+    fireEvent.click(
+      first.container.querySelector<HTMLButtonElement>(
+        '[data-space-composer-picker="true"] button'
+      )!
+    );
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Design' }));
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
+        { type: 'paragraph', children: [{ text: 'Saved note' }] } as never,
+      ]);
+    });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+
+    // Remount and simulated reload both keep Design paired with the Space draft.
+    first.unmount();
+    const remounted = renderSpaceThreads({ rooms, entries: [], store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    fireEvent.click(screen.getByTestId('mock-restore-eng'));
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    fireEvent.click(
+      remounted.container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!
+    );
+    remounted.unmount();
+
+    // Temporarily non-sendable target displays fallback without overwriting stored Design.
+    const readOnlyDesign = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true, canSend: false }),
+    ];
+    const fallbackStore = createStore();
+    const fallbackView = renderSpaceThreads({
+      rooms: readOnlyDesign,
+      entries: [],
+      store: fallbackStore,
+    });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    expect(fallbackStore.get(spaceThreadsDestinationAtomFamily(spaceDraftKey))).toBe(ROOM_DES);
+    fallbackView.unmount();
+
+    // Once Design is sendable again, the stored target returns.
+    const restored = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    restored.unmount();
+
+    // File-only draft (kept lost-file names, no text) keeps Design across reload even under a room filter.
+    clearRoomInputDrafts(ME);
+    const fileStore = createStore();
+    const file = new File(['x'], 'spec.pdf', { type: 'application/pdf' });
+    fileStore.set(spaceThreadsDestinationAtomFamily(spaceDraftKey), ROOM_DES);
+    keepStagedFileNames(
+      spaceDraftKey,
+      [{ file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } }],
+      fileStore
+    );
+    const fileReloaded = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    toggleRoomOption(fileReloaded.container, ROOM_ENG);
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
   });
 
   it('reopens the composer room picker menu without throwing and lists only eligible rooms', () => {

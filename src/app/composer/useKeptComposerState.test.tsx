@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
+  getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
   type IReplyDraft,
   keepStagedFileNames,
   roomIdToReplyDraftAtomFamily,
@@ -27,8 +29,16 @@ let values: Map<string, string>;
 let renderer: ReactTestRenderer | undefined;
 let kept: ReturnType<typeof useKeptComposerState> | undefined;
 
-function Probe({ userId, roomId }: { userId: string; roomId: string }) {
-  kept = useKeptComposerState(userId, roomId);
+function Probe({
+  userId,
+  roomId,
+  stagedDraftKey,
+}: {
+  userId: string;
+  roomId: string;
+  stagedDraftKey?: string;
+}) {
+  kept = useKeptComposerState(userId, roomId, stagedDraftKey);
   return null;
 }
 
@@ -36,12 +46,12 @@ function Probe({ userId, roomId }: { userId: string; roomId: string }) {
  * A composer on a new page, the room page's unless `view` names another conversation view: the
  * in-memory atoms are gone, storage stays.
  */
-const openPage = (store = createStore(), view?: string) => {
+const openPage = (store = createStore(), view?: string, stagedDraftKey?: string) => {
   act(() => {
     renderer = create(
       <Provider store={store}>
         <ConversationViewContext value={view}>
-          <Probe userId={ME} roomId={ROOM} />
+          <Probe userId={ME} roomId={ROOM} stagedDraftKey={stagedDraftKey} />
         </ConversationViewContext>
       </Provider>
     );
@@ -90,9 +100,13 @@ describe('useKeptComposerState', () => {
   });
 
   it('names the staged files a reload lost until they are dismissed', () => {
-    openPage();
+    const store = openPage();
     expect(kept?.lostFileNames).toEqual([]);
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('photo.png')]);
+    keepStagedFileNames(
+      getRoomInputDraftKey(ME, ROOM),
+      [staged('notes.txt'), staged('photo.png')],
+      store
+    );
 
     reload();
     expect(kept?.lostFileNames).toEqual(['notes.txt', 'photo.png']);
@@ -107,8 +121,12 @@ describe('useKeptComposerState', () => {
   });
 
   it('leaves large pastes out of the notice, since the draft keeps their text', () => {
-    openPage();
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('mindroom-paste-a3f19c.txt')]);
+    const initialStore = openPage();
+    keepStagedFileNames(
+      getRoomInputDraftKey(ME, ROOM),
+      [staged('notes.txt'), staged('mindroom-paste-a3f19c.txt')],
+      initialStore
+    );
     const store = reload();
     expect(kept?.lostFileNames).toEqual(['notes.txt']);
     // The paste the composer puts back does not answer the notice of the file still missing.
@@ -125,7 +143,7 @@ describe('useKeptComposerState', () => {
     const store = createStore();
     const items = [staged('notes.txt')];
     store.set(roomIdToUploadItemsAtomFamily(ROOM), { type: 'PUT', item: items });
-    keepStagedFileNames(ME, ROOM, items);
+    keepStagedFileNames(getRoomInputDraftKey(ME, ROOM), items, store);
     openPage(store);
     expect(kept?.lostFileNames).toEqual([]);
   });
@@ -133,7 +151,7 @@ describe('useKeptComposerState', () => {
   it('keeps nothing of an account that signed out', () => {
     const store = openPage();
     act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    keepStagedFileNames(getRoomInputDraftKey(ME, ROOM), [staged('notes.txt')], store);
     clearRoomInputDrafts(ME);
 
     expect(reload().get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
@@ -144,7 +162,7 @@ describe('useKeptComposerState', () => {
   it("leaves what the room's page kept to that page in another conversation view", () => {
     const store = openPage();
     act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
-    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    keepStagedFileNames(getRoomInputDraftKey(ME, ROOM), [staged('notes.txt')], store);
     act(() => renderer?.unmount());
     const kept0 = new Map(values);
 
@@ -153,5 +171,23 @@ describe('useKeptComposerState', () => {
     expect(viewStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
     act(() => kept?.dismissLostFiles());
     expect(values).toEqual(kept0);
+  });
+
+  it('scopes staged-draft lost-file notices to stagedDraftKey without restoring room replies', () => {
+    const spaceKey = getSpaceThreadsDraftKey(ME, '!space:example.org');
+    const roomStore = openPage();
+    act(() => roomStore.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
+    keepStagedFileNames(getRoomInputDraftKey(ME, ROOM), [staged('room.png')], roomStore);
+    keepStagedFileNames(spaceKey, [staged('space.pdf')], roomStore);
+    act(() => renderer?.unmount());
+    roomIdToReplyDraftAtomFamily.remove(ROOM);
+
+    const spaceStore = openPage(createStore(), undefined, spaceKey);
+    expect(kept?.lostFileNames).toEqual(['space.pdf']);
+    expect(spaceStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
+    act(() => kept?.dismissLostFiles());
+    expect(kept?.lostFileNames).toEqual([]);
+    openPage(createStore());
+    expect(kept?.lostFileNames).toEqual(['room.png']);
   });
 });

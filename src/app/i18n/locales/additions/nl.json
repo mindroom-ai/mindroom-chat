@@ -1958,6 +1958,7 @@
       "noSpeech": "Geen spraak gedetecteerd.",
       "noSpeechOffThread": "Geen spraak gedetecteerd in {{room}}.",
       "sendFailedOffThread": "Kan gedicteerd bericht in {{room}} niet voltooien. Open de ruimte om opnieuw te proberen.",
+      "sendFailedOffTarget": "Kan gedicteerd bericht in {{room}} niet voltooien. Kies {{room}} opnieuw om opnieuw te proberen.",
       "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
       "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
       "capReached": "Limiet van 5:00 bereikt",

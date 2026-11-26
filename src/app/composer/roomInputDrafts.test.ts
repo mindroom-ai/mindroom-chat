@@ -10,6 +10,9 @@ import {
   forgetComposerStateOfSession,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
+  keepStagedFileNames,
+  spaceThreadsDestinationAtomFamily,
   homeAskDestinationAtomFamily,
   homeAskPendingAtomFamily,
   restoreTextToDraft,
@@ -230,6 +233,50 @@ describe('message draft persistence', () => {
       store.set(homeAskPendingAtomFamily(ROBIN), sending);
       forgetComposerStateOfSession(store);
       expect(store.get(homeAskPendingAtomFamily(ROBIN))).toBeUndefined();
+    });
+  });
+
+  describe('Space All threads draft', () => {
+    const ROBIN = '@robin:example.org';
+    const SPACE = '!space:example.org';
+
+    afterEach(() => clearRoomInputDrafts(ROBIN));
+
+    it('keeps draft paired across account switch, persists file-only destination, and cleans up', () => {
+      const spaceKey = getSpaceThreadsDraftKey(ROBIN, SPACE);
+      const store = createStore();
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), '!eng:example.org');
+      store.set(roomIdToMsgDraftAtomFamily(spaceKey), draft);
+
+      // Switching account and back keeps text and destination atoms paired.
+      forgetComposerStateOfSession(store);
+      const edited = [{ type: 'paragraph' as const, children: [{ text: 'Updated' }] }];
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
+      store.set(roomIdToMsgDraftAtomFamily(spaceKey), edited);
+
+      const reloaded = createStore();
+      expect(reloaded.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(edited);
+      expect(reloaded.get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe('!des:example.org');
+
+      // File-only draft persists destination until kept files are gone.
+      clearRoomInputDrafts(ROBIN);
+      const fileStore = createStore();
+      const file = new File(['x'], 'deck.pdf', { type: 'application/pdf' });
+      const staged = {
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+      };
+      fileStore.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
+      keepStagedFileNames(spaceKey, [staged], fileStore);
+      expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe(
+        '!des:example.org'
+      );
+
+      keepStagedFileNames(spaceKey, [], fileStore);
+      expect(values.has(`roomInputDraft:${spaceKey}`)).toBe(false);
+      expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBeUndefined();
     });
   });
 });
