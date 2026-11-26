@@ -167,16 +167,17 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
 
       armTimer();
 
+      const isRetryDue = () => {
+        const retryAt = readCachedDictationRetryAt(sessions, roomId);
+        return retryAt === undefined || Date.now() >= retryAt;
+      };
+
       const cleanups: Array<() => void> = [];
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         const onVisibilityChange = () => {
           if (cancelled) return;
-          if (!isVisible()) {
-            clearRetryTimer();
-            return;
-          }
-          const retryAt = readCachedDictationRetryAt(sessions, roomId);
-          if (retryAt === undefined || Date.now() >= retryAt) triggerRetry();
+          if (!isVisible()) clearRetryTimer();
+          else if (isRetryDue()) triggerRetry();
           else armTimer();
         };
         document.addEventListener('visibilitychange', onVisibilityChange);
@@ -186,8 +187,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
         const onFocus = () => {
           if (cancelled || !isVisible()) return;
-          const retryAt = readCachedDictationRetryAt(sessions, roomId);
-          if (retryAt === undefined || Date.now() >= retryAt) triggerRetry();
+          if (isRetryDue()) triggerRetry();
         };
         const onOnline = () => {
           if (cancelled) return;
@@ -211,7 +211,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       setProbed({ sessions, roomId, value });
       const transient = !value && readCachedDictationRetryAt(sessions, roomId) !== undefined;
       if (userId && !transient) writePersistedDictationAvailability(userId, roomId, value);
-      if (!value) attachTransientRecovery();
+      if (transient) attachTransientRecovery();
     };
 
     const hit = readCachedDictationAvailability(sessions, roomId);
@@ -244,20 +244,15 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       : roomServer.pending
         ? undefined
         : false;
+  let persistedTrue: boolean | undefined;
+  const isPersistedTrue = () =>
+    (persistedTrue ??= userId ? readPersistedDictationAvailability(userId, roomId) === true : false);
   const cachedTransient =
     sessions !== undefined && readCachedDictationRetryAt(sessions, roomId) !== undefined;
   const confirmed = supported && sessions !== undefined && settled === true;
   const temporarilyUnavailable =
-    supported &&
-    sessions !== undefined &&
-    settled !== true &&
-    cachedTransient &&
-    (userId ? readPersistedDictationAvailability(userId, roomId) === true : false);
-  const available =
-    temporarilyUnavailable ||
-    (supported &&
-      (settled ??
-        (userId ? readPersistedDictationAvailability(userId, roomId) === true : false)));
+    supported && sessions !== undefined && settled !== true && cachedTransient && isPersistedTrue();
+  const available = temporarilyUnavailable || (supported && (settled ?? isPersistedTrue()));
 
   return { available, confirmed, temporarilyUnavailable, apiUrl, roomId, sessions };
 };

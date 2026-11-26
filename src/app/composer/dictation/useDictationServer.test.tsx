@@ -167,6 +167,36 @@ const setDocumentVisibility = (visibilityState: DocumentVisibilityState) => {
   document.dispatchEvent(new Event('visibilitychange'));
 };
 
+const status503 = () => new Response('restarting', { status: 503 });
+const statusOk = () =>
+  Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 });
+
+const setupPersistedOutageRoom = async (
+  responses: Array<Response | Promise<Response>>,
+  opts: { persisted?: boolean; fakeTimers?: boolean } = {}
+) => {
+  if (opts.fakeTimers ?? true) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+  }
+  const key = dictationAvailabilityStorageKey(VIEWER);
+  if (opts.persisted ?? true) {
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+  }
+  const mx = createTestClient();
+  await addRoom(mx, {
+    roomId: '!room:example.org',
+    members: [VIEWER, AGENT],
+    serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+  });
+  for (const response of responses) {
+    state.send.mockReturnValueOnce(Promise.resolve(response));
+  }
+  const mount = (roomId = '!room:example.org') =>
+    renderServerHook(mx, { roomId, computers: { apiUrl: 'https://mr.example' } });
+  return { mx, key, mount };
+};
+
 afterEach(() => {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -574,14 +604,8 @@ describe('useDictationServer', () => {
   });
 
   it('keeps persisted room temporarilyUnavailable during a transient 503 while hiding unpersisted rooms', async () => {
-    const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
-    state.send = vi.fn(async () => new Response('restarting', { status: 503 }));
-    const mx = createTestClient();
-    await addRoom(mx, {
-      roomId: '!room:example.org',
-      members: [VIEWER, AGENT],
-      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    const { mx, key, mount } = await setupPersistedOutageRoom([status503(), status503()], {
+      fakeTimers: false,
     });
     await addRoom(mx, {
       roomId: '!fresh:example.org',
@@ -589,10 +613,7 @@ describe('useDictationServer', () => {
       serverOrigins: [{ apiOrigin: 'https://mr.example' }],
     });
 
-    const persistedHook = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const persistedHook = mount();
     expect(persistedHook.result.current.available).toBe(true);
     expect(persistedHook.result.current.temporarilyUnavailable).toBe(false);
 
@@ -603,10 +624,7 @@ describe('useDictationServer', () => {
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
     persistedHook.unmount();
 
-    const freshHook = renderServerHook(mx, {
-      roomId: '!fresh:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const freshHook = mount('!fresh:example.org');
     await flushEffects();
     expect(freshHook.result.current.available).toBe(false);
     expect(freshHook.result.current.confirmed).toBe(false);
@@ -614,28 +632,13 @@ describe('useDictationServer', () => {
   });
 
   it('retries with exponential backoff across an outage longer than 30 s until recovery', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
-    const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
-    const mx = createTestClient();
-    await addRoom(mx, {
-      roomId: '!room:example.org',
-      members: [VIEWER, AGENT],
-      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
-    });
-    state.send
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(
-        Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
-      );
-
-    const { result } = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const { mount } = await setupPersistedOutageRoom([
+      status503(),
+      status503(),
+      status503(),
+      statusOk(),
+    ]);
+    const { result } = mount();
     await flushEffects();
     expect(result.current.available).toBe(true);
     expect(result.current.confirmed).toBe(false);
@@ -671,26 +674,11 @@ describe('useDictationServer', () => {
   });
 
   it('pauses retry timers while hidden, resumes on visibilitychange, and recovers immediately on online', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
-    const mx = createTestClient();
-    await addRoom(mx, {
-      roomId: '!room:example.org',
-      members: [VIEWER, AGENT],
-      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
-    });
-    state.send
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(
-        Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
-      );
-
-    const { result } = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const { mount } = await setupPersistedOutageRoom(
+      [status503(), status503(), status503(), statusOk()],
+      { persisted: false }
+    );
+    const { result } = mount();
     await flushEffects();
     expect(state.send).toHaveBeenCalledTimes(1);
 
@@ -736,38 +724,20 @@ describe('useDictationServer', () => {
   });
 
   it('keeps temporarilyUnavailable: true across remount after the 30 s deadline while retry probe is pending', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
-    const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
-    const mx = createTestClient();
-    await addRoom(mx, {
-      roomId: '!room:example.org',
-      members: [VIEWER, AGENT],
-      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
-    });
     let resolveRetry!: (response: Response) => void;
     const retryPromise = new Promise<Response>((resolve) => {
       resolveRetry = resolve;
     });
-    state.send
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockReturnValueOnce(retryPromise);
+    const { mount } = await setupPersistedOutageRoom([status503(), retryPromise]);
 
-    const firstMount = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const firstMount = mount();
     await flushEffects();
     expect(firstMount.result.current.temporarilyUnavailable).toBe(true);
     firstMount.unmount();
 
     // Advance past the 30 s transient TTL, then remount while the retry probe stays in flight.
     vi.setSystemTime(new Date('2026-11-23T12:00:35Z'));
-    const reopened = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const reopened = mount();
     expect(reopened.result.current.available).toBe(true);
     expect(reopened.result.current.confirmed).toBe(false);
     expect(reopened.result.current.temporarilyUnavailable).toBe(true);
@@ -778,9 +748,7 @@ describe('useDictationServer', () => {
     expect(reopened.result.current.confirmed).toBe(false);
     expect(reopened.result.current.temporarilyUnavailable).toBe(true);
 
-    resolveRetry(
-      Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
-    );
+    resolveRetry(statusOk());
     await flushEffects();
     expect(reopened.result.current.available).toBe(true);
     expect(reopened.result.current.confirmed).toBe(true);
@@ -788,24 +756,11 @@ describe('useDictationServer', () => {
   });
 
   it('clears persisted true and hides button when a transient 503 transitions to a permanent 403', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
-    const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
-    const mx = createTestClient();
-    await addRoom(mx, {
-      roomId: '!room:example.org',
-      members: [VIEWER, AGENT],
-      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
-    });
-    state.send
-      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
-      .mockResolvedValueOnce(new Response('forbidden', { status: 403 }));
-
-    const { result } = renderServerHook(mx, {
-      roomId: '!room:example.org',
-      computers: { apiUrl: 'https://mr.example' },
-    });
+    const { key, mount } = await setupPersistedOutageRoom([
+      status503(),
+      new Response('forbidden', { status: 403 }),
+    ]);
+    const { result } = mount();
     await flushEffects();
     expect(result.current.available).toBe(true);
     expect(result.current.temporarilyUnavailable).toBe(true);
