@@ -1879,6 +1879,7 @@
     "newThreadWith": "與 {{name}} 建立新討論串…",
     "dictation": {
       "label": "聽寫",
+      "temporarilyUnavailable": "聽寫無法使用 — 正在重新連線",
       "cancel": "取消聽寫",
       "pause": "暫停聽寫",
       "resume": "繼續聽寫",

@@ -2009,6 +2009,7 @@
     "newThreadWith": "Novo tópico com {{name}}…",
     "dictation": {
       "label": "Ditar",
+      "temporarilyUnavailable": "Ditado indisponível — a restabelecer a ligação",
       "cancel": "Cancelar ditado",
       "pause": "Pausar ditado",
       "resume": "Retomar ditado",

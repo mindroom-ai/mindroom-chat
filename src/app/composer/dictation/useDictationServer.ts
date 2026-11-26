@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { isRecord } from '../../lib/isRecord';
 import {
   getSafeLocalStorage,
@@ -11,6 +11,7 @@ import { clientSessions, type ClientSessions } from '../../computer/clientSessio
 import { useComputerApiUrls } from '../../computer/useComputerApiUrl';
 import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import {
+  expireTransientDictationCache,
   probeDictationAvailability,
   readCachedDictationAvailability,
   readCachedDictationRetryAt,
@@ -19,6 +20,7 @@ import {
 export type DictationServerInfo = {
   available: boolean;
   confirmed: boolean;
+  temporarilyUnavailable: boolean;
   apiUrl: string | undefined;
   roomId: string | undefined;
   sessions: ClientSessions | undefined;
@@ -91,8 +93,10 @@ const writePersistedDictationAvailability = (
  *   (`useOpenIdBinding() === true`) for discovered servers, respects explicit user disable
  *   (`preference === ''`) for the non-room fallback, and allows automatic server discovery on
  *   multi-tenant deployments that leave both deployment fields unset.
- * - After a transient 503/network status failure (30 s TTL), schedules a one-shot retry after the
- *   TTL and also retries on window `online`/`focus` once stale.
+ * - After a transient 503/network status failure, keeps the mic button visible and disabled
+ *   (`temporarilyUnavailable: true`) when this room previously had dictation persisted, and
+ *   automatically retries with bounded exponential backoff (30 s -> 60 s -> 120 s -> 240 s -> 5 min),
+ *   paused while hidden and resuming on `visibilitychange`, `focus`, and `online`.
  */
 export const useDictationServer = (roomId?: string): DictationServerInfo => {
   const mx = useMatrixClient();
@@ -105,11 +109,11 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
 
   const sessions = useMemo(() => (apiUrl ? clientSessions(mx, apiUrl) : undefined), [apiUrl, mx]);
   const [retryTick, setRetryTick] = useState(0);
-  const autoRetriedKeyRef = useRef<string | undefined>(undefined);
 
   const cached = sessions ? readCachedDictationAvailability(sessions, roomId) : undefined;
   const [probed, setProbed] = useState<
-    { sessions: ClientSessions; roomId: string | undefined; value: boolean } | undefined
+    | { sessions: ClientSessions; roomId: string | undefined; value: boolean; transient: boolean }
+    | undefined
   >(undefined);
 
   useEffect(() => {
@@ -127,53 +131,93 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let removeListeners: (() => void) | undefined;
-    const streakKey = `${apiUrl}|${roomId ?? ''}`;
 
-    const persistIfDefinitive = (value: boolean) => {
-      if (!userId) return;
-      if (!value && readCachedDictationRetryAt(sessions, roomId) !== undefined) return;
-      writePersistedDictationAvailability(userId, roomId, value);
-    };
-
-    const attachTransientRecovery = () => {
-      const retryAt = readCachedDictationRetryAt(sessions, roomId);
-      if (retryAt === undefined) return;
-
-      if (autoRetriedKeyRef.current !== streakKey) {
-        const delay = Math.max(0, retryAt - Date.now());
-        retryTimer = setTimeout(() => {
-          if (cancelled) return;
-          autoRetriedKeyRef.current = streakKey;
-          setRetryTick((tick) => tick + 1);
-        }, delay);
-      }
-
-      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-        const onRecover = () => {
-          if (cancelled) return;
-          if (Date.now() >= retryAt) setRetryTick((tick) => tick + 1);
-        };
-        window.addEventListener('online', onRecover);
-        window.addEventListener('focus', onRecover);
-        removeListeners = () => {
-          window.removeEventListener('online', onRecover);
-          window.removeEventListener('focus', onRecover);
-        };
+    const clearRetryTimer = () => {
+      if (retryTimer !== undefined) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
       }
     };
 
     const cleanup = () => {
       cancelled = true;
-      if (retryTimer !== undefined) clearTimeout(retryTimer);
+      clearRetryTimer();
       removeListeners?.();
+      removeListeners = undefined;
+    };
+
+    const isVisible = () =>
+      typeof document === 'undefined' || document.visibilityState !== 'hidden';
+
+    const attachTransientRecovery = () => {
+      if (readCachedDictationRetryAt(sessions, roomId) === undefined) return;
+
+      const triggerRetry = () => {
+        if (cancelled) return;
+        cleanup();
+        setRetryTick((tick) => tick + 1);
+      };
+
+      const armTimer = () => {
+        clearRetryTimer();
+        if (cancelled || !isVisible()) return;
+        const retryAt = readCachedDictationRetryAt(sessions, roomId);
+        if (retryAt === undefined) return;
+        retryTimer = setTimeout(triggerRetry, Math.max(0, retryAt - Date.now()));
+      };
+
+      armTimer();
+
+      const cleanups: Array<() => void> = [];
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        const onVisibilityChange = () => {
+          if (cancelled) return;
+          if (!isVisible()) {
+            clearRetryTimer();
+            return;
+          }
+          const retryAt = readCachedDictationRetryAt(sessions, roomId);
+          if (retryAt === undefined || Date.now() >= retryAt) triggerRetry();
+          else armTimer();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        cleanups.push(() => document.removeEventListener('visibilitychange', onVisibilityChange));
+      }
+
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        const onFocus = () => {
+          if (cancelled || !isVisible()) return;
+          const retryAt = readCachedDictationRetryAt(sessions, roomId);
+          if (retryAt === undefined || Date.now() >= retryAt) triggerRetry();
+        };
+        const onOnline = () => {
+          if (cancelled) return;
+          expireTransientDictationCache(sessions, roomId);
+          if (isVisible()) triggerRetry();
+        };
+        window.addEventListener('focus', onFocus);
+        window.addEventListener('online', onOnline);
+        cleanups.push(() => {
+          window.removeEventListener('focus', onFocus);
+          window.removeEventListener('online', onOnline);
+        });
+      }
+
+      removeListeners = () => {
+        cleanups.forEach((fn) => fn());
+      };
+    };
+
+    const applyResult = (value: boolean) => {
+      const transient = !value && readCachedDictationRetryAt(sessions, roomId) !== undefined;
+      setProbed({ sessions, roomId, value, transient });
+      if (userId && !transient) writePersistedDictationAvailability(userId, roomId, value);
+      if (!value) attachTransientRecovery();
     };
 
     const hit = readCachedDictationAvailability(sessions, roomId);
     if (hit !== undefined) {
-      setProbed({ sessions, roomId, value: hit });
-      persistIfDefinitive(hit);
-      if (hit) autoRetriedKeyRef.current = undefined;
-      else attachTransientRecovery();
+      applyResult(hit);
       return cleanup;
     }
 
@@ -181,10 +225,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     void probeDictationAvailability(sessions, roomId, controller.signal).then(
       (value) => {
         if (cancelled || controller.signal.aborted) return;
-        setProbed({ sessions, roomId, value });
-        persistIfDefinitive(value);
-        if (value) autoRetriedKeyRef.current = undefined;
-        else attachTransientRecovery();
+        applyResult(value);
       },
       () => undefined
     );
@@ -194,17 +235,25 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     };
   }, [apiUrl, retryTick, roomId, roomServer.pending, sessions, supported, userId]);
 
+  const persistedTrue = userId ? readPersistedDictationAvailability(userId, roomId) === true : false;
+  const matchedProbed =
+    probed !== undefined && probed.sessions === sessions && probed.roomId === roomId
+      ? probed
+      : undefined;
   const settled =
     sessions !== undefined
-      ? (cached ??
-        (probed?.sessions === sessions && probed.roomId === roomId ? probed.value : undefined))
+      ? (cached ?? matchedProbed?.value)
       : roomServer.pending
         ? undefined
         : false;
+  const cachedTransient =
+    sessions !== undefined && readCachedDictationRetryAt(sessions, roomId) !== undefined;
+  const isTransient =
+    cached !== undefined ? cachedTransient : cachedTransient || Boolean(matchedProbed?.transient);
+  const temporarilyUnavailable =
+    supported && sessions !== undefined && settled === false && isTransient && persistedTrue;
   const confirmed = supported && sessions !== undefined && settled === true;
-  const available =
-    supported &&
-    (settled ?? (userId ? readPersistedDictationAvailability(userId, roomId) === true : false));
+  const available = temporarilyUnavailable || (supported && (settled ?? persistedTrue));
 
-  return { available, confirmed, apiUrl, roomId, sessions };
+  return { available, confirmed, temporarilyUnavailable, apiUrl, roomId, sessions };
 };

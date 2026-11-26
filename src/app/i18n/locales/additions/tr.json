@@ -1944,6 +1944,7 @@
     "newThreadWith": "{{name}} ile yeni konu…",
     "dictation": {
       "label": "Dikte et",
+      "temporarilyUnavailable": "Dikte kullanılamıyor — yeniden bağlanıyor",
       "cancel": "Dikteyi iptal et",
       "pause": "Dikteyi duraklat",
       "resume": "Dikteyi sürdür",

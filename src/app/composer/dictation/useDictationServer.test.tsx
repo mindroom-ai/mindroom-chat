@@ -159,7 +159,19 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
+const setDocumentVisibility = (visibilityState: DocumentVisibilityState) => {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visibilityState,
+  });
+  document.dispatchEvent(new Event('visibilitychange'));
+};
+
 afterEach(() => {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   vi.useRealTimers();
   cleanup();
   vi.restoreAllMocks();
@@ -561,7 +573,7 @@ describe('useDictationServer', () => {
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!dm:example.org']).toBe(false);
   });
 
-  it('reflects false during a transient 503 without poisoning persisted true', async () => {
+  it('keeps persisted room temporarilyUnavailable during a transient 503 while hiding unpersisted rooms', async () => {
     const key = dictationAvailabilityStorageKey(VIEWER);
     localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
     state.send = vi.fn(async () => new Response('restarting', { status: 503 }));
@@ -571,17 +583,188 @@ describe('useDictationServer', () => {
       members: [VIEWER, AGENT],
       serverOrigins: [{ apiOrigin: 'https://mr.example' }],
     });
+    await addRoom(mx, {
+      roomId: '!fresh:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+
+    const persistedHook = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    expect(persistedHook.result.current.available).toBe(true);
+    expect(persistedHook.result.current.temporarilyUnavailable).toBe(false);
+
+    await flushEffects();
+    expect(persistedHook.result.current.available).toBe(true);
+    expect(persistedHook.result.current.confirmed).toBe(false);
+    expect(persistedHook.result.current.temporarilyUnavailable).toBe(true);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
+    persistedHook.unmount();
+
+    const freshHook = renderServerHook(mx, {
+      roomId: '!fresh:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    expect(freshHook.result.current.available).toBe(false);
+    expect(freshHook.result.current.confirmed).toBe(false);
+    expect(freshHook.result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('retries with exponential backoff across an outage longer than 30 s until recovery', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+    state.send
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+      );
 
     const { result } = renderServerHook(mx, {
       roomId: '!room:example.org',
       computers: { apiUrl: 'https://mr.example' },
     });
-    expect(result.current.available).toBe(true);
-
     await flushEffects();
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(false);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Retry 1 after 30 s -> 503 (next backoff: 60 s).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(2);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    // Not yet retried at +30 s into the 60 s backoff; retries at +60 s -> 503 (next backoff: 120 s).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(state.send).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(3);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    // Retry 3 after 120 s -> 200 OK.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_005);
+    });
+    expect(state.send).toHaveBeenCalledTimes(4);
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('pauses retry timers while hidden, resumes on visibilitychange, and recovers immediately on online', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+    state.send
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+      );
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Hide the tab: advancing past 30 s must not trigger a background probe.
+    act(() => {
+      setDocumentVisibility('hidden');
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+    });
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Returning to the tab probes immediately because the deadline already passed.
+    act(() => {
+      setDocumentVisibility('visible');
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+
+    // Now in 60 s backoff: firing `online` while hidden defers probing until the tab is visible.
+    act(() => {
+      setDocumentVisibility('hidden');
+      window.dispatchEvent(new Event('online'));
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      setDocumentVisibility('visible');
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(3);
+
+    // Firing `online` while visible expires the cache and recovers immediately.
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(4);
+    expect(result.current.available).toBe(true);
+    expect(result.current.confirmed).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+  });
+
+  it('clears persisted true and hides button when a transient 503 transitions to a permanent 403', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+    state.send
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(new Response('forbidden', { status: 403 }));
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    expect(result.current.available).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
     expect(result.current.available).toBe(false);
     expect(result.current.confirmed).toBe(false);
-    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
+    expect(result.current.temporarilyUnavailable).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(false);
   });
 
   it('never seeds true when unsupported and caps persisted room entries at 128', async () => {

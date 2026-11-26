@@ -2009,6 +2009,7 @@
     "newThreadWith": "Nuevo hilo con {{name}}…",
     "dictation": {
       "label": "Dictar",
+      "temporarilyUnavailable": "Dictado no disponible — reconectando",
       "cancel": "Cancelar dictado",
       "pause": "Pausar dictado",
       "resume": "Reanudar dictado",

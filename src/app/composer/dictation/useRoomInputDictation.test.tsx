@@ -45,14 +45,22 @@ const serverMock = vi.hoisted(
   (): {
     available: boolean;
     confirmed: boolean;
+    temporarilyUnavailable: boolean;
     apiUrl: string;
     byRoom: Map<
       string,
-      { available: boolean; confirmed: boolean; apiUrl?: string; sessions?: ClientSessions }
+      {
+        available: boolean;
+        confirmed: boolean;
+        temporarilyUnavailable?: boolean;
+        apiUrl?: string;
+        sessions?: ClientSessions;
+      }
     >;
     overlay: 'none' | 'help' | 'other';
     defaultSessions: ClientSessions;
     sessions: ClientSessions | undefined;
+    lastTooltipProps: { label?: string; shortcut?: string } | undefined;
     deleteCapture: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
     releaseCapture: ReturnType<typeof vi.fn<(id: string) => void>>;
   } => {
@@ -60,11 +68,13 @@ const serverMock = vi.hoisted(
     return {
       available: true,
       confirmed: true,
+      temporarilyUnavailable: false,
       apiUrl: 'https://mr.example',
       byRoom: new Map(),
       overlay: 'none',
       defaultSessions,
       sessions: defaultSessions,
+      lastTooltipProps: undefined,
       deleteCapture: vi.fn(async () => undefined),
       releaseCapture: vi.fn(() => undefined),
     };
@@ -88,6 +98,7 @@ vi.mock('./useDictationServer', () => ({
       return {
         available: override.available,
         confirmed: override.available && override.confirmed,
+        temporarilyUnavailable: override.temporarilyUnavailable ?? false,
         apiUrl: override.apiUrl,
         roomId,
         sessions: override.sessions,
@@ -96,6 +107,7 @@ vi.mock('./useDictationServer', () => ({
     return {
       available: serverMock.available,
       confirmed: serverMock.available && serverMock.confirmed,
+      temporarilyUnavailable: serverMock.temporarilyUnavailable,
       apiUrl: serverMock.available && serverMock.sessions ? serverMock.apiUrl : undefined,
       roomId: roomId ?? '!room:example.org',
       sessions: serverMock.available ? serverMock.sessions : undefined,
@@ -116,8 +128,18 @@ vi.mock('../../messages/content/voice/VoiceWaveform', () => ({
 }));
 
 vi.mock('../../ui/IconTooltip', () => ({
-  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
-    children(() => undefined),
+  IconTooltip: ({
+    label,
+    shortcut,
+    children,
+  }: {
+    label: string;
+    shortcut?: string;
+    children: (ref: () => void) => React.ReactNode;
+  }) => {
+    serverMock.lastTooltipProps = { label, shortcut };
+    return children(() => undefined);
+  },
 }));
 
 const makeSlateEditor = (initialText = '') => {
@@ -269,6 +291,8 @@ class TestPointerEvent extends MouseEvent {
 beforeEach(() => {
   serverMock.available = true;
   serverMock.confirmed = true;
+  serverMock.temporarilyUnavailable = false;
+  serverMock.lastTooltipProps = undefined;
   serverMock.apiUrl = 'https://mr.example';
   serverMock.byRoom.clear();
   serverMock.sessions = serverMock.defaultSessions;
@@ -528,6 +552,38 @@ describe('useRoomInputDictation', () => {
       expect(getFeature().start()).toBe(true);
     });
     expect(session.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the mic button visible and disabled with reconnecting label and no shortcut when temporarilyUnavailable', () => {
+    serverMock.available = true;
+    serverMock.confirmed = false;
+    serverMock.temporarilyUnavailable = true;
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    const { getFeature, forceRerender } = renderHarness(editor, store, session);
+    const btn = screen.getByLabelText<HTMLButtonElement>(
+      'composer.dictation.temporarilyUnavailable'
+    );
+    expect(btn.disabled).toBe(true);
+    expect(btn.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(serverMock.lastTooltipProps).toEqual({
+      label: 'composer.dictation.temporarilyUnavailable',
+      shortcut: undefined,
+    });
+    expect(getFeature().start()).toBe(false);
+    expect(session.start).not.toHaveBeenCalled();
+
+    serverMock.temporarilyUnavailable = false;
+    serverMock.confirmed = true;
+    forceRerender();
+    const recoveredBtn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
+    expect(recoveredBtn.disabled).toBe(false);
+    expect(serverMock.lastTooltipProps).toEqual({
+      label: 'composer.dictation.label',
+      shortcut: 'dictate',
+    });
   });
 
   it('enforces mutual exclusion through shared liveCaptureAtom', async () => {

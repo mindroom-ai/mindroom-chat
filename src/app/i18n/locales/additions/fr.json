@@ -2009,6 +2009,7 @@
     "newThreadWith": "Nouveau fil avec {{name}}…",
     "dictation": {
       "label": "Dicter",
+      "temporarilyUnavailable": "Dictée indisponible — reconnexion en cours",
       "cancel": "Annuler la dictée",
       "pause": "Mettre la dictée en pause",
       "resume": "Reprendre la dictée",
