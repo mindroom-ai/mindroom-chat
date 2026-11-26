@@ -262,6 +262,42 @@ describe('useLiveReplyContent', () => {
     });
   });
 
+  it('preserves finite live started_at over a covering checkpoint without overwriting a durable start', () => {
+    const noProgress = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const withDurableStart = {
+      type: 'tool_call_started',
+      tool_name: 'bash',
+      started_at: 1762790000,
+    };
+    const malformed = { type: 'tool_call_started', tool_name: 'grep' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [noProgress, withDurableStart, malformed] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: {
+        ...frame.snapshot,
+        tools: [
+          { ...noProgress, started_at: 1762790005.5 },
+          { ...withDurableStart, progress: 'line 1', started_at: 1762790099 },
+          { ...malformed, started_at: Number.NaN },
+        ],
+      },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({
+      version: 2,
+      events: [
+        { ...noProgress, started_at: 1762790005.5 },
+        { ...withDurableStart, progress: 'line 1' },
+        malformed,
+      ],
+    });
+  });
+
   it('shows no output for a call the covering checkpoint shows completed', () => {
     const completed = { type: 'tool_call_completed', tool_name: 'run_shell_command' };
     const checkpointed = durable('streaming', {

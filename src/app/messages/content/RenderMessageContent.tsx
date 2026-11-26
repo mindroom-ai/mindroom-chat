@@ -165,9 +165,10 @@ function CoreMessageContent({
   // Pinned messages give no room; the event knows it.
   const toolThreadId = threadId ?? mEvent?.threadRootId;
   const toolRoomId = roomId ?? mEvent?.getRoomId();
+  const toolSender = mEvent?.getSender();
   const toolCallMessage = useMemo(
-    () => ({ eventId, roomId: toolRoomId, threadId: toolThreadId }),
-    [eventId, toolRoomId, toolThreadId]
+    () => ({ eventId, roomId: toolRoomId, threadId: toolThreadId, sender: toolSender }),
+    [eventId, toolRoomId, toolThreadId, toolSender]
   );
 
   // A call between people starts with MindRoom's row, shown as its latest edit has it: who is

@@ -1,25 +1,46 @@
 import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { TFunction } from 'i18next';
+import { Icons, type IconSrc } from 'folds';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
+import type { ActivityTone } from '../../ui/ThreadActivity';
 import type { ReasoningSegment } from './reasoningSegments';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'expired';
 
 /**
- * The message being rendered: its event ID, so its tool calls can find their approval cards, and
- * its room and thread, whose menus can show or hide those calls.
+ * The message being rendered: its event ID, so its tool calls can find their approval cards, its
+ * sender so live sub-agent previews stay scoped to that agent, and its room and thread, whose
+ * menus can show or hide those calls.
  */
-export type ToolCallMessage = { eventId?: string; roomId?: string; threadId?: string };
+export type ToolCallMessage = {
+  eventId?: string;
+  roomId?: string;
+  threadId?: string;
+  sender?: string;
+};
 export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>(undefined);
 
 /**
  * The clock, in Unix milliseconds, of a view that shows how long its running tool calls have run
- * (the Sub-agents panel's, which ticks while a run is at it). Without one, calls show no time.
+ * (the Sub-agents panel's, which ticks while a run is at it). `undefined` means no enclosing view
+ * provides a clock; `null` means the enclosing view's clock is stopped (a paused, waiting, or ended
+ * turn), so child live previews must not start a fallback clock either.
  */
-export const ToolCallClockContext = createContext<number | undefined>(undefined);
+export const ToolCallClockContext = createContext<number | null | undefined>(undefined);
+
+export type ToolCallWaitingStatus = 'paused' | 'awaiting_approval';
+
+/**
+ * Why an enclosing view with a stopped clock (`ToolCallClockContext === null`) is waiting, so
+ * shell rows in a paused or approval-blocked sub-agent turn stay visible and announce the right
+ * status instead of ticking or being treated as an ended foreground reply.
+ */
+export const ToolCallWaitingStatusContext = createContext<ToolCallWaitingStatus | undefined>(
+  undefined
+);
 
 /** A running call shows how long it has run only from this many seconds on. */
 const TOOL_ELAPSED_MIN_SECONDS = 10;
@@ -30,9 +51,9 @@ const TOOL_ELAPSED_MIN_SECONDS = 10;
  */
 export const runningToolElapsed = (
   startedAt: number | undefined,
-  now: number | undefined
+  now: number | null | undefined
 ): number | undefined => {
-  if (startedAt === undefined || now === undefined) return undefined;
+  if (startedAt === undefined || now == null) return undefined;
   const seconds = now / 1000 - startedAt;
   return seconds >= TOOL_ELAPSED_MIN_SECONDS ? seconds : undefined;
 };
@@ -109,6 +130,17 @@ export const TOOL_STATE_TITLE = {
   denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
   expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
 } as const satisfies Record<ToolCallState, string>;
+
+export const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone }> = {
+  running: { src: Icons.Terminal, tone: 'neutral' },
+  waiting: { src: Icons.Pause, tone: 'warning' },
+  done: { src: Icons.Check, tone: 'success' },
+  // A call that did not complete (an error, refusal, denial, cancellation or interruption: its
+  // result says which) is not the green check, nor a red alarm.
+  failed: { src: Icons.Warning, tone: 'warning' },
+  denied: { src: Icons.Cross, tone: 'critical' },
+  expired: { src: Icons.Clock, tone: 'neutral' },
+};
 
 /**
  * What happened to each call. The public trace says started or completed, and `is_error` for a

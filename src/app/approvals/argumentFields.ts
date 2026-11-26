@@ -143,7 +143,7 @@ export const pickPreviewFields = (fields: ArgumentField[], limit: number): Argum
   return (filled.length > 0 ? filled : ordered).slice(0, limit);
 };
 
-const valueText = (value: ArgumentValue): string =>
+export const valueText = (value: ArgumentValue): string =>
   value.kind === 'nested'
     ? value.fields.map((field) => `${field.key}: ${valueText(field.value)}`).join(', ')
     : value.text;

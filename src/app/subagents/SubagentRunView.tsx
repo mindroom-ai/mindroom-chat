@@ -19,7 +19,11 @@ import {
 } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
-import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
+import {
+  ToolCallClockContext,
+  ToolCallWaitingStatusContext,
+  type ToolCallWaitingStatus,
+} from '../messages/agent-run/toolCallStatus';
 import { RenderBody } from '../messages/content/RenderBody';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
@@ -120,6 +124,10 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   // `streaming` documents and a paused or ended one `pending`, and both would read as a reply about
   // to stream. A run that wrote nothing answers with its result, unless that says why it failed.
   const working = newest && meta.status === 'running';
+  const waitingStatus: ToolCallWaitingStatus | undefined =
+    newest && (meta.status === 'paused' || meta.status === 'awaiting_approval')
+      ? meta.status
+      : undefined;
   const ended = !newest || !isActiveSubagentStatus(meta.status);
   const didNotComplete =
     meta.status === 'failed' || meta.status === 'cancelled' || meta.status === 'denied';
@@ -198,19 +206,22 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
         <RunMessage sender={agent} ts={meta.startedAt * 1000}>
           {wrote && (
             <div className={css.Reply} data-subagent-transcript="">
-              {/* Its running calls show how long they have run while the turn is at it; an
-                  ended turn's call that never completed has no clock to grow on. */}
-              <ToolCallClockContext value={working ? now : undefined}>
-                <RenderMessageContent
-                  msgType="m.text"
-                  displayName={agent.name}
-                  roomId={room.roomId}
-                  threadId={meta.threadId ?? undefined}
-                  ts={meta.startedAt * 1000}
-                  getContent={getContent}
-                  htmlReactParserOptions={parserOptions}
-                  linkifyOpts={LINKIFY_OPTS}
-                />
+              {/* Its running calls show how long they have run while the turn is at it; a paused,
+                  waiting, or ended turn passes `null` so child live previews do not start a fallback clock,
+                  while paused/approval-waiting turns pass their waiting reason for panel shell rows. */}
+              <ToolCallClockContext value={working ? now : null}>
+                <ToolCallWaitingStatusContext value={waitingStatus}>
+                  <RenderMessageContent
+                    msgType="m.text"
+                    displayName={agent.name}
+                    roomId={room.roomId}
+                    threadId={meta.threadId ?? undefined}
+                    ts={meta.startedAt * 1000}
+                    getContent={getContent}
+                    htmlReactParserOptions={parserOptions}
+                    linkifyOpts={LINKIFY_OPTS}
+                  />
+                </ToolCallWaitingStatusContext>
               </ToolCallClockContext>
             </div>
           )}

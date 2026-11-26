@@ -13,6 +13,7 @@ import {
 import fixture from './__fixtures__/subagent-frames-v1.json';
 import {
   countActiveSubagents,
+  findLinkedSubagentRun,
   getSubagentRunStore,
   SUBAGENT_QUIET_RUN_KEPT_MS,
   SUBAGENT_WORKING_RUN_FRESHNESS_MS,
@@ -111,14 +112,21 @@ describe('SubagentRunStore', () => {
     store.ingest(
       ROOM,
       AGENT,
-      snapshot(0, 'Hello', { extra: { task: 'Look it up.', title: 'Look up' } }),
+      snapshot(0, 'Hello', {
+        extra: { task: 'Look it up.', title: 'Look up', callerToolCallId: 'call_sub_1' },
+      }),
       1000
     );
     store.ingest(ROOM, AGENT, append(1, 'Hello', '!', { status: 'awaiting_approval' }), 1100);
     expect(run()).toMatchObject({
       seq: 1,
       docs: docs('Hello!'),
-      meta: { status: 'awaiting_approval', task: 'Look it up.', title: 'Look up' },
+      meta: {
+        status: 'awaiting_approval',
+        task: 'Look it up.',
+        title: 'Look up',
+        callerToolCallId: 'call_sub_1',
+      },
     });
 
     store.ingest(
@@ -133,7 +141,12 @@ describe('SubagentRunStore', () => {
     store.ingest(ROOM, AGENT, append(3, 'Hello!', '?', { status: 'completed' }), 1300);
 
     expect(run()?.meta).toEqual(
-      meta('completed', { task: 'Look it up again.', title: 'Look up', result: 'Found it.' })
+      meta('completed', {
+        task: 'Look it up again.',
+        title: 'Look up',
+        result: 'Found it.',
+        callerToolCallId: 'call_sub_1',
+      })
     );
   });
 
@@ -429,6 +442,153 @@ describe('useRoomSubagentRuns', () => {
     store.clear();
     expect(getSubagentRunStore(mx)).toBe(store);
     expect(getSubagentRunStore({} as MatrixClient)).not.toBe(store);
+  });
+
+  it('subscribes to nothing and returns an empty list when roomId or MatrixClient is absent', () => {
+    const mx = {} as MatrixClient;
+    const store = getSubagentRunStore(mx);
+    const subscribeSpy = vi.spyOn(store, 'subscribe');
+    const seen: (readonly SubagentRun[])[] = [];
+    function Probe({ roomId }: { roomId: string | undefined }) {
+      seen.push(useRoomSubagentRuns(roomId));
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: undefined })
+        )
+      );
+    });
+    expect(seen.at(-1)).toEqual([]);
+    expect(subscribeSpy).not.toHaveBeenCalled();
+
+    // Outside MatrixClientProvider, still returns an empty list cleanly.
+    act(() => {
+      renderer?.update(React.createElement(Probe, { roomId: ROOM }));
+    });
+    expect(seen.at(-1)).toEqual([]);
+    expect(subscribeSpy).not.toHaveBeenCalled();
+
+    act(() => renderer?.unmount());
+    store.clear();
+  });
+
+  it('unsubscribes and stops re-rendering when roomId switches from enabled to undefined', () => {
+    const mx = {} as MatrixClient;
+    const store = getSubagentRunStore(mx);
+    const seen: (readonly SubagentRun[])[] = [];
+    function Probe({ roomId }: { roomId: string | undefined }) {
+      seen.push(useRoomSubagentRuns(roomId));
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: ROOM })
+        )
+      );
+    });
+    act(() => store.ingest(ROOM, AGENT, snapshot(0, 'Active'), 1000));
+    expect(seen.at(-1)?.[0]?.docs.md).toBe('Active');
+
+    act(() => {
+      renderer?.update(
+        React.createElement(
+          MatrixClientProvider,
+          { value: mx },
+          React.createElement(Probe, { roomId: undefined })
+        )
+      );
+    });
+    expect(seen.at(-1)).toEqual([]);
+    const rendersWhenDisabled = seen.length;
+
+    act(() => store.ingest(ROOM, AGENT, append(1, 'Active', '!'), 1100));
+    expect(seen).toHaveLength(rendersWhenDisabled);
+
+    act(() => renderer?.unmount());
+    store.clear();
+  });
+});
+
+describe('findLinkedSubagentRun', () => {
+  const runOf = (
+    runId: string,
+    status: SubagentStatus,
+    extra: Partial<SubagentMeta> = {}
+  ): SubagentRun => ({
+    roomId: ROOM,
+    run: runId,
+    sender: AGENT,
+    meta: meta(status, { subagent: runId, ...extra }),
+    docs: docs(''),
+    sid: SID,
+    seq: 0,
+    lastFrameAt: 1000,
+    stale: false,
+  });
+
+  it('scopes matches to the same sender and conversation and prefers active then newest runs', () => {
+    const otherThread = runOf('other', 'running', {
+      callerToolCallId: 'call_1',
+      threadId: '$other:example',
+    });
+    const otherSender: SubagentRun = {
+      ...runOf('other-agent', 'running', {
+        callerToolCallId: 'call_1',
+        startedAt: 1762790099,
+      }),
+      sender: '@mindroom_other:example.org',
+    };
+    const completed = runOf('done', 'completed', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790095,
+    });
+    const olderActive = runOf('live-old', 'running', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790050,
+    });
+    const newerActive = runOf('live-new', 'running', {
+      callerToolCallId: 'call_1',
+      startedAt: 1762790080,
+    });
+    expect(
+      findLinkedSubagentRun(
+        [otherThread, otherSender, completed, olderActive, newerActive],
+        'call_1',
+        '$thread:example',
+        AGENT
+      )?.run
+    ).toBe('live-new');
+    expect(
+      findLinkedSubagentRun([otherSender], 'call_1', '$thread:example', AGENT)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([newerActive], 'call_1', '$thread:example', undefined)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([otherThread], 'call_1', '$thread:example', AGENT)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([newerActive], undefined, '$thread:example', AGENT)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun(
+        [runOf('room', 'running', { callerToolCallId: 'call_1', threadId: null })],
+        'call_1',
+        undefined,
+        AGENT
+      )?.run
+    ).toBe('room');
   });
 });
 

@@ -6,9 +6,9 @@ import {
   isActiveSubagentStatus,
   parseSubagentFrame,
   SUBAGENT_FRAME_EVENT_TYPE,
-  subagentToolStartedAt,
   type SubagentStatus,
 } from './subagentFrame';
+import { toolStartedAt } from './toolTrace';
 
 const SID = '1762790000123-0a1b2c3d';
 const meta = {
@@ -102,6 +102,17 @@ describe('sub-agent frames', () => {
     );
   });
 
+  it('keeps the parent call ID, and has none for a missing, empty or malformed one', () => {
+    const linked = frame({ meta: { ...meta, caller_tool_call_id: 'call_sub_1' } });
+    expect(parseSubagentFrame(linked)?.meta.callerToolCallId).toBe('call_sub_1');
+    [undefined, '', 42, null].forEach((callerToolCallId) =>
+      expect(
+        parseSubagentFrame(frame({ meta: { ...meta, caller_tool_call_id: callerToolCallId } }))
+          ?.meta
+      ).not.toHaveProperty('callerToolCallId')
+    );
+  });
+
   it.each([
     ['a string', 'opus'],
     ['a number', 3],
@@ -177,11 +188,11 @@ describe('sub-agent frames', () => {
     const parsed = parseSubagentFrame(started?.frame);
     if (!parsed || !('delta' in parsed)) throw new Error('no tool delta in the fixture');
     const tool = parsed.delta.tools?.set[0]?.[1];
-    expect(tool && subagentToolStartedAt(tool)).toBe(1762790002.5);
+    expect(tool && toolStartedAt(tool)).toBe(1762790002.5);
   });
 
   it('has no tool start from MindRoom before the field', () => {
-    expect(subagentToolStartedAt({ type: 'tool_call_started', tool_name: 'bash' })).toBeUndefined();
+    expect(toolStartedAt({ type: 'tool_call_started', tool_name: 'bash' })).toBeUndefined();
   });
 
   it.each([
@@ -194,7 +205,7 @@ describe('sub-agent frames', () => {
     const parsed = parseSubagentFrame(frame({ snapshot: { ...docs, tools: [tool] } }));
     if (!parsed || !('snapshot' in parsed)) throw new Error('the frame was rejected');
     expect(parsed.snapshot.tools).toHaveLength(1);
-    expect(subagentToolStartedAt(parsed.snapshot.tools[0]!)).toBeUndefined();
+    expect(toolStartedAt(parsed.snapshot.tools[0])).toBeUndefined();
   });
 
   it('tolerates unknown keys on the frame and on meta', () => {
