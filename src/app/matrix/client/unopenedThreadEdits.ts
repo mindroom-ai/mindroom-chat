@@ -9,6 +9,10 @@ import {
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
 import { isKnownRedactedEventId, stripRedactedRelationsFromRawEvent } from '../eventRevision';
+import {
+  isAnchoredSecretRequestEvent,
+  isFoldedSecretRequestEvent,
+} from '../protocol/secretRequest';
 import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
@@ -33,6 +37,7 @@ type SummarizedThread = {
   id?: string;
   replyToEvent?: MatrixEvent | null;
   room?: Room;
+  client?: { getUserId?: () => string | null };
   replayEvents?: MatrixEvent[] | null;
 };
 
@@ -40,11 +45,31 @@ type SummarizedThread = {
 const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
   !!room && !!editId && isKnownRedactedEventId(room, editId);
 
-/** A reply the thread's summary may name: not its root, nor its title notice. */
+const viewerIdOf = (thread: SummarizedThread): string | undefined =>
+  thread.room?.myUserId || thread.client?.getUserId?.() || undefined;
+
+/**
+ * A reply to retain across later non-conversational summaries: not the root, title notice, or an
+ * anchored secret request (which stays pending briefly and then folds back into its reply).
+ */
+const isRetainableSummaryReply = (
+  thread: SummarizedThread,
+  event: MatrixEvent | null | undefined
+): event is MatrixEvent =>
+  !!event &&
+  event.getId() !== thread.id &&
+  !isThreadSummaryEvent(event) &&
+  !isAnchoredSecretRequestEvent(event, viewerIdOf(thread));
+
+/** A reply the thread's summary may name: not its root, title notice, or folded secret request. */
 const isSummarizedReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
-): event is MatrixEvent => !!event && event.getId() !== thread.id && !isThreadSummaryEvent(event);
+): event is MatrixEvent =>
+  !!event &&
+  event.getId() !== thread.id &&
+  !isThreadSummaryEvent(event) &&
+  !isFoldedSecretRequestEvent(event, viewerIdOf(thread));
 
 /**
  * The thread's newest reply outside its timeline: the reply its summary names, or, in an unopened
@@ -86,10 +111,11 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
  * of the root's summary, which is in no timeline.
  */
 export const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
-  const summarized = getThreadSummaryReply(thread);
-  return (
-    thread.findEventById(eventId) ?? (summarized?.getId() === eventId ? summarized : undefined)
-  );
+  const fromTimeline = thread.findEventById(eventId);
+  if (fromTimeline) return fromTimeline;
+  if (thread.replyToEvent?.getId() === eventId) return thread.replyToEvent;
+  const retained = summarizedReplies.get(thread);
+  return retained?.getId() === eventId ? retained : undefined;
 };
 
 /** The edits waiting in an unopened thread for the given reply. */
@@ -186,7 +212,7 @@ const createEditWatcher = (): EditWatcher => {
       summarizedReplies.delete(thread);
       return false;
     }
-    if (isSummarizedReply(thread, thread.replyToEvent))
+    if (isRetainableSummaryReply(thread, thread.replyToEvent))
       summarizedReplies.set(thread, thread.replyToEvent);
     let changed = false;
     const targets = new Set<MatrixEvent>();

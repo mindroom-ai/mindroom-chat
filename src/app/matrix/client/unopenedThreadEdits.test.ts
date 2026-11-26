@@ -22,6 +22,7 @@ import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { ORIGINAL_SENDER_KEY } from '../protocol/originalSender';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../protocol/secretRequest';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
 import { getReleasableEdits } from '../room';
 import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
@@ -161,6 +162,10 @@ const fixture = (serverThread: () => IEvent[]) => {
       }
       if (path.endsWith('/messages')) return json({ chunk: [], start: 'start', end: 'end' });
       if (path.endsWith(`/event/${rootId}`)) return json(withSummary(reply()));
+      const event = serverThread().find((candidate) =>
+        path.endsWith(`/event/${candidate.event_id}`)
+      );
+      if (event) return json(event);
       if (path.includes(`/relations/${rootId}`)) return json({ chunk: serverThread() });
       throw new Error(`Unexpected request ${path}`);
     },
@@ -547,5 +552,70 @@ describe('edits of unopened threads', () => {
     } finally {
       setReplacementRetentionPolicy(undefined);
     }
+  });
+
+  it('returns to the retained reply once an anchored secret request is answered in an unopened thread', async () => {
+    const helper = '@mindroom_helper:example.org';
+    const agentReply = (): IEvent => ({ ...reply(), sender: helper });
+    const secretPayload = (status: 'pending' | 'saved') => ({
+      request_id: 'req-1',
+      requester_id: otherId,
+      env: 'API_TOKEN',
+      keep: { memory: 900 },
+      reason: 'To deploy',
+      status,
+      expires_at: 9_000,
+      response_event_id: '$reply',
+      tool_call_id: 'call_1',
+    });
+    const pendingSecret: IEvent = message(
+      '$secret',
+      120,
+      {
+        msgtype: 'm.notice',
+        body: 'API token needed',
+        [MINDROOM_SECRET_REQUEST_KEY]: secretPayload('pending'),
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+      helper
+    );
+    const savedSecretEdit: IEvent = message(
+      '$secret-edit-160',
+      160,
+      {
+        msgtype: 'm.notice',
+        body: '* 🔑 Secret received.',
+        'm.new_content': {
+          msgtype: 'm.notice',
+          body: '🔑 Secret received.',
+          [MINDROOM_SECRET_REQUEST_KEY]: secretPayload('saved'),
+        },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$secret' },
+      },
+      helper
+    );
+
+    const f = fixture(() => [agentReply(), pendingSecret]);
+    await f.start();
+    // 1. Thread starts on the agent reply (known only from the root summary).
+    await f.deliver([withSummary(agentReply())]);
+    expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+
+    // 2. Pending anchored secret request becomes the latest event; card shows it while waiting.
+    await f.deliver([pendingSecret]);
+    expect(f.card().preview).toBe('API token needed');
+
+    // 3. Reply edit arrives while the secret request is still pending; retained reply updates quietly.
+    await f.deliver([edit('Deployed to staging.', 150, 'completed', helper)]);
+    expect(f.card().preview).toBe('API token needed');
+
+    // 4. Secret request edit marks it saved; card transitions back to the retained edited reply.
+    await f.deliver([savedSecretEdit]);
+    expect(f.card()).toEqual({ preview: 'Deployed to staging.', streaming: false });
+
+    // 5. A later reply edit after the secret request folded still updates the retained reply.
+    await f.deliver([edit('Deployed to production.', 170, 'completed', helper)]);
+    expect(f.card()).toEqual({ preview: 'Deployed to production.', streaming: false });
+    expect(f.loadedThread()).toBe(false);
   });
 });

@@ -1,0 +1,114 @@
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import { RelationType } from 'matrix-js-sdk/lib/@types/event';
+import { describe, expect, it } from 'vitest';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../../matrix/protocol/secretRequest';
+import { resolveThreadPresentationSnapshot } from './threadPresentation';
+
+const ROOM = '!room:example.org';
+const ROOT = '$root';
+const VIEWER = '@reader:example.org';
+const AGENT = '@mindroom_helper:example.org';
+
+const root = new MatrixEvent({
+  event_id: ROOT,
+  room_id: ROOM,
+  sender: VIEWER,
+  type: 'm.room.message',
+  origin_server_ts: 1,
+  content: { msgtype: 'm.text', body: 'Deploy the release' },
+});
+
+const replyEvent = new MatrixEvent({
+  event_id: '$reply',
+  room_id: ROOM,
+  sender: AGENT,
+  type: 'm.room.message',
+  origin_server_ts: 2,
+  content: {
+    msgtype: 'm.text',
+    body: 'Release deployed successfully.',
+    'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
+  },
+});
+
+const secretNotice = ({
+  status,
+  anchored = true,
+  sender = AGENT,
+  body = status === 'pending' ? 'API token needed' : '🔑 Secret received.',
+}: {
+  status: 'pending' | 'saved' | 'declined' | 'expired';
+  anchored?: boolean;
+  sender?: string;
+  body?: string;
+}) =>
+  new MatrixEvent({
+    event_id: '$secret',
+    room_id: ROOM,
+    sender,
+    type: 'm.room.message',
+    origin_server_ts: 3,
+    content: {
+      msgtype: 'm.notice',
+      body,
+      [MINDROOM_SECRET_REQUEST_KEY]: {
+        request_id: 'req-1',
+        requester_id: VIEWER,
+        env: 'API_TOKEN',
+        keep: { memory: 900 },
+        reason: 'To push the release',
+        status,
+        expires_at: 1,
+        ...(anchored ? { response_event_id: '$reply', tool_call_id: 'call_1' } : {}),
+      },
+      'm.relates_to': { event_id: ROOT, rel_type: RelationType.Thread },
+    },
+  });
+
+const room = {
+  myUserId: VIEWER,
+  getMember: () => undefined,
+  getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
+} as unknown as Room;
+
+const present = (events: MatrixEvent[]) =>
+  resolveThreadPresentationSnapshot({
+    room,
+    threadRootId: ROOT,
+    thread: { events, timeline: events },
+    rootEvent: root,
+  });
+
+describe('folded secret-request notices as thread reply previews', () => {
+  it.each(['saved', 'declined', 'expired'] as const)(
+    'skips a newer anchored %s secret request and previews the agent reply before it',
+    (status) => {
+      const presentation = present([replyEvent, secretNotice({ status })]);
+      expect(presentation.latestReplyPreviewText).toBe('Release deployed successfully.');
+      expect(presentation.lastSenderId).toBe(AGENT);
+    }
+  );
+
+  it('still previews a pending anchored secret request and an unanchored saved secret request', () => {
+    expect(present([replyEvent, secretNotice({ status: 'pending' })]).latestReplyPreviewText).toBe(
+      'API token needed'
+    );
+    expect(
+      present([replyEvent, secretNotice({ status: 'saved', anchored: false })])
+        .latestReplyPreviewText
+    ).toBe('🔑 Secret received.');
+  });
+
+  it('does not fold a foreign-homeserver spoof and omits lastSenderId when only a folded secret exists', () => {
+    expect(
+      present([
+        replyEvent,
+        secretNotice({ status: 'saved', sender: '@mindroom_helper:elsewhere.example' }),
+      ]).latestReplyPreviewText
+    ).toBe('🔑 Secret received.');
+
+    const onlyFolded = present([secretNotice({ status: 'saved' })]);
+    expect(onlyFolded.latestReplyPreviewText).toBeUndefined();
+    expect(onlyFolded.lastSenderId).toBeUndefined();
+  });
+});

@@ -1520,4 +1520,66 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(message.run, RunState.none)
         XCTAssertNotEqual(ownSnapshot.rowState, .running)
     }
+
+    func testFoldedSecretRequestIsExcludedFromConversation() {
+        let answer = event("$reply", 2, inThread(["msgtype": "m.text", "body": "Release deployed."]))
+        let makeSecret = { (id: String, status: String, anchored: Bool, sender: String) -> JSON in
+            var payload: JSON = ["request_id": "req-1", "status": status]
+            if anchored {
+                payload["response_event_id"] = "$reply"
+                payload["tool_call_id"] = "call_1"
+            }
+            return event(id, 3, sender: sender, inThread([
+                "msgtype": "m.notice",
+                "body": status == "pending" ? "API token needed" : "🔑 Secret received.",
+                "io.mindroom.secret_request": payload,
+            ]))
+        }
+        let makeEdit = { (targetId: String, status: String, sender: String) -> JSON in
+            event("\(targetId)-edit", 4, sender: sender, [
+                "m.new_content": [
+                    "msgtype": "m.notice",
+                    "body": "🔑 Secret received.",
+                    "io.mindroom.secret_request": [
+                        "request_id": "req-1", "status": status,
+                        "response_event_id": "$reply", "tool_call_id": "call_1",
+                    ] as JSON,
+                ] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": targetId] as JSON,
+            ])
+        }
+
+        // Terminal edited statuses fold out of conversation, leaving the agent reply as snapshot.reply.
+        for status in ["saved", "declined", "expired"] {
+            let pending = makeSecret("$secret", "pending", true, agent)
+            let snapshot = ThreadSnapshot.build(
+                root: voiceRoot, related: [answer, pending, makeEdit("$secret", status, agent)],
+                ownUserId: me, now: now)
+            XCTAssertEqual(snapshot.reply?.eventId, "$reply", status)
+            XCTAssertEqual(snapshot.reply?.text, "Release deployed.", status)
+            XCTAssertFalse(snapshot.entries.contains { $0.id == "$secret" }, status)
+        }
+
+        // Pending anchored, unanchored saved, foreign-homeserver spoof, and edit-only spoof all stay visible.
+        let pending = ThreadSnapshot.build(
+            root: voiceRoot, related: [answer, makeSecret("$pending", "pending", true, agent)],
+            ownUserId: me, now: now)
+        XCTAssertEqual(pending.reply?.eventId, "$pending")
+
+        let unanchored = ThreadSnapshot.build(
+            root: voiceRoot, related: [answer, makeSecret("$unanchored", "saved", false, agent)],
+            ownUserId: me, now: now)
+        XCTAssertEqual(unanchored.reply?.eventId, "$unanchored")
+
+        let foreign = ThreadSnapshot.build(
+            root: voiceRoot, related: [answer, makeSecret("$foreign", "saved", true, "@mindroom_mind:elsewhere.example")],
+            ownUserId: me, now: now)
+        XCTAssertEqual(foreign.reply?.eventId, "$foreign")
+
+        let plain = event("$plain", 3, sender: agent, inThread(["msgtype": "m.text", "body": "Ordinary message"]))
+        let spoof = ThreadSnapshot.build(
+            root: voiceRoot, related: [answer, plain, makeEdit("$plain", "saved", agent)],
+            ownUserId: me, now: now)
+        XCTAssertEqual(spoof.reply?.eventId, "$plain")
+    }
 }

@@ -172,11 +172,13 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let title = summary ?? transcript
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
-        // The conversation: what people and agents said, without folded voice echoes and titles.
-        let conversation = messages.filter { message in
-            !(message.eventId.map(hiddenEchoIds.contains) ?? false) && message.content["io.mindroom.thread_summary"] == nil
-        }
         let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
+        // The conversation: what people and agents said, without folded voice echoes, titles, and answered secret requests.
+        let conversation = messages.filter { message in
+            !(message.eventId.map(hiddenEchoIds.contains) ?? false)
+                && message.content["io.mindroom.thread_summary"] == nil
+                && !isFoldedSecretRequest(message, latestEdit: edit(message), isAgent: isAgent)
+        }
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
             let sender = event["sender"] as? String ?? ""
@@ -284,6 +286,23 @@ func v2MarkersMatchTrace(_ markers: [PlainText.ToolMarker], in content: JSON) ->
               name == marker.name else { return false }
         previousIndex = marker.index
     }
+    return true
+}
+
+/// Whether `event` is a trusted agent's anchored secret-request notice that reached a terminal
+/// edited status (`saved`, `declined`, or `expired`), and therefore folds into its reply.
+func isFoldedSecretRequest(_ event: JSON, latestEdit: JSON?, isAgent: (String?) -> Bool) -> Bool {
+    guard event["type"] as? String == "m.room.message",
+          !event.isRedacted,
+          isAgent(event["sender"] as? String),
+          event.content["io.mindroom.secret_request"] is JSON,
+          let request = effectiveContent(event, latestEdit: latestEdit)["io.mindroom.secret_request"] as? JSON,
+          let status = request["status"] as? String,
+          status == "saved" || status == "declined" || status == "expired",
+          let responseId = request["response_event_id"] as? String,
+          let toolCallId = request["tool_call_id"] as? String,
+          !responseId.isEmpty, responseId.utf16.count <= 512,
+          !toolCallId.isEmpty, toolCallId.utf16.count <= 512 else { return false }
     return true
 }
 

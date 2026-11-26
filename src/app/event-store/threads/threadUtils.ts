@@ -3,6 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
 import { getLatestMessageContent } from '../../matrix/room';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequest';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
@@ -117,11 +118,16 @@ export const getVisibleThreadEventBodyPreviewText = (
 ): string | undefined => getThreadMessagePreviewText(getEventPreviewContent(event));
 
 export const getLatestRenderableVisibleThreadReplyEvent = (
-  replyEvents: MatrixEvent[]
+  replyEvents: MatrixEvent[],
+  viewerUserId?: string
 ): MatrixEvent | undefined => {
-  // A title notice is never a reply preview: the card's title line already shows it.
+  // Title notices show on the card's title line, and answered anchored secret requests fold into
+  // their reply's tool call, so neither replaces the conversational reply preview.
   return replyEvents.findLast(
-    (event) => !!getVisibleThreadEventBodyPreviewText(event) && !isThreadSummaryEvent(event)
+    (event) =>
+      !!getVisibleThreadEventBodyPreviewText(event) &&
+      !isThreadSummaryEvent(event) &&
+      !isFoldedSecretRequestEvent(event, viewerUserId)
   );
 };
 

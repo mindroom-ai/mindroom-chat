@@ -13,6 +13,7 @@ import {
   pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequest';
 import { getMemberDisplayName } from '../../matrix/room';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
@@ -118,6 +119,7 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLastActivityTs,
   bundledPreviews,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
+  const viewerUserId = room.myUserId || undefined;
   const bundle = bundledPreviews ?? getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
@@ -127,15 +129,17 @@ export const resolveThreadPresentationSnapshot = ({
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...replyEvents, thread?.replyToEvent, summaryReply].some(
-      (event) =>
-        !!event &&
-        (event.getId() === bundleLatest.id
-          ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
-          : event.getTs() > bundleLatest.ts)
-    );
+    [...replyEvents, thread?.replyToEvent, summaryReply].some((event) => {
+      if (!event) return false;
+      if (isFoldedSecretRequestEvent(event, viewerUserId)) {
+        return !!bundle.reply && event.getId() === bundle.reply.getId();
+      }
+      return event.getId() === bundleLatest.id
+        ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
+        : event.getTs() > bundleLatest.ts;
+    });
   const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
-  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents, viewerUserId);
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count. Like the server's
   // bundled reply, it replaces a cached copy of the reply older than its newest revision.
@@ -147,6 +151,7 @@ export const resolveThreadPresentationSnapshot = ({
         getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
     bundledReply &&
     !isThreadSummaryEvent(bundledReply) &&
+    !isFoldedSecretRequestEvent(bundledReply, viewerUserId) &&
     isVisibleThreadReplyEvent(bundledReply) &&
     getVisibleThreadEventBodyPreviewText(bundledReply) &&
     (!loadedPreviewEvent ||
@@ -166,7 +171,9 @@ export const resolveThreadPresentationSnapshot = ({
   const lastEvent = preferCachedReply
     ? undefined
     : (latestPreviewEvent ??
-      (fallbackLatestReplyPreviewText ? undefined : replyEvents[replyEvents.length - 1]));
+      (fallbackLatestReplyPreviewText
+        ? undefined
+        : replyEvents.findLast((event) => !isFoldedSecretRequestEvent(event, viewerUserId))));
   const lastSenderId =
     lastEvent?.getSender?.() ??
     fallbackLastSenderId ??

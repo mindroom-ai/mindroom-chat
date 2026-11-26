@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../../matrix/protocol/secretRequest';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { buildThreadHeaderViewModelFromRecord } from '../../threads/threadHeaderViewModel';
@@ -481,5 +482,117 @@ describe('the time of a reply’s newest revision', () => {
 
     expect(getThreadPreviewRevisionTs(event)).toBe(3000);
     expect(getThreadPreviewRevisionTs(streamed())).toBe(1000);
+  });
+});
+
+describe('bundled secret-request previews', () => {
+  const agent = '@mindroom_helper:example.org';
+  const secretPayload = (status: 'pending' | 'saved') => ({
+    request_id: 'req-1',
+    requester_id: userId,
+    env: 'API_TOKEN',
+    keep: { memory: 900 },
+    reason: 'To deploy',
+    status,
+    expires_at: 9_000,
+    response_event_id: '$reply',
+    tool_call_id: 'call_1',
+  });
+  const secretEvent = (status: 'pending' | 'saved', ts: number, editedAt?: number): IEvent => {
+    const base: IEvent = {
+      ...reply('$secret', status === 'pending' ? 'API token needed' : '🔑 Secret received.', ts),
+      sender: agent,
+      content: {
+        msgtype: 'm.notice',
+        body: status === 'pending' ? 'API token needed' : '🔑 Secret received.',
+        [MINDROOM_SECRET_REQUEST_KEY]: secretPayload(editedAt ? 'pending' : status),
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+    };
+    if (editedAt) {
+      base.unsigned = {
+        'm.relations': {
+          'm.replace': {
+            ...reply('$secret-edit', '* 🔑 Secret received.', editedAt),
+            sender: agent,
+            content: {
+              msgtype: 'm.notice',
+              body: '* 🔑 Secret received.',
+              'm.new_content': {
+                msgtype: 'm.notice',
+                body: '🔑 Secret received.',
+                [MINDROOM_SECRET_REQUEST_KEY]: secretPayload(status),
+              },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$secret' },
+            },
+          },
+        },
+      };
+    }
+    return base;
+  };
+
+  it('ignores a folded bundled io.mindroom.latest_reply while keeping a pending one', () => {
+    const foldedShape = summaryShape();
+    const folded = secretEvent('saved', 3000, 4000);
+    foldedShape.latest_event = folded;
+    foldedShape['io.mindroom.latest_reply'] = folded;
+    const foldedFixture = fixture(foldedShape);
+    expect(getBundledThreadPreviews(foldedFixture.room, foldedFixture.root).reply).toBeUndefined();
+    expect(
+      presentation(foldedFixture.room, foldedFixture.root).latestReplyPreviewText
+    ).toBeUndefined();
+
+    const pendingShape = summaryShape();
+    const pending = secretEvent('pending', 3000);
+    pendingShape.latest_event = pending;
+    pendingShape['io.mindroom.latest_reply'] = pending;
+    const pendingFixture = fixture(pendingShape);
+    expect(presentation(pendingFixture.room, pendingFixture.root).latestReplyPreviewText).toBe(
+      'API token needed'
+    );
+  });
+
+  it('keeps a different bundled answer across a newer folded secret, and invalidates a stale pending secret', () => {
+    const answerShape = summaryShape();
+    answerShape.latest_event = answerShape['io.mindroom.latest_reply'];
+    const { room, root } = fixture(answerShape);
+    const newerFolded = new MatrixEvent({ ...secretEvent('saved', 5000), room_id: roomId });
+    expect(presentation(room, root, [newerFolded]).latestReplyPreviewText).toBe(
+      'Final answer with dates'
+    );
+
+    const pendingShape = summaryShape();
+    const pending = secretEvent('pending', 3000);
+    pendingShape.latest_event = pending;
+    pendingShape['io.mindroom.latest_reply'] = pending;
+    const pendingFixture = fixture(pendingShape);
+    const loadedReply = new MatrixEvent({
+      ...reply('$reply', 'Final answer with dates', 2000),
+      sender: agent,
+      room_id: roomId,
+    });
+    const editedSecret = new MatrixEvent({ ...pending, room_id: roomId });
+    editedSecret.makeReplaced(
+      new MatrixEvent({
+        ...reply('$secret-edit', '* 🔑 Secret received.', 4000),
+        sender: agent,
+        room_id: roomId,
+        content: {
+          msgtype: 'm.notice',
+          body: '* 🔑 Secret received.',
+          'm.new_content': {
+            msgtype: 'm.notice',
+            body: '🔑 Secret received.',
+            [MINDROOM_SECRET_REQUEST_KEY]: secretPayload('saved'),
+          },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$secret' },
+        },
+      })
+    );
+    expect(
+      presentation(pendingFixture.room, pendingFixture.root, [loadedReply, editedSecret])
+        .latestReplyPreviewText
+    ).toBe('Final answer with dates');
   });
 });

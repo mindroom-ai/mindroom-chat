@@ -1,7 +1,10 @@
+import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_SECRET_REQUEST_KEY,
   effectiveSecretRequestStatus,
+  isAnchoredSecretRequestEvent,
+  isFoldedSecretRequestEvent,
   parseSecretRequestContent,
   secretRequestPath,
   type SecretRequest,
@@ -370,5 +373,137 @@ describe('secretRequestPath', () => {
     expect(secretRequestPath('!room:server', 'a/b')).toBe(
       '/api/rooms/!room%3Aserver/secret-requests/a%2Fb'
     );
+  });
+});
+
+describe('isAnchoredSecretRequestEvent / isFoldedSecretRequestEvent', () => {
+  const VIEWER = '@reader:example.org';
+  const AGENT = '@mindroom_helper:example.org';
+  const ANCHOR = { response_event_id: '$reply', tool_call_id: 'call_1' };
+
+  const makeNotice = (
+    payload: Record<string, unknown>,
+    sender = AGENT,
+    eventId = '$secret'
+  ): MatrixEvent =>
+    new MatrixEvent({
+      event_id: eventId,
+      room_id: '!room:example.org',
+      sender,
+      type: 'm.room.message',
+      origin_server_ts: 100,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Secret needed',
+        [MINDROOM_SECRET_REQUEST_KEY]: temporary({ env: 'API_TOKEN', ...payload }),
+      },
+    });
+
+  const makeEdit = (
+    targetId: string,
+    newContent: Record<string, unknown>,
+    sender = AGENT
+  ): MatrixEvent =>
+    new MatrixEvent({
+      event_id: `${targetId}-edit`,
+      room_id: '!room:example.org',
+      sender,
+      type: 'm.room.message',
+      origin_server_ts: 200,
+      content: {
+        msgtype: 'm.notice',
+        body: '* 🔑 Secret received.',
+        'm.new_content': newContent,
+        'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+      },
+    });
+
+  it.each(['saved', 'declined', 'expired'] as const)(
+    'treats an anchored %s secret request as both anchored and folded',
+    (status) => {
+      const event = makeNotice({ status: 'pending', ...ANCHOR });
+      event.makeReplaced(
+        makeEdit('$secret', {
+          msgtype: 'm.notice',
+          body: '🔑 Secret received.',
+          [MINDROOM_SECRET_REQUEST_KEY]: temporary({ env: 'API_TOKEN', status, ...ANCHOR }),
+        })
+      );
+      expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(true);
+      expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(true);
+    }
+  );
+
+  it('keeps a pending anchored request anchored but not folded, even past expires_at', () => {
+    const event = makeNotice({ status: 'pending', expires_at: 1, ...ANCHOR });
+    expect(isAnchoredSecretRequestEvent(event, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
+  });
+
+  it('rejects unanchored, foreign-homeserver, non-agent, edit-only spoof, and redacted events', () => {
+    const unanchored = makeNotice({ status: 'saved' });
+    expect(isAnchoredSecretRequestEvent(unanchored, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(unanchored, VIEWER)).toBe(false);
+
+    const foreign = makeNotice({ status: 'saved', ...ANCHOR }, '@mindroom_helper:other.example');
+    expect(isAnchoredSecretRequestEvent(foreign, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(foreign, VIEWER)).toBe(false);
+
+    const human = makeNotice({ status: 'saved', ...ANCHOR }, VIEWER);
+    expect(isAnchoredSecretRequestEvent(human, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(human, VIEWER)).toBe(false);
+
+    const ordinary = new MatrixEvent({
+      event_id: '$plain',
+      room_id: '!room:example.org',
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 100,
+      content: { msgtype: 'm.text', body: 'Ordinary reply' },
+    });
+    ordinary.makeReplaced(
+      makeEdit('$plain', {
+        msgtype: 'm.notice',
+        body: '🔑 Secret received.',
+        [MINDROOM_SECRET_REQUEST_KEY]: temporary({ env: 'API_TOKEN', status: 'saved', ...ANCHOR }),
+      })
+    );
+    expect(isAnchoredSecretRequestEvent(ordinary, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(ordinary, VIEWER)).toBe(false);
+
+    const redacted = makeNotice({ status: 'saved', ...ANCHOR });
+    redacted.makeRedacted(
+      new MatrixEvent({
+        event_id: '$redaction',
+        room_id: '!room:example.org',
+        sender: AGENT,
+        type: 'm.room.redaction',
+        origin_server_ts: 300,
+        redacts: '$secret',
+        content: {},
+      }),
+      null as never
+    );
+    expect(isAnchoredSecretRequestEvent(redacted, VIEWER)).toBe(false);
+    expect(isFoldedSecretRequestEvent(redacted, VIEWER)).toBe(false);
+  });
+
+  it('reads replacingEvent m.new_content on minimal mocks that do not update getContent', () => {
+    const mockEvent = {
+      getType: () => 'm.room.message',
+      getSender: () => AGENT,
+      isRedacted: () => false,
+      isRedaction: () => false,
+      getOriginalContent: () =>
+        content(temporary({ env: 'API_TOKEN', status: 'pending', ...ANCHOR })),
+      getContent: () => content(temporary({ env: 'API_TOKEN', status: 'pending', ...ANCHOR })),
+      replacingEvent: () => ({
+        getContent: () => ({
+          'm.new_content': content(temporary({ env: 'API_TOKEN', status: 'saved', ...ANCHOR })),
+        }),
+      }),
+    };
+    expect(isAnchoredSecretRequestEvent(mockEvent, VIEWER)).toBe(true);
+    expect(isFoldedSecretRequestEvent(mockEvent, VIEWER)).toBe(true);
   });
 });
