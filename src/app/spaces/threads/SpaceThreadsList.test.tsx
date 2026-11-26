@@ -10,9 +10,11 @@ import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { LONG_PRESS_MS } from '../../lib/hooks/useLongPress';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { StateEvent } from '../../matrix/types/room';
+import { stubCompactLayout, tickFrames } from '../../threads/overview/compactBlocks.test.shared';
 import { SwipeList } from '../../threads/overview/CompactCardSwipe.css';
 import type { CompactThreadSection } from '../../threads/overview/compactThreadSections';
 import { resetPendingThreadTagsForTests } from '../../threads/tags/threadTagPending';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 import type { SpaceRoomItem } from './spaceThreadsModel';
 import { SpaceThreadsList, type SpaceThreadsListProps } from './SpaceThreadsList';
@@ -138,6 +140,8 @@ const renderScenario = ({
   sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$sent' }),
   sections,
   pinnedByRoom,
+  scrollMemory,
+  scrollMemoryKey = '!space:example.org',
   onOpenThread = vi.fn<(roomId: string, threadRootId: string) => void>(),
 }: {
   rooms: Room[];
@@ -145,6 +149,8 @@ const renderScenario = ({
   sendStateEvent?: ReturnType<typeof vi.fn>;
   sections?: readonly CompactThreadSection[];
   pinnedByRoom?: ReadonlyMap<string, readonly string[]>;
+  scrollMemory?: ScrollAnchorMemory;
+  scrollMemoryKey?: string;
   onOpenThread?: (roomId: string, threadRootId: string) => void;
 }) => {
   const roomMap = new Map(rooms.map((r) => [r.roomId, r] as const));
@@ -192,6 +198,8 @@ const renderScenario = ({
     snoozeNow: NOW,
     metaVersion: 1,
     showLoading: false,
+    scrollMemory,
+    scrollMemoryKey,
     onOpenThread,
   };
   const wrap = (props: SpaceThreadsListProps) => (
@@ -518,4 +526,116 @@ describe('SpaceThreadsList', () => {
     });
     expect(sendStateEvent).not.toHaveBeenCalled();
   });
+
+  it('bounds mounted cards for 3,000 sectioned threads and clips phone slides', () => {
+    vi.useFakeTimers();
+    stubCompactLayout({ viewAttr: 'data-space-threads-list' });
+    const entries = Array.from({ length: 3000 }, (_, i) =>
+      entry(i % 2 === 0 ? ROOM_A : ROOM_B, `$t-${i}`, `Thread ${i}`)
+    );
+    const sections: CompactThreadSection[] = [
+      { id: 'needsYou', rootIds: entries.slice(0, 1000).map((e) => e.key) },
+      { id: 'working', rootIds: entries.slice(1000, 2000).map((e) => e.key) },
+      { id: 'quiet', rootIds: entries.slice(2000).map((e) => e.key) },
+    ];
+    const { container } = renderScenario({
+      rooms: [makeRoom(ROOM_A, 'Engineering'), makeRoom(ROOM_B, 'Design')],
+      entries,
+      sections,
+    });
+    const list = container.querySelector<HTMLElement>('[data-space-threads-list="true"]')!;
+    expect(list.hasAttribute('data-page-slide-clip')).toBe(true);
+    expect(list.dataset.compactCardCount).toBe('3000');
+    expect([...container.querySelectorAll('[data-compact-section]')]).toHaveLength(3);
+    expect(container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(48);
+    expect(container.querySelector('[data-thread-root-id="$t-2999"]')).toBeNull();
+  });
+
+  it('reaches far-down sectioned threads via End, Home, ArrowDown, and deep scroll', () => {
+    vi.useFakeTimers();
+    const layout = stubCompactLayout({ viewAttr: 'data-space-threads-list' });
+    const entries = Array.from({ length: 150 }, (_, i) =>
+      entry(i % 2 === 0 ? ROOM_A : ROOM_B, `$k-${i}`, `Thread ${i}`)
+    );
+    const sections: CompactThreadSection[] = [
+      { id: 'needsYou', rootIds: entries.slice(0, 50).map((e) => e.key) },
+      { id: 'working', rootIds: entries.slice(50, 100).map((e) => e.key) },
+      { id: 'quiet', rootIds: entries.slice(100).map((e) => e.key) },
+    ];
+    const { container } = renderScenario({
+      rooms: [makeRoom(ROOM_A, 'Engineering'), makeRoom(ROOM_B, 'Design')],
+      entries,
+      sections,
+    });
+    const list = container.querySelector<HTMLElement>('[data-space-threads-list="true"]')!;
+    expect(container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(48);
+    expect(container.querySelector('[data-thread-root-id="$k-149"]')).toBeNull();
+
+    // End materializes and focuses the far-down thread in Quiet while keeping mounted cards bounded.
+    const firstCard = container.querySelector<HTMLElement>('[data-thread-root-id="$k-0"]')!;
+    firstCard.focus();
+    fireEvent.keyDown(firstCard, { key: 'End' });
+    tickFrames(16);
+    const lastCard = container.querySelector<HTMLElement>('[data-thread-root-id="$k-149"]')!;
+    expect(lastCard).not.toBeNull();
+    expect(document.activeElement).toBe(lastCard);
+    expect(container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(60);
+
+    // Home returns to the top card, and ArrowDown moves to the next card.
+    fireEvent.keyDown(lastCard, { key: 'Home' });
+    expect(document.activeElement).toBe(
+      container.querySelector<HTMLElement>('[data-thread-root-id="$k-0"]')
+    );
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(
+      container.querySelector<HTMLElement>('[data-thread-root-id="$k-1"]')
+    );
+
+    // Scrolling deep mounts the visible band and keeps mounted cards bounded.
+    layout.scroll(list, 7_500);
+    expect(container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(60);
+    expect(container.querySelector('[data-thread-root-id="$k-75"]')).not.toBeNull();
+  }, 30_000);
+
+  it('restores a far-down scroll position and mounts its thread on return after unmount/remount', () => {
+    vi.useFakeTimers();
+    const layout = stubCompactLayout({ viewAttr: 'data-space-threads-list' });
+    const scrollMemory: ScrollAnchorMemory = new Map();
+    const entries = Array.from({ length: 96 }, (_, i) =>
+      entry(i % 2 === 0 ? ROOM_A : ROOM_B, `$ret-${i}`, `Return thread ${i}`)
+    );
+    const rooms = [makeRoom(ROOM_A, 'Engineering'), makeRoom(ROOM_B, 'Design')];
+    const first = renderScenario({
+      rooms,
+      entries,
+      scrollMemory,
+      scrollMemoryKey: '!space:example.org',
+    });
+    const firstList = first.container.querySelector<HTMLElement>(
+      '[data-space-threads-list="true"]'
+    )!;
+    tickFrames(10);
+    layout.scroll(firstList, 6000);
+    expect(first.container.querySelector('[data-thread-root-id="$ret-60"]')).not.toBeNull();
+    expect(first.container.querySelector('[data-thread-root-id="$ret-0"]')).toBeNull();
+
+    // Unmount as when navigating into the thread, then remount on return (#923).
+    first.unmount();
+    expect(scrollMemory.get('!space:example.org')?.scrollTop).toBe(6000);
+
+    const returned = renderScenario({
+      rooms,
+      entries,
+      scrollMemory,
+      scrollMemoryKey: '!space:example.org',
+    });
+    const returnedList = returned.container.querySelector<HTMLElement>(
+      '[data-space-threads-list="true"]'
+    )!;
+    expect(returnedList.scrollTop).toBe(6000);
+    expect(returned.container.querySelector('[data-thread-root-id="$ret-60"]')).not.toBeNull();
+    expect(returned.container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(
+      48
+    );
+  }, 30_000);
 });

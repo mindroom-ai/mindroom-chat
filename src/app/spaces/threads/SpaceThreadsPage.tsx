@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 import {
   addTagFilter,
@@ -48,6 +48,7 @@ import { ThreadPeopleFilter } from '../../threads/overview/ThreadPeopleFilter';
 import { useThreadSortFreezeController } from '../../threads/overview/threadSortFreezeController';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { Page } from '../../ui/page/Page';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadComposer } from './SpaceThreadComposer';
 import { SpaceThreadsHeader } from './SpaceThreadsHeader';
@@ -69,6 +70,12 @@ import * as css from './SpaceThreads.css';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const EMPTY_PINNED_KEYS: readonly string[] = [];
+const spaceThreadsScrollMemories = new WeakMap<MatrixClient, ScrollAnchorMemory>();
+const getSpaceThreadsScrollMemory = (mx: MatrixClient): ScrollAnchorMemory => {
+  let memory = spaceThreadsScrollMemories.get(mx);
+  if (!memory) spaceThreadsScrollMemories.set(mx, (memory = new Map()));
+  return memory;
+};
 
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
@@ -442,6 +449,9 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           metaVersion={metaVersion}
           showLoading={showLoading}
           emptyKey={emptyKey}
+          scrollMemory={getSpaceThreadsScrollMemory(mx)}
+          scrollMemoryKey={space.roomId}
+          indexPending={!isSettled}
           onOpenThread={handleOpenThread}
         />
 

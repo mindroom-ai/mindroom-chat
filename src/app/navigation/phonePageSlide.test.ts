@@ -2309,6 +2309,54 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     }
   });
 
+  it('clears and disposes roomPreview when a Back button slide (2 -> 1) leaves a thread', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    const { stage, page } = makeStage('Room');
+    addCanvas(page, 64, 48);
+    const origAdopt = document.adoptNode.bind(document);
+    let last!: { copy: HTMLElement; canvas: HTMLCanvasElement };
+    const adoptSpy = vi.spyOn(document, 'adoptNode').mockImplementation((node) => {
+      const adopted = origAdopt(node);
+      if (adopted instanceof HTMLElement && adopted.querySelector('canvas')) {
+        last = { copy: adopted, canvas: adopted.querySelector('canvas')! };
+      }
+      return adopted;
+    });
+    try {
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext(key);
+      });
+      pageMock.frame();
+      const retainedRoom = last;
+      await pageMock.finish();
+      expect([retainedRoom.canvas.width, retainedRoom.canvas.height]).toEqual([64, 48]);
+
+      // Back button slide (2 -> 1) disposes roomPreview while storing threadPreview for forward swipe.
+      slidePhonePage(() => {
+        showThread(false);
+        setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      });
+      pageMock.frame();
+      await pageMock.finish();
+      expectDisposed(retainedRoom.copy, retainedRoom.canvas);
+
+      const forwardScene = createThreadForwardSwipeScene({
+        key,
+        fromLocationKey: 'k-room',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="over"]')).not.toBeNull();
+      forwardScene!.cleanup(false);
+    } finally {
+      adoptSpy.mockRestore();
+      ctxSpy.mockRestore();
+    }
+  });
+
   it('falls back to live under-layer on room preview miss, excludes under from thread snapshot, and hands off across async popstate', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('');

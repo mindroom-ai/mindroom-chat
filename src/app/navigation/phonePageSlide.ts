@@ -1289,6 +1289,10 @@ export const slidePhonePage = (change: Change): void => {
     }
     const to = depth();
     const stage = page.querySelector(`[${PHONE_STAGE}]`);
+    // Leaving a thread via Back (2 -> 1 or 2 -> 0) no longer needs the room overview snapshot.
+    if (from === 2 && to < from && roomPreview) {
+      setPreviewSlot('room', undefined);
+    }
     // Nothing to slide from the list, nor where the page is as deep as it was, and nothing where
     // the copy would not fit: the phone layout is gone (signed out, turned sideways), or a
     // dialog still open over the page would show under it.
