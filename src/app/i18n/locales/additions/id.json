@@ -1879,6 +1879,7 @@
     "newThreadWith": "Utas baru dengan {{name}}…",
     "dictation": {
       "label": "Dikte",
+      "temporarilyUnavailable": "Dikte tidak tersedia — menghubungkan ulang",
       "cancel": "Batalkan dikte",
       "pause": "Jeda dikte",
       "resume": "Lanjutkan dikte",

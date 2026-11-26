@@ -1879,6 +1879,7 @@
     "newThreadWith": "{{name}}에게 새 스레드…",
     "dictation": {
       "label": "받아쓰기",
+      "temporarilyUnavailable": "받아쓰기를 사용할 수 없음 — 다시 연결하는 중",
       "cancel": "받아쓰기 취소",
       "pause": "받아쓰기 일시정지",
       "resume": "받아쓰기 재개",

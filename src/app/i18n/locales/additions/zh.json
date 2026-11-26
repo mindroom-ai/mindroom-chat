@@ -1879,6 +1879,7 @@
     "newThreadWith": "与 {{name}} 新建讨论串…",
     "dictation": {
       "label": "听写",
+      "temporarilyUnavailable": "听写不可用 — 正在重新连接",
       "cancel": "取消听写",
       "pause": "暂停听写",
       "resume": "继续听写",

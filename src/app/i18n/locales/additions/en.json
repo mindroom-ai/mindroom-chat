@@ -1944,6 +1944,7 @@
     "newThreadWith": "New thread with {{name}}…",
     "dictation": {
       "label": "Dictate",
+      "temporarilyUnavailable": "Dictation unavailable — reconnecting",
       "cancel": "Cancel dictation",
       "pause": "Pause dictation",
       "resume": "Resume dictation",

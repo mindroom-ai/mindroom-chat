@@ -2009,6 +2009,7 @@
     "newThreadWith": "Nuovo thread con {{name}}…",
     "dictation": {
       "label": "Detta",
+      "temporarilyUnavailable": "Dettatura non disponibile — riconnessione in corso",
       "cancel": "Annulla dettatura",
       "pause": "Metti in pausa dettatura",
       "resume": "Riprendi dettatura",

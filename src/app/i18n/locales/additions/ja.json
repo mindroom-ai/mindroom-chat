@@ -1879,6 +1879,7 @@
     "newThreadWith": "{{name}} との新しいスレッド…",
     "dictation": {
       "label": "音声入力",
+      "temporarilyUnavailable": "音声入力を利用できません — 再接続中",
       "cancel": "音声入力をキャンセル",
       "pause": "音声入力を一時停止",
       "resume": "音声入力を再開",

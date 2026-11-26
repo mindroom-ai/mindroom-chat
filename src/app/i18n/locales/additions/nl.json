@@ -1944,6 +1944,7 @@
     "newThreadWith": "Nieuwe thread met {{name}}…",
     "dictation": {
       "label": "Dicteren",
+      "temporarilyUnavailable": "Dicteren niet beschikbaar — opnieuw verbinden",
       "cancel": "Dicteren annuleren",
       "pause": "Dicteren pauzeren",
       "resume": "Dicteren hervatten",
