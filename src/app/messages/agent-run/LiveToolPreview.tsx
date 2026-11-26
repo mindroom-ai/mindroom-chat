@@ -44,7 +44,7 @@ type LiveToolPreviewProps = {
   threadId?: string;
 };
 type SubagentStep = {
-  key: number;
+  key: string;
   state: StepState;
   toolName: string;
   arg?: string;
@@ -119,28 +119,39 @@ const unfinishedStepState = (status: SubagentStatus): StepState => {
 
 const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
   const unfinishedState = unfinishedStepState(run.meta.status);
+  const seen = new Map<string, number>();
   return run.docs.tools
-    .flatMap((event, key) => {
+    .flatMap((event) => {
       const rawName = typeof event.tool_name === 'string' ? event.tool_name.trim() : '';
-      return rawName ? [{ event, key, toolName: revealDirectionControls(rawName) }] : [];
+      return rawName ? [{ event, toolName: revealDirectionControls(rawName) }] : [];
     })
     .slice(-SUBAGENT_STEP_LIMIT)
-    .map(({ event, key, toolName }) => {
+    .map(({ event, toolName }) => {
       const state: StepState =
         event.type === 'tool_call_started'
           ? unfinishedState
           : event.is_error === true
             ? 'failed'
             : 'done';
+      const arg =
+        typeof event.args_preview === 'string' ? extractPrimaryArg(event.args_preview) : undefined;
+      const startedAt = toolStartedAt(event);
+      const callId = typeof event.tool_call_id === 'string' ? event.tool_call_id.trim() : '';
+      const baseKey = callId
+        ? startedAt !== undefined
+          ? `id:${callId}:${startedAt}`
+          : `id:${callId}`
+        : startedAt !== undefined
+          ? `at:${toolName}:${startedAt}`
+          : `step:${toolName}:${arg ?? ''}`;
+      const count = seen.get(baseKey) ?? 0;
+      seen.set(baseKey, count + 1);
       return {
-        key,
+        key: count === 0 ? baseKey : `${baseKey}#${count}`,
         state,
         toolName,
-        arg:
-          typeof event.args_preview === 'string'
-            ? extractPrimaryArg(event.args_preview)
-            : undefined,
-        startedAt: toolStartedAt(event),
+        arg,
+        startedAt,
         endedAt: toolEndedAt(event),
         output:
           state === 'running' || state === 'waiting'
@@ -358,10 +369,8 @@ function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentR
  * keeping a single stable component tree so parallel rows never lose local UI state.
  */
 export function LiveToolPreview({ running, roomId, threadId }: LiveToolPreviewProps) {
-  const clockContext = useContext(ToolCallClockContext);
   const waitingStatus = useContext(ToolCallWaitingStatusContext);
-  const shellState: StepState =
-    clockContext === null || waitingStatus !== undefined ? 'waiting' : 'running';
+  const shellState: StepState = waitingStatus !== undefined ? 'waiting' : 'running';
   const needsSubagents =
     !!roomId && running.some((tool) => !!tool.toolCallId && isSubagentTool(tool.toolName));
   const subagentRuns = useRoomSubagentRuns(needsSubagents ? roomId : undefined);

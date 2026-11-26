@@ -463,7 +463,6 @@ describe('LiveToolPreview', () => {
   );
 
   it.each([
-    [undefined, 'Paused'],
     ['paused' as const, 'Paused'],
     ['awaiting_approval' as const, 'Waiting for approval'],
   ])(
@@ -543,5 +542,55 @@ describe('LiveToolPreview', () => {
     expect(container.querySelector('[data-live-subagent="del-stable"]')).toBeNull();
     expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+  });
+
+  it('starts a new subagent step expanded after collapsing the previous last row in a capped 20-tool window', () => {
+    const completed = (n: number) => ({
+      type: 'tool_call_completed' as const,
+      tool_name: 'bash',
+      args_preview: `command=cmd-${n}`,
+      started_at: NOW - 100 + n,
+      ended_at: NOW - 99 + n,
+    });
+    const firstWindow = [
+      ...Array.from({ length: 19 }, (_, idx) => completed(idx + 1)),
+      {
+        type: 'tool_call_started' as const,
+        tool_name: 'bash',
+        args_preview: 'command=cmd-20',
+        started_at: NOW - 5,
+        progress: 'output from cmd-20',
+      },
+    ];
+    ingestRun('del-cap', { title: 'Rolling run', callerToolCallId: 'call_cap' }, firstWindow);
+    render([subagentItem('call_cap')]);
+
+    const getToggle = () =>
+      container.querySelector<HTMLButtonElement>(
+        '[data-live-subagent="del-cap"] button[aria-expanded]'
+      );
+    expect(getToggle()?.getAttribute('aria-expanded')).toBe('true');
+    act(() => getToggle()?.click());
+    expect(getToggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-live-subagent="del-cap"] [data-live-output]')).toBeNull();
+
+    // Command 20 finishes and command 21 shifts into index 19 as index 0 drops off the 20-row cap.
+    const nextWindow = [
+      ...Array.from({ length: 18 }, (_, idx) => completed(idx + 2)),
+      completed(20),
+      {
+        type: 'tool_call_started' as const,
+        tool_name: 'bash',
+        args_preview: 'command=cmd-21',
+        started_at: NOW - 1,
+        progress: 'output from cmd-21',
+      },
+    ];
+    ingestRun('del-cap', { title: 'Rolling run', callerToolCallId: 'call_cap' }, nextWindow, 1);
+
+    expect(getToggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(
+      container.querySelector('[data-live-subagent="del-cap"] [data-live-output]')?.textContent
+    ).toBe('output from cmd-21');
   });
 });
