@@ -112,8 +112,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
 
   const cached = sessions ? readCachedDictationAvailability(sessions, roomId) : undefined;
   const [probed, setProbed] = useState<
-    | { sessions: ClientSessions; roomId: string | undefined; value: boolean; transient: boolean }
-    | undefined
+    { sessions: ClientSessions; roomId: string | undefined; value: boolean } | undefined
   >(undefined);
 
   useEffect(() => {
@@ -209,8 +208,8 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     };
 
     const applyResult = (value: boolean) => {
+      setProbed({ sessions, roomId, value });
       const transient = !value && readCachedDictationRetryAt(sessions, roomId) !== undefined;
-      setProbed({ sessions, roomId, value, transient });
       if (userId && !transient) writePersistedDictationAvailability(userId, roomId, value);
       if (!value) attachTransientRecovery();
     };
@@ -235,7 +234,6 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     };
   }, [apiUrl, retryTick, roomId, roomServer.pending, sessions, supported, userId]);
 
-  const persistedTrue = userId ? readPersistedDictationAvailability(userId, roomId) === true : false;
   const matchedProbed =
     probed !== undefined && probed.sessions === sessions && probed.roomId === roomId
       ? probed
@@ -248,12 +246,18 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
         : false;
   const cachedTransient =
     sessions !== undefined && readCachedDictationRetryAt(sessions, roomId) !== undefined;
-  const isTransient =
-    cached !== undefined ? cachedTransient : cachedTransient || Boolean(matchedProbed?.transient);
-  const temporarilyUnavailable =
-    supported && sessions !== undefined && settled === false && isTransient && persistedTrue;
   const confirmed = supported && sessions !== undefined && settled === true;
-  const available = temporarilyUnavailable || (supported && (settled ?? persistedTrue));
+  const temporarilyUnavailable =
+    supported &&
+    sessions !== undefined &&
+    settled !== true &&
+    cachedTransient &&
+    (userId ? readPersistedDictationAvailability(userId, roomId) === true : false);
+  const available =
+    temporarilyUnavailable ||
+    (supported &&
+      (settled ??
+        (userId ? readPersistedDictationAvailability(userId, roomId) === true : false)));
 
   return { available, confirmed, temporarilyUnavailable, apiUrl, roomId, sessions };
 };

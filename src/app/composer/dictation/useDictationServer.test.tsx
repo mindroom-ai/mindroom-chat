@@ -735,6 +735,58 @@ describe('useDictationServer', () => {
     expect(result.current.temporarilyUnavailable).toBe(false);
   });
 
+  it('keeps temporarilyUnavailable: true across remount after the 30 s deadline while retry probe is pending', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+    let resolveRetry!: (response: Response) => void;
+    const retryPromise = new Promise<Response>((resolve) => {
+      resolveRetry = resolve;
+    });
+    state.send
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockReturnValueOnce(retryPromise);
+
+    const firstMount = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    expect(firstMount.result.current.temporarilyUnavailable).toBe(true);
+    firstMount.unmount();
+
+    // Advance past the 30 s transient TTL, then remount while the retry probe stays in flight.
+    vi.setSystemTime(new Date('2026-11-23T12:00:35Z'));
+    const reopened = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(false);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(true);
+
+    await flushEffects();
+    expect(state.send).toHaveBeenCalledTimes(2);
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(false);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(true);
+
+    resolveRetry(
+      Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+    );
+    await flushEffects();
+    expect(reopened.result.current.available).toBe(true);
+    expect(reopened.result.current.confirmed).toBe(true);
+    expect(reopened.result.current.temporarilyUnavailable).toBe(false);
+  });
+
   it('clears persisted true and hides button when a transient 503 transitions to a permanent 403', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
