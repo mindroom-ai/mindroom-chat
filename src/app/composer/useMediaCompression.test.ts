@@ -6,13 +6,8 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
 import { isUploadItemReady, UploadStatus, type TUploadItem } from '../matrix/state/upload';
 import * as uploadPreparation from '../matrix/send/roomInputUploadPreparation';
-import { composerStateKey } from '../navigation/conversationView';
 import { abortAllMediaCompressions } from './mediaCompressionJobs';
-import {
-  composerUploadItemsAtom,
-  roomIdToUploadItemsAtomFamily,
-  roomUploadAtomFamily,
-} from './roomInputDrafts';
+import { composerUploadItemsAtom, roomUploadAtomFamily } from './roomInputDrafts';
 import { useMediaCompression, type UseMediaCompressionOptions } from './useMediaCompression';
 
 const mockCompressImage = vi.hoisted(() => vi.fn());
@@ -53,6 +48,7 @@ const makeRoom = (roomId: string, encrypted: boolean): Room =>
 const renderHook = ({
   room = makeRoom(ROOM_ID, false),
   deferUpload = false,
+  sendingDeferred = false,
   maxUploadSize = 50 * 1024 * 1024,
   mx,
   store = createStore(),
@@ -60,6 +56,7 @@ const renderHook = ({
 }: {
   room?: Room;
   deferUpload?: boolean;
+  sendingDeferred?: boolean;
   maxUploadSize?: number;
   mx?: MatrixClient;
   store?: ReturnType<typeof createStore>;
@@ -95,11 +92,11 @@ const renderHook = ({
       store,
       current,
       deferUpload: deferred,
+      sendingDeferred,
       maxUploadSize: limit,
       owners: ownersRef,
       enrolled: enrolledRef,
       getTargetAtom,
-      uploadAtomFamily: roomUploadAtomFamily,
       keepNames,
       syncUploadWatches,
       notify,
@@ -252,7 +249,7 @@ describe('useMediaCompression', () => {
         }))
       );
 
-    const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', encRoom, ROOM_ID);
+    const job = harness.api.createPendingVideo(rawVideo, 'balanced', encRoom, ROOM_ID);
     expect(job).toBeDefined();
     const { placeholder, start } = job!;
     expect(placeholder.compression?.status).toBe('compressing');
@@ -291,10 +288,10 @@ describe('useMediaCompression', () => {
       compressedSize: compressedVideo.size,
     });
 
-    const replacement =
-      placeholder.compression?.status === 'compressing'
-        ? await placeholder.compression.done
-        : undefined;
+    await vi.waitFor(() =>
+      expect(harness.store.get(targetAtom)[0]?.compression?.status).toBe('compressed')
+    );
+    const replacement = harness.store.get(targetAtom)[0];
 
     expect(prepSpy).toHaveBeenCalledWith([compressedVideo], encRoom, expect.any(Function));
     expect(replacement).toMatchObject({
@@ -320,27 +317,23 @@ describe('useMediaCompression', () => {
     const smallVideo = makeSizedFile('short.mp4', 'video/mp4', 500 * 1024);
     const bigVideo = makeSizedFile('long.mp4', 'video/mp4', 2 * 1024 * 1024);
 
-    expect(
-      harness.api.prepareVideoCompression(smallVideo, 'balanced', room, ROOM_ID)
-    ).toBeUndefined();
-    expect(harness.api.prepareVideoCompression(bigVideo, 'off', room, ROOM_ID)).toBeUndefined();
+    expect(harness.api.createPendingVideo(smallVideo, 'balanced', room, ROOM_ID)).toBeUndefined();
+    expect(harness.api.createPendingVideo(bigVideo, 'off', room, ROOM_ID)).toBeUndefined();
 
     // Small video over maxUploadSize IS eligible.
     const smallLimitHarness = renderHook({ room, maxUploadSize: 200 * 1024 });
-    const oversizedJob = smallLimitHarness.api.prepareVideoCompression(
+    const oversizedJob = smallLimitHarness.api.createPendingVideo(
       smallVideo,
       'balanced',
       room,
       ROOM_ID
     );
     expect(oversizedJob).toBeDefined();
-    oversizedJob?.discard();
+    oversizedJob?.cancel();
 
     // Missing WebCodecs skips video compression.
     vi.stubGlobal('VideoEncoder', undefined);
-    expect(
-      harness.api.prepareVideoCompression(bigVideo, 'balanced', room, ROOM_ID)
-    ).toBeUndefined();
+    expect(harness.api.createPendingVideo(bigVideo, 'balanced', room, ROOM_ID)).toBeUndefined();
   });
 
   it('aborts transcode and discards output when canceled mid-compression', async () => {
@@ -356,7 +349,7 @@ describe('useMediaCompression', () => {
       return gate.promise;
     });
 
-    const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', room, ROOM_ID)!;
+    const job = harness.api.createPendingVideo(rawVideo, 'balanced', room, ROOM_ID)!;
     harness.store.set(targetAtom, { type: 'PUT', item: job.placeholder });
     job.start();
     await vi.waitFor(() => expect(mockCompressVideo).toHaveBeenCalledTimes(1));
@@ -369,11 +362,8 @@ describe('useMediaCompression', () => {
     expect(capturedSignal?.aborted).toBe(true);
 
     gate.resolve(undefined);
-    const doneResult =
-      job.placeholder.compression?.status === 'compressing'
-        ? await job.placeholder.compression.done
-        : undefined;
-    expect(doneResult).toBeUndefined();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(harness.store.get(targetAtom)).toEqual([]);
   });
 
@@ -412,13 +402,16 @@ describe('useMediaCompression', () => {
       );
 
     // 1. Mid-compression "Use original" aborts transcode and encrypts rawVideo.
-    const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', encRoom, ROOM_ID)!;
+    const job = harness.api.createPendingVideo(rawVideo, 'balanced', encRoom, ROOM_ID)!;
     harness.store.set(targetAtom, { type: 'PUT', item: job.placeholder });
     job.start();
     await vi.waitFor(() => expect(mockCompressVideo).toHaveBeenCalledTimes(1));
 
     await harness.api.useOriginal(job.placeholder);
     expect(capturedSignal?.aborted).toBe(true);
+    await vi.waitFor(() =>
+      expect(harness.store.get(targetAtom)[0]?.compression?.status).toBe('original')
+    );
     expect(harness.store.get(targetAtom)).toEqual([
       expect.objectContaining({
         file: encOriginalVideo,
@@ -491,7 +484,7 @@ describe('useMediaCompression', () => {
       },
     ]);
 
-    const job = first.api.prepareVideoCompression(rawVideo, 'balanced', encRoom, ROOM_ID)!;
+    const job = first.api.createPendingVideo(rawVideo, 'balanced', encRoom, ROOM_ID)!;
     sharedStore.set(targetAtom, { type: 'PUT', item: job.placeholder });
     job.start();
     await vi.waitFor(() => expect(mockCompressVideo).toHaveBeenCalledTimes(1));
@@ -503,6 +496,9 @@ describe('useMediaCompression', () => {
     const stagedPlaceholder = sharedStore.get(targetAtom)[0]!;
     await remounted.api.useOriginal(stagedPlaceholder);
     expect(capturedSignal?.aborted).toBe(true);
+    await vi.waitFor(() =>
+      expect(sharedStore.get(targetAtom)[0]?.compression?.status).toBe('original')
+    );
     expect(sharedStore.get(targetAtom)).toEqual([
       expect.objectContaining({
         file: encOriginal,
@@ -514,7 +510,7 @@ describe('useMediaCompression', () => {
     remounted.unmount();
   });
 
-  it('synchronously swaps to preparing on Use original so immediate Send awaits E2EE original and blocks Use original while waiting', async () => {
+  it('synchronously swaps to compressing placeholder on Use original during E2EE re-encryption and ignores sendingDeferred items', async () => {
     const encRoom = makeRoom(ROOM_ID, true);
     const harness = renderHook({ room: encRoom });
     const targetAtom = harness.getTargetAtom(ROOM_ID);
@@ -523,19 +519,6 @@ describe('useMediaCompression', () => {
     const compressedImg = makeSizedFile('photo.webp', 'image/webp', 80 * 1024);
     const encCompressedImg = makeSizedFile('photo.webp', 'application/octet-stream', 80 * 1024);
     const encOriginalImg = makeSizedFile('photo.png', 'application/octet-stream', 500 * 1024);
-    const companionSrc = makeSizedFile('second.png', 'image/png', 300 * 1024);
-    const companionComp = makeSizedFile('second.webp', 'image/webp', 60 * 1024);
-    const companionItem: TUploadItem = {
-      file: companionComp,
-      originalFile: companionComp,
-      encInfo: { v: 'v2' } as never,
-      metadata: { markedAsSpoiler: false },
-      compression: {
-        status: 'compressed',
-        sourceFile: companionSrc,
-        originalSize: companionSrc.size,
-      },
-    };
     const compressedItem: TUploadItem = {
       file: encCompressedImg,
       originalFile: compressedImg,
@@ -544,15 +527,25 @@ describe('useMediaCompression', () => {
       compression: { status: 'compressed', sourceFile: sourceImg, originalSize: sourceImg.size },
     };
 
-    harness.store.set(targetAtom, { type: 'PUT', item: [compressedItem, companionItem] });
+    harness.store.set(targetAtom, { type: 'PUT', item: [compressedItem] });
     const inflightPromise = new Promise<{ content_uri: string }>(() => {});
     harness.store.set(roomUploadAtomFamily(encCompressedImg), { promise: inflightPromise });
     const removeSpy = vi.spyOn(roomUploadAtomFamily, 'remove');
 
+    // sendingDeferred blocks Use original completely.
+    const deferredHarness = renderHook({
+      room: encRoom,
+      store: harness.store,
+      sendingDeferred: true,
+    });
+    await deferredHarness.api.useOriginal(compressedItem);
+    expect(harness.store.get(targetAtom)[0]).toBe(compressedItem);
+    deferredHarness.unmount();
+
     const encryptGate = createDeferred<TUploadItem[]>();
     vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockReturnValueOnce(encryptGate.promise);
 
-    // Click Use original: synchronously cancels upload, evicts old key, and installs preparing item.
+    // Click Use original: synchronously cancels upload, evicts old key, and installs preparing placeholder.
     const restorePromise = harness.api.useOriginal(compressedItem);
     expect(harness.mx.cancelUpload).toHaveBeenCalledWith(inflightPromise);
     expect(removeSpy).toHaveBeenCalledWith(encCompressedImg);
@@ -562,18 +555,7 @@ describe('useMediaCompression', () => {
     expect(stagedNow[0]?.compression?.status).toBe('compressing');
     expect(isUploadItemReady(stagedNow[0]!)).toBe(false);
 
-    // Pressing Send while encryption is in flight awaits the preparing item and flips waitingForCompression.
-    let waitPromise!: Promise<TUploadItem[]>;
-    act(() => {
-      waitPromise = harness.api.waitForCompression(stagedNow, ROOM_ID);
-    });
-    expect(harness.api.waitingForCompression).toBe(true);
-
-    // While Send is waiting on compression, Use original on companion items is ignored.
-    await harness.api.useOriginal(companionItem);
-    expect(harness.store.get(targetAtom)[1]).toBe(companionItem);
-
-    // Encryption finishes: waitForCompression returns the encrypted original (never compressedImg).
+    // Encryption finishes: placeholder is replaced with encrypted original and stale key is evicted.
     await act(async () => {
       encryptGate.resolve([
         {
@@ -583,18 +565,16 @@ describe('useMediaCompression', () => {
           metadata: { markedAsSpoiler: false },
         },
       ]);
-      await Promise.all([restorePromise, waitPromise]);
+      await restorePromise;
     });
-    const ready = await waitPromise;
-    expect(harness.api.waitingForCompression).toBe(false);
-    expect(ready[0]).toMatchObject({
+    expect(harness.store.get(targetAtom)[0]).toMatchObject({
       file: encOriginalImg,
       originalFile: sourceImg,
       encInfo: { v: 'v2' },
       metadata: { markedAsSpoiler: true },
       compression: { status: 'original' },
     });
-    expect(ready[1]).toBe(companionItem);
+    expect(isUploadItemReady(harness.store.get(targetAtom)[0]!)).toBe(true);
     expect(removeSpy).toHaveBeenCalledWith(sourceImg);
   });
 
@@ -609,13 +589,14 @@ describe('useMediaCompression', () => {
       originalSize: number;
       compressedSize: number;
     }>();
+    mockCompressVideo.mockImplementationOnce(
+      async (_file: File, opts: { signal?: AbortSignal }) => {
+        capturedSignal = opts.signal;
+        return gate.promise;
+      }
+    );
 
-    mockCompressVideo.mockImplementation(async (_file: File, opts: { signal?: AbortSignal }) => {
-      capturedSignal = opts.signal;
-      return gate.promise;
-    });
-
-    const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', room, ROOM_ID)!;
+    const job = harness.api.createPendingVideo(rawVideo, 'balanced', room, ROOM_ID)!;
     harness.store.set(targetAtom, { type: 'PUT', item: job.placeholder });
     harness.store.set(roomUploadAtomFamily(rawVideo), { status: UploadStatus.Idle });
     const removeSpy = vi.spyOn(roomUploadAtomFamily, 'remove');
@@ -626,92 +607,14 @@ describe('useMediaCompression', () => {
     expect(capturedSignal?.aborted).toBe(true);
     expect(removeSpy).toHaveBeenCalledWith(rawVideo);
 
-    // done settles immediately to undefined and late results never mutate the store.
-    const doneResult =
-      job.placeholder.compression?.status === 'compressing'
-        ? await job.placeholder.compression.done
-        : undefined;
-    expect(doneResult).toBeUndefined();
-
+    // Late results never mutate the store after session switch.
     gate.resolve({
       file: makeSizedFile('session.mp4', 'video/mp4', 900 * 1024),
       originalSize: rawVideo.size,
       compressedSize: 900 * 1024,
     });
     await Promise.resolve();
+    await Promise.resolve();
     expect(harness.store.get(targetAtom)).toEqual([job.placeholder]);
-  });
-
-  it('keeps compressing video alive across ThreadView atom-family eviction and resolves via captured targetAtom', async () => {
-    const VIEW = 'thread-panel';
-    const encRoom = makeRoom(ROOM_ID, true);
-    const harness = renderHook({ room: encRoom, view: VIEW });
-    const capturedAtom = harness.getTargetAtom(ROOM_ID);
-    const rawVideo = makeSizedFile('thread-clip.mov', 'video/quicktime', 4 * 1024 * 1024);
-    const compressedVideo = makeSizedFile('thread-clip.mp4', 'video/mp4', 700 * 1024);
-    const encryptedVideo = makeSizedFile('thread-clip.mp4', 'application/octet-stream', 700 * 1024);
-    const gate = createDeferred<{
-      file: File;
-      originalSize: number;
-      compressedSize: number;
-    }>();
-    mockCompressVideo.mockImplementationOnce(() => gate.promise);
-    const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
-      {
-        file: encryptedVideo,
-        originalFile: compressedVideo,
-        encInfo: { v: 'v2' } as never,
-        metadata: { markedAsSpoiler: false },
-      },
-    ]);
-
-    try {
-      const job = harness.api.prepareVideoCompression(rawVideo, 'balanced', encRoom, ROOM_ID)!;
-      harness.store.set(capturedAtom, { type: 'PUT', item: job.placeholder });
-      job.start();
-      await vi.waitFor(() => expect(mockCompressVideo).toHaveBeenCalledTimes(1));
-
-      // Simulate ThreadView unmount: evict the atom-family entry while waitForCompression is active,
-      // and also verify a second wait started after eviction with the captured atom still resolves.
-      let waitBeforeEvict!: Promise<TUploadItem[]>;
-      act(() => {
-        waitBeforeEvict = harness.api.waitForCompression([job.placeholder], ROOM_ID, capturedAtom);
-      });
-      harness.unmount();
-      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
-      expect(composerUploadItemsAtom(ROOM_ID, VIEW)).not.toBe(capturedAtom);
-      const waitAfterEvict = harness.api.waitForCompression(
-        [job.placeholder],
-        ROOM_ID,
-        capturedAtom
-      );
-
-      gate.resolve({
-        file: compressedVideo,
-        originalSize: rawVideo.size,
-        compressedSize: compressedVideo.size,
-      });
-
-      const [beforeResult, afterResult] = await Promise.all([waitBeforeEvict, waitAfterEvict]);
-      expect(prepSpy).toHaveBeenCalledWith([compressedVideo], encRoom, expect.any(Function));
-      for (const result of [beforeResult, afterResult]) {
-        expect(result).toEqual([
-          expect.objectContaining({
-            file: encryptedVideo,
-            originalFile: compressedVideo,
-            encInfo: { v: 'v2' },
-            compression: {
-              status: 'compressed',
-              sourceFile: rawVideo,
-              originalSize: rawVideo.size,
-            },
-          }),
-        ]);
-      }
-      expect(harness.store.get(capturedAtom)).toEqual(beforeResult);
-    } finally {
-      prepSpy.mockRestore();
-      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
-    }
   });
 });

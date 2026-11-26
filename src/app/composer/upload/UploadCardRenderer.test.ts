@@ -305,7 +305,6 @@ describe('upload card renderers', () => {
         progressAtom,
         cancel: vi.fn(),
         useOriginal: vi.fn(),
-        done: Promise.resolve(undefined),
       },
     };
 

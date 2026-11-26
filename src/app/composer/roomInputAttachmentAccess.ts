@@ -1,6 +1,11 @@
 import type { IContent, MatrixError, Room } from 'matrix-js-sdk';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-import { UploadStatus, type TUploadItem, type Upload } from '../matrix/state/upload';
+import {
+  isUploadItemReady,
+  UploadStatus,
+  type TUploadItem,
+  type Upload,
+} from '../matrix/state/upload';
 import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
 
 export const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size' as const;
@@ -31,9 +36,7 @@ export const hasSendableStagedFiles = ({
   if (staged.length === 0) return false;
   const uploadByFile = new Map(uploads.map((upload) => [upload.file, upload]));
   return staged.some(
-    (item) =>
-      item.compression?.status === 'compressing' ||
-      (!item.prepError && uploadByFile.get(item.file)?.status !== UploadStatus.Error)
+    (item) => isUploadItemReady(item) && uploadByFile.get(item.file)?.status !== UploadStatus.Error
   );
 };
 

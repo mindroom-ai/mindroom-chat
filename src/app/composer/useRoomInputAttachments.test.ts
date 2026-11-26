@@ -7,17 +7,12 @@ import { Room } from 'matrix-js-sdk';
 import { resetEditor } from '../editor/utils';
 import {
   composerUploadItemsAtom,
-  roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   getRoomInputDraftKey,
   clearRoomInputDrafts,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
-import {
-  ConversationViewContext,
-  HOME_ASK_VIEW,
-  composerStateKey,
-} from '../navigation/conversationView';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversationView';
 import * as uploadPreparation from '../matrix/send/roomInputUploadPreparation';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
@@ -25,8 +20,6 @@ import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { UploadBoardHeader } from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { createRoomInputPasteMarkerElement } from './RoomInputExtensions';
-import { handoffComposerDictationSend } from './dictation/dictationSendHandoff';
-import type { DictationFinishResult, DictationSession } from './dictation/dictationSession';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
@@ -111,12 +104,16 @@ const renderHarness = (
     sendingDeferred?: boolean;
     view?: string;
     draftKey?: string;
+    uploadContent?: ReturnType<typeof vi.fn>;
   }
 ) => {
   const store = createStore();
   const editor = createEditor();
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
-  const mx = { cancelUpload: vi.fn() };
+  const mx = {
+    cancelUpload: vi.fn(),
+    ...(options?.uploadContent ? { uploadContent: options.uploadContent } : {}),
+  };
   const initialRoom = makeTestRoom(ROOM_ID);
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   let saveDraft!: () => void;
@@ -714,7 +711,7 @@ describe('attachment staging ownership', () => {
     }
   });
 
-  it('compresses images inline on paste, tracks compressing hasSendableFiles, awaits compression in prepareForSend, cancels on remove, and updates canUseOriginal reactively', async () => {
+  it('compresses images inline, tracks isPreparing and ready-only hasSendableFiles, skips compressing items in prepareForSend, cancels on remove, and updates canUseOriginal reactively', async () => {
     vi.stubGlobal('VideoEncoder', class {});
     vi.stubGlobal('VideoDecoder', class {});
     mediaCompressMocks.compressImage.mockReset();
@@ -727,32 +724,45 @@ describe('attachment staging ownership', () => {
     };
 
     try {
-      // 1. Inline image compression via paste on Home Ask (deferUpload: true).
-      const rawImg = makeSized('shot.png', 'image/png', 100 * 1024);
-      const compressedImg = makeSized('shot.webp', 'image/webp', 20 * 1024);
-      mediaCompressMocks.compressImage.mockResolvedValueOnce({
-        file: compressedImg,
-        originalSize: rawImg.size,
-        compressedSize: compressedImg.size,
-      });
+      // 1. Inline image compression sets isPreparing / isPreparingNow until staging completes.
+      const rawImg = makeSized('shot.png', 'image/png', 200 * 1024);
+      const compressedImg = makeSized('shot.webp', 'image/webp', 40 * 1024);
+      let resolveImg!: (val: unknown) => void;
+      mediaCompressMocks.compressImage.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveImg = resolve;
+          })
+      );
 
-      const homeKey = 'home-compress';
       const harness = renderHarness(async () => [], {
-        stagedListKey: homeKey,
+        stagedListKey: 'home-ask-key',
         deferUpload: true,
-        view: HOME_ASK_VIEW,
-        draftKey: homeKey,
       });
-
-      await act(async () => {
+      act(() => {
         harness.feature.onPaste({
           clipboardData: { files: [rawImg], items: [], getData: () => '' },
           preventDefault: vi.fn(),
         } as never);
+      });
+      expect(harness.feature.isPreparingNow()).toBe(true);
+      expect(harness.feature.isPreparing).toBe(true);
+      expect(harness.feature.hasSendableFiles).toBe(false);
+
+      await vi.waitFor(() => expect(resolveImg).toBeTypeOf('function'));
+      await act(async () => {
+        resolveImg({
+          file: compressedImg,
+          originalSize: rawImg.size,
+          compressedSize: compressedImg.size,
+        });
         await Promise.resolve();
         await Promise.resolve();
       });
 
+      expect(harness.feature.isPreparingNow()).toBe(false);
+      expect(harness.feature.isPreparing).toBe(false);
+      expect(harness.feature.hasSendableFiles).toBe(true);
       const stagedImg = harness.feature.access.snapshot().staged[0];
       expect(stagedImg).toMatchObject({
         file: compressedImg,
@@ -771,11 +781,9 @@ describe('attachment staging ownership', () => {
       expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(false);
       act(() => harness.feature.access.clearEnrollment([stagedImg!.file]));
       expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
-
-      // Clean out image before testing video prepareForSend.
       act(() => harness.feature.access.remove(ROOM_ID, [stagedImg!.file]));
 
-      // 2. Async video compression + Home Ask prepareForSend awaiting compression + encryption.
+      // 2. Async video compression keeps isPreparing true, hasSendableFiles false, and prepareForSend skips unready placeholders.
       const rawVideo = makeSized('screen.mov', 'video/quicktime', 4 * 1024 * 1024);
       const compressedVideo = makeSized('screen.mp4', 'video/mp4', 700 * 1024);
       const encVideo = makeSized('screen.mp4', 'application/octet-stream', 700 * 1024);
@@ -796,10 +804,14 @@ describe('attachment staging ownership', () => {
       });
 
       expect(harness.feature.access.snapshot().staged[0]?.compression?.status).toBe('compressing');
-      expect(harness.feature.hasSendableFiles).toBe(true);
+      expect(harness.feature.isPreparing).toBe(true);
+      expect(harness.feature.isPreparingNow()).toBe(true);
+      expect(harness.feature.hasSendableFiles).toBe(false);
       expect(harness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(1);
 
       const encRoom = makeTestRoom('!enc-home:example.org', true);
+      expect(await harness.feature.prepareForSend(encRoom)).toEqual([]);
+
       const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
         {
           file: encVideo,
@@ -808,27 +820,35 @@ describe('attachment staging ownership', () => {
           metadata: { markedAsSpoiler: false },
         },
       ]);
-
-      let preparedPromise!: Promise<TUploadItem[]>;
-      act(() => {
-        preparedPromise = harness.feature.prepareForSend(encRoom);
-      });
       await act(async () => {
         resolveVideo({
           file: compressedVideo,
           originalSize: rawVideo.size,
           compressedSize: compressedVideo.size,
         });
-        await preparedPromise;
+        await new Promise((r) => setTimeout(r, 0));
       });
-      const prepared = await preparedPromise;
-      expect(prepared).toHaveLength(1);
-      expect(prepared[0]).toMatchObject({
-        file: encVideo,
-        originalFile: compressedVideo,
-        encInfo: { v: 'v2' },
-        compression: { status: 'compressed', sourceFile: rawVideo, originalSize: rawVideo.size },
+      await vi.waitFor(() => expect(harness.feature.isPreparing).toBe(false));
+      expect(harness.feature.isPreparingNow()).toBe(false);
+      expect(harness.feature.hasSendableFiles).toBe(true);
+      expect(harness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(0);
+
+      let prepared!: TUploadItem[];
+      await act(async () => {
+        prepared = await harness.feature.prepareForSend(encRoom);
       });
+      expect(prepared).toEqual([
+        expect.objectContaining({
+          file: encVideo,
+          originalFile: compressedVideo,
+          encInfo: { v: 'v2' },
+          compression: {
+            status: 'compressed',
+            sourceFile: rawVideo,
+            originalSize: rawVideo.size,
+          },
+        }),
+      ]);
       prepSpy.mockRestore();
 
       // 3. Removing a compressing placeholder cancels compression and evicts its roomUploadAtomFamily key.
@@ -844,7 +864,6 @@ describe('attachment staging ownership', () => {
           progressAtom: atom(0.2),
           cancel: cancelSpy,
           useOriginal: vi.fn(),
-          done: Promise.resolve(undefined),
         },
       };
       const removeAtomSpy = vi.spyOn(roomUploadAtomFamily, 'remove');
@@ -856,102 +875,66 @@ describe('attachment staging ownership', () => {
       expect(cancelSpy).toHaveBeenCalledTimes(1);
       expect(removeAtomSpy).toHaveBeenCalledWith(pendingFile);
       removeAtomSpy.mockRestore();
+      harness.renderer.unmount();
 
-      // 4. Non-deferred room prepareForSend awaits both in-flight stageFiles and compressing video,
-      // and hides Use original while waiting on compression.
-      const normalImg = makeSized('paste.png', 'image/png', 100 * 1024);
-      const normalCompressed = makeSized('paste.webp', 'image/webp', 25 * 1024);
-      let resolvePaste!: (val: unknown) => void;
-      mediaCompressMocks.compressImage.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolvePaste = resolve;
-          })
-      );
-      const normalRoom = makeTestRoom(ROOM_ID, false);
-      const normalHarness = renderHarness(
-        async (files) =>
-          files.map((file) => ({
-            file,
-            originalFile: file,
-            encInfo: undefined,
-            metadata: { markedAsSpoiler: false },
-          })),
-        { deferUpload: false }
-      );
-      act(() => {
-        normalHarness.feature.onPaste({
-          clipboardData: { files: [normalImg], items: [], getData: () => '' },
-          preventDefault: vi.fn(),
-        } as never);
+      // 4. Collapsed board survival: video keeps compressing when cards unmount and auto-uploads when ready.
+      const uploadContent = vi.fn(() => new Promise<{ content_uri: string }>(() => {}));
+      const normalHarness = renderHarness(async () => [], {
+        deferUpload: false,
+        uploadContent,
       });
-      expect(normalHarness.feature.snapshotPendingStaging()).toHaveLength(1);
-      const pendingPrepare = normalHarness.feature.prepareForSend(normalRoom);
-      await vi.waitFor(() => expect(resolvePaste).toBeTypeOf('function'));
-      await act(async () => {
-        resolvePaste({
-          file: normalCompressed,
-          originalSize: normalImg.size,
-          compressedSize: normalCompressed.size,
-        });
-        await pendingPrepare;
-      });
-      expect(normalHarness.feature.snapshotPendingStaging()).toHaveLength(0);
-      expect(await pendingPrepare).toEqual([
-        expect.objectContaining({ file: normalCompressed, originalFile: normalCompressed }),
-      ]);
-
-      // Clean out image, then verify non-deferred prepareForSend awaits compressing video and hides Use original.
-      act(() => normalHarness.feature.access.remove(ROOM_ID, [normalCompressed]));
-      const roomRawVideo = makeSized('room.mov', 'video/quicktime', 4 * 1024 * 1024);
-      const roomCompVideo = makeSized('room.mp4', 'video/mp4', 800 * 1024);
-      let resolveRoomVideo!: (val: unknown) => void;
+      const collapsedVideo = makeSized('collapsed.mov', 'video/quicktime', 3 * 1024 * 1024);
+      const compressedCollapsed = makeSized('collapsed.mp4', 'video/mp4', 500 * 1024);
+      let resolveCollapsed!: (val: unknown) => void;
       mediaCompressMocks.compressVideo.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            resolveRoomVideo = resolve;
+            resolveCollapsed = resolve;
           })
       );
+      const prepCollapsedSpy = vi
+        .spyOn(uploadPreparation, 'createRoomUploadItems')
+        .mockResolvedValueOnce([
+          {
+            file: compressedCollapsed,
+            originalFile: compressedCollapsed,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+          },
+        ]);
+
       await act(async () => {
         normalHarness.feature.onPaste({
-          clipboardData: { files: [roomRawVideo], items: [], getData: () => '' },
+          clipboardData: { files: [collapsedVideo], items: [], getData: () => '' },
           preventDefault: vi.fn(),
         } as never);
         await Promise.resolve();
       });
-      expect(normalHarness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(
-        true
-      );
-      let roomPreparePromise!: Promise<TUploadItem[]>;
-      await act(async () => {
-        roomPreparePromise = normalHarness.feature.prepareForSend(normalRoom);
-        await Promise.resolve();
+      expect(normalHarness.feature.isPreparing).toBe(true);
+      // Collapse the board so UploadCardRenderer unmounts while compression is active.
+      act(() => {
+        normalHarness.renderer.root.findByType(UploadBoardHeader).props.onToggle();
       });
-      expect(normalHarness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(
-        false
+      expect(normalHarness.renderer.root.findAllByType(UploadCardRenderer)).toHaveLength(0);
+      expect(normalHarness.renderer.root.findByType(UploadBoardHeader).props.compressingCount).toBe(
+        1
       );
-      await vi.waitFor(() => expect(resolveRoomVideo).toBeTypeOf('function'));
+      expect(uploadContent).not.toHaveBeenCalled();
+
       await act(async () => {
-        resolveRoomVideo({
-          file: roomCompVideo,
-          originalSize: roomRawVideo.size,
-          compressedSize: roomCompVideo.size,
+        resolveCollapsed({
+          file: compressedCollapsed,
+          originalSize: collapsedVideo.size,
+          compressedSize: compressedCollapsed.size,
         });
-        await roomPreparePromise;
+        await new Promise((r) => setTimeout(r, 0));
       });
-      expect(await roomPreparePromise).toEqual([
-        expect.objectContaining({
-          file: roomCompVideo,
-          compression: {
-            status: 'compressed',
-            sourceFile: roomRawVideo,
-            originalSize: roomRawVideo.size,
-          },
-        }),
-      ]);
-      expect(normalHarness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(
-        true
-      );
+      await vi.waitFor(() => expect(normalHarness.feature.isPreparing).toBe(false));
+      expect(normalHarness.feature.hasSendableFiles).toBe(true);
+      expect(uploadContent).toHaveBeenCalledTimes(1);
+      expect(uploadContent.mock.calls[0]?.[0]).toBe(compressedCollapsed);
+      prepCollapsedSpy.mockRestore();
+      normalHarness.renderer.unmount();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1017,353 +1000,5 @@ describe('attachment staging ownership', () => {
     };
     act(() => harness.feature.access.append(ROOM_ID, [stagedAgain]));
     expect(harness.renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
-  });
-
-  it('preserves already-uploaded and compressing explicit items in prepareForSend after ThreadView evicts roomIdToUploadItemsAtomFamily', async () => {
-    vi.stubGlobal('VideoEncoder', class {});
-    vi.stubGlobal('VideoDecoder', class {});
-    mediaCompressMocks.compressVideo.mockReset();
-
-    const VIEW = 'thread-view-evict';
-    const encRoom = makeTestRoom(ROOM_ID, true);
-    const rawVideo = new File(['raw-video'], 'clip.mov', { type: 'video/quicktime' });
-    Object.defineProperty(rawVideo, 'size', { value: 4 * 1024 * 1024 });
-    const compressedVideo = new File(['mp4'], 'clip.mp4', { type: 'video/mp4' });
-    Object.defineProperty(compressedVideo, 'size', { value: 650 * 1024 });
-    const encryptedVideo = new File(['cipher-mp4'], 'clip.mp4', {
-      type: 'application/octet-stream',
-    });
-
-    let resolveVideo!: (val: unknown) => void;
-    mediaCompressMocks.compressVideo.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveVideo = resolve;
-        })
-    );
-    const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
-      {
-        file: encryptedVideo,
-        originalFile: compressedVideo,
-        encInfo: { v: 'v2' } as never,
-        metadata: { markedAsSpoiler: false },
-      },
-    ]);
-
-    try {
-      const harness = renderHarness(async () => [], { deferUpload: false, view: VIEW });
-      harness.changeRoom(ROOM_ID, encRoom);
-      const keptShot = createUploadItem('kept-shot.png');
-      const removedShot = createUploadItem('removed-shot.png');
-      act(() => {
-        harness.feature.access.append(ROOM_ID, [keptShot, removedShot]);
-        harness.store.set(roomUploadAtomFamily(keptShot.file), { mxc: 'mxc://example.org/kept' });
-      });
-      await act(async () => {
-        harness.feature.onPaste({
-          clipboardData: { files: [rawVideo], items: [], getData: () => '' },
-          preventDefault: vi.fn(),
-        } as never);
-        await Promise.resolve();
-      });
-      await vi.waitFor(() => expect(resolveVideo).toBeTypeOf('function'));
-
-      const videoPlaceholder = harness.feature.access
-        .snapshot()
-        .staged.find((item) => item.compression?.status === 'compressing')!;
-      expect(videoPlaceholder).toBeDefined();
-
-      // Explicitly remove one screenshot before closing ThreadView.
-      act(() => {
-        harness.feature.access.remove(ROOM_ID, [removedShot.file]);
-      });
-
-      const capturedPrepareForSend = harness.feature.prepareForSend;
-
-      // Simulate ThreadView close: unmount composer and evict its atom-family entry.
-      act(() => {
-        harness.renderer.unmount();
-        roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
-      });
-      expect(harness.store.get(composerUploadItemsAtom(ROOM_ID, VIEW))).toEqual([]);
-
-      // 1. Already-uploaded explicit items (non-compressing path) stay intact; explicitly removed item stays dropped.
-      const readyOnly = await capturedPrepareForSend(encRoom, [keptShot, removedShot]);
-      expect(readyOnly).toEqual([keptShot]);
-
-      // 2. Mixed already-uploaded screenshot + compressing video awaits compression, encrypts, and keeps both.
-      const mixedPromise = capturedPrepareForSend(encRoom, [keptShot, videoPlaceholder]);
-      resolveVideo({
-        file: compressedVideo,
-        originalSize: rawVideo.size,
-        compressedSize: compressedVideo.size,
-      });
-      const mixedReady = await mixedPromise;
-      expect(prepSpy).toHaveBeenCalledWith([compressedVideo], encRoom, expect.any(Function));
-      expect(mixedReady).toEqual([
-        keptShot,
-        expect.objectContaining({
-          file: encryptedVideo,
-          originalFile: compressedVideo,
-          encInfo: { v: 'v2' },
-          compression: {
-            status: 'compressed',
-            sourceFile: rawVideo,
-            originalSize: rawVideo.size,
-          },
-        }),
-      ]);
-    } finally {
-      prepSpy.mockRestore();
-      vi.unstubAllGlobals();
-      roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
-    }
-  });
-
-  it('delivers already-uploaded screenshot and compressing video on detached dictation Finish & Send after ThreadView eviction', async () => {
-    vi.stubGlobal('VideoEncoder', class {});
-    vi.stubGlobal('VideoDecoder', class {});
-    mediaCompressMocks.compressVideo.mockReset();
-
-    const VIEW = 'thread-dictation-evict';
-    const viewKey = composerStateKey(ROOM_ID, VIEW);
-
-    const makeSession = () => {
-      let resolveFinish!: (res: DictationFinishResult) => void;
-      const finishPromise = new Promise<DictationFinishResult>((resolve) => {
-        resolveFinish = resolve;
-      });
-      const session = {
-        getJournalId: () => undefined,
-        finish: () => finishPromise,
-        retryFailed: vi.fn(),
-        takePartialText: () => ({ text: '' }),
-        discard: vi.fn(async () => undefined),
-        reset: vi.fn(),
-      } as unknown as DictationSession;
-      return { session, resolveFinish };
-    };
-
-    try {
-      // Case 1: Already-uploaded screenshot only -> ThreadView closes and evicts family entry -> NOT dropped.
-      {
-        const plainRoom = makeTestRoom(ROOM_ID, false);
-        const harness = renderHarness(async () => [], { deferUpload: false, view: VIEW });
-        harness.changeRoom(ROOM_ID, plainRoom);
-        const shot = createUploadItem('already-uploaded.png');
-        act(() => {
-          harness.feature.access.append(ROOM_ID, [shot]);
-          harness.store.set(roomUploadAtomFamily(shot.file), { mxc: 'mxc://example.org/shot' });
-        });
-
-        const startSendSession = vi.fn(async () => undefined);
-        const { session, resolveFinish } = makeSession();
-        const mx = {
-          getRoom: (id: string) => (id === ROOM_ID ? plainRoom : undefined),
-          cancelUpload: vi.fn(),
-        };
-
-        act(() => {
-          handoffComposerDictationSend({
-            store: harness.store,
-            mx: mx as never,
-            ownerKey: `${ROOM_ID}:thread-only`,
-            draftKey: getRoomInputDraftKey('@tester:example.org', ROOM_ID, '$t1'),
-            roomName: 'General',
-            room: plainRoom,
-            roomId: ROOM_ID,
-            threadId: '$t1',
-            threadingEnabled: true,
-            composerContext: { roomId: ROOM_ID, threadId: '$t1' },
-            editor: harness.editor,
-            session,
-            savedSelection: null,
-            midTurnMode: 'queue',
-            explicitMidTurnMode: false,
-            isMarkdown: true,
-            ownUserId: '@tester:example.org',
-            parseCommands: false,
-            commands: {},
-            attachments: harness.feature.access,
-            sessions: { startSendSession, restoreText: vi.fn() },
-            restoreReplyDraft: vi.fn(),
-            takeRootModelDraft: () => undefined,
-            uploadItem: vi.fn(async () => 'mxc://example.org/shot'),
-            prepareAttachmentsForSend: harness.feature.prepareForSend,
-            clearReplyDraft: vi.fn(),
-            resetComposer: vi.fn(),
-            stopTyping: vi.fn(),
-          });
-        });
-
-        // Simulate ThreadView close before dictation finishes.
-        act(() => {
-          harness.renderer.unmount();
-          roomIdToUploadItemsAtomFamily.remove(viewKey);
-        });
-        expect(harness.store.get(composerUploadItemsAtom(ROOM_ID, VIEW))).toEqual([]);
-
-        await act(async () => {
-          resolveFinish({ status: 'completed', text: 'See attached screenshot' });
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-        });
-        await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
-        expect(startSendSession).toHaveBeenCalledWith(
-          expect.objectContaining({
-            textContent: expect.objectContaining({ body: 'See attached screenshot' }),
-            batch: { fileItems: [shot] },
-          })
-        );
-        roomIdToUploadItemsAtomFamily.remove(viewKey);
-      }
-
-      // Case 2: Already-uploaded screenshot + compressing video in an encrypted ThreadView.
-      {
-        const encRoom = makeTestRoom(ROOM_ID, true);
-        const rawVideo = new File(['raw-video'], 'dict-clip.mov', { type: 'video/quicktime' });
-        Object.defineProperty(rawVideo, 'size', { value: 4 * 1024 * 1024 });
-        const compressedVideo = new File(['mp4'], 'dict-clip.mp4', { type: 'video/mp4' });
-        Object.defineProperty(compressedVideo, 'size', { value: 550 * 1024 });
-        const encryptedVideo = new File(['cipher-mp4'], 'dict-clip.mp4', {
-          type: 'application/octet-stream',
-        });
-
-        let resolveVideo!: (val: unknown) => void;
-        mediaCompressMocks.compressVideo.mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              resolveVideo = resolve;
-            })
-        );
-        const prepSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems').mockResolvedValueOnce([
-          {
-            file: encryptedVideo,
-            originalFile: compressedVideo,
-            encInfo: { v: 'v2' } as never,
-            metadata: { markedAsSpoiler: false },
-          },
-        ]);
-
-        try {
-          const harness = renderHarness(async () => [], { deferUpload: false, view: VIEW });
-          harness.changeRoom(ROOM_ID, encRoom);
-          const shot: TUploadItem = {
-            ...createUploadItem('enc-shot.png'),
-            encInfo: { v: 'v2' } as never,
-          };
-          act(() => {
-            harness.feature.access.append(ROOM_ID, [shot]);
-            harness.store.set(roomUploadAtomFamily(shot.file), {
-              mxc: 'mxc://example.org/enc-shot',
-            });
-          });
-          await act(async () => {
-            harness.feature.onPaste({
-              clipboardData: { files: [rawVideo], items: [], getData: () => '' },
-              preventDefault: vi.fn(),
-            } as never);
-            await Promise.resolve();
-          });
-          await vi.waitFor(() => expect(resolveVideo).toBeTypeOf('function'));
-
-          const uploadItem = vi.fn(async () => 'mxc://example.org/enc-vid');
-          const startSendSession = vi.fn(async () => undefined);
-          const { session, resolveFinish } = makeSession();
-          const mx = {
-            getRoom: (id: string) => (id === ROOM_ID ? encRoom : undefined),
-            cancelUpload: vi.fn(),
-          };
-
-          act(() => {
-            handoffComposerDictationSend({
-              store: harness.store,
-              mx: mx as never,
-              ownerKey: `${ROOM_ID}:thread-combo`,
-              draftKey: getRoomInputDraftKey('@tester:example.org', ROOM_ID, '$t2'),
-              roomName: 'General',
-              room: encRoom,
-              roomId: ROOM_ID,
-              threadId: '$t2',
-              threadingEnabled: true,
-              composerContext: { roomId: ROOM_ID, threadId: '$t2' },
-              editor: harness.editor,
-              session,
-              savedSelection: null,
-              midTurnMode: 'queue',
-              explicitMidTurnMode: false,
-              isMarkdown: true,
-              ownUserId: '@tester:example.org',
-              parseCommands: false,
-              commands: {},
-              attachments: harness.feature.access,
-              sessions: { startSendSession, restoreText: vi.fn() },
-              restoreReplyDraft: vi.fn(),
-              takeRootModelDraft: () => undefined,
-              uploadItem,
-              prepareAttachmentsForSend: harness.feature.prepareForSend,
-              clearReplyDraft: vi.fn(),
-              resetComposer: vi.fn(),
-              stopTyping: vi.fn(),
-            });
-          });
-
-          // Simulate ThreadView close before dictation and video compression settle.
-          act(() => {
-            harness.renderer.unmount();
-            roomIdToUploadItemsAtomFamily.remove(viewKey);
-          });
-          expect(harness.store.get(composerUploadItemsAtom(ROOM_ID, VIEW))).toEqual([]);
-
-          await act(async () => {
-            resolveFinish({ status: 'completed', text: 'Look at both files' });
-            await Promise.resolve();
-            await Promise.resolve();
-          });
-          expect(startSendSession).not.toHaveBeenCalled();
-
-          await act(async () => {
-            resolveVideo({
-              file: compressedVideo,
-              originalSize: rawVideo.size,
-              compressedSize: compressedVideo.size,
-            });
-            await Promise.resolve();
-            await Promise.resolve();
-            await Promise.resolve();
-          });
-          await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
-          expect(prepSpy).toHaveBeenCalledWith([compressedVideo], encRoom, expect.any(Function));
-          expect(uploadItem).toHaveBeenCalledWith(
-            expect.objectContaining({
-              file: encryptedVideo,
-              originalFile: compressedVideo,
-              encInfo: { v: 'v2' },
-            })
-          );
-          expect(startSendSession).toHaveBeenCalledWith(
-            expect.objectContaining({
-              textContent: expect.objectContaining({ body: 'Look at both files' }),
-              batch: {
-                fileItems: [
-                  shot,
-                  expect.objectContaining({
-                    file: encryptedVideo,
-                    originalFile: compressedVideo,
-                    encInfo: { v: 'v2' },
-                  }),
-                ],
-              },
-            })
-          );
-        } finally {
-          prepSpy.mockRestore();
-        }
-      }
-    } finally {
-      vi.unstubAllGlobals();
-      roomIdToUploadItemsAtomFamily.remove(viewKey);
-    }
   });
 });

@@ -1,26 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, type RefObject } from 'react';
 import { atom, type createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { TUploadContent } from '../matrix/matrix';
+import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { type TUploadItem, type UploadCompression, UploadStatus } from '../matrix/state/upload';
 import {
   isEligibleImageForCompression,
   isEligibleVideoForCompression,
 } from '../lib/media/mediaCompressionEligibility';
-import type { TUploadContent } from '../matrix/matrix';
-import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-import {
-  isUploadItemReady,
-  UploadStatus,
-  type TUploadAtom,
-  type TUploadItem,
-  type UploadCompression,
-} from '../matrix/state/upload';
 import {
   getImageCompressionSpec,
   getVideoCompressionSpec,
   type MediaCompressionPreset,
 } from '../preferences/mediaCompression';
 import { getMediaCompressionGeneration, registerMediaCompressionJob } from './mediaCompressionJobs';
-import type { StagedList } from './roomInputDrafts';
+import { roomUploadAtomFamily, type StagedList } from './roomInputDrafts';
 
 const IMAGE_COMPRESSION_CONCURRENCY = 2;
 const DEFAULT_META = { markedAsSpoiler: false };
@@ -33,12 +27,7 @@ export type CompressedInlineFile = {
 export type PendingVideoCompression = {
   placeholder: TUploadItem;
   start: () => void;
-  discard: () => void;
-};
-
-type UploadAtomFamily = {
-  (file: TUploadContent): TUploadAtom;
-  remove: (file: TUploadContent) => void;
+  cancel: () => void;
 };
 
 export type UseMediaCompressionOptions = {
@@ -46,14 +35,13 @@ export type UseMediaCompressionOptions = {
   store: ReturnType<typeof createStore>;
   current: RefObject<{ room: Room; roomId: string }>;
   deferUpload: boolean;
+  sendingDeferred?: boolean;
   maxUploadSize: number | undefined;
   owners: RefObject<Map<TUploadContent, string | undefined>>;
   enrolled: RefObject<TUploadItem[]>;
   getTargetAtom: (roomId: string) => StagedList;
-  uploadAtomFamily: UploadAtomFamily;
   keepNames: (roomId: string) => void;
   syncUploadWatches: () => void;
-  replaceEnrolled?: (oldFile: TUploadContent, replacement: TUploadItem) => void;
   notify: () => void;
 };
 
@@ -83,12 +71,12 @@ const replaceStagedItem = (
   liveItem: TUploadItem,
   replacement: TUploadItem
 ): void => {
-  const { store, owners, enrolled, uploadAtomFamily } = opts;
+  const { store, owners } = opts;
   if (replacement.file !== liveItem.file) {
     const owner = owners.current.get(liveItem.file);
     if (owners.current.delete(liveItem.file)) owners.current.set(replacement.file, owner);
   }
-  const nextUploadAtom = uploadAtomFamily(replacement.file);
+  const nextUploadAtom = roomUploadAtomFamily(replacement.file);
   if (replacement.prepError) {
     store.set(nextUploadAtom, { error: replacement.prepError });
   } else if (
@@ -98,9 +86,7 @@ const replaceStagedItem = (
     store.set(nextUploadAtom, { status: UploadStatus.Idle });
   }
   store.set(targetAtom, { type: 'REPLACE', item: liveItem, replacement });
-  if (opts.replaceEnrolled) opts.replaceEnrolled(liveItem.file, replacement);
-  else enrolled.current = enrolled.current.map((e) => (e.file === liveItem.file ? replacement : e));
-  if (replacement.file !== liveItem.file) uploadAtomFamily.remove(liveItem.file);
+  if (replacement.file !== liveItem.file) roomUploadAtomFamily.remove(liveItem.file);
   opts.keepNames(roomId);
   opts.syncUploadWatches();
   opts.notify();
@@ -117,46 +103,33 @@ const createPendingJob = (
 ) => {
   const controller = new AbortController();
   const startGen = getMediaCompressionGeneration();
+  const progressAtom = atom(initialProgress);
   let preferOriginal = false;
-  let started = false;
   let finished = false;
   let unregister: (() => void) | undefined;
-  let resolveDone!: (item: TUploadItem | undefined) => void;
-  const done = new Promise<TUploadItem | undefined>((r) => {
-    resolveDone = r;
-  });
-  const settle = (item: TUploadItem | undefined) => {
-    if (finished) return;
+  const finish = () => {
     finished = true;
     unregister?.();
     unregister = undefined;
-    resolveDone(item);
   };
-  const progressAtom = atom(initialProgress);
   const compression: Extract<UploadCompression, { status: 'compressing' }> = {
     status: 'compressing',
     progressAtom,
     cancel: () => {
       preferOriginal = false;
       controller.abort();
-      settle(undefined);
+      finish();
     },
     useOriginal: () => {
       if (!allowUseOriginal || finished) return;
       preferOriginal = true;
       controller.abort();
     },
-    done,
   };
-  const findLive = () => {
-    const opts = optsRef.current;
-    const stale =
-      getMediaCompressionGeneration() !== startGen ||
-      (controller.signal.aborted && !preferOriginal);
-    return stale
+  const findLive = () =>
+    getMediaCompressionGeneration() !== startGen || (controller.signal.aborted && !preferOriginal)
       ? undefined
-      : opts.store.get(targetAtom).find((e) => e.compression === compression);
-  };
+      : optsRef.current.store.get(targetAtom).find((e) => e.compression === compression);
   const placeholder: TUploadItem = {
     file,
     originalFile: file,
@@ -166,35 +139,31 @@ const createPendingJob = (
   };
   return {
     signal: controller.signal,
-    compression,
     placeholder,
+    cancel: compression.cancel,
+    wantsOriginal: () => preferOriginal,
     setProgress: (p: number) => {
       if (!controller.signal.aborted) optsRef.current.store.set(progressAtom, p);
     },
     findLive,
-    wantsOriginal: () => preferOriginal,
-    discard: () => {
-      if (!started) compression.cancel();
-    },
     run: (work: () => Promise<void>) => {
-      if (started || finished) return Promise.resolve();
-      started = true;
+      if (finished) return Promise.resolve();
       unregister = registerMediaCompressionJob(controller, () => {
-        optsRef.current.uploadAtomFamily.remove(file);
-        settle(undefined);
+        roomUploadAtomFamily.remove(file);
+        finish();
       });
-      return work().catch(() => settle(undefined));
+      return work()
+        .catch(() => undefined)
+        .finally(finish);
     },
     commit: (prepared: TUploadItem | undefined, nextCompression?: UploadCompression) => {
       const liveAfter = findLive();
-      if (!prepared || !liveAfter) return settle(undefined);
-      const replacement: TUploadItem = {
+      if (!prepared || !liveAfter) return;
+      replaceStagedItem(optsRef.current, targetAtom, roomId, liveAfter, {
         ...prepared,
         metadata: liveAfter.metadata,
         ...(nextCompression && !prepared.prepError ? { compression: nextCompression } : {}),
-      };
-      replaceStagedItem(optsRef.current, targetAtom, roomId, liveAfter, replacement);
-      settle(replacement);
+      });
     },
   };
 };
@@ -221,7 +190,7 @@ const runInlineImageCompression = async (
 
   const entries: CompressedInlineFile[] = files.map((file) => ({ file }));
   let next = 0;
-  const run = async () => {
+  const worker = async () => {
     while (next < eligible.length) {
       const idx = eligible[next]!;
       next += 1;
@@ -237,12 +206,12 @@ const runInlineImageCompression = async (
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(IMAGE_COMPRESSION_CONCURRENCY, eligible.length) }, run)
+    Array.from({ length: Math.min(IMAGE_COMPRESSION_CONCURRENCY, eligible.length) }, worker)
   );
   return entries;
 };
 
-const createVideoCompressionJob = (
+const createPendingVideo = (
   optsRef: OptsRef,
   rawFile: File,
   preset: MediaCompressionPreset,
@@ -255,10 +224,9 @@ const createVideoCompressionJob = (
   }
   const targetAtom = optsRef.current.getTargetAtom(roomId);
   const job = createPendingJob(optsRef, rawFile, roomId, targetAtom, 0, true);
-
   return {
     placeholder: job.placeholder,
-    discard: job.discard,
+    cancel: job.cancel,
     start: () => {
       void job.run(async () => {
         // Keep video compressor behind a dynamic import so mediabunny contributes 0 bytes to initial.
@@ -280,8 +248,7 @@ const createVideoCompressionJob = (
                 }
                 return undefined;
               });
-
-        if (!job.findLive()) return job.commit(undefined);
+        if (!job.findLive()) return;
         let usedCompressed = !job.wantsOriginal() && result !== undefined;
         let prepared = await prepareItemFile(
           optsRef.current,
@@ -305,18 +272,11 @@ const createVideoCompressionJob = (
   };
 };
 
-const restoreOriginalItem = async (
-  optsRef: OptsRef,
-  waitingCountRef: RefObject<number>,
-  item: TUploadItem
-): Promise<void> => {
+const restoreOriginalItem = async (optsRef: OptsRef, item: TUploadItem): Promise<void> => {
   const opts = optsRef.current;
-  if (waitingCountRef.current > 0 || opts.enrolled.current.some((e) => e.file === item.file)) {
-    return;
-  }
+  if (opts.sendingDeferred || opts.enrolled.current.some((e) => e.file === item.file)) return;
   if (item.compression?.status === 'compressing') {
     item.compression.useOriginal();
-    await item.compression.done;
     return;
   }
   if (item.compression?.status !== 'compressed') return;
@@ -326,10 +286,10 @@ const restoreOriginalItem = async (
   const liveBefore = opts.store.get(targetAtom).find((e) => e.file === item.file);
   if (!liveBefore || liveBefore.compression?.status !== 'compressed') return;
 
-  const currentUpload = opts.store.get(opts.uploadAtomFamily(liveBefore.file));
+  const currentUpload = opts.store.get(roomUploadAtomFamily(liveBefore.file));
   if (currentUpload.status === UploadStatus.Loading) {
     opts.mx.cancelUpload(currentUpload.promise);
-    opts.store.set(opts.uploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
+    opts.store.set(roomUploadAtomFamily(liveBefore.file), { status: UploadStatus.Idle });
   }
 
   const { sourceFile } = liveBefore.compression;
@@ -342,7 +302,7 @@ const restoreOriginalItem = async (
     false,
     liveBefore.metadata
   );
-  // Synchronously replace so pressing Send during encryption awaits `done` and sends the original.
+  // Synchronously stage a brief preparing placeholder so Send stays disabled during re-encryption.
   replaceStagedItem(opts, targetAtom, roomId, liveBefore, job.placeholder);
   await job.run(async () => {
     const prepared = await prepareItemFile(optsRef.current, sourceFile, roomId, room);
@@ -353,66 +313,20 @@ const restoreOriginalItem = async (
 /**
  * Manages client-side image and video compression for staged composer attachments:
  * inline image compression (concurrency 2), async video transcoding with progress,
- * per-item "Use original" override, and waiting for active compressions on Send.
+ * and per-item "Use original" override.
  */
 export const useMediaCompression = (options: UseMediaCompressionOptions) => {
   const optsRef = useRef(options);
   optsRef.current = options;
-  const mountedRef = useRef(true);
-  const waitingCountRef = useRef(0);
-  const [waitingForCompression, setWaitingForCompression] = useState(false);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const methods = useMemo(
+  return useMemo(
     () => ({
       compressInlineImages: (files: readonly File[], preset: MediaCompressionPreset) =>
         runInlineImageCompression(optsRef, files, preset),
-      prepareVideoCompression: (
-        file: File,
-        preset: MediaCompressionPreset,
-        room: Room,
-        id: string
-      ) => createVideoCompressionJob(optsRef, file, preset, room, id),
-      useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, waitingCountRef, item),
-      waitForCompression: async (
-        items: readonly TUploadItem[],
-        targetRoomId: string = optsRef.current.current.current.roomId,
-        capturedTargetAtom?: StagedList
-      ): Promise<TUploadItem[]> => {
-        const { getTargetAtom, store } = optsRef.current;
-        const targetAtom = capturedTargetAtom ?? getTargetAtom(targetRoomId);
-        const startGen = getMediaCompressionGeneration();
-        const hasCompressing = items.some((item) => item.compression?.status === 'compressing');
-        if (hasCompressing) {
-          waitingCountRef.current += 1;
-          if (mountedRef.current) setWaitingForCompression(true);
-        }
-        try {
-          const resolved = await Promise.all(
-            items.map((i) => (i.compression?.status === 'compressing' ? i.compression.done : i))
-          );
-          if (getMediaCompressionGeneration() !== startGen) return [];
-          const liveByFile = new Map(store.get(targetAtom).map((e) => [e.file, e]));
-          return resolved.flatMap((i) => {
-            const live = i && liveByFile.get(i.file);
-            return live && isUploadItemReady(live) ? [live] : [];
-          });
-        } finally {
-          if (hasCompressing) {
-            waitingCountRef.current -= 1;
-            if (mountedRef.current) setWaitingForCompression(waitingCountRef.current > 0);
-          }
-        }
-      },
+      createPendingVideo: (file: File, preset: MediaCompressionPreset, room: Room, id: string) =>
+        createPendingVideo(optsRef, file, preset, room, id),
+      useOriginal: (item: TUploadItem) => restoreOriginalItem(optsRef, item),
     }),
     []
   );
-
-  return { ...methods, waitingForCompression };
 };

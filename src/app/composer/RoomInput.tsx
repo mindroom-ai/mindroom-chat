@@ -61,10 +61,9 @@ import {
   keepReplyDraft,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
-  roomUploadAtomFamily,
   composerReplyDraftAtom,
 } from './roomInputDrafts';
-import { isUploadItemReady, UploadStatus, type TUploadItem } from '../matrix/state/upload';
+import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { ConversationViewContext, useConversationHidden } from '../navigation/conversationView';
 import { settingsAtom } from '../preferences/settings';
@@ -100,11 +99,8 @@ import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import {
-  getTooLargeError,
   hasMissingPasteAttachmentForText,
-  hasPasteMarkerInText,
   hasSendableStagedFiles,
-  MEDIA_UPLOAD_SIZE_KEY,
   prepareAndUploadDeferredAttachments,
 } from './roomInputAttachmentAccess';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
@@ -128,9 +124,6 @@ import { useThreadStreamingState } from '../event-store/threads/useThreadStreami
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
-import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
-import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
-import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import { listSessions } from '../matrix/session/sessions';
 import { captureAccountGuard } from './capture/liveCapture';
 
@@ -326,11 +319,6 @@ export function RoomInput({
     []
   );
   const [submitPending, setSubmitPending] = useState(false);
-  const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
-  const pendingCompressionQueuesRef = useRef(
-    new Map<string, { count: number; tail: Promise<void>; replyDraft?: IReplyDraft }>()
-  );
-  const pendingCompressionFilesRef = useRef(new Set<TUploadContent>());
   const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
   // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
   // It changes only as it flips, so typing renders nothing more.
@@ -649,6 +637,7 @@ export function RoomInput({
     ) => {
       const voiceOnly = options?.voiceOnly === true;
       if (voiceActive && voice.blocksSubmit()) return;
+      if (attachments.isPreparingNow()) return;
       const mode = explicitMode ?? midTurnSend;
       const liveDictation = voiceOnly ? 'idle' : dictation.getLiveStatus();
       if (liveDictation === 'blocked') return;
@@ -661,13 +650,6 @@ export function RoomInput({
             return;
           }
           if (settlePastes() !== true) return;
-        }
-        const capturedDictationStaging = attachments.snapshotPendingStaging();
-        if (capturedDictationStaging.length > 0) {
-          await attachments.waitForPendingStaging(capturedDictationStaging);
-          if (!mountedRef.current || dictationHandoffRef.current.composerKey !== startKey) {
-            return;
-          }
         }
         const { composerKey: _composerKey, ...live } = dictationHandoffRef.current;
         if (isLocalEchoEventId(live.threadId) || (live.ask && !live.ask.canSend())) return;
@@ -690,7 +672,7 @@ export function RoomInput({
           restoreRootModelDraft: (target, content) =>
             getModelController(mx).restoreRootModelDraft(target, content),
           uploadItem: transport.uploadItem,
-          prepareAttachmentsForSend: attachments.prepareForSend,
+          prepareAttachmentsForSend: live.ask ? attachments.prepareForSend : undefined,
           clearReplyDraft,
           resetComposer: composer.resetText,
           stopTyping: () => sendTypingStatus(false),
@@ -747,196 +729,16 @@ export function RoomInput({
       if (settled !== true && !(await settled)) return;
       if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
       const textContent = takeText();
-      const capturedStaging = attachments.snapshotPendingStaging();
-      const hasCapturedStaging = capturedStaging.length > 0;
       // With nothing to send on Home, there is no send to track.
-      if (ask && !textContent && !attachments.hasSendableFiles && !hasCapturedStaging) return;
+      if (ask && !textContent && !attachments.hasSendableFiles) return;
       const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
       if (
         ask &&
         !attachments.hasSendableFiles &&
-        !hasCapturedStaging &&
         hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
       ) {
         return;
       }
-      const startIdleUploads = (targetRoom: Room, items: readonly TUploadItem[]) => {
-        const encrypted =
-          typeof targetRoom.hasEncryptionStateEvent === 'function' &&
-          targetRoom.hasEncryptionStateEvent();
-        for (const item of items) {
-          const uploadAtom = roomUploadAtomFamily(item.file);
-          if (store.get(uploadAtom).status !== UploadStatus.Idle) continue;
-          if (encrypted && !item.encInfo) {
-            store.set(uploadAtom, {
-              error: toMatrixUploadError(new Error('The file was not encrypted.'), 'create'),
-            });
-            continue;
-          }
-          const tooLarge = getTooLargeError(item.file.size, maxUploadSize);
-          if (tooLarge) {
-            store.set(uploadAtom, { error: tooLarge });
-            continue;
-          }
-          void transport.uploadItem(item).catch(() => undefined);
-        }
-      };
-
-      if (!ask) {
-        const snapshot = attachments.access.snapshot();
-        const enrolledFiles = new Set(snapshot.enrolled.map((item) => item.file));
-        const claimedFiles = pendingCompressionFilesRef.current;
-        const batchCandidates = snapshot.staged.filter(
-          (item) => !item.prepError && !enrolledFiles.has(item.file) && !claimedFiles.has(item.file)
-        );
-        const hasCompressing = batchCandidates.some(
-          (item) => item.compression?.status === 'compressing'
-        );
-        const existingQueue = pendingCompressionQueuesRef.current.get(textKey);
-
-        if (hasCapturedStaging || hasCompressing || existingQueue) {
-          if (!textContent && batchCandidates.length === 0 && !hasCapturedStaging) return;
-          if (
-            hasPasteMarkerInText(
-              textContent,
-              snapshot.staged.filter((item) => Boolean(item.prepError))
-            )
-          ) {
-            return;
-          }
-
-          const sendReplyDraft =
-            existingQueue && replyDraft === existingQueue.replyDraft ? undefined : replyDraft;
-          const sendContext = {
-            roomId,
-            room,
-            threadId,
-            replyDraft: sendReplyDraft,
-            threadingEnabled,
-            signalBridgedRoom: isSignalBridgeRoom(room),
-          };
-          const sendComposerContext = { roomId, threadId: draftThreadId };
-          const sendItemsAtom = attachments.itemsAtom;
-          const sameAccount = captureAccountGuard(store);
-          const previousWait = existingQueue?.tail ?? Promise.resolve();
-          let releaseWait!: () => void;
-          const nextTail = new Promise<void>((resolve) => {
-            releaseWait = resolve;
-          });
-          const queueEntry = existingQueue ?? {
-            count: 0,
-            tail: nextTail,
-            replyDraft: sendReplyDraft,
-          };
-          queueEntry.count += 1;
-          queueEntry.tail = nextTail;
-          pendingCompressionQueuesRef.current.set(textKey, queueEntry);
-
-          batchCandidates.forEach((item) => claimedFiles.add(item.file));
-          const releaseCompressionLeases = attachments.access.protectPasteItems(batchCandidates);
-          setSubmitPending(true);
-          let compressionFallback: Descendant[] | undefined;
-          if (textContent) {
-            compressionFallback = composer.snapshotText();
-            composer.resetText();
-            sendTypingStatus(false);
-          }
-
-          const restoreCompressionFallback = () => {
-            if (!compressionFallback) return;
-            const fragment = compressionFallback;
-            compressionFallback = undefined;
-            if (sameAccount()) {
-              sessions.restoreText(sendComposerContext, fragment);
-            } else if (userId && listSessions().some((session) => session.userId === userId)) {
-              restoreTextToDraft(
-                store,
-                getRoomInputDraftKey(userId, sendContext.roomId, sendComposerContext.threadId),
-                fragment
-              );
-            }
-          };
-
-          try {
-            await previousWait;
-            let stagingProducedNone = false;
-            if (hasCapturedStaging) {
-              const stagedByBatch = await attachments.waitForPendingStaging(capturedStaging);
-              stagingProducedNone = stagedByBatch.length === 0;
-              const afterStage = attachments.access.snapshot(sendContext.roomId);
-              const afterEnrolled = new Set(afterStage.enrolled.map((item) => item.file));
-              const existingFiles = new Set(batchCandidates.map((item) => item.file));
-              const newlyStaged = stagedByBatch.filter(
-                (item) =>
-                  !item.prepError &&
-                  !afterEnrolled.has(item.file) &&
-                  !claimedFiles.has(item.file) &&
-                  !existingFiles.has(item.file)
-              );
-              newlyStaged.forEach((item) => claimedFiles.add(item.file));
-              batchCandidates.push(...newlyStaged);
-            }
-            const fileItems =
-              batchCandidates.length > 0
-                ? await attachments.waitForCompression(
-                    batchCandidates,
-                    sendContext.roomId,
-                    sendItemsAtom
-                  )
-                : [];
-            if (!sameAccount()) {
-              restoreCompressionFallback();
-              return;
-            }
-            if (
-              stagingProducedNone ||
-              hasMissingPasteAttachmentForText(textContent, batchCandidates, fileItems) ||
-              (!textContent && fileItems.length === 0)
-            ) {
-              restoreCompressionFallback();
-              return;
-            }
-            startIdleUploads(sendContext.room, fileItems);
-            const fallbackForSession = compressionFallback;
-            compressionFallback = undefined;
-            const sending = sessions.startSendSession({
-              textContent,
-              midTurnMode: mode,
-              explicitMidTurnMode: explicitMode !== undefined,
-              batch: { fileItems },
-              context: sendContext,
-              composerContext: sendComposerContext,
-              composerFallback: fallbackForSession,
-              composerAlreadyReset: Boolean(textContent),
-            });
-            sendTypingStatus(false);
-            await sending;
-            return;
-          } catch (error) {
-            restoreCompressionFallback();
-            throw error;
-          } finally {
-            releaseCompressionLeases();
-            batchCandidates.forEach((item) => claimedFiles.delete(item.file));
-            queueEntry.count -= 1;
-            if (
-              queueEntry.count === 0 &&
-              pendingCompressionQueuesRef.current.get(textKey) === queueEntry
-            ) {
-              pendingCompressionQueuesRef.current.delete(textKey);
-            }
-            releaseWait();
-            if (mountedRef.current) {
-              setSubmitPending(pendingCompressionQueuesRef.current.size > 0);
-            }
-          }
-        }
-        // If the upload board is collapsed, cards are unmounted; start any ready Idle uploads on Send.
-        if (attachments.boardOpen === false && batchCandidates.length > 0) {
-          startIdleUploads(room, batchCandidates.filter(isUploadItemReady));
-        }
-      }
-
       const sameAccount = captureAccountGuard(store);
       setSubmitPending(true);
       ask?.onSendingChange?.(true);
@@ -947,43 +749,23 @@ export function RoomInput({
         if (!pendingFallback) return;
         const fragment = pendingFallback;
         pendingFallback = undefined;
-        if (sameAccount()) {
-          sessions.restoreText({ roomId, threadId: draftThreadId }, fragment);
-        } else if (userId && listSessions().some((session) => session.userId === userId)) {
+        if (sameAccount()) sessions.restoreText({ roomId, threadId: draftThreadId }, fragment);
+        else if (userId && listSessions().some((s) => s.userId === userId)) {
           restoreTextToDraft(store, textKey, fragment);
         }
       };
       try {
-        if (ask && (attachments.hasSendableFiles || hasCapturedStaging)) {
+        if (ask && attachments.hasSendableFiles) {
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
           if (textContent) {
             pendingFallback = composer.snapshotText();
             composer.resetText();
             sendTypingStatus(false);
           }
-          const initialEnrolled = new Set(initialSnapshot!.enrolled.map((item) => item.file));
-          const batchItems = initialSnapshot!.staged.filter(
-            (item) => !item.prepError && !initialEnrolled.has(item.file)
-          );
-          let stagingProducedNone = false;
-          if (hasCapturedStaging) {
-            const stagedByBatch = await attachments.waitForPendingStaging(capturedStaging);
-            stagingProducedNone = stagedByBatch.length === 0;
-            const existingFiles = new Set(batchItems.map((item) => item.file));
-            const newlyStaged = stagedByBatch.filter(
-              (item) => !item.prepError && !existingFiles.has(item.file)
-            );
-            batchItems.push(...newlyStaged);
-          }
-          if (!sameAccount() || stagingProducedNone) {
-            restorePendingFallback();
-            return;
-          }
           const { aborted, uploadedItems, missingPasteMarker } =
             await prepareAndUploadDeferredAttachments({
               room,
-              items: batchItems,
-              batchItems: [...initialSnapshot!.staged, ...batchItems],
+              batchItems: initialSnapshot!.staged,
               textContent,
               prepareForSend: attachments.prepareForSend,
               uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
@@ -1013,11 +795,11 @@ export function RoomInput({
             composerFallback: fallbackForSession,
             composerAlreadyReset: Boolean(textContent),
             beforeSend: (sentTo) => sameAccount() && ask.canSend(sentTo),
-            onLocalEchoCreated: ask.onLocalEcho
-              ? (eventId, sentRoom) => {
-                  if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
-                }
-              : undefined,
+            onLocalEchoCreated:
+              ask.onLocalEcho &&
+              ((id, sent) => {
+                if (sameAccount()) ask.onLocalEcho?.(id, sent);
+              }),
           });
           sendTypingStatus(false);
           try {
@@ -1037,11 +819,11 @@ export function RoomInput({
           batch: ask ? { fileItems: [] } : undefined,
           // Home's question is asked about, and told of, as it was at this press.
           beforeSend: ask && ((sentTo) => sameAccount() && ask.canSend(sentTo)),
-          onLocalEchoCreated: ask?.onLocalEcho
-            ? (eventId, sentRoom) => {
-                if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
-              }
-            : undefined,
+          onLocalEchoCreated:
+            ask?.onLocalEcho &&
+            ((id, sent) => {
+              if (sameAccount()) ask.onLocalEcho?.(id, sent);
+            }),
         });
         // The composer is free again once the send session owns the text.
         sendTypingStatus(false);
@@ -1071,7 +853,6 @@ export function RoomInput({
       dismissLostPastes,
       editor,
       holdForRoot,
-      maxUploadSize,
       midTurnSend,
       mx,
       runActingCommand,
@@ -1082,12 +863,9 @@ export function RoomInput({
       t,
       takeRootModelDraft,
       draftThreadId,
-      replyDraft,
       room,
       roomId,
       textKey,
-      threadId,
-      threadingEnabled,
       transport,
       userId,
       voice,
@@ -1519,7 +1297,7 @@ export function RoomInput({
                 }
                 empty={composerEmpty}
                 defaultMode={midTurnSend}
-                disabled={askBlocked || dictation.blocksSubmit}
+                disabled={askBlocked || dictation.blocksSubmit || attachments.isPreparing}
                 onSend={handleSend}
               />
             )}

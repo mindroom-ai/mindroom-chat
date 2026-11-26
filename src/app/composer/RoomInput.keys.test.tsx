@@ -44,6 +44,7 @@ const state = vi.hoisted(() => ({
   staged: [] as TUploadItem[],
   uploads: [] as Upload[],
   hasVoice: false,
+  isPreparing: false,
   sendAtPress: vi.fn(
     (
       _takeText: () => IContent | undefined,
@@ -201,8 +202,8 @@ vi.mock('./useRoomInputAttachments', () => ({
     lostPastes: false,
     dismissLostPastes: vi.fn(),
     settlePastes: () => true,
-    snapshotPendingStaging: () => [],
-    waitForPendingStaging: async () => [],
+    isPreparing: state.isPreparing,
+    isPreparingNow: () => state.isPreparing,
     prepareForSend: vi.fn(async (_room: unknown, items: unknown[] = []) => items),
   }),
 }));
@@ -255,6 +256,7 @@ afterEach(() => {
   state.staged = [];
   state.uploads = [];
   state.hasVoice = false;
+  state.isPreparing = false;
   state.sendAtPress.mockReset();
   state.sendAtPress.mockReturnValue(undefined);
 });
@@ -703,5 +705,19 @@ describe('composer', () => {
         expect(invite).toHaveBeenCalledWith('@bob:example.org');
       });
     });
+  });
+
+  it('blocks Enter submit while attachments are preparing and resumes once ready', async () => {
+    state.mentionHasSuggestions = false;
+    state.isPreparing = true;
+    const text = [{ type: 'paragraph', children: [{ text: 'Caption' }] }];
+    await mountComposer(text);
+    await pressEnter();
+    expect(state.startSendSession).not.toHaveBeenCalled();
+
+    state.isPreparing = false;
+    await mountComposer(text);
+    await pressEnter();
+    expect(state.startSendSession).toHaveBeenCalledTimes(1);
   });
 });

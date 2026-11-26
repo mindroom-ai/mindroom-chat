@@ -70,7 +70,6 @@ export type UploadCompression =
       progressAtom: Atom<number>;
       cancel: () => void;
       useOriginal: () => void;
-      done: Promise<TUploadItem | undefined>;
     }
   | {
       status: 'compressed';

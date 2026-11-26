@@ -102,7 +102,7 @@ export type UploadCompression =
       status: 'compressing';
       progressAtom: Atom<number>;
       cancel: () => void;
-      done: Promise<TUploadItem | undefined>;
+      useOriginal: () => void;
     }
   | {
       status: 'compressed';
@@ -117,7 +117,7 @@ Export `isUploadItemReady = (item: TUploadItem): boolean => !item.prepError && i
 ### Composer Flow (`src/app/composer/useMediaCompression.ts` + `useRoomInputAttachments.tsx`)
 
 - **Images (fast, ~40-150 ms)**: compress inline inside `stageFiles` (concurrency 2) before `createRoomUploadItems`, including when `deferUpload` is true (Home Ask). If shrank, attach `compression: { status: 'compressed', sourceFile: rawFile, originalSize: rawFile.size }`.
-- **Videos (slow, 2-10+ s)**: immediately stage a placeholder `TUploadItem` with `compression: { status: 'compressing', progressAtom, cancel, done }` and run transcoding in `useMediaCompression` inside `useRoomInputAttachments` (never inside `UploadCardRenderer`, because collapsing `UploadBoard` unmounts cards). When transcoding completes:
+- **Videos (slow, 2-10+ s)**: immediately stage a placeholder `TUploadItem` with `compression: { status: 'compressing', progressAtom, cancel, useOriginal }` and run transcoding in `useMediaCompression` inside `useRoomInputAttachments` (never inside `UploadCardRenderer`, because collapsing `UploadBoard` unmounts cards). When transcoding completes:
   - Locate the live item in `store.get(targetAtom)` (if removed or session switched, discard the result).
   - Encrypt with `createRoomUploadItems([effectiveFile], room, () => liveItem.metadata)` when `!deferUpload`, preserving any spoiler toggle set during compression.
   - Replace the placeholder in `targetAtom` (`type: 'REPLACE'`), preserving draft ownership, and remove the old placeholder key from `roomUploadAtomFamily`.
@@ -129,8 +129,8 @@ Export `isUploadItemReady = (item: TUploadItem): boolean => !item.prepError && i
   - `UploadBoardHeader` counts compressing items alongside loading uploads so its spinner stays active when the board is collapsed.
   - When `status === 'compressed'`: display `originalSize -> compressedSize` (e.g. `4.8 MB -> 290 KB`) and a **Use original** button next to the spoiler toggle.
 - **Send, voice, and session-switch safety**:
-  - `RoomInput.submit` awaits any compressing staged items before enrolling them in `startSendSession`, preserving editor snapshot/reset/fallback ordering.
-  - `prepareForSend` awaits compressing items before encrypting/returning ready items (covering Home Ask and dictation handoff).
+  - `useRoomInputAttachments` exposes `isPreparing` and `isPreparingNow()` while any staged item is compressing or inline image staging is in flight: `ComposerSendButton` is disabled and `RoomInput.submit` (including Enter and dictation Finish & Send) returns early instead of queuing sends behind compression.
+  - `prepareForSend` and `dictationSendHandoff` filter candidates with `isUploadItemReady` as defense-in-depth so an unready item can never be enrolled.
   - `useRoomInputSendSessionController` and `useRoomInputVoice` filter staged items with `isUploadItemReady` so unencrypted compressing placeholders are never enrolled or grabbed as voice companions.
   - `useMediaCompression.ts` tracks active `AbortController`s in a plain module-level `Set` (not a Jotai atom, keeping `accountState.test.ts` green) and exports `abortAllMediaCompressions()`, called from `forgetComposerStateOfSession`.
 
