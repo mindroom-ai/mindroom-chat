@@ -56,10 +56,12 @@ import { useSetting } from '../preferences/useSetting';
 import {
   getRoomInputDraftKey,
   homeAskDestinationAtomFamily,
+  isSpaceThreadsDraftKey,
   type IReplyDraft,
   keepReplyDraft,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
   composerReplyDraftAtom,
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
@@ -464,6 +466,8 @@ export function RoomInput({
           roomId: fallbackRoomId,
           ...(askedDirect ? { isDirect: true } : {}),
         });
+      } else if (stagedDraftKey !== undefined && isSpaceThreadsDraftKey(stagedDraftKey)) {
+        store.set(spaceThreadsDestinationAtomFamily(stagedDraftKey), fallbackRoomId);
       }
       // After any text typed there since: a failed caption is never dropped.
       restoreTextToDraft(

@@ -210,7 +210,7 @@ export const useRoomInputAttachments = ({
     (targetRoomId: string) => {
       if (!userId || view !== undefined) return;
       const key = listKey(targetRoomId);
-      keepStagedFileNames(userId, key, store.get(roomIdToUploadItemsAtomFamily(key)));
+      keepStagedFileNames(userId, key, store.get(roomIdToUploadItemsAtomFamily(key)), store);
     },
     [listKey, store, userId, view]
   );

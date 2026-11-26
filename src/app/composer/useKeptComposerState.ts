@@ -64,7 +64,7 @@ export const useKeptComposerState = (
   const dismissLostFiles = useCallback(() => {
     setLost(undefined);
     if (userId && store.get(roomIdToUploadItemsAtomFamily(fileScope)).length === 0) {
-      keepStagedFileNames(userId, fileScope, []);
+      keepStagedFileNames(userId, fileScope, [], store);
     }
   }, [fileScope, store, userId]);
 

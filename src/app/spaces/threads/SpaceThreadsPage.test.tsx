@@ -18,9 +18,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
   composerUploadItemsAtom,
-  forgetComposerStateOfSession,
   getSpaceThreadsDraftKey,
+  keepStagedFileNames,
   roomIdToMsgDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -580,7 +581,7 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
   });
 
-  it('keeps stagedDraftKey across pill and phone dropdown switches and preserves chosen target across remount and reload', () => {
+  it('preserves chosen target across remount, reload, file-only reload, and temporary non-sendable fallback', () => {
     const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
     const rooms = [
       makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
@@ -603,37 +604,47 @@ describe('SpaceThreadsPage', () => {
       ]);
     });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
-    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
-      spaceDraftKey
-    );
 
     // Remount and simulated reload both keep Design paired with the Space draft.
     first.unmount();
     const remounted = renderSpaceThreads({ rooms, entries: [], store });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
-    fireEvent.click(
-      remounted.container.querySelector(`[data-space-composer-target="${ROOM_ENG}"]`)!
-    );
-    fireEvent.click(
-      remounted.container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!
-    );
-    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
-      spaceDraftKey
-    );
     remounted.unmount();
 
-    forgetComposerStateOfSession(store);
-    const reloaded = renderSpaceThreads({ rooms, entries: [], store: createStore() });
-    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
-    reloaded.unmount();
-
-    // If the stored target is no longer sendable, fall back cleanly to a sendable room.
+    // Temporarily non-sendable target displays fallback without overwriting stored Design.
     const readOnlyDesign = [
       makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
       makeRoom(ROOM_DES, 'Design', { hasAgent: true, canSend: false }),
     ];
-    renderSpaceThreads({ rooms: readOnlyDesign, entries: [], store: createStore() });
+    const fallbackStore = createStore();
+    const fallbackView = renderSpaceThreads({
+      rooms: readOnlyDesign,
+      entries: [],
+      store: fallbackStore,
+    });
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    expect(fallbackStore.get(spaceThreadsDestinationAtomFamily(spaceDraftKey))).toBe(ROOM_DES);
+    fallbackView.unmount();
+
+    // Once Design is sendable again, the stored target returns.
+    const restored = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    restored.unmount();
+
+    // File-only draft (kept lost-file names, no text) keeps Design across reload even under a room filter.
+    clearRoomInputDrafts(ME);
+    const fileStore = createStore();
+    const file = new File(['x'], 'spec.pdf', { type: 'application/pdf' });
+    fileStore.set(spaceThreadsDestinationAtomFamily(spaceDraftKey), ROOM_DES);
+    keepStagedFileNames(
+      ME,
+      spaceDraftKey,
+      [{ file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } }],
+      fileStore
+    );
+    const fileReloaded = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    toggleRoomOption(fileReloaded.container, ROOM_ENG);
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
   });
 
   it('reopens the composer room picker menu without throwing and lists only eligible rooms', () => {

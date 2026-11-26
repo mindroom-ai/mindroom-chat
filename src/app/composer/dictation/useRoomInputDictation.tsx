@@ -788,10 +788,18 @@ export const useRoomInputDictation = ({
     </IconTooltip>
   ) : null;
 
+  const detachedTargetMismatch = detachedEntry !== undefined && detachedEntry.roomId !== roomId;
   const capsuleSnapshot: DictationSnapshot = detachedEntry
     ? {
         ...displaySnapshot,
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
+        ...(detachedEntry.status === 'failed' && detachedTargetMismatch
+          ? {
+              errorMessage: t('composer.dictation.sendFailedOffThread', {
+                room: detachedEntry.roomName,
+              }),
+            }
+          : {}),
       }
     : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
       ? { ...displaySnapshot, errorMessage: localNotice }
@@ -815,7 +823,13 @@ export const useRoomInputDictation = ({
             onPause={handlePause}
             onResume={handleResume}
             onFinish={handleFinish}
-            onRetry={detachedEntry ? detachedEntry.retryAndSend : handleRetry}
+            onRetry={
+              detachedEntry
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.retryAndSend
+                : handleRetry
+            }
             onInsertPartial={detachedEntry ? detachedEntry.insertPartial : handleInsertPartial}
             onDiscard={detachedEntry ? handleRequestDiscardDetached : handleRequestDiscardLive}
             onDismissError={handleDismissError}

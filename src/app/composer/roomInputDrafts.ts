@@ -95,7 +95,7 @@ export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([us
 export const getSpaceThreadsDraftKey = (userId: string, spaceId: string): string =>
   JSON.stringify([userId, null, 'space-threads', spaceId]);
 
-const isSpaceThreadsDraftKey = (draftKey: string): boolean => {
+export const isSpaceThreadsDraftKey = (draftKey: string): boolean => {
   const parsed = parseDraftKey(draftKey);
   return (
     parsed.length === 4 &&
@@ -174,7 +174,8 @@ const getDraftGeneration = (userId: string | undefined) =>
 const createDraftEntryAtom = <TDestination>(
   userId: string | undefined,
   draftKey: string,
-  isDestination: (value: unknown) => value is TDestination
+  isDestination: (value: unknown) => value is TDestination,
+  hasPersistedFiles?: () => boolean
 ): WritableAtom<DraftEntry<TDestination>, [Partial<DraftEntry<TDestination>>], void> => {
   const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const generation = getDraftGeneration(userId);
@@ -198,9 +199,14 @@ const createDraftEntryAtom = <TDestination>(
       set(valueAtom, entry);
       if (getDraftGeneration(userId) !== generation) return;
       const storage = getSafeLocalStorage();
-      if (entry.draft.length > 0) setStorageItemSafe(storage, storageKey, JSON.stringify(entry));
+      const keepEntry =
+        entry.draft.length > 0 ||
+        (entry.destination !== undefined && (hasPersistedFiles?.() ?? false));
+      if (keepEntry) setStorageItemSafe(storage, storageKey, JSON.stringify(entry));
       // An emptied draft leaves no entry. Where an empty draft goes is kept in memory alone.
-      else if (change.draft) removeStorageItemSafe(storage, storageKey);
+      else if (change.draft !== undefined || Object.keys(change).length === 0) {
+        removeStorageItemSafe(storage, storageKey);
+      }
     }
   );
   return entryAtom;
@@ -210,9 +216,15 @@ const homeAskEntryAtomFamily = atomFamily((userId: string) =>
   createDraftEntryAtom(userId, getHomeAskDraftKey(userId), isHomeAskDestination)
 );
 
-const spaceThreadsEntryAtomFamily = atomFamily((draftKey: string) =>
-  createDraftEntryAtom(getDraftUserId(draftKey), draftKey, isSpaceThreadsDestination)
-);
+const spaceThreadsEntryAtomFamily = atomFamily((draftKey: string) => {
+  const userId = getDraftUserId(draftKey);
+  return createDraftEntryAtom(
+    userId,
+    draftKey,
+    isSpaceThreadsDestination,
+    userId !== undefined ? () => readKeptFileNames(userId, draftKey).length > 0 : undefined
+  );
+});
 
 // Latest in-memory draft written in this store per key, kept separate from
 // `roomIdToMsgDraftAtomFamily` so read-only observers (such as sidebar draft marks) never prime an
@@ -307,6 +319,20 @@ export const spaceThreadsDestinationAtomFamily = atomFamily((draftKey: string) =
     }
   );
 });
+
+/** Whether a space's All threads composer holds text, staged files, or kept lost-file names. */
+export const spaceThreadsHasDraftAtom = (draftKey: string) => {
+  const userId = getDraftUserId(draftKey);
+  const entryAtom = spaceThreadsEntryAtomFamily(draftKey);
+  return atom((get) => {
+    const entry = get(entryAtom);
+    return (
+      entry.draft.length > 0 ||
+      get(composerUploadItemsAtom(draftKey, undefined)).length > 0 ||
+      (userId !== undefined && readKeptFileNames(userId, draftKey).length > 0)
+    );
+  });
+};
 
 /**
  * Home's question on its way, per account: being sent, or sent as the message `eventId` that the
@@ -545,11 +571,27 @@ const stagedFilesStorageKey = (userId: string, scope: string): string =>
  * Keeps the names of the files staged in a room or staged draft, so the composer after a reload
  * can say which ones it lost; none staged forgets them.
  */
-export const keepStagedFileNames = (userId: string, scope: string, items: TUploadItem[]): void =>
+export const keepStagedFileNames = (
+  userId: string,
+  scope: string,
+  items: TUploadItem[],
+  store?: JotaiStore
+): void => {
   writeStoredJson(
     stagedFilesStorageKey(userId, scope),
     items.length > 0 ? items.map((item) => item.originalFile.name) : undefined
   );
+  if (!isSpaceThreadsDraftKey(scope)) return;
+  if (store) {
+    store.set(spaceThreadsEntryAtomFamily(scope), {});
+  } else if (items.length === 0) {
+    const storageKey = `${DRAFT_STORAGE_PREFIX}${scope}`;
+    const stored = readStoredJson(storageKey);
+    if (isRecord(stored) && asDraft(stored.draft).length === 0) {
+      removeStorageItemSafe(getSafeLocalStorage(), storageKey);
+    }
+  }
+};
 
 /** The names of the files a room or staged composer had staged when they were last kept. */
 export const readKeptFileNames = (userId: string, scope: string): string[] => {
@@ -672,8 +714,6 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);
-  dropEveryEntry(spaceThreadsEntryAtomFamily);
-  dropEveryEntry(spaceThreadsDestinationAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   endLiveCapturesOfAccount(store);
   store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());

@@ -30,6 +30,7 @@ import {
   composerUploadItemsAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
@@ -5791,20 +5792,55 @@ describe("RoomInput as Home's ask field", () => {
       expect(readKeptFileNames(USER_ID, spaceKey)).toEqual(['brief.pdf']);
       expect(readKeptFileNames(USER_ID, ROOM_ID)).toEqual([]);
 
-      // Fail Send on plain room, switch to encrypted room, and retry -> re-encrypted as ciphertext.
+      // Type once, fail Send on plain room after target moved to encrypted room (restoring target
+      // and original draft), then switch to encrypted room and retry without re-typing.
+      const originalDraft = [{ type: 'paragraph', children: [{ text: 'Ship it' }] }];
+      editorOutputState.emptyEditor = false;
       stageComposerText('Ship it');
-      resetEditorOnNextSend();
-      mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/plain' });
-      mxState.sendMessage.mockRejectedValueOnce(new Error('plain send failed'));
-      await act(async () => getPrimarySendButton(renderer).props.onClick());
-      expect(store.get(spaceUploads)).toHaveLength(1);
+      act(() => {
+        customEditorState.props!.onChange?.();
+      });
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
 
+      const plainSend = createDeferred<{ event_id: string }>();
+      editorMocks.resetEditor.mockImplementationOnce(() => {
+        editorOutputState.emptyEditor = true;
+        setEditorText('');
+        customEditorState.props!.onChange?.();
+      });
+      vi.mocked(Transforms.insertFragment).mockImplementationOnce((_editor, nodes) => {
+        editorOutputState.emptyEditor = false;
+        customEditorState.editor!.children = nodes as Array<any>;
+      });
+      mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/plain' });
+      mxState.sendMessage.mockReturnValueOnce(plainSend.promise);
+      let firstSend!: Promise<void>;
+      await act(async () => {
+        firstSend = getPrimarySendButton(renderer).props.onClick();
+        await Promise.resolve();
+      });
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), OTHER_ROOM_ID);
       await updateRoomInput(renderer, store, {
         roomId: OTHER_ROOM_ID,
         encryptedRoom: true,
         stagedDraftKey: spaceKey,
       });
-      stageComposerText('Ship it');
+      await act(async () => {
+        plainSend.reject(new Error('plain send failed'));
+        await firstSend;
+      });
+      expect(store.get(spaceUploads)).toHaveLength(1);
+      expect(store.get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe(ROOM_ID);
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
+      expect(getEditorText()).toBe('Ship it');
+
+      // Switching back to the encrypted target keeps the original draft and re-encrypts on retry.
+      await updateRoomInput(renderer, store, {
+        roomId: OTHER_ROOM_ID,
+        encryptedRoom: true,
+        stagedDraftKey: spaceKey,
+      });
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
       resetEditorOnNextSend();
       mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/enc' });
       mxState.sendMessage
@@ -5817,9 +5853,13 @@ describe("RoomInput as Home's ask field", () => {
         includeFilename: false,
         type: 'application/octet-stream',
       });
-      expect(mxState.sendMessage.mock.calls.slice(1).map(([id]) => id)).toEqual([
-        OTHER_ROOM_ID,
-        OTHER_ROOM_ID,
+      expect(
+        mxState.sendMessage.mock.calls
+          .slice(1)
+          .map(([id, c]) => [id, (c as { body?: string }).body])
+      ).toEqual([
+        [OTHER_ROOM_ID, 'brief.pdf'],
+        [OTHER_ROOM_ID, 'Ship it'],
       ]);
       expect(store.get(spaceUploads)).toHaveLength(0);
       renderer.unmount();

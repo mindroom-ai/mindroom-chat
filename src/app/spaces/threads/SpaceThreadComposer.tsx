@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, type RefObject } from 'react';
 import { Icons, Text } from 'folds';
-import { atom, useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { ComposerMenuButton, ComposerRadioMenuEntry } from '../../composer/ComposerMenuButton';
 import { RoomInput } from '../../composer/RoomInput';
 import {
-  composerUploadItemsAtom,
   getSpaceThreadsDraftKey,
-  roomIdToMsgDraftAtomFamily,
   spaceThreadsDestinationAtomFamily,
+  spaceThreadsHasDraftAtom,
 } from '../../composer/roomInputDrafts';
 import { useEditor } from '../../editor/Editor';
 import {
@@ -87,17 +86,7 @@ export function SpaceThreadComposer({
   }, [myUserId, permissionsVersion, rooms]);
 
   // Returns a boolean so subsequent keystrokes do not re-render this dock.
-  const hasDraft = useAtomValue(
-    useMemo(
-      () =>
-        atom(
-          (get) =>
-            get(roomIdToMsgDraftAtomFamily(draftKey)).length > 0 ||
-            get(composerUploadItemsAtom(draftKey, undefined)).length > 0
-        ),
-      [draftKey]
-    )
-  );
+  const hasDraft = useAtomValue(useMemo(() => spaceThreadsHasDraftAtom(draftKey), [draftKey]));
 
   const { targetRoomId, destinationRoomIds } = useMemo(
     () =>
@@ -109,11 +98,11 @@ export function SpaceThreadComposer({
       }),
     [activeRoomIds, chosenTargetRoomId, hasDraft, sendableRoomIds]
   );
-  // Freeze destination once the composer holds a draft so later room-filter changes keep it;
-  // forget a stale non-draft choice once filtering moves the target elsewhere.
+  // Freeze destination once the composer holds a draft when none is stored yet, so a temporarily
+  // non-sendable stored target stays intact while displaying the resolver fallback.
   useEffect(() => {
     if (hasDraft) {
-      if (targetRoomId && chosenTargetRoomId !== targetRoomId) {
+      if (targetRoomId && chosenTargetRoomId === undefined) {
         setChosenTargetRoomId(targetRoomId);
       }
     } else if (chosenTargetRoomId !== undefined && targetRoomId !== chosenTargetRoomId) {

@@ -8,10 +8,10 @@ import {
   pendingVoiceSendDraftAtom,
   threadViewVoiceComposersAtom,
   forgetComposerStateOfSession,
-  composersHoldUnsavedWork,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
   getSpaceThreadsDraftKey,
+  keepStagedFileNames,
   spaceThreadsDestinationAtomFamily,
   homeAskDestinationAtomFamily,
   homeAskPendingAtomFamily,
@@ -241,35 +241,41 @@ describe('message draft persistence', () => {
 
     afterEach(() => clearRoomInputDrafts(ROBIN));
 
-    it('persists draft with its target room and cleans up on account clear and session end', () => {
+    it('keeps draft paired across account switch, persists file-only destination, and cleans up', () => {
       const spaceKey = getSpaceThreadsDraftKey(ROBIN, SPACE);
       const store = createStore();
-      store.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), '!eng:example.org');
       store.set(roomIdToMsgDraftAtomFamily(spaceKey), draft);
 
-      // Reload restores both text and target room from one entry.
+      // Switching account and back keeps text and destination atoms paired.
       forgetComposerStateOfSession(store);
+      const edited = [{ type: 'paragraph' as const, children: [{ text: 'Updated' }] }];
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
+      store.set(roomIdToMsgDraftAtomFamily(spaceKey), edited);
+
       const reloaded = createStore();
-      expect(reloaded.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(draft);
+      expect(reloaded.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(edited);
       expect(reloaded.get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe('!des:example.org');
 
-      const file = new File(['x'], 'deck.pdf', { type: 'application/pdf' });
-      reloaded.set(composerUploadItemsAtom(spaceKey, undefined), {
-        type: 'PUT',
-        item: {
-          file,
-          originalFile: file,
-          encInfo: undefined,
-          metadata: { markedAsSpoiler: false },
-        },
-      });
-      expect(composersHoldUnsavedWork(reloaded)).toBe(true);
-
+      // File-only draft persists destination until kept files are gone.
       clearRoomInputDrafts(ROBIN);
+      const fileStore = createStore();
+      const file = new File(['x'], 'deck.pdf', { type: 'application/pdf' });
+      const staged = {
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+      };
+      fileStore.set(spaceThreadsDestinationAtomFamily(spaceKey), '!des:example.org');
+      keepStagedFileNames(ROBIN, spaceKey, [staged], fileStore);
+      expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe(
+        '!des:example.org'
+      );
+
+      keepStagedFileNames(ROBIN, spaceKey, [], fileStore);
       expect(values.has(`roomInputDraft:${spaceKey}`)).toBe(false);
       expect(createStore().get(spaceThreadsDestinationAtomFamily(spaceKey))).toBeUndefined();
-      forgetComposerStateOfSession(reloaded);
-      expect(composersHoldUnsavedWork(reloaded)).toBe(false);
     });
   });
 });

@@ -1977,4 +1977,64 @@ describe('useRoomInputDictation', () => {
     expect(store.get(detachedDictationSendsAtom).size).toBe(0);
     view.unmount();
   });
+
+  it('omits Retry and send and names the original room when a staged composer targets a different room', () => {
+    const store = createStore();
+    const spaceKey = 'space-key';
+    const retryAndSend = vi.fn();
+    const { session } = createMockSession({
+      initial: { phase: 'failed', failedSegments: 1, errorMessage: 'network error' },
+    });
+    store.set(
+      detachedDictationSendsAtom,
+      new Map([
+        [
+          spaceKey,
+          {
+            ownerKey: spaceKey,
+            roomId: '!eng:example.org',
+            roomName: 'Engineering',
+            status: 'failed',
+            session,
+            retryAndSend,
+            insertPartial: vi.fn(),
+            discard: vi.fn(async () => undefined),
+            abort: vi.fn(),
+          },
+        ],
+      ])
+    );
+    const editor = createEditor();
+    const mx = {
+      baseUrl: 'https://hs.example.org',
+      getHomeserverUrl: () => 'https://hs.example.org',
+      getUserId: () => '@alice:example.org',
+      getRoom: () => null,
+    } as unknown as MatrixClient;
+    function StagedComposer({ roomId }: { roomId: string }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      return (
+        <div ref={rootRef}>
+          {useRoomInputDictation({ editor, roomId, ownerKey: spaceKey, sendKey: spaceKey, draftKey: spaceKey, rootRef }).capsule}
+        </div>
+      );
+    }
+    const wrap = (roomId: string) => (
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <StagedComposer roomId={roomId} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    const view = render(wrap('!des:example.org'));
+    expect(screen.queryByText('composer.dictation.retryAndSend')).toBeNull();
+    expect(screen.getByText('composer.dictation.discard')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('composer.dictation.sendFailedOffThread');
+
+    view.rerender(wrap('!eng:example.org'));
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+    expect(retryAndSend).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
 });
