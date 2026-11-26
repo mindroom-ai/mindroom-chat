@@ -3,6 +3,7 @@
  * compressed bytes in a valid PKZIP 2.0 archive (`<name>.zip`) without buffering the uncompressed
  * source in memory.
  */
+import { MAX_ZIP32_FILE_BYTES } from './mediaCompressionEligibility';
 
 export type ZipFileOptions = {
   /** Maximum allowed total `.zip` archive size in bytes (for example `maxUploadSize`). */
@@ -11,13 +12,13 @@ export type ZipFileOptions = {
   onProgress?: (progress: number) => void;
 };
 
+export type ZipStopReason = 'too-large' | 'no-savings' | 'aborted' | 'error';
+export type ZipFailureReason = Exclude<ZipStopReason, 'aborted'>;
+
 export type ZipFileResult =
   | { status: 'ok'; file: File; originalSize: number; compressedSize: number }
-  | { status: 'too-large' | 'no-savings' | 'aborted' | 'error' };
+  | { status: ZipStopReason };
 
-type StopReason = 'too-large' | 'no-savings' | 'aborted' | 'error';
-
-const MAX_ZIP32_BYTES = 0xffffffff;
 const PROGRESS_THROTTLE_MS = 100;
 const LOCAL_HEADER_SIZE = 30;
 const CENTRAL_HEADER_SIZE = 46;
@@ -35,8 +36,9 @@ const CRC32_TABLE = (() => {
 
 const updateCrc32 = (crc: number, chunk: Uint8Array): number => {
   let c = crc;
-  for (let i = 0; i < chunk.byteLength; i += 1)
+  for (let i = 0; i < chunk.byteLength; i += 1) {
     c = CRC32_TABLE[(c ^ chunk[i]!) & 0xff]! ^ (c >>> 8);
+  }
   return c;
 };
 
@@ -60,7 +62,7 @@ const toDosDateTime = (lastModified: number): { dosTime: number; dosDate: number
 export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise<ZipFileResult> => {
   const { maxOutputBytes, signal, onProgress } = options;
   if (signal?.aborted) return { status: 'aborted' };
-  if (typeof CompressionStream !== 'function' || file.size >= MAX_ZIP32_BYTES) {
+  if (typeof CompressionStream !== 'function' || file.size >= MAX_ZIP32_FILE_BYTES) {
     return { status: 'error' };
   }
 
@@ -71,19 +73,11 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
   const localHeaderSize = LOCAL_HEADER_SIZE + nameBytes.byteLength;
   const centralHeaderSize = CENTRAL_HEADER_SIZE + nameBytes.byteLength;
   const overhead = localHeaderSize + centralHeaderSize + EOCD_SIZE;
-  const maxZip32Compressed = MAX_ZIP32_BYTES - 1 - localHeaderSize;
+  const maxZip32Compressed = MAX_ZIP32_FILE_BYTES - 1 - localHeaderSize;
 
-  let maxAllowedCompressed: number;
-  let breachReason: 'too-large' | 'no-savings';
-  if (maxOutputBytes !== undefined) {
-    if (Number.isNaN(maxOutputBytes) || maxOutputBytes < overhead) return { status: 'too-large' };
-    maxAllowedCompressed = maxOutputBytes - overhead;
-    breachReason = 'too-large';
-  } else {
-    if (file.size <= overhead) return { status: 'no-savings' };
-    maxAllowedCompressed = file.size - 1 - overhead;
-    breachReason = 'no-savings';
-  }
+  const breachReason = maxOutputBytes === undefined ? 'no-savings' : 'too-large';
+  const maxAllowedCompressed = (maxOutputBytes ?? file.size - 1) - overhead;
+  if (!(maxAllowedCompressed >= 0)) return { status: breachReason };
 
   let stream: CompressionStream;
   try {
@@ -96,14 +90,15 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
   const writer = stream.writable.getWriter();
   const compressedReader = stream.readable.getReader();
 
-  let stopReason: StopReason | undefined;
-  const stop = (reason: StopReason) => {
+  let stopReason: ZipStopReason | undefined;
+  const stop = (reason: ZipStopReason) => {
     if (stopReason) return;
     stopReason = reason;
     void sourceReader.cancel().catch(() => undefined);
     void writer.abort().catch(() => undefined);
     void compressedReader.cancel().catch(() => undefined);
   };
+  const fail = () => stop(signal?.aborted ? 'aborted' : 'error');
   const shouldStop = (): boolean => {
     if (stopReason) return true;
     if (signal?.aborted) {
@@ -146,7 +141,7 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
         if (done || shouldStop()) break;
         if (!value || value.byteLength === 0) continue;
         bytesRead += value.byteLength;
-        if (bytesRead >= MAX_ZIP32_BYTES) {
+        if (bytesRead >= MAX_ZIP32_FILE_BYTES) {
           stop('error');
           return;
         }
@@ -160,7 +155,7 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
       }
       if (!stopReason) await writer.close();
     } catch {
-      if (!stopReason) stop(signal?.aborted ? 'aborted' : 'error');
+      fail();
     }
   };
 
@@ -183,7 +178,7 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
         compressedChunks.push(value);
       }
     } catch {
-      if (!stopReason) stop(signal?.aborted ? 'aborted' : 'error');
+      fail();
     }
   };
 
@@ -195,10 +190,9 @@ export const zipFile = async (file: File, options: ZipFileOptions = {}): Promise
 
   if (stopReason) return { status: stopReason };
   if (signal?.aborted) return { status: 'aborted' };
-
-  const totalBytes = overhead + compressedBytes;
-  if (maxOutputBytes !== undefined && totalBytes > maxOutputBytes) return { status: 'too-large' };
-  if (maxOutputBytes === undefined && totalBytes >= bytesRead) return { status: 'no-savings' };
+  if (maxOutputBytes === undefined && overhead + compressedBytes >= bytesRead) {
+    return { status: 'no-savings' };
+  }
 
   emitProgress(1, true);
   const crc32 = (crc ^ 0xffffffff) >>> 0;

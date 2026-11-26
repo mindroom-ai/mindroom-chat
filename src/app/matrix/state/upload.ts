@@ -9,6 +9,7 @@ import { atom, useAtomValue, useStore, type Atom, type WritableAtom } from 'jota
 import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { PasteMarker } from '../protocol/pasteAttachmentMarker';
+import type { ZipFailureReason } from '../../lib/media/zipFile';
 import { toMatrixUploadError, uploadContent, type TUploadContent } from '../matrix';
 
 /** Where one file's upload stands. String values keep logged and stored states readable. */
@@ -64,23 +65,21 @@ type UploadPayload = {
   encInfo: EncryptedAttachmentInfo | undefined;
 };
 
-export type ZipFailureReason = 'too-large' | 'no-savings' | 'error';
+export type { ZipFailureReason };
 
 export type UploadCompression =
   | {
       status: 'compressing';
       progressAtom: Atom<number>;
       cancel: () => void;
-      useOriginal: () => void;
-      /** False when the original file cannot be restored (e.g. oversized `.zip` compression). */
-      canUseOriginal?: boolean;
+      /** Present when the user can abort compression and fall back to the original file. */
+      useOriginal?: () => void;
     }
   | {
       status: 'compressed';
-      sourceFile: File;
+      /** Present when the original source file can be restored (omitted for oversized `.zip` archives). */
+      sourceFile?: File;
       originalSize: number;
-      /** False when the original file is oversized and cannot be restored. */
-      canUseOriginal?: boolean;
     }
   | {
       status: 'zipFailed';

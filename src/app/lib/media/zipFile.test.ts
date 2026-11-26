@@ -2,22 +2,19 @@ import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { canZipOversizedFile, MAX_ZIP32_FILE_BYTES } from './mediaCompressionEligibility';
-import { zipFile } from './zipFile';
+import { zipFile, type ZipFileResult } from './zipFile';
 
-type ParsedZip = {
-  entryName: string;
-  flags: number;
-  method: number;
-  dosTime: number;
-  dosDate: number;
-  crc32: number;
-  compressedSize: number;
-  uncompressedSize: number;
-  inflated: Buffer;
+const withSize = (file: File, size: number): File => {
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
 };
 
-const parseSingleEntryZip = (bytes: Uint8Array): ParsedZip => {
+const parseZipResult = async (result: ZipFileResult) => {
+  expect(result.status).toBe('ok');
+  if (result.status !== 'ok') throw new Error(`expected ok, got ${result.status}`);
+  const bytes = new Uint8Array(await result.file.arrayBuffer());
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
   // Local File Header
   expect(view.getUint32(0, true)).toBe(0x04034b50);
   expect(view.getUint16(4, true)).toBe(20);
@@ -36,22 +33,12 @@ const parseSingleEntryZip = (bytes: Uint8Array): ParsedZip => {
   const cdOffset = dataStart + compressedSize;
   const cdSize = 46 + nameLen;
 
-  // Central Directory Header matches Local File Header
+  // Central Directory Header matches Local File Header fields & filename verbatim
   expect(view.getUint32(cdOffset, true)).toBe(0x02014b50);
   expect(view.getUint16(cdOffset + 4, true)).toBe(20);
-  expect(view.getUint16(cdOffset + 6, true)).toBe(20);
-  expect(view.getUint16(cdOffset + 8, true)).toBe(flags);
-  expect(view.getUint16(cdOffset + 10, true)).toBe(method);
-  expect(view.getUint16(cdOffset + 12, true)).toBe(dosTime);
-  expect(view.getUint16(cdOffset + 14, true)).toBe(dosDate);
-  expect(view.getUint32(cdOffset + 16, true)).toBe(crc32);
-  expect(view.getUint32(cdOffset + 20, true)).toBe(compressedSize);
-  expect(view.getUint32(cdOffset + 24, true)).toBe(uncompressedSize);
-  expect(view.getUint16(cdOffset + 28, true)).toBe(nameLen);
+  expect(bytes.subarray(cdOffset + 6, cdOffset + 30)).toEqual(bytes.subarray(4, 28));
   expect(view.getUint32(cdOffset + 42, true)).toBe(0);
-  expect(new TextDecoder().decode(bytes.subarray(cdOffset + 46, cdOffset + cdSize))).toBe(
-    entryName
-  );
+  expect(bytes.subarray(cdOffset + 46, cdOffset + cdSize)).toEqual(bytes.subarray(30, dataStart));
 
   // End of Central Directory Record
   const eocdOffset = cdOffset + cdSize;
@@ -63,48 +50,38 @@ const parseSingleEntryZip = (bytes: Uint8Array): ParsedZip => {
   expect(view.getUint32(eocdOffset + 16, true)).toBe(cdOffset);
   expect(view.getUint16(eocdOffset + 20, true)).toBe(0);
 
-  const inflated = inflateRawSync(bytes.subarray(dataStart, cdOffset));
   return {
+    file: result.file,
+    originalSize: result.originalSize,
+    compressedSize: result.compressedSize,
     entryName,
     flags,
     method,
     dosTime,
     dosDate,
     crc32,
-    compressedSize,
     uncompressedSize,
-    inflated,
+    inflated: inflateRawSync(bytes.subarray(dataStart, cdOffset)),
   };
 };
 
 describe('zipFile', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
-
   it('produces a valid PKZIP 2.0 archive that inflates back to exact multi-chunk bytes with progress', async () => {
     const payload = Buffer.from('MindRoom log line 2026-11-25 INFO ok\n'.repeat(8000), 'utf8');
     const lastModified = new Date(2026, 10, 25, 14, 32, 10).getTime();
     const file = new File([payload], 'server.log', { type: 'text/plain', lastModified });
     const progress: number[] = [];
 
-    const result = await zipFile(file, {
-      maxOutputBytes: 64 * 1024,
-      onProgress: (p) => progress.push(p),
-    });
-
-    expect(result.status).toBe('ok');
-    if (result.status !== 'ok') return;
-    expect(result.file.name).toBe('server.log.zip');
-    expect(result.file.type).toBe('application/zip');
-    expect(result.file.lastModified).toBe(lastModified);
-    expect(result.originalSize).toBe(payload.byteLength);
-    expect(result.compressedSize).toBe(result.file.size);
-    expect(result.compressedSize).toBeLessThan(payload.byteLength);
+    const parsed = await parseZipResult(
+      await zipFile(file, { maxOutputBytes: 64 * 1024, onProgress: (p) => progress.push(p) })
+    );
+    expect(parsed.file.name).toBe('server.log.zip');
+    expect(parsed.file.type).toBe('application/zip');
+    expect(parsed.file.lastModified).toBe(lastModified);
+    expect(parsed.originalSize).toBe(payload.byteLength);
+    expect(parsed.compressedSize).toBe(parsed.file.size);
+    expect(parsed.compressedSize).toBeLessThan(payload.byteLength);
     expect(progress.at(-1)).toBe(1);
-
-    const parsed = parseSingleEntryZip(new Uint8Array(await result.file.arrayBuffer()));
     expect(parsed.entryName).toBe('server.log');
     expect(parsed.flags).toBe(0x0800);
     expect(parsed.method).toBe(8);
@@ -115,32 +92,24 @@ describe('zipFile', () => {
   });
 
   it('handles UTF-8 names, path sanitization, empty/dot fallbacks, CRC-32 check vector, empty input, and pre-1980 dates', async () => {
-    const vectorFile = new File(['123456789'], 'dir/sub\\日本語.txt', {
-      type: 'text/plain',
-      lastModified: 0,
-    });
-    const vectorRes = await zipFile(vectorFile, { maxOutputBytes: 4096 });
-    expect(vectorRes.status).toBe('ok');
-    if (vectorRes.status !== 'ok') return;
-    expect(vectorRes.file.name).toBe('dir_sub_日本語.txt.zip');
+    const vector = await parseZipResult(
+      await zipFile(new File(['123456789'], 'dir/sub\\日本語.txt', { lastModified: 0 }), {
+        maxOutputBytes: 4096,
+      })
+    );
+    expect(vector.file.name).toBe('dir_sub_日本語.txt.zip');
+    expect(vector.entryName).toBe('dir_sub_日本語.txt');
+    expect(vector.crc32).toBe(0xcbf43926);
+    expect(vector.dosDate).toBe(0x0021);
+    expect(vector.dosTime).toBe(0);
+    expect(vector.inflated.toString('utf8')).toBe('123456789');
 
-    const vectorZip = parseSingleEntryZip(new Uint8Array(await vectorRes.file.arrayBuffer()));
-    expect(vectorZip.entryName).toBe('dir_sub_日本語.txt');
-    expect(vectorZip.crc32).toBe(0xcbf43926);
-    expect(vectorZip.dosDate).toBe(0x0021);
-    expect(vectorZip.dosTime).toBe(0);
-    expect(vectorZip.inflated.toString('utf8')).toBe('123456789');
-
-    const emptyFile = new File([], '..', { type: 'application/octet-stream' });
-    const emptyRes = await zipFile(emptyFile, { maxOutputBytes: 4096 });
-    expect(emptyRes.status).toBe('ok');
-    if (emptyRes.status !== 'ok') return;
-    expect(emptyRes.file.name).toBe('file.zip');
-    const emptyZip = parseSingleEntryZip(new Uint8Array(await emptyRes.file.arrayBuffer()));
-    expect(emptyZip.entryName).toBe('file');
-    expect(emptyZip.crc32).toBe(0);
-    expect(emptyZip.uncompressedSize).toBe(0);
-    expect(emptyZip.inflated.byteLength).toBe(0);
+    const empty = await parseZipResult(await zipFile(new File([], '..'), { maxOutputBytes: 4096 }));
+    expect(empty.file.name).toBe('file.zip');
+    expect(empty.entryName).toBe('file');
+    expect(empty.crc32).toBe(0);
+    expect(empty.uncompressedSize).toBe(0);
+    expect(empty.inflated.byteLength).toBe(0);
   });
 
   it('aborts early when compressed output exceeds maxOutputBytes or makes no savings on incompressible data', async () => {
@@ -148,18 +117,13 @@ describe('zipFile', () => {
     let pulled = 0;
     const makeStreamedFile = (name: string): File => {
       pulled = 0;
-      const file = new File([], name, { type: 'application/octet-stream' });
-      Object.defineProperty(file, 'size', { value: chunks.length * 32 * 1024 });
       let index = 0;
+      const file = withSize(new File([], name), chunks.length * 32 * 1024);
       file.stream = () =>
         new ReadableStream<Uint8Array<ArrayBuffer>>({
           pull(controller) {
-            const next = chunks[index];
-            index += 1;
-            if (!next) {
-              controller.close();
-              return;
-            }
+            const next = chunks[index++];
+            if (!next) return controller.close();
             pulled += 1;
             controller.enqueue(new Uint8Array(next));
           },
@@ -167,29 +131,23 @@ describe('zipFile', () => {
       return file;
     };
 
-    const tooLarge = await zipFile(makeStreamedFile('random.bin'), { maxOutputBytes: 48 * 1024 });
-    expect(tooLarge).toEqual({ status: 'too-large' });
+    expect(await zipFile(makeStreamedFile('random.bin'), { maxOutputBytes: 48 * 1024 })).toEqual({
+      status: 'too-large',
+    });
     expect(pulled).toBeLessThan(chunks.length);
-
-    const noSavings = await zipFile(makeStreamedFile('incompressible.bin'));
-    expect(noSavings).toEqual({ status: 'no-savings' });
+    expect(await zipFile(makeStreamedFile('incompressible.bin'))).toEqual({ status: 'no-savings' });
   });
 
   it('respects AbortSignal mid-stream and rejects files at or above the ZIP32 4 GiB limit', async () => {
     const controller = new AbortController();
     let cancelled = false;
-    const slowFile = new File([], 'slow.log', { type: 'text/plain' });
-    Object.defineProperty(slowFile, 'size', { value: 256 * 1024 });
     let reads = 0;
+    const slowFile = withSize(new File([], 'slow.log'), 256 * 1024);
     slowFile.stream = () =>
       new ReadableStream<Uint8Array<ArrayBuffer>>({
         pull(streamController) {
-          reads += 1;
-          if (reads === 1) {
-            streamController.enqueue(new Uint8Array(64 * 1024));
-            return;
-          }
-          controller.abort();
+          if (++reads === 1) streamController.enqueue(new Uint8Array(64 * 1024));
+          else controller.abort();
         },
         cancel() {
           cancelled = true;
@@ -204,10 +162,11 @@ describe('zipFile', () => {
     expect(await zipFile(new File(['abc'], 'a.txt'), { signal: preAborted.signal })).toEqual({
       status: 'aborted',
     });
-
-    const hugeFile = new File(['x'], 'huge.bin');
-    Object.defineProperty(hugeFile, 'size', { value: MAX_ZIP32_FILE_BYTES });
-    expect(await zipFile(hugeFile, { maxOutputBytes: 1024 })).toEqual({ status: 'error' });
+    expect(
+      await zipFile(withSize(new File(['x'], 'huge.bin'), MAX_ZIP32_FILE_BYTES), {
+        maxOutputBytes: 1024,
+      })
+    ).toEqual({ status: 'error' });
   });
 });
 
@@ -217,11 +176,8 @@ describe('canZipOversizedFile', () => {
   });
 
   it('allows non-archive non-empty files under ZIP32 and excludes already-compressed archives', () => {
-    const sized = (name: string, type: string, size = 60 * 1024 * 1024) => {
-      const f = new File(['x'], name, { type });
-      Object.defineProperty(f, 'size', { value: size });
-      return f;
-    };
+    const sized = (name: string, type: string, size = 60 * 1024 * 1024) =>
+      withSize(new File(['x'], name, { type }), size);
 
     expect(canZipOversizedFile(sized('app.log', 'text/plain'))).toBe(true);
     expect(canZipOversizedFile(sized('backup.tar', 'application/x-tar'))).toBe(true);

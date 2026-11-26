@@ -15,20 +15,25 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaConfig } from '../../matrix/hooks/useMediaConfig';
 import { useObjectURL } from '../../lib/hooks/useObjectURL';
 import {
+  isUploadItemReady,
   type TUploadItem,
   type TUploadMetadata,
   type Upload,
   UploadStatus,
   useBindUploadAtom,
+  type ZipFailureReason,
 } from '../../matrix/state/upload';
-import { getTooLargeError, MEDIA_UPLOAD_SIZE_KEY } from '../roomInputAttachmentAccess';
+import {
+  canZipUploadItem,
+  getTooLargeError,
+  MEDIA_UPLOAD_SIZE_KEY,
+} from '../roomInputAttachmentAccess';
 import { roomUploadAtomFamily } from '../roomInputDrafts';
 import {
   getMatrixUploadErrorMessage,
   isTooLargeError,
   toMatrixUploadError,
 } from '../../matrix/matrix';
-import { canZipOversizedFile } from '../../lib/media/mediaCompressionEligibility';
 import { bytesToSize } from '../../lib/common';
 import { revealDirectionControls } from '../../ui/directional';
 
@@ -41,6 +46,12 @@ export const getFileTypeIcon = (mimeType: string): IconSrc => {
 };
 
 const fileNameOf = (file: { name?: string }): string => file.name ?? '';
+
+const ZIP_FAILED_KEYS = {
+  'too-large': 'sharedUi.uploadCardRenderer.zipFailedTooLarge',
+  'no-savings': 'sharedUi.uploadCardRenderer.zipFailedNoSavings',
+  error: 'sharedUi.uploadCardRenderer.zipFailedError',
+} as const satisfies Record<ZipFailureReason, string>;
 
 export { getTooLargeError };
 
@@ -166,6 +177,7 @@ export const UploadCardRenderer = ({
   const { file, originalFile, metadata, encInfo, prepError, compression } = fileItem;
   const isCompressing = compression?.status === 'compressing';
   const isZipFailed = compression?.status === 'zipFailed';
+  const isReady = isUploadItemReady(fileItem);
 
   const compressingError = useMemo(
     () =>
@@ -220,17 +232,11 @@ export const UploadCardRenderer = ({
 
   useEffect(() => {
     // Compressing placeholders, failed zip attempts, and unpreparable files must never auto-upload.
-    if (
-      !autoUpload ||
-      isCompressing ||
-      isZipFailed ||
-      blockUploadError ||
-      upload.status !== UploadStatus.Idle
-    ) {
+    if (!autoUpload || !isReady || blockUploadError || upload.status !== UploadStatus.Idle) {
       return;
     }
     void startUpload();
-  }, [autoUpload, isCompressing, isZipFailed, blockUploadError, upload.status, startUpload]);
+  }, [autoUpload, isReady, blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
     void cancelUpload();
@@ -250,31 +256,18 @@ export const UploadCardRenderer = ({
     onUseOriginal !== undefined &&
     canUseOriginal &&
     !prepError &&
-    ((compression?.status === 'compressing' && compression.canUseOriginal !== false) ||
-      (compression?.status === 'compressed' && compression.canUseOriginal !== false));
+    ((compression?.status === 'compressing' && compression.useOriginal !== undefined) ||
+      (compression?.status === 'compressed' && compression.sourceFile !== undefined));
   const canCompressToZip =
-    onCompressToZip !== undefined &&
-    canUseOriginal &&
-    !prepError &&
-    metadata.mindroomPasteAttachment === undefined &&
-    !isCompressing &&
-    !isZipFailed &&
-    canZipOversizedFile(originalFile);
-  let zipFailedMessage: string | undefined;
-  if (!blockUploadError && compression?.status === 'zipFailed') {
-    if (compression.reason === 'too-large') {
-      zipFailedMessage =
-        maxUploadSize !== undefined && maxUploadSize > 0
-          ? t('sharedUi.uploadCardRenderer.zipFailedTooLargeWithMax', {
-              maxSize: bytesToSize(maxUploadSize),
-            })
-          : t('sharedUi.uploadCardRenderer.zipFailedTooLarge');
-    } else if (compression.reason === 'no-savings') {
-      zipFailedMessage = t('sharedUi.uploadCardRenderer.zipFailedNoSavings');
-    } else {
-      zipFailedMessage = t('sharedUi.uploadCardRenderer.zipFailedError');
-    }
-  }
+    onCompressToZip !== undefined && canUseOriginal && canZipUploadItem(fileItem);
+  const zipFailedMessage =
+    !blockUploadError && compression?.status === 'zipFailed'
+      ? compression.reason === 'too-large' && maxUploadSize !== undefined && maxUploadSize > 0
+        ? t('sharedUi.uploadCardRenderer.zipFailedTooLargeWithMax', {
+            maxSize: bytesToSize(maxUploadSize),
+          })
+        : t(ZIP_FAILED_KEYS[compression.reason])
+      : undefined;
 
   return (
     <UploadCard

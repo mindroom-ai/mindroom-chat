@@ -67,7 +67,6 @@ export const isEligibleVideoForCompression = (file: File, maxUploadSize?: number
 export const canZipOversizedFile = (file: File): boolean => {
   if (file.size <= 0 || file.size >= MAX_ZIP32_FILE_BYTES) return false;
   if (typeof CompressionStream !== 'function') return false;
-  if (ALREADY_COMPRESSED_ARCHIVE_MIME_TYPES.has(getMimeTypeBase(file.type ?? ''))) return false;
-  const ext = getFileNameExt(file.name ?? '').toLowerCase();
-  return !ext || !ALREADY_COMPRESSED_ARCHIVE_EXTENSIONS.has(ext);
+  if (ALREADY_COMPRESSED_ARCHIVE_MIME_TYPES.has(getMimeTypeBase(file.type))) return false;
+  return !ALREADY_COMPRESSED_ARCHIVE_EXTENSIONS.has(getFileNameExt(file.name).toLowerCase());
 };

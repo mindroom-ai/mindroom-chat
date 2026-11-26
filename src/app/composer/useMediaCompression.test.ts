@@ -44,6 +44,29 @@ const makeSizedFile = (name: string, type: string, size: number): File => {
   return file;
 };
 
+const stageItem = (
+  harness: ReturnType<typeof renderHook>,
+  file: File,
+  overrides: Partial<TUploadItem> = {}
+): TUploadItem => {
+  const item: TUploadItem = {
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata: { markedAsSpoiler: false },
+    ...overrides,
+  };
+  harness.store.set(harness.getTargetAtom(ROOM_ID), { type: 'PUT', item });
+  return item;
+};
+
+const zipOk = (raw: File, zipped: File) => ({
+  status: 'ok' as const,
+  file: zipped,
+  originalSize: raw.size,
+  compressedSize: zipped.size,
+});
+
 const makeRoom = (roomId: string, encrypted: boolean): Room =>
   ({
     roomId,
@@ -626,7 +649,7 @@ describe('useMediaCompression', () => {
     expect(harness.store.get(targetAtom)).toEqual([job.placeholder]);
   });
 
-  it('zips an oversized file in an encrypted room, clears spoiler, disables Use original, and starts Idle', async () => {
+  it('zips an oversized file in an encrypted room, clears spoiler, omits sourceFile/useOriginal, and starts Idle', async () => {
     const room = makeRoom(ROOM_ID, true);
     const harness = renderHook({ room, maxUploadSize: 50 * 1024 * 1024 });
     const targetAtom = harness.getTargetAtom(ROOM_ID);
@@ -635,20 +658,13 @@ describe('useMediaCompression', () => {
     const zippedFile = makeSizedFile('report.bmp.zip', 'application/zip', 4 * 1024 * 1024);
     const encZipFile = makeSizedFile('report.bmp.zip', 'application/octet-stream', 4 * 1024 * 1024);
     const voiceMeta = { duration: 1200 };
-    const staged: TUploadItem = {
-      file: origEncFile,
+    const staged = stageItem(harness, origEncFile, {
       originalFile: rawFile,
       encInfo: { v: 'v2' } as never,
       metadata: { markedAsSpoiler: true, voiceMessage: voiceMeta },
-    };
-    harness.store.set(targetAtom, { type: 'PUT', item: staged });
+    });
 
-    const gate = createDeferred<{
-      status: 'ok';
-      file: File;
-      originalSize: number;
-      compressedSize: number;
-    }>();
+    const gate = createDeferred<ReturnType<typeof zipOk>>();
     let capturedProgress: ((p: number) => void) | undefined;
     mockZipFile.mockImplementationOnce(
       async (_file: File, opts: { maxOutputBytes?: number; onProgress?: (p: number) => void }) => {
@@ -669,9 +685,9 @@ describe('useMediaCompression', () => {
     const promise = harness.api.compressToZip(staged);
     const during = harness.store.get(targetAtom)[0]!;
     expect(during.compression?.status).toBe('compressing');
-    expect(during.compression?.status === 'compressing' && during.compression.canUseOriginal).toBe(
-      false
-    );
+    expect(
+      during.compression?.status === 'compressing' ? during.compression.useOriginal : 'bad'
+    ).toBeUndefined();
     expect(isUploadItemReady(during)).toBe(false);
 
     await vi.waitFor(() => expect(capturedProgress).toBeDefined());
@@ -682,12 +698,7 @@ describe('useMediaCompression', () => {
         : -1
     ).toBe(0.6);
 
-    gate.resolve({
-      status: 'ok',
-      file: zippedFile,
-      originalSize: rawFile.size,
-      compressedSize: zippedFile.size,
-    });
+    gate.resolve(zipOk(rawFile, zippedFile));
     await promise;
 
     expect(prepareSpy).toHaveBeenCalledWith([zippedFile], room, expect.any(Function));
@@ -697,81 +708,58 @@ describe('useMediaCompression', () => {
       originalFile: zippedFile,
       encInfo: { v: 'v2' },
       metadata: { markedAsSpoiler: false, voiceMessage: voiceMeta },
-      compression: {
-        status: 'compressed',
-        sourceFile: rawFile,
-        originalSize: rawFile.size,
-        canUseOriginal: false,
-      },
     });
+    expect(committed.compression).toEqual({ status: 'compressed', originalSize: rawFile.size });
     expect(harness.store.get(roomUploadAtomFamily(encZipFile)).status).toBe(UploadStatus.Idle);
 
-    // Restoring original is blocked when canUseOriginal is false.
+    // Restoring original is a no-op when sourceFile is omitted.
     await harness.api.useOriginal(committed);
     expect(harness.store.get(targetAtom)[0]).toBe(committed);
   });
 
   it('zips an oversized deferred Home Ask file without encrypting it', async () => {
-    const room = makeRoom(ROOM_ID, true);
-    const harness = renderHook({ room, deferUpload: true, maxUploadSize: 10 * 1024 * 1024 });
-    const targetAtom = harness.getTargetAtom(ROOM_ID);
+    const harness = renderHook({
+      room: makeRoom(ROOM_ID, true),
+      deferUpload: true,
+      maxUploadSize: 10 * 1024 * 1024,
+    });
     const rawFile = makeSizedFile('dump.sql', 'application/sql', 20 * 1024 * 1024);
     const zippedFile = makeSizedFile('dump.sql.zip', 'application/zip', 2 * 1024 * 1024);
-    const staged: TUploadItem = {
-      file: rawFile,
-      originalFile: rawFile,
-      encInfo: undefined,
-      metadata: { markedAsSpoiler: false },
-    };
-    harness.store.set(targetAtom, { type: 'PUT', item: staged });
+    const staged = stageItem(harness, rawFile);
     const prepareSpy = vi.spyOn(uploadPreparation, 'createRoomUploadItems');
-    mockZipFile.mockResolvedValueOnce({
-      status: 'ok',
-      file: zippedFile,
-      originalSize: rawFile.size,
-      compressedSize: zippedFile.size,
-    });
+    mockZipFile.mockResolvedValueOnce(zipOk(rawFile, zippedFile));
 
     await harness.api.compressToZip(staged);
 
     expect(prepareSpy).not.toHaveBeenCalled();
-    expect(harness.store.get(targetAtom)[0]).toMatchObject({
+    expect(harness.store.get(harness.getTargetAtom(ROOM_ID))[0]).toMatchObject({
       file: zippedFile,
       originalFile: zippedFile,
       encInfo: undefined,
-      compression: {
-        status: 'compressed',
-        sourceFile: rawFile,
-        originalSize: rawFile.size,
-        canUseOriginal: false,
-      },
+      compression: { status: 'compressed', originalSize: rawFile.size },
     });
   });
 
-  it('restores original item with zipFailed and preserves server 413 UploadStatus.Error in encrypted and unencrypted rooms', async () => {
-    for (const encrypted of [false, true]) {
-      const room = makeRoom(ROOM_ID, encrypted);
-      const harness = renderHook({ room, maxUploadSize: undefined });
-      const targetAtom = harness.getTargetAtom(ROOM_ID);
+  it.each([false, true])(
+    'restores original item with zipFailed and preserves server 413 UploadStatus.Error (encrypted=%s)',
+    async (encrypted) => {
+      const harness = renderHook({ room: makeRoom(ROOM_ID, encrypted), maxUploadSize: undefined });
       const rawFile = makeSizedFile('blob.bin', 'application/octet-stream', 60 * 1024 * 1024);
       const encFile = encrypted
         ? makeSizedFile('blob.bin', 'application/octet-stream', 60 * 1024 * 1024)
         : rawFile;
       const err413 = new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413);
-      const staged: TUploadItem = {
-        file: encFile,
+      const staged = stageItem(harness, encFile, {
         originalFile: rawFile,
         encInfo: encrypted ? ({ v: 'v2' } as never) : undefined,
         metadata: { markedAsSpoiler: true },
-      };
-      harness.store.set(targetAtom, { type: 'PUT', item: staged });
+      });
       harness.store.set(roomUploadAtomFamily(encFile), { error: err413 });
       mockZipFile.mockResolvedValueOnce({ status: 'no-savings' });
 
-      // eslint-disable-next-line no-await-in-loop
       await harness.api.compressToZip(staged);
 
-      const restored = harness.store.get(targetAtom)[0]!;
+      const restored = harness.store.get(harness.getTargetAtom(ROOM_ID))[0]!;
       expect(restored).toMatchObject({
         file: encFile,
         originalFile: rawFile,
@@ -786,20 +774,12 @@ describe('useMediaCompression', () => {
         error: err413,
       });
     }
-  });
+  );
 
-  it('aborts in-flight zip cleanly on cancel or account switch without restoring the item', async () => {
-    const room = makeRoom(ROOM_ID, false);
-    const harness = renderHook({ room, maxUploadSize: 10 * 1024 * 1024 });
+  it('aborts in-flight zip cleanly on cancel without restoring the item', async () => {
+    const harness = renderHook({ room: makeRoom(ROOM_ID, false), maxUploadSize: 10 * 1024 * 1024 });
     const targetAtom = harness.getTargetAtom(ROOM_ID);
-    const rawFile = makeSizedFile('huge.log', 'text/plain', 30 * 1024 * 1024);
-    const staged: TUploadItem = {
-      file: rawFile,
-      originalFile: rawFile,
-      encInfo: undefined,
-      metadata: { markedAsSpoiler: false },
-    };
-    harness.store.set(targetAtom, { type: 'PUT', item: staged });
+    const staged = stageItem(harness, makeSizedFile('huge.log', 'text/plain', 30 * 1024 * 1024));
 
     let capturedSignal: AbortSignal | undefined;
     const gate = createDeferred<{ status: 'aborted' }>();
@@ -820,39 +800,27 @@ describe('useMediaCompression', () => {
   });
 
   it('refuses to zip large paste attachments while still allowing ordinary .txt uploads', async () => {
-    const room = makeRoom(ROOM_ID, false);
-    const harness = renderHook({ room, maxUploadSize: 10 * 1024 * 1024 });
+    const harness = renderHook({ room: makeRoom(ROOM_ID, false), maxUploadSize: 10 * 1024 * 1024 });
     const targetAtom = harness.getTargetAtom(ROOM_ID);
-    const pasteFile = makeSizedFile('pasted-1.txt', 'text/plain', 20 * 1024 * 1024);
-    const pasteItem: TUploadItem = {
-      file: pasteFile,
-      originalFile: pasteFile,
-      encInfo: undefined,
-      metadata: {
-        markedAsSpoiler: false,
-        mindroomPasteAttachment: { id: 'p1', chars: 20_000_000, fileName: 'pasted-1.txt' },
-      },
-    };
+    const pasteItem = stageItem(
+      harness,
+      makeSizedFile('pasted-1.txt', 'text/plain', 20 * 1024 * 1024),
+      {
+        metadata: {
+          markedAsSpoiler: false,
+          mindroomPasteAttachment: { id: 'p1', chars: 20_000_000, fileName: 'pasted-1.txt' },
+        },
+      }
+    );
     const plainTxt = makeSizedFile('notes.txt', 'text/plain', 20 * 1024 * 1024);
-    const plainItem: TUploadItem = {
-      file: plainTxt,
-      originalFile: plainTxt,
-      encInfo: undefined,
-      metadata: { markedAsSpoiler: false },
-    };
+    const plainItem = stageItem(harness, plainTxt);
     const zippedTxt = makeSizedFile('notes.txt.zip', 'application/zip', 2 * 1024 * 1024);
-    harness.store.set(targetAtom, { type: 'PUT', item: [pasteItem, plainItem] });
 
     await harness.api.compressToZip(pasteItem);
     expect(mockZipFile).not.toHaveBeenCalled();
     expect(harness.store.get(targetAtom)[0]).toBe(pasteItem);
 
-    mockZipFile.mockResolvedValueOnce({
-      status: 'ok',
-      file: zippedTxt,
-      originalSize: plainTxt.size,
-      compressedSize: zippedTxt.size,
-    });
+    mockZipFile.mockResolvedValueOnce(zipOk(plainTxt, zippedTxt));
     await harness.api.compressToZip(plainItem);
     expect(mockZipFile).toHaveBeenCalledTimes(1);
     expect(harness.store.get(targetAtom)[1]?.file).toBe(zippedTxt);

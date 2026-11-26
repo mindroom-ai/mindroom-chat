@@ -999,17 +999,15 @@ export const useRoomInputSendSessionController = ({
       const candidateItems = (batch?.fileItems ?? staged).filter(
         (fileItem) => isUploadItemReady(fileItem) && !heldFiles.has(fileItem.file)
       );
-      const droppedTooLargeFiles: TUploadContent[] = [];
-      const sendItems = completeWithinCall
-        ? candidateItems
-        : candidateItems.filter((fileItem) => {
-            if (!isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file))) return true;
-            droppedTooLargeFiles.push(fileItem.file);
-            return false;
-          });
-      if (batch && droppedTooLargeFiles.length > 0) {
+      const isDroppedTooLarge = (fileItem: TUploadItem) =>
+        !completeWithinCall && isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file));
+      const droppedTooLargeFiles = batch
+        ? candidateItems.filter(isDroppedTooLarge).map((item) => item.file)
+        : [];
+      if (droppedTooLargeFiles.length > 0) {
         attachments.clearEnrollment(droppedTooLargeFiles);
       }
+      const sendItems = candidateItems.filter((fileItem) => !isDroppedTooLarge(fileItem));
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {
         onTextConsumed?.();

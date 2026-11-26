@@ -6238,78 +6238,80 @@ describe('RoomInput media compression send and voice invariants', () => {
     }
   });
 
+  const cardFor = (renderer: ReactTestRenderer, file: File) =>
+    renderer.root.findAllByType(UploadCardRenderer).find((c) => c.props.fileItem.file === file);
+
+  const err413 = () => new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413);
+
+  const makePasteItem = (id: string, text: string) => {
+    const file = new File([text], `mindroom-paste-${id}.txt`, { type: 'text/plain' });
+    return createUploadItem(file, {
+      metadata: {
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: { id, chars: text.length, fileName: file.name },
+      },
+    });
+  };
+
   it('releases enrollment when an in-flight Send upload fails with 413 so Compress (.zip) works without stranding sibling files or caption', async () => {
     const store = createStore();
-    const dropRef = createRef<HTMLElement>();
-    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
-
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: createRef() });
     const bigLog = new File(['MindRoom log line\n'.repeat(2000)], 'huge.log', {
       type: 'text/plain',
     });
     const okTxt = new File(['small note'], 'small.txt', { type: 'text/plain' });
+    const bigGate = createDeferred<{ content_uri: string }>();
+    const okGate = createDeferred<{ content_uri: string }>();
 
     await act(async () => {
       fileInputState.onDrop?.([bigLog, okTxt]);
       await Promise.resolve();
       await Promise.resolve();
     });
-
-    const bigGate = createDeferred<{ content_uri: string }>();
-    const okGate = createDeferred<{ content_uri: string }>();
     act(() => {
       store.set(roomUploadAtomFamily(bigLog), { promise: bigGate.promise });
       store.set(roomUploadAtomFamily(okTxt), { promise: okGate.promise });
     });
 
-    // Press Send while both uploads are in flight: both cards are enrolled (canUseOriginal=false).
     stageComposerText('Here are the logs');
     resetEditorOnNextSend();
     mxState.sendMessage
       .mockResolvedValueOnce({ event_id: '$small-root' })
       .mockResolvedValueOnce({ event_id: '$caption' });
-    await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
-    const cardFor = (file: File) =>
-      renderer.root.findAllByType(UploadCardRenderer).find((c) => c.props.fileItem.file === file);
-    expect(cardFor(bigLog)?.props.canUseOriginal).toBe(false);
-    expect(cardFor(okTxt)?.props.canUseOriginal).toBe(false);
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(cardFor(renderer, bigLog)?.props.canUseOriginal).toBe(false);
+    expect(cardFor(renderer, okTxt)?.props.canUseOriginal).toBe(false);
 
-    // Server rejects huge.log with 413: it stays staged, enrollment clears, small.txt remains enrolled.
+    // 413 releases huge.log enrollment while okTxt remains enrolled and finishes sending with caption.
     await act(async () => {
-      bigGate.reject(new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413));
-      await Promise.resolve();
+      bigGate.reject(err413());
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(cardFor(bigLog)?.props.canUseOriginal).toBe(true));
-    expect(cardFor(okTxt)?.props.canUseOriginal).toBe(false);
+    await vi.waitFor(() => expect(cardFor(renderer, bigLog)?.props.canUseOriginal).toBe(true));
+    expect(cardFor(renderer, okTxt)?.props.canUseOriginal).toBe(false);
 
-    // Sibling upload finishes: small.txt and caption send cleanly instead of stranding on huge.log.
     await act(async () => {
       okGate.resolve({ content_uri: 'mxc://mindroom/small' });
       await Promise.resolve();
-      await Promise.resolve();
     });
     await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
-    expect(
-      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
-    ).toEqual(['small.txt', 'Here are the logs']);
+    expect(mxState.sendMessage.mock.calls.map((c) => (c[1] as { body: string }).body)).toEqual([
+      'small.txt',
+      'Here are the logs',
+    ]);
 
-    // Now Compress (.zip) runs cleanly on the released huge.log item.
-    const bigCard = cardFor(bigLog);
-    expect(bigCard?.props.canUseOriginal).toBe(true);
-    await act(async () => {
-      await bigCard?.props.onCompressToZip(bigCard.props.fileItem);
-    });
+    const bigCard = cardFor(renderer, bigLog)!;
+    await act(async () => bigCard.props.onCompressToZip(bigCard.props.fileItem));
     await vi.waitFor(() => {
       const staged = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
       expect(staged).toHaveLength(1);
       expect(staged[0]?.originalFile.name).toBe('huge.log.zip');
-      expect(staged[0]?.compression).toMatchObject({ status: 'compressed', canUseOriginal: false });
+      expect(staged[0]?.compression).toEqual({ status: 'compressed', originalSize: bigLog.size });
     });
 
     // Single-file Send -> 413 with no caption also completes cleanly and releases enrollment.
     const solo = new File(['solo log\n'.repeat(500)], 'solo.log', { type: 'text/plain' });
+    const soloGate = createDeferred<{ content_uri: string }>();
     await act(async () => {
       store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), {
         type: 'DELETE',
@@ -6319,93 +6321,60 @@ describe('RoomInput media compression send and voice invariants', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    const soloGate = createDeferred<{ content_uri: string }>();
-    act(() => {
-      store.set(roomUploadAtomFamily(solo), { promise: soloGate.promise });
-    });
+    act(() => store.set(roomUploadAtomFamily(solo), { promise: soloGate.promise }));
     stageComposerText('');
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(cardFor(renderer, solo)?.props.canUseOriginal).toBe(false);
     await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
-    expect(cardFor(solo)?.props.canUseOriginal).toBe(false);
-    await act(async () => {
-      soloGate.reject(new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413));
-      await Promise.resolve();
+      soloGate.reject(err413());
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(cardFor(solo)?.props.canUseOriginal).toBe(true));
+    await vi.waitFor(() => expect(cardFor(renderer, solo)?.props.canUseOriginal).toBe(true));
 
-    act(() => {
-      renderer.unmount();
-    });
+    act(() => renderer.unmount());
   });
 
   it('keeps a 413 large paste attachment enrolled and staged on Send instead of dropping it as an orphan', async () => {
     const store = createStore();
-    const paste1 = new File(['huge paste'], 'mindroom-paste-413a.txt', { type: 'text/plain' });
-    const paste2 = new File(['huge paste 2'], 'mindroom-paste-413b.txt', { type: 'text/plain' });
-    const pasteItem1 = createUploadItem(paste1, {
-      metadata: {
-        markedAsSpoiler: false,
-        mindroomPasteAttachment: { id: '413a', chars: 10, fileName: paste1.name },
-      },
-    });
-    const pasteItem2 = createUploadItem(paste2, {
-      metadata: {
-        markedAsSpoiler: false,
-        mindroomPasteAttachment: { id: '413b', chars: 12, fileName: paste2.name },
-      },
-    });
-    stageUploadItems(store, [pasteItem1]);
-    store.set(roomUploadAtomFamily(paste1), {
-      error: new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413),
-    });
+    const paste1 = makePasteItem('413a', 'huge paste');
+    const paste2 = makePasteItem('413b', 'huge paste 2');
+    stageUploadItems(store, [paste1]);
+    store.set(roomUploadAtomFamily(paste1.file), { error: err413() });
 
     const { renderer } = await renderRoomInput(store);
-    const cardFor = (file: File) =>
-      renderer.root.findAllByType(UploadCardRenderer).find((c) => c.props.fileItem.file === file);
+    const sendAndClearEditor = async (caption: string, eventId: string) => {
+      stageComposerText(caption);
+      editorMocks.resetEditor.mockImplementationOnce(() => {
+        setEditorText('');
+        customEditorState.props!.onChange?.();
+      });
+      mxState.sendMessage.mockResolvedValueOnce({ event_id: eventId });
+      await act(async () => getPrimarySendButton(renderer).props.onClick());
+    };
 
-    // 1. Already-413 paste attachment: Send enrolls it so resetting the editor does not orphan-delete it.
-    stageComposerText('see pasted log');
-    editorMocks.resetEditor.mockImplementationOnce(() => {
-      setEditorText('');
-      customEditorState.props!.onChange?.();
-    });
-    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$paste-caption' });
-    await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
+    // 1. Already-413 paste stays enrolled across editor reset.
+    await sendAndClearEditor('see pasted log', '$paste-caption');
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
-    expect(cardFor(paste1)?.props.canUseOriginal).toBe(false);
+    expect(cardFor(renderer, paste1.file)?.props.canUseOriginal).toBe(false);
 
-    // 2. In-flight paste attachment that returns 413 after Send: stays enrolled and staged.
+    // 2. In-flight paste failing with 413 after Send also stays enrolled and staged.
     const gate = createDeferred<{ content_uri: string }>();
     await act(async () => {
-      cardFor(paste1)?.props.onRemove(paste1);
+      cardFor(renderer, paste1.file)?.props.onRemove(paste1.file);
       await Promise.resolve();
       await Promise.resolve();
-      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: pasteItem2 });
-      store.set(roomUploadAtomFamily(paste2), { promise: gate.promise });
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: paste2 });
+      store.set(roomUploadAtomFamily(paste2.file), { promise: gate.promise });
     });
-    stageComposerText('second pasted log');
-    editorMocks.resetEditor.mockImplementationOnce(() => {
-      setEditorText('');
-      customEditorState.props!.onChange?.();
-    });
-    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$paste-caption-2' });
+    await sendAndClearEditor('second pasted log', '$paste-caption-2');
     await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
-    await act(async () => {
-      gate.reject(new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413));
+      gate.reject(err413());
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
-    expect(cardFor(paste2)?.props.canUseOriginal).toBe(false);
+    expect(cardFor(renderer, paste2.file)?.props.canUseOriginal).toBe(false);
 
-    act(() => {
-      renderer.unmount();
-    });
+    act(() => renderer.unmount());
   });
 });
