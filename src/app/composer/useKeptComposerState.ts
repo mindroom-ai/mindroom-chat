@@ -35,7 +35,9 @@ export const useKeptComposerState = (
   // and Space's All threads composer do.
   const userId = useInConversationView() ? '' : ownUserId;
   const fileScope = stagedDraftKey ?? roomId;
-  const keptFilesKey = userId ? (stagedDraftKey ?? getRoomInputDraftKey(userId, roomId)) : undefined;
+  const keptFilesKey = userId
+    ? (stagedDraftKey ?? getRoomInputDraftKey(userId, roomId))
+    : undefined;
   const itemsAtom = roomIdToUploadItemsAtomFamily(fileScope);
   // Pastes the composer puts back do not answer the notice of the other files.
   const stagedCount = useAtomValue(itemsAtom).filter(

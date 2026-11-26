@@ -102,7 +102,11 @@ describe('useKeptComposerState', () => {
   it('names the staged files a reload lost until they are dismissed', () => {
     const store = openPage();
     expect(kept?.lostFileNames).toEqual([]);
-    keepStagedFileNames(getRoomInputDraftKey(ME, ROOM), [staged('notes.txt'), staged('photo.png')], store);
+    keepStagedFileNames(
+      getRoomInputDraftKey(ME, ROOM),
+      [staged('notes.txt'), staged('photo.png')],
+      store
+    );
 
     reload();
     expect(kept?.lostFileNames).toEqual(['notes.txt', 'photo.png']);

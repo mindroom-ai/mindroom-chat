@@ -171,11 +171,7 @@ const matchesOriginApiUrl = (
 const onDictationShortcutCapture = (event: KeyboardEvent): void => {
   if (event.defaultPrevented || event.repeat || isComposingKey(event)) return;
   if (!matchesShortcut(event, 'dictate')) return;
-  if (
-    computerOwnsKeyboardEvent(event) ||
-    computerOwnsKeyboardFocus() ||
-    openOverlay() !== 'none'
-  ) {
+  if (computerOwnsKeyboardEvent(event) || computerOwnsKeyboardFocus() || openOverlay() !== 'none') {
     return;
   }
 

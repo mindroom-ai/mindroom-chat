@@ -2015,7 +2015,16 @@ describe('useRoomInputDictation', () => {
       const rootRef = useRef<HTMLDivElement | null>(null);
       return (
         <div ref={rootRef}>
-          {useRoomInputDictation({ editor, roomId, ownerKey: spaceKey, sendKey: spaceKey, draftKey: spaceKey, rootRef }).capsule}
+          {
+            useRoomInputDictation({
+              editor,
+              roomId,
+              ownerKey: spaceKey,
+              sendKey: spaceKey,
+              draftKey: spaceKey,
+              rootRef,
+            }).capsule
+          }
         </div>
       );
     }
@@ -2030,7 +2039,9 @@ describe('useRoomInputDictation', () => {
     const view = render(wrap('!des:example.org'));
     expect(screen.queryByText('composer.dictation.retryAndSend')).toBeNull();
     expect(screen.getByText('composer.dictation.discard')).toBeTruthy();
-    expect(screen.getByRole('alert').textContent).toContain('composer.dictation.sendFailedOffTarget');
+    expect(screen.getByRole('alert').textContent).toContain(
+      'composer.dictation.sendFailedOffTarget'
+    );
 
     view.rerender(wrap('!eng:example.org'));
     fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));

@@ -158,7 +158,15 @@ const setup = (
       <Harness />
     </Provider>
   );
-  return { store, staged, getVoice: () => voice, uploadItem, restoreText, sendVoiceItem, startSendSession };
+  return {
+    store,
+    staged,
+    getVoice: () => voice,
+    uploadItem,
+    restoreText,
+    sendVoiceItem,
+    startSendSession,
+  };
 };
 
 afterEach(() => {
@@ -302,7 +310,10 @@ describe('useRoomInputVoice mid-turn mode', () => {
 
     const marker = createPasteMarker(pasteMeta);
     await act(async () => {
-      await getVoice().sendAtPress(() => ({ msgtype: 'm.text', body: `${marker} check this` }), false);
+      await getVoice().sendAtPress(
+        () => ({ msgtype: 'm.text', body: `${marker} check this` }),
+        false
+      );
     });
     expect(startSendSession).not.toHaveBeenCalled();
     expect(restoreText).toHaveBeenCalledTimes(1);
@@ -326,7 +337,9 @@ describe('useRoomInputVoice mid-turn mode', () => {
       return mxc;
     });
     await act(async () => {
-      await next.getVoice().sendAtPress(() => ({ msgtype: 'm.text', body: 'Plain caption' }), false);
+      await next
+        .getVoice()
+        .sendAtPress(() => ({ msgtype: 'm.text', body: 'Plain caption' }), false);
     });
     expect(next.startSendSession).toHaveBeenCalledTimes(1);
   });

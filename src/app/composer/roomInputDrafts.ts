@@ -231,7 +231,8 @@ const writtenMsgDraftAtomFamily = atomFamily((_draftKey: string) =>
 const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Descendant[]], void> => {
   const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const userId = getDraftUserId(draftKey);
-  const entryAtom: WritableAtom<{ draft: Descendant[] }, [{ draft: Descendant[] }], void> | undefined =
+  const entryAtom:
+    WritableAtom<{ draft: Descendant[] }, [{ draft: Descendant[] }], void> | undefined =
     userId !== undefined && draftKey === getHomeAskDraftKey(userId)
       ? homeAskEntryAtomFamily(userId)
       : isSpaceThreadsDraftKey(draftKey)

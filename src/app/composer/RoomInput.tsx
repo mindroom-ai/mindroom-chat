@@ -380,11 +380,7 @@ export function RoomInput({
     onConfirmedRef: rootConfirmedRef,
   });
   const saveDraft = useRoomInputDraft(editor, textKey);
-  const { lostFileNames, dismissLostFiles } = useKeptComposerState(
-    userId,
-    roomId,
-    stagedDraftKey
-  );
+  const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId, stagedDraftKey);
   const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const commands = useCommands(room, threadingEnabled ? threadId : undefined);
   // Home's ask field does not run client slash commands (such as /leave) on an unseen room.
@@ -647,7 +643,6 @@ export function RoomInput({
     linkSchemes,
     parseCommands,
     commands,
-    deferredDraft,
     ask,
     restoreReplyDraft,
     sessions,
@@ -826,7 +821,9 @@ export function RoomInput({
             completeWithinCall: uploadedItems.length > 0,
             composerFallback: pendingFallback,
             composerAlreadyReset: Boolean(textContent),
-            beforeSend: ask ? (sentTo) => sameAccount() && ask.canSend(sentTo) : () => sameAccount(),
+            beforeSend: ask
+              ? (sentTo) => sameAccount() && ask.canSend(sentTo)
+              : () => sameAccount(),
             onLocalEchoCreated:
               ask?.onLocalEcho &&
               ((id, sent) => {
