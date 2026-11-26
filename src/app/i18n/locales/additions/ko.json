@@ -38,7 +38,12 @@
     "uploadCardRenderer": {
       "compressing": "압축 중...",
       "useOriginal": "원본 사용",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "압축 (.zip)",
+      "zipFailedTooLarge": ".zip으로 압축한 후에도 파일이 너무 큽니다.",
+      "zipFailedTooLargeWithMax": ".zip으로 압축한 후에도 파일이 너무 큽니다(최대 {{maxSize}}).",
+      "zipFailedNoSavings": ".zip으로 압축해도 이 파일 크기가 줄어들지 않았습니다.",
+      "zipFailedError": "이 파일을 .zip으로 압축할 수 없습니다."
     },
     "passwordInput": {
       "show": "비밀번호 표시",

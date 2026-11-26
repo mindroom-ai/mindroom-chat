@@ -41,7 +41,12 @@
     "uploadCardRenderer": {
       "compressing": "সংকুচিত হচ্ছে...",
       "useOriginal": "মূল ফাইল ব্যবহার করুন",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "কম্প্রেস করুন (.zip)",
+      "zipFailedTooLarge": ".zip-এ কম্প্রেস করার পরেও ফাইলটি অনেক বড়।",
+      "zipFailedTooLargeWithMax": ".zip-এ কম্প্রেস করার পরেও ফাইলটি অনেক বড় (সর্বোচ্চ {{maxSize}})।",
+      "zipFailedNoSavings": ".zip-এ কম্প্রেস করলে এই ফাইলটি ছোট হয়নি।",
+      "zipFailedError": "এই ফাইলটি .zip-এ কম্প্রেস করা যায়নি।"
     },
     "passwordInput": {
       "show": "পাসওয়ার্ড দেখান",

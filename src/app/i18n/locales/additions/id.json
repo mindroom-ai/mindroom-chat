@@ -38,7 +38,12 @@
     "uploadCardRenderer": {
       "compressing": "Mengompresi...",
       "useOriginal": "Gunakan asli",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Kompres (.zip)",
+      "zipFailedTooLarge": "Masih terlalu besar setelah dikompres ke .zip.",
+      "zipFailedTooLargeWithMax": "Masih terlalu besar setelah dikompres ke .zip (maksimum {{maxSize}}).",
+      "zipFailedNoSavings": "Mengompres ke .zip tidak memperkecil ukuran file ini.",
+      "zipFailedError": "Tidak dapat mengompres file ini ke .zip."
     },
     "passwordInput": {
       "show": "Tampilkan kata sandi",

@@ -64,17 +64,27 @@ type UploadPayload = {
   encInfo: EncryptedAttachmentInfo | undefined;
 };
 
+export type ZipFailureReason = 'too-large' | 'no-savings' | 'error';
+
 export type UploadCompression =
   | {
       status: 'compressing';
       progressAtom: Atom<number>;
       cancel: () => void;
       useOriginal: () => void;
+      /** False when the original file cannot be restored (e.g. oversized `.zip` compression). */
+      canUseOriginal?: boolean;
     }
   | {
       status: 'compressed';
       sourceFile: File;
       originalSize: number;
+      /** False when the original file is oversized and cannot be restored. */
+      canUseOriginal?: boolean;
+    }
+  | {
+      status: 'zipFailed';
+      reason: ZipFailureReason;
     }
   | { status: 'original' };
 
@@ -90,7 +100,9 @@ export type TUploadItem = UploadPayload & {
 
 /** Whether a staged upload item is ready to enroll in a send session or voice bundle. */
 export const isUploadItemReady = (item: TUploadItem): boolean =>
-  !item.prepError && item.compression?.status !== 'compressing';
+  !item.prepError &&
+  item.compression?.status !== 'compressing' &&
+  item.compression?.status !== 'zipFailed';
 
 export const createUploadAtom = (file: TUploadContent): TUploadAtom => {
   const uploadAtom = atom<Upload>({ file, status: UploadStatus.Idle });

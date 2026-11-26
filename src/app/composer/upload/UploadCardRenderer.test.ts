@@ -420,4 +420,208 @@ describe('upload card renderers', () => {
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Use original');
   });
+
+  it('shows Compress (.zip) without Retry on pre-flight and server 413 errors, and hides it when ineligible', () => {
+    const bigLog = createFile({ name: 'app.log', type: 'text/plain', size: 60 * 1024 * 1024 });
+    const onCompressToZip = vi.fn();
+
+    // Pre-flight too-large (including deferred autoUpload=false)
+    uploadMock.mediaConfig = { 'm.upload.size': 50 * 1024 * 1024 };
+    uploadMock.upload = { file: bigLog, status: 'idle' };
+    const preflightItem = {
+      file: bigLog,
+      originalFile: bigLog,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(UploadCardRenderer, {
+          autoUpload: false,
+          fileItem: preflightItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip,
+        })
+      );
+    });
+    const preflightText = JSON.stringify(renderer.toJSON());
+    expect(preflightText).toContain('Compress (.zip)');
+    expect(preflightText).not.toContain('Retry');
+
+    const zipBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Compress (.zip)'))
+      );
+    act(() => {
+      zipBtn?.props.onClick();
+    });
+    expect(onCompressToZip).toHaveBeenCalledWith(preflightItem);
+
+    // Server 413 when maxUploadSize is unknown: shows Compress (.zip) and hides Retry
+    uploadMock.mediaConfig = {};
+    setUploadError(bigLog, new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too large' }, 413));
+    const server413Text = renderText(
+      React.createElement(UploadCardRenderer, {
+        fileItem: preflightItem,
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+        onCompressToZip,
+      })
+    );
+    expect(server413Text).toContain('Compress (.zip)');
+    expect(server413Text).not.toContain('Retry');
+
+    // Already-compressed archive (.zip) or enrolled (canUseOriginal=false): hides Compress (.zip)
+    const bigZip = createFile({
+      name: 'bundle.zip',
+      type: 'application/zip',
+      size: 60 * 1024 * 1024,
+    });
+    setUploadError(bigZip, new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too large' }, 413));
+    expect(
+      renderText(
+        React.createElement(UploadCardRenderer, {
+          fileItem: {
+            file: bigZip,
+            originalFile: bigZip,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+          },
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip,
+        })
+      )
+    ).not.toContain('Compress (.zip)');
+
+    expect(
+      renderText(
+        React.createElement(UploadCardRenderer, {
+          fileItem: preflightItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip,
+          canUseOriginal: false,
+        })
+      )
+    ).not.toContain('Compress (.zip)');
+  });
+
+  it('hides Use original when compression.canUseOriginal is false and renders zipFailed errors without auto-uploading', () => {
+    const zipped = createFile({
+      name: 'app.log.zip',
+      type: 'application/zip',
+      size: 4 * 1024 * 1024,
+    });
+    uploadMock.upload = { file: zipped, status: 'success', mxc: 'mxc://example/zip' };
+    const compressedOut = renderText(
+      React.createElement(UploadCardRenderer, {
+        fileItem: {
+          file: zipped,
+          originalFile: zipped,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+          compression: {
+            status: 'compressed',
+            sourceFile: new File(['raw'], 'app.log'),
+            originalSize: 60 * 1024 * 1024,
+            canUseOriginal: false,
+          },
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+        onUseOriginal: vi.fn(),
+      })
+    );
+    expect(compressedOut).toContain('62.9 MB → 4.2 MB');
+    expect(compressedOut).not.toContain('Use original');
+
+    // Compressing placeholder with canUseOriginal: false hides Use original
+    const store = createStore();
+    uploadMock.upload = { file: zipped, status: 'idle' };
+    const compressingOut = renderText(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(UploadCardRenderer, {
+          fileItem: {
+            file: zipped,
+            originalFile: zipped,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+            compression: {
+              status: 'compressing',
+              progressAtom: atom(0.4),
+              cancel: vi.fn(),
+              useOriginal: vi.fn(),
+              canUseOriginal: false,
+            },
+          },
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onUseOriginal: vi.fn(),
+        })
+      )
+    );
+    expect(compressingOut).toContain('Compressing...');
+    expect(compressingOut).not.toContain('Use original');
+
+    // zipFailed states suppress auto-upload, hide Retry and Compress (.zip), and render reason text
+    const raw = createFile({
+      name: 'data.bin',
+      type: 'application/octet-stream',
+      size: 60_000_000,
+    });
+    uploadMock.upload = { file: raw, status: 'idle' };
+    uploadMock.mediaConfig = { 'm.upload.size': 50_000_000 };
+    const tooLargeWithMax = renderText(
+      React.createElement(UploadCardRenderer, {
+        fileItem: {
+          file: raw,
+          originalFile: raw,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+          compression: { status: 'zipFailed', reason: 'too-large' },
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+        onCompressToZip: vi.fn(),
+      })
+    );
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(tooLargeWithMax).toContain(
+      'Still too large after compressing to .zip (maximum is 50.0 MB).'
+    );
+    expect(tooLargeWithMax).not.toContain('Compress (.zip)');
+    expect(tooLargeWithMax).not.toContain('Retry');
+
+    uploadMock.mediaConfig = {};
+    for (const [reason, expected] of [
+      ['too-large', 'Still too large after compressing to .zip.'],
+      ['no-savings', 'Compressing to .zip did not make this file smaller.'],
+      ['error', "Couldn't compress this file to .zip."],
+    ] as const) {
+      const out = renderText(
+        React.createElement(UploadCardRenderer, {
+          fileItem: {
+            file: raw,
+            originalFile: raw,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+            compression: { status: 'zipFailed', reason },
+          },
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip: vi.fn(),
+        })
+      );
+      expect(out).toContain(expected);
+      expect(out).not.toContain('Compress (.zip)');
+      expect(out).not.toContain('Retry');
+    }
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+  });
 });

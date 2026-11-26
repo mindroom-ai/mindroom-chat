@@ -38,7 +38,12 @@
     "uploadCardRenderer": {
       "compressing": "正在压缩...",
       "useOriginal": "使用原文件",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "压缩 (.zip)",
+      "zipFailedTooLarge": "压缩为 .zip 后仍然过大。",
+      "zipFailedTooLargeWithMax": "压缩为 .zip 后仍然过大（上限为 {{maxSize}}）。",
+      "zipFailedNoSavings": "压缩为 .zip 并未减小此文件的大小。",
+      "zipFailedError": "无法将此文件压缩为 .zip。"
     },
     "passwordInput": {
       "show": "显示密码",

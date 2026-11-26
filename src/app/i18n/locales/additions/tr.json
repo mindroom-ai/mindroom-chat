@@ -41,7 +41,12 @@
     "uploadCardRenderer": {
       "compressing": "Sıkıştırılıyor...",
       "useOriginal": "Orijinali kullan",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Sıkıştır (.zip)",
+      "zipFailedTooLarge": ".zip olarak sıkıştırıldıktan sonra hâlâ çok büyük.",
+      "zipFailedTooLargeWithMax": ".zip olarak sıkıştırıldıktan sonra hâlâ çok büyük (en fazla {{maxSize}}).",
+      "zipFailedNoSavings": ".zip olarak sıkıştırmak bu dosyayı küçültmedi.",
+      "zipFailedError": "Bu dosya .zip olarak sıkıştırılamadı."
     },
     "passwordInput": {
       "show": "Parolayı göster",

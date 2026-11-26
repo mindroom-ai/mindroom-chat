@@ -38,7 +38,12 @@
     "uploadCardRenderer": {
       "compressing": "圧縮中...",
       "useOriginal": "元ファイルを使用",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "圧縮 (.zip)",
+      "zipFailedTooLarge": ".zip に圧縮してもサイズが大きすぎます。",
+      "zipFailedTooLargeWithMax": ".zip に圧縮してもサイズが大きすぎます（上限 {{maxSize}}）。",
+      "zipFailedNoSavings": ".zip に圧縮してもこのファイルは小さくなりませんでした。",
+      "zipFailedError": "このファイルを .zip に圧縮できませんでした。"
     },
     "passwordInput": {
       "show": "パスワードを表示",

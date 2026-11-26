@@ -47,7 +47,12 @@
     "uploadCardRenderer": {
       "compressing": "Сжатие...",
       "useOriginal": "Оригинал",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Сжать (.zip)",
+      "zipFailedTooLarge": "Файл всё ещё слишком большой после сжатия в .zip.",
+      "zipFailedTooLargeWithMax": "Файл всё ещё слишком большой после сжатия в .zip (максимум {{maxSize}}).",
+      "zipFailedNoSavings": "Сжатие в .zip не уменьшило размер этого файла.",
+      "zipFailedError": "Не удалось сжать этот файл в .zip."
     },
     "passwordInput": {
       "show": "Показать пароль",
