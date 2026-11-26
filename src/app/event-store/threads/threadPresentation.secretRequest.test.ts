@@ -170,6 +170,21 @@ describe('folded secret-request notices as thread reply previews', () => {
     });
     expect(withBundledOnly.latestReplyPreviewText).toBe('Release deployed successfully.');
 
+    // Unopened folded-only case (no loaded/bundled/retained agent reply): stale cached prompt is discarded.
+    const unopenedFoldedOnly = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: ROOT,
+      thread: { events: [], timeline: [], replyToEvent: folded },
+      rootEvent: root,
+      fallbackLatestReplyPreviewText: 'API token needed',
+      fallbackLatestReplyTs: 3,
+      fallbackLastSenderId: AGENT,
+    });
+    expect(unopenedFoldedOnly.latestReplyPreviewText).toBeUndefined();
+    expect(unopenedFoldedOnly.latestReplyTs).toBeUndefined();
+    expect(unopenedFoldedOnly.lastSenderId).toBeUndefined();
+    expect(unopenedFoldedOnly.rootPreviewText).toBe('Deploy the release');
+
     // A genuinely newer reply cached after the secret folded (t=10 > 4) is still preserved.
     const newerCached = resolveThreadPresentationSnapshot({
       room,

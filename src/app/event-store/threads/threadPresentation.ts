@@ -154,9 +154,17 @@ export const resolveThreadPresentationSnapshot = ({
         isFoldedSecretRequestEvent(event, viewerUserId) &&
         getThreadPreviewRevisionTs(event) >= cachedReplyTs
     );
+  const usableFallbackPreviewText = cachedSupersededByFoldedSecret
+    ? undefined
+    : fallbackLatestReplyPreviewText;
+  const usableFallbackLatestReplyTs = cachedSupersededByFoldedSecret
+    ? undefined
+    : fallbackLatestReplyTs;
+  const usableFallbackLastSenderId = cachedSupersededByFoldedSecret
+    ? undefined
+    : fallbackLastSenderId;
   const candidatePreviewEvent =
-    (!fallbackLatestReplyPreviewText ||
-      cachedSupersededByFoldedSecret ||
+    (!usableFallbackPreviewText ||
       (bundledReply &&
         cachedReplyTs !== undefined &&
         getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
@@ -172,9 +180,8 @@ export const resolveThreadPresentationSnapshot = ({
       ? bundledReply
       : loadedPreviewEvent;
   const preferCachedReply =
-    !cachedSupersededByFoldedSecret &&
     bundled.reply &&
-    fallbackLatestReplyPreviewText &&
+    usableFallbackPreviewText &&
     cachedReplyTs !== undefined &&
     (!candidatePreviewEvent || cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
@@ -183,12 +190,12 @@ export const resolveThreadPresentationSnapshot = ({
   const lastEvent = preferCachedReply
     ? undefined
     : (latestPreviewEvent ??
-      (fallbackLatestReplyPreviewText
+      (usableFallbackPreviewText
         ? undefined
         : replyEvents.findLast((event) => !isFoldedSecretRequestEvent(event, viewerUserId))));
   const lastSenderId =
     lastEvent?.getSender?.() ??
-    fallbackLastSenderId ??
+    usableFallbackLastSenderId ??
     fallbackParticipantIds?.find((candidateId) => !!candidateId);
   const lastSenderDisplayName = lastSenderId
     ? (getMemberDisplayName(room, lastSenderId) ?? lastSenderId)
@@ -212,7 +219,7 @@ export const resolveThreadPresentationSnapshot = ({
     preferredPreviewText: preferredRootPreviewText,
   });
   const latestReplyPreviewText =
-    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText;
+    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? usableFallbackPreviewText;
   const rootPreviewLocalization = getThreadPreviewLocalization(
     getEventPreviewContent(rootEvent),
     rootPreviewText
@@ -232,7 +239,7 @@ export const resolveThreadPresentationSnapshot = ({
       ? isThreadSummaryEvent(latestPreviewEvent)
         ? undefined
         : getThreadPreviewRevisionTs(latestPreviewEvent)
-      : fallbackLatestReplyTs,
+      : usableFallbackLatestReplyTs,
     ...(rootPreviewLocalization ? { rootPreviewLocalization } : {}),
     ...(latestReplyPreviewLocalization ? { latestReplyPreviewLocalization } : {}),
     lastSenderId,

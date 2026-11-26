@@ -172,15 +172,11 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let title = summary ?? transcript
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
-        let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
-        // Non-title messages (excluding folded voice echoes) still count toward thread activity timestamps.
-        let activityMessages = messages.filter { message in
+        // The conversation: what people and agents said, without folded voice echoes and titles.
+        let conversation = messages.filter { message in
             !(message.eventId.map(hiddenEchoIds.contains) ?? false) && message.content["io.mindroom.thread_summary"] == nil
         }
-        // The conversation: what people and agents said, without folded voice echoes, titles, and answered secret requests.
-        let conversation = activityMessages.filter { message in
-            !isFoldedSecretRequest(message, latestEdit: edit(message), isAgent: isAgent)
-        }
+        let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
             let sender = event["sender"] as? String ?? ""
@@ -234,7 +230,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
                            toolNames: toolNames, durationSeconds: durationSeconds,
                            workText: workText, answerText: answerText)
         }
-        let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
+        let reply = conversation.last {
+            ($0["sender"] as? String) != ownUserId && isMessage($0)
+                && !isFoldedSecretRequest($0, latestEdit: edit($0), isAgent: isAgent)
+        }.map(message)
         let cards = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: .distantPast) }
         let decidable = cards.filter { isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId) }
         // As the web client: only the newest agent reply asks (not an internal relay of a message), until
@@ -243,6 +242,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
         if let asking = conversation.last(where: {
             isAgent($0["sender"] as? String) && $0["type"] as? String == "m.room.message"
                 && $0.content["com.mindroom.original_sender"] == nil
+                && !isFoldedSecretRequest($0, latestEdit: edit($0), isAgent: isAgent)
         }), let question = Question.parse(asking, latestEdit: edit(asking)) {
             let askedAt = edit(asking)?.timestamp ?? asking.timestamp
             let wroteSince = conversation.contains { ($0["sender"] as? String) == ownUserId && $0.timestamp > askedAt }
@@ -262,7 +262,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
             if let card = cards.first(where: { $0.eventId == event.eventId }) { return .approval(card) }
             return isMessage(event) ? .message(message(event)) : nil
         }
-        let latestTs = ([root] + activityMessages).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
+        let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title,
             heading: summary ?? (all.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,

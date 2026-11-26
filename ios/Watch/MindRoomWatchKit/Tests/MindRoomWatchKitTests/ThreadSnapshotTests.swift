@@ -1521,7 +1521,7 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNotEqual(ownSnapshot.rowState, .running)
     }
 
-    func testFoldedSecretRequestIsExcludedFromConversation() {
+    func testFoldedSecretRequestSkipsReplyPreviewAndQuestion() {
         let answer = event("$reply", 2, inThread(["msgtype": "m.text", "body": "Release deployed."]))
         let makeSecret = { (id: String, status: String, anchored: Bool, sender: String) -> JSON in
             var payload: JSON = ["request_id": "req-1", "status": status]
@@ -1549,7 +1549,7 @@ final class ThreadSnapshotTests: XCTestCase {
             ])
         }
 
-        // Terminal edited statuses fold out of conversation, leaving the agent reply as snapshot.reply.
+        // Terminal edited statuses skip preview/question selection while keeping the receipt in Watch entries.
         for status in ["saved", "declined", "expired"] {
             let pending = makeSecret("$secret", "pending", true, agent)
             let snapshot = ThreadSnapshot.build(
@@ -1557,8 +1557,15 @@ final class ThreadSnapshotTests: XCTestCase {
                 ownUserId: me, now: now)
             XCTAssertEqual(snapshot.reply?.eventId, "$reply", status)
             XCTAssertEqual(snapshot.reply?.text, "Release deployed.", status)
-            XCTAssertFalse(snapshot.entries.contains { $0.id == "$secret" }, status)
+            XCTAssertTrue(snapshot.entries.contains { $0.id == "$secret" }, status)
         }
+
+        // A folded secret request does not mask an interactive question on the anchored reply.
+        let asked = ThreadSnapshot.build(
+            root: voiceRoot,
+            related: [question("$reply", 2), makeSecret("$secret", "pending", true, agent), makeEdit("$secret", "saved", agent)],
+            ownUserId: me, now: now)
+        XCTAssertEqual(asked.openQuestion?.eventId, "$reply")
 
         // Pending anchored, unanchored saved, foreign-homeserver spoof, and edit-only spoof all stay visible.
         let pending = ThreadSnapshot.build(
