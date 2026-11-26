@@ -518,6 +518,7 @@ function ToolRefGroupBlock({
             running={running}
             roomId={message?.roomId}
             threadId={message?.threadId}
+            sender={message?.sender}
           />
         )
       }

@@ -106,12 +106,13 @@ describe('LiveToolPreview', () => {
     run: string,
     meta: Partial<SubagentMeta>,
     tools: ToolTraceEvent[],
-    seq = 0
+    seq = 0,
+    sender = SENDER
   ) => {
     act(() => {
       getSubagentRunStore(mx).ingest(
         ROOM_ID,
-        SENDER,
+        sender,
         makeFrame(run, meta, tools, seq),
         (NOW + seq) * 1000
       );
@@ -120,21 +121,26 @@ describe('LiveToolPreview', () => {
 
   const render = (
     running: LiveToolItem[],
-    {
-      roomId = ROOM_ID,
-      threadId = THREAD_ID,
-      withClient = true,
-      clockNow,
-      waitingStatus,
-    }: {
+    options: {
       roomId?: string;
       threadId?: string;
+      sender?: string;
       withClient?: boolean;
       clockNow?: number | null;
       waitingStatus?: ToolCallWaitingStatus;
     } = {}
   ) => {
-    let tree = <LiveToolPreview running={running} roomId={roomId} threadId={threadId} />;
+    const {
+      roomId = ROOM_ID,
+      threadId = THREAD_ID,
+      withClient = true,
+      clockNow,
+      waitingStatus,
+    } = options;
+    const sender = 'sender' in options ? options.sender : SENDER;
+    let tree = (
+      <LiveToolPreview running={running} roomId={roomId} threadId={threadId} sender={sender} />
+    );
     if (waitingStatus !== undefined) {
       tree = (
         <ToolCallWaitingStatusContext value={waitingStatus}>{tree}</ToolCallWaitingStatusContext>
@@ -592,5 +598,44 @@ describe('LiveToolPreview', () => {
     expect(
       container.querySelector('[data-live-subagent="del-cap"] [data-live-output]')?.textContent
     ).toBe('output from cmd-21');
+  });
+
+  it('scopes linked subagent cards and panel jumps to the reply sender when two agents share a call ID', () => {
+    const otherSender = '@mindroom_other:example.org';
+    ingestRun(
+      'run-agent-a',
+      { title: 'Agent A check', callerToolCallId: 'call_shared', startedAt: NOW - 10 },
+      [{ type: 'tool_call_started', tool_name: 'bash', progress: 'stdout from A' }],
+      0,
+      SENDER
+    );
+    ingestRun(
+      'run-agent-b',
+      { title: 'Agent B check', callerToolCallId: 'call_shared', startedAt: NOW - 2 },
+      [{ type: 'tool_call_started', tool_name: 'bash', progress: 'stdout from B' }],
+      0,
+      otherSender
+    );
+
+    render([subagentItem('call_shared', { progress: 'fallback progress' })], { sender: SENDER });
+    expect(container.querySelector('[data-live-subagent="run-agent-a"]')).not.toBeNull();
+    expect(container.querySelector('[data-live-subagent="run-agent-b"]')).toBeNull();
+    expect(container.textContent).toContain('Agent A check');
+    expect(container.textContent).toContain('stdout from A');
+    expect(container.textContent).not.toContain('stdout from B');
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-live-subagent-open]')?.click();
+    });
+    expect(jotaiStore.get(subagentsPanelAtom)).toEqual({
+      roomId: ROOM_ID,
+      threadId: THREAD_ID,
+      run: 'run-agent-a',
+    });
+
+    // Without a known sender, keep the progress fallback instead of guessing a run.
+    render([subagentItem('call_shared', { progress: 'fallback progress' })], { sender: undefined });
+    expect(container.querySelector('[data-live-subagent]')).toBeNull();
+    expect(container.textContent).toContain('fallback progress');
   });
 });

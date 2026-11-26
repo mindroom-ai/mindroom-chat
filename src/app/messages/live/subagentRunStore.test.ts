@@ -537,11 +537,18 @@ describe('findLinkedSubagentRun', () => {
     stale: false,
   });
 
-  it('scopes matches to the same conversation and prefers active then newest runs', () => {
+  it('scopes matches to the same sender and conversation and prefers active then newest runs', () => {
     const otherThread = runOf('other', 'running', {
       callerToolCallId: 'call_1',
       threadId: '$other:example',
     });
+    const otherSender: SubagentRun = {
+      ...runOf('other-agent', 'running', {
+        callerToolCallId: 'call_1',
+        startedAt: 1762790099,
+      }),
+      sender: '@mindroom_other:example.org',
+    };
     const completed = runOf('done', 'completed', {
       callerToolCallId: 'call_1',
       startedAt: 1762790095,
@@ -556,18 +563,30 @@ describe('findLinkedSubagentRun', () => {
     });
     expect(
       findLinkedSubagentRun(
-        [otherThread, completed, olderActive, newerActive],
+        [otherThread, otherSender, completed, olderActive, newerActive],
         'call_1',
-        '$thread:example'
+        '$thread:example',
+        AGENT
       )?.run
     ).toBe('live-new');
-    expect(findLinkedSubagentRun([otherThread], 'call_1', '$thread:example')).toBeUndefined();
-    expect(findLinkedSubagentRun([newerActive], undefined, '$thread:example')).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([otherSender], 'call_1', '$thread:example', AGENT)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([newerActive], 'call_1', '$thread:example', undefined)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([otherThread], 'call_1', '$thread:example', AGENT)
+    ).toBeUndefined();
+    expect(
+      findLinkedSubagentRun([newerActive], undefined, '$thread:example', AGENT)
+    ).toBeUndefined();
     expect(
       findLinkedSubagentRun(
         [runOf('room', 'running', { callerToolCallId: 'call_1', threadId: null })],
         'call_1',
-        undefined
+        undefined,
+        AGENT
       )?.run
     ).toBe('room');
   });

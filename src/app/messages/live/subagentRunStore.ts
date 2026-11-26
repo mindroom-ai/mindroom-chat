@@ -60,18 +60,24 @@ export const runsStartedIn = (
 ): readonly SubagentRun[] =>
   threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
 
-/** Finds the room's sub-agent run linked to a parent reply's tool call in the same conversation. */
+/** Finds the room's sub-agent run linked to a parent reply's tool call from the same sender and conversation. */
 export const findLinkedSubagentRun = (
   runs: readonly SubagentRun[],
   toolCallId: string | undefined,
-  threadId: string | undefined
+  threadId: string | undefined,
+  sender: string | undefined
 ): SubagentRun | undefined => {
-  if (!toolCallId) return undefined;
+  if (!toolCallId || !sender) return undefined;
   const expectedThread = threadId ?? null;
   let best: SubagentRun | undefined;
   let bestActive = false;
   for (const run of runs) {
-    if (run.meta.callerToolCallId !== toolCallId || run.meta.threadId !== expectedThread) continue;
+    if (
+      run.sender !== sender ||
+      run.meta.callerToolCallId !== toolCallId ||
+      run.meta.threadId !== expectedThread
+    )
+      continue;
     const active = isActiveSubagentStatus(run.meta.status);
     if (
       !best ||

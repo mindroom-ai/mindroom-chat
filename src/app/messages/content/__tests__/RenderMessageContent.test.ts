@@ -288,6 +288,7 @@ describe('RenderMessageContent', () => {
     expect(JSON.parse(renderer.root.findByType('span').children[0] as string)).toMatchObject({
       eventId: '$reply',
       roomId: '!room:example.org',
+      sender: AGENT,
     });
     renderer.unmount();
   });

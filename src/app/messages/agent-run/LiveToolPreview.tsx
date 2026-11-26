@@ -42,6 +42,7 @@ type LiveToolPreviewProps = {
   running: readonly LiveToolItem[];
   roomId?: string;
   threadId?: string;
+  sender?: string;
 };
 type SubagentStep = {
   key: string;
@@ -368,15 +369,17 @@ function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentR
  * Subscribes to `SubagentRunStore` only while a running sub-agent call with a call ID is shown,
  * keeping a single stable component tree so parallel rows never lose local UI state.
  */
-export function LiveToolPreview({ running, roomId, threadId }: LiveToolPreviewProps) {
+export function LiveToolPreview({ running, roomId, threadId, sender }: LiveToolPreviewProps) {
   const waitingStatus = useContext(ToolCallWaitingStatusContext);
   const shellState: StepState = waitingStatus !== undefined ? 'waiting' : 'running';
   const needsSubagents =
-    !!roomId && running.some((tool) => !!tool.toolCallId && isSubagentTool(tool.toolName));
+    !!roomId &&
+    !!sender &&
+    running.some((tool) => !!tool.toolCallId && isSubagentTool(tool.toolName));
   const subagentRuns = useRoomSubagentRuns(needsSubagents ? roomId : undefined);
   const items = running.flatMap((tool) => {
-    if (roomId && isSubagentTool(tool.toolName)) {
-      const run = findLinkedSubagentRun(subagentRuns, tool.toolCallId, threadId);
+    if (roomId && sender && isSubagentTool(tool.toolName)) {
+      const run = findLinkedSubagentRun(subagentRuns, tool.toolCallId, threadId, sender);
       if (run)
         return [<SubagentPreviewCard key={`subagent-${tool.index}`} tool={tool} run={run} />];
     }

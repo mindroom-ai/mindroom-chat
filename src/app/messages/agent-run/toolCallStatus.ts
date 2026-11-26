@@ -11,10 +11,16 @@ import type { ReasoningSegment } from './reasoningSegments';
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'expired';
 
 /**
- * The message being rendered: its event ID, so its tool calls can find their approval cards, and
- * its room and thread, whose menus can show or hide those calls.
+ * The message being rendered: its event ID, so its tool calls can find their approval cards, its
+ * sender so live sub-agent previews stay scoped to that agent, and its room and thread, whose
+ * menus can show or hide those calls.
  */
-export type ToolCallMessage = { eventId?: string; roomId?: string; threadId?: string };
+export type ToolCallMessage = {
+  eventId?: string;
+  roomId?: string;
+  threadId?: string;
+  sender?: string;
+};
 export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>(undefined);
 
 /**
