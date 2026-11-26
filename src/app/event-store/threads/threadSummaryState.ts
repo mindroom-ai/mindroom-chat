@@ -19,6 +19,7 @@ type RoomThreadSummaryState = {
   loadPromise?: Promise<void>;
   hasLoaded?: boolean;
   incomingDuringLoad?: Map<string, Array<ThreadSummaryInfo | undefined>>;
+  redactedDuringLoad?: Set<string>;
 };
 
 const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
@@ -111,13 +112,23 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
   const incomingDuringLoad =
     state.incomingDuringLoad ?? new Map<string, Array<ThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
+  const redactedDuringLoad = state.redactedDuringLoad ?? new Set<string>();
+  state.redactedDuringLoad = redactedDuringLoad;
   state.hasLoaded = false;
 
   state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
       if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
+      const filteredCachedSummaryMap =
+        redactedDuringLoad.size === 0
+          ? cachedSummaryMap
+          : new Map(
+              [...cachedSummaryMap].filter(
+                ([, info]) => !info.eventId || !redactedDuringLoad.has(info.eventId)
+              )
+            );
       const nextSummaryMap = buildPreferredThreadSummaryMap(
-        cachedSummaryMap,
+        filteredCachedSummaryMap,
         state.summaryMap,
         incomingDuringLoad
       );
@@ -133,6 +144,7 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
       state.loadPromise = undefined;
       if (!state.hasLoaded) return;
       state.incomingDuringLoad = undefined;
+      state.redactedDuringLoad = undefined;
       if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
       incomingDuringLoad.forEach((_candidates, threadRootId) => {
         const info = state.summaryMap.get(threadRootId);
@@ -186,6 +198,18 @@ export const forgetRedactedThreadSummaries = (
 ) => {
   const state = roomThreadSummaryStates.get(getStateKey(sessionId, roomId));
   if (!state || redactedEventIds.size === 0) return;
+  if (state.redactedDuringLoad) {
+    redactedEventIds.forEach((eventId) => state.redactedDuringLoad?.add(eventId));
+  }
+  if (state.incomingDuringLoad) {
+    state.incomingDuringLoad.forEach((candidates, threadRootId) => {
+      const kept = candidates.filter(
+        (info) => !info?.eventId || !redactedEventIds.has(info.eventId)
+      );
+      if (kept.length === 0) state.incomingDuringLoad?.delete(threadRootId);
+      else if (kept.length !== candidates.length) state.incomingDuringLoad?.set(threadRootId, kept);
+    });
+  }
   const nextSummaryMap = new Map(
     [...state.summaryMap].filter(([, info]) => !info.eventId || !redactedEventIds.has(info.eventId))
   );

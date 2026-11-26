@@ -16,35 +16,37 @@ import {
 test.describe.configure({ timeout: 300_000 });
 
 type StoredTitle = { roomId: string; summaryText: string };
+type StoredMeta = { roomId: string; scope?: string; summaryEventId?: string };
 
-/** Every thread title the page's offline caches hold. */
-const storedTitles = (page: Page): Promise<StoredTitle[]> =>
-  page.evaluate(async () => {
+/** Every record a given store holds across the page's offline caches. */
+const storedRecords = <T>(page: Page, storeName: string): Promise<T[]> =>
+  page.evaluate(async (targetStore) => {
     const names = (await indexedDB.databases())
       .map((database) => database.name)
       .filter((name): name is string => !!name?.startsWith('mindroom-cache'));
-    const titles: StoredTitle[] = [];
+    const all: T[] = [];
     for (const name of names) {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(name);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      if (db.objectStoreNames.contains('thread_summaries')) {
-        const records = await new Promise<StoredTitle[]>((resolve, reject) => {
-          const request = db
-            .transaction('thread_summaries', 'readonly')
-            .objectStore('thread_summaries')
-            .getAll();
-          request.onsuccess = () => resolve(request.result as StoredTitle[]);
+      if (db.objectStoreNames.contains(targetStore)) {
+        const records = await new Promise<T[]>((resolve, reject) => {
+          const request = db.transaction(targetStore, 'readonly').objectStore(targetStore).getAll();
+          request.onsuccess = () => resolve(request.result as T[]);
           request.onerror = () => reject(request.error);
         });
-        titles.push(...records);
+        all.push(...records);
       }
       db.close();
     }
-    return titles;
-  });
+    return all;
+  }, storeName);
+
+const storedTitles = (page: Page): Promise<StoredTitle[]> =>
+  storedRecords<StoredTitle>(page, 'thread_summaries');
+const storedMeta = (page: Page): Promise<StoredMeta[]> => storedRecords<StoredMeta>(page, 'meta');
 
 /** Asks the helper in a new room and waits until the thread shows the title the agent gives it. */
 const titledThread = async (page: Page, stack: AgentStack, encrypted: boolean) => {
@@ -76,9 +78,22 @@ test('the thread titles of an encrypted room stay out of the offline cache', asy
       message: "the unencrypted room's title is cached",
     })
     .toBe(true);
+  await expect
+    .poll(
+      async () =>
+        (await storedMeta(page)).some(
+          (row) =>
+            row.roomId === secure.roomId &&
+            row.scope?.startsWith('__threadSummary:') &&
+            typeof row.summaryEventId === 'string'
+        ),
+      { timeout: 30_000, message: "the encrypted room's summary pointer is cached" }
+    )
+    .toBe(true);
   const titles = await storedTitles(page);
   expect(titles.filter((title) => title.roomId === secure.roomId)).toEqual([]);
   expect(titles.filter((title) => title.summaryText.includes(secure.word))).toEqual([]);
+  expect(JSON.stringify(await storedMeta(page))).not.toContain(secure.word);
 
   // After a reload the client reads the title out of the thread's events again.
   await page.reload();
@@ -87,4 +102,5 @@ test('the thread titles of an encrypted room stay out of the offline cache', asy
     timeout: 90_000,
   });
   expect((await storedTitles(page)).filter((title) => title.roomId === secure.roomId)).toEqual([]);
+  expect(JSON.stringify(await storedMeta(page))).not.toContain(secure.word);
 });

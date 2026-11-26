@@ -183,6 +183,8 @@ export type CachedMetaRecord = {
     /** Event ids from the cache before the first partial page was stored. */
     overlapEventIds: string[];
   };
+  /** Event id of a cached encrypted summary notice; keeps plaintext titles off disk. */
+  summaryEventId?: string;
 };
 
 export type RoomOfflineProgress = {
@@ -302,3 +304,12 @@ export const estimateRawEventBytes = (rawEvent: Partial<IEvent>): number => {
 /** Durable event-redaction evidence shared by canonical events and attachment ownership. */
 export const buildRedactedRelationMetaKey = (roomId: string, eventId: string): string =>
   buildMetaKey(roomId, `__redactedRelation:${encodeURIComponent(eventId)}`);
+
+export const ENCRYPTED_THREAD_SUMMARY_META_PREFIX = '__threadSummary:';
+
+/** Pointer to a cached encrypted summary notice; keeps plaintext titles off disk. */
+export const buildEncryptedThreadSummaryMetaKey = (roomId: string, threadRootId: string): string =>
+  buildMetaKey(
+    roomId,
+    `${ENCRYPTED_THREAD_SUMMARY_META_PREFIX}${encodeURIComponent(threadRootId)}`
+  );
