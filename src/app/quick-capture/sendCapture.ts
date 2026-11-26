@@ -20,9 +20,17 @@ import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { getImageMsgContent } from '../matrix/send/msgContent';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import {
+  getImageCompressionSpec,
+  type MediaCompressionPreset,
+} from '../preferences/mediaCompression';
 import type { CaptureErrorCode, CapturePosted } from './captureProtocol';
 
-export type CaptureSendOptions = { markdown: boolean; linkSchemes?: readonly string[] };
+export type CaptureSendOptions = {
+  markdown: boolean;
+  linkSchemes?: readonly string[];
+  mediaCompression?: MediaCompressionPreset;
+};
 
 /**
  * A capture the host could not post, with the code the widget shows and, when its thread was
@@ -66,13 +74,57 @@ const inThread = (content: IContent, threadId: string): IContent => ({
   'm.relates_to': getMessageRelation(undefined, undefined, threadId),
 });
 
+const IMAGE_COMPRESSION_CONCURRENCY = 2;
+
+const compressCaptureImages = async (
+  images: File[],
+  mediaCompression: MediaCompressionPreset | undefined
+): Promise<File[]> => {
+  const spec = mediaCompression ? getImageCompressionSpec(mediaCompression) : undefined;
+  if (!spec || images.length === 0) return images;
+
+  let compressImage: (typeof import('../lib/media/compressImage'))['compressImage'];
+  try {
+    ({ compressImage } = await import('../lib/media/compressImage'));
+  } catch {
+    return images;
+  }
+
+  const prepared = [...images];
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < images.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const file = images[index];
+      if (!file) continue;
+      try {
+        const compressed = await compressImage(file, spec);
+        if (compressed) prepared[index] = compressed.file;
+      } catch {
+        // Keep the original image when compression fails.
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(IMAGE_COMPRESSION_CONCURRENCY, images.length) }, () => worker())
+  );
+  return prepared;
+};
+
 /**
  * Uploads every image, encrypted in an encrypted room, and builds its message. Nothing is sent
  * here, so an image that fails leaves no thread without its picture.
  */
-const prepareImages = (mx: MatrixClient, room: Room, images: File[]): Promise<IContent[]> =>
+const prepareImages = (
+  mx: MatrixClient,
+  room: Room,
+  images: File[],
+  mediaCompression: MediaCompressionPreset | undefined
+): Promise<IContent[]> =>
   failingAs('upload-failed', async () => {
-    const items = await createRoomUploadItems(images, room);
+    const preparedImages = await compressCaptureImages(images, mediaCompression);
+    const items = await createRoomUploadItems(preparedImages, room);
     const prepError = items.find((item) => item.prepError)?.prepError;
     if (prepError) throw prepError;
     return Promise.all(
@@ -127,7 +179,7 @@ export const sendCapture = async (
   options: CaptureSendOptions
 ): Promise<{ threadId: string }> => {
   const text = composeCaptureText(mx, entry.text, options);
-  const images = await prepareImages(mx, room, entry.images);
+  const images = await prepareImages(mx, room, entry.images, options.mediaCompression);
   let { threadId } = entry;
   let sent = 0;
   const post = async (content: IContent, send: typeof postMessage): Promise<void> => {

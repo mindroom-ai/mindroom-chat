@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} fichiers",
       "fileCount_other": "{{count}} fichiers"
     },
+    "uploadCardRenderer": {
+      "compressing": "Compression...",
+      "useOriginal": "Utiliser l’original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Afficher le mot de passe",
       "hide": "Masquer le mot de passe"
@@ -543,7 +548,8 @@
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
         "plugins": "plugins, extensions, modules, intégrations",
-        "appUpdates": "mise à jour, mises à jour, version, actualiser, redémarrer"
+        "appUpdates": "mise à jour, mises à jour, version, actualiser, redémarrer",
+        "mediaCompression": "captures d’écran, enregistrements d’écran, images, vidéos, compression, taille d’envoi"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -565,6 +571,13 @@
         "updateReady": "La version {{version}} est prête à être installée.",
         "restartToUpdate": "Redémarrer pour mettre à jour",
         "updateInstallFailed": "Impossible de redémarrer pour installer la mise à jour. Réessayez."
+      },
+      "mediaCompression": {
+        "title": "Compression des médias",
+        "description": "Compressez les photos, captures d’écran et vidéos jointes avant l’envoi. Vous pouvez toujours utiliser l’original pour chaque pièce jointe.",
+        "off": "Désactivée",
+        "balanced": "Équilibrée",
+        "small": "Petite"
       }
     },
     "createChat": {
@@ -1426,6 +1439,43 @@
       "stopReply": {
         "label": "Arrêter la réponse",
         "stopping": "Arrêt…"
+      },
+      "runError": {
+        "cardLabel": "Erreur d’exécution",
+        "actions": {
+          "continue": "Continuer",
+          "retry": "Réessayer",
+          "compact": "Compacter"
+        },
+        "chips": {
+          "streamStalled": "Flux interrompu",
+          "providerUnavailable": "Indisponible",
+          "rateLimited": "Limite atteinte",
+          "timeout": "Délai dépassé",
+          "contextWindow": "Limite de contexte",
+          "tokensPerMinute": "Limite de jetons",
+          "safeguardRefusal": "Refusé",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "Clé API",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Erreur"
+        },
+        "technicalDetails": "Détails techniques",
+        "details": {
+          "model": "Modèle",
+          "provider": "Fournisseur",
+          "code": "Code",
+          "detail": "Détail",
+          "error": "Erreur"
+        },
+        "receipt": {
+          "continue": "Repris",
+          "retry": "Réessayé",
+          "compact": "Compacté"
+        },
+        "sendFailed": "Impossible d’envoyer le message. Réessayez.",
+        "restartSeam": "Service redémarré · contexte conservé",
+        "restartSeamRepeated": "Service redémarré ({{times}}×) · contexte conservé"
       }
     },
     "message-search": {

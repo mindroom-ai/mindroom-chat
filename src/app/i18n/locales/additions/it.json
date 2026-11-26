@@ -41,6 +41,11 @@
       "fileCount_many": "{{count}} file",
       "fileCount_other": "{{count}} file"
     },
+    "uploadCardRenderer": {
+      "compressing": "Compressione...",
+      "useOriginal": "Usa originale",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Mostra password",
       "hide": "Nascondi password"
@@ -543,7 +548,8 @@
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
         "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni",
-        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia"
+        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia",
+        "mediaCompression": "screenshot, registrazioni dello schermo, immagini, video, compressione, dimensione di caricamento"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -565,6 +571,13 @@
         "updateReady": "La versione {{version}} è pronta per l’installazione.",
         "restartToUpdate": "Riavvia per aggiornare",
         "updateInstallFailed": "Impossibile riavviare per installare l’aggiornamento. Riprova."
+      },
+      "mediaCompression": {
+        "title": "Compressione multimediale",
+        "description": "Comprimi foto, screenshot e video allegati prima del caricamento. Puoi comunque usare il file originale per qualsiasi allegato.",
+        "off": "Disattivata",
+        "balanced": "Bilanciata",
+        "small": "Piccola"
       }
     },
     "createChat": {
@@ -1426,6 +1439,43 @@
       "stopReply": {
         "label": "Ferma risposta",
         "stopping": "Arresto in corso…"
+      },
+      "runError": {
+        "cardLabel": "Errore di esecuzione",
+        "actions": {
+          "continue": "Continua",
+          "retry": "Riprova",
+          "compact": "Compatta"
+        },
+        "chips": {
+          "streamStalled": "Flusso bloccato",
+          "providerUnavailable": "Non disponibile",
+          "rateLimited": "Limite richieste",
+          "timeout": "Timeout",
+          "contextWindow": "Limite contesto",
+          "tokensPerMinute": "Limite token",
+          "safeguardRefusal": "Rifiutato",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "Chiave API",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Errore"
+        },
+        "technicalDetails": "Dettagli tecnici",
+        "details": {
+          "model": "Modello",
+          "provider": "Provider",
+          "code": "Codice",
+          "detail": "Dettaglio",
+          "error": "Errore"
+        },
+        "receipt": {
+          "continue": "Ripreso",
+          "retry": "Riprovato",
+          "compact": "Compattato"
+        },
+        "sendFailed": "Impossibile inviare il messaggio. Riprova.",
+        "restartSeam": "Servizio riavviato · contesto preservato",
+        "restartSeamRepeated": "Servizio riavviato ({{times}}×) · contesto preservato"
       }
     },
     "message-search": {

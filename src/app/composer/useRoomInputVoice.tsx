@@ -27,7 +27,7 @@ import {
   voiceAutoSendPendingAtom,
   voiceComposerKey,
 } from './roomInputDrafts';
-import { TUploadItem, UploadStatus } from '../matrix/state/upload';
+import { isUploadItemReady, TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { listSessions } from '../matrix/session/sessions';
 import { pauseAllMediaElements } from '../lib/dom';
 import {
@@ -467,7 +467,7 @@ export const useRoomInputVoice = ({
           (composerBundle?.companionItems ?? []).filter(
             (item) =>
               stillStaged(item) &&
-              !item.prepError &&
+              isUploadItemReady(item) &&
               Boolean(item.encInfo) === liveRoomEncrypted &&
               store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
               item.file.size < allowUploadSize
@@ -645,9 +645,11 @@ export const useRoomInputVoice = ({
         textContent: content,
         midTurnMode,
         composerFallback: content ? snapshotText() : undefined,
-        companionItems: staged,
+        companionItems: staged.filter(isUploadItemReady),
         stagedList: stagedList ?? composerUploadItemsAtom(context.roomId, view),
-        releasePasteProtection: attachmentAccess.protectPasteItems(staged),
+        releasePasteProtection: attachmentAccess.protectPasteItems(
+          staged.filter(isUploadItemReady)
+        ),
         composerReset: false,
         handedOff: false,
         pastesMissing,

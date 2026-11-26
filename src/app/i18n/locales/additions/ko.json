@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "파일 {{count}}개"
     },
+    "uploadCardRenderer": {
+      "compressing": "압축 중...",
+      "useOriginal": "원본 사용",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "비밀번호 표시",
       "hide": "비밀번호 숨기기"
@@ -517,7 +522,8 @@
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
         "plugins": "플러그인, 확장 기능, 애드온, 연동",
-        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작"
+        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작",
+        "mediaCompression": "스크린샷, 화면 녹화, 이미지, 동영상, 압축, 업로드 크기"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -539,6 +545,13 @@
         "updateReady": "버전 {{version}}을(를) 설치할 준비가 되었습니다.",
         "restartToUpdate": "다시 시작하여 업데이트",
         "updateInstallFailed": "업데이트를 설치하기 위해 다시 시작하지 못했습니다. 다시 시도하세요."
+      },
+      "mediaCompression": {
+        "title": "미디어 압축",
+        "description": "업로드하기 전에 첨부한 사진, 스크린샷, 동영상을 압축합니다. 어떤 첨부 파일이든 원본을 그대로 사용할 수 있습니다.",
+        "off": "끄기",
+        "balanced": "균형",
+        "small": "작게"
       }
     },
     "createChat": {
@@ -1354,6 +1367,43 @@
       "stopReply": {
         "label": "응답 중지",
         "stopping": "중지하는 중…"
+      },
+      "runError": {
+        "cardLabel": "실행 오류",
+        "actions": {
+          "continue": "계속",
+          "retry": "다시 시도",
+          "compact": "압축"
+        },
+        "chips": {
+          "streamStalled": "스트림 중단",
+          "providerUnavailable": "사용 불가",
+          "rateLimited": "요청 제한",
+          "timeout": "시간 초과",
+          "contextWindow": "컨텍스트 한도",
+          "tokensPerMinute": "토큰 한도",
+          "safeguardRefusal": "거부됨",
+          "quotaExhausted": "할당량 초과",
+          "missingApiKey": "API 키 없음",
+          "authenticationFailed": "인증 실패",
+          "runtimeError": "오류"
+        },
+        "technicalDetails": "기술 세부 정보",
+        "details": {
+          "model": "모델",
+          "provider": "제공자",
+          "code": "코드",
+          "detail": "세부 정보",
+          "error": "오류"
+        },
+        "receipt": {
+          "continue": "재개됨",
+          "retry": "다시 시도됨",
+          "compact": "압축됨"
+        },
+        "sendFailed": "메시지를 보낼 수 없습니다. 다시 시도하세요.",
+        "restartSeam": "서비스 재시작됨 · 컨텍스트 유지됨",
+        "restartSeamRepeated": "서비스 재시작됨 ({{times}}×) · 컨텍스트 유지됨"
       }
     },
     "message-search": {

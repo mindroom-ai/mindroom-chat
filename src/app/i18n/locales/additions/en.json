@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} File",
       "fileCount_other": "{{count}} Files"
     },
+    "uploadCardRenderer": {
+      "compressing": "Compressing...",
+      "useOriginal": "Use original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Show password",
       "hide": "Hide password"
@@ -530,7 +535,8 @@
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
         "plugins": "plugins, extensions, add-ons, integrations",
-        "appUpdates": "update, updates, version, upgrade, restart"
+        "appUpdates": "update, updates, version, upgrade, restart",
+        "mediaCompression": "screenshots, screen recordings, images, videos, compression, upload size"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -552,6 +558,13 @@
         "updateReady": "Version {{version}} is ready to install.",
         "restartToUpdate": "Restart to update",
         "updateInstallFailed": "Couldn't restart to install the update. Try again."
+      },
+      "mediaCompression": {
+        "title": "Media compression",
+        "description": "Compress attached photos, screenshots, and videos before uploading. You can still use the original for any attachment.",
+        "off": "Off",
+        "balanced": "Balanced",
+        "small": "Small"
       }
     },
     "createChat": {
@@ -1390,6 +1403,43 @@
       "stopReply": {
         "label": "Stop reply",
         "stopping": "Stopping…"
+      },
+      "runError": {
+        "cardLabel": "Run error",
+        "actions": {
+          "continue": "Continue",
+          "retry": "Retry",
+          "compact": "Compact"
+        },
+        "chips": {
+          "streamStalled": "Stream stalled",
+          "providerUnavailable": "Unavailable",
+          "rateLimited": "Rate limit",
+          "timeout": "Timed out",
+          "contextWindow": "Context limit",
+          "tokensPerMinute": "Token limit",
+          "safeguardRefusal": "Refused",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "API key",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Error"
+        },
+        "technicalDetails": "Technical details",
+        "details": {
+          "model": "Model",
+          "provider": "Provider",
+          "code": "Code",
+          "detail": "Detail",
+          "error": "Error"
+        },
+        "receipt": {
+          "continue": "Resumed",
+          "retry": "Retried",
+          "compact": "Compacted"
+        },
+        "sendFailed": "Could not send message. Try again.",
+        "restartSeam": "Service restarted · context preserved",
+        "restartSeamRepeated": "Service restarted ({{times}}×) · context preserved"
       }
     },
     "message-search": {

@@ -31,13 +31,14 @@ import { ConversationViewContext } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
+  isUploadItemReady,
   type TUploadItem,
   type TUploadMetadata,
   type Upload,
   UploadStatus,
 } from '../matrix/state/upload';
 import { getDataTransferFiles } from '../lib/dom';
-import type { TUploadContent } from '../matrix/matrix';
+import { uploadContent, type TUploadContent } from '../matrix/matrix';
 import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   createPasteId,
@@ -61,6 +62,9 @@ import {
   getRoomInputPasteMarkerFileNames,
   isRoomInputPasteMarkerElement,
 } from './RoomInputExtensions';
+import { settingsAtom } from '../preferences/settings';
+import { getMediaCompressionGeneration } from './mediaCompressionJobs';
+import { useMediaCompression, type PendingVideoCompression } from './useMediaCompression';
 
 type CreateRoomInputUploadItems = (
   files: File[],
@@ -83,6 +87,8 @@ type UseRoomInputAttachmentsOptions = {
   stagedListKey?: string;
   /** Keeps staged files local and unencrypted until `prepareForSend` commits them at Send. */
   deferUpload?: boolean;
+  /** True while a deferred send (Home Ask) is in flight; disables per-card "Use original" swaps. */
+  sendingDeferred?: boolean;
   /** Renders the upload board in normal flow above the composer instead of floating. */
   inlineUploadBoard?: boolean;
 };
@@ -95,6 +101,10 @@ type RoomInputAttachments = {
   board: ReactNode;
   /** Whether at least one staged file has no prep or upload error and can be sent. */
   hasSendableFiles: boolean;
+  /** Whether any staged file is compressing or inline staging is in flight for this composer. */
+  isPreparing: boolean;
+  /** Synchronous check for whether Send should be blocked while attachments are preparing. */
+  isPreparingNow: () => boolean;
   /** Prepares deferred staged files for `targetRoom` (encrypting iff encrypted) right before upload. */
   prepareForSend: (targetRoom: Room, items?: TUploadItem[]) => Promise<TUploadItem[]>;
   onPaste: (event: ClipboardEvent<HTMLElement>) => void;
@@ -118,7 +128,7 @@ type RoomInputAttachments = {
 
 // The files each composer's sends claim, of mounted composers and of ones whose sends still go
 // out: a file removed in any composer leaves every send that holds it.
-const claims = new Set<{ current: TUploadItem[] }>();
+const claims = new Set<{ ref: { current: TUploadItem[] }; sync: () => void }>();
 
 const isPasteItem = (item: TUploadItem): boolean => !!item.metadata.mindroomPasteAttachment;
 
@@ -158,6 +168,7 @@ export const useRoomInputAttachments = ({
   createUploadItems,
   stagedListKey,
   deferUpload = false,
+  sendingDeferred = false,
   inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
@@ -177,17 +188,34 @@ export const useRoomInputAttachments = ({
   // Which draft owns a staged paste file.
   const owners = useRef(new Map<TUploadContent, string | undefined>());
   const enrolled = useRef<TUploadItem[]>([]);
+  const [enrolledFiles, setEnrolledFiles] = useState<ReadonlySet<TUploadContent>>(() => new Set());
   const leases = useRef(new Map<TUploadContent, number>());
   const listeners = useRef(new Set<() => void>());
   const notifyQueued = useRef(false);
   const mounted = useRef(true);
 
+  const syncEnrolled = useCallback(() => {
+    if (!mounted.current) return;
+    setEnrolledFiles((prev) => {
+      const next = enrolled.current;
+      if (prev.size === next.length && next.every((entry) => prev.has(entry.file))) return prev;
+      return new Set(next.map((entry) => entry.file));
+    });
+  }, []);
+
+  const claimEntry = useRef<{ ref: { current: TUploadItem[] }; sync: () => void }>({
+    ref: enrolled,
+    sync: syncEnrolled,
+  });
+  claimEntry.current.sync = syncEnrolled;
+
   const releaseClaims = useCallback(() => {
-    if (!mounted.current && enrolled.current.length === 0) claims.delete(enrolled);
+    if (!mounted.current && enrolled.current.length === 0) claims.delete(claimEntry.current);
   }, []);
   useEffect(() => {
     mounted.current = true;
-    claims.add(enrolled);
+    const entry = claimEntry.current;
+    claims.add(entry);
     return () => {
       mounted.current = false;
       releaseClaims();
@@ -293,8 +321,13 @@ export const useRoomInputAttachments = ({
       const removed = new Set(files);
       const listAtom = composerUploadItemsAtom(listKey(targetRoomId), view);
       const items = store.get(listAtom).filter((item) => removed.has(item.file));
-      // A removed file's upload in flight is cancelled; its card would otherwise finish it.
+      // A removed file's compression or upload in flight is cancelled; its card would otherwise finish it.
       items.forEach((item) => {
+        if (item.compression?.status === 'compressing') {
+          item.compression.cancel();
+          roomUploadAtomFamily.remove(item.file);
+          return;
+        }
         const upload = store.get(roomUploadAtomFamily(item.file));
         if (upload.status !== UploadStatus.Loading) return;
         mx.cancelUpload(upload.promise);
@@ -306,7 +339,11 @@ export const useRoomInputAttachments = ({
       }
       files.forEach((file) => owners.current.delete(file));
       claims.forEach((claim) => {
-        claim.current = claim.current.filter((item) => !removed.has(item.file));
+        const next = claim.ref.current.filter((item) => !removed.has(item.file));
+        if (next.length !== claim.ref.current.length) {
+          claim.ref.current = next;
+          claim.sync();
+        }
       });
       releaseClaims();
       syncUploadWatches();
@@ -326,6 +363,7 @@ export const useRoomInputAttachments = ({
       }
       files.forEach((file) => owners.current.delete(file));
       enrolled.current = enrolled.current.filter((item) => !released.has(item.file));
+      syncEnrolled();
       releaseClaims();
       if (mounted.current) syncUploadWatches();
       notify();
@@ -339,11 +377,13 @@ export const useRoomInputAttachments = ({
       enroll: (items) => {
         const known = new Set(enrolled.current.map((item) => item.file));
         enrolled.current = [...enrolled.current, ...items.filter((item) => !known.has(item.file))];
+        syncEnrolled();
         syncUploadWatches();
         notify();
       },
       clearEnrollment: (files) => {
         enrolled.current = enrolled.current.filter((item) => !files.includes(item.file));
+        syncEnrolled();
         releaseClaims();
         syncUploadWatches();
         notify();
@@ -377,6 +417,7 @@ export const useRoomInputAttachments = ({
     ownedByCurrent,
     releaseClaims,
     store,
+    syncEnrolled,
     syncUploadWatches,
     view,
   ]);
@@ -489,22 +530,65 @@ export const useRoomInputAttachments = ({
   const restorePastesRef = useRef(restorePastes);
   restorePastesRef.current = restorePastes;
 
+  const pendingStagingRef = useRef(new Map<string, number>());
+  const [pendingStagingCounts, setPendingStagingCounts] = useState<ReadonlyMap<string, number>>(
+    () => new Map()
+  );
+  const updatePendingStaging = useCallback((key: string, delta: 1 | -1) => {
+    const next = (pendingStagingRef.current.get(key) ?? 0) + delta;
+    if (next > 0) pendingStagingRef.current.set(key, next);
+    else pendingStagingRef.current.delete(key);
+    if (mounted.current) setPendingStagingCounts(new Map(pendingStagingRef.current));
+  }, []);
+
+  const isPreparingNow = useCallback((): boolean => {
+    const key = listKey();
+    if ((pendingStagingRef.current.get(key) ?? 0) > 0) return true;
+    const items = store.get(composerUploadItemsAtom(key, view)).filter(ownedByCurrent);
+    return items.some((item) => item.compression?.status === 'compressing');
+  }, [listKey, ownedByCurrent, store, view]);
+
+  const getTargetAtom = useCallback(
+    (targetRoomId: string) => composerUploadItemsAtom(listKey(targetRoomId), view),
+    [listKey, view]
+  );
+
+  const {
+    compressInlineImages,
+    createPendingVideo,
+    useOriginal: restoreOriginal,
+  } = useMediaCompression({
+    mx,
+    store,
+    current,
+    deferUpload,
+    sendingDeferred,
+    maxUploadSize,
+    owners,
+    enrolled,
+    getTargetAtom,
+    keepNames,
+    syncUploadWatches,
+    notify,
+  });
+
   // Commits deferred staged files to `targetRoom` at Send time: encrypts iff `targetRoom` is
   // encrypted, resets transient errors for retry, and blocks files over the server's size limit.
   const prepareForSend = useCallback(
     async (targetRoom: Room, explicitItems?: TUploadItem[]): Promise<TUploadItem[]> => {
       const targetAtom = composerUploadItemsAtom(listKey(targetRoom.roomId), view);
-      const enrolledFiles = new Set(enrolled.current.map((entry) => entry.file));
-      const candidates =
-        explicitItems ??
-        access.snapshot().staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
+      const enrolledSet = new Set(enrolled.current.map((entry) => entry.file));
+      const candidates = (
+        explicitItems ?? access.snapshot().staged.filter((item) => !enrolledSet.has(item.file))
+      ).filter(isUploadItemReady);
       if (!deferUpload || candidates.length === 0) return candidates;
 
+      const startGen = getMediaCompressionGeneration();
       const encrypted = targetRoom.hasEncryptionStateEvent();
       const ready: TUploadItem[] = [];
       for (const item of candidates) {
         const liveBefore = store.get(targetAtom).find((entry) => entry.file === item.file);
-        if (!liveBefore || liveBefore.prepError) continue;
+        if (!liveBefore || !isUploadItemReady(liveBefore)) continue;
         const tooLarge = getTooLargeError(liveBefore.originalFile.size, maxUploadSize);
         if (tooLarge) {
           store.set(roomUploadAtomFamily(liveBefore.file), { error: tooLarge });
@@ -529,9 +613,16 @@ export const useRoomInputAttachments = ({
           targetRoom,
           () => liveBefore.metadata
         );
+        if (getMediaCompressionGeneration() !== startGen) return [];
         const liveAfter = store.get(targetAtom).find((entry) => entry.file === liveBefore.file);
         if (!prepared || !liveAfter) continue;
-        const replacement = { ...prepared, metadata: liveAfter.metadata };
+        const replacement: TUploadItem = {
+          ...prepared,
+          metadata: liveAfter.metadata,
+          ...(liveAfter.compression && !prepared.prepError
+            ? { compression: liveAfter.compression }
+            : {}),
+        };
         if (replacement.file !== liveAfter.file) {
           owners.current.delete(liveAfter.file);
           if (hasOwner) owners.current.set(replacement.file, owner);
@@ -544,6 +635,7 @@ export const useRoomInputAttachments = ({
           store.set(roomUploadAtomFamily(replacement.file), { status: UploadStatus.Idle });
         }
         store.set(targetAtom, { type: 'REPLACE', item: liveAfter, replacement });
+        if (replacement.file !== liveAfter.file) roomUploadAtomFamily.remove(liveAfter.file);
         const preparedTooLarge = !replacement.prepError
           ? getTooLargeError(replacement.file.size, maxUploadSize)
           : undefined;
@@ -554,13 +646,25 @@ export const useRoomInputAttachments = ({
         enrolled.current = isReady
           ? enrolled.current.map((entry) => (entry.file === liveAfter.file ? replacement : entry))
           : enrolled.current.filter((entry) => entry.file !== liveAfter.file);
+        syncEnrolled();
         syncUploadWatches();
         notify();
         if (isReady) ready.push(replacement);
       }
       return ready;
     },
-    [access, deferUpload, listKey, maxUploadSize, mx, notify, store, syncUploadWatches, view]
+    [
+      access,
+      deferUpload,
+      listKey,
+      maxUploadSize,
+      mx,
+      notify,
+      store,
+      syncEnrolled,
+      syncUploadWatches,
+      view,
+    ]
   );
 
   // The draft this composer shows now, restored from storage after a reload above all.
@@ -596,24 +700,76 @@ export const useRoomInputAttachments = ({
   const dismissLostPastes = useCallback(() => setLostPastes(false), []);
 
   const stageFiles = useCallback(
-    // With `asked`, the conversation the files were asked for in: they join its board only if the
-    // composer still shows it once they are prepared.
     async (files: File[], asked?: { roomId: string; draftKey?: string }) => {
       if (files.length === 0) return;
       const targetRoomId = asked?.roomId ?? current.current.roomId;
-      const items = await prepareLocalItems(files);
-      if (!mounted.current) return;
-      if (
-        asked &&
-        (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
-      ) {
-        // eslint-disable-next-line no-console
-        console.warn('[composer] files not attached: the conversation changed');
+      const targetKey = listKey(targetRoomId);
+      const targetRoom =
+        (asked && typeof mx.getRoom === 'function' ? mx.getRoom(targetRoomId) : undefined) ??
+        current.current.room;
+      const preset = store.get(settingsAtom).mediaCompression;
+
+      const videoJobs: Array<{ index: number; job: PendingVideoCompression }> = [];
+      const inlineFiles: Array<{ index: number; file: File }> = [];
+      files.forEach((file, index) => {
+        const job = createPendingVideo(file, preset, targetRoom, targetRoomId);
+        if (job) videoJobs.push({ index, job });
+        else inlineFiles.push({ index, file });
+      });
+
+      const stagedItems = new Array<TUploadItem>(files.length);
+      const commit = () => {
+        videoJobs.forEach(({ index, job }) => {
+          stagedItems[index] = job.placeholder;
+        });
+        access.append(targetRoomId, stagedItems);
+        videoJobs.forEach(({ job }) => job.start());
+      };
+      if (inlineFiles.length === 0) {
+        commit();
         return;
       }
-      access.append(targetRoomId, items);
+
+      let committed = false;
+      const startGen = getMediaCompressionGeneration();
+      updatePendingStaging(targetKey, 1);
+      try {
+        const compressed = await compressInlineImages(
+          inlineFiles.map((entry) => entry.file),
+          preset
+        );
+        const prepared = await prepareLocalItems(compressed.map((entry) => entry.file));
+        if (!mounted.current || getMediaCompressionGeneration() !== startGen) return;
+        if (
+          asked &&
+          (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn('[composer] files not attached: the conversation changed');
+          return;
+        }
+        prepared.forEach((item, idx) => {
+          const itemCompression = compressed[idx]?.compression;
+          stagedItems[inlineFiles[idx]!.index] =
+            itemCompression && !item.prepError ? { ...item, compression: itemCompression } : item;
+        });
+        committed = true;
+        commit();
+      } finally {
+        if (!committed) videoJobs.forEach(({ job }) => job.cancel());
+        updatePendingStaging(targetKey, -1);
+      }
     },
-    [access, prepareLocalItems]
+    [
+      access,
+      compressInlineImages,
+      createPendingVideo,
+      listKey,
+      mx,
+      prepareLocalItems,
+      store,
+      updatePendingStaging,
+    ]
   );
 
   const pastePlainText = useCallback(
@@ -756,6 +912,11 @@ export const useRoomInputAttachments = ({
     () => createUploadFamilyObserverAtom(roomUploadAtomFamily, visibleFiles),
     [visibleFiles]
   );
+  const compressingCount = useMemo(
+    () => visibleItems.filter((item) => item.compression?.status === 'compressing').length,
+    [visibleItems]
+  );
+  const isPreparing = compressingCount > 0 || (pendingStagingCounts.get(listKey(roomId)) ?? 0) > 0;
   const hasSendableFiles = useAtomValue(
     useMemo(
       () =>
@@ -763,7 +924,8 @@ export const useRoomInputAttachments = ({
           deferUpload
             ? visibleItems.some(
                 (item) =>
-                  !item.prepError && !getTooLargeError(item.originalFile.size, maxUploadSize)
+                  isUploadItemReady(item) &&
+                  !getTooLargeError(item.originalFile.size, maxUploadSize)
               )
             : hasSendableStagedFiles({
                 staged: visibleItems,
@@ -773,6 +935,29 @@ export const useRoomInputAttachments = ({
       [deferUpload, maxUploadSize, visibleItems]
     )
   );
+
+  // When the board is collapsed, cards are unmounted; auto-upload newly ready items here.
+  useEffect(() => {
+    if (deferUpload || boardOpen || typeof mx.uploadContent !== 'function') return;
+    const encrypted = room.hasEncryptionStateEvent();
+    for (const item of visibleItems) {
+      if (!isUploadItemReady(item) || (encrypted && !item.encInfo)) continue;
+      const uploadAtom = roomUploadAtomFamily(item.file);
+      if (store.get(uploadAtom).status !== UploadStatus.Idle) continue;
+      const tooLarge = getTooLargeError(item.file.size, maxUploadSize);
+      if (tooLarge) {
+        store.set(uploadAtom, { error: tooLarge });
+        continue;
+      }
+      void uploadContent(mx, item.file, {
+        name: item.file instanceof File ? item.file.name : undefined,
+        fileType: item.file.type || undefined,
+        hideFilename: item.encInfo !== undefined,
+        onPromise: (promise) => store.set(uploadAtom, { promise }),
+        onProgress: (progress) => store.set(uploadAtom, { progress }),
+      });
+    }
+  }, [boardOpen, deferUpload, maxUploadSize, mx, room, store, visibleItems]);
 
   // "Remove all" on the board removes the board's files, and `remove` cancels those still
   // uploading. A file that is not on the board (a recording a send holds) keeps its upload.
@@ -806,6 +991,7 @@ export const useRoomInputAttachments = ({
             open={boardOpen}
             onToggle={() => setBoardOpen((open) => !open)}
             uploadFamilyObserverAtom={observerAtom}
+            compressingCount={compressingCount}
             onCancel={cancelUploads}
           />
         }
@@ -822,6 +1008,8 @@ export const useRoomInputAttachments = ({
                   replaceItem(fileItem, { ...fileItem, metadata })
                 }
                 onRemove={(file) => access.remove(current.current.roomId, [file])}
+                onUseOriginal={(fileItem) => void restoreOriginal(fileItem)}
+                canUseOriginal={!sendingDeferred && !enrolledFiles.has(item.file)}
               />
             ))}
           </UploadBoardContent>
@@ -834,6 +1022,8 @@ export const useRoomInputAttachments = ({
     itemsAtom,
     board,
     hasSendableFiles,
+    isPreparing,
+    isPreparingNow,
     prepareForSend,
     onPaste,
     onEditorChange,

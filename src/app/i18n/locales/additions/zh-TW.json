@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 個檔案"
     },
+    "uploadCardRenderer": {
+      "compressing": "正在壓縮...",
+      "useOriginal": "使用原檔案",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "顯示密碼",
       "hide": "隱藏密碼"
@@ -517,7 +522,8 @@
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
         "plugins": "外掛程式, 插件, 擴充功能, 整合",
-        "appUpdates": "更新, 版本, 升級, 重新啟動"
+        "appUpdates": "更新, 版本, 升級, 重新啟動",
+        "mediaCompression": "螢幕截圖, 螢幕錄影, 圖片, 影片, 壓縮, 上傳大小"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -539,6 +545,13 @@
         "updateReady": "版本 {{version}} 已準備好安裝。",
         "restartToUpdate": "重新啟動以更新",
         "updateInstallFailed": "無法重新啟動以安裝更新，請再試一次。"
+      },
+      "mediaCompression": {
+        "title": "媒體壓縮",
+        "description": "在上傳前壓縮附加的照片、螢幕截圖和影片。您仍可為任何附件使用原始檔案。",
+        "off": "關閉",
+        "balanced": "平衡",
+        "small": "較小"
       }
     },
     "createChat": {
@@ -1354,6 +1367,43 @@
       "stopReply": {
         "label": "停止回覆",
         "stopping": "正在停止…"
+      },
+      "runError": {
+        "cardLabel": "執行錯誤",
+        "actions": {
+          "continue": "繼續",
+          "retry": "重試",
+          "compact": "壓縮內容"
+        },
+        "chips": {
+          "streamStalled": "串流中斷",
+          "providerUnavailable": "無法使用",
+          "rateLimited": "頻率受限",
+          "timeout": "逾時",
+          "contextWindow": "內容上限",
+          "tokensPerMinute": "權杖上限",
+          "safeguardRefusal": "已拒絕",
+          "quotaExhausted": "額度已滿",
+          "missingApiKey": "缺少 API 金鑰",
+          "authenticationFailed": "驗證失敗",
+          "runtimeError": "錯誤"
+        },
+        "technicalDetails": "技術詳情",
+        "details": {
+          "model": "模型",
+          "provider": "供應商",
+          "code": "錯誤碼",
+          "detail": "詳情",
+          "error": "錯誤"
+        },
+        "receipt": {
+          "continue": "已恢復",
+          "retry": "已重試",
+          "compact": "已壓縮"
+        },
+        "sendFailed": "無法傳送訊息，請重試。",
+        "restartSeam": "服務已重啟 · 上下文已保留",
+        "restartSeamRepeated": "服務已重啟（{{times}}×）· 上下文已保留"
       }
     },
     "message-search": {

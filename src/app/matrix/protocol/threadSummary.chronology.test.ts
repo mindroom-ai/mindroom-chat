@@ -94,6 +94,41 @@ describe('summary event chronology', () => {
     expect(buildThreadSummaryMap([original, newerOriginal]).get('$root')?.summaryText).toBe(
       'Edited title'
     );
+    expect(getThreadSummaryEventInfo(original)).toMatchObject({
+      eventId: '$original',
+      replacingEventId: '$edit',
+      eventTs: 1400,
+    });
+    original.makeReplaced();
+    expect(getThreadSummaryEventInfo(original)?.replacingEventId).toBeUndefined();
+    expect(getThreadSummaryEventInfo(original)?.eventTs).toBe(1000);
+  });
+
+  it('uses the applied live edit id and timestamp over a stale bundled edit', () => {
+    const editA = notice('$edit-a', 'Bundled edit A', 1300, 1000);
+    editA.event.content = {
+      ...editA.getContent(),
+      'm.new_content': editA.getContent(),
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$original' },
+    };
+    const original = notice('$original', 'Original', 1000, 9000);
+    original.event.unsigned = {
+      'm.relations': { 'm.replace': editA.event },
+    };
+    const editB = notice('$edit-b', 'Live edit B', 1600, 1000);
+    editB.event.content = {
+      ...editB.getContent(),
+      'm.new_content': editB.getContent(),
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$original' },
+    };
+    original.makeReplaced(editB);
+
+    expect(getThreadSummaryEventInfo(original)).toMatchObject({
+      summaryText: 'Live edit B',
+      eventId: '$original',
+      replacingEventId: '$edit-b',
+      eventTs: 1600,
+    });
   });
 
   it('does not treat a sent local echo timestamp as server acceptance time', () => {

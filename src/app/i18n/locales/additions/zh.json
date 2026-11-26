@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 个文件"
     },
+    "uploadCardRenderer": {
+      "compressing": "正在压缩...",
+      "useOriginal": "使用原文件",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "显示密码",
       "hide": "隐藏密码"
@@ -517,7 +522,8 @@
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
         "plugins": "插件, 扩展, 附加组件, 集成",
-        "appUpdates": "更新, 版本, 升级, 重启"
+        "appUpdates": "更新, 版本, 升级, 重启",
+        "mediaCompression": "截图, 录屏, 图片, 视频, 压缩, 上传大小"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -539,6 +545,13 @@
         "updateReady": "版本 {{version}} 已准备好安装。",
         "restartToUpdate": "重启以更新",
         "updateInstallFailed": "无法重启以安装更新，请重试。"
+      },
+      "mediaCompression": {
+        "title": "媒体压缩",
+        "description": "在上传前压缩附带的照片、截图和视频。您仍然可以为任意附件选择原文件。",
+        "off": "关闭",
+        "balanced": "均衡",
+        "small": "较小"
       }
     },
     "createChat": {
@@ -1354,6 +1367,43 @@
       "stopReply": {
         "label": "停止回复",
         "stopping": "正在停止…"
+      },
+      "runError": {
+        "cardLabel": "运行错误",
+        "actions": {
+          "continue": "继续",
+          "retry": "重试",
+          "compact": "压缩上下文"
+        },
+        "chips": {
+          "streamStalled": "流式中断",
+          "providerUnavailable": "不可用",
+          "rateLimited": "频率受限",
+          "timeout": "已超时",
+          "contextWindow": "上下文已满",
+          "tokensPerMinute": "令牌限额",
+          "safeguardRefusal": "已拒绝",
+          "quotaExhausted": "额度耗尽",
+          "missingApiKey": "缺少 API 密钥",
+          "authenticationFailed": "认证失败",
+          "runtimeError": "错误"
+        },
+        "technicalDetails": "技术详情",
+        "details": {
+          "model": "模型",
+          "provider": "提供商",
+          "code": "错误码",
+          "detail": "详情",
+          "error": "错误"
+        },
+        "receipt": {
+          "continue": "已恢复",
+          "retry": "已重试",
+          "compact": "已压缩"
+        },
+        "sendFailed": "无法发送消息，请重试。",
+        "restartSeam": "服务已重启 · 上下文已保留",
+        "restartSeamRepeated": "服务已重启（{{times}}×）· 上下文已保留"
       }
     },
     "message-search": {

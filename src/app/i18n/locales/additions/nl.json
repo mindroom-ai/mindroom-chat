@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} bestand",
       "fileCount_other": "{{count}} bestanden"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimeren...",
+      "useOriginal": "Origineel gebruiken",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Wachtwoord tonen",
       "hide": "Wachtwoord verbergen"
@@ -530,7 +535,8 @@
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
         "plugins": "plug-ins, plugins, extensies, add-ons, integraties",
-        "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten"
+        "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten",
+        "mediaCompression": "schermafbeeldingen, schermopnamen, afbeeldingen, video’s, compressie, uploadgrootte"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -552,6 +558,13 @@
         "updateReady": "Versie {{version}} staat klaar om te installeren.",
         "restartToUpdate": "Opnieuw opstarten om bij te werken",
         "updateInstallFailed": "Kan niet opnieuw opstarten om de update te installeren. Probeer het opnieuw."
+      },
+      "mediaCompression": {
+        "title": "Mediacompressie",
+        "description": "Comprimeer bijgevoegde foto’s, schermafbeeldingen en video’s voordat je ze uploadt. Je kunt voor elke bijlage nog steeds het origineel gebruiken.",
+        "off": "Uit",
+        "balanced": "Gebalanceerd",
+        "small": "Klein"
       }
     },
     "createChat": {
@@ -1390,6 +1403,43 @@
       "stopReply": {
         "label": "Antwoord stoppen",
         "stopping": "Wordt gestopt…"
+      },
+      "runError": {
+        "cardLabel": "Uitvoeringsfout",
+        "actions": {
+          "continue": "Doorgaan",
+          "retry": "Opnieuw proberen",
+          "compact": "Comprimeren"
+        },
+        "chips": {
+          "streamStalled": "Stream gestopt",
+          "providerUnavailable": "Niet beschikbaar",
+          "rateLimited": "Limiet bereikt",
+          "timeout": "Time-out",
+          "contextWindow": "Contextlimiet",
+          "tokensPerMinute": "Tokenlimiet",
+          "safeguardRefusal": "Geweigerd",
+          "quotaExhausted": "Quotum",
+          "missingApiKey": "API-sleutel",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Fout"
+        },
+        "technicalDetails": "Technische details",
+        "details": {
+          "model": "Model",
+          "provider": "Provider",
+          "code": "Code",
+          "detail": "Detail",
+          "error": "Fout"
+        },
+        "receipt": {
+          "continue": "Hervat",
+          "retry": "Opnieuw geprobeerd",
+          "compact": "Gecomprimeerd"
+        },
+        "sendFailed": "Kon bericht niet verzenden. Probeer opnieuw.",
+        "restartSeam": "Service herstart · context behouden",
+        "restartSeamRepeated": "Service herstart ({{times}}×) · context behouden"
       }
     },
     "message-search": {

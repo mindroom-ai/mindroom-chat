@@ -18,6 +18,7 @@ import {
 import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { isZeroReplyStandaloneThreadRootEvent } from '../event-store/threads/compactThreadRootData';
 import type { ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { isThreadOnlyRoomActivity } from '../event-store/threads/threadRenderUtils';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { eventBelongsToThread } from '../event-store/threads/threadUtils';
@@ -56,7 +57,7 @@ type LiveRenderOptions = {
   atBottomRef: MutableRefObject<boolean>;
   /** The newest answer to whether the mounted window reaches the live end. */
   atLiveEndRef: MutableRefObject<boolean>;
-  effectiveThreadFilterState: ThreadFilterState;
+  effectiveThreadFilterState?: ThreadFilterState;
   /** The reader sends private read receipts. */
   readonly hideActivity: boolean;
   /**
@@ -77,33 +78,33 @@ type LiveRenderOptions = {
    */
   onOwnSend?: () => void;
   mx: MatrixClient;
-  normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
+  normalThreadRecordMap?: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: ThreadSummaryWriter;
   room: Room;
-  roomThreadFilterActive: boolean;
+  roomThreadFilterActive?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   /** The shared bottom-pin request, applied by the scroll controller at its next commit. */
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   /** Adds events to the open thread's rows. */
-  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
-  observeLiveTail: (threadId: string) => void;
-  notifyThreadEventsChanged: () => void;
+  setSupplementalThreadEvents?: (expectedThreadId: string, events: MatrixEvent[]) => void;
+  observeLiveTail?: (threadId: string) => void;
+  notifyThreadEventsChanged?: () => void;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
-  setUnreadInfo: Dispatch<SetStateAction<RoomUnreadInfo | undefined>>;
+  setUnreadInfo?: Dispatch<SetStateAction<RoomUnreadInfo | undefined>>;
   showHiddenEvents: boolean;
   /** The room's mounted rows, when they hold its threads' replies (the classic view). */
   classicRows?: () => MatrixEvent[];
   /** Event ID to row index, for the open thread's rows. */
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
   /** The open thread's root, or `undefined` in the room view. */
-  threadId: string | undefined;
-  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  threadId?: string;
+  threadResolutionMap?: Map<string, { isResolved: boolean }>;
   /**
    * This render's value of `atLiveEndRef`. The handlers below always run as of the newest render,
    * so the two never differ there; they read the ref.
    */
   timelineAtLiveEnd: boolean;
-  unreadInfo: RoomUnreadInfo | undefined;
+  unreadInfo?: RoomUnreadInfo;
 };
 
 /** An edit changes a row that is already there; it never becomes a row of its own. */
@@ -166,38 +167,19 @@ const touchesOpenThread = (
  * listener is the room's last one. The two shared listener hooks register once per room and
  * always call the handlers of the newest render.
  */
-export const useRoomLiveRenderController = (options: LiveRenderOptions): void => {
+const EMPTY_MAP = new Map<never, never>();
+
+export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   const {
     atBottomRef,
     atLiveEndRef,
-    effectiveThreadFilterState,
     hideActivity,
-    readsMainTimeline = true,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
-    markLiveExpansionCandidate,
-    latestAtTopRef,
-    onOwnSend,
     mx,
-    normalThreadRecordMap,
-    onStoreThreadSummary,
     room,
-    roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,
-    setSupplementalThreadEvents,
-    observeLiveTail,
-    notifyThreadEventsChanged,
-    setTimeline,
-    setUnreadInfo,
-    showHiddenEvents,
-    classicRows,
-    threadEventIndexMapRef,
     threadId,
-    threadResolutionMap,
-    unreadInfo,
-  } = options;
+  } = o;
   // Automatic read receipts wait until the reader sees the timeline (`useReaderSees`).
   const readerSees = useReaderSees();
 
@@ -206,11 +188,11 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
 
   // Same rows, same range, new object: whatever derives from the window computes again. A
   // repaint never touches the range, which another hook may have just changed (a removed row).
-  const repaint = () => setTimeline((current) => ({ ...current }));
+  const repaint = () => o.setTimeline((current) => ({ ...current }));
 
   // The window takes in the one row that arrived at its end.
   const grow = () =>
-    setTimeline((current) => ({
+    o.setTimeline((current) => ({
       ...current,
       range: { start: current.range.start, end: current.range.end + 1 },
     }));
@@ -222,7 +204,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
   };
 
   const isThreadActivity = (event: MatrixEvent, openThreadId: string): boolean =>
-    touchesOpenThread(event, openThreadId, threadEventIndexMapRef.current);
+    touchesOpenThread(event, openThreadId, o.threadEventIndexMapRef?.current ?? EMPTY_MAP);
 
   // Open-time backfill must never get here: a row mounted expanded and folded later would move
   // the reader's scroll position.
@@ -231,15 +213,15 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       mEvent: event,
       room,
       threadId,
-      threadFilterState: effectiveThreadFilterState,
-      threadResolutionMap,
-      threadRecordMap: normalThreadRecordMap,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
+      threadFilterState: o.effectiveThreadFilterState ?? DIRECT_ROOM_TIMELINE_FILTER_STATE,
+      threadResolutionMap: o.threadResolutionMap ?? EMPTY_MAP,
+      threadRecordMap: o.normalThreadRecordMap ?? EMPTY_MAP,
+      ignoredUsersSet: o.ignoredUsersSet,
+      showHiddenEvents: o.showHiddenEvents,
+      hideMembershipEvents: o.hideMembershipEvents,
+      hideNickAvatarEvents: o.hideNickAvatarEvents,
     });
-    if (expandId) markLiveExpansionCandidate(expandId);
+    if (expandId) o.markLiveExpansionCandidate(expandId);
   };
 
   // Not live: history pages, cache restores, roots a thread list adds and pending local echoes.
@@ -248,8 +230,8 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (!event.isSending()) return;
     if (threadId) {
       if (!isThreadActivity(event, threadId)) return;
-      if (!isEdit(event)) setSupplementalThreadEvents(threadId, [event]);
-      notifyThreadEventsChanged();
+      if (!isEdit(event)) o.setSupplementalThreadEvents?.(threadId, [event]);
+      o.notifyThreadEventsChanged?.();
       return;
     }
     // A new top-level message shows as a thread card at once in the compact view.
@@ -259,9 +241,9 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
   const paintThreadArrival = (event: MatrixEvent, openThreadId: string) => {
     if (!isThreadActivity(event, openThreadId)) return;
     const atLiveEnd = atLiveEndRef.current;
-    if (!isEdit(event)) setSupplementalThreadEvents(openThreadId, [event]);
-    if (atLiveEnd && eventBelongsToThread(event, openThreadId)) observeLiveTail(openThreadId);
-    notifyThreadEventsChanged();
+    if (!isEdit(event)) o.setSupplementalThreadEvents?.(openThreadId, [event]);
+    if (atLiveEnd && eventBelongsToThread(event, openThreadId)) o.observeLiveTail?.(openThreadId);
+    o.notifyThreadEventsChanged?.();
 
     const area = scrollRef.current;
     if (!area) return;
@@ -299,9 +281,9 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
   // kept its text. The redacted copy replaces it.
   const showThreadRedaction = (redaction: MatrixEvent, openThreadId: string) => {
     const targetId = redaction.getAssociatedId();
-    if (!targetId || !threadEventIndexMapRef.current.has(targetId)) return;
+    if (!targetId || !o.threadEventIndexMapRef?.current.has(targetId)) return;
     const target = room.findEventById(targetId);
-    if (target?.isRedacted()) setSupplementalThreadEvents(openThreadId, [target]);
+    if (target?.isRedacted()) o.setSupplementalThreadEvents?.(openThreadId, [target]);
   };
 
   const storeThreadSummary = (event: MatrixEvent) => {
@@ -310,7 +292,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     const summary = getLatestThreadSummaryInfoFromEventSources([event]);
     if (!summary?.summaryText) return;
     const thread = room.getThread(rootId);
-    onStoreThreadSummary(
+    o.onStoreThreadSummary(
       rootId,
       summary,
       ...getThreadSummaryInfosFromEventSources(thread?.events, thread?.timeline)
@@ -321,20 +303,20 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
   // live end there reads a reply that arrives, or one whose stream finishes, as they would in the
   // open thread, measured when the reply can be read.
   const readClassicReply = (reply: MatrixEvent) => {
-    if (!classicRows) return;
+    if (!o.classicRows) return;
     whenDecrypted(reply, () => {
       const area = scrollRef.current;
       if (!reply.threadRootId || openThreadIdRef.current || !area || !atLiveEndRef.current) return;
       if (!atBottomRef.current || !readerSees()) return;
-      if (!isNearLatestEnd(area, !!latestAtTopRef?.current)) return;
+      if (!isNearLatestEnd(area, !!o.latestAtTopRef?.current)) return;
       const shown = isRenderableEvent(
         reply,
         room,
         undefined,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents,
+        o.ignoredUsersSet,
+        o.showHiddenEvents,
+        o.hideMembershipEvents,
+        o.hideNickAvatarEvents,
         true
       );
       if (shown) void markShownThreadRepliesAsRead(mx, room.roomId, [reply], hideActivity);
@@ -348,8 +330,9 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     const edit = reply.replacingEvent();
     if (reply.getRoomId() !== room.roomId || !edit) return;
     if (!hasTerminalStreamMetadata(edit.getContent())) return;
-    if (classicRows?.().includes(reply)) readClassicReply(reply);
+    if (o.classicRows?.().includes(reply)) readClassicReply(reply);
   });
+  const { classicRows } = o;
   useEffect(() => {
     if (!classicRows) return undefined;
     const onReplaced = (reply: MatrixEvent) => readClassicFinishedReply.current(reply);
@@ -382,24 +365,23 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
         event,
         room,
         threadId,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents
+        o.ignoredUsersSet,
+        o.showHiddenEvents,
+        o.hideMembershipEvents,
+        o.hideNickAvatarEvents
       );
     // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
     // has just scrolled away.
     const area = scrollRef.current;
-    const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, !!latestAtTopRef?.current);
+    const followsLiveEnd =
+      atLiveEnd && !!area && isNearLatestEnd(area, !!o.latestAtTopRef?.current);
     if (followsLiveEnd && atBottomRef.current && readerSees()) {
-      if (readsMainTimeline) void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+      if (o.readsMainTimeline !== false) void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     } else if (isRoomRow) {
-      // The "New messages" line goes above the first message the reader has not seen. Only a
-      // new row sets where it goes: a reaction, an edit or a hidden event the reader did not
-      // see would put the line above the next message, though they may watch that one arrive.
-      // A line the reader has read past since it was set moves there; one they have not stays.
       const marker = getRoomUnreadInfo(room);
-      if (marker && marker.readUptoEventId !== unreadInfo?.readUptoEventId) setUnreadInfo(marker);
+      if (marker && marker.readUptoEventId !== o.unreadInfo?.readUptoEventId) {
+        o.setUnreadInfo?.(marker);
+      }
     }
 
     if (!atLiveEnd || !isRoomRow) {
@@ -407,7 +389,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       return;
     }
     // A filtered overview already holds every matching row, so its range stays.
-    if (roomThreadFilterActive) repaint();
+    if (o.roomThreadFilterActive) repaint();
     else grow();
     if (followsLiveEnd) requestBottomPin(true);
   };
@@ -428,15 +410,15 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
         event,
         room,
         undefined,
-        ignoredUsersSet,
-        showHiddenEvents,
-        hideMembershipEvents,
-        hideNickAvatarEvents
+        o.ignoredUsersSet,
+        o.showHiddenEvents,
+        o.hideMembershipEvents,
+        o.hideNickAvatarEvents
       );
-    if (ownRoomRow && onOwnSend) {
+    if (ownRoomRow && o.onOwnSend) {
       followedSendsRef.current.add(event);
-      setUnreadInfo(undefined);
-      onOwnSend();
+      o.setUnreadInfo?.(undefined);
+      o.onOwnSend();
       return;
     }
     // It also reads the room up to it. Its server echo replaces the pending row instead of
@@ -473,7 +455,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (event.isRedaction()) {
       if (threadId) {
         showThreadRedaction(event, threadId);
-        notifyThreadEventsChanged();
+        o.notifyThreadEventsChanged?.();
       } else repaint();
       return;
     }

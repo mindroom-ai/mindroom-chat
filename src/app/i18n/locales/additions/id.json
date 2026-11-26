@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} file"
     },
+    "uploadCardRenderer": {
+      "compressing": "Mengompresi...",
+      "useOriginal": "Gunakan asli",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Tampilkan kata sandi",
       "hide": "Sembunyikan kata sandi"
@@ -517,7 +522,8 @@
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
         "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
         "plugins": "plugin, ekstensi, pengaya, integrasi",
-        "appUpdates": "pembaruan, update, versi, tingkatkan, mulai ulang, restart"
+        "appUpdates": "pembaruan, update, versi, tingkatkan, mulai ulang, restart",
+        "mediaCompression": "tangkapan layar, rekaman layar, gambar, video, kompresi, ukuran unggahan"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -539,6 +545,13 @@
         "updateReady": "Versi {{version}} siap dipasang.",
         "restartToUpdate": "Mulai ulang untuk memperbarui",
         "updateInstallFailed": "Tidak dapat memulai ulang untuk memasang pembaruan. Coba lagi."
+      },
+      "mediaCompression": {
+        "title": "Kompresi media",
+        "description": "Kompres foto, tangkapan layar, dan video yang dilampirkan sebelum diunggah. Anda tetap dapat menggunakan file asli untuk lampiran apa pun.",
+        "off": "Nonaktif",
+        "balanced": "Seimbang",
+        "small": "Kecil"
       }
     },
     "createChat": {
@@ -1354,6 +1367,43 @@
       "stopReply": {
         "label": "Hentikan respons",
         "stopping": "Menghentikan…"
+      },
+      "runError": {
+        "cardLabel": "Kesalahan eksekusi",
+        "actions": {
+          "continue": "Lanjutkan",
+          "retry": "Coba lagi",
+          "compact": "Ringkas"
+        },
+        "chips": {
+          "streamStalled": "Aliran terhenti",
+          "providerUnavailable": "Tidak tersedia",
+          "rateLimited": "Batas laju",
+          "timeout": "Waktu habis",
+          "contextWindow": "Batas konteks",
+          "tokensPerMinute": "Batas token",
+          "safeguardRefusal": "Ditolak",
+          "quotaExhausted": "Kuota habis",
+          "missingApiKey": "Kunci API",
+          "authenticationFailed": "Autentikasi",
+          "runtimeError": "Kesalahan"
+        },
+        "technicalDetails": "Detail teknis",
+        "details": {
+          "model": "Model",
+          "provider": "Penyedia",
+          "code": "Kode",
+          "detail": "Detail",
+          "error": "Kesalahan"
+        },
+        "receipt": {
+          "continue": "Dilanjutkan",
+          "retry": "Dicoba lagi",
+          "compact": "Diringkas"
+        },
+        "sendFailed": "Tidak dapat mengirim pesan. Coba lagi.",
+        "restartSeam": "Layanan dimulai ulang · konteks dipertahankan",
+        "restartSeamRepeated": "Layanan dimulai ulang ({{times}}×) · konteks dipertahankan"
       }
     },
     "message-search": {

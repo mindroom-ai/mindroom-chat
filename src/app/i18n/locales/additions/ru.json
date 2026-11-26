@@ -44,6 +44,11 @@
       "fileCount_many": "{{count}} файлов",
       "fileCount_other": "{{count}} файла"
     },
+    "uploadCardRenderer": {
+      "compressing": "Сжатие...",
+      "useOriginal": "Оригинал",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Показать пароль",
       "hide": "Скрыть пароль"
@@ -556,7 +561,8 @@
         "midTurn": "направить, очередь, авто, агент, ответ, прервать",
         "usage": "токены, стоимость, цена, модель, вызовы инструментов, субагенты, фоновые задачи",
         "plugins": "плагины, расширения, дополнения, интеграции",
-        "appUpdates": "обновление, обновления, версия, апгрейд, перезапуск"
+        "appUpdates": "обновление, обновления, версия, апгрейд, перезапуск",
+        "mediaCompression": "скриншоты, записи экрана, изображения, видео, сжатие, размер загрузки"
       },
       "errorReports": {
         "title": "Отправлять отчёты об ошибках",
@@ -578,6 +584,13 @@
         "updateReady": "Версия {{version}} готова к установке.",
         "restartToUpdate": "Перезапустить для обновления",
         "updateInstallFailed": "Не удалось перезапустить приложение для установки обновления. Повторите попытку."
+      },
+      "mediaCompression": {
+        "title": "Сжатие медиафайлов",
+        "description": "Сжимать прикреплённые фото, скриншоты и видео перед загрузкой. Для любого вложения всё равно можно выбрать оригинал.",
+        "off": "Выкл.",
+        "balanced": "Сбалансированное",
+        "small": "Маленький размер"
       }
     },
     "createChat": {
@@ -1462,6 +1475,43 @@
       "stopReply": {
         "label": "Остановить ответ",
         "stopping": "Остановка…"
+      },
+      "runError": {
+        "cardLabel": "Ошибка выполнения",
+        "actions": {
+          "continue": "Продолжить",
+          "retry": "Повторить",
+          "compact": "Сжать контекст"
+        },
+        "chips": {
+          "streamStalled": "Поток прерван",
+          "providerUnavailable": "Недоступен",
+          "rateLimited": "Лимит запросов",
+          "timeout": "Тайм-аут",
+          "contextWindow": "Лимит контекста",
+          "tokensPerMinute": "Лимит токенов",
+          "safeguardRefusal": "Отклонено",
+          "quotaExhausted": "Квота исчерпана",
+          "missingApiKey": "Ключ API",
+          "authenticationFailed": "Авторизация",
+          "runtimeError": "Ошибка"
+        },
+        "technicalDetails": "Технические детали",
+        "details": {
+          "model": "Модель",
+          "provider": "Провайдер",
+          "code": "Код",
+          "detail": "Подробности",
+          "error": "Ошибка"
+        },
+        "receipt": {
+          "continue": "Возобновлено",
+          "retry": "Повторено",
+          "compact": "Сжато"
+        },
+        "sendFailed": "Не удалось отправить сообщение. Попробуйте снова.",
+        "restartSeam": "Сервис перезапущен · контекст сохранён",
+        "restartSeamRepeated": "Сервис перезапущен ({{times}}×) · контекст сохранён"
       }
     },
     "message-search": {

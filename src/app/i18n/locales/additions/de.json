@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}} Datei",
       "fileCount_other": "{{count}} Dateien"
     },
+    "uploadCardRenderer": {
+      "compressing": "Wird komprimiert...",
+      "useOriginal": "Original verwenden",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "Passwort anzeigen",
       "hide": "Passwort verbergen"
@@ -530,7 +535,8 @@
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
         "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen",
-        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart"
+        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart",
+        "mediaCompression": "Screenshots, Bildschirmaufnahmen, Bilder, Videos, Komprimierung, Upload-Größe"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -552,6 +558,13 @@
         "updateReady": "Version {{version}} kann installiert werden.",
         "restartToUpdate": "Zum Aktualisieren neu starten",
         "updateInstallFailed": "Neustart zum Installieren des Updates fehlgeschlagen. Versuche es erneut."
+      },
+      "mediaCompression": {
+        "title": "Medienkomprimierung",
+        "description": "Komprimiere angehängte Fotos, Screenshots und Videos vor dem Hochladen. Für jeden Anhang kannst du weiterhin das Original verwenden.",
+        "off": "Aus",
+        "balanced": "Ausgewogen",
+        "small": "Klein"
       }
     },
     "createChat": {
@@ -1390,6 +1403,43 @@
       "stopReply": {
         "label": "Antwort stoppen",
         "stopping": "Wird gestoppt…"
+      },
+      "runError": {
+        "cardLabel": "Ausführungsfehler",
+        "actions": {
+          "continue": "Fortsetzen",
+          "retry": "Erneut versuchen",
+          "compact": "Komprimieren"
+        },
+        "chips": {
+          "streamStalled": "Stream unterbrochen",
+          "providerUnavailable": "Nicht verfügbar",
+          "rateLimited": "Ratenlimit",
+          "timeout": "Zeitüberschreitung",
+          "contextWindow": "Kontextlimit",
+          "tokensPerMinute": "Token-Limit",
+          "safeguardRefusal": "Abgelehnt",
+          "quotaExhausted": "Kontingent",
+          "missingApiKey": "API-Schlüssel",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Fehler"
+        },
+        "technicalDetails": "Technische Details",
+        "details": {
+          "model": "Modell",
+          "provider": "Anbieter",
+          "code": "Code",
+          "detail": "Details",
+          "error": "Fehler"
+        },
+        "receipt": {
+          "continue": "Fortgesetzt",
+          "retry": "Erneut versucht",
+          "compact": "Komprimiert"
+        },
+        "sendFailed": "Nachricht konnte nicht gesendet werden. Erneut versuchen.",
+        "restartSeam": "Dienst neu gestartet · Kontext erhalten",
+        "restartSeamRepeated": "Dienst neu gestartet ({{times}}×) · Kontext erhalten"
       }
     },
     "message-search": {

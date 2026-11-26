@@ -38,6 +38,11 @@
       "fileCount_one": "{{count}}টি ফাইল",
       "fileCount_other": "{{count}}টি ফাইল"
     },
+    "uploadCardRenderer": {
+      "compressing": "সংকুচিত হচ্ছে...",
+      "useOriginal": "মূল ফাইল ব্যবহার করুন",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "পাসওয়ার্ড দেখান",
       "hide": "পাসওয়ার্ড লুকান"
@@ -530,7 +535,8 @@
         "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান",
         "usage": "টোকেন, খরচ, দাম, মডেল, টুল কল, সাব-এজেন্ট, ব্যাকগ্রাউন্ড কাজ",
         "plugins": "প্লাগইন, এক্সটেনশন, অ্যাড-অন, ইন্টিগ্রেশন",
-        "appUpdates": "আপডেট, সংস্করণ, আপগ্রেড, রিস্টার্ট, পুনরায় চালু"
+        "appUpdates": "আপডেট, সংস্করণ, আপগ্রেড, রিস্টার্ট, পুনরায় চালু",
+        "mediaCompression": "স্ক্রিনশট, স্ক্রিন রেকর্ডিং, ছবি, ভিডিও, কম্প্রেশন, আপলোডের আকার"
       },
       "errorReports": {
         "title": "ত্রুটির রিপোর্ট পাঠান",
@@ -552,6 +558,13 @@
         "updateReady": "সংস্করণ {{version}} ইনস্টল করার জন্য প্রস্তুত।",
         "restartToUpdate": "আপডেট করতে পুনরায় চালু করুন",
         "updateInstallFailed": "আপডেট ইনস্টল করতে পুনরায় চালু করা যায়নি। আবার চেষ্টা করুন।"
+      },
+      "mediaCompression": {
+        "title": "মিডিয়া কম্প্রেশন",
+        "description": "আপলোড করার আগে সংযুক্ত ছবি, স্ক্রিনশট এবং ভিডিও কম্প্রেস করুন। যেকোনো সংযুক্তির জন্য আপনি এখনো আসল ফাইল ব্যবহার করতে পারবেন।",
+        "off": "বন্ধ",
+        "balanced": "ভারসাম্যপূর্ণ",
+        "small": "ছোট"
       }
     },
     "createChat": {
@@ -1390,6 +1403,43 @@
       "stopReply": {
         "label": "উত্তর থামান",
         "stopping": "থামানো হচ্ছে…"
+      },
+      "runError": {
+        "cardLabel": "রান ত্রুটি",
+        "actions": {
+          "continue": "চালিয়ে যান",
+          "retry": "আবার চেষ্টা করুন",
+          "compact": "সংক্ষিপ্ত করুন"
+        },
+        "chips": {
+          "streamStalled": "স্ট্রিম থেমে গেছে",
+          "providerUnavailable": "উপলব্ধ নয়",
+          "rateLimited": "রেট সীমা",
+          "timeout": "সময় শেষ",
+          "contextWindow": "প্রসঙ্গ সীমা",
+          "tokensPerMinute": "টোকেন সীমা",
+          "safeguardRefusal": "প্রত্যাখ্যাত",
+          "quotaExhausted": "কোটা শেষ",
+          "missingApiKey": "API কী",
+          "authenticationFailed": "প্রমাণীকরণ",
+          "runtimeError": "ত্রুটি"
+        },
+        "technicalDetails": "প্রযুক্তিগত বিবরণ",
+        "details": {
+          "model": "মডেল",
+          "provider": "প্রোভাইডার",
+          "code": "কোড",
+          "detail": "বিবরণ",
+          "error": "ত্রুটি"
+        },
+        "receipt": {
+          "continue": "পুনরায় শুরু হয়েছে",
+          "retry": "আবার চেষ্টা করা হয়েছে",
+          "compact": "সংক্ষিপ্ত করা হয়েছে"
+        },
+        "sendFailed": "বার্তা পাঠানো যায়নি। আবার চেষ্টা করুন।",
+        "restartSeam": "পরিষেবা পুনরায় চালু হয়েছে · প্রসঙ্গ সংরক্ষিত",
+        "restartSeamRepeated": "পরিষেবা পুনরায় চালু হয়েছে ({{times}}×) · প্রসঙ্গ সংরক্ষিত"
       }
     },
     "message-search": {

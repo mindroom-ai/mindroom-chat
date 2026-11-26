@@ -13,7 +13,7 @@ import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
 import { listSessions } from '../../matrix/session/sessions';
-import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
+import { isUploadItemReady, UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
@@ -210,7 +210,9 @@ export const handoffComposerDictationSend = (
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
   const { staged, enrolled } = attachments.snapshot();
   const enrolledFiles = new Set(enrolled.map((item) => item.file));
-  const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
+  const stagedSnapshot = staged.filter(
+    (item) => isUploadItemReady(item) && !enrolledFiles.has(item.file)
+  );
   const rootModel =
     !ask &&
     !params.forkFrom &&
@@ -278,11 +280,11 @@ export const startDetachedDictationSend = (
 
   const getActiveStaged = (): TUploadItem[] => {
     if (input.stagedSnapshot.length === 0) return [];
-    if (!input.tracksEnrollment) return input.stagedSnapshot;
+    if (!input.tracksEnrollment) return input.stagedSnapshot.filter(isUploadItemReady);
     const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
     return input.stagedSnapshot
       .map((item) => enrolledByFile.get(item.file))
-      .filter((item): item is TUploadItem => item !== undefined && !item.prepError);
+      .filter((item): item is TUploadItem => item !== undefined && isUploadItemReady(item));
   };
 
   const clearEnrollments = () => {

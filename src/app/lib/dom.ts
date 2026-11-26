@@ -198,6 +198,35 @@ export function selectFile(accept: string, multiple = false): Promise<File | Fil
   });
 }
 
+let webpEncodeSupport: boolean | undefined;
+
+/**
+ * Whether `<canvas>` can encode `image/webp` in this browser. Cached after the first probe;
+ * returns `false` when `document` is unavailable or probing throws.
+ */
+export const supportsWebpEncode = (): boolean => {
+  if (webpEncodeSupport !== undefined) return webpEncodeSupport;
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    webpEncodeSupport =
+      typeof canvas.toDataURL === 'function' &&
+      canvas.toDataURL('image/webp').startsWith('data:image/webp');
+    canvas.width = 0;
+    canvas.height = 0;
+  } catch {
+    webpEncodeSupport = false;
+  }
+  return webpEncodeSupport;
+};
+
+/** Resets the cached `supportsWebpEncode` probe between unit tests. */
+export const resetWebpEncodeSupportForTest = (): void => {
+  webpEncodeSupport = undefined;
+};
+
 const encodeCanvas = (canvas: HTMLCanvasElement, mimeType: string): Promise<Blob | undefined> =>
   new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob ?? undefined), mimeType);

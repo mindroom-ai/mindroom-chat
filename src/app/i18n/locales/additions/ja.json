@@ -35,6 +35,11 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 個のファイル"
     },
+    "uploadCardRenderer": {
+      "compressing": "圧縮中...",
+      "useOriginal": "元ファイルを使用",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+    },
     "passwordInput": {
       "show": "パスワードを表示",
       "hide": "パスワードを隠す"
@@ -517,7 +522,8 @@
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
         "plugins": "プラグイン, 拡張機能, アドオン, 連携",
-        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動"
+        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動",
+        "mediaCompression": "スクリーンショット, 画面録画, 画像, 動画, 圧縮, アップロードサイズ"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -539,6 +545,13 @@
         "updateReady": "バージョン {{version}} をインストールする準備ができました。",
         "restartToUpdate": "再起動してアップデート",
         "updateInstallFailed": "アップデートをインストールするための再起動に失敗しました。もう一度試してください。"
+      },
+      "mediaCompression": {
+        "title": "メディア圧縮",
+        "description": "アップロード前に添付した写真、スクリーンショット、動画を圧縮します。どの添付ファイルでも元のファイルを使用できます。",
+        "off": "オフ",
+        "balanced": "バランス",
+        "small": "小"
       }
     },
     "createChat": {
@@ -1354,6 +1367,43 @@
       "stopReply": {
         "label": "応答を停止",
         "stopping": "停止中…"
+      },
+      "runError": {
+        "cardLabel": "実行エラー",
+        "actions": {
+          "continue": "続行",
+          "retry": "再試行",
+          "compact": "要約して圧縮"
+        },
+        "chips": {
+          "streamStalled": "ストリーム停止",
+          "providerUnavailable": "利用不可",
+          "rateLimited": "レート制限",
+          "timeout": "タイムアウト",
+          "contextWindow": "コンテキスト上限",
+          "tokensPerMinute": "トークン上限",
+          "safeguardRefusal": "拒否",
+          "quotaExhausted": "クォータ上限",
+          "missingApiKey": "API キー未設定",
+          "authenticationFailed": "認証エラー",
+          "runtimeError": "エラー"
+        },
+        "technicalDetails": "技術詳細",
+        "details": {
+          "model": "モデル",
+          "provider": "プロバイダー",
+          "code": "コード",
+          "detail": "詳細",
+          "error": "エラー"
+        },
+        "receipt": {
+          "continue": "再開済み",
+          "retry": "再試行済み",
+          "compact": "圧縮済み"
+        },
+        "sendFailed": "メッセージを送信できませんでした。もう一度お試しください。",
+        "restartSeam": "サービス再起動 · コンテキスト保持",
+        "restartSeamRepeated": "サービス再起動（{{times}}×）· コンテキスト保持"
       }
     },
     "message-search": {

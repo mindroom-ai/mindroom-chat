@@ -1,4 +1,5 @@
 import React from 'react';
+import { Provider, atom, createStore } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -280,5 +281,143 @@ describe('upload card renderers', () => {
     );
     expect(errOut).toContain(friendlyTransientMessage);
     expect(errOut).not.toContain('Retry');
+  });
+
+  it('suppresses unencrypted and too-large errors while compressing, blocks upload, renders progress, and wires Use original', () => {
+    const file = createFile({
+      name: 'recording.mov',
+      type: 'video/quicktime',
+      size: 80 * 1024 * 1024,
+    });
+    const progressAtom = atom(0.37);
+    const onUseOriginal = vi.fn();
+    const store = createStore();
+    uploadMock.mediaConfig = { 'm.upload.size': 50 * 1024 * 1024 };
+    uploadMock.upload = { file, status: 'idle' };
+
+    const fileItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing' as const,
+        progressAtom,
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+      },
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(UploadCardRenderer, {
+            isEncrypted: true,
+            fileItem,
+            setMetadata: vi.fn(),
+            onRemove: vi.fn(),
+            onUseOriginal,
+          })
+        )
+      );
+    });
+
+    const initial = JSON.stringify(renderer.toJSON());
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(uploadMock.useBindUploadAtom).toHaveBeenCalledWith(
+      expect.anything(),
+      'room-upload-atom',
+      expect.objectContaining({
+        blockUploadError: expect.any(MatrixError),
+      })
+    );
+    expect(initial).toContain('Compressing...');
+    expect(initial).toContain('37%');
+    expect(initial).toContain('Use original');
+    expect(initial).not.toContain(prepareUploadMessage);
+    expect(initial).not.toContain('too large');
+
+    // Updating progressAtom updates the percentage reactively.
+    act(() => {
+      store.set(progressAtom, 0.82);
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('82%');
+
+    const useOriginalBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Use original'))
+      );
+    expect(useOriginalBtn).toBeDefined();
+    act(() => {
+      useOriginalBtn?.props.onClick();
+    });
+    expect(onUseOriginal).toHaveBeenCalledWith(fileItem);
+  });
+
+  it('renders original to compressed size delta and hides Use original when enrolled', () => {
+    const sourceFile = new File(['raw'], 'shot.png', { type: 'image/png' });
+    const compressedFile = createFile({
+      name: 'shot.webp',
+      type: 'image/webp',
+      size: 256 * 1024,
+    });
+    uploadMock.upload = { file: compressedFile, status: 'success', mxc: 'mxc://example/1' };
+    const onUseOriginal = vi.fn();
+
+    const fileItem = {
+      file: compressedFile,
+      originalFile: compressedFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressed' as const,
+        sourceFile,
+        originalSize: 2 * 1024 * 1024,
+      },
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(UploadCardRenderer, {
+          fileItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onUseOriginal,
+          canUseOriginal: true,
+        })
+      );
+    });
+    const output = JSON.stringify(renderer.toJSON());
+    expect(output).toContain('2.1 MB → 262.1 KB');
+    expect(output).toContain('Use original');
+
+    const useOriginalBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Use original'))
+      );
+    act(() => {
+      useOriginalBtn?.props.onClick();
+    });
+    expect(onUseOriginal).toHaveBeenCalledWith(fileItem);
+
+    // Enrolled in active send: Use original is hidden.
+    act(() => {
+      renderer.update(
+        React.createElement(UploadCardRenderer, {
+          fileItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onUseOriginal,
+          canUseOriginal: false,
+        })
+      );
+    });
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Use original');
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { listShrinkAfterResize, listShrinkNotRendered } from './useListEndClamp';
+import { listShrinkAfterResize, listShrinkNotRendered } from './timelineListShrink';
 
 // A thread's newest reply finished and shrank by 62 px; the list keeps its rendered height until
 // React renders it again. Rows after the reply (hidden events, edits) take no height.
