@@ -183,16 +183,38 @@ export const collectEmbeddedRelationEventIds = (
   return eventIds;
 };
 
+/** Off-timeline events (such as summary-only thread replies) redacted after observation per room. */
+const redactedDetachedEventIds = new WeakMap<object, Set<string>>();
+
+const hasRedactedDetachedEventId = (room: Room, eventId: string): boolean => {
+  if (redactedDetachedEventIds.get(room)?.has(eventId)) return true;
+  const proto: unknown = Object.getPrototypeOf(room);
+  return (
+    !!proto && typeof proto === 'object' && !!redactedDetachedEventIds.get(proto)?.has(eventId)
+  );
+};
+
+/** Record an authorized redaction of an off-timeline event so detached copies drop it too. */
+export const recordKnownRedactedEventId = (room: Room, eventId: string): void => {
+  let ids = redactedDetachedEventIds.get(room);
+  if (!ids) {
+    ids = new Set();
+    redactedDetachedEventIds.set(room, ids);
+  }
+  ids.add(eventId);
+};
+
 /**
- * Whether `room` took a redaction of the event `eventId`: it holds the event redacted, or the SDK
- * patch dropped it as an edit bundled with a message (`Room.redactedBundledEdits`) once someone
- * who may redact it did, as the redaction arrived. The copies of a message that show a bundled
- * edit ask this, or drop the edits in that record from a raw copy with
- * `stripRedactedRelationsFromRawEvent`, so none shows an edit after its redaction.
+ * Whether `room` took a redaction of the event `eventId`: it holds the event redacted, the SDK
+ * patch dropped it as an edit bundled with a message (`Room.redactedBundledEdits`), or an
+ * authorized redaction removed an off-timeline summary reply recorded via
+ * `recordKnownRedactedEventId`.
  */
 export const isKnownRedactedEventId = (room: Room, eventId: string): boolean =>
-  // Optional: room stand-ins in tests have no record.
-  !!room.redactedBundledEdits?.has(eventId) || room.findEventById(eventId)?.isRedacted() === true;
+  // Optional: room stand-ins in tests may omit SDK lookup/record fields.
+  !!room.redactedBundledEdits?.has(eventId) ||
+  hasRedactedDetachedEventId(room, eventId) ||
+  (typeof room.findEventById === 'function' && room.findEventById(eventId)?.isRedacted() === true);
 
 /**
  * Union of every event id known to be redacted from the given raw batch: the

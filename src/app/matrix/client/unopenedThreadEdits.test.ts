@@ -18,6 +18,7 @@ import {
 import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveThreadPresentationSnapshot } from '../../event-store/threads/threadPresentation';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
@@ -40,6 +41,7 @@ const roomId = '!room:example.org';
 const agentId = '@agent:example.org';
 const otherId = '@other:example.org';
 const guestId = '@guest:elsewhere.org';
+const moderatorId = '@moderator:elsewhere.org';
 const rootId = '$root';
 
 const message = (
@@ -183,14 +185,21 @@ const fixture = (serverThread: () => IEvent[]) => {
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
 
   /** Answers the client's next /sync with these room events, as the server sends them. */
-  const deliver = async (events: IEvent[]) => {
+  const deliver = async (events: IEvent[], extraState: IEvent[] = []) => {
     batch += 1;
     const response = {
       next_batch: `batch-${batch}`,
       rooms: {
         join: {
           [roomId]: {
-            state: { events: [membership(agentId), membership(otherId), membership(guestId)] },
+            state: {
+              events: [
+                membership(agentId),
+                membership(otherId),
+                membership(guestId),
+                ...extraState,
+              ],
+            },
             timeline: { events, prev_batch: 'before', limited: false },
             ephemeral: { events: [] },
             account_data: { events: [] },
@@ -676,4 +685,78 @@ describe('edits of unopened threads', () => {
     expect(f.card(cached).preview).toBe('Thinking about it');
     expect(f.loadedThread()).toBe(false);
   });
+
+  it.each([
+    ['summary-only latest_event', false],
+    ['summary-only latest_event with bundled io.mindroom.latest_reply', true],
+  ])(
+    'does not resurrect a moderator-redacted retained reply when a secret request folds (%s)',
+    async (_, includeBundledReply) => {
+      const answer = (): IEvent => ({
+        ...reply(),
+        event_id: '$answer',
+        sender: helper,
+        content: {
+          ...reply().content,
+          body: 'Sensitive answer to delete',
+        },
+      });
+      const moderatorState: IEvent[] = [
+        {
+          type: 'm.room.create',
+          event_id: '$create',
+          room_id: roomId,
+          sender: moderatorId,
+          state_key: '',
+          origin_server_ts: 0,
+          unsigned: {},
+          content: { creator: moderatorId, room_version: '10' },
+        },
+        membership(moderatorId),
+        {
+          type: 'm.room.power_levels',
+          event_id: '$power-levels',
+          room_id: roomId,
+          sender: moderatorId,
+          state_key: '',
+          origin_server_ts: 0,
+          unsigned: {},
+          content: { users: { [moderatorId]: 50 }, redact: 50 },
+        },
+      ];
+      const f = fixture(() => [pendingSecret()]);
+      await f.start();
+      await f.deliver(
+        [withSummary(answer(), includeBundledReply ? answer() : undefined)],
+        moderatorState
+      );
+      expect(f.thread().events.map((event) => event.getId())).not.toContain('$answer');
+      expect(f.card().preview).toBe('Sensitive answer to delete');
+
+      await f.deliver([pendingSecret()]);
+      expect(f.card().preview).toBe('API token needed');
+
+      // An unprivileged member from another server cannot redact the retained reply.
+      await f.deliver([{ ...redaction('$answer', 150), sender: guestId }]);
+      expect(getRetainedThreadSummaryReply(f.thread())?.getId()).toBe('$answer');
+
+      // A moderator redacts the original off-timeline reply while the secret request is pending.
+      await f.deliver([{ ...redaction('$answer', 155), sender: moderatorId }]);
+      expect(getRetainedThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+
+      // Once the secret request folds, the deleted reply must not resurrect on the card.
+      await f.deliver([savedSecretEdit(160)]);
+      expect(getThreadSummaryReply(f.thread())?.getId()).not.toBe('$answer');
+      const snapshot = resolveThreadPresentationSnapshot({
+        room: f.room(),
+        threadRootId: rootId,
+        thread: f.thread(),
+        rootEvent: f.room().findEventById(rootId),
+      });
+      expect(snapshot.latestReplyPreviewText).toBeUndefined();
+      expect(snapshot.rootPreviewText).toBe('What changed in the build?');
+      expect(f.card().preview).toBeUndefined();
+      expect(f.loadedThread()).toBe(false);
+    }
+  );
 });
