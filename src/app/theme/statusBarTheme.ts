@@ -1,4 +1,4 @@
-import { SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { SystemBars, SystemBarsStyle, SystemBarType } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
 import { isNativeAndroid, isNativeIOS } from '../native/nativeSso';
@@ -19,9 +19,12 @@ export const syncNativeStatusBarTheme = (scheme: 'light' | 'dark'): void => {
   }
 
   if (isNativeAndroid()) {
-    // SystemBars controls icon contrast for both status and navigation bars on Android 7-16.
+    // Only target the status bar so Light mode never flips 3-button navigation icons
+    // to dark-on-black on Android versions whose navigation bar background stays black.
     const systemBarsStyle = scheme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light;
-    SystemBars.setStyle({ style: systemBarsStyle }).catch(() => undefined);
+    SystemBars.setStyle({ style: systemBarsStyle, bar: SystemBarType.StatusBar }).catch(
+      () => undefined
+    );
     StatusBar.setStyle({ style }).catch(() => undefined);
     // On API 35/36 edge-to-edge this is a deprecated no-op; catch errors silently.
     StatusBar.setBackgroundColor({ color: ANDROID_STATUS_BAR_COLORS[scheme] }).catch(

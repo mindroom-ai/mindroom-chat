@@ -81,17 +81,42 @@ public class MindRoomFileSavePluginTest {
     }
 
     @Test
-    public void cleanupStaleOpenExportsRemovesOnlyOldOpenDirectories() throws Exception {
+    public void resolveMimeTypeTreatsOctetStreamAsFallbackAndInfersFromFileName() {
+        assertEquals("application/pdf", MindRoomFileSavePlugin.resolveMimeType("application/octet-stream", "report.pdf"));
+        assertEquals(
+            "image/png",
+            MindRoomFileSavePlugin.resolveMimeType("APPLICATION/OCTET-STREAM; charset=binary", "photo.png")
+        );
+        assertEquals(
+            "application/vnd.custom",
+            MindRoomFileSavePlugin.resolveMimeType(
+                "application/octet-stream",
+                "file.custom",
+                ext -> "custom".equals(ext) ? "application/vnd.custom" : null
+            )
+        );
+        assertEquals(
+            "text/markdown",
+            MindRoomFileSavePlugin.resolveMimeType(null, "notes.md", ext -> "application/octet-stream")
+        );
+        assertEquals(
+            "application/octet-stream",
+            MindRoomFileSavePlugin.resolveMimeType("application/octet-stream", "archive.unknownext")
+        );
+    }
+
+    @Test
+    public void cleanupStaleExportsRemovesOldOpenAndSessionDirectoriesWhilePreservingActiveAndFresh() throws Exception {
         File exportsRoot = tempFolder.newFolder("mindroom-exports");
         long nowMs = 1_700_000_000_000L;
+        long staleTime = nowMs - MindRoomFileSavePlugin.STALE_EXPORT_MAX_AGE_MS - 1_000L;
 
         File staleOpenDir = new File(exportsRoot, "open-stale");
         assertTrue(staleOpenDir.mkdirs());
-        File staleFile = new File(staleOpenDir, "old.pdf");
-        try (FileOutputStream out = new FileOutputStream(staleFile)) {
+        try (FileOutputStream out = new FileOutputStream(new File(staleOpenDir, "old.pdf"))) {
             out.write(new byte[] { 1, 2, 3 });
         }
-        assertTrue(staleOpenDir.setLastModified(nowMs - MindRoomFileSavePlugin.STALE_OPEN_MAX_AGE_MS - 1_000L));
+        assertTrue(staleOpenDir.setLastModified(staleTime));
 
         File freshOpenDir = new File(exportsRoot, "open-fresh");
         assertTrue(freshOpenDir.mkdirs());
@@ -101,16 +126,32 @@ public class MindRoomFileSavePluginTest {
         }
         assertTrue(freshOpenDir.setLastModified(nowMs - 60_000L));
 
-        File sessionDir = new File(exportsRoot, "session-active");
-        assertTrue(sessionDir.mkdirs());
-        assertTrue(sessionDir.setLastModified(nowMs - MindRoomFileSavePlugin.STALE_OPEN_MAX_AGE_MS - 10_000L));
+        File staleSessionDir = new File(exportsRoot, "session-stale");
+        assertTrue(staleSessionDir.mkdirs());
+        assertTrue(staleSessionDir.setLastModified(staleTime));
 
-        MindRoomFileSavePlugin.cleanupStaleOpenExports(exportsRoot, nowMs);
+        File freshSessionDir = new File(exportsRoot, "session-fresh");
+        assertTrue(freshSessionDir.mkdirs());
+        assertTrue(freshSessionDir.setLastModified(nowMs - 60_000L));
+
+        String activeId = UUID.randomUUID().toString();
+        File activeSessionDir = new File(exportsRoot, MindRoomFileSavePlugin.SESSION_DIR_PREFIX + activeId);
+        assertTrue(activeSessionDir.mkdirs());
+        assertTrue(activeSessionDir.setLastModified(staleTime));
+
+        File unrelatedDir = new File(exportsRoot, "other-dir");
+        assertTrue(unrelatedDir.mkdirs());
+        assertTrue(unrelatedDir.setLastModified(staleTime));
+
+        MindRoomFileSavePlugin.cleanupStaleExports(exportsRoot, nowMs, activeId);
 
         assertFalse(staleOpenDir.exists());
+        assertFalse(staleSessionDir.exists());
         assertTrue(freshOpenDir.exists());
         assertTrue(freshFile.exists());
-        assertTrue(sessionDir.exists());
+        assertTrue(freshSessionDir.exists());
+        assertTrue(activeSessionDir.exists());
+        assertTrue(unrelatedDir.exists());
     }
 
     @Test

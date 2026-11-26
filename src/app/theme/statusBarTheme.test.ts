@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { SystemBars, SystemBarsStyle, SystemBarType } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
 import { isNativeAndroid, isNativeIOS } from '../native/nativeSso';
@@ -60,7 +60,10 @@ describe('syncNativeStatusBarTheme', () => {
 
       syncNativeStatusBarTheme(scheme);
 
-      expect(SystemBars.setStyle).toHaveBeenCalledWith({ style: systemBarsStyle });
+      expect(SystemBars.setStyle).toHaveBeenCalledWith({
+        style: systemBarsStyle,
+        bar: SystemBarType.StatusBar,
+      });
       expect(StatusBar.setStyle).toHaveBeenCalledWith({ style: statusBarStyle });
       expect(StatusBar.setBackgroundColor).toHaveBeenCalledWith({ color });
       expect(StatusBar.setOverlaysWebView).not.toHaveBeenCalled();
@@ -73,7 +76,10 @@ describe('syncNativeStatusBarTheme', () => {
 
     expect(() => syncNativeStatusBarTheme('dark')).not.toThrow();
     await Promise.resolve();
-    expect(SystemBars.setStyle).toHaveBeenCalledWith({ style: SystemBarsStyle.Dark });
+    expect(SystemBars.setStyle).toHaveBeenCalledWith({
+      style: SystemBarsStyle.Dark,
+      bar: SystemBarType.StatusBar,
+    });
   });
 
   it('does nothing outside the native iOS and Android wrappers', () => {

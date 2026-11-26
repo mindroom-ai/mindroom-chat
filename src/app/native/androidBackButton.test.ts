@@ -466,4 +466,156 @@ describe('androidBackButton', () => {
       window.removeEventListener('keydown', windowEscapeShortcut);
     }
   });
+
+  it('flushes React state on Escape so pinned cards closing without preventDefault do not also navigate or minimize', () => {
+    const store = createStore();
+    const delegates = createAndroidBackButtonDelegates(store);
+    const triggerRef = React.createRef<HTMLButtonElement>();
+
+    function PinnedTipCardHarness() {
+      const [open, setOpen] = React.useState(true);
+      React.useEffect(() => {
+        if (!open) return undefined;
+        // Mirrors useAnchoredCard.ts when focus is on the trigger: closes via React setState
+        // on document Escape without calling preventDefault() or stopPropagation().
+        const onKeyDown = (event: KeyboardEvent) => {
+          if (event.key !== 'Escape') return;
+          setOpen(false);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+      }, [open]);
+
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('button', { type: 'button', ref: triggerRef }, 'Show tip'),
+        React.createElement(PopOut, {
+          anchor: open ? { x: 100, y: 100, width: 24, height: 24 } : undefined,
+          position: 'Top',
+          align: 'Start',
+          content: React.createElement('div', { role: 'tooltip' }, 'Pinned summary tip'),
+        })
+      );
+    }
+
+    const { unmount } = render(React.createElement(PinnedTipCardHarness));
+    try {
+      triggerRef.current?.focus();
+      expect(document.querySelector('[data-popout]')).not.toBeNull();
+      window.history.replaceState({ idx: 2 }, '', '/home/!room:example.org/thread');
+
+      // Back dismisses the pinned card synchronously via flushSync and must not also go back or minimize.
+      React.act(() => {
+        handleAndroidBackButton({ canGoBack: true }, delegates);
+      });
+      expect(document.querySelector('[data-popout]')).toBeNull();
+      expect(historyBackSpy).not.toHaveBeenCalled();
+      expect(App.minimizeApp).not.toHaveBeenCalled();
+
+      // A second Back press now navigates back normally.
+      handleAndroidBackButton({ canGoBack: true }, delegates);
+      expect(historyBackSpy).toHaveBeenCalledOnce();
+    } finally {
+      unmount();
+    }
+
+    // At history root, dismissing a pinned card also must not fall through to minimizeApp().
+    window.history.replaceState({ idx: 0 }, '', '/home/');
+    const rootRender = render(React.createElement(PinnedTipCardHarness));
+    try {
+      triggerRef.current?.focus();
+      expect(document.querySelector('[data-popout]')).not.toBeNull();
+      React.act(() => {
+        handleAndroidBackButton({ canGoBack: false }, delegates);
+      });
+      expect(document.querySelector('[data-popout]')).toBeNull();
+      expect(App.minimizeApp).not.toHaveBeenCalled();
+    } finally {
+      rootRender.unmount();
+    }
+  });
+
+  it('routes Escape on a listbox to its owning combobox via aria-controls so CommandPalette steps back instead of closing', () => {
+    const store = createStore();
+    const delegates = createAndroidBackButtonDelegates(store);
+    store.set(commandPaletteOpenAtom, 'all');
+    const goBack = vi.fn();
+    const closeDialog = vi.fn();
+    const comboboxRef = React.createRef<HTMLInputElement>();
+    let currentPage: 'theme' | undefined = 'theme';
+
+    function CommandPaletteSubpageHarness() {
+      const [open, setOpen] = React.useState(true);
+      const [page, setPage] = React.useState<'theme' | undefined>('theme');
+      currentPage = page;
+
+      if (!open) return null;
+      return React.createElement(
+        'div',
+        {
+          role: 'dialog',
+          onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            closeDialog();
+            setOpen(false);
+            store.set(commandPaletteOpenAtom, undefined);
+          },
+        },
+        React.createElement('input', {
+          ref: comboboxRef,
+          role: 'combobox',
+          'aria-controls': 'status results',
+          onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (page) {
+              goBack();
+              setPage(undefined);
+            } else {
+              closeDialog();
+              setOpen(false);
+              store.set(commandPaletteOpenAtom, undefined);
+            }
+          },
+        }),
+        React.createElement(
+          'div',
+          { role: 'listbox', id: 'results' },
+          React.createElement('div', { role: 'option', 'aria-selected': true }, 'Light')
+        )
+      );
+    }
+
+    const { unmount } = render(React.createElement(CommandPaletteSubpageHarness));
+    try {
+      comboboxRef.current?.focus();
+      expect(document.activeElement).toBe(comboboxRef.current);
+
+      // First Back routes Escape to the combobox input, stepping back from the subpage without closing the dialog.
+      React.act(() => {
+        handleAndroidBackButton({ canGoBack: true }, delegates);
+      });
+      expect(goBack).toHaveBeenCalledOnce();
+      expect(currentPage).toBeUndefined();
+      expect(closeDialog).not.toHaveBeenCalled();
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(store.get(commandPaletteOpenAtom)).toBe('all');
+      expect(historyBackSpy).not.toHaveBeenCalled();
+      expect(App.minimizeApp).not.toHaveBeenCalled();
+
+      // Second Back closes the CommandPalette from the root page.
+      React.act(() => {
+        handleAndroidBackButton({ canGoBack: true }, delegates);
+      });
+      expect(closeDialog).toHaveBeenCalledOnce();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(store.get(commandPaletteOpenAtom)).toBeUndefined();
+      expect(historyBackSpy).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+    }
+  });
 });

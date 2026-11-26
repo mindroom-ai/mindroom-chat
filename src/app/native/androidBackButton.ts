@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app';
+import { flushSync } from 'react-dom';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { OVERLAY_SELECTOR } from '../lib/openOverlay';
 import { modalSheetOpen, portalContainer } from '../lib/portalOverlay';
@@ -98,7 +99,9 @@ const dispatchEscape = (target: EventTarget, allowWindow = false): boolean => {
   });
 
   try {
-    target.dispatchEvent(event);
+    flushSync(() => {
+      target.dispatchEvent(event);
+    });
   } finally {
     document.removeEventListener('keydown', onDocumentKeyDown);
     if (allowWindow) {
@@ -111,9 +114,17 @@ const dispatchEscape = (target: EventTarget, allowWindow = false): boolean => {
   return handled || !reachedDocument;
 };
 
+const controlsOverlay = (element: Element, overlay: Element): boolean => {
+  const id = overlay.id;
+  if (!id || element.closest('[inert], [aria-hidden="true"]')) return false;
+  const controlled = element.getAttribute('aria-controls');
+  return controlled !== null && controlled.trim().split(/\s+/).includes(id);
+};
+
 const dismissOverlay = (overlay: Element): boolean => {
   const active = document.activeElement;
-  const target = active && overlay.contains(active) ? active : overlay;
+  const target =
+    active && (overlay.contains(active) || controlsOverlay(active, overlay)) ? active : overlay;
   const allowWindow = overlay.matches('[data-quick-account-menu]');
   return dispatchEscape(target, allowWindow) || !overlay.isConnected;
 };
