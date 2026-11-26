@@ -3052,4 +3052,102 @@ describe('dictationSendHandoff', () => {
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
     expect(s.session.completeVoiceFallback).not.toHaveBeenCalled();
   });
+
+  it('omits a Home companion withdrawn while the voice WAV is uploading instead of re-enrolling and sending it', async () => {
+    const store = createStore();
+    const room = makeRoom('!home-withdrawn:example.org', 'Home Withdrawn');
+    const key = getRoomInputDraftKey('@alice:example.org', room.roomId);
+    const withdrawnFile = new File(['pdf'], 'withdrawn.pdf', { type: 'application/pdf' });
+    const withdrawnItem: TUploadItem = {
+      file: withdrawnFile,
+      originalFile: withdrawnFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const voiceFile = new File([new Uint8Array(64)], 'voice.wav', { type: 'audio/wav' });
+    const voiceAudio: DictationVoiceAudio = {
+      file: voiceFile,
+      duration: 1_500,
+      waveform: Array.from({ length: 48 }, () => 300),
+    };
+    const voiceItem: TUploadItem = {
+      file: voiceFile,
+      originalFile: voiceFile,
+      encInfo: undefined,
+      metadata: {
+        markedAsSpoiler: false,
+        voiceMessage: { duration: 1_500, waveform: voiceAudio.waveform },
+      },
+    };
+    const s = makeMockSession('recording', 'j-home-withdrawn', voiceAudio);
+
+    let staged: TUploadItem[] = [withdrawnItem];
+    const clearEnrollment = vi.fn();
+    const attachments: RoomInputAttachmentAccess = {
+      snapshot: () => ({ staged: [...staged], enrolled: [...staged], uploads: [] }),
+      subscribe: () => () => undefined,
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn(),
+      clearEnrollment,
+      protectPasteItems: () => () => undefined,
+    };
+
+    let releaseVoiceUpload!: () => void;
+    const uploadItem = vi.fn(async (item: TUploadItem) => {
+      if (item.file === voiceFile) {
+        await new Promise<void>((resolve) => {
+          releaseVoiceUpload = resolve;
+        });
+      }
+      store.set(roomUploadAtomFamily(item.file), { mxc: `mxc://example.org/${item.file.name}` });
+      return `mxc://example.org/${item.file.name}`;
+    });
+    const startSendSession = vi.fn(async (opts?: StartRoomInputSendSessionOptions) => {
+      opts?.onUploadSent?.(voiceFile, '$ev-voice-only');
+    });
+
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: s.session,
+        ownerKey: key,
+        stagedSnapshot: [withdrawnItem],
+        tracksEnrollment: false,
+        attachments,
+        ask: {
+          agentUserId: '@mindroom_helper:example.org',
+          canSend: () => true,
+        },
+        sessions: { startSendSession, restoreText: vi.fn() },
+        prepareAttachmentsForSend: vi.fn(async (_target, items) => items ?? []),
+        createVoiceUploadItems: vi.fn(async () => [voiceItem]),
+        uploadItem,
+      })
+    );
+
+    await act(async () => {
+      s.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 0,
+        errorMessage: 'STT offline',
+      });
+      await Promise.resolve();
+    });
+
+    store.get(detachedDictationSendsAtom).get(key)!.sendAsVoice();
+    await vi.waitFor(() => expect(releaseVoiceUpload).toBeTypeOf('function'));
+
+    // User removes withdrawn.pdf from the Home board while voice.wav is uploading.
+    staged = [];
+    releaseVoiceUpload();
+
+    await vi.waitFor(() => expect(startSendSession).toHaveBeenCalledTimes(1));
+    expect(startSendSession.mock.calls[0]?.[0]?.batch?.fileItems).toEqual([voiceItem]);
+    expect(clearEnrollment).toHaveBeenCalledWith([withdrawnFile]);
+    expect(mocks.deleteCapture).toHaveBeenCalledWith('j-home-withdrawn');
+  });
 });

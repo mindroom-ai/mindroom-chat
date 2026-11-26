@@ -802,6 +802,15 @@ export const startDetachedDictationSend = (
         attachments.append(roomId, [readyVoiceItem]);
         handedOffToAttachments = true;
         settleVoiceJournal();
+      } else if (sendStaged && sendStaged.length > 0) {
+        const currentHomeFiles = new Set(
+          attachments.snapshot(roomId).staged.map((item) => item.file)
+        );
+        const withdrawn = sendStaged.filter((item) => !currentHomeFiles.has(item.file));
+        if (withdrawn.length > 0) {
+          attachments.clearEnrollment(withdrawn.map((item) => item.file));
+          sendStaged = sendStaged.filter((item) => currentHomeFiles.has(item.file));
+        }
       }
 
       let keepFailedOnError = false;
