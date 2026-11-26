@@ -2,7 +2,6 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 /** The button of a Compact room card (room overview or Thread Board column) that opens its thread. */
 const COMPACT_ROOM_CARD_SELECTOR = '[data-compact-room-view] [data-thread-root-id]';
-/** The button of a Compact room or Space overview card that opens its thread. */
 const VIEW_SELECTOR = '[data-compact-room-view], [data-space-threads-list]';
 const CARD_SELECTOR = `${COMPACT_ROOM_CARD_SELECTOR}, [data-space-threads-list] [data-thread-root-id]`;
 
@@ -28,7 +27,6 @@ export const navigationIn = (root: HTMLElement | null) => {
  */
 export const KEY_FOCUS_ATTRIBUTE = 'data-key-focus';
 
-/** Whether `element` currently shows keyboard focus (scripted key focus or `:focus-visible`). */
 export const isKeyboardFocus = (element: Element): boolean => {
   if (element.hasAttribute(KEY_FOCUS_ATTRIBUTE)) return true;
   try {
@@ -58,6 +56,14 @@ export const compactCardsIn = (root: ParentNode | null | undefined): HTMLElement
   Array.from(root?.querySelectorAll<HTMLElement>(CARD_SELECTOR) ?? []).filter(
     (card) => !card.closest('[inert]')
   );
+
+const cardKey = (card: HTMLElement, idOf?: (card: HTMLElement) => string | undefined): string =>
+  idOf?.(card) ?? card.dataset.threadRootId ?? '';
+
+export const findCompactCard = (root: HTMLElement | null, id: string): HTMLElement | undefined => {
+  const idOf = navigationIn(root)?.idOf;
+  return compactCardsIn(root).find((card) => cardKey(card, idOf) === id);
+};
 
 /** The Compact room card that has the keyboard's focus, under `root` when one is given. */
 export const focusedCompactCard = (root?: Node | null): HTMLElement | undefined => {
@@ -100,9 +106,7 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
   const { key, target } = event;
   if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Home' && key !== 'End') return;
   const navigation = navigationIn(event.currentTarget);
-  const cardId =
-    navigation?.idOf?.(target as HTMLElement) ?? (target as HTMLElement).dataset.threadRootId ?? '';
-  const at = navigation?.ids.indexOf(cardId) ?? -1;
+  const at = navigation?.ids.indexOf(cardKey(target as HTMLElement, navigation.idOf)) ?? -1;
   if (!navigation || at < 0 || !compactCardsIn(event.currentTarget).includes(target as HTMLElement))
     return;
   event.preventDefault();

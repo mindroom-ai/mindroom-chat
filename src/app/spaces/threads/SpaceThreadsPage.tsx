@@ -73,10 +73,7 @@ const EMPTY_PINNED_KEYS: readonly string[] = [];
 const spaceThreadsScrollMemories = new WeakMap<MatrixClient, ScrollAnchorMemory>();
 const getSpaceThreadsScrollMemory = (mx: MatrixClient): ScrollAnchorMemory => {
   let memory = spaceThreadsScrollMemories.get(mx);
-  if (!memory) {
-    memory = new Map();
-    spaceThreadsScrollMemories.set(mx, memory);
-  }
+  if (!memory) spaceThreadsScrollMemories.set(mx, (memory = new Map()));
   return memory;
 };
 

@@ -8,10 +8,7 @@ const WIDTH_SETTLE_MS = 80;
 const SHELL = '[data-scroll-anchor]';
 const HEARD = 'pointerdown pointerup pointercancel dragstart dragend blur wheel keydown'.split(' ');
 const defaultRowId = (row: Element) => row.getAttribute('data-scroll-anchor') ?? undefined;
-const cardId = (
-  element: Element | null | undefined,
-  getRowId: (row: Element) => string | undefined
-) => {
+const cardId = (element: Element | null | undefined, getRowId = defaultRowId) => {
   const shell = element?.closest(SHELL);
   return shell ? getRowId(shell) : undefined;
 };
@@ -35,7 +32,6 @@ type Options = {
   protectedId?: string;
   records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
-  /** Custom row ID extractor when `data-scroll-anchor` alone is not unique across rooms. */
   getRowId?: (row: Element) => string | undefined;
 };
 
