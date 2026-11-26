@@ -532,7 +532,7 @@ describe('LiveToolPreview', () => {
     }
   );
 
-  it('starts no local interval and hides elapsed time when ToolCallClockContext is explicitly null', () => {
+  it('shows waiting state, starts no local interval, and hides elapsed time when ToolCallClockContext is explicitly null', () => {
     render(
       [
         toolItem({
@@ -545,7 +545,9 @@ describe('LiveToolPreview', () => {
       { clockNow: null }
     );
 
-    expect(container.querySelector('[data-live-shell="1"]')).not.toBeNull();
+    const step = container.querySelector('[data-live-shell="1"] [data-live-step]');
+    expect(step?.getAttribute('data-live-step')).toBe('waiting');
+    expect(step?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Paused');
     expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
     expect(vi.getTimerCount()).toBe(0);
 

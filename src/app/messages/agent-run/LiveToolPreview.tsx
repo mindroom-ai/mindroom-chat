@@ -398,6 +398,8 @@ type PreviewEntry =
  */
 export function LiveToolPreview({ running, roomId, threadId }: LiveToolPreviewProps) {
   const language = useAppLanguageCode();
+  const clockContext = useContext(ToolCallClockContext);
+  const shellState: StepState = clockContext === null ? 'waiting' : 'running';
   const needsSubagents =
     !!roomId && running.some((tool) => !!tool.toolCallId && isSubagentTool(tool.toolName));
   const subagentRuns = useRoomSubagentRuns(needsSubagents ? roomId : undefined);
@@ -438,10 +440,10 @@ export function LiveToolPreview({ running, roomId, threadId }: LiveToolPreviewPr
           return (
             <div key={`shell-${tool.index}`} className={css.Card} data-live-shell={tool.index}>
               <LiveStepRow
-                state="running"
+                state={shellState}
                 toolName={tool.toolName}
                 arg={extractPrimaryArg(tool.argsPreview)}
-                duration={formatStepDuration('running', tool.startedAt, undefined, now, language)}
+                duration={formatStepDuration(shellState, tool.startedAt, undefined, now, language)}
                 output={tool.progress ? tailLines(tool.progress, SHELL_OUTPUT_LINES) : undefined}
                 outputLines="shell"
               />
