@@ -508,6 +508,50 @@ describe('upload card renderers', () => {
         })
       )
     ).not.toContain('Compress (.zip)');
+
+    // Large paste attachment hides Compress (.zip), while an ordinary .txt upload shows it
+    const pasteTxt = createFile({
+      name: 'pasted-1.txt',
+      type: 'text/plain',
+      size: 60 * 1024 * 1024,
+    });
+    setUploadError(pasteTxt, new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too large' }, 413));
+    expect(
+      renderText(
+        React.createElement(UploadCardRenderer, {
+          fileItem: {
+            file: pasteTxt,
+            originalFile: pasteTxt,
+            encInfo: undefined,
+            metadata: {
+              markedAsSpoiler: false,
+              mindroomPasteAttachment: { id: 'p1', chars: 60_000_000, fileName: 'pasted-1.txt' },
+            },
+          },
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip,
+        })
+      )
+    ).not.toContain('Compress (.zip)');
+
+    const normalTxt = createFile({ name: 'notes.txt', type: 'text/plain', size: 60 * 1024 * 1024 });
+    setUploadError(normalTxt, new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too large' }, 413));
+    expect(
+      renderText(
+        React.createElement(UploadCardRenderer, {
+          fileItem: {
+            file: normalTxt,
+            originalFile: normalTxt,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+          },
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onCompressToZip,
+        })
+      )
+    ).toContain('Compress (.zip)');
   });
 
   it('hides Use original when compression.canUseOriginal is false and renders zipFailed errors without auto-uploading', () => {

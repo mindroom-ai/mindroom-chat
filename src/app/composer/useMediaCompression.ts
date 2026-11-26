@@ -335,6 +335,7 @@ const compressItemToZip = async (optsRef: OptsRef, item: TUploadItem): Promise<v
   if (
     !liveBefore ||
     liveBefore.prepError ||
+    liveBefore.metadata.mindroomPasteAttachment !== undefined ||
     liveBefore.compression?.status === 'compressing' ||
     liveBefore.compression?.status === 'zipFailed'
   ) {

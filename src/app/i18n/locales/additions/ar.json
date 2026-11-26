@@ -54,11 +54,11 @@
       "compressing": "جارٍ الضغط...",
       "useOriginal": "استخدام الأصل",
       "compressedSize": "⁨{{originalSize}}⁩ ← ⁨{{compressedSize}}⁩",
-      "compressToZip": "ضغط (.zip)",
-      "zipFailedTooLarge": "لا يزال الملف كبيرًا جدًا بعد ضغطه إلى .zip.",
-      "zipFailedTooLargeWithMax": "لا يزال الملف كبيرًا جدًا بعد ضغطه إلى .zip (الحد الأقصى ⁨{{maxSize}}⁩).",
-      "zipFailedNoSavings": "لم يؤدِّ الضغط إلى .zip إلى تصغير هذا الملف.",
-      "zipFailedError": "تعذّر ضغط هذا الملف إلى .zip."
+      "compressToZip": "ضغط (⁦.zip⁩)",
+      "zipFailedTooLarge": "لا يزال الملف كبيرًا جدًا بعد ضغطه إلى ⁦.zip⁩.",
+      "zipFailedTooLargeWithMax": "لا يزال الملف كبيرًا جدًا بعد ضغطه إلى ⁦.zip⁩ (الحد الأقصى ⁨{{maxSize}}⁩).",
+      "zipFailedNoSavings": "لم يؤدِّ الضغط إلى ⁦.zip⁩ إلى تصغير هذا الملف.",
+      "zipFailedError": "تعذّر ضغط هذا الملف إلى ⁦.zip⁩."
     },
     "passwordInput": {
       "show": "إظهار كلمة المرور",

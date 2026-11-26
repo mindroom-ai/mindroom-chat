@@ -634,12 +634,12 @@ describe('useMediaCompression', () => {
     const origEncFile = makeSizedFile('report.bmp', 'application/octet-stream', 62 * 1024 * 1024);
     const zippedFile = makeSizedFile('report.bmp.zip', 'application/zip', 4 * 1024 * 1024);
     const encZipFile = makeSizedFile('report.bmp.zip', 'application/octet-stream', 4 * 1024 * 1024);
-    const pasteMeta = { id: 'p1', chars: 5000, fileName: 'report.bmp' };
+    const voiceMeta = { duration: 1200 };
     const staged: TUploadItem = {
       file: origEncFile,
       originalFile: rawFile,
       encInfo: { v: 'v2' } as never,
-      metadata: { markedAsSpoiler: true, mindroomPasteAttachment: pasteMeta },
+      metadata: { markedAsSpoiler: true, voiceMessage: voiceMeta },
     };
     harness.store.set(targetAtom, { type: 'PUT', item: staged });
 
@@ -696,7 +696,7 @@ describe('useMediaCompression', () => {
       file: encZipFile,
       originalFile: zippedFile,
       encInfo: { v: 'v2' },
-      metadata: { markedAsSpoiler: false, mindroomPasteAttachment: pasteMeta },
+      metadata: { markedAsSpoiler: false, voiceMessage: voiceMeta },
       compression: {
         status: 'compressed',
         sourceFile: rawFile,
@@ -817,5 +817,44 @@ describe('useMediaCompression', () => {
     gate.resolve({ status: 'aborted' });
     await promise;
     expect(harness.store.get(targetAtom)).toEqual([]);
+  });
+
+  it('refuses to zip large paste attachments while still allowing ordinary .txt uploads', async () => {
+    const room = makeRoom(ROOM_ID, false);
+    const harness = renderHook({ room, maxUploadSize: 10 * 1024 * 1024 });
+    const targetAtom = harness.getTargetAtom(ROOM_ID);
+    const pasteFile = makeSizedFile('pasted-1.txt', 'text/plain', 20 * 1024 * 1024);
+    const pasteItem: TUploadItem = {
+      file: pasteFile,
+      originalFile: pasteFile,
+      encInfo: undefined,
+      metadata: {
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: { id: 'p1', chars: 20_000_000, fileName: 'pasted-1.txt' },
+      },
+    };
+    const plainTxt = makeSizedFile('notes.txt', 'text/plain', 20 * 1024 * 1024);
+    const plainItem: TUploadItem = {
+      file: plainTxt,
+      originalFile: plainTxt,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const zippedTxt = makeSizedFile('notes.txt.zip', 'application/zip', 2 * 1024 * 1024);
+    harness.store.set(targetAtom, { type: 'PUT', item: [pasteItem, plainItem] });
+
+    await harness.api.compressToZip(pasteItem);
+    expect(mockZipFile).not.toHaveBeenCalled();
+    expect(harness.store.get(targetAtom)[0]).toBe(pasteItem);
+
+    mockZipFile.mockResolvedValueOnce({
+      status: 'ok',
+      file: zippedTxt,
+      originalSize: plainTxt.size,
+      compressedSize: zippedTxt.size,
+    });
+    await harness.api.compressToZip(plainItem);
+    expect(mockZipFile).toHaveBeenCalledTimes(1);
+    expect(harness.store.get(targetAtom)[1]?.file).toBe(zippedTxt);
   });
 });

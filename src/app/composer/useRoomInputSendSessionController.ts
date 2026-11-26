@@ -20,9 +20,9 @@ import {
 import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { isUploadItemReady, TUploadItem, Upload } from '../matrix/state/upload';
+import { isUploadItemReady, TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { hasPasteMarkerInText, type RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
-import { TUploadContent } from '../matrix/matrix';
+import { isTooLargeError, TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
   buildLongTextPreview,
@@ -428,6 +428,24 @@ const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] =
   return [session.uploads ?? uploads, Array.from(activeFiles)];
 };
 
+const isTooLargeUpload = (upload: Upload | undefined): boolean =>
+  upload?.status === UploadStatus.Error && isTooLargeError(upload.error);
+
+// Too-large (413 / M_TOO_LARGE) uploads cannot be retried as-is: release them from the active
+// send session while keeping them staged on the board so Compress (.zip) is available immediately.
+const releaseTooLargeUploads = (session: SendSession): void => {
+  const [uploads] = getSessionUploads(session);
+  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  const droppedFiles = session.orderedFiles.filter(
+    (file) => !session.sentFiles.has(file) && isTooLargeUpload(uploadMap.get(file))
+  );
+  if (droppedFiles.length === 0) return;
+  const dropped = new Set(droppedFiles);
+  session.orderedFiles = session.orderedFiles.filter((file) => !dropped.has(file));
+  droppedFiles.forEach((file) => session.failedFiles.delete(file));
+  session.composer.attachments.clearEnrollment(droppedFiles);
+};
+
 const isSessionStalled = (session: SendSession) =>
   isRoomInputSendSessionStalled(session, ...getSessionUploads(session));
 
@@ -703,6 +721,7 @@ export const useRoomInputSendSessionController = ({
       try {
         while (sendSlot.session) {
           const session = sendSlot.session;
+          if (!session.failFast) releaseTooLargeUploads(session);
 
           const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
@@ -957,7 +976,10 @@ export const useRoomInputSendSessionController = ({
         return;
       }
 
-      const { staged, enrolled } = attachments.snapshot(context?.roomId);
+      const { staged, enrolled, uploads } = attachments.snapshot(context?.roomId);
+      const uploadByFile = new Map(
+        (batch?.uploads ?? uploads).map((upload) => [upload.file, upload])
+      );
       // A file goes with one send at a time: one another send or background handoff holds stays
       // with that one.
       const heldFiles = new Set([
@@ -965,7 +987,10 @@ export const useRoomInputSendSessionController = ({
         ...(batch ? [] : enrolled.map((item) => item.file)),
       ]);
       const sendItems = (batch?.fileItems ?? staged).filter(
-        (fileItem) => isUploadItemReady(fileItem) && !heldFiles.has(fileItem.file)
+        (fileItem) =>
+          isUploadItemReady(fileItem) &&
+          !heldFiles.has(fileItem.file) &&
+          (completeWithinCall || !isTooLargeUpload(uploadByFile.get(fileItem.file)))
       );
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {

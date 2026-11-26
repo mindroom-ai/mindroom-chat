@@ -256,6 +256,7 @@ export const UploadCardRenderer = ({
     onCompressToZip !== undefined &&
     canUseOriginal &&
     !prepError &&
+    metadata.mindroomPasteAttachment === undefined &&
     !isCompressing &&
     !isZipFailed &&
     canZipOversizedFile(originalFile);
