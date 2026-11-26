@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getAiRunInfo,
+  parseAiRunError,
   hasTerminalStreamMetadata,
   isAiRunStreaming,
   readOwnStreamStatus,
@@ -394,5 +395,133 @@ describe('getAiRunInfo uncached input', () => {
         },
       })?.uncachedInputTokens
     ).toBe(266);
+  });
+});
+
+describe('getAiRunInfo error payload', () => {
+  it('parses a complete io.mindroom.ai_run.error object', () => {
+    const info = getAiRunInfo({
+      'io.mindroom.ai_run': {
+        version: 1,
+        status: 'error',
+        model: { id: 'google/gemini-4-neon', display_name: 'Neon', provider: 'openrouter' },
+        error: {
+          kind: 'stream_stalled',
+          title: '  Neon stopped responding  ',
+          summary: 'OpenRouter sent no data for 5 min.',
+          detail: 'Timed out waiting for SSE chunk after 300s',
+          code: 'stream_stalled',
+          status_code: 504,
+          provider: 'OpenRouter',
+          retryable: true,
+          action: 'continue',
+        },
+      },
+    });
+
+    expect(info?.status).toBe('error');
+    expect(info?.error).toEqual({
+      kind: 'stream_stalled',
+      title: 'Neon stopped responding',
+      summary: 'OpenRouter sent no data for 5 min.',
+      detail: 'Timed out waiting for SSE chunk after 300s',
+      code: 'stream_stalled',
+      statusCode: 504,
+      provider: 'OpenRouter',
+      retryable: true,
+      action: 'continue',
+    });
+  });
+
+  it('reads error metadata from m.new_content and supports error-only ai_run payloads', () => {
+    const info = getAiRunInfo({
+      'm.new_content': {
+        'io.mindroom.ai_run': {
+          version: 1,
+          error: {
+            kind: 'future_error_kind',
+            title: 'Run paused',
+            summary: 'Something unexpected happened.',
+          },
+        },
+      },
+    });
+
+    expect(info).toEqual({
+      error: {
+        kind: 'future_error_kind',
+        title: 'Run paused',
+        summary: 'Something unexpected happened.',
+        retryable: false,
+      },
+    });
+  });
+
+  it('drops invalid optional fields without rejecting valid errors', () => {
+    expect(
+      parseAiRunError({
+        kind: 'rate_limited',
+        title: 'Rate limit reached',
+        summary: 'Too many requests.',
+        status_code: '429',
+        action: 'switch_model',
+        detail: '   ',
+        code: 500,
+        provider: null,
+        retryable: 'yes',
+      })
+    ).toEqual({
+      kind: 'rate_limited',
+      title: 'Rate limit reached',
+      summary: 'Too many requests.',
+      retryable: false,
+    });
+
+    expect(
+      parseAiRunError({
+        kind: 'timeout',
+        title: 'Timed out',
+        summary: 'Request timed out.',
+        status_code: -1,
+      })?.statusCode
+    ).toBeUndefined();
+
+    expect(
+      parseAiRunError({
+        kind: 'timeout',
+        title: 'Timed out',
+        summary: 'Request timed out.',
+        status_code: 504.5,
+      })?.statusCode
+    ).toBeUndefined();
+  });
+
+  it.each([
+    undefined,
+    null,
+    'boom',
+    42,
+    [],
+    {},
+    { kind: 'timeout', title: 'Timed out' },
+    { kind: 'timeout', summary: 'Summary' },
+    { title: 'Title', summary: 'Summary' },
+    { kind: '  ', title: 'Title', summary: 'Summary' },
+    { kind: 'timeout', title: '', summary: 'Summary' },
+    { kind: 'timeout', title: 'Title', summary: '   ' },
+    { kind: 123, title: 'Title', summary: 'Summary' },
+  ])('ignores malformed error payload %j without breaking other run metadata', (badError) => {
+    const info = getAiRunInfo({
+      'io.mindroom.ai_run': {
+        version: 1,
+        status: 'error',
+        run_id: 'run-bad-err',
+        error: badError,
+      },
+    });
+
+    expect(info?.status).toBe('error');
+    expect(info?.runId).toBe('run-bad-err');
+    expect(info?.error).toBeUndefined();
   });
 });

@@ -418,5 +418,44 @@ describe('ReplyDetails', () => {
     expect(hasRenderableAiRunDetails({ modelConfig: 'default' })).toBe(true);
     expect(hasRenderableAiRunDetails({ runId: 'run-1' })).toBe(true);
     expect(hasRenderableAiRunDetails({ sessionId: 'session-1' })).toBe(true);
+    expect(
+      hasRenderableAiRunDetails({
+        error: {
+          kind: 'stream_stalled',
+          title: 'Model stopped responding',
+          summary: 'Provider sent no data.',
+          retryable: true,
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('shows a compact error detail line inside technical details when info.error is present', () => {
+    render({
+      status: 'error',
+      runId: 'run-err-1',
+      error: {
+        kind: 'rate_limited',
+        title: 'Rate limit reached',
+        summary: 'Too many requests.',
+        code: 'rate_limited',
+        statusCode: 429,
+        retryable: true,
+      },
+    });
+
+    const details = container.querySelector('details');
+    expect(details).not.toBeNull();
+    expect(
+      Object.fromEntries(
+        [...(details?.querySelectorAll('dt') ?? [])].map((term) => [
+          term.textContent,
+          term.nextElementSibling?.textContent,
+        ])
+      )
+    ).toEqual({
+      'Run ID': 'run-err-1',
+      Error: 'Rate limit reached · 429 · rate_limited · Too many requests.',
+    });
   });
 });

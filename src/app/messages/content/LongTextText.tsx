@@ -40,6 +40,8 @@ type LongTextTextProps = {
     props: RenderBodyProps,
     toolMetadataStatus: ToolMetadataStatus
   ) => ReactNode;
+  /** Renders sibling content outside MessageTextBody (e.g. RunErrorCard at full opacity). */
+  renderAfterBody?: (content: Record<string, unknown>) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   /** Renders a self-contained replacement (e.g. wake marker) without MessageTextBody chrome. */
   renderOverride?: (content: Record<string, unknown>) => ReactNode;
@@ -168,6 +170,7 @@ export function LongTextText({
   longTextSource,
   transformContent,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
   renderOverride,
   hydrate = true,
@@ -327,6 +330,7 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
+        renderAfterBody={renderAfterBody?.(displayContent)}
         renderUrlsPreview={urlsPreview}
       />
     );
@@ -337,6 +341,7 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
+        renderAfterBody={renderAfterBody?.(displayContent)}
         renderUrlsPreview={urlsPreview}
       />
     );
@@ -347,6 +352,7 @@ export function LongTextText({
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
+        renderAfterBody={renderAfterBody?.(displayContent)}
         renderUrlsPreview={urlsPreview}
       />
     );
