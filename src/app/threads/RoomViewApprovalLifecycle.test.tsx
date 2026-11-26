@@ -34,6 +34,7 @@ let navigate: (id: string) => void;
 let completeUpload: () => void;
 let api: ReturnType<typeof useRoomInputSendSessionController>;
 let mounts = 0;
+let pauseSecondBuild: Promise<void> | undefined;
 const first = new File(['first'], 'first.png');
 const second = new File(['second'], 'second.png');
 const item = (file: File): TUploadItem => ({
@@ -216,10 +217,10 @@ function Composer({
     sendTypingStatus: noop,
     attachments,
     buildUploadMessageContent: async (fileItem, url) => {
-      // Yield one task before building the second file from the room composer so the
-      // concurrent thread navigation from the first file commits and hands off the session.
-      if (fileItem.file === second && mounts < 2) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      // Hold the room composer's build of the second file until the thread navigation from
+      // the first file commits and hands off the session.
+      if (fileItem.file === second && mounts < 2 && pauseSecondBuild) {
+        await pauseSecondBuild;
       }
       return {
         msgtype: 'm.file',
@@ -255,6 +256,11 @@ function Composer({
 }
 
 it('continues the pending second upload and caption when the first upload opens its thread', async () => {
+  mounts = 0;
+  let releaseSecondBuild!: () => void;
+  pauseSecondBuild = new Promise<void>((resolve) => {
+    releaseSecondBuild = resolve;
+  });
   let sent = 0;
   const send = vi
     .spyOn(mx, 'sendMessage')
@@ -277,7 +283,9 @@ it('continues the pending second upload and caption when the first upload opens 
     // A submission's files wait until every upload settles, so nothing leaves yet.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual([]);
     await act(async () => completeUpload());
-    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    // The room's composer goes as the thread fills the page; the thread's takes the send over.
+    expect(mounts).toBe(2);
+    await act(async () => releaseSecondBuild());
     // The first file opens the thread, whose composer takes the send over with its own board.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual(['first.png']);
     await act(async () => completeUpload());
@@ -286,7 +294,6 @@ it('continues the pending second upload and caption when the first upload opens 
       'second.png',
       'caption',
     ]);
-    // The room's composer goes as the thread fills the page; the thread's takes the send over.
     expect(mounts).toBe(2);
     expect(send.mock.calls[1]![1]['m.relates_to']).toMatchObject({
       rel_type: 'm.thread',
@@ -297,6 +304,9 @@ it('continues the pending second upload and caption when the first upload opens 
       event_id: '$sent-1',
     });
   } finally {
+    pauseSecondBuild = undefined;
+    releaseSecondBuild();
+    mounts = 0;
     act(() => renderer?.unmount());
     send.mockRestore();
   }
