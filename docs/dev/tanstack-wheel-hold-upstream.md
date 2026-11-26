@@ -103,7 +103,7 @@
 
 ## PR 5: Keep iOS gesture tail open while `_holdOffset !== 0` and unify live-offset rebase in `_flushHoldIfReady`
 
-**Problem & repro:** During an iOS momentum fling, `scroll` events can pause for >=150 ms while `scrollTop` is still moving. `_iosGesture`'s `tailStillMoving()` only checked live `scrollTop` movement when a scroll command was queued (`scrollState?.phase === 'queued'`), so an active `_holdOffset` (with `scrollState === null`) flushed prematurely straight into the live fling. In addition, when the iOS tail closed after unseen `scrollTop` movement (whether >=1 px checked by `tailStillMoving()` or sub-1 px quiet-tail drift), `_flushHoldIfReady` wrote from the stale cached `scrollOffset` instead of rebasing from `live` (unlike the desktop wheel flush path). Extending `tailStillMoving()` to also check live element movement when `this._holdOffset !== 0` (appending to `state.samples` only when `queued`) keeps the tail open until momentum settles, and moving the live-offset rebase (preserving any pre-gesture `_clampedAdjustment` shortfall) into `_flushHoldIfReady` makes it the single owner for both iOS gesture and desktop WebKit wheel flushes. Reproduce on iOS by starting a touch drag, resizing an above-viewport item (+200 px) to accumulate `_holdOffset = 200`, firing `touchend`, advancing `el.scrollTop` by -20 px without a `scroll` event, and waiting 150 ms: without this fix `_holdOffset` flushes immediately into the fling to stale `oldScroll + 200`; with this fix `_holdOffset` stays `200` while moving and flushes cleanly to `live + 200` once steady.
+**Problem & repro:** During an iOS momentum fling, `scroll` events can pause for >=150 ms while `scrollTop` is still moving. Three issues combined to flush prematurely or from a stale offset: (1) `_iosGesture`'s `tailStillMoving()` only checked live `scrollTop` movement when a scroll command was queued (`scrollState?.phase === 'queued'`), so an active `_holdOffset` (with `scrollState === null`) flushed straight into the live fling; (2) on browsers without `scrollend`, every momentum `scroll` event schedules `observeOffset`'s 150 ms idle `fallback` debounce _before_ `_iosGesture.onScroll` re-arms the 150 ms tail timer (and similarly before `scheduleWheelFlush` on desktop), so at `t + 150 ms` the idle callback ran first with `isScrolling = false` and overwrote `this._lastElementOffset = elementOffset`, blinding `tailStillMoving()` (and `scheduleWheelFlush()`) to the live movement; and (3) when the iOS tail closed after unseen `scrollTop` movement (whether >=1 px checked by `tailStillMoving()` or sub-1 px quiet-tail drift), `_flushHoldIfReady` wrote from stale `scrollOffset` instead of rebasing from `live`. Extending `tailStillMoving()` to also check live movement when `this._holdOffset !== 0` (appending to `state.samples` only when `queued`), preserving `_lastElementOffset` on `isScrolling = false` debounce callbacks while a gesture tail or wheel hold is active, and moving the live-offset rebase into `_flushHoldIfReady` (preserving any pre-gesture `_clampedAdjustment` shortfall when no intervening scroll event cleared `_clampedAdjustment`, matching desktop wheel flushes) makes `_flushHoldIfReady` the single owner for both iOS gesture and desktop WebKit wheel flushes. Reproduce on iOS by starting a touch drag, resizing an above-viewport item (+200 px) to accumulate `_holdOffset = 200`, firing `touchend` followed by a momentum `scroll` at `1880`, advancing `el.scrollTop` to `1860` without another `scroll` event, and waiting 150 ms: without this fix `observeOffset`'s idle callback overwrites `_lastElementOffset = 1860` and `_holdOffset` flushes prematurely into the fling; with this fix `_holdOffset` stays `200` while moving and flushes cleanly to `live + 200` once steady.
 
 ```diff
    // _iosGesture host tailStillMoving():
@@ -124,6 +124,13 @@
 +    state.samples = [...(state.samples ?? []), { t: this.now(), offset: now }]
 +  }
    return true
+
+   // observeElementOffset callback:
+   const elementOffset = offset
+-  this._lastElementOffset = elementOffset
++  if (isScrolling || this._lastElementOffset === null || (this._iosGesture.tail() === null && !this._wheelLive)) {
++    this._lastElementOffset = elementOffset
++  }
 
    // _flushHoldIfReady(sync) — before `this._holdOffset = nextHold` (removes duplicate rebase from scheduleWheelFlush):
 +  if (live !== null && nextHold === 0) {

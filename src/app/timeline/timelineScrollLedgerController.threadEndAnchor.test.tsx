@@ -360,6 +360,42 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     ).toBe(row20VisualBeforeFlush);
   });
 
+  it('keeps iOS _holdOffset open after a post-touchend momentum scroll even when observeOffset idle debounce fires first', async () => {
+    stubUserAgent(IPHONE_UA, 'iPhone', 5);
+    const { scrollElement, getVirtualizer } = await mountThread(2000);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const v = getVirtualizer();
+
+    scrollElement.dispatchEvent(new Event('touchstart'));
+    scrollElement.scrollTop = 1900;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    v.resizeItem(5, ROW_HEIGHT + 200);
+    expect(readVirtualizerHoldOffset(v)).toBe(200);
+    scrollElement.dispatchEvent(new Event('touchend'));
+
+    // Post-touchend momentum scroll fires at 1880 (scheduling observeOffset debounce before _openTail).
+    scrollElement.scrollTop = 1880;
+    scrollElement.dispatchEvent(new Event('scroll'));
+
+    // Fling keeps moving to 1860 without another scroll event.
+    scrollElement.scrollTop = 1860;
+    const row20VisualBeforeFlush =
+      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop;
+
+    // observeOffset idle debounce fires right before the tail timer at 150ms; tail must stay open.
+    vi.advanceTimersByTime(150);
+    expect(readVirtualizerHoldOffset(v)).toBe(200);
+    expect(scrollElement.scrollTop).toBe(1860);
+
+    // Once scrollTop stays steady at 1860 for another 150ms, hold flushes cleanly to 2060.
+    vi.advanceTimersByTime(150);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(2060);
+    expect(
+      v.getVirtualItems().find((item) => item.index === 20)!.start - scrollElement.scrollTop
+    ).toBe(row20VisualBeforeFlush);
+  });
+
   it('rebases cleanly from live on quiet iOS tail close and preserves pre-touch clamped shortfall', async () => {
     stubUserAgent(IPHONE_UA, 'iPhone', 5);
     const { scrollElement, getVirtualizer, render } = await mountThread(2000);

@@ -1,5 +1,5 @@
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..c69004a 100644
+index 186f79e..ead215c 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,9 @@ class Virtualizer {
@@ -86,7 +86,19 @@ index 186f79e..c69004a 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +650,43 @@ class Virtualizer {
+@@ -553,7 +578,10 @@ class Virtualizer {
+             const wasOverscrolled = this._reportedOverscroll;
+             this._reportedOverscroll = offset < 0 || elementMax !== null && offset > elementMax + 1;
+             const elementOffset = offset;
+-            this._lastElementOffset = elementOffset;
++            // PR 5: preserve _lastElementOffset during idle debounce callbacks while a tail or wheel hold is active.
++            if (isScrolling || this._lastElementOffset === null || (this._iosGesture.tail() === null && !this._wheelLive)) {
++              this._lastElementOffset = elementOffset;
++            }
+             offset = this._toLayoutOffset(offset);
+             const kind = this._classifyScrollEvent(
+               offset,
+@@ -625,9 +653,43 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -131,7 +143,7 @@ index 186f79e..c69004a 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,19 +764,40 @@ class Virtualizer {
+@@ -705,19 +767,40 @@ class Virtualizer {
        }
        return null;
      };
@@ -175,7 +187,7 @@ index 186f79e..c69004a 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1492,15 +1572,17 @@ class Virtualizer {
+@@ -1492,15 +1575,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
@@ -223,7 +235,7 @@ index 159bbd6..cce95a0 100644
      useScrollendEvent?: boolean;
      enabled?: boolean;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..1559944 100644
+index ef861e1..7d26094 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,9 @@ class Virtualizer {
@@ -310,7 +322,19 @@ index ef861e1..1559944 100644
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +649,43 @@ class Virtualizer {
+@@ -552,7 +577,10 @@ class Virtualizer {
+             const wasOverscrolled = this._reportedOverscroll;
+             this._reportedOverscroll = offset < 0 || elementMax !== null && offset > elementMax + 1;
+             const elementOffset = offset;
+-            this._lastElementOffset = elementOffset;
++            // PR 5: preserve _lastElementOffset during idle debounce callbacks while a tail or wheel hold is active.
++            if (isScrolling || this._lastElementOffset === null || (this._iosGesture.tail() === null && !this._wheelLive)) {
++              this._lastElementOffset = elementOffset;
++            }
+             offset = this._toLayoutOffset(offset);
+             const kind = this._classifyScrollEvent(
+               offset,
+@@ -624,9 +652,43 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -355,7 +379,7 @@ index ef861e1..1559944 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,19 +763,40 @@ class Virtualizer {
+@@ -704,19 +766,40 @@ class Virtualizer {
        }
        return null;
      };
@@ -399,7 +423,7 @@ index ef861e1..1559944 100644
        this._clampedAdjustment = this._clampedBy(target);
        this._scrollToOffset(target);
      };
-@@ -1491,15 +1571,17 @@ class Virtualizer {
+@@ -1491,15 +1574,17 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
