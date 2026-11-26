@@ -41,7 +41,11 @@ import {
 } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 import { dictationRestoresAtom } from './startLiveDictation';
-import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoomInputDictation';
+import {
+  useRoomInputDictation,
+  type RoomInputDictationFeature,
+  type UseRoomInputDictationOptions,
+} from './useRoomInputDictation';
 
 const serverMock = vi.hoisted(
   (): {
@@ -466,7 +470,8 @@ describe('useRoomInputDictation', () => {
     editor: Editor,
     store: ReturnType<typeof createStore>,
     session: DictationSession,
-    extraChild?: React.ReactNode
+    extraChild?: React.ReactNode,
+    hookOverrides?: Partial<UseRoomInputDictationOptions>
   ) => {
     let latest!: RoomInputDictationFeature;
     function Harness({ tick: _tick }: { tick: number }) {
@@ -477,6 +482,7 @@ describe('useRoomInputDictation', () => {
         ownerKey: 'composer-1',
         rootRef,
         createSession: () => session,
+        ...hookOverrides,
       });
       return (
         <div ref={rootRef}>
@@ -2043,18 +2049,38 @@ describe('useRoomInputDictation', () => {
     view.unmount();
   });
 
+  const makeVoiceFixture = (
+    duration: number,
+    bar: number,
+    missingAudioPartialText?: string
+  ): { voiceFile: File; voiceAudio: DictationVoiceAudio; voiceItem: TUploadItem } => {
+    const voiceFile = new File([new Uint8Array(64)], 'voice-message.wav', { type: 'audio/wav' });
+    const waveform = Array.from({ length: 48 }, () => bar);
+    const voiceAudio: DictationVoiceAudio = {
+      file: voiceFile,
+      duration,
+      waveform,
+      ...(missingAudioPartialText !== undefined ? { missingAudioPartialText } : {}),
+    };
+    const voiceItem: TUploadItem = {
+      file: voiceFile,
+      originalFile: voiceFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+    };
+    return { voiceFile, voiceAudio, voiceItem };
+  };
+
   it('attaches failed live dictation as a voice TUploadItem, inserts missingAudioPartialText, prevents double clicks, and deletes journal only after staging', async () => {
     const store = createStore();
     const editor = makeSlateEditor('Draft:');
     Transforms.select(editor, { path: [0, 0], offset: 6 });
 
-    const voiceFile = new File([new Uint8Array(64)], 'voice-message.wav', { type: 'audio/wav' });
-    const voiceAudio: DictationVoiceAudio = {
-      file: voiceFile,
-      duration: 2_400,
-      waveform: Array.from({ length: 48 }, () => 300),
-      missingAudioPartialText: 'Earlier pruned words.',
-    };
+    const { voiceFile, voiceAudio, voiceItem } = makeVoiceFixture(
+      2_400,
+      300,
+      'Earlier pruned words.'
+    );
     const mock = createMockSession({
       journalId: 'j-attach-ok',
       voiceAudio,
@@ -2079,25 +2105,12 @@ describe('useRoomInputDictation', () => {
     const appendAttachments = vi.fn();
     const saveDraft = vi.fn();
 
-    function AttachHarness() {
-      const rootRef = useRef<HTMLDivElement | null>(null);
-      const dictation = useRoomInputDictation({
-        editor,
-        roomId: '!room:example.org',
-        ownerKey: 'composer-attach',
-        rootRef,
-        prepareVoiceUploadItems,
-        appendAttachments,
-        saveDraft,
-      });
-      return <div ref={rootRef}>{dictation.capsule}</div>;
-    }
-
-    render(
-      <Provider store={store}>
-        <AttachHarness />
-      </Provider>
-    );
+    renderHarness(editor, store, mock.session, undefined, {
+      ownerKey: 'composer-attach',
+      prepareVoiceUploadItems,
+      appendAttachments,
+      saveDraft,
+    });
 
     const attachBtn = screen.getByRole<HTMLButtonElement>('button', {
       name: 'composer.dictation.attachAsVoice',
@@ -2106,9 +2119,7 @@ describe('useRoomInputDictation', () => {
 
     // Double-clicking while prep is in flight invokes buildVoiceAudio/prepareVoiceUploadItems only once.
     fireEvent.click(attachBtn);
-    await waitFor(() => {
-      expect(prepareVoiceUploadItems).toHaveBeenCalledTimes(1);
-    });
+    await waitFor(() => expect(prepareVoiceUploadItems).toHaveBeenCalledTimes(1));
     expect(attachBtn.disabled).toBe(true);
     fireEvent.click(attachBtn);
     expect(prepareVoiceUploadItems).toHaveBeenCalledTimes(1);
@@ -2118,23 +2129,14 @@ describe('useRoomInputDictation', () => {
     expect(serverMock.deleteCapture).not.toHaveBeenCalled();
     expect(store.get(liveCaptureAtom)?.session).toBe(mock.session);
 
-    const stagedItem: TUploadItem = {
-      file: voiceFile,
-      originalFile: voiceFile,
-      encInfo: undefined,
-      metadata: {
-        markedAsSpoiler: false,
-        voiceMessage: { duration: 2_400, waveform: voiceAudio.waveform },
-      },
-    };
     await act(async () => {
-      resolvePrep([stagedItem]);
+      resolvePrep([voiceItem]);
       await Promise.resolve();
     });
 
-    await waitFor(() => {
-      expect(appendAttachments).toHaveBeenCalledWith('!room:example.org', [stagedItem]);
-    });
+    await waitFor(() =>
+      expect(appendAttachments).toHaveBeenCalledWith('!room:example.org', [voiceItem])
+    );
     expect(readText(editor)).toBe('Draft: Earlier pruned words.');
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(mock.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
@@ -2142,15 +2144,10 @@ describe('useRoomInputDictation', () => {
     expect(store.get(liveCaptureAtom)).toBeUndefined();
   });
 
-  it('preserves failed live dictation session and journal if Attach as voice prep fails, and succeeds on retry including deferred Home mode', async () => {
+  it('preserves failed live dictation session and journal on thrown error or prepError, then stages unencrypted voice item on retry', async () => {
     const store = createStore();
     const editor = makeSlateEditor();
-    const voiceFile = new File([new Uint8Array(64)], 'voice-message.wav', { type: 'audio/wav' });
-    const voiceAudio: DictationVoiceAudio = {
-      file: voiceFile,
-      duration: 1_500,
-      waveform: Array.from({ length: 48 }, () => 512),
-    };
+    const { voiceFile, voiceAudio, voiceItem } = makeVoiceFixture(1_500, 512);
     const mock = createMockSession({
       journalId: 'j-attach-fail',
       voiceAudio,
@@ -2164,77 +2161,47 @@ describe('useRoomInputDictation', () => {
     store.set(liveCaptureAtom, { kind: 'dictation', session: mock.session });
 
     let attempt = 0;
-    const prepareVoiceUploadItems = vi.fn(
-      async (file: File, duration: number, waveform?: number[]) => {
-        attempt += 1;
-        if (attempt === 1) throw new Error('E2EE key unavailable');
-        if (attempt === 2) {
-          return [
-            {
-              file,
-              originalFile: file,
-              encInfo: undefined,
-              metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
-              prepError: new Error('Blob prep failed'),
-            } as TUploadItem,
-          ];
-        }
-        // Attempt 3: deferred Home ask unencrypted item succeeds.
-        return [
-          {
-            file,
-            originalFile: file,
-            encInfo: undefined,
-            metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
-          },
-        ];
-      }
-    );
+    const prepareVoiceUploadItems = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error('E2EE key unavailable');
+      if (attempt === 2)
+        return [{ ...voiceItem, prepError: new Error('Blob prep failed') } as TUploadItem];
+      return [voiceItem];
+    });
     const appendAttachments = vi.fn();
 
-    function RetryAttachHarness() {
-      const rootRef = useRef<HTMLDivElement | null>(null);
-      const dictation = useRoomInputDictation({
-        editor,
-        roomId: '!home-target:example.org',
-        ownerKey: 'home-ask',
-        sendKey: 'home-ask',
-        rootRef,
-        prepareVoiceUploadItems,
-        appendAttachments,
-      });
-      return <div ref={rootRef}>{dictation.capsule}</div>;
-    }
+    renderHarness(editor, store, mock.session, undefined, {
+      roomId: '!home-target:example.org',
+      ownerKey: 'home-ask',
+      sendKey: 'home-ask',
+      prepareVoiceUploadItems,
+      appendAttachments,
+    });
 
-    render(
-      <Provider store={store}>
-        <RetryAttachHarness />
-      </Provider>
-    );
+    const clickAttach = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'composer.dictation.attachAsVoice' }));
 
     // 1. Thrown error keeps session in failed phase, preserves journal, and displays error.
-    fireEvent.click(screen.getByRole('button', { name: 'composer.dictation.attachAsVoice' }));
-    await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toContain('E2EE key unavailable');
-    });
+    clickAttach();
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('E2EE key unavailable')
+    );
     expect(appendAttachments).not.toHaveBeenCalled();
     expect(mock.session.completeVoiceFallback).not.toHaveBeenCalled();
     expect(serverMock.deleteCapture).not.toHaveBeenCalled();
     expect(store.get(liveCaptureAtom)?.session).toBe(mock.session);
 
     // 2. Returned prepError also keeps session and journal intact.
-    fireEvent.click(screen.getByRole('button', { name: 'composer.dictation.attachAsVoice' }));
-    await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toContain('Blob prep failed');
-    });
+    clickAttach();
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Blob prep failed')
+    );
     expect(appendAttachments).not.toHaveBeenCalled();
     expect(serverMock.deleteCapture).not.toHaveBeenCalled();
 
-    // 3. Subsequent click succeeds, stages unencrypted deferred voice item, and cleans up journal.
-    fireEvent.click(screen.getByRole('button', { name: 'composer.dictation.attachAsVoice' }));
-    await waitFor(() => {
-      expect(appendAttachments).toHaveBeenCalledTimes(1);
-    });
+    // 3. Subsequent click succeeds, stages unencrypted voice item, and cleans up journal.
+    clickAttach();
+    await waitFor(() => expect(appendAttachments).toHaveBeenCalledTimes(1));
     expect(appendAttachments).toHaveBeenCalledWith('!home-target:example.org', [
       expect.objectContaining({
         file: voiceFile,

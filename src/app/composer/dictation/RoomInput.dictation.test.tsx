@@ -10,6 +10,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { ComposerExtraVoiceAction } from '../ComposerActionsMenu';
 import { RoomInput } from '../RoomInput';
 import { VoiceMessageIcon } from '../voice/VoiceMessageIcon';
+import { useRoomInputDictation } from './useRoomInputDictation';
 
 const layoutState = vi.hoisted(
   (): {
@@ -31,16 +32,6 @@ const layoutState = vi.hoisted(
     startSendSession: ReturnType<typeof vi.fn>;
     handoffMock: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
     createVoiceUploadItems: ReturnType<typeof vi.fn<(...args: unknown[]) => Promise<unknown[]>>>;
-    dictationOptions:
-      | {
-          prepareVoiceUploadItems?: (
-            file: File,
-            duration: number,
-            waveform: number[] | undefined
-          ) => Promise<unknown[]>;
-          appendAttachments?: unknown;
-        }
-      | undefined;
     detachForSend: ReturnType<
       typeof vi.fn<() => { session: { finish: ReturnType<typeof vi.fn> }; savedSelection: null }>
     >;
@@ -70,7 +61,6 @@ const layoutState = vi.hoisted(
         metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
       },
     ]),
-    dictationOptions: undefined,
     detachForSend: vi.fn(() => ({ session: { finish: vi.fn() }, savedSelection: null })),
   })
 );
@@ -84,32 +74,29 @@ vi.mock('../dictation/dictationSendHandoff', () => ({
 }));
 
 vi.mock('../dictation/useRoomInputDictation', () => ({
-  useRoomInputDictation: (opts: typeof layoutState.dictationOptions) => {
-    layoutState.dictationOptions = opts;
-    return {
-      available: layoutState.dictationAvailable,
-      blocksSubmit: layoutState.dictationBlocksSubmit,
-      canSend: layoutState.dictationCanSend,
-      active: layoutState.dictationBlocksSubmit || layoutState.dictationCanSend,
-      disabled: false,
-      label: 'Dictate',
-      button: layoutState.dictationAvailable ? (
-        <button type="button" aria-label="Dictate" data-testid="dictate-btn" />
+  useRoomInputDictation: vi.fn(() => ({
+    available: layoutState.dictationAvailable,
+    blocksSubmit: layoutState.dictationBlocksSubmit,
+    canSend: layoutState.dictationCanSend,
+    active: layoutState.dictationBlocksSubmit || layoutState.dictationCanSend,
+    disabled: false,
+    label: 'Dictate',
+    button: layoutState.dictationAvailable ? (
+      <button type="button" aria-label="Dictate" data-testid="dictate-btn" />
+    ) : null,
+    capsule:
+      layoutState.dictationBlocksSubmit || layoutState.dictationCanSend ? (
+        <div data-testid="dictation-capsule" />
       ) : null,
-      capsule:
-        layoutState.dictationBlocksSubmit || layoutState.dictationCanSend ? (
-          <div data-testid="dictation-capsule" />
-        ) : null,
-      start: () => true,
-      getLiveStatus: () =>
-        layoutState.dictationBlocksSubmit
-          ? 'blocked'
-          : layoutState.dictationCanSend
-            ? 'sendable'
-            : 'idle',
-      detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
-    };
-  },
+    start: () => true,
+    getLiveStatus: () =>
+      layoutState.dictationBlocksSubmit
+        ? 'blocked'
+        : layoutState.dictationCanSend
+          ? 'sendable'
+          : 'idle',
+    detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
+  })),
 }));
 
 vi.mock('../useRoomInputVoice', () => ({
@@ -315,6 +302,8 @@ beforeEach(() => {
   layoutState.startSendSession.mockClear();
   layoutState.handoffMock.mockClear();
   layoutState.detachForSend.mockClear();
+  layoutState.createVoiceUploadItems.mockClear();
+  vi.mocked(useRoomInputDictation).mockClear();
 });
 
 afterEach(() => cleanup());
@@ -552,80 +541,57 @@ describe('RoomInput dictation layout and submit guard', () => {
     expect(layoutState.handoffMock).toHaveBeenCalledTimes(1);
   });
 
-  it('wires voice fallback preparation for normal rooms (transport) and deferred Home ask (unencrypted local item)', async () => {
+  it('wires voice fallback preparation for normal rooms (transport) and deferred drafts (unencrypted local item)', async () => {
     const file = new File([new Uint8Array(48)], 'voice.wav', { type: 'audio/wav' });
     const waveform = Array.from({ length: 48 }, () => 200);
+    const prepareLastVoice = () =>
+      vi
+        .mocked(useRoomInputDictation)
+        .mock.lastCall?.[0]?.prepareVoiceUploadItems?.(file, 1_800, waveform);
 
     // Normal room delegates to transport.createVoiceUploadItems(..., room) and passes it to handoff.
     layoutState.dictationCanSend = true;
-    layoutState.createVoiceUploadItems.mockClear();
-    layoutState.handoffMock.mockClear();
     const normal = renderInput({ screenSize: ScreenSize.Desktop });
-    const normalItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
-      file,
-      1_800,
-      waveform
-    );
-    expect(layoutState.createVoiceUploadItems).toHaveBeenCalledWith(file, 1_800, waveform, room);
-    expect(normalItems).toEqual([
+    expect(await prepareLastVoice()).toEqual([
       expect.objectContaining({
         file,
         encInfo: { iv: 'enc' },
         metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
       }),
     ]);
+    expect(layoutState.createVoiceUploadItems).toHaveBeenCalledWith(file, 1_800, waveform, room);
     fireEvent.click(screen.getByTestId('send-btn'));
     expect(layoutState.handoffMock).toHaveBeenCalledWith(
       expect.objectContaining({ createVoiceUploadItems: layoutState.createVoiceUploadItems })
     );
     normal.unmount();
 
-    // Deferred Home ask builds an unencrypted voice item without invoking room transport prep.
-    layoutState.createVoiceUploadItems.mockClear();
-    const home = renderInput({
-      stagedDraftKey: '["@alice:example.org"]',
-      ask: {
-        agentUserId: '@mindroom_assistant:example.org',
-        placeholder: 'Ask',
-        pickers: <div />,
-        canSend: () => true,
-      },
-    });
-    const askItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
-      file,
-      1_800,
-      waveform
-    );
-    expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
-    expect(askItems).toEqual([
+    // Deferred Home ask and Space All-threads composers build an unencrypted local voice item.
+    const deferredCases: Array<Parameters<typeof renderInput>[0]> = [
       {
-        file,
-        originalFile: file,
-        encInfo: undefined,
-        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+        stagedDraftKey: '["@alice:example.org"]',
+        ask: {
+          agentUserId: '@mindroom_assistant:example.org',
+          placeholder: 'Ask',
+          pickers: <div />,
+          canSend: () => true,
+        },
       },
-    ]);
-    home.unmount();
-
-    // Deferred Space All-threads composer (stagedDraftKey without ask) also builds an unencrypted voice item.
-    layoutState.createVoiceUploadItems.mockClear();
-    const space = renderInput({
-      stagedDraftKey: '["@alice:example.org",null,"space-threads","!space:example.org"]',
-    });
-    const spaceItems = await layoutState.dictationOptions?.prepareVoiceUploadItems?.(
-      file,
-      1_800,
-      waveform
-    );
-    expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
-    expect(spaceItems).toEqual([
-      {
-        file,
-        originalFile: file,
-        encInfo: undefined,
-        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
-      },
-    ]);
-    space.unmount();
+      { stagedDraftKey: '["@alice:example.org",null,"space-threads","!space:example.org"]' },
+    ];
+    for (const opts of deferredCases) {
+      layoutState.createVoiceUploadItems.mockClear();
+      const view = renderInput(opts);
+      expect(await prepareLastVoice()).toEqual([
+        {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+        },
+      ]);
+      expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
+      view.unmount();
+    }
   });
 });

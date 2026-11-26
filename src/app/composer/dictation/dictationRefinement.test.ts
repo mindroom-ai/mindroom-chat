@@ -191,7 +191,7 @@ describe('dictationRefinement', () => {
       return { segment: meta, wav, status };
     };
 
-    // 4-segment cap seals [0..3] straight to refined (zero extra upload) and releases its WAVs.
+    // 4-segment cap seals [0..3] straight to refined (zero extra upload) while retaining its WAVs.
     const records: RefinementSegmentRecord[] = [];
     const groups: RefinementGroup[] = [];
     for (let i = 0; i < 4; i += 1) {
@@ -373,28 +373,5 @@ describe('dictationRefinement', () => {
       group: liveGroup,
       endIndex: 3,
     });
-  });
-
-  it('retains all segment WAVs when sealing refined, queued, or fallback groups', () => {
-    const mkRec = (
-      index: number,
-      status: RefinementSegmentRecord['status']
-    ): RefinementSegmentRecord => {
-      const { wav, ...meta } = makeSegment({ voiced: 4 });
-      return { segment: { ...meta, index }, wav, status };
-    };
-
-    const sealedRecs = [mkRec(0, 'completed'), mkRec(1, 'completed')];
-    const sealedGroup: RefinementGroup = {
-      startIndex: 0,
-      endIndex: 1,
-      state: 'open',
-      refinedText: 'Zero and one.',
-      refinedEndIndex: 1,
-    };
-    expect(sealRefinementGroup(sealedGroup, sealedRecs)).toBe(true);
-    expect(sealedGroup.state).toBe('refined');
-    expect(sealedRecs[0]?.wav).toBeDefined();
-    expect(sealedRecs[1]?.wav).toBeDefined();
   });
 });
