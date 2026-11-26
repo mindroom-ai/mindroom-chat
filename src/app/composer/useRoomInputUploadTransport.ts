@@ -55,7 +55,14 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       if (!isUploadItemReady(item)) {
         throw (
           item.prepError ??
-          toMatrixUploadError(new Error('The file is still compressing.'), 'create')
+          toMatrixUploadError(
+            new Error(
+              item.compression?.status === 'zipFailed'
+                ? 'The file is too large to upload.'
+                : 'The file is still compressing.'
+            ),
+            'create'
+          )
         );
       }
       const uploadAtom = roomUploadAtomFamily(item.file);
