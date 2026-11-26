@@ -41,7 +41,12 @@
     "uploadCardRenderer": {
       "compressing": "Wird komprimiert...",
       "useOriginal": "Original verwenden",
-      "compressedSize": "{{originalSize}} → {{compressedSize}}"
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Komprimieren (.zip)",
+      "zipFailedTooLarge": "Auch nach der Komprimierung als .zip noch zu groß.",
+      "zipFailedTooLargeWithMax": "Auch nach der Komprimierung als .zip noch zu groß (Maximum: {{maxSize}}).",
+      "zipFailedNoSavings": "Die Komprimierung als .zip hat diese Datei nicht verkleinert.",
+      "zipFailedError": "Diese Datei konnte nicht als .zip komprimiert werden."
     },
     "passwordInput": {
       "show": "Passwort anzeigen",
