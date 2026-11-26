@@ -321,13 +321,17 @@ export const Divider = style({
 
 const headerLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 
-/** The open run's header: its buttons stay at the top beside a title of two lines. */
+/** The open run's header: blends the run logo's status-dot ring into the header surface. */
 export const RunHeader = style({
-  alignItems: 'flex-start',
   vars: { [logoRing]: color.Surface.Container },
 });
 
-export const HeaderLogo = style({ marginBlockStart: toRem(4) });
+/** Matches PanelHeaderControls' 32 px hit target so the back button aligns with the end icons. */
+export const HeaderBack = style({
+  flexShrink: 0,
+  minInlineSize: toRem(32),
+  minBlockSize: toRem(32),
+});
 
 /** The run's title, at most two lines; the whole task is its tooltip. */
 export const RunTitle = style({
