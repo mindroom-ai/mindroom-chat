@@ -357,16 +357,10 @@ export const useRoomViewThreadState = ({
     if (threadId && effectiveThreadId && threadId !== effectiveThreadId) {
       rekeyPhoneSwipePreviewThread('room', { sessionId, roomId, threadId }, effectiveThreadId);
     }
-    const { returnsToSpaceThreads } = resolveThreadExit();
-    const context = {
-      sessionId,
-      roomId,
-      threadId: effectiveThreadId,
-      ...(returnsToSpaceThreads ? { returnToSpaceThreads: true } : {}),
-    };
+    const context = { sessionId, roomId, threadId: effectiveThreadId };
     setActivePhoneSwipeContext(context);
     return () => clearActivePhoneSwipeContext(context);
-  }, [effectiveThreadId, resolveThreadExit, roomId, sessionId, threadId]);
+  }, [effectiveThreadId, roomId, sessionId, threadId]);
 
   const resolveFromLocationKey = useCallback(
     () =>
