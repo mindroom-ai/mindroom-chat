@@ -251,6 +251,139 @@ test.describe('room timeline jumps measurement', () => {
     });
   };
 
+  const openRoomAtBottom = async (
+    page: Page,
+    fixture: FixtureWorld,
+    stats: { backPages: number }
+  ) => {
+    await delayMediaAndMessages(page, 350, 650, stats);
+    await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+
+    const timeline = page.locator(ROOM_ROWS);
+    await expect(timeline).toBeVisible({ timeout: 30_000 });
+    await expect(timeline.getByText('Turn #56 summary', { exact: false })).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.waitForTimeout(250);
+  };
+
+  type ContinuousWheelMetrics = {
+    maxStuckAtTopMs: number;
+    stuckAtTopOver500ms: boolean;
+    prependsDuringWheel: number;
+    prependedRowsDuringWheel: number;
+    canLoadOlderAtWheelEnd: boolean;
+    scrollTopAtWheelEnd: number;
+  };
+
+  const startContinuousWheelMonitor = (page: Page) =>
+    page.evaluate(() => {
+      type Monitor = {
+        active: boolean;
+        rafId: number;
+        atZeroSince: number | null;
+        maxStuckAtTopMs: number;
+        prependsDuringWheel: number;
+        prependedRowsDuringWheel: number;
+        prevIndexById: Map<string, number>;
+        stop: () => ContinuousWheelMetrics;
+      };
+      const findScroller = (): HTMLElement | null => {
+        const inner = document.querySelector<HTMLElement>(
+          '[data-timeline-rows][data-testid="room-virtual-inner"]'
+        );
+        let cur: HTMLElement | null = inner?.parentElement ?? null;
+        while (cur) {
+          const style = getComputedStyle(cur);
+          if (
+            (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+            cur.clientHeight > 0
+          ) {
+            return cur;
+          }
+          cur = cur.parentElement;
+        }
+        return null;
+      };
+      const sample = (monitor: Monitor, now: number) => {
+        const scroller = findScroller();
+        const inner = scroller?.querySelector<HTMLElement>(
+          '[data-timeline-rows][data-testid="room-virtual-inner"]'
+        );
+        if (!scroller || !inner) return;
+        const canLoadOlder = !!scroller.querySelector('[data-paginator-anchor="B"]');
+        if (scroller.scrollTop <= 1 && canLoadOlder) {
+          if (monitor.atZeroSince === null) {
+            monitor.atZeroSince = now;
+          } else {
+            monitor.maxStuckAtTopMs = Math.max(monitor.maxStuckAtTopMs, now - monitor.atZeroSince);
+          }
+        } else {
+          monitor.atZeroSince = null;
+        }
+        let maxShift = 0;
+        const current = new Map<string, number>();
+        inner.querySelectorAll<HTMLElement>(':scope > [data-index]').forEach((tile) => {
+          const idx = Number(tile.getAttribute('data-index'));
+          const id = tile.querySelector<HTMLElement>('[data-message-id]')?.dataset.messageId;
+          if (!Number.isFinite(idx) || !id) return;
+          current.set(id, idx);
+          const prev = monitor.prevIndexById.get(id);
+          if (prev !== undefined && idx > prev && idx - prev > maxShift) {
+            maxShift = idx - prev;
+          }
+        });
+        if (maxShift > 0) {
+          monitor.prependsDuringWheel += 1;
+          monitor.prependedRowsDuringWheel += maxShift;
+        }
+        current.forEach((idx, id) => {
+          monitor.prevIndexById.set(id, idx);
+        });
+      };
+      const monitor: Monitor = {
+        active: true,
+        rafId: 0,
+        atZeroSince: null,
+        maxStuckAtTopMs: 0,
+        prependsDuringWheel: 0,
+        prependedRowsDuringWheel: 0,
+        prevIndexById: new Map(),
+        stop: () => {
+          monitor.active = false;
+          cancelAnimationFrame(monitor.rafId);
+          sample(monitor, performance.now());
+          const scroller = findScroller();
+          return {
+            maxStuckAtTopMs: Math.round(monitor.maxStuckAtTopMs),
+            stuckAtTopOver500ms: monitor.maxStuckAtTopMs > 500,
+            prependsDuringWheel: monitor.prependsDuringWheel,
+            prependedRowsDuringWheel: monitor.prependedRowsDuringWheel,
+            canLoadOlderAtWheelEnd: !!scroller?.querySelector('[data-paginator-anchor="B"]'),
+            scrollTopAtWheelEnd: Math.round(scroller?.scrollTop ?? -1),
+          };
+        },
+      };
+      const tick = (now: number) => {
+        if (!monitor.active) return;
+        sample(monitor, now);
+        monitor.rafId = requestAnimationFrame(tick);
+      };
+      sample(monitor, performance.now());
+      monitor.rafId = requestAnimationFrame(tick);
+      (window as unknown as { __continuousWheelMonitor?: Monitor }).__continuousWheelMonitor =
+        monitor;
+    });
+
+  const stopContinuousWheelMonitor = (page: Page): Promise<ContinuousWheelMetrics> =>
+    page.evaluate(() =>
+      (
+        window as unknown as {
+          __continuousWheelMonitor: { stop: () => ContinuousWheelMetrics };
+        }
+      ).__continuousWheelMonitor.stop()
+    );
+
   SCROLL_SETUPS.forEach((setup) => {
     test(`${setup.engine} ${setup.viewport}: fast upward wheel scrolling through realistic room history does not jump`, async ({
       baseURL,
@@ -258,15 +391,7 @@ test.describe('room timeline jumps measurement', () => {
       const fixture = requireFixture(setup);
       await openAndRun(setup, baseURL, fixture, async (page) => {
         const stats = { backPages: 0 };
-        await delayMediaAndMessages(page, 350, 650, stats);
-        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-
-        const timeline = page.locator(ROOM_ROWS);
-        await expect(timeline).toBeVisible({ timeout: 30_000 });
-        await expect(timeline.getByText('Turn #56 summary', { exact: false })).toBeVisible({
-          timeout: 30_000,
-        });
-        await page.waitForTimeout(250);
+        await openRoomAtBottom(page, fixture, stats);
 
         const center = await getProbeScrollerCenter(page);
         await startProbe(page, 'scrollUp');
@@ -294,6 +419,74 @@ test.describe('room timeline jumps measurement', () => {
         console.log(`[room-jump-measure] ${setup.engine} ${setup.viewport}: ${summary}`);
         const msg = (label: string) => `${label}: ${summary}`;
         expect(r.scrolledPx, 'scrolled upward').toBeGreaterThan(10_000);
+        expect(r.lostPlaceFrames, msg('lost place')).toBe(0);
+        expect(r.maxReversalPx, msg('reversal jump')).toBeLessThanOrEqual(8);
+        expect(r.maxUnexplainedPx, msg('unexplained jump')).toBeLessThanOrEqual(12);
+        expect(r.maxSpreadPx, msg('row spread jump')).toBeLessThanOrEqual(4);
+      });
+    });
+
+    test(`${setup.engine} ${setup.viewport}: continuous upward wheel without pauses through realistic room history`, async ({
+      baseURL,
+    }) => {
+      const fixture = requireFixture(setup);
+      await openAndRun(setup, baseURL, fixture, async (page) => {
+        const stats = { backPages: 0 };
+        await openRoomAtBottom(page, fixture, stats);
+
+        const center = await getProbeScrollerCenter(page);
+        await startProbe(page, 'scrollUp');
+        await startContinuousWheelMonitor(page);
+        await page.mouse.move(center.x, center.y);
+
+        const startedAt = Date.now();
+        let wheelTicks = 0;
+        while (Date.now() - startedAt < 6_000) {
+          const tickStart = Date.now();
+          await page.mouse.wheel(0, -120);
+          wheelTicks += 1;
+          const remaining = 16 - (Date.now() - tickStart);
+          if (remaining > 0) await page.waitForTimeout(remaining);
+        }
+        const wheelElapsedMs = Date.now() - startedAt;
+        const backPagesDuringWheel = stats.backPages;
+        const continuous = await stopContinuousWheelMonitor(page);
+
+        await page.waitForTimeout(1_000);
+        const scrollTopAfterSettle = await page.evaluate(() => {
+          const inner = document.querySelector<HTMLElement>(
+            '[data-timeline-rows][data-testid="room-virtual-inner"]'
+          );
+          let cur: HTMLElement | null = inner?.parentElement ?? null;
+          while (cur) {
+            const style = getComputedStyle(cur);
+            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && cur.clientHeight > 0) {
+              return Math.round(cur.scrollTop);
+            }
+            cur = cur.parentElement;
+          }
+          return -1;
+        });
+        const r = await stopProbe(page);
+        const maxJumpMagPx = r.jumps.reduce((max, jump) => Math.max(max, jump.mag), 0);
+        const summary = JSON.stringify({
+          wheelTicks,
+          wheelElapsedMs,
+          scrolledPx: r.scrolledPx,
+          backPagesDuringWheel,
+          backPages: stats.backPages,
+          ...continuous,
+          scrollTopAfterSettle,
+          maxReversalPx: r.maxReversalPx,
+          maxUnexplainedPx: r.maxUnexplainedPx,
+          maxSpreadPx: r.maxSpreadPx,
+          maxJumpMagPx,
+          lostPlaceFrames: r.lostPlaceFrames,
+          topJumps: r.jumps.slice(0, 5),
+        });
+        console.log(`[room-continuous-wheel] ${setup.engine} ${setup.viewport}: ${summary}`);
+        const msg = (label: string) => `${label}: ${summary}`;
+        expect(r.scrolledPx, 'scrolled upward').toBeGreaterThan(1_000);
         expect(r.lostPlaceFrames, msg('lost place')).toBe(0);
         expect(r.maxReversalPx, msg('reversal jump')).toBeLessThanOrEqual(8);
         expect(r.maxUnexplainedPx, msg('unexplained jump')).toBeLessThanOrEqual(12);
