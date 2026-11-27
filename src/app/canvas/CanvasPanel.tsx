@@ -25,8 +25,6 @@ import { ownDirectionLine } from '../ui/directional';
 import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 
-export { CANVAS_SEND_ARM_DELAY_MS } from '../messages/canvas/useCanvasHost';
-
 export type CanvasPanelProps = {
   mx: MatrixClient;
   room: Room;
@@ -107,6 +105,12 @@ export function CanvasPanel({
     host.chosen();
     onSelectVersion?.(current);
   };
+  const handleClose = () => {
+    // Flush an active auto-send countdown before unmounting so closing does not drop an answer
+    // the user saw as sending; stay open if the SDK refuses synchronously.
+    if (host.countingDown && !host.send()) return;
+    onClose();
+  };
 
   return (
     <aside className={css.Panel} aria-label={t('mindroomUi.canvas.panelLabel')}>
@@ -167,7 +171,7 @@ export function CanvasPanel({
             <span className={css.VersionSeparator} aria-hidden="true" />
           </div>
         )}
-        <PanelHeaderControls onClose={onClose} closeLabel={t('mindroomUi.canvas.close')}>
+        <PanelHeaderControls onClose={handleClose} closeLabel={t('mindroomUi.canvas.close')}>
           {onToggleExpanded && !frame && (
             <IconTooltip label={t('mindroomUi.canvas.expand')}>
               {(triggerRef) => (

@@ -1340,7 +1340,11 @@
         "toolCallFailed": "पूरा नहीं हुआ",
         "toolCallsAlsoFailed": "· अधूरी टूल कॉल की संख्या: {{failed}}",
         "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · अधूरी टूल कॉल की संख्या: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}"
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}",
+        "stepCommand": "कमांड",
+        "stepCopy": "कॉपी करें",
+        "stepCopied": "कॉपी हो गया",
+        "stepCopyFailed": "कॉपी विफल रहा"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"
@@ -1789,7 +1793,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} ने यह पेज अपडेट किया।",
       "shownInPanel": "पैनल में दिखाया गया",
-      "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।"
+      "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।",
+      "sendingTo": "{{agent}} को भेजा जा रहा है:",
+      "undo": "पूर्ववत करें",
+      "sendNow": "अभी भेजें",
+      "sendingAnnouncement": "{{agent}} को भेजा जा रहा है: {{label}}। रद्द करने के लिए पूर्ववत करें का उपयोग करें।"
     },
     "invites": {
       "invalid": "यह आमंत्रण लिंक अधूरा है। ईमेल से लिंक फिर से खोलें।",
@@ -1909,6 +1917,16 @@
       "visibilityMenu": {
         "showInSidebar": "साइडबार में दिखाएँ",
         "sidebarSettings": "साइडबार सेटिंग…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android पुश सूचनाएँ",
+        "description": "पृष्ठभूमि संदेश अलर्ट के लिए Android पुश सूचनाओं की अनुमति दें।",
+        "notConfigured": "डिप्लॉयमेंट में Android पुश कॉन्फ़िगर नहीं है। `config.json` में `push.android` सेटिंग्स जोड़ें।",
+        "disabled": "इस डिवाइस के लिए Android पुश अक्षम है।",
+        "registered": "डिवाइस Android पुश सूचनाओं के लिए पंजीकृत है।",
+        "permissionDenied": "सूचना अनुमति अस्वीकृत है। Android सेटिंग्स में {{appName}} के लिए सूचनाएँ सक्षम करें।"
       }
     }
   },

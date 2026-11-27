@@ -243,4 +243,39 @@ describe('useRelativeTime', () => {
     expect(onRender).toHaveBeenLastCalledWith('1m');
     act(() => renderer.unmount());
   });
+
+  it('avoids 1 s intervals for compact under 60 s and schedules no timer past 7 days', () => {
+    const now = Date.now();
+    expect(getRelativeTimeUpdateInterval(now - secondsToMs(10), now, 'compact')).toBe(
+      secondsToMs(50)
+    );
+    expect(getRelativeTimeUpdateInterval(now - daysToMs(7), now, 'compact')).toBe(-1);
+
+    const setIntervalSpy = vi.spyOn(window, 'setInterval');
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          ts: now - secondsToMs(10),
+          format: 'compact',
+          onRender: () => undefined,
+        })
+      );
+    });
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          ts: now - daysToMs(8),
+          format: 'compact',
+          onRender: () => undefined,
+        })
+      );
+    });
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => renderer.unmount());
+  });
 });

@@ -3,6 +3,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
+import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
 import { ThinkingPlaceholder } from './ThinkingPlaceholder';
 import thinkingMark from './thinking-mark.svg?raw';
 import {
@@ -222,6 +223,66 @@ describe('ThinkingPlaceholder', () => {
     );
 
     renderer.unmount();
+  });
+
+  it('pauses elapsed and rotation timers while collapsed and resyncs phrase and remainder on resume', () => {
+    vi.useFakeTimers({ now: 10_000 });
+    const renderCollapsed = (collapsed: boolean) =>
+      React.createElement(
+        ClientConfigProvider,
+        {
+          value: {
+            mindroom: {
+              thinkingPlaceholderMessages: ['Working', 'Still working', 'Almost there'],
+            },
+          },
+        },
+        React.createElement(
+          PaneCollapsedContext.Provider,
+          { value: collapsed },
+          React.createElement(ThinkingPlaceholder, { startedAt: 10_000 })
+        )
+      );
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(renderCollapsed(true));
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(5_400);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    // Resuming after 5.4s immediately lands on phrase index 1 with 1.8s remaining.
+    act(() => {
+      renderer.update(renderCollapsed(false));
+    });
+    expect(labelTexts(renderer)).toEqual(['Still working (5.4s)', 'Still working (5.4s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(1_799);
+    });
+    expect(labelTexts(renderer)).toEqual(['Still working (7.1s)', 'Still working (7.1s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(labelTexts(renderer)).toEqual(['Almost there (7.2s)', 'Almost there (7.2s)']);
+
+    // Subsequent ticks continue on the regular 3.6s cadence.
+    act(() => {
+      vi.advanceTimersByTime(3_600);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (10.8s)', 'Working (10.8s)']);
+
+    act(() => {
+      renderer.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
   });
 });
 

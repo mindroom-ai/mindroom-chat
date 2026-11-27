@@ -1,43 +1,24 @@
 import { useEffect, useRef, type ComponentProps } from 'react';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
+import { observeElementVisibility } from '../lib/hooks/usePauseWhenHidden';
 import * as css from '../messages/ThreadIndicator.css';
-
-// Compact rooms keep their cards mounted for fast scrolling.
-// Share one observer so hundreds of offscreen pulses do not keep doing frame work.
-let observer: IntersectionObserver | undefined;
-const observedDots = new Set<HTMLSpanElement>();
-
-const observeDot = (dot: HTMLSpanElement): (() => void) => {
-  if (typeof IntersectionObserver === 'undefined') return () => undefined;
-  if (!observer) {
-    observer = new IntersectionObserver((entries) => {
-      entries.forEach(({ target, isIntersecting }) => {
-        const element = target as HTMLSpanElement;
-        if (!observedDots.has(element)) return;
-        element.style.animationPlayState = isIntersecting ? 'running' : 'paused';
-      });
-    });
-  }
-  observedDots.add(dot);
-  observer.observe(dot);
-
-  return () => {
-    observer?.unobserve(dot);
-    observedDots.delete(dot);
-    if (observedDots.size === 0) {
-      observer?.disconnect();
-      observer = undefined;
-    }
-  };
-};
 
 type ThreadStreamingDotProps = Pick<ComponentProps<'span'>, 'role' | 'aria-label' | 'aria-hidden'>;
 
 export function ThreadStreamingDot(props: ThreadStreamingDotProps) {
   const ref = useRef<HTMLSpanElement>(null);
+  const collapsed = usePaneCollapsed();
   useEffect(() => {
     const dot = ref.current;
-    return dot ? observeDot(dot) : undefined;
-  }, []);
+    if (!dot) return undefined;
+    if (collapsed) {
+      dot.style.animationPlayState = 'paused';
+      return undefined;
+    }
+    return observeElementVisibility(dot, (visible) => {
+      dot.style.animationPlayState = visible ? 'running' : 'paused';
+    });
+  }, [collapsed]);
 
   return <span {...props} ref={ref} className={css.ThreadStreamingDot} />;
 }

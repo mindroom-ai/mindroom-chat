@@ -346,4 +346,14 @@ describe('InsetScrollbar', () => {
     expect(setHeight).toHaveBeenCalledTimes(1);
     expect(setTransform).not.toHaveBeenCalled();
   });
+
+  it('does not rewrite data-active on repeated scroll events while already active', () => {
+    const setAttribute = vi.spyOn(track, 'setAttribute');
+    scroll.dispatchEvent(new Event('scroll'));
+    expect(track.dataset.active).toBe('true');
+    setAttribute.mockClear();
+    scroll.dispatchEvent(new Event('scroll'));
+    scroll.dispatchEvent(new Event('scroll'));
+    expect(setAttribute).not.toHaveBeenCalledWith('data-active', 'true');
+  });
 });

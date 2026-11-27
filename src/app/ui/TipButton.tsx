@@ -1,4 +1,4 @@
-import { type ReactNode, type PointerEvent } from 'react';
+import { useId, type ReactNode, type PointerEvent } from 'react';
 import { Text, Tooltip } from 'folds';
 import { PopOut } from './directional';
 import { useAnchoredCard } from './useAnchoredCard';
@@ -6,6 +6,7 @@ import { useAnchoredCard } from './useAnchoredCard';
 type TipButtonProps = {
   /** The text the tip shows. */
   tip: string;
+  align?: 'Start' | 'Center' | 'End';
   className?: string;
   'aria-label'?: string;
   children: ReactNode;
@@ -17,7 +18,8 @@ type TipButtonProps = {
  * follows the button as the page moves. For a short label whose whole text does not fit, such as
  * an agent's model name.
  */
-export function TipButton({ tip, children, ...props }: TipButtonProps) {
+export function TipButton({ tip, align = 'Start', children, ...props }: TipButtonProps) {
+  const tipId = useId();
   const { open, triggerRef, show, close, hover } = useAnchoredCard();
 
   return (
@@ -26,6 +28,7 @@ export function TipButton({ tip, children, ...props }: TipButtonProps) {
         {...props}
         ref={triggerRef}
         type="button"
+        aria-describedby={open ? tipId : undefined}
         onPointerEnter={hover.onPointerEnter}
         onPointerLeave={(event: PointerEvent) => {
           if (event.pointerType === 'mouse' && document.activeElement !== triggerRef.current)
@@ -44,10 +47,14 @@ export function TipButton({ tip, children, ...props }: TipButtonProps) {
         style={{ pointerEvents: 'none' }}
         anchor={open?.anchor}
         position="Top"
-        align="Start"
+        align={align}
         offset={4}
         content={
-          <Tooltip role="tooltip">
+          <Tooltip
+            id={tipId}
+            role="tooltip"
+            style={{ maxInlineSize: 'min(20rem, calc(100vw - 2rem))' }}
+          >
             <Text size="T200">{tip}</Text>
           </Tooltip>
         }

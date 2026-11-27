@@ -1375,7 +1375,11 @@
         "toolCallsAlsoFailed": "· sin completar: {{failed}}",
         "toolCallsRanFailed_one": "Se ejecutó {{count}} llamada a herramienta · sin completar: {{failed}}",
         "toolCallsRanFailed_many": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}",
-        "toolCallsRanFailed_other": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}"
+        "toolCallsRanFailed_other": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}",
+        "stepCommand": "Comando",
+        "stepCopy": "Copiar",
+        "stepCopied": "Copiado",
+        "stepCopyFailed": "Error al copiar"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Ajustes de títulos…"
@@ -1852,7 +1856,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} ha actualizado esta página.",
       "shownInPanel": "Se muestra en el panel",
-      "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
+      "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página.",
+      "sendingTo": "Enviando a {{agent}}:",
+      "undo": "Deshacer",
+      "sendNow": "Enviar ahora",
+      "sendingAnnouncement": "Enviando a {{agent}}: {{label}}. Usa Deshacer para cancelar."
     },
     "invites": {
       "invalid": "Este enlace de invitación está incompleto. Vuelve a abrir el enlace del correo.",
@@ -1974,6 +1982,16 @@
       "visibilityMenu": {
         "showInSidebar": "Mostrar en la barra lateral",
         "sidebarSettings": "Ajustes de la barra lateral…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Notificaciones push de Android",
+        "description": "Permitir notificaciones push de Android para alertas de mensajes en segundo plano.",
+        "notConfigured": "Las notificaciones push de Android no están configuradas en el despliegue. Añade `push.android` en `config.json`.",
+        "disabled": "Las notificaciones push de Android están desactivadas en este dispositivo.",
+        "registered": "Dispositivo registrado para notificaciones push de Android.",
+        "permissionDenied": "El permiso de notificaciones está denegado. Activa las notificaciones para {{appName}} en los ajustes de Android."
       }
     }
   },

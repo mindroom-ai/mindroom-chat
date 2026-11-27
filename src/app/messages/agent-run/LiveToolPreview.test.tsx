@@ -15,7 +15,7 @@ import {
   type ToolCallWaitingStatus,
 } from './toolCallStatus';
 import * as css from './LiveToolPreview.css';
-import { extractPrimaryArg, LiveToolPreview, type LiveToolItem } from './LiveToolPreview';
+import { LiveToolPreview, type LiveToolItem } from './LiveToolPreview';
 
 const ROOM_ID = '!room:example.org';
 const THREAD_ID = '$thread-root:example.org';
@@ -63,22 +63,6 @@ const subagentItem = (toolCallId: string, overrides: Partial<LiveToolItem> = {})
     toolCallId,
     ...overrides,
   });
-
-describe('extractPrimaryArg', () => {
-  it('prefers target keys via toToolArgumentFields and falls back to trimmed args_preview', () => {
-    expect(extractPrimaryArg('timeout=60, command=pytest -q tests/live.py')).toBe(
-      'pytest -q tests/live.py'
-    );
-    expect(extractPrimaryArg('args=["git", "status"], cwd=/repo')).toBe('git, status');
-    expect(extractPrimaryArg('offset=10, file_path=src/app/HtmlBlocks.tsx')).toBe(
-      'src/app/HtmlBlocks.tsx'
-    );
-    expect(extractPrimaryArg('{"query": "live bash steps"}')).toBe('live bash steps');
-    expect(extractPrimaryArg('room=#dev, text=hello\nworld')).toBe('room=#dev, text=hello world');
-    expect(extractPrimaryArg('command=echo \u202ehi')).toBe('echo <U+202E>hi');
-    expect(extractPrimaryArg('   ')).toBeUndefined();
-  });
-});
 
 describe('LiveToolPreview', () => {
   let container: HTMLDivElement;
@@ -157,7 +141,7 @@ describe('LiveToolPreview', () => {
     });
   };
 
-  it('renders a linked subagent card with up to 4 steps, durations, stdout toggle, and Sub-agents jump', () => {
+  it('renders a linked subagent card with up to 4 steps, durations, expandable drawer, and Sub-agents jump', () => {
     const bashOutput = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5'].join('\n');
     ingestRun(
       'del-2',
@@ -221,7 +205,10 @@ describe('LiveToolPreview', () => {
     expect(steps[0]?.textContent).toContain('src/app/HtmlBlocks.tsx');
     expect(steps[0]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Done');
     expect(steps[0]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
-    expect(steps[0]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
+    const firstTrail = steps[0]!.querySelector(`.${css.StepTrail}`);
+    expect(firstTrail).not.toBeNull();
+    expect(firstTrail?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
+    expect(steps[0]!.querySelector(`.${css.StepTrail} .${css.StepChevron}`)).not.toBeNull();
     expect(steps[1]?.textContent).toContain('grep');
     expect(steps[1]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
       "Didn't complete"
@@ -229,7 +216,7 @@ describe('LiveToolPreview', () => {
     expect(steps[1]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('3s');
     // Missing ended_at omits duration cleanly.
     expect(steps[2]?.querySelector('[data-live-step-elapsed]')).toBeNull();
-    // Active running step ticks live, exposes accessible status label, and uses 3-line subagent output well.
+    // Active running step ticks live, starts collapsed with 3-line rest output well.
     expect(steps[3]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Running');
     expect(steps[3]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
     expect(steps[3]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('4s');
@@ -242,14 +229,25 @@ describe('LiveToolPreview', () => {
     });
     expect(steps[3]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('7s');
 
-    // Clicking active step toggles stdout well with aria-expanded.
+    // Clicking active step opens full drawer (command + full 5-line output, no duplicate) and collapses back.
     const activeToggle = steps[3]?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(activeToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(activeToggle?.getAttribute('aria-controls')).toBeNull();
+    expect(steps[3]?.querySelector('[data-live-step-drawer]')).toBeNull();
+    act(() => activeToggle?.click());
     expect(activeToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(steps[3]?.querySelector('[data-live-step-drawer]')?.id).toBe(
+      activeToggle?.getAttribute('aria-controls')
+    );
+    expect(steps[3]?.querySelector('[data-live-step-command]')?.textContent).toBe(
+      'vitest run LiveToolPreview'
+    );
+    expect(steps[3]?.querySelectorAll('[data-live-output]')).toHaveLength(1);
+    expect(steps[3]?.querySelector('[data-live-output]')?.className).toBe(css.DrawerOutput);
+    expect(steps[3]?.querySelector('[data-live-output]')?.textContent).toBe(bashOutput);
     act(() => activeToggle?.click());
     expect(activeToggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(steps[3]?.querySelector('[data-live-output]')).toBeNull();
-    act(() => activeToggle?.click());
-    expect(activeToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(steps[3]?.querySelector('[data-live-step-drawer]')).toBeNull();
     expect(steps[3]?.querySelector('[data-live-output]')?.textContent).toBe(
       'line 3\nline 4\nline 5'
     );
@@ -262,6 +260,74 @@ describe('LiveToolPreview', () => {
       threadId: THREAD_ID,
       run: 'del-2',
     });
+  });
+
+  it('preserves expanded state across live frame updates and completion into result_preview', () => {
+    const meta = { title: 'Build app', callerToolCallId: 'call_flow' };
+    const startedEvent: ToolTraceEvent = {
+      type: 'tool_call_started',
+      tool_call_id: 'call_live_1',
+      tool_name: 'bash',
+      args_preview: 'command=npm run build',
+      started_at: NOW - 3,
+      progress: 'line 1\nline 2\nline 3\nline 4',
+    };
+    ingestRun('del-flow', meta, [startedEvent], 0);
+    render([subagentItem('call_flow')]);
+
+    const step = () => container.querySelector<HTMLElement>('[data-live-step]');
+    const toggle = () => step()?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(step()?.querySelector('[data-live-output]')?.textContent).toBe('line 2\nline 3\nline 4');
+
+    act(() => toggle()?.click());
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(step()?.querySelectorAll('[data-live-output]')).toHaveLength(1);
+    expect(step()?.querySelector('[data-live-output]')?.textContent).toBe(
+      'line 1\nline 2\nline 3\nline 4'
+    );
+
+    // Next streaming frame appends stdout: drawer stays open with updated output.
+    ingestRun(
+      'del-flow',
+      meta,
+      [{ ...startedEvent, progress: `${startedEvent.progress}\nline 5` }],
+      1
+    );
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(step()?.querySelector('[data-live-output]')?.textContent).toBe(
+      'line 1\nline 2\nline 3\nline 4\nline 5'
+    );
+
+    // Step completes with result_preview: stays expanded and transitions cleanly to result.
+    ingestRun(
+      'del-flow',
+      meta,
+      [
+        {
+          type: 'tool_call_completed',
+          tool_call_id: 'call_live_1',
+          tool_name: 'bash',
+          args_preview: 'command=npm run build',
+          started_at: NOW - 3,
+          ended_at: NOW,
+          result_preview: 'Build succeeded in 1.2s',
+        },
+      ],
+      2
+    );
+    expect(step()?.dataset.liveStep).toBe('done');
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(step()?.querySelector('[data-live-output]')).toBeNull();
+    expect(step()?.querySelector('[data-live-step-result]')?.textContent).toBe(
+      'Build succeeded in 1.2s'
+    );
+
+    // Collapsing restores compact arg preview.
+    act(() => toggle()?.click());
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(step()?.querySelector('[data-live-step-drawer]')).toBeNull();
+    expect(step()?.querySelector(`.${css.StepArg}`)?.textContent).toBe('npm run build');
   });
 
   it('renders a clean header card when a linked subagent has not started its first tool yet', () => {
@@ -305,42 +371,56 @@ describe('LiveToolPreview', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('renders direct run_shell_command immediately before stdout, then reveals 4-line toggleable output', () => {
+  it('renders direct run_shell_command with expandable command drawer before and after stdout', () => {
     const shell = toolItem({
       index: 1,
       toolName: 'run_shell_command',
       argsPreview: 'command=cargo test --workspace',
       startedAt: NOW - 2,
     });
-    render([shell]);
+    render([shell, toolItem({ index: 2, toolName: 'bash', command: 'bash' })]);
 
     expect(container.querySelector('[data-live-shell="1"]')).not.toBeNull();
+    // Bare foreground shell step without args or progress is non-interactive.
+    expect(container.querySelector('[data-live-shell="2"] button[aria-expanded]')).toBeNull();
     expect(container.textContent).toContain('run_shell_command');
     expect(container.textContent).toContain('cargo test --workspace');
     expect(container.querySelector('[data-live-step-elapsed]')?.textContent).toBe('2s');
     expect(container.querySelector('[data-live-output]')).toBeNull();
-    expect(container.querySelector('button[aria-expanded]')).toBeNull();
+    const toggle = () =>
+      container.querySelector<HTMLButtonElement>('[data-live-shell="1"] button[aria-expanded]');
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
 
     act(() => {
       vi.advanceTimersByTime(2_000);
     });
     expect(container.querySelector('[data-live-step-elapsed]')?.textContent).toBe('4s');
 
-    // Stdout arrives: 4-line terminal well opens by default and toggles on click.
-    render([
-      {
-        ...shell,
-        progress: ['out 1', 'out 2', 'out 3', 'out 4', 'out 5', 'out 6'].join('\n'),
-      },
-    ]);
-    const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    const shellOutput = container.querySelector('[data-live-output]');
-    expect(shellOutput?.className).toBe(css.TerminalOutput.shell);
-    expect(shellOutput?.textContent).toBe('out 3\nout 4\nout 5\nout 6');
-    act(() => toggle?.click());
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-live-output]')).toBeNull();
+    // Stdout arrives: 4-line terminal well stays visible at rest while row stays collapsed.
+    const fullOutput = ['out 1', 'out 2', 'out 3', 'out 4', 'out 5', 'out 6'].join('\n');
+    render([{ ...shell, progress: fullOutput }]);
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    const restOutput = container.querySelector('[data-live-output]');
+    expect(restOutput?.className).toBe(css.TerminalOutput.shell);
+    expect(restOutput?.textContent).toBe('out 3\nout 4\nout 5\nout 6');
+
+    // Expanding opens drawer with Command, Copy, and full 6-line output (no duplicate output).
+    act(() => toggle()?.click());
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-live-step-command]')?.textContent).toBe(
+      'cargo test --workspace'
+    );
+    expect(container.querySelector('[data-live-step-copy]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-live-output]')).toHaveLength(1);
+    expect(container.querySelector('[data-live-output]')?.textContent).toBe(fullOutput);
+
+    // Collapsing restores 4-line rest well.
+    act(() => toggle()?.click());
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-live-step-drawer]')).toBeNull();
+    expect(container.querySelector('[data-live-output]')?.textContent).toBe(
+      'out 3\nout 4\nout 5\nout 6'
+    );
   });
 
   it('shows parallel running calls together without shadowing each other', () => {
@@ -472,7 +552,7 @@ describe('LiveToolPreview', () => {
     ['paused' as const, 'Paused'],
     ['awaiting_approval' as const, 'Waiting for approval'],
   ])(
-    'shows waiting state (%s -> %s), keeps stdout collapsible, and runs zero timers when clock is null',
+    'shows waiting state (%s -> %s), keeps stdout at rest with expandable drawer, and runs zero timers when clock is null',
     (waitingStatus, expectedLabel) => {
       render(
         [
@@ -493,17 +573,22 @@ describe('LiveToolPreview', () => {
       expect(container.querySelector('[data-live-step-elapsed]')).toBeNull();
       expect(vi.getTimerCount()).toBe(0);
 
-      // Stdout well stays open by default and can collapse/reopen while paused or awaiting approval.
+      // Stdout well stays visible at rest; tapping opens drawer with command + single output, and collapsing restores rest view.
       const toggle = step?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe(
+        'waiting line 1\nwaiting line 2'
+      );
+      act(() => toggle?.click());
       expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-step-command]')?.textContent).toBe('sleep 10');
+      expect(step?.querySelectorAll('[data-live-output]')).toHaveLength(1);
       expect(step?.querySelector('[data-live-output]')?.textContent).toBe(
         'waiting line 1\nwaiting line 2'
       );
       act(() => toggle?.click());
       expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-      expect(step?.querySelector('[data-live-output]')).toBeNull();
-      act(() => toggle?.click());
-      expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-step-drawer]')).toBeNull();
       expect(step?.querySelector('[data-live-output]')?.textContent).toBe(
         'waiting line 1\nwaiting line 2'
       );
@@ -516,7 +601,7 @@ describe('LiveToolPreview', () => {
     }
   );
 
-  it('keeps a collapsed shell row state stable when a parallel subagent starts and ends', () => {
+  it('keeps an expanded shell row state stable when a parallel subagent starts and ends', () => {
     ingestRun('del-stable', { title: 'Side check', callerToolCallId: 'call_stable' }, [
       { type: 'tool_call_started', tool_name: 'grep', args_preview: 'pattern=foo' },
     ]);
@@ -532,31 +617,32 @@ describe('LiveToolPreview', () => {
     render([shell]);
     const shellToggle = () =>
       container.querySelector<HTMLButtonElement>('[data-live-shell="2"] button[aria-expanded]');
-    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('true');
-    act(() => shellToggle()?.click());
     expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+    act(() => shellToggle()?.click());
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-step-drawer]')).not.toBeNull();
 
-    // Parallel subagent starts: shell row must not remount or reopen.
+    // Parallel subagent starts: shell row must not remount or collapse.
     render([subagent, shell]);
     expect(container.querySelector('[data-live-subagent="del-stable"]')).not.toBeNull();
-    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-step-drawer]')).not.toBeNull();
 
-    // Parallel subagent finishes: shell row still stays collapsed.
+    // Parallel subagent finishes: shell row still stays expanded.
     render([shell]);
     expect(container.querySelector('[data-live-subagent="del-stable"]')).toBeNull();
-    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-live-shell="2"] [data-live-output]')).toBeNull();
+    expect(shellToggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-live-shell="2"] [data-live-step-drawer]')).not.toBeNull();
   });
 
-  it('starts a new subagent step expanded after collapsing the previous last row in a capped 20-tool window', () => {
-    const completed = (n: number) => ({
+  it('starts a new subagent step collapsed while keeping the previous expanded step open in a capped 20-tool window', () => {
+    const completed = (n: number, result?: string) => ({
       type: 'tool_call_completed' as const,
       tool_name: 'bash',
       args_preview: `command=cmd-${n}`,
       started_at: NOW - 100 + n,
       ended_at: NOW - 99 + n,
+      ...(result ? { result_preview: result } : {}),
     });
     const firstWindow = [
       ...Array.from({ length: 19 }, (_, idx) => completed(idx + 1)),
@@ -564,26 +650,26 @@ describe('LiveToolPreview', () => {
         type: 'tool_call_started' as const,
         tool_name: 'bash',
         args_preview: 'command=cmd-20',
-        started_at: NOW - 5,
+        started_at: NOW - 80,
         progress: 'output from cmd-20',
       },
     ];
     ingestRun('del-cap', { title: 'Rolling run', callerToolCallId: 'call_cap' }, firstWindow);
     render([subagentItem('call_cap')]);
 
-    const getToggle = () =>
-      container.querySelector<HTMLButtonElement>(
+    const stepToggles = () => [
+      ...container.querySelectorAll<HTMLButtonElement>(
         '[data-live-subagent="del-cap"] button[aria-expanded]'
-      );
-    expect(getToggle()?.getAttribute('aria-expanded')).toBe('true');
-    act(() => getToggle()?.click());
-    expect(getToggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('[data-live-subagent="del-cap"] [data-live-output]')).toBeNull();
+      ),
+    ];
+    expect(stepToggles().at(-1)?.getAttribute('aria-expanded')).toBe('false');
+    act(() => stepToggles().at(-1)?.click());
+    expect(stepToggles().at(-1)?.getAttribute('aria-expanded')).toBe('true');
 
     // Command 20 finishes and command 21 shifts into index 19 as index 0 drops off the 20-row cap.
     const nextWindow = [
       ...Array.from({ length: 18 }, (_, idx) => completed(idx + 2)),
-      completed(20),
+      completed(20, 'cmd-20 ok'),
       {
         type: 'tool_call_started' as const,
         tool_name: 'bash',
@@ -594,10 +680,19 @@ describe('LiveToolPreview', () => {
     ];
     ingestRun('del-cap', { title: 'Rolling run', callerToolCallId: 'call_cap' }, nextWindow, 1);
 
-    expect(getToggle()?.getAttribute('aria-expanded')).toBe('true');
+    const nextSteps = [
+      ...container.querySelectorAll<HTMLElement>('[data-live-subagent="del-cap"] [data-live-step]'),
+    ];
     expect(
-      container.querySelector('[data-live-subagent="del-cap"] [data-live-output]')?.textContent
-    ).toBe('output from cmd-21');
+      nextSteps[2]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')
+    ).toBe('true');
+    expect(nextSteps[2]?.querySelector('[data-live-step-result]')?.textContent).toBe('cmd-20 ok');
+    expect(
+      nextSteps[3]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')
+    ).toBe('false');
+    expect(nextSteps[3]?.querySelector('[data-live-output]')?.textContent).toBe(
+      'output from cmd-21'
+    );
   });
 
   it('scopes linked subagent cards and panel jumps to the reply sender when two agents share a call ID', () => {

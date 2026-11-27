@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
+import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import { useRevealOnOpen, useRevealTargets } from '../../ui/disclosureReveal';
 import { useToolCallsShown } from '../toolCallVisibility';
 import {
@@ -65,10 +66,13 @@ function Cog({ calls, open, onToggle, cogRef }: CogProps) {
       : `${t('mindroomUi.messages.mindroomHtmlBlocks.toolCallCount', {
           count: calls.length,
         })}: ${title}`;
+  const foldRef = useRef<HTMLSpanElement>(null);
   const running = summary.state === 'running';
+  usePauseAnimationWhenHidden(foldRef, running || summary.state === 'waiting');
   return (
     // Keeps the interface's direction in a message that reads the other way (index.css).
     <span
+      ref={foldRef}
       className={css.Fold}
       data-message-disclosure=""
       data-tool-calls-fold=""

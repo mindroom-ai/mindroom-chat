@@ -1,4 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { createStore } from 'jotai';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  activityNeedsYouAtom,
+  activityRowsAtom,
+  activityUnreadCountAtom,
+  threadsNeedsYouCountAtom,
+} from './activityState';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
@@ -505,5 +512,39 @@ describe('activityDay', () => {
     expect(activityDay(midnight, NOW)).toBe('today');
     expect(activityDay(midnight - 1, NOW)).toBe('yesterday');
     expect(activityDay(midnight - DAY - 1, NOW)).toBe('earlier');
+  });
+});
+
+describe('derived activity badge atoms', () => {
+  it('do not notify badge subscribers when unrelated row fields update without changing counts', () => {
+    const store = createStore();
+    const row = (ts: number): ActivityRow => ({
+      type: 'invite',
+      key: 'invite:!room',
+      kind: 'invite',
+      roomId: '!room',
+      unread: true,
+      ts,
+    });
+    store.set(activityRowsAtom, { rows: [row(1000)], hiddenAutomations: 0 });
+    const onUnread = vi.fn();
+    const onNeedsYou = vi.fn();
+    const onThreadsNeedsYou = vi.fn();
+    const unsubs = [
+      store.sub(activityUnreadCountAtom, onUnread),
+      store.sub(activityNeedsYouAtom, onNeedsYou),
+      store.sub(threadsNeedsYouCountAtom, onThreadsNeedsYou),
+    ];
+    try {
+      store.set(activityRowsAtom, { rows: [row(2000)], hiddenAutomations: 0 });
+      expect(onUnread).not.toHaveBeenCalled();
+      expect(onNeedsYou).not.toHaveBeenCalled();
+      expect(onThreadsNeedsYou).not.toHaveBeenCalled();
+      expect(store.get(activityUnreadCountAtom)).toBe(1);
+      expect(store.get(activityNeedsYouAtom)).toBe(true);
+      expect(store.get(threadsNeedsYouCountAtom)).toBe(0);
+    } finally {
+      unsubs.forEach((unsub) => unsub());
+    }
   });
 });

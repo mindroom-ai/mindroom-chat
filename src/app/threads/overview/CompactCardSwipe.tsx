@@ -7,100 +7,129 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Icon, Icons, Text } from 'folds';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
+import {
+  registerTrackpadSwipeClaimer,
+  type TrackpadSwipeClaim,
+} from '../../navigation/trackpadSwipeClaim';
 import { EDGE_START_MAX_X } from '../../navigation/useEdgeSwipe';
 import * as css from './CompactCardSwipe.css';
+import { CompactCardSwipeStrip, type SwipePointerHandlers } from './CompactCardSwipeStrip';
+import {
+  focusCompactCardButton,
+  isCardActionTarget,
+  useCompactCardSwipeDocumentListeners,
+} from './compactCardSwipeListeners';
 
-// How far a touch moves before it counts as a swipe or a scroll.
-const AXIS_LOCK_DISTANCE = 10;
-// Longer than the settle transition. `transitionend` never comes when the
-// transition is cancelled, as when a live re-sort moves the row mid-settle.
-const SETTLE_FALLBACK_MS = 500;
+export { CompactCardSwipeStrip, type CompactCardSwipeStripProps } from './CompactCardSwipeStrip';
+
+// Longer `settleMs` than the settle transition (`transitionend` never comes if a re-sort cancels it).
+const SWIPE = {
+  lock: 10,
+  verticalAbort: 30,
+  settleMs: 500,
+  parkThreshold: 60,
+  parkWidth: 156,
+  minVisible: 40,
+  closeThreshold: 24,
+  parkGap: 12,
+} as const;
 
 export const getSwipeThreshold = (cardWidth: number): number =>
   Math.min(160, Math.max(72, cardWidth * 0.35));
 
+export const getDeepThreshold = (cardWidth: number, hasSnooze: boolean): number =>
+  hasSnooze
+    ? Math.min(200, cardWidth * 0.65, Math.max(SWIPE.parkWidth + SWIPE.parkGap, cardWidth * 0.52))
+    : getSwipeThreshold(cardWidth);
+
+export const getParkWidth = (cardWidth: number, deepThreshold: number): number =>
+  Math.max(
+    0,
+    Math.min(
+      SWIPE.parkWidth,
+      cardWidth - SWIPE.minVisible,
+      Math.floor(deepThreshold - SWIPE.parkGap)
+    )
+  );
+
 type Swipe = {
-  // Where the touch was when it locked sideways, so the card does not jump.
   originX: number;
-  // The state the strip shows; letting go acts on it even if the thread
-  // toggled elsewhere mid-swipe.
-  resolved: boolean;
-  // 1 when the inline start is on the left, -1 in right-to-left layouts.
-  towardStart: 1 | -1;
+  startOffset: number;
+  resolved: boolean; // Captured at start so letting go acts on what the strip showed.
+  towardStart: 1 | -1; // 1 in LTR, -1 in RTL.
   width: number;
-  threshold: number;
+  parkWidth: number;
+  deepThreshold: number;
   offset: number;
   armed: boolean;
 };
+type ActiveGesture =
+  | { kind: 'touch'; pointerId: number; startX: number; startY: number; swipe?: Swipe }
+  | { kind: 'trackpad'; swipe: Swipe };
+type Strip = {
+  resolved: boolean;
+  snoozed: boolean;
+  label: string;
+  snoozeLabel?: string;
+  parkWidth: number;
+};
+type SwipeView = { strip: Strip; armed: boolean; parked: boolean; settling: boolean };
+type CardHandle = {
+  isTouchSwiping: () => boolean;
+  claimTrackpad: (deltaX: number, blockedByDom: boolean) => TrackpadSwipeClaim | undefined;
+};
+type ParkedCard = { track: EventTarget; offset: number; close: () => void };
 
-type Gesture = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  swipe?: Swipe;
+// Maps each card's track (and revealed tray while mounted) to its swipe handle.
+const handleByNode = new WeakMap<EventTarget, CardHandle>();
+let activeParked: ParkedCard | undefined;
+
+const closeActiveParked = (exceptTrack?: EventTarget | null) => {
+  if (activeParked && activeParked.track !== exceptTrack) activeParked.close();
 };
 
-type Strip = { resolved: boolean; label: string };
+const getTowardStart = (track: HTMLElement): 1 | -1 =>
+  getComputedStyle(track).direction === 'rtl' ? -1 : 1;
 
-// Every card's track, and whether its touch is a sideways swipe now.
-const swipingByTrack = new WeakMap<EventTarget, () => boolean>();
+const shouldPark = (s: Swipe): boolean =>
+  s.parkWidth > 0 &&
+  s.offset >= Math.min(SWIPE.parkThreshold, s.parkWidth * 0.5) &&
+  (s.startOffset === 0 || s.offset >= s.startOffset - SWIPE.closeThreshold);
 
 /**
- * For the element that holds the swipeable cards, rendered for the caller's
- * whole lifetime, which also carries `SwipeList` (CompactCardSwipe.css.ts).
- * `touch-action: pan-y` alone may let iOS start a vertical pan once a sideways
- * swipe drifts; this keeps the scroller out of a touch a card's swipe owns.
- * React registers touchmove passively, so the listener is native, and there is
- * one for all cards: one on every card costs WebKit on iOS a touch region a
- * card, as a touch-action on every card does.
+ * For the element holding swipeable cards (`SwipeList` in CompactCardSwipe.css.ts).
+ * Uses one `touchmove` listener for all cards (keeping iOS WebKit to one touch region) and
+ * registers a lightweight macOS trackpad swipe claimer with `desktopHistorySwipe`.
  */
 export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>): void => {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!event.cancelable) return;
-      const swiping = event.composedPath().some((target) => swipingByTrack.get(target)?.());
-      if (swiping) event.preventDefault();
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.cancelable && e.composedPath().some((n) => handleByNode.get(n)?.isTouchSwiping()))
+        e.preventDefault();
     };
-    list.addEventListener('touchmove', handleTouchMove, { passive: false });
-    return () => list.removeEventListener('touchmove', handleTouchMove);
+    list.addEventListener('touchmove', onTouchMove, { passive: false });
+    const stopTrackpad = registerTrackpadSwipeClaimer({
+      claim: ({ path, deltaX, blockedByDom }) =>
+        path.includes(list)
+          ? path
+              .map((n) => handleByNode.get(n))
+              .find(Boolean)
+              ?.claimTrackpad(deltaX, blockedByDom)
+          : undefined,
+      onVerticalScroll: (path) => {
+        if (path.includes(list)) closeActiveParked();
+      },
+      onWindowHidden: () => closeActiveParked(),
+    });
+    return () => {
+      stopTrackpad();
+      list.removeEventListener('touchmove', onTouchMove);
+    };
   }, [listRef]);
 };
-
-export type CompactCardSwipeStripProps = {
-  resolved: boolean;
-  label: string;
-  armed?: boolean;
-  stripRef?: RefObject<HTMLDivElement | null>;
-  'data-tour-swipe'?: string;
-};
-
-/** The action strip revealed behind a swiped compact card; shared with the interface tour. */
-export function CompactCardSwipeStrip({
-  resolved,
-  label,
-  armed = false,
-  stripRef,
-  ...props
-}: CompactCardSwipeStripProps) {
-  return (
-    <div
-      ref={stripRef}
-      className={css.SwipeAction}
-      data-compact-card-swipe="action"
-      data-armed={armed ? 'true' : undefined}
-      data-resolved={resolved ? 'true' : undefined}
-      aria-hidden
-      {...props}
-    >
-      <Icon size="200" src={resolved ? Icons.Reload : Icons.Check} />
-      <Text size="B300">{label}</Text>
-    </div>
-  );
-}
 
 export type CompactCardSwipeProps = {
   enabled: boolean;
@@ -108,232 +137,338 @@ export type CompactCardSwipeProps = {
   label: string;
   /** Receives whether the thread was resolved when the swipe started. */
   onSwipe: (wasResolved: boolean) => void;
+  snoozed?: boolean;
+  snoozeLabel?: string;
+  /** On open cards, enables parking the Snooze/Resolve split tray. Receives live snooze state. */
+  onSnooze?: (wasSnoozed: boolean) => void;
   children: ReactNode;
 };
 
 /**
- * Lets a touch swipe a compact card toward the inline start to run its
- * resolve (or reopen) action, revealing the action under the card. Mouse and
- * keyboard users keep the hover buttons and the actions menu. The element that
- * holds the cards calls `useCompactCardSwipeList` and carries `SwipeList`.
+ * Lets a touch swipe (or macOS Electron two-finger trackpad swipe) slide a compact card toward
+ * inline-start to park a Snooze/Resolve tray or deep-pull to Resolve/Reopen directly. Mouse and
+ * keyboard users keep hover buttons and the actions menu. The list calls `useCompactCardSwipeList`.
  */
-export function CompactCardSwipe({
-  enabled,
-  resolved,
-  label,
-  onSwipe,
-  children,
-}: CompactCardSwipeProps) {
+export function CompactCardSwipe(props: CompactCardSwipeProps) {
+  const { enabled, resolved, snoozed = false, snoozeLabel, children } = props;
+  const canSnooze = !resolved && Boolean(props.onSnooze && snoozeLabel);
+  const propsRef = useLatestRef({ ...props, snoozed, canSnooze });
+
   const trackRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-  const gestureRef = useRef<Gesture>(undefined);
+  const activeRef = useRef<ActiveGesture>(undefined);
   const swipedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // Taken when the swipe starts, so the strip keeps naming the action it ran
-  // while the card settles over a thread that has already toggled.
-  const [strip, setStrip] = useState<Strip>();
-  const [settling, setSettling] = useState(false);
-  const [armed, setArmed] = useState(false);
+  const [view, setView] = useState<SwipeView>();
 
-  const settle = useCallback(() => {
+  const getParked = () =>
+    trackRef.current && activeParked?.track === trackRef.current ? activeParked : undefined;
+
+  const setTransform = (offset?: number, dir: 1 | -1 = 1) => {
+    if (trackRef.current)
+      trackRef.current.style.transform =
+        offset === undefined ? '' : `translateX(${-offset * dir}px)`;
+  };
+
+  const finishTransition = useCallback(() => {
     clearTimeout(settleTimerRef.current);
-    setStrip(undefined);
-    setSettling(false);
-    setArmed(false);
+    setView((v) =>
+      trackRef.current && activeParked?.track === trackRef.current
+        ? v && { ...v, settling: false }
+        : undefined
+    );
   }, []);
 
-  useEffect(() => () => clearTimeout(settleTimerRef.current), []);
+  const settle = (next: (prev: SwipeView | undefined) => SwipeView | undefined, animate = true) => {
+    clearTimeout(settleTimerRef.current);
+    setView(next);
+    if (animate) settleTimerRef.current = setTimeout(finishTransition, SWIPE.settleMs);
+  };
 
-  // The cards' container asks this on every touchmove (`useCompactCardSwipeList`).
+  const closeParked = () => {
+    if (!getParked()) return;
+    activeParked = undefined;
+    const p = propsRef.current;
+    setTransform();
+    settle(
+      (v) =>
+        v && {
+          strip: p.canSnooze
+            ? { ...v.strip, snoozed: p.snoozed, snoozeLabel: p.snoozeLabel }
+            : v.strip,
+          parked: false,
+          armed: false,
+          settling: true,
+        }
+    );
+  };
+
+  const startSwipe = (originX: number, initialDelta = 0): Swipe | undefined => {
+    const track = trackRef.current;
+    const p = propsRef.current;
+    if (!track || !p.enabled) return undefined;
+    closeActiveParked(track);
+    const prev = getParked();
+    if (prev) activeParked = undefined;
+    const width = track.getBoundingClientRect().width;
+    const towardStart = getTowardStart(track);
+    const deepThreshold = getDeepThreshold(width, p.canSnooze);
+    const parkWidth = p.canSnooze ? getParkWidth(width, deepThreshold) : 0;
+    const startOffset = prev?.offset ?? 0;
+    const offset = Math.min(width, Math.max(0, startOffset + initialDelta));
+    const armed = offset >= deepThreshold;
+    const strip: Strip = {
+      resolved: p.resolved,
+      snoozed: p.snoozed,
+      label: p.label,
+      snoozeLabel: p.canSnooze ? p.snoozeLabel : undefined,
+      parkWidth,
+    };
+    settle(() => ({ strip, armed, parked: false, settling: false }), false);
+    setTransform(offset, towardStart);
+    return {
+      originX,
+      startOffset,
+      resolved: p.resolved,
+      towardStart,
+      width,
+      parkWidth,
+      deepThreshold,
+      offset,
+      armed,
+    };
+  };
+
+  const updateSwipe = (swipe: Swipe, nextOffset: number) => {
+    swipe.offset = Math.min(swipe.width, Math.max(0, nextOffset));
+    setTransform(swipe.offset, swipe.towardStart);
+    const armed = swipe.offset >= swipe.deepThreshold;
+    if (armed !== swipe.armed) {
+      swipe.armed = armed;
+      setView((v) => v && { ...v, armed });
+    }
+  };
+
+  const completeSwipe = (swipe: Swipe, commit: boolean, fromTouch: boolean) => {
+    const track = trackRef.current;
+    const p = propsRef.current;
+    if (fromTouch) swipedRef.current = true;
+    if (track && commit && !swipe.armed && p.canSnooze && p.enabled && shouldPark(swipe)) {
+      closeActiveParked(track);
+      activeParked = {
+        track,
+        offset: swipe.parkWidth,
+        close: () => actionsRef.current.closeParked(),
+      };
+      setTransform(swipe.parkWidth, swipe.towardStart);
+      const settling = swipe.offset !== swipe.parkWidth;
+      settle((v) => v && { ...v, parked: true, armed: false, settling }, settling);
+      return;
+    }
+    setTransform();
+    const fire = commit && swipe.armed && p.enabled;
+    if (fire) p.onSwipe(swipe.resolved);
+    if (swipe.offset === 0) finishTransition();
+    else settle((v) => v && { ...v, armed: fire ? v.armed : false, settling: true });
+  };
+
+  const endSwipe = (commit: boolean) => {
+    const active = activeRef.current;
+    activeRef.current = undefined;
+    if (active?.swipe) completeSwipe(active.swipe, commit, active.kind === 'touch');
+  };
+
+  const abortAll = () => {
+    endSwipe(false);
+    closeParked();
+  };
+
+  const claimTrackpad = (deltaX: number, blockedByDom: boolean): TrackpadSwipeClaim | undefined => {
+    const track = trackRef.current;
+    if (!track || !propsRef.current.enabled || activeRef.current?.swipe) return undefined;
+    const prev = getParked();
+    if (!prev && blockedByDom) return undefined;
+    const dir = getTowardStart(track);
+    const delta = deltaX * dir;
+    if (!prev && delta < 0) return undefined; // Closed cards yield to inline-end (Back) swipes.
+    const swipe = startSwipe(0, delta);
+    if (!swipe) return undefined;
+    activeRef.current = { kind: 'trackpad', swipe };
+    const ifCurrent = (fn: () => void) => {
+      if (activeRef.current?.swipe === swipe) fn();
+    };
+    return {
+      move: (dx) => ifCurrent(() => actionsRef.current.updateSwipe(swipe, swipe.offset + dx * dir)),
+      end: () => ifCurrent(() => actionsRef.current.endSwipe(true)),
+      cancel: () => ifCurrent(() => actionsRef.current.endSwipe(false)),
+      isReadyToCommit: () => activeRef.current?.swipe === swipe && swipe.armed,
+    };
+  };
+
+  const actionsRef = useLatestRef({ updateSwipe, endSwipe, closeParked, abortAll, claimTrackpad });
+
+  // Register track (and mounted tray) with the list's touchmove handler and macOS trackpad claimer.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return undefined;
-    swipingByTrack.set(track, () => !!gestureRef.current?.swipe);
-    return () => {
-      swipingByTrack.delete(track);
-    };
-  }, []);
+    handleByNode.set(track, {
+      isTouchSwiping: () => activeRef.current?.kind === 'touch' && !!activeRef.current.swipe,
+      claimTrackpad: (dx, blocked) => actionsRef.current.claimTrackpad(dx, blocked),
+    });
+    return () => void handleByNode.delete(track);
+  }, [actionsRef]);
 
-  // A card that leaves the list mid-swipe may show a moment longer as a copy
-  // (ui/listMotion.tsx): at rest, without the strip.
+  const hasStrip = Boolean(view);
+  useEffect(() => {
+    const el = stripRef.current;
+    const handle = trackRef.current && handleByNode.get(trackRef.current);
+    if (!hasStrip || !el || !handle) return undefined;
+    handleByNode.set(el, handle);
+    return () => void handleByNode.delete(el);
+  }, [hasStrip]);
+
+  // A card leaving the list mid-swipe may show briefly as a copy (`ui/listMotion.tsx`): at rest.
   useLayoutEffect(() => {
     const track = trackRef.current;
     return () => {
+      activeRef.current = undefined;
+      clearTimeout(settleTimerRef.current);
+      if (track && activeParked?.track === track) activeParked = undefined;
       if (track) track.style.transform = '';
-      // The strip comes with a swipe, after this effect ran: read as the card goes.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       if (stripRef.current) stripRef.current.style.display = 'none';
     };
   }, []);
 
-  // A touch can end without the card being told. A second finger makes it a pinch, which
-  // changes the page zoom (theme/usePinchToZoom.ts); the page goes out of sight under the
-  // finger; or the browser tells of the lift elsewhere, or not at all: on a phone a card was
-  // left swiped with its strip showing, and nothing was sent. No swipe outlives its touch: it
-  // lets go, with its action only where the finger lifted. The fingers may land and lift
-  // anywhere, so the whole document listens for them.
-  const finishRef = useLatestRef((commit: boolean) => finish(commit));
   useEffect(() => {
-    if (!enabled) finishRef.current(false);
-  }, [enabled, finishRef]);
-  useEffect(() => {
-    const doc = trackRef.current?.ownerDocument;
-    if (!doc) return undefined;
-    const handleTouchStart = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      // A second finger, or the first finger of a new touch while a swipe is still on: its own
-      // finger is gone. (A touch's own start comes before it is a swipe.)
-      if (gesture && (event.touches.length > 1 || gesture.swipe)) finishRef.current(false);
-    };
-    const handleTouchEnd = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      if (!gesture?.swipe || event.touches.length > 0) return;
-      // After the card's own pointer event of this lift, which ends the swipe where it comes.
-      setTimeout(() => {
-        if (gestureRef.current === gesture) finishRef.current(event.type === 'touchend');
-      }, 0);
-    };
-    const handleVisibilityChange = () => {
-      if (doc.visibilityState === 'hidden') finishRef.current(false);
-    };
-    const early = { capture: true, passive: true };
-    doc.addEventListener('touchstart', handleTouchStart, early);
-    doc.addEventListener('touchend', handleTouchEnd, early);
-    doc.addEventListener('touchcancel', handleTouchEnd, early);
-    doc.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      doc.removeEventListener('touchstart', handleTouchStart, early);
-      doc.removeEventListener('touchend', handleTouchEnd, early);
-      doc.removeEventListener('touchcancel', handleTouchEnd, early);
-      doc.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [finishRef]);
+    if (!enabled) actionsRef.current.abortAll();
+    else if (!canSnooze) actionsRef.current.closeParked();
+  }, [actionsRef, canSnooze, enabled]);
 
-  const finish = (commit: boolean) => {
-    const swipe = gestureRef.current?.swipe;
-    gestureRef.current = undefined;
-    if (!swipe) return;
-    swipedRef.current = true;
-    if (trackRef.current) trackRef.current.style.transform = '';
-    if (commit && swipe.armed && enabled) onSwipe(swipe.resolved);
-    else setArmed(false);
-    // A card already at rest has no transition to wait for.
-    if (swipe.offset === 0) {
-      settle();
-      return;
-    }
-    setSettling(true);
-    clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = setTimeout(settle, SETTLE_FALLBACK_MS);
+  useCompactCardSwipeDocumentListeners(
+    Boolean(view?.parked),
+    trackRef,
+    stripRef,
+    activeRef,
+    actionsRef
+  );
+
+  const endTouch = (id: number, commit: boolean) => {
+    if (activeRef.current?.kind === 'touch' && id === activeRef.current.pointerId) endSwipe(commit);
   };
 
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    // A new first finger: a swipe whose end never came lets go before it.
-    if (event.isPrimary) finish(false);
-    swipedRef.current = false;
-    if (!enabled || event.pointerType !== 'touch' || !event.isPrimary) return;
-    // Edge swipes navigate back and forward; leave those touches to them.
-    if (
-      event.clientX <= EDGE_START_MAX_X ||
-      event.clientX >= window.innerWidth - EDGE_START_MAX_X
-    ) {
-      return;
-    }
-    gestureRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-    };
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const gesture = gestureRef.current;
-    if (!gesture || event.pointerId !== gesture.pointerId) return;
-    if (!gesture.swipe) {
-      const dx = event.clientX - gesture.startX;
-      const dy = event.clientY - gesture.startY;
-      if (Math.abs(dx) < AXIS_LOCK_DISTANCE && Math.abs(dy) < AXIS_LOCK_DISTANCE) return;
-      if (Math.abs(dy) >= Math.abs(dx)) {
-        gestureRef.current = undefined;
+  const pointerHandlers: SwipePointerHandlers = {
+    onPointerDown: (e) => {
+      if (e.currentTarget === stripRef.current && !getParked()) return;
+      if (e.isPrimary) endSwipe(false);
+      swipedRef.current = false;
+      if (!enabled || e.pointerType !== 'touch' || !e.isPrimary) return;
+      if (e.clientX <= EDGE_START_MAX_X || e.clientX >= window.innerWidth - EDGE_START_MAX_X)
         return;
-      }
-      const track = event.currentTarget;
-      const { width } = track.getBoundingClientRect();
-      gesture.swipe = {
-        originX: event.clientX,
-        resolved,
-        towardStart: getComputedStyle(track).direction === 'rtl' ? -1 : 1,
-        width,
-        threshold: getSwipeThreshold(width),
-        offset: 0,
-        armed: false,
+      activeRef.current = {
+        kind: 'touch',
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
       };
-      track.setPointerCapture(event.pointerId);
-      clearTimeout(settleTimerRef.current);
-      setSettling(false);
-      setArmed(false);
-      setStrip({ resolved, label });
-    }
-    const { swipe } = gesture;
-    swipe.offset = Math.min(
-      swipe.width,
-      Math.max(0, (swipe.originX - event.clientX) * swipe.towardStart)
-    );
-    if (trackRef.current) {
-      trackRef.current.style.transform = `translateX(${-swipe.offset * swipe.towardStart}px)`;
-    }
-    const nextArmed = swipe.offset >= swipe.threshold;
-    if (nextArmed !== swipe.armed) {
-      swipe.armed = nextArmed;
-      setArmed(nextArmed);
-    }
+    },
+    onPointerMove: (e) => {
+      const active = activeRef.current;
+      if (active?.kind !== 'touch' || e.pointerId !== active.pointerId) return;
+      const dx = e.clientX - active.startX;
+      const dy = e.clientY - active.startY;
+      if (!active.swipe) {
+        if (Math.abs(dx) < SWIPE.lock && Math.abs(dy) < SWIPE.lock) return;
+        const track = trackRef.current;
+        if (
+          Math.abs(dy) >= Math.abs(dx) ||
+          !track ||
+          (!getParked() && -dx * getTowardStart(track) <= 0)
+        ) {
+          activeRef.current = undefined;
+          return closeParked();
+        }
+        const swipe = startSwipe(e.clientX, 0);
+        if (!swipe) {
+          activeRef.current = undefined;
+          return;
+        }
+        active.swipe = swipe;
+        // Capture on the always-mounted track so hiding/unmounting the tray never drops capture.
+        track.setPointerCapture?.(e.pointerId);
+      } else if (Math.abs(dy) >= SWIPE.verticalAbort && Math.abs(dy) > Math.abs(dx) * 1.5) {
+        if (trackRef.current?.hasPointerCapture?.(e.pointerId))
+          trackRef.current.releasePointerCapture(e.pointerId);
+        return endSwipe(false);
+      }
+      const { swipe } = active;
+      updateSwipe(swipe, swipe.startOffset + (swipe.originX - e.clientX) * swipe.towardStart);
+    },
+    onPointerUp: (e) => endTouch(e.pointerId, true),
+    onPointerCancel: (e) => endTouch(e.pointerId, false),
+    onLostPointerCapture: (e) => {
+      if (e.target === e.currentTarget) endTouch(e.pointerId, false);
+    },
   };
 
-  const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
-    if (event.pointerId !== gestureRef.current?.pointerId) return;
-    finish(commit);
+  const handleClickCapture = (event: React.MouseEvent<HTMLDivElement>, isTray: boolean) => {
+    if (event.detail === 0) {
+      if (!isTray) closeParked();
+      return;
+    }
+    if (swipedRef.current) {
+      swipedRef.current = false;
+    } else if (!isTray && getParked()) {
+      closeParked();
+      if (isCardActionTarget(event.target, trackRef.current)) return;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
   };
 
-  const trackClassName = [css.SwipeTrack, settling && css.SwipeTrackSettling]
-    .filter(Boolean)
-    .join(' ');
+  const runTrayAction = (action: () => void, restoreFocusIfInTray: boolean) => {
+    if (!getParked() || !propsRef.current.enabled || !view) return;
+    const active = trackRef.current?.ownerDocument?.activeElement ?? null;
+    const restoreFocus = restoreFocusIfInTray && Boolean(stripRef.current?.contains(active));
+    closeParked();
+    if (restoreFocus) focusCompactCardButton(trackRef.current);
+    action();
+  };
 
   return (
     <>
-      {strip && (
+      {view && (
         <CompactCardSwipeStrip
+          {...view.strip}
+          snoozed={view.parked ? snoozed : view.strip.snoozed}
+          snoozeLabel={view.parked ? (canSnooze ? snoozeLabel : undefined) : view.strip.snoozeLabel}
           stripRef={stripRef}
-          resolved={strip.resolved}
-          label={strip.label}
-          armed={armed}
+          armed={view.armed}
+          parked={view.parked}
+          onSnoozeClick={() =>
+            runTrayAction(
+              () => propsRef.current.onSnooze?.(propsRef.current.snoozed),
+              propsRef.current.snoozed
+            )
+          }
+          onResolveClick={() =>
+            runTrayAction(() => propsRef.current.onSwipe(view.strip.resolved), true)
+          }
+          {...(view.strip.snoozeLabel !== undefined
+            ? { ...pointerHandlers, onClickCapture: (e) => handleClickCapture(e, true) }
+            : undefined)}
         />
       )}
       <div
         ref={trackRef}
-        className={trackClassName}
+        className={view?.settling ? `${css.SwipeTrack} ${css.SwipeTrackSettling}` : css.SwipeTrack}
         data-compact-card-swipe="track"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={(event) => handlePointerEnd(event, true)}
-        onPointerCancel={(event) => handlePointerEnd(event, false)}
-        // A live re-sort can move the row out from under the finger, which
-        // drops the capture; later events then go to another card. The card
-        // button losing the touch's implicit capture to the track also
-        // bubbles here, and is not an end.
-        onLostPointerCapture={(event) => {
-          if (event.target === event.currentTarget) handlePointerEnd(event, false);
-        }}
-        onClickCapture={(event) => {
-          // Keyboard clicks (detail 0) never come from the swipe.
-          if (!swipedRef.current || event.detail === 0) return;
-          // The touch that swiped the card must not also open it.
-          swipedRef.current = false;
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-        onTransitionEnd={(event) => {
-          if (event.target !== event.currentTarget || event.propertyName !== 'transform') return;
-          settle();
+        {...pointerHandlers}
+        onClickCapture={(e) => handleClickCapture(e, false)}
+        onTransitionEnd={(e) => {
+          if (e.target === e.currentTarget && e.propertyName === 'transform') finishTransition();
         }}
       >
         {children}

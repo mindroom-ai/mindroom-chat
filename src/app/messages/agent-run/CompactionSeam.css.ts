@@ -3,8 +3,8 @@ import { DefaultReset, color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
 
 const slide = keyframes({
-  from: { backgroundPosition: '200% 0' },
-  to: { backgroundPosition: '0 0' },
+  from: { transform: 'translateX(-66.6667%)' },
+  to: { transform: 'translateX(0)' },
 });
 const pulse = keyframes({ '50%': { opacity: 0.35 } });
 const squeeze = keyframes({ '50%': { transform: 'scaleY(0.6)' } });
@@ -86,14 +86,22 @@ export const Separator = style({ opacity: 0.7 });
 // A plain line at rest, a light running along it while the summary is written, and an amber
 // dashed one when the compaction did not finish.
 export const Rule = style({
+  position: 'relative',
+  overflow: 'hidden',
   flex: 1,
   minWidth: toRem(16),
   blockSize: toRem(1),
   background: color.Surface.ContainerLine,
   selectors: {
-    [`${Seam}[data-state="running"] &`]: {
-      background: `linear-gradient(90deg, ${color.Surface.ContainerLine} 0%, ${color.Primary.Main} 50%, ${color.Surface.ContainerLine} 100%)`,
-      backgroundSize: '200% 100%',
+    [`${Seam}[data-state="running"] &::after`]: {
+      content: '""',
+      position: 'absolute',
+      insetBlock: 0,
+      // eslint-disable-next-line no-restricted-syntax -- the slide keyframes move along physical translateX
+      left: 0,
+      inlineSize: '300%',
+      background: `linear-gradient(90deg, ${color.Surface.ContainerLine} 0%, ${color.Primary.Main} 33.3333%, ${color.Surface.ContainerLine} 66.6667%, ${color.Primary.Main} 100%)`,
+      willChange: 'transform',
       animation: `${slide} 1.4s linear infinite`,
       '@media': stillUnderReducedMotion,
     },

@@ -53,7 +53,7 @@ import {
   getForkedFrom,
 } from '../../threads/overview/compactThreadCardViewModel';
 import { useVirtualCompactList } from '../../threads/overview/useVirtualCompactList';
-import { setThreadResolved } from '../../threads/tags/useMutateThreadTags';
+import { setThreadResolved, unsnoozeThread } from '../../threads/tags/useMutateThreadTags';
 import { ownDirectionLine } from '../../ui/directional';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
@@ -163,6 +163,7 @@ type SpaceThreadCardRowProps = {
   metaVersion: number;
   onOpenThread: (roomId: string, threadRootId: string) => void;
   onSetResolved: (roomId: string, threadRootId: string, resolved: boolean) => void;
+  onUnsnooze: (roomId: string, threadRootId: string) => void;
   onPin: (roomId: string, threadRootId: string, pinned: boolean) => void;
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
@@ -185,6 +186,7 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
   metaVersion,
   onOpenThread,
   onSetResolved,
+  onUnsnooze,
   onPin,
   onOpenMenu,
 }: SpaceThreadCardRowProps) {
@@ -240,6 +242,10 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
     (rootId: string, resolved: boolean) => onSetResolved(entry.roomId, rootId, resolved),
     [entry.roomId, onSetResolved]
   );
+  const handleUnsnooze = useCallback(
+    (rootId: string) => onUnsnooze(entry.roomId, rootId),
+    [entry.roomId, onUnsnooze]
+  );
   const handlePin = useCallback(
     (rootId: string, isPinned: boolean) => onPin(entry.roomId, rootId, isPinned),
     [entry.roomId, onPin]
@@ -269,8 +275,11 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
       passive={passive}
       resolveLabel={t('thread.resolve')}
       reopenLabel={t('threadActions.reopen')}
+      snoozeLabel={t('thread.snooze')}
+      unsnoozeLabel={t('thread.unsnooze')}
       onThreadClick={handleClick}
       onSetResolved={handleSetResolved}
+      onUnsnooze={handleUnsnooze}
       onPin={handlePin}
       onOpenMenu={onOpenMenu}
     />
@@ -349,6 +358,22 @@ export function SpaceThreadsList({
         (err) => {
           // eslint-disable-next-line no-console
           console.error('[SpaceThreadsList] Resolve failed:', err);
+        }
+      );
+    },
+    [mx, runResolve]
+  );
+
+  const handleUnsnooze = useCallback(
+    (roomId: string, rootId: string) => {
+      const room = roomsByIdRef.current.get(roomId)?.room;
+      if (!room) return;
+      runResolve(
+        `${roomId}:${rootId}`,
+        () => unsnoozeThread(mx, room, rootId),
+        (err) => {
+          // eslint-disable-next-line no-console
+          console.error('[SpaceThreadsList] Unsnooze failed:', err);
         }
       );
     },
@@ -445,6 +470,7 @@ export function SpaceThreadsList({
         metaVersion={metaVersion}
         onOpenThread={onOpenThread}
         onSetResolved={handleSetResolved}
+        onUnsnooze={handleUnsnooze}
         onPin={handlePin}
         onOpenMenu={openMenu}
       />
@@ -482,11 +508,12 @@ export function SpaceThreadsList({
       </CompactCardList>
       {menu && menuRoom && (
         <RoomThreadActionsMenu
-          key={`${menu.roomId}:${menu.rootId}`}
+          key={`${menu.roomId}:${menu.rootId}:${menu.initialDialog ?? ''}`}
           room={menuRoom}
           rootId={menu.rootId}
           summaryText={menuSummaryText}
           anchor={menu.anchor}
+          initialDialog={menu.initialDialog}
           onClose={() => {
             if (!clearMenu(menu)) return;
             if (passive) return;

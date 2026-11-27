@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DISPOSABLE_HOMESERVER as HOMESERVER } from '../helpers/disposableAccounts';
-import { sendRoomMessage } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { openPanelRoom, type PanelRoom } from '../helpers/sidePanels';
 
 // An inline canvas answers from the thread: the member who asked fills its form, confirms the
@@ -28,7 +28,7 @@ const TALL_FORM = `<div style="height:1600px">Questions start below.</div>
 const sendInlineForm = (room: PanelRoom, title = TITLE, html = FORM) =>
   sendRoomMessage(HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.notice',
-    body: `Interactive panel: ${TITLE}. Open it in MindRoom Chat to respond.`,
+    body: `Interactive panel: ${title}. Open it in MindRoom Chat to respond.`,
     'm.relates_to': { rel_type: 'm.thread', event_id: room.rootId },
     'io.mindroom.ui_action': {
       version: 1,
@@ -42,8 +42,14 @@ const sendInlineForm = (room: PanelRoom, title = TITLE, html = FORM) =>
     },
   });
 
-const canvasPage = (page: Page) =>
-  page.frameLocator(`iframe[title="${TITLE}"]`).frameLocator('iframe');
+const canvasPage = (page: Page, title = TITLE) =>
+  page.frameLocator(`iframe[title="${title}"]`).frameLocator('iframe');
+
+const bar = (page: Page) => ({
+  headline: page.locator('[data-canvas-staged-headline]'),
+  send: page.locator('[data-canvas-send]'),
+  discard: page.locator('[data-canvas-discard]'),
+});
 
 /** Marks the scroller around the canvas's row (or, once it has left, a filler's) and moves it to one end. */
 const scrollThread = (page: Page, end: 'top' | 'bottom') =>
@@ -86,22 +92,38 @@ for (const [name, viewport] of [
       const room = await openPanelRoom(context, page);
       await sendInlineForm(room);
       await expect(page.locator(`iframe[title="${TITLE}"]`)).toBeVisible({ timeout: 60_000 });
+      // Provenance disclosure sits behind the header info tip, not inside the answer bar.
+      const info = page.locator('button[aria-label^="Interactive panel from"]');
+      await expect(info).toBeVisible();
+      await info.click();
+      await expect(page.getByRole('tooltip')).toContainText(
+        'what you enter here may leave this page'
+      );
+
       const form = canvasPage(page);
       await form.locator('#team').fill('Team Lark');
       await form.locator('#plan').selectOption('Pro');
       await form.getByRole('button', { name: 'Choose' }).click();
 
-      // The answer waits in the thread, under the page, for the user's Send.
-      const send = page.locator('[data-canvas-send]');
-      await expect(send).toBeVisible();
-      await expect(page.getByText(/Send to .+: Plan chosen/)).toBeVisible();
-      await expect(page.getByText('what you enter here may leave this page')).toBeVisible();
+      // Real user click enters the 2.5 s undo bar with summary chips, Data, Undo, and Send now.
+      const { headline, send, discard } = bar(page);
+      const inspect = page.locator('[data-canvas-inspect]');
+      await expect(send).toBeEnabled();
+      await expect(headline).toHaveText(/Sending to .+: Plan chosen/);
+      await expect(page.locator('[data-canvas-summary]')).toContainText('team: Team Lark');
+      await expect(page.locator('[data-canvas-summary]')).toContainText('plan: Pro');
+      await expect(discard).toHaveText('Undo');
+      await expect(send).toHaveText('Send now');
       const shots = process.env.INLINE_SUBMIT_SHOTS;
       if (shots) {
-        await page.waitForTimeout(600);
         await page.screenshot({ path: `${shots}/inline-confirm-bar-${name}.png` });
       }
-      await expect(send).toBeEnabled();
+      // Opening Data pauses the countdown and shows the JSON payload; Send now sends immediately.
+      await inspect.click();
+      await expect(headline).toHaveText(/Send to .+: Plan chosen/);
+      await expect(page.locator('pre')).toContainText('"team": "Team Lark"');
+      await page.waitForTimeout(2_800);
+      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(0);
       await send.click();
       await expect(page.locator('[data-canvas-status]')).toHaveText(/Sent to .+: Plan chosen/, {
         timeout: 30_000,
@@ -110,8 +132,16 @@ for (const [name, viewport] of [
         timeout: 30_000,
       });
 
-      // An answer staged again and left unsent is dropped when the row scrolls away.
+      // After the 5.5 s cooldown expires, leaving a gesture submission alone auto-sends after 2.5 s.
+      await page.waitForTimeout(5_600);
       await form.getByRole('button', { name: 'Choose' }).click();
+      await expect(headline).toHaveText(/Sending to .+: Plan chosen/);
+      await expect(page.locator('[data-canvas-receipt]')).toHaveCount(2, { timeout: 30_000 });
+
+      // Right after auto-send (inside cooldown), a new submission waits for explicit confirm and is
+      // dropped when the row scrolls away.
+      await form.getByRole('button', { name: 'Choose' }).click();
+      await expect(send).toHaveText('Send');
       await expect(send).toBeVisible();
       // Finds the thread's scroller while the canvas is still in it.
       await scrollThread(page, 'bottom');
@@ -170,10 +200,11 @@ for (const [name, viewport] of [
       const room = await openPanelRoom(context, page);
       await sendInlineForm(room, TALL_TITLE, TALL_FORM);
       await expect(page.locator(`iframe[title="${TALL_TITLE}"]`)).toBeVisible({ timeout: 60_000 });
-      const form = page.frameLocator(`iframe[title="${TALL_TITLE}"]`).frameLocator('iframe');
+      const form = canvasPage(page, TALL_TITLE);
+      const { send, discard } = bar(page);
       await form.locator('#note').fill('All fine');
       await form.getByRole('button', { name: 'Finish' }).click();
-      await expect(page.locator('[data-canvas-send]')).toBeEnabled();
+      await expect(send).toBeEnabled();
       // Without scrolling, Send and Discard are on screen and nothing (the composer, Jump to
       // Latest) covers either.
       const target = (selector: string) =>
@@ -188,21 +219,130 @@ for (const [name, viewport] of [
             hit: control.contains(document.elementFromPoint(x, y)),
           };
         });
-      const discard = await target('[data-canvas-discard]');
-      expect(discard).toMatchObject({ onScreen: true, hit: true });
+      const discardHit = await target('[data-canvas-discard]');
+      expect(discardHit).toMatchObject({ onScreen: true, hit: true });
       expect(await target('[data-canvas-send]')).toMatchObject({ onScreen: true, hit: true });
       const shots = process.env.INLINE_SUBMIT_SHOTS;
       if (shots) await page.screenshot({ path: `${shots}/inline-tall-bar-${name}.png` });
-      await page.mouse.click(discard.x, discard.y);
-      await expect(page.locator('[data-canvas-send]')).toHaveCount(0);
+      await page.mouse.click(discardHit.x, discardHit.y);
+      await expect(send).toHaveCount(0);
+      await page.waitForTimeout(150);
+      // Re-submitting right after Undo stays inside the cooldown and enters explicit confirm.
       await form.getByRole('button', { name: 'Finish' }).click();
-      await expect(page.locator('[data-canvas-send]')).toBeEnabled();
-      const send = await target('[data-canvas-send]');
-      expect(send).toMatchObject({ onScreen: true, hit: true });
-      await page.mouse.click(send.x, send.y);
+      await expect(send).toHaveText('Send');
+      await expect(discard).toHaveText('Discard');
+      await expect(send).toBeEnabled();
+      const sendHit = await target('[data-canvas-send]');
+      expect(sendHit).toMatchObject({ onScreen: true, hit: true });
+      await page.mouse.click(sendHit.x, sendHit.y);
       await expect(page.locator('[data-canvas-status]')).toHaveText(/Sent to .+: Survey done/, {
         timeout: 30_000,
       });
     });
   });
 }
+
+test('untrusted canvas scripts cannot forge a user gesture or auto-send without an inside click', async ({
+  context,
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const room = await openPanelRoom(context, page);
+  const viewerResponses = async () =>
+    (
+      await matrixFetch<{
+        chunk: Array<{ sender: string; content: Record<string, unknown> }>;
+      }>(HOMESERVER, `/rooms/${encodeURIComponent(room.roomId)}/messages?dir=b&limit=50`, {
+        accessToken: room.viewer.accessToken,
+      })
+    ).chunk.filter(
+      (event) =>
+        event.sender === room.viewer.userId && Boolean(event.content['io.mindroom.canvas_response'])
+    );
+
+  const { headline, send, discard } = bar(page);
+
+  const expectHeldForConfirm = async (label: string, timeout = 15_000) => {
+    await expect(headline).toHaveText(new RegExp(`Send to .+: ${label}`), { timeout });
+    await expect(page.getByText(/Sending to /)).toHaveCount(0);
+    await expect(send).toHaveText('Send');
+    await expect(discard).toHaveText('Discard');
+    await page.waitForTimeout(3_200);
+    expect(await viewerResponses()).toHaveLength(0);
+    await expect(send).toBeVisible();
+  };
+
+  const expectExplicitConfirmOnly = async (title: string, html: string, label: string) => {
+    // Click the top-level composer so the host page itself has fresh user activation.
+    await page.locator('[data-slate-editor="true"]').click();
+    await sendInlineForm(room, title, html);
+    await expect(page.locator(`iframe[title="${title}"]`)).toBeVisible({ timeout: 60_000 });
+    await expectHeldForConfirm(label);
+    await discard.click();
+    await expect(send).toHaveCount(0);
+  };
+
+  // 1. Programmatic focus + requestSubmit + button.click() + mindroom.submit() while host has activation.
+  await expectExplicitConfirmOnly(
+    'Scripted submit probe',
+    `<form id="f" data-mindroom-label="Programmatic">
+      <input id="inp" name="v" value="1">
+      <button id="btn" type="submit">Go</button>
+    </form>
+    <script>
+      setTimeout(() => {
+        document.getElementById('inp').focus();
+        document.getElementById('f').requestSubmit();
+        document.getElementById('btn').click();
+        mindroom.submit({ v: 'direct' }, { label: 'Direct' });
+      }, 150);
+    </script>`,
+    'Programmatic'
+  );
+
+  // 2. Forged userGesture: true via wrapper (parent.postMessage): wrapper overwrites with its own activation.
+  await expectExplicitConfirmOnly(
+    'Wrapper spoof probe',
+    `<p>Wrapper spoof</p><script>
+      setTimeout(() => parent.postMessage(
+        { type: 'mindroom.canvas.submit', version: 1, data: { spoof: 'wrapper' }, label: 'Spoofed wrapper', userGesture: true },
+        '*'
+      ), 150);
+    </script>`,
+    'Spoofed wrapper'
+  );
+
+  // 3. Forged userGesture: true bypassing wrapper (parent.parent.postMessage): Chat strips untrusted userGesture.
+  await expectExplicitConfirmOnly(
+    'Direct spoof probe',
+    `<p>Direct spoof</p><script>
+      setTimeout(() => parent.parent.postMessage(
+        { type: 'mindroom.canvas.submit', version: 1, data: { spoof: 'direct' }, label: 'Spoofed direct', userGesture: true },
+        '*'
+      ), 150);
+    </script>`,
+    'Spoofed direct'
+  );
+
+  // 4. Submit -> Undo -> delayed scripted follow-up within browser's 5 s user activation window.
+  const postUndoTitle = 'Post-Undo follow-up probe';
+  await sendInlineForm(
+    room,
+    postUndoTitle,
+    `<button id="go">Choose</button>
+    <script>
+      document.getElementById('go').addEventListener('click', () => {
+        mindroom.submit({ step: 'initial' }, { label: 'Initial choice' });
+        setTimeout(() => mindroom.submit({ step: 'sneaky' }, { label: 'Sneaky retry' }), 1000);
+      });
+    </script>`
+  );
+  await expect(page.locator(`iframe[title="${postUndoTitle}"]`)).toBeVisible({ timeout: 60_000 });
+  await canvasPage(page, postUndoTitle).getByRole('button', { name: 'Choose' }).click();
+  await expect(headline).toHaveText(/Sending to .+: Initial choice/);
+  await discard.click();
+  await expect(send).toHaveCount(0);
+  // 1 s later the canvas retries inside the same transient activation window; cooldown must hold it
+  // in explicit confirm and never auto-send.
+  await expectHeldForConfirm('Sneaky retry', 5_000);
+});

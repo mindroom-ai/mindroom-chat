@@ -1410,7 +1410,11 @@
         "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · не завершено: {{failed}}",
         "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
         "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · не завершено: {{failed}}",
-        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}"
+        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
+        "stepCommand": "Команда",
+        "stepCopy": "Копировать",
+        "stepCopied": "Скопировано",
+        "stepCopyFailed": "Не удалось скопировать"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий…"
@@ -1915,7 +1919,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} обновил эту страницу.",
       "shownInPanel": "Показана в панели",
-      "inlineDisclosure": "Создано {{agent}}. У страницы нет доступа к вашему аккаунту, но то, что вы вводите здесь, может покинуть эту страницу."
+      "inlineDisclosure": "Создано {{agent}}. У страницы нет доступа к вашему аккаунту, но то, что вы вводите здесь, может покинуть эту страницу.",
+      "sendingTo": "Отправка агенту {{agent}}:",
+      "undo": "Отменить",
+      "sendNow": "Отправить сейчас",
+      "sendingAnnouncement": "Отправка агенту {{agent}}: {{label}}. Нажмите «Отменить», чтобы прервать."
     },
     "invites": {
       "invalid": "Эта ссылка-приглашение неполная. Откройте ссылку из письма ещё раз.",
@@ -2039,6 +2047,16 @@
       "visibilityMenu": {
         "showInSidebar": "Показывать на боковой панели",
         "sidebarSettings": "Настройки боковой панели…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Push-уведомления Android",
+        "description": "Разрешить push-уведомления Android для оповещений о сообщениях в фоне.",
+        "notConfigured": "Push-уведомления Android не настроены в развертывании. Добавьте настройки `push.android` в `config.json`.",
+        "disabled": "Push-уведомления Android отключены на этом устройстве.",
+        "registered": "Устройство зарегистрировано для push-уведомлений Android.",
+        "permissionDenied": "Разрешение на уведомления отклонено. Включите уведомления для {{appName}} в настройках Android."
       }
     }
   },

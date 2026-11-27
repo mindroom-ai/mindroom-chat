@@ -1305,7 +1305,11 @@
         "toolRunningFor": "{{duration}}実行中",
         "toolCallFailed": "完了しませんでした",
         "toolCallsAlsoFailed": "· {{failed}} 件未完了",
-        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了"
+        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了",
+        "stepCommand": "コマンド",
+        "stepCopy": "コピー",
+        "stepCopied": "コピーしました",
+        "stepCopyFailed": "コピーに失敗しました"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "タイトルの設定…"
@@ -1726,7 +1730,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} がこのページを更新しました。",
       "shownInPanel": "パネルに表示中",
-      "inlineDisclosure": "{{agent}} が作成しました。アカウントにはアクセスできませんが、ここに入力した内容はこのページの外に送信される可能性があります。"
+      "inlineDisclosure": "{{agent}} が作成しました。アカウントにはアクセスできませんが、ここに入力した内容はこのページの外に送信される可能性があります。",
+      "sendingTo": "{{agent}} に送信中:",
+      "undo": "元に戻す",
+      "sendNow": "今すぐ送信",
+      "sendingAnnouncement": "{{agent}} に送信中: {{label}}。キャンセルするには「元に戻す」を使用します。"
     },
     "invites": {
       "invalid": "この招待リンクは不完全です。メールのリンクをもう一度開いてください。",
@@ -1844,6 +1852,16 @@
       "visibilityMenu": {
         "showInSidebar": "サイドバーに表示",
         "sidebarSettings": "サイドバー設定…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android プッシュ通知",
+        "description": "バックグラウンドでのメッセージ通知に Android プッシュ通知を許可します。",
+        "notConfigured": "デプロイで Android プッシュが設定されていません。`config.json` に `push.android` 設定を追加してください。",
+        "disabled": "このデバイスでは Android プッシュが無効になっています。",
+        "registered": "Android プッシュ通知用にデバイスが登録されています。",
+        "permissionDenied": "通知の権限が拒否されています。Android の設定で {{appName}} の通知を有効にしてください。"
       }
     }
   },

@@ -411,4 +411,28 @@ describe('liquid glass rendering lifecycle', () => {
     expect(element.getAttribute('data-liquid-glass')).toBe('active');
     expect(toDataURL).not.toHaveBeenCalled();
   });
+
+  it('short-circuits touch pointermove before querying the DOM while keeping mouse pointer light on touch-primary devices', () => {
+    preferences.set('(hover: none)', true);
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    const child = document.createElement('span');
+    element.append(child);
+    const closestSpy = vi.spyOn(child, 'closest');
+    const touchMove = new MouseEvent('pointermove', { bubbles: true, clientX: 20, clientY: 20 });
+    Object.defineProperty(touchMove, 'pointerType', { value: 'touch' });
+    child.dispatchEvent(touchMove);
+    expect(closestSpy).not.toHaveBeenCalled();
+
+    const mouseMove = new MouseEvent('pointermove', { bubbles: true, clientX: 100, clientY: 50 });
+    Object.defineProperty(mouseMove, 'pointerType', { value: 'mouse' });
+    child.dispatchEvent(mouseMove);
+    vi.runAllTimers();
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('50%');
+  });
 });

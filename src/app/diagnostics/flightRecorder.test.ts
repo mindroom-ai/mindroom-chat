@@ -137,21 +137,22 @@ describe('iOS freeze flight recorder', () => {
     vi.unstubAllGlobals();
   });
 
-  it('updates visible scalar checkpoints every two seconds without growing the ring', () => {
+  it('throttles idle checkpoint persistence to 15 s while keeping 2 s stall checks and immediate change flushes', () => {
     dispose = installFlightRecorder(storage);
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
 
-    vi.advanceTimersByTime(6000);
+    // Idle ticks under 15 s do not serialize or write to localStorage.
+    vi.advanceTimersByTime(14_000);
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
+    expect(readCurrent(storage).lastBeatAt).toBe(1000);
 
+    // At 16 s (>= 15 s since last persist), the heartbeat persists once without growing the ring.
+    vi.advanceTimersByTime(2000);
     const current = readCurrent(storage);
-    expect(current.lastBeatAt).toBe(7000);
+    expect(current.lastBeatAt).toBe(17_000);
     expect(current.visibility).toBe('visible');
     expect(current.events).toEqual([]);
-    expect(storage.writes).toEqual([
-      FLIGHT_RECORDER_CURRENT_KEY,
-      FLIGHT_RECORDER_CURRENT_KEY,
-      FLIGHT_RECORDER_CURRENT_KEY,
-      FLIGHT_RECORDER_CURRENT_KEY,
-    ]);
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY, FLIGHT_RECORDER_CURRENT_KEY]);
   });
 
   it('uses one normalized bounded build version for storage and export metadata', () => {
@@ -207,9 +208,9 @@ describe('iOS freeze flight recorder', () => {
     windowTarget.dispatchEvent(new Event('pageshow'));
     expect(storage.writes).toHaveLength(writesBeforePageShow);
 
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(14_000);
     expect(readCurrent(storage)).toMatchObject({
-      lastBeatAt: 5000,
+      lastBeatAt: 17_000,
       expectedEndAt: null,
       endReason: null,
       events: [],
@@ -285,8 +286,8 @@ describe('iOS freeze flight recorder', () => {
       endReason: null,
       events: [{ at: 1000, type: 'lifecycle', state: 'visible' }],
     });
-    vi.advanceTimersByTime(2000);
-    expect(readCurrent(storage).lastBeatAt).toBe(3000);
+    vi.advanceTimersByTime(16_000);
+    expect(readCurrent(storage).lastBeatAt).toBe(17_000);
   });
 
   it('does not retain a session killed before a hidden launch reaches foreground', () => {
@@ -391,8 +392,8 @@ describe('iOS freeze flight recorder', () => {
     dispose = secondDispose;
 
     firstDispose();
-    vi.advanceTimersByTime(2000);
-    expect(readCurrent(replacementStorage).lastBeatAt).toBe(3000);
+    vi.advanceTimersByTime(16_000);
+    expect(readCurrent(replacementStorage).lastBeatAt).toBe(17_000);
 
     secondDispose();
     const writesAfterDispose = replacementStorage.writes.length;
@@ -408,9 +409,9 @@ describe('iOS freeze flight recorder', () => {
     dispose = installFlightRecorder(storage);
 
     failedDispose();
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(16_000);
 
-    expect(readCurrent(storage).lastBeatAt).toBe(3000);
+    expect(readCurrent(storage).lastBeatAt).toBe(17_000);
   });
 
   it('rolls back a partial setup failure and leaves its disposer inert', () => {

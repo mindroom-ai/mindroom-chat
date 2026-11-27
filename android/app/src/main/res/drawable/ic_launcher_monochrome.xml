@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Left isometric M pillar (centered within the 66dp adaptive icon safe zone). -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,39.25 L40.5,32.75 L52,40.25 L45,44.95 L45,70.25 L38,75.25 L31,70.25 Z" />
+    <!-- Right isometric M pillar (symmetric mirror of the left pillar). -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M77,39.25 L67.5,32.75 L56,40.25 L63,44.95 L63,70.25 L70,75.25 L77,70.25 Z" />
+    <!-- Center isometric cube nested inside the M valley. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,43.25 L60.5,47.45 L60.5,58.05 L54,62.25 L47.5,58.05 L47.5,47.45 Z" />
+</vector>

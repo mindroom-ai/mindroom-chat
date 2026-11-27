@@ -1340,7 +1340,11 @@
         "toolCallFailed": "Nicht abgeschlossen",
         "toolCallsAlsoFailed": "· {{failed}} nicht abgeschlossen",
         "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} nicht abgeschlossen",
-        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen"
+        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen",
+        "stepCommand": "Befehl",
+        "stepCopy": "Kopieren",
+        "stepCopied": "Kopiert",
+        "stepCopyFailed": "Kopieren fehlgeschlagen"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"
@@ -1789,7 +1793,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
-      "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+      "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen.",
+      "sendingTo": "Wird an {{agent}} gesendet:",
+      "undo": "Rückgängig",
+      "sendNow": "Jetzt senden",
+      "sendingAnnouncement": "Wird an {{agent}} gesendet: {{label}}. Mit Rückgängig abbrechen."
     },
     "invites": {
       "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",
@@ -1909,6 +1917,16 @@
       "visibilityMenu": {
         "showInSidebar": "In der Seitenleiste anzeigen",
         "sidebarSettings": "Seitenleisten-Einstellungen…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android-Push-Benachrichtigungen",
+        "description": "Android-Push-Benachrichtigungen für Nachrichten im Hintergrund zulassen.",
+        "notConfigured": "Android-Push ist von der Bereitstellung nicht konfiguriert. Füge `push.android`-Einstellungen in `config.json` hinzu.",
+        "disabled": "Android-Push ist für dieses Gerät deaktiviert.",
+        "registered": "Gerät für Android-Push-Benachrichtigungen registriert.",
+        "permissionDenied": "Benachrichtigungsberechtigung wurde verweigert. Aktiviere Benachrichtigungen für {{appName}} in den Android-Einstellungen."
       }
     }
   },

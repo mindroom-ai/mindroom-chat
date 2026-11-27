@@ -1340,7 +1340,11 @@
         "toolCallFailed": "সম্পূর্ণ হয়নি",
         "toolCallsAlsoFailed": "· সম্পূর্ণ হয়নি: {{failed}}টি",
         "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
-        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি"
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
+        "stepCommand": "কমান্ড",
+        "stepCopy": "কপি করুন",
+        "stepCopied": "কপি হয়েছে",
+        "stepCopyFailed": "কপি করা যায়নি"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস…"
@@ -1789,7 +1793,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} এই পৃষ্ঠাটি আপডেট করেছে।",
       "shownInPanel": "প্যানেলে দেখানো হচ্ছে",
-      "inlineDisclosure": "{{agent}} তৈরি করেছে। এটি আপনার অ্যাকাউন্টে প্রবেশ করতে পারে না; এখানে আপনি যা লেখেন তা এই পৃষ্ঠার বাইরে যেতে পারে।"
+      "inlineDisclosure": "{{agent}} তৈরি করেছে। এটি আপনার অ্যাকাউন্টে প্রবেশ করতে পারে না; এখানে আপনি যা লেখেন তা এই পৃষ্ঠার বাইরে যেতে পারে।",
+      "sendingTo": "{{agent}}-কে পাঠানো হচ্ছে:",
+      "undo": "পূর্বাবস্থায় ফেরান",
+      "sendNow": "এখনই পাঠান",
+      "sendingAnnouncement": "{{agent}}-কে পাঠানো হচ্ছে: {{label}}। বাতিল করতে পূর্বাবস্থায় ফেরান ব্যবহার করুন।"
     },
     "invites": {
       "invalid": "এই আমন্ত্রণ লিংকটি অসম্পূর্ণ। ইমেইল থেকে লিংকটি আবার খুলুন।",
@@ -1909,6 +1917,16 @@
       "visibilityMenu": {
         "showInSidebar": "সাইডবারে দেখান",
         "sidebarSettings": "সাইডবার সেটিংস…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android পুশ বিজ্ঞপ্তি",
+        "description": "ব্যাকগ্রাউন্ড বার্তা সতর্কতার জন্য Android পুশ বিজ্ঞপ্তির অনুমতি দিন।",
+        "notConfigured": "ডিপ্লয়মেন্টে Android পুশ কনফিগার করা হয়নি। `config.json`-এ `push.android` সেটিংস যোগ করুন।",
+        "disabled": "এই ডিভাইসের জন্য Android পুশ অক্ষম করা আছে।",
+        "registered": "ডিভাইসটি Android পুশ বিজ্ঞপ্তির জন্য নিবন্ধিত।",
+        "permissionDenied": "বিজ্ঞপ্তির অনুমতি প্রত্যাখ্যাত হয়েছে। Android সেটিংসে {{appName}}-এর জন্য বিজ্ঞপ্তি সক্ষম করুন।"
       }
     }
   },

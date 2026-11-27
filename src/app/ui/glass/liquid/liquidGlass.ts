@@ -328,12 +328,13 @@ export const attachLiquidGlass = (
   };
   const preferences = watchPreferences(view, onPreferenceChange);
   const onPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === 'touch') return;
     // Flat scrolling chrome must not move the light on its enclosing glass panel either.
     if (event.target instanceof Element && event.target.closest('[data-glass-flat="true"]')) {
       clearLight();
       return;
     }
-    if (!preferences.permitsMotion() || event.pointerType === 'touch') return;
+    if (!preferences.permitsMotion()) return;
     pointerX = event.clientX;
     pointerY = event.clientY;
     if (lightFrame) return;

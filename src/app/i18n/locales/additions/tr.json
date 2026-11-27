@@ -1340,7 +1340,11 @@
         "toolCallFailed": "Tamamlanmadı",
         "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
         "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
-        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı"
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
+        "stepCommand": "Komut",
+        "stepCopy": "Kopyala",
+        "stepCopied": "Kopyalandı",
+        "stepCopyFailed": "Kopyalama başarısız"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"
@@ -1789,7 +1793,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
-      "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+      "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir.",
+      "sendingTo": "{{agent}} ajanına gönderiliyor:",
+      "undo": "Geri al",
+      "sendNow": "Şimdi gönder",
+      "sendingAnnouncement": "{{agent}} ajanına gönderiliyor: {{label}}. İptal etmek için Geri al düğmesini kullanın."
     },
     "invites": {
       "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",
@@ -1909,6 +1917,16 @@
       "visibilityMenu": {
         "showInSidebar": "Kenar çubuğunda göster",
         "sidebarSettings": "Kenar çubuğu ayarları…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android anlık bildirimleri",
+        "description": "Arka plan mesaj uyarıları için Android anlık bildirimlerine izin verin.",
+        "notConfigured": "Android anlık bildirimleri dağıtım tarafından yapılandırılmamış. `config.json` dosyasına `push.android` ayarlarını ekleyin.",
+        "disabled": "Bu cihaz için Android anlık bildirimleri devre dışı.",
+        "registered": "Cihaz Android anlık bildirimleri için kaydedildi.",
+        "permissionDenied": "Bildirim izni reddedildi. Android Ayarları üzerinden {{appName}} için bildirimleri etkinleştirin."
       }
     }
   },

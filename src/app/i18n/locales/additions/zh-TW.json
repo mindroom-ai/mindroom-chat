@@ -1305,7 +1305,11 @@
         "toolRunningFor": "已執行 {{duration}}",
         "toolCallFailed": "未完成",
         "toolCallsAlsoFailed": "· {{failed}} 個未完成",
-        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成"
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成",
+        "stepCommand": "指令",
+        "stepCopy": "拷貝",
+        "stepCopied": "已拷貝",
+        "stepCopyFailed": "複製失敗"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"
@@ -1726,7 +1730,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
-      "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+      "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。",
+      "sendingTo": "正在傳送給 {{agent}}：",
+      "undo": "復原",
+      "sendNow": "立即傳送",
+      "sendingAnnouncement": "正在傳送給 {{agent}}：{{label}}。使用「復原」可取消。"
     },
     "invites": {
       "invalid": "此邀請連結不完整。請重新開啟郵件中的連結。",
@@ -1844,6 +1852,16 @@
       "visibilityMenu": {
         "showInSidebar": "在側邊欄顯示",
         "sidebarSettings": "側邊欄設定…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android 推播通知",
+        "description": "允許 Android 推播通知以在背景接收訊息提醒。",
+        "notConfigured": "部署尚未設定 Android 推播。請在 `config.json` 中加入 `push.android` 設定。",
+        "disabled": "此裝置已停用 Android 推播。",
+        "registered": "裝置已註冊 Android 推播通知。",
+        "permissionDenied": "通知權限已被拒絕。請在 Android 設定中為 {{appName}} 啟用通知。"
       }
     }
   },

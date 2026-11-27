@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import * as css from './OutlineComet.css';
 
 // A dash of the outline that ends where the outline does, so dashes of any length share a head.
@@ -18,8 +20,10 @@ type OutlineCometProps = {
  * which places it.
  */
 export function OutlineComet({ outline, width, transform }: OutlineCometProps) {
+  const ref = useRef<HTMLSpanElement>(null);
+  usePauseAnimationWhenHidden(ref);
   return (
-    <span className={css.Glow}>
+    <span ref={ref} className={css.Glow}>
       <svg className={css.Outline} viewBox="0 0 24 24" fill="none">
         <g className={css.Comet} strokeWidth={width} transform={transform}>
           <path d={outline} pathLength={100} strokeDasharray={cometDash(40)} strokeOpacity={0.32} />

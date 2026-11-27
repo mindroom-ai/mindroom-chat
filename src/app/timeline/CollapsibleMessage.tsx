@@ -157,6 +157,7 @@ export function CollapsibleMessage({
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
   const measurementKeyRef = useRef(measurementKey);
+  const previousMeasurementKeyRef = useRef(measurementKey);
   const contentId = useId();
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
@@ -176,9 +177,6 @@ export function CollapsibleMessage({
     }
     return true;
   });
-  useLayoutEffect(() => {
-    measurementKeyRef.current = measurementKey;
-  }, [measurementKey]);
   const applyOverflowVerdict = useCallback((verdict: boolean) => {
     countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
     rememberOverflowVerdict(measurementKeyRef.current, verdict);
@@ -200,6 +198,30 @@ export function CollapsibleMessage({
     }
     return collapseMode !== 'default';
   });
+  // Keep measurementKeyRef current and carry a measured verdict forward across
+  // same-height expanded edits (when ResizeObserver does not fire) without
+  // forcing a synchronous layout read. If height changes, ResizeObserver
+  // overwrites this entry.
+  useLayoutEffect(() => {
+    const previousKey = previousMeasurementKeyRef.current;
+    previousMeasurementKeyRef.current = measurementKey;
+    measurementKeyRef.current = measurementKey;
+    if (
+      expanded &&
+      typeof ResizeObserver !== 'undefined' &&
+      !isExempt &&
+      !forceOverflowing &&
+      previousKey !== undefined &&
+      previousKey !== measurementKey &&
+      measurementKey !== undefined &&
+      !overflowVerdictCache.has(measurementKey)
+    ) {
+      const previousVerdict = overflowVerdictCache.get(previousKey);
+      if (previousVerdict !== undefined) {
+        rememberOverflowVerdict(measurementKey, previousVerdict);
+      }
+    }
+  }, [expanded, forceOverflowing, isExempt, measurementKey]);
   const hasRenderFunctionChildren = typeof children === 'function';
   const effectiveExpanded = isExempt || expanded;
   const previousEffectiveExpandedRef = useRef(effectiveExpanded);
@@ -283,9 +305,8 @@ export function CollapsibleMessage({
     expanded && typeof ResizeObserver !== 'undefined' ? undefined : measurementKey;
   useLayoutEffect(checkOverflow, [checkOverflow, synchronousMeasurementKey]);
 
-  // ResizeObserver for async layout shifts (lazy images, font loading, etc.).
-  // Re-observe edits even when height stays unchanged: the initial entry warms
-  // the new key's verdict for virtualized remounts without forcing layout here.
+  // Keep a single persistent ResizeObserver per mounted row rather than recreating
+  // it on every edit; applyOverflowVerdict reads measurementKeyRef.current when it fires.
   useEffect(() => {
     const el = contentRef.current;
     if (isExempt || forceOverflowing || !el || typeof ResizeObserver === 'undefined')
@@ -298,7 +319,7 @@ export function CollapsibleMessage({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt, measurementKey]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.

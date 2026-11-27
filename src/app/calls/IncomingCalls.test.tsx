@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { Capacitor } from '@capacitor/core';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IPushRules } from 'matrix-js-sdk';
@@ -17,6 +18,7 @@ const calls = vi.hoisted(() => ({
   answer: undefined as ((result: StartCallResult) => void) | undefined,
   settings: false,
   nativeIOS: false,
+  androidPushConfigured: false,
   stopRingtone: vi.fn(),
   startRingtone: vi.fn(),
   navigateRoom: vi.fn(),
@@ -36,7 +38,16 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Maya' }));
 vi.mock('../preferences/useSetting', () => ({ useSetting: () => [calls.settings] }));
-vi.mock('../native/nativeSso', () => ({ isNativeIOS: () => calls.nativeIOS }));
+vi.mock('../native/nativeSso', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../native/nativeSso')>();
+  return {
+    ...actual,
+    isNativeIOS: () => calls.nativeIOS || actual.isNativeIOS(),
+  };
+});
+vi.mock('../native/androidPushConfig', () => ({
+  useNativeAndroidPushConfigured: () => calls.androidPushConfigured,
+}));
 vi.mock('./ringtone', () => ({
   startRingtone: () => {
     calls.startRingtone();
@@ -122,6 +133,7 @@ afterEach(() => {
   calls.answer = undefined;
   calls.settings = false;
   calls.nativeIOS = false;
+  calls.androidPushConfigured = false;
   calls.startRingtone.mockClear();
   calls.stopRingtone.mockClear();
   calls.members = [{ userId: '@maya:calls.test' }];
@@ -411,5 +423,76 @@ describe('IncomingCalls ring alerts', () => {
     }
 
     expect(tags).toEqual([`call-ring-${ROOM_ID}`, `call-ring-${ROOM_ID}:$desktop-ring-1`]);
+  });
+
+  it('silences the web ringtone while hidden on native Android when FCM is configured and plays it while visible', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    calls.androidPushConfigured = true;
+    calls.settings = true;
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+    const renderer = mountAndRing(createStore(), '$android-hidden-ring');
+    expect(calls.startRingtone).not.toHaveBeenCalled();
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.stopRingtone).toHaveBeenCalledTimes(1);
+
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the web ringtone playing while hidden on native Android when FCM is not configured', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    calls.androidPushConfigured = false;
+    calls.settings = true;
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+    const renderer = mountAndRing(createStore(), '$android-unconfigured-hidden-ring');
+    expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.stopRingtone).not.toHaveBeenCalled();
+
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the web ringtone playing while hidden on Electron desktop', () => {
+    calls.settings = true;
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { isWindowFocused: () => false },
+    });
+
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      renderer = mountAndRing(createStore(), '$desktop-hidden-ringtone');
+      expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+      act(() => {
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(calls.stopRingtone).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

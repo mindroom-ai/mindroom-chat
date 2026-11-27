@@ -56,7 +56,15 @@ export const startAppVersionMonitor = ({
   let stagedVersion: string | undefined;
 
   const check = async () => {
-    if (stopped || checking || !navigator.onLine) return;
+    if (
+      stopped ||
+      checking ||
+      !navigator.onLine ||
+      document.hidden ||
+      document.visibilityState === 'hidden'
+    ) {
+      return;
+    }
     checking = true;
     try {
       const publishedVersion = await fetchPublishedAppVersion();

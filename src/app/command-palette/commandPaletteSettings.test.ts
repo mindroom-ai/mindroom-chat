@@ -15,6 +15,7 @@ const CONTEXT: SettingsContext = {
   native: false,
   capacitor: false,
   nativeIOS: false,
+  nativeAndroid: false,
   diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
@@ -55,6 +56,27 @@ describe('getCommandPaletteSettingRows', () => {
     expect(media.item.state).toBe('off');
     expect(media.switch).toStrictEqual({ key: 'mediaAutoLoad', inverted: true });
     expect(rowOf('mediaAutoLoad', { mediaAutoLoad: false }).item.state).toBe('on');
+  });
+
+  it('exposes iOS push on iOS and Android push on configured Android without mixing them', () => {
+    const iosIds = rows({}, { ...CONTEXT, native: true, capacitor: true, nativeIOS: true }).map(
+      ({ setting }) => setting.id
+    );
+    const androidIds = rows(
+      {},
+      {
+        ...CONTEXT,
+        native: true,
+        capacitor: true,
+        nativeAndroid: true,
+        androidPushConfigured: true,
+      }
+    ).map(({ setting }) => setting.id);
+
+    expect(iosIds).toContain('pushNotifications');
+    expect(iosIds).not.toContain('androidPushNotifications');
+    expect(androidIds).toContain('androidPushNotifications');
+    expect(androidIds).not.toContain('pushNotifications');
   });
 
   it('gives a setting without a plain switch no state, so it opens Settings', () => {

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import * as css from './ShimmerText.css';
 
 /**
@@ -7,8 +8,10 @@ import * as css from './ShimmerText.css';
  * the caller names it (`role="status"` with an `aria-label`).
  */
 export function ShimmerText({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  usePauseAnimationWhenHidden(ref);
   return (
-    <span className={css.Text} aria-hidden="true">
+    <span ref={ref} className={css.Text} aria-hidden="true">
       <span className={css.TextBase}>{children}</span>
       <span className={css.TextSweep}>
         <span className={css.TextCounter}>

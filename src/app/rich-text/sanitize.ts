@@ -354,9 +354,56 @@ const buildOptions = ({
 };
 
 const defaultOptions = buildOptions({});
+const SCHEMES_OPTIONS_CACHE_LIMIT = 16;
+const SANITIZE_CACHE_LIMIT = 64;
+
+const optionsBySchemesKey = new Map<string, IOptions>();
+const sanitizedCacheByOptions = new WeakMap<IOptions, Map<string, string>>();
+
+const resolveCacheableOptions = (options?: SanitizeCustomHtmlOptions): IOptions => {
+  if (!options) return defaultOptions;
+  const schemes = normalizeAdditionalSchemes(options.additionalAllowedUriSchemes);
+  if (schemes.length === 0) return defaultOptions;
+  const key = schemes.join('\0');
+  const cached = optionsBySchemesKey.get(key);
+  if (cached) return cached;
+  const built = buildOptions({ additionalAllowedUriSchemes: schemes });
+  if (optionsBySchemesKey.size >= SCHEMES_OPTIONS_CACHE_LIMIT) {
+    const oldest = optionsBySchemesKey.keys().next().value;
+    if (oldest !== undefined) optionsBySchemesKey.delete(oldest);
+  }
+  optionsBySchemesKey.set(key, built);
+  return built;
+};
 
 /** Sanitizes `formatted_body` HTML to what the client renders. */
 export const sanitizeCustomHtml = (
   customHtml: string,
   options?: SanitizeCustomHtmlOptions
-): string => sanitizeHtml(customHtml, options ? buildOptions(options) : defaultOptions);
+): string => {
+  // Custom policies and imageSource mappers may be stateful or mutated in place;
+  // bypass both options caching and HTML result caching when either is present.
+  if (options?.policy || options?.imageSource) {
+    return sanitizeHtml(customHtml, buildOptions(options));
+  }
+  const resolved = resolveCacheableOptions(options);
+  let cache = sanitizedCacheByOptions.get(resolved);
+  if (cache) {
+    const cached = cache.get(customHtml);
+    if (cached !== undefined) {
+      cache.delete(customHtml);
+      cache.set(customHtml, cached);
+      return cached;
+    }
+  } else {
+    cache = new Map();
+    sanitizedCacheByOptions.set(resolved, cache);
+  }
+  const sanitized = sanitizeHtml(customHtml, resolved);
+  if (cache.size >= SANITIZE_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(customHtml, sanitized);
+  return sanitized;
+};

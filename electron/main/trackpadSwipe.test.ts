@@ -130,6 +130,7 @@ describe('attachTrackpadSwipe', () => {
       { type: 'swipe-tracking', enabled: true },
       { type: 'swipe-tracking', enabled: false },
       { type: 'swipe-tracking', enabled: false },
+      { type: 'scroll-gesture', phase: 'begin' },
       { type: 'swipe-tracking', enabled: true },
       { type: 'scroll-gesture', phase: 'begin' },
       { type: 'scroll-gesture', phase: 'end' },

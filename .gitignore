@@ -22,3 +22,6 @@ ios/Watch/MatrixRustSDK/*.zip
 ios/Watch/MatrixRustSDK/release
 ios/Watch/MatrixRustSDK/build/
 ios/Watch/**/.build/
+
+# Firebase client config for Android FCM push (injected at release time in CI).
+android/app/google-services.json

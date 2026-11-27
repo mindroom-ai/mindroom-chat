@@ -43,6 +43,7 @@ vi.mock('./iosPush', () => ({
   IOS_PUSH_ACCOUNT_KEY: 'mindroom_account',
   findIOSPushAccount: (tag: string) => state.accounts[tag],
   isNativeIOSPlatform: () => true,
+  isNativePushPlatform: () => true,
 }));
 vi.mock('../../matrix/session/sessions', () => ({ setActiveSession: state.setActiveSession }));
 vi.mock('../../matrix/session/useSessionStore', () => ({
@@ -170,6 +171,41 @@ describe('NativeIOSPushOpenFeature', () => {
 
     expect(state.navigateRoom).toHaveBeenCalledTimes(1);
     expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
+    renderer.unmount();
+  });
+
+  it('handles Android FCM payloads without aps and string mindroom_ring values', async () => {
+    const renderer = await mount();
+
+    await tap({
+      room_id: '!joined:example',
+      event_id: '$fcm-msg',
+      mindroom_account: 'tag-b',
+    });
+    expect(state.navigateRoom).toHaveBeenLastCalledWith('!joined:example', '$fcm-msg', outside);
+
+    await tap({
+      room_id: '!joined:example',
+      event_id: '$fcm-ring-1',
+      mindroom_ring: '1',
+    });
+    expect(state.navigateRoom).toHaveBeenLastCalledWith('!joined:example', undefined, outside);
+
+    await tap({
+      room_id: '!joined:example',
+      event_id: '$fcm-ring-json',
+      mindroom_ring: '{"expires_at":12345}',
+    });
+    expect(state.navigateRoom).toHaveBeenLastCalledWith('!joined:example', undefined, outside);
+
+    // An empty string is not a ring flag, so it still opens the message event.
+    await tap({
+      room_id: '!joined:example',
+      event_id: '$not-a-ring',
+      mindroom_ring: '   ',
+    });
+    expect(state.navigateRoom).toHaveBeenLastCalledWith('!joined:example', '$not-a-ring', outside);
+
     renderer.unmount();
   });
 });

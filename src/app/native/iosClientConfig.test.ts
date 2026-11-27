@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { iosClientConfig } from '../../../scripts/ios-client-config.mjs';
 import { resolveComputerApiUrl } from '../computer/api';
-import { resolveIOSPushConfig } from '../notifications/push/iosPush';
+import { resolveIOSPushConfig, resolveNativePushConfig } from '../notifications/push/iosPush';
 
 const source = readFileSync(new URL('../../../config/mindroom.json', import.meta.url), 'utf8');
 const settings = JSON.parse(
@@ -34,6 +34,17 @@ describe('bundled iOS client config', () => {
     expect(push).toMatchObject({
       appId: 'chat.mindroom.app',
       gatewayUrl: 'https://push.mindroom.chat/_matrix/push/v1/notify',
+    });
+  });
+
+  it('turns push on in the Android app, through the MindRoom push gateway', () => {
+    const push = resolveNativePushConfig(JSON.parse(iosClientConfig(source, settings)), 'android');
+    expect(push).toMatchObject({
+      platform: 'android',
+      appId: 'com.mindroom_ai.app',
+      gatewayUrl: 'https://push.mindroom.chat/_matrix/push/v1/notify',
+      appDisplayName: 'MindRoom Android',
+      format: 'full',
     });
   });
 

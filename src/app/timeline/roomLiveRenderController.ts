@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   type Dispatch,
   type MutableRefObject,
@@ -40,6 +41,7 @@ import {
   isThreadSummaryEvent,
 } from '../matrix/protocol/threadSummary';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
 import {
   markMainTimelineAsRead,
@@ -182,13 +184,31 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   } = o;
   // Automatic read receipts wait until the reader sees the timeline (`useReaderSees`).
   const readerSees = useReaderSees();
+  const collapsed = usePaneCollapsed();
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
+  const dirtyRepaintRef = useRef(false);
+  const { setTimeline } = o;
 
   // A reply decrypted after the reader left its thread was not watched there.
   const openThreadIdRef = useLatestRef(threadId);
 
   // Same rows, same range, new object: whatever derives from the window computes again. A
   // repaint never touches the range, which another hook may have just changed (a removed row).
-  const repaint = () => o.setTimeline((current) => ({ ...current }));
+  const repaint = () => {
+    if (collapsedRef.current) {
+      dirtyRepaintRef.current = true;
+      return;
+    }
+    setTimeline((current) => ({ ...current }));
+  };
+
+  useLayoutEffect(() => {
+    if (!collapsed && dirtyRepaintRef.current) {
+      dirtyRepaintRef.current = false;
+      setTimeline((current) => ({ ...current }));
+    }
+  }, [collapsed, setTimeline]);
 
   // The window takes in the one row that arrived at its end.
   const grow = () =>

@@ -1305,7 +1305,11 @@
         "toolRunningFor": "已运行 {{duration}}",
         "toolCallFailed": "未完成",
         "toolCallsAlsoFailed": "· {{failed}} 个未完成",
-        "toolCallsRanFailed_other": "已执行 {{count}} 次工具调用 · {{failed}} 个未完成"
+        "toolCallsRanFailed_other": "已执行 {{count}} 次工具调用 · {{failed}} 个未完成",
+        "stepCommand": "命令",
+        "stepCopy": "拷贝",
+        "stepCopied": "已拷贝",
+        "stepCopyFailed": "复制失败"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "标题设置…"
@@ -1726,7 +1730,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} 更新了此页面。",
       "shownInPanel": "已在面板中显示",
-      "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。"
+      "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。",
+      "sendingTo": "正在发送给 {{agent}}：",
+      "undo": "撤消",
+      "sendNow": "立即发送",
+      "sendingAnnouncement": "正在发送给 {{agent}}：{{label}}。使用“撤消”可取消。"
     },
     "invites": {
       "invalid": "此邀请链接不完整。请重新打开邮件中的链接。",
@@ -1844,6 +1852,16 @@
       "visibilityMenu": {
         "showInSidebar": "在侧边栏显示",
         "sidebarSettings": "侧边栏设置…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android 推送通知",
+        "description": "允许 Android 推送通知以在后台接收消息提醒。",
+        "notConfigured": "部署未配置 Android 推送。请在 `config.json` 中添加 `push.android` 设置。",
+        "disabled": "此设备已禁用 Android 推送。",
+        "registered": "设备已注册 Android 推送通知。",
+        "permissionDenied": "通知权限已被拒绝。请在 Android 设置中为 {{appName}} 启用通知。"
       }
     }
   },

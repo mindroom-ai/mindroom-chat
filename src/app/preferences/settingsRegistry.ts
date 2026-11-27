@@ -27,6 +27,9 @@ export type SettingsContext = {
   /** Inside a Capacitor native shell (iOS or Android, not Electron desktop). */
   capacitor: boolean;
   nativeIOS: boolean;
+  nativeAndroid: boolean;
+  /** False on Android builds compiled without `google-services.json`; omitted defaults to true. */
+  androidPushConfigured?: boolean;
   /** The diagnostics record: always in the iOS app, elsewhere with debug mode on. */
   diagnostics: boolean;
   /** The account can pair a Local MindRoom. */
@@ -272,6 +275,15 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.alerts`,
     scope: 'device',
     hidden: (context) => !context.nativeIOS,
+  },
+  {
+    id: 'androidPushNotifications',
+    page: 'notifications',
+    group: `${NOTIFY}.systemNotification.system`,
+    labelKey: 'mindroomUi.native.androidPushNotification.title',
+    keywordsKey: `${KEYWORDS}.alerts`,
+    scope: 'device',
+    hidden: (context) => !context.nativeAndroid || context.androidPushConfigured === false,
   },
   {
     id: 'emailNotifications',

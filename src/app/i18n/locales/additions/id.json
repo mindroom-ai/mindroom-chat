@@ -1305,7 +1305,11 @@
         "toolRunningFor": "Berjalan selama {{duration}}",
         "toolCallFailed": "Tidak selesai",
         "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
-        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai"
+        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai",
+        "stepCommand": "Perintah",
+        "stepCopy": "Salin",
+        "stepCopied": "Tersalin",
+        "stepCopyFailed": "Gagal menyalin"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"
@@ -1726,7 +1730,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
-      "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+      "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini.",
+      "sendingTo": "Mengirim ke {{agent}}:",
+      "undo": "Urungkan",
+      "sendNow": "Kirim sekarang",
+      "sendingAnnouncement": "Mengirim ke {{agent}}: {{label}}. Gunakan Urungkan untuk membatalkan."
     },
     "invites": {
       "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",
@@ -1844,6 +1852,16 @@
       "visibilityMenu": {
         "showInSidebar": "Tampilkan di bilah sisi",
         "sidebarSettings": "Pengaturan bilah sisi…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Notifikasi push Android",
+        "description": "Izinkan notifikasi push Android untuk peringatan pesan di latar belakang.",
+        "notConfigured": "Push Android belum dikonfigurasi oleh deployment. Tambahkan pengaturan `push.android` di `config.json`.",
+        "disabled": "Push Android dinonaktifkan untuk perangkat ini.",
+        "registered": "Perangkat terdaftar untuk notifikasi push Android.",
+        "permissionDenied": "Izin notifikasi ditolak. Aktifkan notifikasi untuk {{appName}} di Pengaturan Android."
       }
     }
   },

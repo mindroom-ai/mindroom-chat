@@ -2,7 +2,8 @@ import { isBundledApp, isCapacitorApp, isDesktopAccessAvailable } from '../lib/n
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
-import { isNativeApp, isNativeIOS } from '../native/nativeSso';
+import { isNativeAndroid, isNativeApp, isNativeIOS } from '../native/nativeSso';
+import { useNativeAndroidPushConfigured } from '../notifications/push/useIOSPushEnabled';
 import { isNativeUpdateAvailable } from '../native/nativeUpdate';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
@@ -27,12 +28,15 @@ export const useSettingsContext = (): SettingsContext => {
   const errorReporting = parseDsn(clientConfig.errorReporting?.dsn) !== undefined;
   const serverAdmin = isServerAdmin(useCapabilities());
   const macApp = useOffersMacApp();
+  const androidPushConfigured = useNativeAndroidPushConfigured();
   // Check raw deployment config so default-off or user-disabled plugins still show Settings -> Plugins.
   const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
     native: isBundledApp(),
     capacitor: isCapacitorApp(),
     nativeIOS: isNativeIOS(),
+    nativeAndroid: isNativeAndroid(),
+    androidPushConfigured,
     diagnostics: isNativeApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,

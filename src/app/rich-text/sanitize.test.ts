@@ -331,4 +331,79 @@ describe('customHtmlSanitizerPolicy', () => {
       expect(sanitized).toContain('class="language-ts"');
     });
   });
+
+  describe('caching', () => {
+    it('reuses cached sanitized HTML across equivalent plain option objects without colliding with custom policy', () => {
+      const html = '<a href="obsidian://open?vault=notes" class="custom">Open</a>';
+      const first = sanitizeCustomHtml(html, { additionalAllowedUriSchemes: ['obsidian'] });
+      const second = sanitizeCustomHtml(html, { additionalAllowedUriSchemes: ['obsidian'] });
+      const withPolicy = sanitizeCustomHtml(html, {
+        additionalAllowedUriSchemes: ['obsidian'],
+        policy: { allowedClasses: { a: ['custom'] } },
+      });
+
+      expect(first).toBe(second);
+      expect(first).toContain('href="obsidian://open?vault=notes"');
+      expect(first).not.toContain('class="custom"');
+      expect(withPolicy).toContain('class="custom"');
+    });
+
+    it('does not serve stale cached HTML when imageSource changes', () => {
+      let current = 'https://cdn.example.org/a.png';
+      const imageSource = () => current;
+      const html = '<img src="relative/pic.png" alt="pic" />';
+
+      const first = sanitizeCustomHtml(html, { imageSource });
+      current = 'https://cdn.example.org/b.png';
+      const second = sanitizeCustomHtml(html, { imageSource });
+
+      expect(first).toContain('src="https://cdn.example.org/a.png"');
+      expect(second).toContain('src="https://cdn.example.org/b.png"');
+    });
+
+    it('bypasses options and result caches when custom policy decisions or imageSource change on the same options object', () => {
+      let allowClass = false;
+      const policyOptions: Parameters<typeof sanitizeCustomHtml>[1] = {
+        policy: {
+          allowedClasses: { span: ['dynamic'] },
+          transformTags: {
+            span: (tagName, attribs) => ({
+              tagName,
+              attribs: allowClass ? attribs : {},
+            }),
+          },
+        },
+      };
+      const spanHtml = '<span class="dynamic">hello</span>';
+
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe('<span>hello</span>');
+      allowClass = true;
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe(
+        '<span class="dynamic">hello</span>'
+      );
+
+      policyOptions.policy = { allowedClasses: { span: [] } };
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe('<span>hello</span>');
+
+      const imgHtml = '<img src="relative/pic.png" alt="pic" />';
+      const imageOptions: Parameters<typeof sanitizeCustomHtml>[1] = {
+        imageSource: () => 'https://cdn.example.org/first.png',
+      };
+      expect(sanitizeCustomHtml(imgHtml, imageOptions)).toContain(
+        'src="https://cdn.example.org/first.png"'
+      );
+      imageOptions.imageSource = () => 'https://cdn.example.org/second.png';
+      expect(sanitizeCustomHtml(imgHtml, imageOptions)).toContain(
+        'src="https://cdn.example.org/second.png"'
+      );
+    });
+
+    it('keeps results accurate beyond the bounded LRU cache capacity', () => {
+      for (let i = 0; i < 80; i += 1) {
+        expect(sanitizeCustomHtml(`<p>entry-${i}</p>`)).toBe(`<p>entry-${i}</p>`);
+      }
+      expect(sanitizeCustomHtml('<p>entry-0</p>')).toBe('<p>entry-0</p>');
+      expect(sanitizeCustomHtml('<p>entry-79</p>')).toBe('<p>entry-79</p>');
+    });
+  });
 });

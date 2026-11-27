@@ -99,11 +99,8 @@ export const attachTrackpadSwipe = (
   });
 
   const onPhase = (phase: TrackpadSwipePhase): void => {
-    if (phase === 'begin') {
-      if (sync()) send({ type: 'scroll-gesture', phase: 'begin' });
-    } else {
-      send({ type: 'scroll-gesture', phase });
-    }
+    if (phase === 'begin') sync();
+    send({ type: 'scroll-gesture', phase });
   };
 
   try {

@@ -714,6 +714,20 @@ describe('bottom-pin requests', () => {
     Object.defineProperty(area, 'scrollTop', { configurable: true, value: 100 });
     act(() => renderer.update(<Harness options={{ ...settled, threadUserScrolled: true }} />));
     expect(scrollTo).not.toHaveBeenCalled();
+
+    // Once scrolled, subsequent renders do not force layout reads in useThreadOpeningPin.
+    const readHeight = vi.fn(() => 1300);
+    const readClient = vi.fn(() => 860);
+    const readTop = vi.fn(() => 100);
+    Object.defineProperties(area, {
+      scrollHeight: { configurable: true, get: readHeight },
+      clientHeight: { configurable: true, get: readClient },
+      scrollTop: { configurable: true, get: readTop },
+    });
+    act(() => renderer.update(<Harness options={{ ...settled, threadUserScrolled: true }} />));
+    expect(readHeight).not.toHaveBeenCalled();
+    expect(readClient).not.toHaveBeenCalled();
+    expect(readTop).not.toHaveBeenCalled();
   });
 
   it.each([

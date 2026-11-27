@@ -180,4 +180,23 @@ describe('app version updates', () => {
     expect(reload).not.toHaveBeenCalled();
     stop();
   });
+
+  it('skips polling while hidden and checks once returning to visible', async () => {
+    let state: DocumentVisibilityState = 'hidden';
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ version: APP_BUILD_VERSION }),
+    });
+    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
+
+    const stop = startAppVersionMonitor({ pollIntervalMs: 1000 });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    state = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    stop();
+  });
 });

@@ -1,12 +1,23 @@
-import React, { type ReactNode, type RefObject, useContext, useMemo, useState } from 'react';
+import React, {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
+import { getResolvableThreadRootEvent } from '../../event-store/threads/threadResolvableRoot';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
+import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { SecondThreadContext, setThreadDragData } from '../../navigation/secondThread';
+import { useSnoozeNow } from '../tags/useSnoozeNow';
 import { useInitializeShownThread } from '../useInitializeShownThread';
 import { CompactCardSwipe } from './CompactCardSwipe';
 import * as css from './CompactRoomView.css';
@@ -21,6 +32,7 @@ export type ThreadActionsMenuState = {
   anchor: RectCords;
   trigger?: HTMLElement;
   viewModel: CompactThreadCardViewModel;
+  initialDialog?: 'snooze';
 };
 
 export type CompactCardRowActionsInput = {
@@ -75,8 +87,11 @@ export type CompactThreadCardRowProps = {
   passive?: boolean;
   resolveLabel: string;
   reopenLabel: string;
+  snoozeLabel: string;
+  unsnoozeLabel: string;
   onThreadClick: (threadRootId: string) => void;
   onSetResolved: (threadRootId: string, resolved: boolean) => void;
+  onUnsnooze: (threadRootId: string) => void;
   onPin: (threadRootId: string, pinned: boolean) => void;
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
@@ -97,14 +112,32 @@ export const CompactThreadCardRow = React.memo(
     passive = false,
     resolveLabel,
     reopenLabel,
+    snoozeLabel,
+    unsnoozeLabel,
     onThreadClick,
     onSetResolved,
+    onUnsnooze,
     onPin,
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
     const { roomId } = room;
     const rootId = viewModel.id.threadRootId;
     const shownRef = useInitializeShownThread(roomId, passive ? undefined : rootId, scrollRootRef);
+    const shellRef = useRef<HTMLDivElement>(null);
+    const setShellRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        shellRef.current = node;
+        if (typeof shownRef === 'function') shownRef(node);
+      },
+      [shownRef]
+    );
+    const snoozeNow = useSnoozeNow([viewModel.snoozedUntilTs]);
+    const snoozed = !viewModel.isResolved && isSnoozedAt(viewModel.snoozedUntilTs, snoozeNow);
+    const rootLoaded =
+      typeof room.getThread === 'function' &&
+      typeof room.findEventById === 'function' &&
+      !!getResolvableThreadRootEvent(room, rootId);
+    const canSnooze = !viewModel.isResolved && rootLoaded;
     // A live call's row shows in its card as in the timeline: who is in the call, Join and
     // Transcript. Once the call ends the card is a thread like any other.
     const callRow = useThreadRootLiveCallRow(room, rootId);
@@ -122,6 +155,22 @@ export const CompactThreadCardRow = React.memo(
         </>
       );
     }, [leadingBadges, passive, room, rootId]);
+
+    const handleSnooze = (wasSnoozed: boolean) => {
+      if (wasSnoozed) {
+        onUnsnooze(rootId);
+        return;
+      }
+      const shell = shellRef.current;
+      onOpenMenu({
+        roomId,
+        rootId,
+        viewModel,
+        anchor: shell?.getBoundingClientRect?.() ?? { x: 0, y: 0, width: 0, height: 0 },
+        trigger: shell?.querySelector?.<HTMLButtonElement>('[data-thread-root-id]') ?? undefined,
+        initialDialog: 'snooze',
+      });
+    };
 
     const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
       onOpenMenu({
@@ -145,7 +194,7 @@ export const CompactThreadCardRow = React.memo(
     return (
       <div
         {...longPress}
-        ref={shownRef}
+        ref={setShellRef}
         className={css.CardShell}
         data-room-id={roomId}
         data-scroll-anchor={rootId}
@@ -184,7 +233,10 @@ export const CompactThreadCardRow = React.memo(
             enabled={swipeEnabled}
             resolved={viewModel.isResolved}
             label={viewModel.isResolved ? reopenLabel : resolveLabel}
+            snoozed={snoozed}
+            snoozeLabel={canSnooze ? (snoozed ? unsnoozeLabel : snoozeLabel) : undefined}
             onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
+            onSnooze={canSnooze ? handleSnooze : undefined}
           >
             <MessageRowBoundary
               render={() => (

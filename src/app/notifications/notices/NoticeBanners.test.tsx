@@ -322,4 +322,30 @@ describe('NoticeBanners', () => {
     expect(content!.className).toBe('NoticeLayoutContent');
     expect(content!.textContent).toBe('App');
   });
+
+  it('skips polling while document.hidden and refreshes when returning to visible', async () => {
+    let hidden = false;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    serve({ status: 200, body: [] }, { status: 200, body: [notice('resumed')] });
+    try {
+      await render();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      hidden = true;
+      await act(async () => {
+        vi.advanceTimersByTime(120_000);
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      hidden = false;
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(texts()).toEqual(['Notice resumed']);
+    } finally {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    }
+  });
 });

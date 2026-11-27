@@ -1340,7 +1340,11 @@
         "toolCallFailed": "Didn't complete",
         "toolCallsAlsoFailed": "· {{failed}} didn't complete",
         "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} didn't complete",
-        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete"
+        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete",
+        "stepCommand": "Command",
+        "stepCopy": "Copy",
+        "stepCopied": "Copied",
+        "stepCopyFailed": "Copy failed"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Title settings…"
@@ -1789,7 +1793,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
-      "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+      "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page.",
+      "sendingTo": "Sending to {{agent}}:",
+      "undo": "Undo",
+      "sendNow": "Send now",
+      "sendingAnnouncement": "Sending to {{agent}}: {{label}}. Use Undo to cancel."
     },
     "invites": {
       "invalid": "This invite link is incomplete. Open the link from the mail again.",
@@ -1909,6 +1917,16 @@
       "visibilityMenu": {
         "showInSidebar": "Show in sidebar",
         "sidebarSettings": "Sidebar settings…"
+      }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android Push Notifications",
+        "description": "Allow Android push notifications for background message alerts.",
+        "notConfigured": "Android push is not configured by the deployment. Add `push.android` settings in `config.json`.",
+        "disabled": "Android push is disabled for this device.",
+        "registered": "Device registered for Android push notifications.",
+        "permissionDenied": "Notification permission is denied. Enable notifications for {{appName}} in Android Settings."
       }
     }
   },
