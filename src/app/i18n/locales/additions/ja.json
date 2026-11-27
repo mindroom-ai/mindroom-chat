@@ -1305,7 +1305,8 @@
         "toolRunningFor": "{{duration}}実行中",
         "toolCallFailed": "完了しませんでした",
         "toolCallsAlsoFailed": "· {{failed}} 件未完了",
-        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了"
+        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了",
+        "stepCommand": "コマンド"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "タイトルの設定…"

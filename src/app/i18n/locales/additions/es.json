@@ -1375,7 +1375,8 @@
         "toolCallsAlsoFailed": "· sin completar: {{failed}}",
         "toolCallsRanFailed_one": "Se ejecutó {{count}} llamada a herramienta · sin completar: {{failed}}",
         "toolCallsRanFailed_many": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}",
-        "toolCallsRanFailed_other": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}"
+        "toolCallsRanFailed_other": "Se ejecutaron {{count}} llamadas a herramientas · sin completar: {{failed}}",
+        "stepCommand": "Comando"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Ajustes de títulos…"

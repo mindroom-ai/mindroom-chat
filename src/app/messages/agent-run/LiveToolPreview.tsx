@@ -1,9 +1,14 @@
-import { useContext, useId, useRef, useState, type Ref } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Spinner } from 'folds';
 import { useStore } from 'jotai';
-import { toToolArgumentFields, valueText } from '../../approvals/argumentFields';
+import {
+  toToolArgumentFields,
+  valueText,
+  type ArgumentFields,
+} from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import { copyToClipboard } from '../../lib/dom';
 import { useLiveClock } from '../../lib/hooks/useLiveClock';
 import { formatWorkDuration } from '../../lib/time';
 import type { SubagentStatus } from '../../matrix/protocol/subagentFrame';
@@ -49,13 +54,16 @@ type SubagentStep = {
   state: StepState;
   toolName: string;
   arg?: string;
+  detailText?: string;
   startedAt?: number;
   endedAt?: number;
   output?: string;
+  result?: string;
 };
 
 const SUBAGENT_STEP_LIMIT = 4;
 const FALLBACK_OUTPUT_LINES = 6;
+const COPY_FEEDBACK_MS = 1_500;
 // Unlike `KEY_ORDER` in argumentFields.ts (which leads with approval/messaging keys like `to`/`room`),
 // live step rows lead with execution targets (commands, file paths, search patterns, URLs).
 const PRIMARY_ARG_KEYS = [
@@ -97,19 +105,40 @@ export const normalizeToolOutput = (value: unknown): string | undefined =>
 const tailLines = (text: string, maxLines: number): string =>
   text.split('\n').slice(-maxLines).join('\n');
 
+const findPrimaryArgText = (parsed: ArgumentFields): string | undefined => {
+  if (!('fields' in parsed)) return undefined;
+  for (const key of PRIMARY_ARG_KEYS) {
+    const match = parsed.fields.find((field) => field.key.toLowerCase() === key);
+    const text = match && valueText(match.value).trim();
+    if (text) return text;
+  }
+  return undefined;
+};
+
 /** Extracts one concise single-line primary argument from `args_preview`, preferring target keys. */
 export const extractPrimaryArg = (argsPreview: string | undefined): string | undefined => {
   const trimmed = argsPreview?.trim();
   if (!trimmed) return undefined;
-  const parsed = toToolArgumentFields(trimmed);
-  if ('fields' in parsed) {
-    for (const key of PRIMARY_ARG_KEYS) {
-      const match = parsed.fields.find((field) => field.key.toLowerCase() === key);
-      const text = match && valueText(match.value).replace(/\s+/g, ' ').trim();
-      if (text) return text;
-    }
-  }
+  const primary = findPrimaryArgText(toToolArgumentFields(trimmed));
+  if (primary) return primary.replace(/\s+/g, ' ');
   return revealDirectionControls(trimmed.replace(/\s+/g, ' ')) || undefined;
+};
+
+const extractStepDetail = (
+  toolName: string,
+  argsPreview: string | undefined,
+  arg: string | undefined
+): string | undefined => {
+  const trimmed = argsPreview?.trim();
+  if (!trimmed) return arg;
+  const parsed = toToolArgumentFields(trimmed);
+  if (isShellTool(toolName)) {
+    return findPrimaryArgText(parsed) ?? (revealDirectionControls(trimmed) || arg);
+  }
+  if ('fields' in parsed && parsed.fields.length > 1) {
+    return revealDirectionControls(trimmed) || arg;
+  }
+  return findPrimaryArgText(parsed) ?? arg ?? (revealDirectionControls(trimmed) || undefined);
 };
 
 const unfinishedStepState = (status: SubagentStatus): StepState => {
@@ -134,8 +163,8 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
           : event.is_error === true
             ? 'failed'
             : 'done';
-      const arg =
-        typeof event.args_preview === 'string' ? extractPrimaryArg(event.args_preview) : undefined;
+      const rawArgs = typeof event.args_preview === 'string' ? event.args_preview : undefined;
+      const arg = extractPrimaryArg(rawArgs);
       const startedAt = toolStartedAt(event);
       const callId = typeof event.tool_call_id === 'string' ? event.tool_call_id.trim() : '';
       const baseKey = callId
@@ -152,11 +181,16 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
         state,
         toolName,
         arg,
+        detailText: extractStepDetail(toolName, rawArgs, arg),
         startedAt,
         endedAt: toolEndedAt(event),
         output:
           state === 'running' || state === 'waiting'
             ? normalizeToolOutput(event.progress)
+            : undefined,
+        result:
+          state === 'done' || state === 'failed'
+            ? normalizeToolOutput(event.result_preview)
             : undefined,
       };
     });
@@ -205,23 +239,58 @@ function LiveStepElapsed({
   );
 }
 
-function TerminalWell({
-  lines,
-  output,
-  id,
-  wellRef,
-}: {
-  lines: TerminalLines;
-  output: string;
-  id?: string;
-  wellRef?: Ref<HTMLDivElement>;
-}) {
+function TerminalWell({ lines, output }: { lines: TerminalLines; output: string }) {
   return (
-    <div ref={wellRef} id={id} className={css.TerminalWell}>
+    <div className={css.TerminalWell}>
       <pre className={css.TerminalOutput[lines]} data-live-output="">
         {tailLines(output, css.LIVE_OUTPUT_LINES[lines])}
       </pre>
     </div>
+  );
+}
+
+function StepCopyButton({ text }: { text: string }) {
+  const { t } = useTranslation();
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tokenRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      tokenRef.current += 1;
+      clearTimeout(timerRef.current);
+    },
+    []
+  );
+
+  const settle = (token: number, next: 'copied' | 'failed') => {
+    if (tokenRef.current !== token) return;
+    setCopyState(next);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (tokenRef.current === token) setCopyState('idle');
+    }, COPY_FEEDBACK_MS);
+  };
+
+  const handleCopy = (event: MouseEvent<HTMLButtonElement>) => {
+    const token = (tokenRef.current += 1);
+    void copyToClipboard(text, event.currentTarget).then(
+      (ok) => settle(token, ok ? 'copied' : 'failed'),
+      () => settle(token, 'failed')
+    );
+  };
+
+  const label =
+    copyState === 'copied'
+      ? t('messageCodeBlock.copied')
+      : copyState === 'failed'
+        ? t('featureUi.desktopAccess.browser.copyFailed')
+        : t('featureUi.settings.account.matrixId.copy');
+
+  return (
+    <button type="button" className={css.CopyButton} data-live-step-copy="" onClick={handleCopy}>
+      <span aria-live="polite">{label}</span>
+    </button>
   );
 }
 
@@ -230,32 +299,40 @@ function LiveStepRow({
   waitingStatus,
   toolName,
   arg,
+  detailText,
   startedAt,
   endedAt,
   output,
+  result,
   outputLines = 'subagent',
 }: {
   state: StepState;
   waitingStatus?: ToolCallWaitingStatus;
   toolName: string;
   arg?: string;
+  detailText?: string;
   startedAt?: number;
   endedAt?: number;
   output?: string;
+  result?: string;
   outputLines?: TerminalLines;
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const [open, setOpen] = useState(true);
-  const outputId = useId();
+  const [open, setOpen] = useState(false);
+  const drawerId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
-  const armReveal = useRevealOnOpen(open, toggleRef, outputRef);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(open, toggleRef, drawerRef);
   const statusLabel = t(stepStatusLabelKey(state, waitingStatus));
   const stepNameClass = css.StepName[state === 'running' || state === 'waiting' ? 'active' : state];
+  const detail = detailText ?? arg;
+  const activeOutput = state === 'running' || state === 'waiting' ? output : undefined;
+  const stepResult = state === 'done' || state === 'failed' ? result : undefined;
+  const expandable = Boolean(detail || activeOutput || stepResult);
 
-  const content = (
-    <>
+  const head = (
+    <span className={css.StepHead}>
       <span className={css.StepIcon[state]} role="img" aria-label={statusLabel} title={statusLabel}>
         {state === 'running' ? (
           <Spinner size="50" variant="Secondary" aria-hidden />
@@ -264,38 +341,77 @@ function LiveStepRow({
         )}
       </span>
       <span className={stepNameClass}>{toolName}</span>
-      {arg && (
-        <span className={css.StepArg} title={arg} {...ownDirectionLine}>
-          {arg}
-        </span>
-      )}
       <LiveStepElapsed state={state} startedAt={startedAt} endedAt={endedAt} language={language} />
-    </>
+      {expandable && (
+        <Icon size="50" className={css.StepChevron} src={Icons.ChevronRight} aria-hidden />
+      )}
+    </span>
   );
 
   return (
     <div className={css.Step} data-live-step={state}>
-      {(state === 'running' || state === 'waiting') && output ? (
+      {expandable ? (
         <>
           <button
             ref={toggleRef}
             type="button"
             className={css.StepRowButton}
             aria-expanded={open}
-            aria-controls={outputId}
+            aria-controls={drawerId}
             onClick={() => {
               if (!open) armReveal();
               setOpen((value) => !value);
             }}
           >
-            {content}
+            {head}
+            {arg && !open && (
+              <span className={css.StepArg} title={arg} {...ownDirectionLine}>
+                {arg}
+              </span>
+            )}
           </button>
+          {!open && activeOutput && <TerminalWell lines={outputLines} output={activeOutput} />}
           {open && (
-            <TerminalWell wellRef={outputRef} id={outputId} lines={outputLines} output={output} />
+            <div ref={drawerRef} id={drawerId} className={css.Drawer} data-live-step-drawer="">
+              {detail && (
+                <>
+                  <div className={css.DrawerHead}>
+                    <span className={css.DrawerLabel}>
+                      {t(
+                        isShellTool(toolName)
+                          ? 'mindroomUi.messages.mindroomHtmlBlocks.stepCommand'
+                          : 'mindroomUi.messages.approvalArguments.arguments'
+                      )}
+                    </span>
+                    <StepCopyButton text={detail} />
+                  </div>
+                  <pre className={css.DrawerCode} data-live-step-command="" {...ownDirectionLine}>
+                    {detail}
+                  </pre>
+                </>
+              )}
+              {detail && (activeOutput || stepResult) && (
+                <div className={css.DrawerDivider} aria-hidden />
+              )}
+              {activeOutput ? (
+                <pre className={css.DrawerOutput} data-live-output="">
+                  {activeOutput}
+                </pre>
+              ) : (
+                stepResult && (
+                  <pre
+                    className={css.DrawerResult[state === 'failed' ? 'failed' : 'done']}
+                    data-live-step-result=""
+                  >
+                    {stepResult}
+                  </pre>
+                )
+              )}
+            </div>
           )}
         </>
       ) : (
-        <div className={css.StepRow}>{content}</div>
+        <div className={css.StepRow}>{head}</div>
       )}
     </div>
   );
@@ -350,9 +466,11 @@ function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentR
               waitingStatus={waitingStatus}
               toolName={step.toolName}
               arg={step.arg}
+              detailText={step.detailText}
               startedAt={step.startedAt}
               endedAt={step.endedAt}
               output={step.output}
+              result={step.result}
               outputLines="subagent"
             />
           ))}
@@ -384,15 +502,17 @@ export function LiveToolPreview({ running, roomId, threadId, sender }: LiveToolP
         return [<SubagentPreviewCard key={`subagent-${tool.index}`} tool={tool} run={run} />];
     }
     if (isShellTool(tool.toolName)) {
+      const arg = extractPrimaryArg(tool.argsPreview);
       return [
         <div key={`shell-${tool.index}`} className={css.Card} data-live-shell={tool.index}>
           <LiveStepRow
             state={shellState}
             waitingStatus={waitingStatus}
             toolName={tool.toolName}
-            arg={extractPrimaryArg(tool.argsPreview)}
+            arg={arg}
+            detailText={extractStepDetail(tool.toolName, tool.argsPreview, arg)}
             startedAt={tool.startedAt}
-            output={tool.progress}
+            output={normalizeToolOutput(tool.progress)}
             outputLines="shell"
           />
         </div>,

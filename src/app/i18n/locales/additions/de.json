@@ -1340,7 +1340,8 @@
         "toolCallFailed": "Nicht abgeschlossen",
         "toolCallsAlsoFailed": "· {{failed}} nicht abgeschlossen",
         "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} nicht abgeschlossen",
-        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen"
+        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen",
+        "stepCommand": "Befehl"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"

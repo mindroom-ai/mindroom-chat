@@ -107,8 +107,9 @@ export const Step = style({
 
 export const StepRow = style({
   display: 'flex',
-  alignItems: 'center',
-  gap: toRem(8),
+  flexDirection: 'column',
+  alignItems: 'stretch',
+  gap: toRem(2),
   width: '100%',
   minWidth: 0,
   paddingBlock: toRem(6),
@@ -122,6 +123,7 @@ export const StepRowButton = style([
   DefaultReset,
   StepRow,
   {
+    justifyContent: 'center',
     border: 'none',
     background: 'none',
     font: 'inherit',
@@ -145,6 +147,14 @@ export const StepRowButton = style([
   },
 ]);
 
+export const StepHead = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: toRem(8),
+  width: '100%',
+  minWidth: 0,
+});
+
 const stepIconBase = style({
   display: 'grid',
   placeItems: 'center',
@@ -164,6 +174,7 @@ const stepNameBase = style({
   ...mono,
   ...truncate,
   flex: '0 1 auto',
+  marginInlineEnd: 'auto',
   color: color.Surface.OnContainer,
 });
 
@@ -173,15 +184,39 @@ export const StepName = styleVariants({
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
 
-export const StepArg = style({ ...mono, ...truncate, ...muted, flex: '1 1 0px' });
+// Indented past StepIcon (16px) + StepHead gap (8px) so wrapped args align under StepName.
+export const StepArg = style({
+  ...mono,
+  ...muted,
+  display: '-webkit-box',
+  minWidth: 0,
+  paddingInlineStart: toRem(24),
+  overflow: 'hidden',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+});
 
 export const StepElapsed = style({
   ...muted,
-  marginInlineStart: 'auto',
   flexShrink: 0,
   fontSize: toRem(11.5),
   fontVariantNumeric: 'tabular-nums',
   whiteSpace: 'nowrap',
+});
+
+export const StepChevron = style({
+  flexShrink: 0,
+  color: color.Surface.OnContainer,
+  opacity: config.opacity.P400,
+  selectors: {
+    '[dir=rtl] &': { transform: 'rotate(180deg)' },
+    [`${StepRowButton}[aria-expanded="true"] &`]: { transform: 'rotate(90deg)' },
+  },
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },
+  },
 });
 
 const TERMINAL_LINE_HEIGHT = 1.45;
@@ -209,3 +244,66 @@ export const TerminalOutput = styleVariants(LIVE_OUTPUT_LINES, (lines) => [
   terminalOutputBase,
   { maxHeight: `${TERMINAL_LINE_HEIGHT * lines}em` },
 ]);
+
+export const Drawer = style([
+  TerminalWell,
+  { display: 'flex', flexDirection: 'column', gap: toRem(6) },
+]);
+
+export const DrawerHead = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+
+export const DrawerLabel = style({
+  ...muted,
+  fontSize: toRem(11),
+  fontWeight: config.fontWeight.W600,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+});
+
+export const CopyButton = style([
+  OpenButton,
+  { border: hairline, fontSize: toRem(11.5), lineHeight: 1.3 },
+]);
+
+export const DrawerCode = style([
+  DefaultReset,
+  mono,
+  {
+    margin: 0,
+    color: color.Surface.OnContainer,
+    lineHeight: TERMINAL_LINE_HEIGHT,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    userSelect: 'text',
+  },
+]);
+
+export const DrawerDivider = style({
+  borderTop: `${config.borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
+});
+
+export const DrawerOutput = style([
+  terminalOutputBase,
+  { display: 'block', maxHeight: '16em', overflowX: 'hidden', overflowY: 'auto', userSelect: 'text' },
+]);
+
+// Warning.OnContainer on an 8% Warning.Main tint keeps >= 5.08:1 contrast across all 23 palettes.
+export const DrawerResult = styleVariants({
+  done: [DrawerOutput],
+  failed: [
+    DrawerOutput,
+    {
+      color: color.Warning.OnContainer,
+      opacity: 1,
+      paddingBlock: toRem(4),
+      paddingInline: toRem(6),
+      borderRadius: config.radii.R300,
+      backgroundColor: `color-mix(in srgb, ${color.Warning.Main} 8%, transparent)`,
+    },
+  ],
+});

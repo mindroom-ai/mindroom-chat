@@ -1305,7 +1305,8 @@
         "toolRunningFor": "已執行 {{duration}}",
         "toolCallFailed": "未完成",
         "toolCallsAlsoFailed": "· {{failed}} 個未完成",
-        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成"
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成",
+        "stepCommand": "指令"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"

@@ -1410,7 +1410,8 @@
         "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · не завершено: {{failed}}",
         "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
         "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · не завершено: {{failed}}",
-        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}"
+        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
+        "stepCommand": "Команда"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий…"

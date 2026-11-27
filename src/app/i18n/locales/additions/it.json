@@ -1375,7 +1375,8 @@
         "toolCallsAlsoFailed": "· chiamate non completate: {{failed}}",
         "toolCallsRanFailed_one": "{{count}} chiamata a strumento eseguita · chiamate non completate: {{failed}}",
         "toolCallsRanFailed_many": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}"
+        "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
+        "stepCommand": "Comando"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Impostazioni dei titoli…"

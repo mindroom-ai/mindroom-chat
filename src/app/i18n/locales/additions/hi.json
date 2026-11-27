@@ -1340,7 +1340,8 @@
         "toolCallFailed": "पूरा नहीं हुआ",
         "toolCallsAlsoFailed": "· अधूरी टूल कॉल की संख्या: {{failed}}",
         "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · अधूरी टूल कॉल की संख्या: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}"
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}",
+        "stepCommand": "कमांड"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"
