@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -11,6 +13,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // MindRoom posts each new thread title as a notice of its own. A thread titled three times with
 // one word in every title, plus messages with the word in the thread and in the room: search lists
 // the thread's titles once, as its current title, opening the thread, and keeps every message.
+const SHOTS = process.env.PALETTE_THREAD_TITLE_SHOTS;
 const PASSWORD = 'placeholder-password-1';
 const run = randomUUID().slice(0, 6);
 type Account = { username: string; userId: string; accessToken: string };
@@ -317,4 +320,95 @@ test('after a failed next page and a refresh that works, a failed refresh shows 
   await expect(alert).toHaveText('Search failed. Try again.', { timeout: 30_000 });
   await expect(retry).toHaveCount(0);
   await expect(page.locator('article')).toHaveCount(1);
+});
+
+test('the palette shows the thread title on edited thread replies and thread roots', async ({
+  browser,
+  baseURL,
+}) => {
+  const threadTitle = 'Greenhouse watering plan';
+  await send(alice, roomId, {
+    msgtype: 'm.text',
+    body: 'Standalone note: marigold seeds arrived at the studio.',
+  });
+  const marigoldRoot = await send(alice, roomId, {
+    msgtype: 'm.text',
+    body: '@Helper can you draft the marigold greenhouse schedule?',
+  });
+  const streamingReplyId = await send(helper, roomId, {
+    msgtype: 'm.text',
+    body: 'Thinking...',
+    ...inThread(marigoldRoot, marigoldRoot),
+  });
+  const editedBody = 'The marigold watering schedule runs every Tuesday and Friday morning.';
+  await send(helper, roomId, {
+    msgtype: 'm.text',
+    body: `* ${editedBody}`,
+    'm.new_content': { msgtype: 'm.text', body: editedBody },
+    'm.relates_to': { rel_type: 'm.replace', event_id: streamingReplyId },
+  });
+  await send(helper, roomId, {
+    msgtype: 'm.notice',
+    body: threadTitle,
+    'io.mindroom.thread_summary': {
+      version: 1,
+      summary: threadTitle,
+      message_count: 2,
+      generated_at: new Date().toISOString(),
+      model: 'test',
+    },
+    ...inThread(marigoldRoot, streamingReplyId),
+  });
+
+  const context = await browser.newContext({
+    baseURL,
+    viewport: { width: 1280, height: 800 },
+    deviceScaleFactor: 2,
+  });
+  const page = await context.newPage();
+  try {
+    await login(page);
+    await pressPaletteShortcut(page);
+    await palette(page).getByRole('combobox').fill('marigold');
+    const rows = palette(page).locator('[role="option"][data-kind="message"]');
+    await expect(rows).toHaveCount(3, { timeout: 30_000 });
+
+    const editedReplyRow = rows.filter({ hasText: 'watering schedule runs every Tuesday' });
+    const rootRow = rows.filter({ hasText: 'draft the marigold greenhouse schedule' });
+    const standaloneRow = rows.filter({ hasText: 'marigold seeds arrived' });
+
+    try {
+      await expect(editedReplyRow).toContainText(`› ${threadTitle}`, { timeout: 10_000 });
+      await expect(rootRow).toContainText(`› ${threadTitle}`, { timeout: 10_000 });
+    } finally {
+      if (SHOTS) {
+        mkdirSync(SHOTS, { recursive: true });
+        await palette(page).screenshot({ path: join(SHOTS, 'palette-thread-titles.png') });
+      }
+    }
+
+    await expect(editedReplyRow).toContainText('Project Alpha');
+    await expect(rootRow).toContainText('Project Alpha');
+    await expect(standaloneRow).toContainText('Project Alpha');
+    await expect(standaloneRow).not.toContainText('›');
+
+    await editedReplyRow.click();
+    await expect(page).toHaveURL(
+      (url) =>
+        url.searchParams.get('threadId') === marigoldRoot &&
+        decodeURIComponent(url.pathname).includes(streamingReplyId)
+    );
+
+    await pressPaletteShortcut(page);
+    await palette(page).getByRole('combobox').fill('marigold');
+    await expect(rootRow).toContainText(`› ${threadTitle}`, { timeout: 15_000 });
+    await rootRow.click();
+    await expect(page).toHaveURL(
+      (url) =>
+        url.searchParams.get('threadId') === marigoldRoot &&
+        decodeURIComponent(url.pathname).includes(marigoldRoot)
+    );
+  } finally {
+    await context.close();
+  }
 });
