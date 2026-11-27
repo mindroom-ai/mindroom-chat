@@ -1,4 +1,4 @@
-import { EventTimeline, RelationType, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { EventTimeline, MsgType, RelationType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
@@ -123,7 +123,13 @@ export async function setThreadResolved(
 export const unsnoozeThread = (mx: MatrixClient, room: Room, threadRootId: string): Promise<void> =>
   writeThreadTag(mx, room, threadRootId, SNOOZED_TAG, false);
 
-const getThreadReplyRootId = (relation: unknown): string | undefined => {
+const getThreadReplyRootId = (content: unknown): string | undefined => {
+  if (!content || typeof content !== 'object') return undefined;
+  const { msgtype, 'm.relates_to': relation } = content as {
+    msgtype?: unknown;
+    'm.relates_to'?: unknown;
+  };
+  if (typeof msgtype === 'string' && matchesEnum(msgtype, MsgType.Notice)) return undefined;
   if (!relation || typeof relation !== 'object') return undefined;
   const { rel_type: relType, event_id: eventId } = relation as {
     rel_type?: unknown;
@@ -146,15 +152,15 @@ const sameResolvedTag = (left: TagMetadata, right: TagMetadata): boolean =>
 
 /**
  * Captures the resolved-tag snapshot of a thread reply target before send, or `undefined` when
- * the message is not an `m.thread` reply, the thread is not resolved, is pinned, or already has a
- * pending `resolved` write. Never throws.
+ * the message is an `m.notice` or not an `m.thread` reply, or the thread is not resolved, is
+ * pinned, or already has a pending `resolved` write. Never throws.
  */
 export const captureResolvedThreadBeforeReply = (
   room: Room,
-  relation: unknown
+  content: unknown
 ): ResolvedThreadReplySnapshot | undefined => {
   try {
-    const threadRootId = getThreadReplyRootId(relation);
+    const threadRootId = getThreadReplyRootId(content);
     if (
       !threadRootId ||
       isThreadPinned(room, threadRootId) ||

@@ -154,10 +154,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
       else if (rootModel) Object.assign(content, rootModel);
-      const resolvedBeforeSend = captureResolvedThreadBeforeReply(
-        context.room,
-        content['m.relates_to']
-      );
+      const resolvedBeforeSend = captureResolvedThreadBeforeReply(context.room, content);
       const txnId = mx.makeTxnId();
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);

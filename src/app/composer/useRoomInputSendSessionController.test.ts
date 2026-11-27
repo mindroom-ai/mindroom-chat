@@ -2997,7 +2997,15 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
       mx.sendStateEvent.mockClear();
       await act(async () =>
         api.startSendSession({
-          textContent: { msgtype: 'm.text', body: 'follow-up' },
+          textContent: { msgtype: 'm.notice', body: 'FYI' },
+          context: ctx,
+        })
+      );
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+      await act(async () =>
+        api.startSendSession({
+          textContent: { msgtype: 'm.emote', body: 'waves' },
           context: ctx,
         })
       );

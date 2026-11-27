@@ -13,7 +13,7 @@ import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { threadActorName } from '../threads/cross-room/threadText';
 import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
 import { readCaptureThreads } from './captureThreads';
-import { sendCaptureReply } from './sendCapture';
+import { sendCaptureReply, setCaptureResolved } from './sendCapture';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock('../threads/cross-room/threadSignalsReader', () => ({
@@ -482,6 +482,61 @@ describe('readCaptureThreads', () => {
       ]);
       releaseTagWrites();
       await heldTagWrite;
+    } finally {
+      resetPendingThreadTagsForTests();
+    }
+  });
+
+  it('reports resolved: true immediately after reply -> sync -> manual setCaptureResolved without a mounted room view', async () => {
+    const root = message('$t', { msgtype: 'm.text', body: 'Topic' }, 500, '@me:x');
+    Object.defineProperty(root, 'isThreadRoot', { value: true, configurable: true });
+    let stateEvents = [
+      stateEvent(
+        MINDROOM_THREAD_TAGS_EVENT,
+        buildPerTagStateKey('$t', RESOLVED_TAG),
+        buildPerTagEventContent('@me:x')
+      ),
+    ];
+    const room = {
+      ...makeRoom({ loaded: [root], timeline: [root] }),
+      getLiveTimeline: () => ({
+        getEvents: () => [root],
+        getState: () => ({
+          getStateEvents: (type: string, key?: string) =>
+            key === undefined
+              ? stateEvents.filter((event) => event.getType() === type)
+              : (stateEvents.find(
+                  (event) => event.getType() === type && event.getStateKey() === key
+                ) ?? null),
+        }),
+      }),
+    } as unknown as Room;
+    let txns = 0;
+    const replyMx = {
+      ...mx,
+      getSafeUserId: () => '@me:x',
+      makeTxnId: () => `txn-${(txns += 1)}`,
+      sendMessage: vi.fn(async () => ({ event_id: '$reply-1' })),
+      sendStateEvent: vi.fn(async () => ({ event_id: '$tag' })),
+    } as unknown as MatrixClient;
+
+    try {
+      // Reply sets pending removal (no room view mounted to settle it on sync).
+      await sendCaptureReply(replyMx, room, '$t', 'Reopen', { markdown: true });
+      // Sync echoes the tombstone so live state is open while the pending removal lingers.
+      stateEvents = [];
+      // User manually resolves the thread again from Quick Capture.
+      await setCaptureResolved(replyMx, room, '$t', true);
+
+      const [thread] = readCaptureThreads(
+        replyMx,
+        room,
+        [makeEntry('$t', { isResolved: true, resolvedTs: 1200 })],
+        t,
+        NOW
+      );
+      expect(thread?.resolved).toBe(true);
+      expect(thread?.resolvedTs).toBe(1200);
     } finally {
       resetPendingThreadTagsForTests();
     }

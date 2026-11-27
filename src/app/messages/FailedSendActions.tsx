@@ -46,10 +46,7 @@ export function FailedSendActions({
       refresh();
       return;
     }
-    const resolvedBeforeSend = captureResolvedThreadBeforeReply(
-      room,
-      event.getContent()['m.relates_to']
-    );
+    const resolvedBeforeSend = captureResolvedThreadBeforeReply(room, event.getContent?.());
     // The SDK reuses the transaction ID, so the server drops a copy that already arrived.
     // A failed retry marks the event unsent again, which brings these actions back.
     mx.resendEvent(event, room)

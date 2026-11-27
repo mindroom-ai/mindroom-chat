@@ -2,9 +2,21 @@ import { useEffect, useMemo } from 'react';
 import { useStore, type Atom } from 'jotai';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  RoomEvent,
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../config/useClientConfig';
-import { subscribePendingThreadTags } from '../event-store/threads/threadTagPending';
+import {
+  getPendingThreadTagRootIds,
+  settlePendingThreadTags,
+  subscribePendingThreadTags,
+} from '../event-store/threads/threadTagPending';
+import { getRoomThreadTagSnapshotMap } from '../event-store/threads/threadTagSnapshots';
+import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../matrix/session/sessions';
@@ -239,13 +251,35 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       const onRoomEvent = (_event: MatrixEvent, room: Room | undefined) => {
         if (room && room.roomId === store.get(roomAtom)) scheduleState();
       };
+      const onRoomStateEvent = (event: MatrixEvent) => {
+        if (event.getType() !== MINDROOM_THREAD_TAGS_EVENT) return;
+        const eventRoomId = event.getRoomId();
+        if (!eventRoomId) return;
+        const targetRoom = mx.getRoom(eventRoomId);
+        if (targetRoom) {
+          const pendingRootIds = getPendingThreadTagRootIds(eventRoomId);
+          if (pendingRootIds.length > 0) {
+            const snapshots = getRoomThreadTagSnapshotMap(targetRoom);
+            pendingRootIds.forEach((threadRootId) => {
+              settlePendingThreadTags(
+                eventRoomId,
+                threadRootId,
+                snapshots.get(threadRootId)?.content ?? { tags: {} }
+              );
+            });
+          }
+        }
+        if (eventRoomId === store.get(roomAtom)) scheduleState();
+      };
       mx.on(RoomEvent.Timeline, onRoomEvent);
       mx.on(RoomEvent.LocalEchoUpdated, onRoomEvent);
+      mx.on(RoomStateEvent.Events, onRoomStateEvent);
       const clock = setInterval(scheduleState, CLOCK_MS);
       return () => {
         unsubscribes.forEach((unsubscribe) => unsubscribe());
         mx.off(RoomEvent.Timeline, onRoomEvent);
         mx.off(RoomEvent.LocalEchoUpdated, onRoomEvent);
+        mx.off(RoomStateEvent.Events, onRoomStateEvent);
         clearInterval(clock);
       };
     };
@@ -267,7 +301,8 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       if (
         result.ok &&
         (action.kind === 'selectRoom' ||
-          ((action.kind === 'reply' || action.kind === 'send') && stateTimer !== undefined))
+          ((action.kind === 'reply' || action.kind === 'send' || action.kind === 'resolve') &&
+            stateTimer !== undefined))
       ) {
         postState();
       }

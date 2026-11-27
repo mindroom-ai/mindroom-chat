@@ -2,7 +2,7 @@
 import { EventEmitter } from 'events';
 import { act, cleanup, render } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { MatrixEvent, RoomEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, RoomEvent, RoomStateEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
 import { createSessionId } from '../matrix/session/sessions';
@@ -24,10 +24,16 @@ import type { CaptureChannel } from './captureChannel';
 import type { CaptureAction, CaptureMessage, CaptureResult } from './captureProtocol';
 import { QuickCaptureHost } from './QuickCaptureHost';
 import {
+  hasPendingThreadTag,
   resetPendingThreadTagsForTests,
   setPendingThreadTag,
 } from '../event-store/threads/threadTagPending';
-import { RESOLVED_TAG } from '../event-store/threads/threadTags';
+import {
+  buildPerTagEventContent,
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import { CaptureError, sendCapture, sendCaptureReply, setCaptureResolved } from './sendCapture';
 
 const mocks = vi.hoisted(() => ({
@@ -432,6 +438,37 @@ describe('QuickCaptureHost', () => {
     });
     expect(statesIn(posted).at(-1)?.state.items).toMatchObject([
       { threadId: '$t1', resolved: false },
+    ]);
+
+    // Syncing the tombstone settles the pending tag even with no room view mounted.
+    const hostClient = mocks.mx as ReturnType<typeof makeClient>;
+    act(() => {
+      hostClient.emit(
+        RoomStateEvent.Events,
+        new MatrixEvent({
+          type: MINDROOM_THREAD_TAGS_EVENT,
+          room_id: '!a',
+          state_key: buildPerTagStateKey('$t1', RESOLVED_TAG),
+          content: {},
+        })
+      );
+    });
+    expect(hasPendingThreadTag('!a', '$t1', RESOLVED_TAG)).toBe(false);
+
+    // Manual resolve pushes optimistic resolved: true immediately.
+    vi.mocked(setCaptureResolved).mockImplementationOnce(async (_mx, room, threadId, resolved) => {
+      setPendingThreadTag(
+        room.roomId,
+        threadId,
+        RESOLVED_TAG,
+        resolved ? buildPerTagEventContent(USER_ID) : null
+      );
+    });
+    expect(
+      await request({ kind: 'resolve', roomId: '!a', threadId: '$t1', resolved: true })
+    ).toEqual({ ok: true });
+    expect(statesIn(posted).at(-1)?.state.items).toMatchObject([
+      { threadId: '$t1', resolved: true },
     ]);
   });
 

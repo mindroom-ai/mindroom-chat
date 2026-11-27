@@ -75,12 +75,7 @@ export const sendComposerSticker = async (
   const info = findStickerInfo(packs, sticker.mxc);
   const { threadRootId, content } = composeSticker(target, { ...sticker, info });
   const room = target.room ?? mx.getRoom?.(target.roomId) ?? undefined;
-  const resolvedBeforeSend = room
-    ? captureResolvedThreadBeforeReply(
-        room,
-        (content as { 'm.relates_to'?: unknown })['m.relates_to']
-      )
-    : undefined;
+  const resolvedBeforeSend = room ? captureResolvedThreadBeforeReply(room, content) : undefined;
   const response = await mx.sendEvent(target.roomId, threadRootId, EventType.Sticker, content);
   if (room) void reopenResolvedThreadAfterReply(mx, room, resolvedBeforeSend);
   return response;

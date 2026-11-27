@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RelationType, type MatrixClient } from 'matrix-js-sdk';
+import { MsgType, RelationType, type MatrixClient } from 'matrix-js-sdk';
 import {
   makeResolvedTagEvent,
   makeResolvedThreadRoom,
@@ -20,6 +20,7 @@ const ROOM_ID = '!room:example.org';
 const ROOT_ID = '$root';
 const USER_ID = '@alice:example.org';
 const threadRelation = { rel_type: RelationType.Thread, event_id: ROOT_ID };
+const threadText = { msgtype: MsgType.Text, body: 'hi', 'm.relates_to': threadRelation };
 
 const makeClient = (sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$tag' })) => ({
   client: {
@@ -46,7 +47,7 @@ describe('reopenResolvedThreadAfterReply', () => {
     const reopening = reopenResolvedThreadAfterReply(
       client,
       room,
-      captureResolvedThreadBeforeReply(room, threadRelation)
+      captureResolvedThreadBeforeReply(room, threadText)
     );
     expect(hasPendingThreadTag(ROOM_ID, ROOT_ID, RESOLVED_TAG)).toBe(true);
     expect(
@@ -64,31 +65,61 @@ describe('reopenResolvedThreadAfterReply', () => {
     await reopening;
   });
 
-  it('ignores main-timeline messages, classic replies, and m.replace edits', () => {
+  it('ignores main-timeline messages, classic replies, m.replace edits, and m.notice while accepting m.emote and stickers', () => {
     const { room } = makeResolvedThreadRoom();
     expect(captureResolvedThreadBeforeReply(room, undefined)).toBeUndefined();
     expect(
-      captureResolvedThreadBeforeReply(room, { 'm.in_reply_to': { event_id: ROOT_ID } })
+      captureResolvedThreadBeforeReply(room, { msgtype: MsgType.Text, body: 'hi' })
     ).toBeUndefined();
     expect(
-      captureResolvedThreadBeforeReply(room, { rel_type: RelationType.Replace, event_id: ROOT_ID })
+      captureResolvedThreadBeforeReply(room, {
+        msgtype: MsgType.Text,
+        'm.relates_to': { 'm.in_reply_to': { event_id: ROOT_ID } },
+      })
     ).toBeUndefined();
+    expect(
+      captureResolvedThreadBeforeReply(room, {
+        msgtype: MsgType.Text,
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: ROOT_ID },
+      })
+    ).toBeUndefined();
+    expect(
+      captureResolvedThreadBeforeReply(room, {
+        msgtype: MsgType.Notice,
+        body: 'FYI',
+        'm.relates_to': threadRelation,
+      })
+    ).toBeUndefined();
+    expect(
+      captureResolvedThreadBeforeReply(room, {
+        msgtype: MsgType.Emote,
+        body: 'waves',
+        'm.relates_to': threadRelation,
+      })?.threadRootId
+    ).toBe(ROOT_ID);
+    expect(
+      captureResolvedThreadBeforeReply(room, {
+        body: 'Wave',
+        url: 'mxc://example.org/wave',
+        'm.relates_to': threadRelation,
+      })?.threadRootId
+    ).toBe(ROOT_ID);
   });
 
   it('skips when unresolved before send, reopened during send, or replaced by a newer resolve', async () => {
     const { room, state } = makeResolvedThreadRoom({ tagEvents: [] });
     const { client, sendStateEvent } = makeClient();
 
-    const beforeUnresolved = captureResolvedThreadBeforeReply(room, threadRelation);
+    const beforeUnresolved = captureResolvedThreadBeforeReply(room, threadText);
     state.tagEvents = [makeResolvedTagEvent({ ts: 2000 })];
     await reopenResolvedThreadAfterReply(client, room, beforeUnresolved);
 
-    const beforeReopened = captureResolvedThreadBeforeReply(room, threadRelation);
+    const beforeReopened = captureResolvedThreadBeforeReply(room, threadText);
     state.tagEvents = [];
     await reopenResolvedThreadAfterReply(client, room, beforeReopened);
 
     state.tagEvents = [makeResolvedTagEvent({ ts: 2000, setAt: '2026-11-27T10:00:00.000Z' })];
-    const beforeReplaced = captureResolvedThreadBeforeReply(room, threadRelation);
+    const beforeReplaced = captureResolvedThreadBeforeReply(room, threadText);
     state.tagEvents = [makeResolvedTagEvent({ ts: 3000, setAt: '2026-11-27T10:05:00.000Z' })];
     await reopenResolvedThreadAfterReply(client, room, beforeReplaced);
     expect(sendStateEvent).not.toHaveBeenCalled();
@@ -98,12 +129,12 @@ describe('reopenResolvedThreadAfterReply', () => {
     const { room, state } = makeResolvedThreadRoom();
     const { client, sendStateEvent } = makeClient();
 
-    const captured = captureResolvedThreadBeforeReply(room, threadRelation);
+    const captured = captureResolvedThreadBeforeReply(room, threadText);
     setPendingThreadTag(ROOM_ID, ROOT_ID, RESOLVED_TAG, null);
     await reopenResolvedThreadAfterReply(client, room, captured);
     resetPendingThreadTagsForTests();
 
-    const beforePin = captureResolvedThreadBeforeReply(room, threadRelation);
+    const beforePin = captureResolvedThreadBeforeReply(room, threadText);
     state.pinnedIds = [ROOT_ID];
     await reopenResolvedThreadAfterReply(client, room, beforePin);
     expect(sendStateEvent).not.toHaveBeenCalled();
@@ -116,7 +147,7 @@ describe('reopenResolvedThreadAfterReply', () => {
     await reopenResolvedThreadAfterReply(
       client,
       room,
-      captureResolvedThreadBeforeReply(room, threadRelation)
+      captureResolvedThreadBeforeReply(room, threadText)
     );
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
   });
@@ -129,7 +160,7 @@ describe('reopenResolvedThreadAfterReply', () => {
     await reopenResolvedThreadAfterReply(
       denied.client,
       restricted.room,
-      captureResolvedThreadBeforeReply(restricted.room, threadRelation)
+      captureResolvedThreadBeforeReply(restricted.room, threadText)
     );
     expect(denied.sendStateEvent).not.toHaveBeenCalled();
 
@@ -142,7 +173,7 @@ describe('reopenResolvedThreadAfterReply', () => {
       reopenResolvedThreadAfterReply(
         failing.client,
         v12.room,
-        captureResolvedThreadBeforeReply(v12.room, threadRelation)
+        captureResolvedThreadBeforeReply(v12.room, threadText)
       )
     ).resolves.toBeUndefined();
     expect(failing.sendStateEvent).toHaveBeenCalledTimes(1);
@@ -154,7 +185,7 @@ describe('reopenResolvedThreadAfterReply', () => {
         throw new Error('broken state');
       },
     } as never;
-    expect(captureResolvedThreadBeforeReply(brokenRoom, threadRelation)).toBeUndefined();
+    expect(captureResolvedThreadBeforeReply(brokenRoom, threadText)).toBeUndefined();
     await expect(
       reopenResolvedThreadAfterReply(failing.client, brokenRoom, {
         threadRootId: ROOT_ID,

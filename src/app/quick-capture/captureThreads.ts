@@ -148,12 +148,8 @@ const readReply = (
   };
 };
 
-/**
- * The user's own roots in the room's live timeline that nobody answered and `known` does not
- * hold: the entries posted there. In a chat room every other message would be one too. Their
- * resolved tags are read as the index reads them: a pinned thread is never resolved.
- */
 const EMPTY_TAGS: ThreadTagsContent = { tags: {} };
+// Index entries carry only boolean isResolved/resolvedTs; isThreadResolved only checks key presence.
 const LIVE_RESOLVED_TAGS: ThreadTagsContent = {
   tags: { [RESOLVED_TAG]: { set_by: '', set_at: '' } },
 };
@@ -176,6 +172,11 @@ const readEffectiveResolution = (
   };
 };
 
+/**
+ * The user's own roots in the room's live timeline that nobody answered and `known` does not
+ * hold: the entries posted there. In a chat room every other message would be one too. Their
+ * resolved tags are read as the index reads them: a pinned thread is never resolved.
+ */
 const unansweredRoots = (
   room: Room,
   userId: string,

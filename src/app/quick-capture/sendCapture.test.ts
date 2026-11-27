@@ -111,6 +111,7 @@ const expectCaptureError = async (promise: Promise<unknown>, code: string) => {
 };
 
 afterEach(() => {
+  resetPendingThreadTagsForTests();
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -581,6 +582,23 @@ describe('sendCaptureReply', () => {
 
     await sendCaptureReply(mx as never, room as never, '$root', 'x'.repeat(70_000), markdown);
     expect(mx.sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen on /notice, but still reopens on /me', async () => {
+    const { room: baseRoom } = makeResolvedThreadRoom({ roomId: ROOM_ID, userId: USER_ID });
+    const room = { ...plainRoom, ...baseRoom };
+    const mx = client();
+
+    await sendCaptureReply(mx as never, room as never, '$root', '/notice FYI', markdown);
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+    await sendCaptureReply(mx as never, room as never, '$root', '/me waves', markdown);
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      ROOM_ID,
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      buildPerTagStateKey('$root', RESOLVED_TAG)
+    );
   });
 });
 

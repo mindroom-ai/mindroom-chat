@@ -574,10 +574,7 @@ export const useRoomInputSendSessionController = ({
         textContent,
         getTextRelationForSendSession(session)
       );
-      const resolvedBeforeSend = captureResolvedThreadBeforeReply(
-        session.room,
-        content['m.relates_to']
-      );
+      const resolvedBeforeSend = captureResolvedThreadBeforeReply(session.room, content);
       const markedContent = withSubmissionMarker(session, content, undefined);
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
       // A failed upload throws before anything is sent, so the text returns to the composer.
@@ -690,7 +687,7 @@ export const useRoomInputSendSessionController = ({
       if (!relation) session.rootModel = undefined;
       const resolvedBeforeSend = captureResolvedThreadBeforeReply(
         session.room,
-        contentWithRelation['m.relates_to']
+        contentWithRelation
       );
       const txnId = mx.makeTxnId();
       const response = await mx

@@ -14,6 +14,10 @@ import {
   reopenResolvedThreadAfterReply,
   type ResolvedThreadReplySnapshot,
 } from '../event-store/threads/threadTagMutations';
+import {
+  clearPendingThreadTag,
+  setPendingThreadTag,
+} from '../event-store/threads/threadTagPending';
 import { ErrorCode } from '../matrix/cs-errorcode';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
@@ -170,16 +174,11 @@ const postPreparedMessage = async (
 
 /** Sends one message and returns its event ID. */
 const postMessage = (mx: MatrixClient, room: Room, content: IContent): Promise<string> =>
-  postPreparedMessage(
-    mx,
-    room,
-    content,
-    captureResolvedThreadBeforeReply(room, content['m.relates_to'])
-  );
+  postPreparedMessage(mx, room, content, captureResolvedThreadBeforeReply(room, content));
 
 /** Sends a text message, as a long-text sidecar when one event cannot hold it, as the composer does. */
 const postText = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
-  const resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content['m.relates_to']);
+  const resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content);
   const eventContent =
     contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
       ? content
@@ -247,14 +246,17 @@ export const setCaptureResolved = async (
   threadId: string,
   resolved: boolean
 ): Promise<void> => {
+  const content = resolved ? buildPerTagEventContent(mx.getSafeUserId()) : undefined;
+  setPendingThreadTag(room.roomId, threadId, RESOLVED_TAG, content ?? null);
   try {
     await mx.sendStateEvent(
       room.roomId,
       MINDROOM_THREAD_TAGS_EVENT as never,
-      (resolved ? buildPerTagEventContent(mx.getSafeUserId()) : {}) as never,
+      (content ?? {}) as never,
       buildPerTagStateKey(threadId, RESOLVED_TAG)
     );
   } catch (error) {
+    clearPendingThreadTag(room.roomId, threadId, RESOLVED_TAG);
     throw new CaptureError(isForbidden(error) ? 'forbidden' : 'send-failed', error);
   }
 };
