@@ -215,7 +215,7 @@ const canPinThreadOpening = (o: ThreadOpeningPinOptions): boolean =>
  * reader's first gesture or a jump target suppresses the opening pin.
  */
 const tryPinThreadOpening = (o: ThreadOpeningPinOptions, scrollArea: HTMLElement): boolean => {
-  if (!canPinThreadOpening(o) || !o.requestThreadOpenBottomPin()) return false;
+  if (!o.requestThreadOpenBottomPin()) return false;
   if (o.scrollThreadToEnd) o.scrollThreadToEnd(false);
   else scrollToBottom(scrollArea, 'instant');
   return true;

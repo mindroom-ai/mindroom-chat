@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { listShrinkAfterResize, listShrinkNotRendered } from './timelineListShrink';
+import {
+  listShrinkAfterResize,
+  listShrinkNotRendered,
+  pastEndCorrection,
+} from './timelineListShrink';
 
 // A thread's newest reply finished and shrank by 62 px; the list keeps its rendered height until
 // React renders it again. Rows after the reply (hidden events, edits) take no height.
@@ -111,5 +115,30 @@ describe('listShrinkAfterResize', () => {
 
   it('cannot tell for a row above the newest one, whose rows below have not moved yet', () => {
     expect(listShrinkAfterResize(shrunk(), rows([68, 3626, 308, 0]), 1, -30)).toBeUndefined();
+  });
+});
+
+describe('pastEndCorrection', () => {
+  const scroller = { scrollHeight: 5840, clientHeight: 600 };
+
+  it('bounds the shownPx === undefined fallback to the overshoot past the new max scroll', () => {
+    // At bottom (maxScroll = 5240): corrects by the full delta (-600).
+    expect(pastEndCorrection(-600, 5240, 5240, scroller, undefined, 0)).toBe(-600);
+    // Away from bottom (440 px above maxScroll): clamps only by the 160 px overshoot, not -600.
+    expect(pastEndCorrection(-600, 4800, 4800, scroller, undefined, 0)).toBe(-160);
+    // At or above the new maxScroll (4640): leaves scrollTop unchanged.
+    expect(pastEndCorrection(-600, 4640, 4640, scroller, undefined, 0)).toBe(0);
+    expect(pastEndCorrection(-600, 4000, 4000, scroller, undefined, 0)).toBe(0);
+    // Non-negative delta or missing scroll element returns 0.
+    expect(pastEndCorrection(0, 5240, 5240, scroller, undefined, 0)).toBe(0);
+    expect(pastEndCorrection(20, 5240, 5240, scroller, undefined, 0)).toBe(0);
+    expect(pastEndCorrection(-600, 5240, 5240, null, undefined, 0)).toBe(0);
+  });
+
+  it('clamps by exact remaining shrink when shownPx is known', () => {
+    const shortScroller = { scrollHeight: 1000, clientHeight: 500 };
+    expect(pastEndCorrection(-35, 500, 500, shortScroller, 35, 0)).toBe(-35);
+    expect(pastEndCorrection(-35, 490, 490, shortScroller, 35, 0)).toBe(-25);
+    expect(pastEndCorrection(-35, 400, 400, shortScroller, 35, 0)).toBe(0);
   });
 });

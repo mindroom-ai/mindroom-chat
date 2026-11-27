@@ -54,20 +54,32 @@ const setRect = (element: HTMLElement, top: number, height: number) => {
     ({ top, bottom: top + height, height, left: 0, right: 0, width: 0 }) as DOMRect;
 };
 
+const mountTiles = (
+  scrollElement: HTMLElement,
+  listHeight: number,
+  tiles: readonly { index: number; top: number; height: number }[]
+) => {
+  const inner = scrollElement.firstElementChild;
+  if (!(inner instanceof HTMLElement)) throw new Error('Virtual inner element never mounted');
+  setRect(inner, 0, listHeight);
+  const nodes = tiles.map(({ index, top, height }) => {
+    const tile = document.createElement('div');
+    tile.dataset.index = String(index);
+    setRect(tile, top, height);
+    return tile;
+  });
+  inner.replaceChildren(...nodes);
+};
+
 const mountShrunkNewestTile = (
   scrollElement: HTMLElement,
   listHeight: number,
   newestIndex: number,
   shrunkHeight: number
-) => {
-  const inner = scrollElement.firstElementChild;
-  if (!(inner instanceof HTMLElement)) throw new Error('Virtual inner element never mounted');
-  setRect(inner, 0, listHeight);
-  const tile = document.createElement('div');
-  tile.dataset.index = String(newestIndex);
-  setRect(tile, newestIndex * ROW_HEIGHT, shrunkHeight);
-  inner.replaceChildren(tile);
-};
+) =>
+  mountTiles(scrollElement, listHeight, [
+    { index: newestIndex, top: newestIndex * ROW_HEIGHT, height: shrunkHeight },
+  ]);
 
 const stubUserAgent = (userAgent: string, platform: string, maxTouchPoints: number) => {
   Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
@@ -377,8 +389,13 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     render();
     expect(HEADER_PX + 4800 - scrollElement.scrollTop).toBe(120);
 
-    // Collapsing row 48 from 720px -> 120px (-600px) must not run pastEndCorrection and push it
-    // offscreen to 720px; the browser's own max-scroll clamp leaves it visible at 280px.
+    // Mount real tiles for rows 48 and 49 so listShrinkAfterResize hits index < reach.newest ->
+    // undefined (not empty virtualInnerRef). Collapsing row 48 (720px -> 120px) must not run
+    // pastEndCorrection; the browser's own max-scroll clamp leaves it visible at 280px.
+    mountTiles(scrollElement, 48 * ROW_HEIGHT + 720 + 80, [
+      { index: 48, top: 48 * ROW_HEIGHT, height: 120 },
+      { index: 49, top: 48 * ROW_HEIGHT + 720, height: 80 },
+    ]);
     v.resizeItem(48, 120);
     render();
     const maxScrollAfter = Math.max(0, scrollElement.scrollHeight - VIEWPORT_HEIGHT);
