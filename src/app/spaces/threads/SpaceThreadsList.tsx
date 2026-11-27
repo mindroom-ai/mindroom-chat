@@ -57,6 +57,7 @@ import { setThreadResolved } from '../../threads/tags/useMutateThreadTags';
 import { ownDirectionLine } from '../../ui/directional';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
+import { useIsSpaceThreadsPassive } from '../spaceUnderLayerContext';
 import type { SpaceRoomItem } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
 
@@ -157,6 +158,7 @@ type SpaceThreadCardRowProps = {
   resolving: boolean;
   pinning: boolean;
   menuOpen: boolean;
+  passive: boolean;
   snoozeNow: number;
   metaVersion: number;
   onOpenThread: (roomId: string, threadRootId: string) => void;
@@ -178,6 +180,7 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
   resolving,
   pinning,
   menuOpen,
+  passive,
   snoozeNow,
   metaVersion,
   onOpenThread,
@@ -263,6 +266,7 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
       pinned={pinned}
       {...actions}
       menuOpen={menuOpen}
+      passive={passive}
       resolveLabel={t('thread.resolve')}
       reopenLabel={t('threadActions.reopen')}
       onThreadClick={handleClick}
@@ -315,6 +319,7 @@ export function SpaceThreadsList({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
+  const passive = useIsSpaceThreadsPassive();
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const fallbackMemoryRef = useRef<ScrollAnchorMemory>(new Map());
@@ -435,6 +440,7 @@ export function SpaceThreadsList({
         resolving={resolvingKeys.has(`${entry.roomId}:${entry.threadRootId}`)}
         pinning={pinningRoomIds.has(entry.roomId)}
         menuOpen={Boolean(menuRoom) && menuKey === entry.key}
+        passive={passive}
         snoozeNow={snoozeNow}
         metaVersion={metaVersion}
         onOpenThread={onOpenThread}
@@ -450,7 +456,6 @@ export function SpaceThreadsList({
       ref={scrollRef}
       className={css.ThreadListScroll}
       data-space-threads-list="true"
-      data-page-slide-clip=""
       data-compact-card-count={blocks.ids.length}
       data-cards-pending={!blocks.extentComplete || undefined}
       tabIndex={-1}
@@ -484,6 +489,7 @@ export function SpaceThreadsList({
           anchor={menu.anchor}
           onClose={() => {
             if (!clearMenu(menu)) return;
+            if (passive) return;
             const trigger = menu.trigger?.isConnected
               ? menu.trigger
               : menuKey && findCompactCard(scrollRef.current, menuKey);

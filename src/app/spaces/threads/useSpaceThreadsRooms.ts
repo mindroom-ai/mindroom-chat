@@ -31,6 +31,7 @@ import { revealDirectionControls } from '../../ui/directional';
 import { getRoomAccentColor, type SpaceRoomItem } from './spaceThreadsModel';
 
 const ZERO_REPLY_RESCAN_DEBOUNCE_MS = 150;
+const EMPTY_ROOM_IDS: readonly string[] = [];
 
 const shouldTriggerStandaloneRescan = (
   event: MatrixEvent,
@@ -58,12 +59,15 @@ const shouldTriggerStandaloneRescan = (
  * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption,
  * non-streaming edits, and main-timeline read receipts).
  */
-export const useSpaceThreadsRooms = (spaceId: string) => {
+export const useSpaceThreadsRooms = (spaceId: string, passive = false) => {
   const mx = useMatrixClient();
   const store = useStore();
   const visibleSpaceRoomIds = useVisibleRooms(useSpaceNavigationRooms(spaceId));
-  const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds);
-  const loadedMembersVersion = useLoadedRoomMembers(mx, visibleSpaceRoomIds);
+  const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds, !passive);
+  const loadedMembersVersion = useLoadedRoomMembers(
+    mx,
+    passive ? EMPTY_ROOM_IDS : visibleSpaceRoomIds
+  );
   const spaceRooms = useMemo(
     () =>
       visibleSpaceRoomIds.map((id) => mx.getRoom(id)).filter((room): room is Room => Boolean(room)),
@@ -74,7 +78,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   const [timelineTick, setTimelineTick] = useState(0);
 
   useEffect(() => {
-    if (spaceRooms.length === 0) return undefined;
+    if (passive || spaceRooms.length === 0) return undefined;
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
     const handleState = (event: MatrixEvent) => {
       const type = event.getType();
@@ -100,7 +104,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
         room.removeListener?.(RoomEvent.CurrentStateUpdated, bumpMeta);
       });
     };
-  }, [spaceRooms]);
+  }, [passive, spaceRooms]);
 
   const metaVersion = roomMetaVersion + loadedMembersVersion;
 
@@ -121,7 +125,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   const orderedRoomIds = useMemo(() => [...roomsById.keys()], [roomsById]);
 
   useEffect(() => {
-    if (spaceRooms.length === 0) return undefined;
+    if (passive || spaceRooms.length === 0) return undefined;
     const roomById = new Map(spaceRooms.map((room) => [room.roomId, room] as const));
     const myUserId = mx.getUserId?.();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -165,7 +169,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
       });
       mx.removeListener?.(MatrixEventEvent.Decrypted, onDecrypted);
     };
-  }, [mx, spaceRooms, store]);
+  }, [mx, passive, spaceRooms, store]);
 
   const hasMindroomAgents = useMemo(() => {
     void metaVersion;

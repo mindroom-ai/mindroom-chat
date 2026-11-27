@@ -58,6 +58,7 @@ export function useCompactBlocks(options: Options) {
     };
   }, [memory, roomId]);
   const { geometry, saved } = state;
+  const savedScrollTopRef = useRef<{ roomId: string; scrollTop: number } | undefined>(undefined);
   const { heights, fresh, gap } = geometry;
   const [, render] = useReducer((revision: number) => revision + 1, 0);
   const blocks: string[][] = [];
@@ -110,7 +111,11 @@ export function useCompactBlocks(options: Options) {
   // went, so what places the list (the anchor memory, the browser) chooses as among all cards.
   const moved = state.order !== order;
   const seen = moved ? [] : slots(geometry.visible);
-  const offset = (back && placeReady ? saved?.scrollTop : scrollRef.current?.scrollTop) ?? 0;
+  const liveScrollTop =
+    savedScrollTopRef.current?.roomId === roomId
+      ? savedScrollTopRef.current.scrollTop
+      : scrollRef.current?.scrollTop;
+  const offset = (back && placeReady ? saved?.scrollTop : liveScrollTop) ?? 0;
   let here = 0;
   for (let end = 0; offset > 0 && here < blocks.length - 1; here += 1) {
     for (const id of blocks[here]!) end += (heights.get(id) ?? 0) + gap;
@@ -262,6 +267,22 @@ export function useCompactBlocks(options: Options) {
       view.removeEventListener('scroll', scroll);
     };
   }, [contentRef, geometry, getRowId, memory, roomId, scrollRef, state]);
+  useLayoutEffect(() => {
+    const view = scrollRef.current;
+    const pending = savedScrollTopRef.current;
+    if (view && pending?.roomId === roomId && view.clientHeight > 0) {
+      if (view.scrollTop !== pending.scrollTop) view.scrollTop = pending.scrollTop;
+      savedScrollTopRef.current = undefined;
+    }
+    return () => {
+      const currentView = scrollRef.current;
+      // Capture scrollTop before `<Activity mode="hidden">` sets `display: none` (which resets
+      // scrollTop to 0 in WebKit); never overwrite from a zero-sized hidden element.
+      if (currentView && currentView.clientHeight > 0) {
+        savedScrollTopRef.current = { roomId, scrollTop: currentView.scrollTop };
+      }
+    };
+  }, [roomId, scrollRef]);
   useLayoutEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;

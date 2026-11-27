@@ -408,7 +408,6 @@ export function CompactRoomView({
       ref={viewRef}
       className={css.View}
       data-compact-room-view="true"
-      data-page-slide-clip=""
       // For e2e: the cards the list has, which is more than it mounts.
       data-compact-card-count={ids.length}
       data-cards-pending={!blocks.extentComplete || undefined}

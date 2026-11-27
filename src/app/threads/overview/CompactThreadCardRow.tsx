@@ -72,6 +72,7 @@ export type CompactThreadCardRowProps = {
   actionsDisabled: boolean;
   swipeEnabled: boolean;
   menuOpen: boolean;
+  passive?: boolean;
   resolveLabel: string;
   reopenLabel: string;
   onThreadClick: (threadRootId: string) => void;
@@ -93,6 +94,7 @@ export const CompactThreadCardRow = React.memo(
     actionsDisabled,
     swipeEnabled,
     menuOpen,
+    passive = false,
     resolveLabel,
     reopenLabel,
     onThreadClick,
@@ -102,7 +104,7 @@ export const CompactThreadCardRow = React.memo(
   }: CompactThreadCardRowProps) => {
     const { roomId } = room;
     const rootId = viewModel.id.threadRootId;
-    const shownRef = useInitializeShownThread(roomId, rootId, scrollRootRef);
+    const shownRef = useInitializeShownThread(roomId, passive ? undefined : rootId, scrollRootRef);
     // A live call's row shows in its card as in the timeline: who is in the call, Join and
     // Transcript. Once the call ends the card is a thread like any other.
     const callRow = useThreadRootLiveCallRow(room, rootId);
@@ -110,16 +112,16 @@ export const CompactThreadCardRow = React.memo(
     // render again for them. A thread whose first message is still sending has none until the
     // server has confirmed it, so a badge is only ever given the root's own ID.
     const badges = useMemo(() => {
-      const confirmed = isConfirmedMatrixEventId(rootId);
-      if (!leadingBadges && !confirmed) return undefined;
+      const showPluginBadges = !passive && isConfirmedMatrixEventId(rootId);
+      if (!leadingBadges && !showPluginBadges) return undefined;
       if (!leadingBadges) return <ThreadCardBadges room={room} threadId={rootId} />;
       return (
         <>
           {leadingBadges}
-          {confirmed && <ThreadCardBadges room={room} threadId={rootId} />}
+          {showPluginBadges && <ThreadCardBadges room={room} threadId={rootId} />}
         </>
       );
-    }, [leadingBadges, room, rootId]);
+    }, [leadingBadges, passive, room, rootId]);
 
     const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
       onOpenMenu({
@@ -147,9 +149,6 @@ export const CompactThreadCardRow = React.memo(
         className={css.CardShell}
         data-room-id={roomId}
         data-scroll-anchor={rootId}
-        // The phone slide can keep just this shell outside the list's clip. Card adornments
-        // stay by the row, and popovers that can escape it render in the portal instead.
-        data-page-slide-row=""
         draggable={draggable || undefined}
         onPointerDown={
           offered ? (event) => setMousePressed(event.pointerType === 'mouse') : undefined

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { Activity, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from './scrollAnchorMemory';
@@ -382,5 +382,50 @@ describe('useScrollAnchorMemory', () => {
     const layout = createLayout(rowKeys(20));
     mount(memory, layout);
     expect(layout.view.scrollTop).toBe(300);
+  });
+
+  it('saves anchors on Activity hide cleanup and resets restore state for the subsequent reveal', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    const layout = createLayout(keys);
+
+    function ActivityList({ mode }: { mode: 'visible' | 'hidden' }) {
+      const scrollRef = useRef<HTMLElement>(layout.view);
+      const contentRef = useRef<HTMLElement>(layout.content);
+      useScrollAnchorMemory({
+        memory,
+        memoryKey: 'activity-list',
+        scrollRef,
+        contentRef,
+        ready: true,
+      });
+      return React.createElement('div', { 'data-mode': mode });
+    }
+
+    const renderActivity = (mode: 'visible' | 'hidden') =>
+      React.createElement(Activity, {
+        mode,
+        children: React.createElement(ActivityList, { mode }),
+      });
+
+    act(() => {
+      renderer = create(renderActivity('visible'));
+    });
+    layout.view.scrollTop = 320;
+    const beforeHide = layout.offsetOf('row-10');
+
+    act(() => {
+      renderer?.update(renderActivity('hidden'));
+    });
+    expect(memory.get('activity-list')?.scrollTop).toBe(320);
+
+    // Simulate WebKit resetting scrollTop to 0 under display: none while a new row arrives above.
+    layout.view.scrollTop = 0;
+    layout.setRows(['row-new', ...keys]);
+
+    act(() => {
+      renderer?.update(renderActivity('visible'));
+    });
+    expect(layout.offsetOf('row-10')).toBe(beforeHide);
   });
 });

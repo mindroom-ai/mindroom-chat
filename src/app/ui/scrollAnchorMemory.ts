@@ -219,6 +219,9 @@ export function useScrollAnchorMemory({
       if (view && readyRef.current) {
         memory.set(memoryKey, captureScrollAnchors(view, getRowId));
       }
+      // Reset restore state so a subsequent `<Activity>` reveal (which preserves refs)
+      // re-reads the saved anchors from `memory`.
+      restoreRef.current = undefined;
     };
   }, [getRowId, memory, memoryKey, scrollRef]);
 
