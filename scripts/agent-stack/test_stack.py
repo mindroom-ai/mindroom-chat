@@ -523,6 +523,7 @@ class CommandLineTests(unittest.TestCase):
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/terminal.py", "async def terminal_write("),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/thread_resolution.py", "async def thread_resolution("),
             (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/thread_tags.py", "async def thread_tags("),
             (Path("/mindroom"), "a" * 40, "src/mindroom/tools/__init__.py", "temporary_secrets"),
         ]
@@ -600,6 +601,43 @@ class CommandLineTests(unittest.TestCase):
             else:
                 self.assertIn("call terminal_open once, then terminal_run once", config)
                 self.assertNotIn("terminal_write", config)
+
+    def test_a_commit_with_consolidated_thread_resolution_adapts_rule_and_real_instructions(self) -> None:
+        consolidated_rule = (
+            "    - match: thread_resolution\n      arguments:\n        action: resolve\n      action: require_approval\n"
+        )
+        legacy_rule = "    - match: resolve_thread\n      action: require_approval\n"
+
+        consolidated = self.config_of_a_start(True)
+        self.assertIn(consolidated_rule, consolidated)
+        self.assertNotIn("match: resolve_thread", consolidated)
+        self.assertEqual(
+            sorted(p.name for p in (self.slot_dir / "approval_scripts").iterdir()),
+            ["shell_review.py", "thread_tags_review.py"],
+        )
+        legacy = self.config_of_a_start(False)
+        self.assertIn(legacy_rule, legacy)
+        self.assertNotIn("match: thread_resolution", legacy)
+
+        keys = dict.fromkeys(stack.REQUIRED_REAL_KEYS, "sk-test")
+        for is_consolidated in (True, False):
+            with (
+                self.subTest(consolidated=is_consolidated),
+                self.starting(),
+                mock.patch.dict(os.environ, keys),
+                mock.patch.object(stack, "commit_has", return_value=False),
+                mock.patch.object(stack, "commit_mentions", return_value=is_consolidated),
+            ):
+                self.assertEqual(self.main("7", "up", "--model", "real"), 0)
+            config = (self.slot_dir / "config.yaml").read_text()
+            if is_consolidated:
+                self.assertIn(consolidated_rule, config)
+                self.assertIn("call thread_resolution once with action 'resolve'", config)
+                self.assertNotIn("resolve_thread", config)
+            else:
+                self.assertIn(legacy_rule, config)
+                self.assertIn("call resolve_thread once, then reply with what the tool returned.", config)
+                self.assertNotIn("match: thread_resolution", config)
 
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
@@ -1464,6 +1502,47 @@ class TranscriptionTests(unittest.TestCase):
         self.assertNotIn("terminal_open", consolidated_real)
         self.assertNotIn("terminal_run", consolidated_real)
 
+    def test_consolidated_thread_resolution_updates_approval_rule_and_real_instructions(self) -> None:
+        consolidated_rule = (
+            "    - match: thread_resolution\n      arguments:\n        action: resolve\n      action: require_approval\n"
+        )
+        legacy_rule = "    - match: resolve_thread\n      action: require_approval\n"
+        consolidated_line = (
+            "#resolve: call thread_resolution once with action 'resolve', then reply with what the tool returned."
+        )
+        legacy_line = "#resolve: call resolve_thread once, then reply with what the tool returned."
+
+        for mode in ("stub", "real", "live"):
+            with self.subTest(mode=mode):
+                legacy = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, consolidated_thread_resolution=False)
+                self.assertIn(legacy_rule, legacy)
+                self.assertNotIn("match: thread_resolution", legacy)
+
+                consolidated = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, consolidated_thread_resolution=True)
+                self.assertIn(consolidated_rule, consolidated)
+                self.assertNotIn("match: resolve_thread", consolidated)
+
+        self.assertIn(legacy_line, stack.real_instructions())
+        self.assertNotIn("thread_resolution", "\n".join(stack.real_instructions()))
+        only_resolve = stack.real_instructions(consolidated_thread_resolution=True)
+        self.assertIn(consolidated_line, only_resolve)
+        self.assertNotIn("resolve_thread", "\n".join(only_resolve))
+        self.assertIn("#tag: call tag_thread once", "\n".join(only_resolve))
+
+        all_three = "\n".join(
+            stack.real_instructions(
+                consolidated_thread_tags=True, consolidated_terminal=True, consolidated_thread_resolution=True
+            )
+        )
+        self.assertIn("#tag: call thread_tags once with action 'tag'", all_three)
+        self.assertIn("#terminal: call terminal_write once with action 'open'", all_three)
+        self.assertIn(consolidated_line, all_three)
+
+        self.assertIn(legacy_line, stack.config_yaml("real", TESTER, STUB_URL, 0.0003))
+        real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, consolidated_thread_resolution=True)
+        self.assertIn(consolidated_line, real)
+        self.assertNotIn("resolve_thread", real)
+
     def test_real_transcripts_go_to_openai_and_luna_writes_the_notes(self) -> None:
         self.assertEqual(self.setting("stub", "real"), self.REAL)
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL)
@@ -2039,6 +2118,26 @@ class StubScenarioTests(unittest.TestCase):
             self.assertEqual(kind, "text")
             self.assertIn(f"Finished **{tag[1:]}** after 1 tool call(s)", text)
             self.assertIn('{"status": "ok"}', text)
+
+    def test_thread_resolution_scenario_adapts_to_consolidated_and_legacy_tools(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+
+        def turn(tool_names: tuple[str, ...], *results: str) -> dict:
+            tools = [{"type": "function", "function": {"name": name}} for name in tool_names]
+            return {**self.turn("please #resolve", *results), "tools": tools}
+
+        self.assertEqual(
+            stub_model.plan(turn(("resolve_thread", "reopen_thread")), scenarios),
+            ("tool", "resolve_thread", {}),
+        )
+        self.assertEqual(
+            stub_model.plan(turn(("thread_resolution",)), scenarios),
+            ("tool", "thread_resolution", {"action": "resolve"}),
+        )
+        kind, text = stub_model.plan(turn(("thread_resolution",), '{"status": "resolved"}'), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **resolve** after 1 tool call(s)", text)
+        self.assertIn('{"status": "resolved"}', text)
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
